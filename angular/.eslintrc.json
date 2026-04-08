@@ -31,7 +31,7 @@
           "error",
           {
             "type": "element",
-            "prefix": "app",
+            "prefix": ["app", "abp"],
             "style": "kebab-case"
           }
         ]
