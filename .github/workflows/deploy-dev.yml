@@ -26,6 +26,19 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Generate NuGet.Config
         run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - name: Create placeholder secrets files
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
       - run: |
           dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
           dotnet test HealthcareSupport.CaseEvaluation.slnx -c Release
