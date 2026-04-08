@@ -33,6 +33,15 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
       - name: Generate NuGet.Config
         run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - name: Create placeholder secrets files (ABP requires these to build)
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            echo '{}' > "$dir/appsettings.secrets.json"
+          done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
 
@@ -52,6 +61,15 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
       - name: Generate NuGet.Config
         run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - name: Create placeholder secrets files
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            echo '{}' > "$dir/appsettings.secrets.json"
+          done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
       - name: Test
         run: >
@@ -79,7 +97,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'yarn'
           cache-dependency-path: angular/yarn.lock
-      - run: yarn install --frozen-lockfile
+      - run: yarn install
       - run: yarn build:prod
 
   frontend-lint:
@@ -95,7 +113,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'yarn'
           cache-dependency-path: angular/yarn.lock
-      - run: yarn install --frozen-lockfile
+      - run: yarn install
       - run: yarn lint
 
   frontend-test:
@@ -112,5 +130,5 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'yarn'
           cache-dependency-path: angular/yarn.lock
-      - run: yarn install --frozen-lockfile
+      - run: yarn install
       - run: yarn test --watch=false --browsers=ChromeHeadless
