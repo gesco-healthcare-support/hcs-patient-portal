@@ -23,7 +23,7 @@
     "@volo/abp.commercial.ng.ui": "~10.0.2",
     "@volo/abp.ng.account": "~10.0.2",
     "@volo/abp.ng.audit-logging": "~10.0.2",
-    "@volo/abp.ng.gdpr": "~10.0.2",
+    "@volo/abp.ng.gdpr": "~10.2.0",
     "@volo/abp.ng.identity": "~10.0.2",
     "@volo/abp.ng.openiddictpro": "~10.0.2",
     "@volo/abp.ng.language-management": "~10.0.2",
