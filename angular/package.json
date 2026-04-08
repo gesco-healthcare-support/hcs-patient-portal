@@ -17,7 +17,7 @@
     "@abp/ng.components": "~10.0.2",
     "@abp/ng.core": "~10.0.2",
     "@abp/ng.oauth": "~10.0.2",
-    "@abp/ng.setting-management": "~10.0.2",
+    "@abp/ng.setting-management": "~10.1.1",
     "@abp/ng.theme.shared": "~10.0.2",
     "@abp/ng.feature-management": "~10.0.2",
     "@volo/abp.commercial.ng.ui": "~10.0.2",
