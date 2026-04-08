@@ -1,0 +1,120 @@
+<abp-modal [busy]="service.isBusy" [(visible)]="service.isVisible">
+  <ng-template #abpHeader>
+    <h3>
+      {{ (service.selected ? 'AbpUi::Edit' : '::NewDoctorAvailability') | abpLocalization }}
+    </h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <form
+      [formGroup]="service.form"
+      id="doctorAvailability"
+      (ngSubmit)="service.submitForm()"
+      validateOnSubmit
+    >
+      <ul ngbNav #nav="ngbNav" class="nav-tabs">
+        <li ngbNavItem>
+          <a ngbNavLink>
+            {{ '::DoctorAvailability' | abpLocalization }}
+          </a>
+          <ng-template ngbNavContent>
+            <div class="mt-2 fade-in-top">
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-available-date">
+                  {{ '::AvailableDate' | abpLocalization }} *
+                </label>
+
+                <input
+                  type="date"
+                  id="doctor-availability-available-date"
+                  formControlName="availableDate"
+                  class="form-control"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-from-time">
+                  {{ '::FromTime' | abpLocalization }} *
+                </label>
+
+                <input
+                  type="time"
+                  step="1"
+                  id="doctor-availability-from-time"
+                  formControlName="fromTime"
+                  class="form-control"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-to-time">
+                  {{ '::ToTime' | abpLocalization }} *
+                </label>
+
+                <input
+                  type="time"
+                  step="1"
+                  id="doctor-availability-to-time"
+                  formControlName="toTime"
+                  class="form-control"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-booking-status">
+                  {{ '::BookingStatusId' | abpLocalization }} *
+                </label>
+
+                <select
+                  id="doctor-availability-booking-status"
+                  formControlName="bookingStatusId"
+                  class="form-select form-control"
+                >
+                  @for (option of service.bookingStatusOptions; track option.key) {
+                    <option [ngValue]="option.value">
+                      {{ '::Enum:BookingStatus.' + option.value | abpLocalization }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-location-id">
+                  {{ '::Location' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="doctor-availability-location-id"
+                  formControlName="locationId"
+                  [getFn]="service.getLocationLookup"
+                ></abp-lookup-select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-appointment-type-id">
+                  {{ '::AppointmentType' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="doctor-availability-appointment-type-id"
+                  formControlName="appointmentTypeId"
+                  [getFn]="service.getAppointmentTypeLookup"
+                ></abp-lookup-select>
+              </div>
+            </div>
+          </ng-template>
+        </li>
+      </ul>
+      <div [ngbNavOutlet]="nav"></div>
+    </form>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="submit" formName="doctorAvailability">
+      {{ 'AbpUi::Save' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

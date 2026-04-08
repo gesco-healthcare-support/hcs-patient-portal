@@ -1,0 +1,109 @@
+/* Styles for the home component */
+.card-bg-image {
+  position: absolute;
+  width: 630px;
+  height: auto;
+  bottom: 0;
+  right: 0;
+  z-index: 1;
+}
+
+.starting-content {
+  position: relative;
+  z-index: 2;
+}
+
+
+@media (min-width: 1199px) {
+  .h-lg-100 {
+    height: 100% !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .h-md-100 {
+    height: 100% !important;
+  }
+}
+
+.patient-home__title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.patient-home {
+  padding: 5rem 1rem 1rem;
+}
+
+.patient-home__header {
+  margin-bottom: 1.25rem;
+}
+
+.patient-home__cta {
+  background: #f9fbfd;
+  border: 1px solid #e8ebf0;
+  border-radius: 0.5rem;
+  padding: 1.1rem 1rem 0.9rem;
+  text-align: center;
+  min-height: 120px;
+}
+
+.patient-home__search {
+  min-width: 210px;
+}
+
+.patient-home__requests {
+  margin-top: 0.75rem;
+}
+
+.patient-home__requests-header {
+  margin-bottom: 0.625rem;
+}
+
+.patient-home__requests-title {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.patient-home__advanced-search-bar {
+  border: 1px solid #e5e9ef;
+  border-radius: 0.35rem;
+  background: #f9fbfd;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.patient-home__grid-wrap {
+  border: 1px solid #e5e9ef;
+  border-radius: 0.35rem;
+  background: #fff;
+  padding: 0.875rem 0.875rem 0.25rem;
+}
+
+:host ::ng-deep .patient-home__datatable {
+  border: 0;
+
+  .datatable-header {
+    background: #eef5fc;
+    border-bottom: 1px solid #dce7f2;
+  }
+
+  .datatable-header-cell-label {
+    white-space: nowrap;
+    font-size: 0.82rem;
+  }
+
+  .datatable-body-row .datatable-body-cell,
+  .datatable-header-cell {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .patient-home {
+    padding: 5rem 1rem 1rem;
+  }
+}
+

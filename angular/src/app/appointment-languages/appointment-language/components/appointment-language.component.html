@@ -1,0 +1,81 @@
+<abp-page [title]="title | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button
+        *abpPermission="'CaseEvaluation.AppointmentLanguages.Create'"
+        class="btn btn-primary btn-sm"
+        type="button"
+        (click)="create()"
+      >
+        <i class="fa fa-plus me-1" aria-hidden="true"></i>
+        {{ '::NewAppointmentLanguage' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <abp-advanced-entity-filters localizationSourceName="" [list]="list">
+  </abp-advanced-entity-filters>
+
+  <div class="card">
+    <div class="card-body">
+      <ngx-datatable
+        default
+        [rows]="service.data.items"
+        [count]="service.data.totalCount"
+        [list]="list"
+      >
+        @if (isActionButtonVisible) {
+          <ngx-datatable-column
+            [name]="'AbpUi::Actions' | abpLocalization"
+            [maxWidth]="150"
+            [width]="150"
+            [sortable]="false"
+          >
+            <ng-template let-row="row" let-i="rowIndex" ngx-datatable-cell-template>
+              <div ngbDropdown container="body" class="d-inline-block">
+                <button
+                  class="btn btn-primary btn-sm dropdown-toggle"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  ngbDropdownToggle
+                >
+                  <i class="fa fa-cog me-1" aria-hidden="true"></i>
+                  {{ 'AbpUi::Actions' | abpLocalization }}
+                </button>
+
+                <div ngbDropdownMenu>
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.AppointmentLanguages.Edit'"
+                    (click)="update(row)"
+                  >
+                    {{ 'AbpUi::Edit' | abpLocalization }}
+                  </button>
+
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.AppointmentLanguages.Delete'"
+                    (click)="delete(row)"
+                  >
+                    {{ 'AbpUi::Delete' | abpLocalization }}
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          </ngx-datatable-column>
+        }
+        <ngx-datatable-column name="{{ '::Name' | abpLocalization }}" prop="name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.name }}
+          </ng-template>
+        </ngx-datatable-column>
+      </ngx-datatable>
+    </div>
+  </div>
+</abp-page>
+
+@defer (when serviceDetail.isVisible) {
+  @if (serviceDetail.isVisible) {
+    <app-appointment-language-detail-modal />
+  }
+}

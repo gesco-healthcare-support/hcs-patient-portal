@@ -1,0 +1,23 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU" />
+    </Configurations>
+    <Folder Name="/src/">
+        <Project Path="src/HealthcareSupport.CaseEvaluation.Domain/HealthcareSupport.CaseEvaluation.Domain.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.Application/HealthcareSupport.CaseEvaluation.Application.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.Domain.Shared/HealthcareSupport.CaseEvaluation.Domain.Shared.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.Application.Contracts/HealthcareSupport.CaseEvaluation.Application.Contracts.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.HttpApi/HealthcareSupport.CaseEvaluation.HttpApi.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.HttpApi.Client/HealthcareSupport.CaseEvaluation.HttpApi.Client.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj" />
+        <Project Path="src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSupport.CaseEvaluation.DbMigrator.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/HealthcareSupport.CaseEvaluation.Application.Tests/HealthcareSupport.CaseEvaluation.Application.Tests.csproj" />
+        <Project Path="test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.csproj" />
+        <Project Path="test/HealthcareSupport.CaseEvaluation.TestBase/HealthcareSupport.CaseEvaluation.TestBase.csproj" />
+        <Project Path="test/HealthcareSupport.CaseEvaluation.Domain.Tests/HealthcareSupport.CaseEvaluation.Domain.Tests.csproj" />
+    </Folder>
+</Solution>

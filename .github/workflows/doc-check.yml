@@ -1,0 +1,24 @@
+name: Documentation Check
+on:
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  doc-check:
+    runs-on: ubuntu-latest
+    # Uncomment when GitHub repo is live and ANTHROPIC_API_KEY is set as a secret
+    # steps:
+    #   - uses: actions/checkout@v4
+    #   - uses: anthropics/claude-code-action@v1
+    #     with:
+    #       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    #       prompt: |
+    #         Check if documentation in docs/ is still accurate given the code
+    #         changes in this PR. Specifically:
+    #         1. Read the changed files from the PR diff
+    #         2. Identify which features were affected
+    #         3. Check if their docs/features/ entries are still accurate
+    #         4. Report any docs that need updating
+    #       claude_args: "--allowedTools Read,Grep,Glob --max-turns 10"
+    steps:
+      - run: echo "Doc check workflow ready. Uncomment steps when ANTHROPIC_API_KEY is configured."

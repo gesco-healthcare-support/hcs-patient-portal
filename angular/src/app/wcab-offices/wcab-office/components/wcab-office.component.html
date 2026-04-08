@@ -1,0 +1,341 @@
+<abp-page [title]="title | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button
+        class="btn btn-primary btn-sm mx-2"
+        type="button"
+        [disabled]="service.isExportToExcelBusy"
+        (click)="exportToExcel()"
+      >
+        {{ '::ExportToExcel' | abpLocalization }}
+      </button>
+
+      <button
+        *abpPermission="'CaseEvaluation.WcabOffices.Create'"
+        class="btn btn-primary btn-sm"
+        type="button"
+        (click)="create()"
+      >
+        <i class="fa fa-plus me-1" aria-hidden="true"></i>
+        {{ '::NewWcabOffice' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <abp-advanced-entity-filters localizationSourceName="" [list]="list">
+    @if (service.filters; as filters) {
+      <abp-advanced-entity-filters-form>
+        <form #filterForm (keyup.enter)="list.get()">
+          <div class="row">
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="nameFilter">
+                  {{ '::Name' | abpLocalization }}
+                </label>
+
+                <input
+                  id="nameFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.name"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="abbreviationFilter">
+                  {{ '::Abbreviation' | abpLocalization }}
+                </label>
+
+                <input
+                  id="abbreviationFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.abbreviation"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="addressFilter">
+                  {{ '::Address' | abpLocalization }}
+                </label>
+
+                <input
+                  id="addressFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.address"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="cityFilter">
+                  {{ '::City' | abpLocalization }}
+                </label>
+
+                <input
+                  id="cityFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.city"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="zipCodeFilter">
+                  {{ '::ZipCode' | abpLocalization }}
+                </label>
+
+                <input
+                  id="zipCodeFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.zipCode"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="isActiveFilter">
+                  {{ '::IsActive' | abpLocalization }}
+                </label>
+
+                <select
+                  name="isActive"
+                  id="isActiveFilter"
+                  class="form-select form-control"
+                  [(ngModel)]="filters.isActive"
+                  [ngModelOptions]="{ standalone: true }"
+                  (change)="list.get()"
+                >
+                  <option [ngValue]=""></option>
+                  <option [ngValue]="true">{{ 'AbpUi::Yes' | abpLocalization }}</option>
+                  <option [ngValue]="false">{{ 'AbpUi::No' | abpLocalization }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="stateIdFilter">
+                  {{ '::State' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="stateIdFilter"
+                  [getFn]="serviceDetail.getStateLookup"
+                  [(ngModel)]="filters.stateId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto align-self-end mb-3">
+              <div class="row">
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-outline-primary" (click)="clearFilters()">
+                    <span>{{ 'AbpUi::Clear' | abpLocalization }}</span>
+                  </button>
+                </div>
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-primary" (click)="list.get()">
+                    <span>{{ 'AbpUi::Refresh' | abpLocalization }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </abp-advanced-entity-filters-form>
+    }
+  </abp-advanced-entity-filters>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      @if (service.selectedCount() > 0) {
+        <h4 class="card-title">
+          {{
+            '::AllItemsAreSelected'
+              | abpLocalization
+                : (service.allSelected() ? service.data.totalCount : service.selectedCount())
+          }}
+        </h4>
+
+        <div>
+          <button class="btn btn-outline-primary btn-sm" (click)="service.selectAll()">
+            @if (service.allSelected()) {
+              {{ '::ClearSelection' | abpLocalization }}
+            } @else {
+              {{ '::SelectAllItems' | abpLocalization: service.data.totalCount }}
+            }
+          </button>
+
+          <button
+            *abpPermission="'CaseEvaluation.WcabOffices.Delete'"
+            class="btn btn-danger btn-sm mx-1"
+            (click)="service.bulkDelete()"
+          >
+            <i class="fa fa-trash me-1" aria-hidden="true"></i>
+            {{ 'AbpUi::Delete' | abpLocalization: service.selectedCount() }}
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="card-body">
+      <ngx-datatable
+        default
+        [rows]="service.data.items"
+        [count]="service.data.totalCount"
+        [list]="list"
+        [selected]="service.selected()"
+        [selectionType]="service.selectionType.checkbox"
+        (select)="service.onSelect($event)"
+      >
+        <ngx-datatable-column
+          [width]="40"
+          [sortable]="false"
+          [canAutoResize]="false"
+          [draggable]="false"
+          [resizeable]="false"
+        >
+          <ng-template
+            ngx-datatable-header-template
+            let-value="value"
+            let-allRowsSelected="allRowsSelected"
+            let-selectFn="selectFn"
+          >
+            @if (service.data.items.length > 0) {
+              <input
+                type="checkbox"
+                class="form-check-input"
+                [checked]="allRowsSelected"
+                (change)="selectFn(!allRowsSelected)"
+              />
+            }
+          </ng-template>
+          <ng-template
+            ngx-datatable-cell-template
+            let-value="value"
+            let-isSelected="isSelected"
+            let-onCheckboxChangeFn="onCheckboxChangeFn"
+          >
+            <input
+              class="form-check-input"
+              type="checkbox"
+              [checked]="isSelected"
+              (change)="onCheckboxChangeFn($event)"
+            />
+          </ng-template>
+        </ngx-datatable-column>
+
+        @if (isActionButtonVisible) {
+          <ngx-datatable-column
+            [name]="'AbpUi::Actions' | abpLocalization"
+            [maxWidth]="150"
+            [width]="150"
+            [sortable]="false"
+          >
+            <ng-template let-row="row" let-i="rowIndex" ngx-datatable-cell-template>
+              <div ngbDropdown container="body" class="d-inline-block">
+                <button
+                  class="btn btn-primary btn-sm dropdown-toggle"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  ngbDropdownToggle
+                >
+                  <i class="fa fa-cog me-1" aria-hidden="true"></i>
+                  {{ 'AbpUi::Actions' | abpLocalization }}
+                </button>
+
+                <div ngbDropdownMenu>
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.WcabOffices.Edit'"
+                    (click)="update(row)"
+                  >
+                    {{ 'AbpUi::Edit' | abpLocalization }}
+                  </button>
+
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.WcabOffices.Delete'"
+                    (click)="delete(row)"
+                  >
+                    {{ 'AbpUi::Delete' | abpLocalization }}
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          </ngx-datatable-column>
+        }
+        <ngx-datatable-column name="{{ '::Name' | abpLocalization }}" prop="wcabOffice.name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.wcabOffice.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::Abbreviation' | abpLocalization }}"
+          prop="wcabOffice.abbreviation"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.wcabOffice.abbreviation }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Address' | abpLocalization }}" prop="wcabOffice.address">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.wcabOffice.address }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::City' | abpLocalization }}" prop="wcabOffice.city">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.wcabOffice.city }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::ZipCode' | abpLocalization }}" prop="wcabOffice.zipCode">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.wcabOffice.zipCode }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::IsActive' | abpLocalization }}"
+          prop="wcabOffice.isActive"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            @if (row.wcabOffice.isActive) {
+              <div class="text-success">
+                <span [title]="'AbpUi::Yes' | abpLocalization">
+                  <i class="fa fa-check" aria-hidden="true"></i>
+                </span>
+              </div>
+            } @else {
+              <div class="text-danger">
+                <span [title]="'AbpUi::No' | abpLocalization">
+                  <i class="fa fa-times" aria-hidden="true"></i>
+                </span>
+              </div>
+            }
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::State' | abpLocalization }}" prop="state.name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.state?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+      </ngx-datatable>
+    </div>
+  </div>
+</abp-page>
+
+@defer (when serviceDetail.isVisible) {
+  @if (serviceDetail.isVisible) {
+    <app-wcab-office-detail-modal />
+  }
+}

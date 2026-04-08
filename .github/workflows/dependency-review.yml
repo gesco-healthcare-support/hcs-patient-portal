@@ -1,0 +1,20 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: 'Dependency Review'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: critical
+          comment-summary-in-pr: always

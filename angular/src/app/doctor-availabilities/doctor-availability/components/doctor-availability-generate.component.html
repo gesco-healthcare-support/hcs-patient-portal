@@ -1,0 +1,337 @@
+<abp-page [title]="'::SetAvailabilitySlot' | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button class="btn btn-outline-secondary btn-sm me-2" type="button" (click)="goBack()">
+        <i class="fa fa-arrow-left me-1" aria-hidden="true"></i>
+        {{ 'AbpUi::Back' | abpLocalization }}
+      </button>
+      <button class="btn btn-secondary btn-sm me-2" type="button" (click)="reset()">
+        <i class="fa fa-rotate-left me-1" aria-hidden="true"></i>
+        {{ '::Reset' | abpLocalization }}
+      </button>
+      <button class="btn btn-primary btn-sm" type="button" [disabled]="isGenerating" (click)="generate()">
+        <i class="fa fa-bolt me-1" aria-hidden="true"></i>
+        {{ '::GenerateSlot' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form [formGroup]="form">
+        <div class="d-flex align-items-center mb-3">
+          <div class="form-check me-3">
+            <input class="form-check-input" type="radio" value="dates" formControlName="slotMode" />
+            <label class="form-check-label">{{ '::SlotByDates' | abpLocalization }}</label>
+          </div>
+          <div class="form-check me-3">
+            <input class="form-check-input" type="radio" value="weekdays" formControlName="slotMode" />
+            <label class="form-check-label">{{ '::SlotByWeekdays' | abpLocalization }}</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-location">
+                {{ '::Location' | abpLocalization }} *
+              </label>
+              <abp-lookup-select
+                cid="doctor-availability-location"
+                formControlName="locationId"
+                [getFn]="getLocationLookup"
+              ></abp-lookup-select>
+            </div>
+          </div>
+
+          @if (form.value.slotMode === 'dates') {
+            <div class="col-12 col-md-3">
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-from-date">
+                  {{ '::FromDate' | abpLocalization }} *
+                </label>
+                <input
+                  id="doctor-availability-from-date"
+                  type="date"
+                  class="form-control"
+                  formControlName="fromDate"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-to-date">
+                  {{ '::ToDate' | abpLocalization }} *
+                </label>
+                <input
+                  id="doctor-availability-to-date"
+                  type="date"
+                  class="form-control"
+                  formControlName="toDate"
+                />
+              </div>
+            </div>
+          } @else {
+            <div class="col-12 col-md-6">
+              <div class="mb-3">
+                <label class="form-label d-block">{{ '::SelectMonth' | abpLocalization }}</label>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                  <label class="form-check d-flex align-items-center gap-2 mb-0">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="useCurrentMonth"
+                      [value]="true"
+                      formControlName="useCurrentMonth"
+                    />
+                    <span>{{ '::CurrentMonth' | abpLocalization }}</span>
+                  </label>
+                  <span>{{ currentMonthName }}</span>
+                  <span>{{ '::Or' | abpLocalization }}</span>
+                  <label class="form-check d-flex align-items-center gap-2 mb-0">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="useCurrentMonth"
+                      [value]="false"
+                      formControlName="useCurrentMonth"
+                    />
+                  </label>
+                  <select
+                    class="form-select form-control"
+                    formControlName="selectedMonth"
+                    [disabled]="form.value.useCurrentMonth"
+                  >
+                    <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
+                    @for (month of monthOptions; track month.id) {
+                      <option [ngValue]="month.id">{{ month.name }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            </div>
+          }
+
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-from-time">
+                {{ '::FromTime' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-from-time"
+                type="time"
+                step="60"
+                class="form-control"
+                formControlName="fromTime"
+              />
+            </div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-to-time">
+                {{ '::ToTime' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-to-time"
+                type="time"
+                step="60"
+                class="form-control"
+                formControlName="toTime"
+              />
+            </div>
+          </div>
+
+          @if (form.value.slotMode === 'weekdays') {
+            <div class="col-12 col-md-3">
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-from-day">
+                  {{ '::FromDay' | abpLocalization }}
+                </label>
+                <select
+                  id="doctor-availability-from-day"
+                  class="form-select form-control"
+                  formControlName="fromDay"
+                >
+                  <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
+                  @for (day of weekdayOptions; track day.id) {
+                    <option [ngValue]="day.id">{{ day.name }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-to-day">
+                  {{ '::ToDay' | abpLocalization }}
+                </label>
+                <select
+                  id="doctor-availability-to-day"
+                  class="form-select form-control"
+                  formControlName="toDay"
+                >
+                  <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
+                  @for (day of weekdayOptions; track day.id) {
+                    <option [ngValue]="day.id">{{ day.name }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-appointment-type">
+                {{ '::AppointmentType' | abpLocalization }}
+              </label>
+              <abp-lookup-select
+                cid="doctor-availability-appointment-type"
+                formControlName="appointmentTypeId"
+                [getFn]="getAppointmentTypeLookup"
+              ></abp-lookup-select>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-booking-status">
+                {{ '::BookingStatusId' | abpLocalization }} *
+              </label>
+              <select
+                id="doctor-availability-booking-status"
+                class="form-select form-control"
+                formControlName="bookingStatusId"
+              >
+                @for (option of bookingStatusOptions; track option.key) {
+                  <option [ngValue]="option.value">
+                    {{ '::Enum:BookingStatus.' + option.value | abpLocalization }}
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-interval">
+                {{ '::TimeSlotInterval' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-interval"
+                type="number"
+                class="form-control"
+                min="1"
+                formControlName="appointmentDurationMinutes"
+              />
+              <small class="text-muted">{{ '::Minutes' | abpLocalization }}</small>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  @if (validationMessage) {
+    <div class="alert alert-warning">
+      {{ validationMessage }}
+    </div>
+  }
+
+  @if (preview?.length > 0) {
+    <div class="card">
+      <div class="card-body">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{{ '::Location' | abpLocalization }}</th>
+              <th>{{ '::Date' | abpLocalization }}</th>
+              <th>{{ '::Time' | abpLocalization }}</th>
+              <th>{{ '::Day' | abpLocalization }}</th>
+              <th>{{ '::Action' | abpLocalization }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (day of preview; track day.monthId) {
+              <tr>
+                <td class="text-center">
+                  <button
+                    type="button"
+                    class="btn btn-link p-0"
+                    (click)="toggleRow(day.monthId)"
+                    [attr.aria-expanded]="isExpanded(day.monthId)"
+                  >
+                    <i
+                      class="fa"
+                      [class.fa-plus-circle]="!isExpanded(day.monthId)"
+                      [class.fa-minus-circle]="isExpanded(day.monthId)"
+                    ></i>
+                  </button>
+                </td>
+                <td>{{ day.locationName }}</td>
+                <td>{{ day.dates }}</td>
+                <td>{{ day.time }}</td>
+                <td>{{ day.days }}</td>
+                <td></td>
+              </tr>
+              @if (isExpanded(day.monthId)) {
+                <tr>
+                  <td colspan="6">
+                    <table class="table table-sm mb-0">
+                      <thead>
+                        <tr>
+                          <th>{{ '::Location' | abpLocalization }}</th>
+                          <th>{{ '::TimeSlots' | abpLocalization }}</th>
+                          <th>{{ '::Status' | abpLocalization }}</th>
+                          <th>{{ '::Conflict' | abpLocalization }}</th>
+                          <th>{{ '::Action' | abpLocalization }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (slot of getSlots(day); track slot.timeId) {
+                          <tr>
+                            <td>{{ day.locationName }}</td>
+                            <td>{{ formatSlotTime(slot) }}</td>
+                            <td>
+                              {{ '::Enum:BookingStatus.' + slot.bookingStatusId | abpLocalization }}
+                            </td>
+                            <td>
+                              @if (slot.isConflict) {
+                                <span class="text-danger">{{ 'AbpUi::Yes' | abpLocalization }}</span>
+                              } @else {
+                                <span class="text-success">{{ 'AbpUi::No' | abpLocalization }}</span>
+                              }
+                            </td>
+                            <td>
+                              <button
+                                class="btn btn-outline-danger btn-sm"
+                                type="button"
+                                (click)="removeSlot(day, slot)"
+                              >
+                                <i class="fa fa-trash" aria-hidden="true"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+      <button class="btn btn-secondary" type="button" (click)="goBack()">
+        {{ 'AbpUi::Cancel' | abpLocalization }}
+      </button>
+      <button class="btn btn-primary" type="button" [disabled]="isSubmitting || !canSubmit" (click)="submit()">
+        {{ 'AbpUi::Submit' | abpLocalization }}
+      </button>
+    </div>
+  }
+</abp-page>

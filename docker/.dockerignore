@@ -1,0 +1,13 @@
+.git
+.git.backup-*
+.github
+.claude
+.idea
+.vs
+docs
+Logs
+**/.env
+**/appsettings.Local.json
+**/appsettings.secrets.json
+**/bin/Debug
+**/obj

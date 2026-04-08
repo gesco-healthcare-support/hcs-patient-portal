@@ -1,0 +1,53 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [development]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  validate:
+    name: 'Dev: Validate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - run: |
+          dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
+          dotnet test HealthcareSupport.CaseEvaluation.slnx -c Release
+
+  auto-pr-staging:
+    name: 'Auto PR: development -> staging'
+    runs-on: ubuntu-latest
+    needs: validate
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for existing PR
+        id: check
+        run: |
+          existing=$(gh pr list --base staging --head development --state open --json number -q '.[0].number')
+          echo "existing=$existing" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create PR
+        if: steps.check.outputs.existing == ''
+        run: |
+          gh pr create \
+            --base staging \
+            --head development \
+            --title "Promote: development -> staging" \
+            --body "Auto-generated. Development validation passed."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

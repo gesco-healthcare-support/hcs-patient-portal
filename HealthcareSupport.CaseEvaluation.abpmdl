@@ -1,0 +1,138 @@
+{
+  "template": "app",
+  "imports": {
+    "Volo.Abp.LeptonXTheme": {
+      "version": "5.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"      
+    },
+    "Volo.Abp.TextTemplateManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.LanguageManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.FileManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.OpenIddict.Pro": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.Gdpr": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.AuditLogging.Pro": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Saas": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.Identity.Pro": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.Account.Pro": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.SettingManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.PermissionManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    },
+    "Volo.Abp.FeatureManagement": {
+      "version": "10.0.2",
+      "isInstalled": true,
+      "creationTime": "01/31/2026 16:41:48 +00:00"
+    }
+  },
+  "folders": {
+    "items": {
+      "src": {},
+      "test": {}
+    }
+  },
+  "packages": {
+    "HealthcareSupport.CaseEvaluation.Application": {
+      "path": "src/HealthcareSupport.CaseEvaluation.Application/HealthcareSupport.CaseEvaluation.Application.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.Application.Tests": {
+      "path": "test/HealthcareSupport.CaseEvaluation.Application.Tests/HealthcareSupport.CaseEvaluation.Application.Tests.abppkg",
+      "folder": "test"
+    },
+    "HealthcareSupport.CaseEvaluation.Domain.Shared": {
+      "path": "src/HealthcareSupport.CaseEvaluation.Domain.Shared/HealthcareSupport.CaseEvaluation.Domain.Shared.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.Application.Contracts": {
+      "path": "src/HealthcareSupport.CaseEvaluation.Application.Contracts/HealthcareSupport.CaseEvaluation.Application.Contracts.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.HttpApi": {
+      "path": "src/HealthcareSupport.CaseEvaluation.HttpApi/HealthcareSupport.CaseEvaluation.HttpApi.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.HttpApi.Client": {
+      "path": "src/HealthcareSupport.CaseEvaluation.HttpApi.Client/HealthcareSupport.CaseEvaluation.HttpApi.Client.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.AuthServer": {
+      "path": "src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.HttpApi.Host": {
+    "path": "src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.abppkg",
+    "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests": {
+      "path": "test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests.abppkg",
+      "folder": "test"
+    },
+    "HealthcareSupport.CaseEvaluation.EntityFrameworkCore": {
+      "path": "src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.TestBase": {
+      "path": "test/HealthcareSupport.CaseEvaluation.TestBase/HealthcareSupport.CaseEvaluation.TestBase.abppkg",
+      "folder": "test"
+    },
+    "HealthcareSupport.CaseEvaluation.Domain.Tests": {
+      "path": "test/HealthcareSupport.CaseEvaluation.Domain.Tests/HealthcareSupport.CaseEvaluation.Domain.Tests.abppkg",
+      "folder": "test"
+    },
+    "HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp": {
+      "path": "test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp.abppkg",
+      "folder": "test"
+    },
+    "HealthcareSupport.CaseEvaluation.DbMigrator": {
+      "path": "src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSupport.CaseEvaluation.DbMigrator.abppkg",
+      "folder": "src"
+    },
+    "HealthcareSupport.CaseEvaluation.Domain": {
+      "path": "src/HealthcareSupport.CaseEvaluation.Domain/HealthcareSupport.CaseEvaluation.Domain.abppkg",
+      "folder": "src"
+    }
+  }
+}

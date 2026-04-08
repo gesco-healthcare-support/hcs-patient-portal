@@ -1,0 +1,348 @@
+<abp-modal [busy]="service.isBusy" [(visible)]="service.isVisible">
+  <ng-template #abpHeader>
+    <h3>
+      {{ (service.selected ? 'AbpUi::Edit' : '::NewPatient') | abpLocalization }}
+    </h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <form
+      [formGroup]="service.form"
+      id="patient"
+      (ngSubmit)="service.submitForm()"
+      validateOnSubmit
+    >
+      <ul ngbNav #nav="ngbNav" class="nav-tabs">
+        <li ngbNavItem>
+          <a ngbNavLink>
+            {{ '::Patient' | abpLocalization }}
+          </a>
+          <ng-template ngbNavContent>
+            <div class="mt-2 fade-in-top">
+              <div class="mb-3">
+                <label class="form-label" for="patient-first-name">
+                  {{ '::FirstName' | abpLocalization }} *
+                </label>
+
+                <input
+                  id="patient-first-name"
+                  formControlName="firstName"
+                  class="form-control"
+                  maxlength="50"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-last-name">
+                  {{ '::LastName' | abpLocalization }} *
+                </label>
+
+                <input
+                  id="patient-last-name"
+                  formControlName="lastName"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-middle-name">
+                  {{ '::MiddleName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-middle-name"
+                  formControlName="middleName"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-email">
+                  {{ '::Email' | abpLocalization }} *
+                </label>
+
+                <input
+                  id="patient-email"
+                  formControlName="email"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-gender-id">
+                  {{ '::GenderId' | abpLocalization }} *
+                </label>
+
+                <select
+                  id="patient-gender-id"
+                  formControlName="genderId"
+                  class="form-select form-control"
+                >
+                  <option [ngValue]="null"></option>
+                  @for (option of service.genderOptions; track option.key) {
+                    <option [ngValue]="option.value">
+                      {{ '::Enum:Gender.' + option.value | abpLocalization }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-date-of-birth">
+                  {{ '::DateOfBirth' | abpLocalization }} *
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    readonly
+                    id="patient-date-of-birth"
+                    formControlName="dateOfBirth"
+                    class="form-control"
+                    ngbDatepicker
+                    #dateOfBirthInput
+                    #dateOfBirthDatepicker="ngbDatepicker"
+                    (click)="dateOfBirthDatepicker.open()"
+                    (keyup.space)="dateOfBirthDatepicker.open()"
+                  />
+                  @if (dateOfBirthInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          dateOfBirthDatepicker.writeValue(null);
+                          dateOfBirthDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-phone-number">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-phone-number"
+                  formControlName="phoneNumber"
+                  class="form-control"
+                  maxlength="20"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-social-security-number">
+                  {{ '::SocialSecurityNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-social-security-number"
+                  formControlName="socialSecurityNumber"
+                  class="form-control"
+                  maxlength="20"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-address">
+                  {{ '::Address' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-address"
+                  formControlName="address"
+                  class="form-control"
+                  maxlength="100"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-city">
+                  {{ '::City' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-city"
+                  formControlName="city"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-zip-code">
+                  {{ '::ZipCode' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-zip-code"
+                  formControlName="zipCode"
+                  class="form-control"
+                  maxlength="15"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-reffered-by">
+                  {{ '::RefferedBy' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-reffered-by"
+                  formControlName="refferedBy"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-cell-phone-number">
+                  {{ '::CellPhoneNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-cell-phone-number"
+                  formControlName="cellPhoneNumber"
+                  class="form-control"
+                  maxlength="12"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-phone-number-type-id">
+                  {{ '::PhoneNumberTypeId' | abpLocalization }} *
+                </label>
+
+                <select
+                  id="patient-phone-number-type-id"
+                  formControlName="phoneNumberTypeId"
+                  class="form-select form-control"
+                >
+                  <option [ngValue]="null"></option>
+                  @for (option of service.phoneNumberTypeOptions; track option.key) {
+                    <option [ngValue]="option.value">
+                      {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-street">
+                  {{ '::Street' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-street"
+                  formControlName="street"
+                  class="form-control"
+                  maxlength="255"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-interpreter-vendor-name">
+                  {{ '::InterpreterVendorName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-interpreter-vendor-name"
+                  formControlName="interpreterVendorName"
+                  class="form-control"
+                  maxlength="255"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-appt-number">
+                  {{ '::ApptNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-appt-number"
+                  formControlName="apptNumber"
+                  class="form-control"
+                  maxlength="100"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-others-language-name">
+                  {{ '::OthersLanguageName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="patient-others-language-name"
+                  formControlName="othersLanguageName"
+                  class="form-control"
+                  maxlength="100"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="patient-state-id">
+                  {{ '::State' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="patient-state-id"
+                  formControlName="stateId"
+                  [getFn]="service.getStateLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="patient-appointment-language-id">
+                  {{ '::AppointmentLanguage' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="patient-appointment-language-id"
+                  formControlName="appointmentLanguageId"
+                  [getFn]="service.getAppointmentLanguageLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="patient-identity-user-id">
+                  {{ '::IdentityUser' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="patient-identity-user-id"
+                  formControlName="identityUserId"
+                  [getFn]="service.getIdentityUserLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="patient-tenant-id">
+                  {{ '::Tenant' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="patient-tenant-id"
+                  formControlName="tenantId"
+                  [getFn]="service.getTenantLookup"
+                ></abp-lookup-select>
+              </div>
+            </div>
+          </ng-template>
+        </li>
+      </ul>
+      <div [ngbNavOutlet]="nav"></div>
+    </form>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="submit" formName="patient">
+      {{ 'AbpUi::Save' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

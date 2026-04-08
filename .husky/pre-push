@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+
+echo "Running pre-push checks..."
+
+# Full secret scan (entire working tree, not just staged)
+if command -v gitleaks > /dev/null 2>&1; then
+  gitleaks detect --verbose
+  if [ $? -ne 0 ]; then
+    echo "Gitleaks found secrets. Do NOT push. Fix immediately."
+    exit 1
+  fi
+fi
+
+# Backend build check
+echo "  Building backend..."
+dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release --nologo -v q 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Backend build failed. Fix before pushing."
+  exit 1
+fi
+
+echo "Pre-push checks passed."

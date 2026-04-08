@@ -1,0 +1,18 @@
+[extend]
+# Use default gitleaks rules
+
+[allowlist]
+description = "Known safe patterns"
+paths = [
+  '''angular/node_modules''',
+  '''\.git\.backup-.*''',
+]
+regexTarget = "match"
+regexes = [
+  '''REPLACE_ME_LOCALLY''',
+  '''REPLACE_ME''',
+  '''localhost''',
+  '''\$\{.*\}''',
+  '''your-.*-here''',
+  '''generate-your-own.*''',
+]

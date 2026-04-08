@@ -1,0 +1,310 @@
+<abp-page [title]="title | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button
+        *abpPermission="'CaseEvaluation.Appointments.Create'"
+        class="btn btn-primary btn-sm"
+        type="button"
+        (click)="create()"
+      >
+        <i class="fa fa-plus me-1" aria-hidden="true"></i>
+        {{ '::NewAppointment' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <abp-advanced-entity-filters localizationSourceName="" [list]="list">
+    @if (service.filters; as filters) {
+      <abp-advanced-entity-filters-form>
+        <form #filterForm (keyup.enter)="list.get()">
+          <div class="row">
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="panelNumberFilter">
+                  {{ '::PanelNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="panelNumberFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.panelNumber"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="minAppointmentDate">
+                  {{ '::MinAppointmentDate' | abpLocalization }}
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    id="minAppointmentDate"
+                    class="form-control"
+                    #minAppointmentDateInput
+                    #minAppointmentDateDatepicker="ngbDatepicker"
+                    name="minAppointmentDate"
+                    ngbDatepicker
+                    container="body"
+                    readonly
+                    (click)="minAppointmentDateDatepicker.toggle()"
+                    (keyup.space)="minAppointmentDateDatepicker.toggle()"
+                    [(ngModel)]="filters.appointmentDateMin"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  @if (minAppointmentDateInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          minAppointmentDateDatepicker.writeValue(null);
+                          minAppointmentDateDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="maxAppointmentDate">
+                  {{ '::MaxAppointmentDate' | abpLocalization }}
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    id="maxAppointmentDate"
+                    class="form-control"
+                    #maxAppointmentDateInput
+                    #maxAppointmentDateDatepicker="ngbDatepicker"
+                    name="maxAppointmentDate"
+                    ngbDatepicker
+                    readonly
+                    (click)="maxAppointmentDateDatepicker.toggle()"
+                    (keyup.space)="maxAppointmentDateDatepicker.toggle()"
+                    [(ngModel)]="filters.appointmentDateMax"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  @if (maxAppointmentDateInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          maxAppointmentDateDatepicker.writeValue(null);
+                          maxAppointmentDateDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="identityUserIdFilter">
+                  {{ '::IdentityUser' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="identityUserIdFilter"
+                  [getFn]="serviceDetail.getIdentityUserLookup"
+                  [(ngModel)]="filters.identityUserId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="appointmentTypeIdFilter">
+                  {{ '::AppointmentType' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="appointmentTypeIdFilter"
+                  [getFn]="serviceDetail.getAppointmentTypeLookup"
+                  [(ngModel)]="filters.appointmentTypeId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="locationIdFilter">
+                  {{ '::Location' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="locationIdFilter"
+                  [getFn]="serviceDetail.getLocationLookup"
+                  [(ngModel)]="filters.locationId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto align-self-end mb-3">
+              <div class="row">
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-outline-primary" (click)="clearFilters()">
+                    <span>{{ 'AbpUi::Clear' | abpLocalization }}</span>
+                  </button>
+                </div>
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-primary" (click)="list.get()">
+                    <span>{{ 'AbpUi::Refresh' | abpLocalization }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </abp-advanced-entity-filters-form>
+    }
+  </abp-advanced-entity-filters>
+
+  <div class="card">
+    <div class="card-body">
+      <ngx-datatable
+        default
+        [rows]="service.data.items"
+        [count]="service.data.totalCount"
+        [list]="list"
+      >
+        @if (isActionButtonVisible) {
+          <ngx-datatable-column
+            [name]="'AbpUi::Actions' | abpLocalization"
+            [maxWidth]="150"
+            [width]="150"
+            [sortable]="false"
+          >
+            <ng-template let-row="row" let-i="rowIndex" ngx-datatable-cell-template>
+              <div ngbDropdown container="body" class="d-inline-block">
+                <button
+                  class="btn btn-primary btn-sm dropdown-toggle"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  ngbDropdownToggle
+                >
+                  <i class="fa fa-cog me-1" aria-hidden="true"></i>
+                  {{ 'AbpUi::Actions' | abpLocalization }}
+                </button>
+
+                <div ngbDropdownMenu>
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Appointments.Edit'"
+                    (click)="update(row)"
+                  >
+                    {{ 'AbpUi::Edit' | abpLocalization }}
+                  </button>
+
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Appointments.Delete'"
+                    (click)="delete(row)"
+                  >
+                    {{ 'AbpUi::Delete' | abpLocalization }}
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          </ngx-datatable-column>
+        }
+        <ngx-datatable-column
+          name="{{ '::PanelNumber' | abpLocalization }}"
+          prop="appointment.panelNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointment.panelNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::AppointmentDate' | abpLocalization }}"
+          prop="appointment.appointmentDate"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointment.appointmentDate | abpUtcToLocal: 'date' }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::RequestConfirmationNumber' | abpLocalization }}"
+          prop="appointment.requestConfirmationNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointment.requestConfirmationNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::DueDate' | abpLocalization }}" prop="appointment.dueDate">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointment.dueDate | abpUtcToLocal: 'date' }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::AppointmentStatus' | abpLocalization }}"
+          prop="appointment.appointmentStatus"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{
+              row.appointment.appointmentStatus !== null
+                ? ('::Enum:AppointmentStatusType.' + row.appointment.appointmentStatus
+                  | abpLocalization)
+                : ''
+            }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.email">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient?.email }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::IdentityUser' | abpLocalization }}"
+          prop="identityUser.email"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.identityUser?.email }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::AppointmentType' | abpLocalization }}"
+          prop="appointmentType.name"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointmentType?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Location' | abpLocalization }}" prop="location.name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.location?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::DoctorAvailability' | abpLocalization }}"
+          prop="doctorAvailability.fromTime"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.doctorAvailability?.fromTime }}
+          </ng-template>
+        </ngx-datatable-column>
+      </ngx-datatable>
+    </div>
+  </div>
+</abp-page>
+
+@defer (when serviceDetail.isVisible) {
+  @if (serviceDetail.isVisible) {
+    <app-appointment-detail-modal />
+  }
+}

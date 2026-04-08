@@ -1,0 +1,99 @@
+<abp-modal [busy]="service.isBusy" [(visible)]="service.isVisible">
+  <ng-template #abpHeader>
+    <h3>
+      {{ (service.selected ? 'AbpUi::Edit' : '::NewApplicantAttorney') | abpLocalization }}
+    </h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <form
+      [formGroup]="service.form"
+      id="applicant-attorney"
+      (ngSubmit)="service.submitForm()"
+      validateOnSubmit
+    >
+      <ul ngbNav #nav="ngbNav" class="nav-tabs">
+        <li ngbNavItem>
+          <a ngbNavLink>
+            {{ '::ApplicantAttorney' | abpLocalization }}
+          </a>
+          <ng-template ngbNavContent>
+            <div class="mt-2 fade-in-top">
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-firm-name">
+                  {{ '::FirmName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="applicant-attorney-firm-name"
+                  formControlName="firmName"
+                  class="form-control"
+                  maxlength="50"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-firm-address">
+                  {{ '::FirmAddress' | abpLocalization }}
+                </label>
+
+                <input
+                  id="applicant-attorney-firm-address"
+                  formControlName="firmAddress"
+                  class="form-control"
+                  maxlength="100"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-phone-number">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="applicant-attorney-phone-number"
+                  formControlName="phoneNumber"
+                  class="form-control"
+                  maxlength="20"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-state-id">
+                  {{ '::State' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="applicant-attorney-state-id"
+                  formControlName="stateId"
+                  [getFn]="service.getStateLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-identity-user-id">
+                  {{ '::IdentityUser' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="applicant-attorney-identity-user-id"
+                  formControlName="identityUserId"
+                  [getFn]="service.getIdentityUserLookup"
+                ></abp-lookup-select>
+              </div>
+            </div>
+          </ng-template>
+        </li>
+      </ul>
+      <div [ngbNavOutlet]="nav"></div>
+    </form>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="submit" formName="applicant-attorney">
+      {{ 'AbpUi::Save' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

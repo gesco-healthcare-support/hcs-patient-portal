@@ -1,0 +1,131 @@
+# ============================================================================
+# .claudeignore — Patterns Claude Code should skip to save context
+# Uses .gitignore syntax. Everything here is noise for AI-assisted development.
+#
+# NOTE: angular/src/app/proxy/ is auto-generated but intentionally NOT excluded
+# here — Claude needs proxy types for architecture understanding. Editing proxy/
+# is blocked via CLAUDE.md rules instead.
+# ============================================================================
+
+# .NET build artifacts — compiled binaries, never source of truth
+**/bin/
+**/obj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+artifacts/
+
+# Node dependencies — 150K+ files, ~593MB across angular/ and AuthServer/
+**/node_modules/
+
+# Angular build artifacts — regenerated every build
+angular/dist/
+angular/.angular/
+angular/out-tsc/
+angular/bazel-out/
+
+# EF Core migration designer files — auto-generated model snapshots
+# (keep the actual migration .cs files — they contain schema change history)
+**/Migrations/*.Designer.cs
+**/TenantMigrations/*.Designer.cs
+**/Migrations/*Snapshot.cs
+**/TenantMigrations/*Snapshot.cs
+
+# Lock files — valid to commit, useless for Claude to read
+angular/yarn.lock
+**/package-lock.json
+
+# ABP proxy generation config — 1.8MB JSON, auto-managed by abp generate-proxy
+angular/generate-proxy.json
+
+# IDE and editor configuration
+.vs/
+**/.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+*.sln.iml
+.JustCode
+**/.abpstudio/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+_NCrunch_*
+_TeamCity*
+
+# Logs and runtime data — written during dotnet run, always growing
+**/Logs/
+*.log
+npm-debug.log
+yarn-error.log
+testem.log
+chrome-profiler-events*.json
+
+# Sensitive files — ABP license keys, certificates, credentials
+**/appsettings.secrets.json
+*.pfx
+*.pem
+*.key
+*.p12
+tempkey.rsa
+tempkey.jwk
+.env
+.env.*
+**/create-tls-secrets.ps1
+
+# Test results and coverage reports
+[Tt]est[Rr]esult*/
+**/coverage/
+.nyc_output/
+*.trx
+
+# Database files — LocalDB data files
+*.mdf
+*.ldf
+*.dbmdl
+*.dbproj.schemaview
+
+# NuGet and package artifacts
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+ehthumbs.db
+~$*
+*~
+
+# ABP framework — bundled client-side vendor libs, not project source
+**/wwwroot/libs/*
+
+# Minified assets — unreadable, regenerated from source
+**/*.min.js
+**/*.min.css
+
+# Publishing and deployment artifacts
+PublishScripts/
+*.publishsettings
+*.pubxml
+*.publishproj
+
+# Generated code markers
+orleans.codegen.cs
+Generated_Code/
+
+# Sass cache
+.sass-cache/
+
+# Miscellaneous
+.suite/
+.fake/
+**/tmp/
+**/temp/

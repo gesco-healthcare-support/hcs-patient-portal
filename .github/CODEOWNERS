@@ -1,0 +1,5 @@
+# CODEOWNERS — Patient Portal
+* @gesco-healthcare-support/portal-devs
+docs/ @gesco-healthcare-support/portal-admins
+.github/ @gesco-healthcare-support/portal-admins
+docker/ @gesco-healthcare-support/portal-admins

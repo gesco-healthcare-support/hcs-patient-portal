@@ -1,0 +1,6 @@
+image:
+  repository: "caseevaluation/dbmigrator"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+authServer:
+  clientSecret: "REPLACE_ME"

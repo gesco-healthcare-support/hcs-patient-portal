@@ -1,0 +1,134 @@
+@if (isPatientUser) {
+  <div class="patient-home container-fluid px-0">
+    <app-top-header-navbar
+      [tenantName]="displayTenantName"
+      [userName]="displayUserName"
+      [roleName]="displayRoleName"
+      (profileClick)="openMyProfile()"
+    />
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="patient-home__cta">
+          <p class="mb-2">Please click on the below button to book a new appointment</p>
+          <button type="button" class="btn btn-primary w-100" (click)="bookAppointment()">
+            Book Appointment
+          </button>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="patient-home__cta">
+          <p class="mb-2">Please click on the below button to book re-evaluation</p>
+          <button type="button" class="btn btn-primary w-100">Book Re-evaluation</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="patient-home__requests">
+      <div class="patient-home__requests-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h3 class="patient-home__requests-title mb-0">My Appointments Requests ({{ service.data.totalCount }})</h3>
+        <div class="patient-home__search">
+          <input type="text" class="form-control form-control-sm" placeholder="Search" />
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <ngx-datatable
+          default
+          [rows]="service.data.items"
+          [count]="service.data.totalCount"
+          [list]="list"
+        >
+          <ngx-datatable-column
+            name="{{ '::AppointmentType' | abpLocalization }}"
+            prop="appointmentType.name"
+          >
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.appointmentType?.name }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.email">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.patient?.firstName + ' ' + row.patient?.lastName }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column
+            name="{{ '::PanelNumber' | abpLocalization }}"
+            prop="appointment.panelNumber"
+          >
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.appointment.panelNumber }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column
+            name="{{ '::RequestConfirmationNumber' | abpLocalization }}"
+            prop="appointment.requestConfirmationNumber"
+          >
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              <button
+                type="button"
+                class="btn btn-link p-0"
+                (click)="openAppointmentDetail(row.appointment?.id)"
+              >
+                {{ row.appointment.requestConfirmationNumber }}
+              </button>
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column
+            name="{{ '::AppointmentDate' | abpLocalization }}"
+            prop="appointment.appointmentDate"
+          >
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.appointment.appointmentDate }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column
+            name="{{ '::AppointmentStatus' | abpLocalization }}"
+            prop="appointment.appointmentStatus"
+          >
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{
+                row.appointment.appointmentStatus !== null
+                  ? ('::Enum:AppointmentStatusType.' + row.appointment.appointmentStatus
+                    | abpLocalization)
+                  : ''
+              }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="{{ '::Location' | abpLocalization }}" prop="location.name">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.location?.name }}
+            </ng-template>
+          </ngx-datatable-column>
+        </ngx-datatable>
+      </div>
+    </div>
+
+  </div>
+} @else {
+  <abp-page>
+    <div class="row mb-3">
+      <div class="col-xl-12 col-12 d-flex">
+        <div class="card h-lg-100 w-100 overflow-hidden">
+          <div class="card-body">
+            <div class="starting-content pe-5">
+              @if (!hasLoggedIn) {
+                <h3>Appointment Scheduling Portal</h3>
+                <p class="lead text-muted mb-2">
+                  Click to login or register to create a new account below.
+                </p>
+                <a (click)="login()" class="px-4 btn btn-primary mb-4" role="button">
+                  <i class="fa fa-sign-in"></i>
+                  {{ 'AbpAccount::Login' | abpLocalization }}
+                </a>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </abp-page>
+}

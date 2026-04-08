@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r \".file_path // .path // empty\" 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -qvE \"(docs/|CLAUDE\\.md|/discovery/)\" && echo \"$FILE\" | grep -qE \"\\.(cs|ts|html)$\"; then echo \"{\\\"message\\\": \\\"Source file changed: $FILE -- consider running /update-docs if this affects documented features\\\"}\" ; fi'",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  }
+}

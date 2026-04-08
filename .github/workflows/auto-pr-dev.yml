@@ -1,0 +1,33 @@
+name: Auto PR to Development
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-pr:
+    name: 'Auto PR: main -> development'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for existing PR
+        id: check
+        run: |
+          existing=$(gh pr list --base development --head main --state open --json number -q '.[0].number')
+          echo "existing=$existing" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create PR
+        if: steps.check.outputs.existing == ''
+        run: |
+          gh pr create \
+            --base development \
+            --head main \
+            --title "Sync: main -> development" \
+            --body "Auto-generated sync PR. All CI checks passed on main."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

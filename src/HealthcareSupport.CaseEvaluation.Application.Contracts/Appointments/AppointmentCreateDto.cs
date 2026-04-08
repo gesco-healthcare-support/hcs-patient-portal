@@ -1,0 +1,28 @@
+using HealthcareSupport.CaseEvaluation.Enums;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
+
+namespace HealthcareSupport.CaseEvaluation.Appointments;
+
+public class AppointmentCreateDto
+{
+    [StringLength(AppointmentConsts.PanelNumberMaxLength)]
+    public string? PanelNumber { get; set; }
+
+    public DateTime AppointmentDate { get; set; }
+
+    public string RequestConfirmationNumber { get; set; } = null!;
+    public DateTime? DueDate { get; set; }
+
+    public AppointmentStatusType AppointmentStatus { get; set; } = ((AppointmentStatusType[])Enum.GetValues(typeof(AppointmentStatusType)))[0];
+    public Guid PatientId { get; set; }
+
+    public Guid IdentityUserId { get; set; }
+
+    public Guid AppointmentTypeId { get; set; }
+
+    public Guid LocationId { get; set; }
+
+    public Guid DoctorAvailabilityId { get; set; }
+}

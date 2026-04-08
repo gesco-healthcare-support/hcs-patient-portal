@@ -1,0 +1,8 @@
+{
+  "AuthServer": {
+    "CertificatePassPhrase": "generate-your-own-guid-here"
+  },
+  "StringEncryption": {
+    "DefaultPassPhrase": "generate-your-own-16-char-key"
+  }
+}

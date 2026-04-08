@@ -1,0 +1,4 @@
+image:
+  repository: "caseevaluation/angular"
+  tag: "latest"
+  pullPolicy: IfNotPresent

@@ -1,0 +1,58 @@
+.appointment-add {
+  padding: 1rem 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.appointment-add__toolbar {
+  margin-bottom: 1rem;
+}
+
+.appointment-add__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.appointment-add .card-title {
+  color: #0d5e9f;
+}
+
+.appointment-add .form-label {
+  font-weight: 600;
+}
+
+@media (max-width: 991.98px) {
+  .appointment-add__toolbar {
+    align-items: flex-start !important;
+  }
+
+  .appointment-add__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .appointment-add__actions .btn {
+    width: 100%;
+  }
+}
+
+::ng-deep .appointment-date-day {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+::ng-deep .appointment-date-day.outside-month {
+  opacity: 0.4;
+}
+
+::ng-deep .appointment-date-day.available-day {
+  background-color: #198754;
+  color: #fff;
+  font-weight: 600;
+}

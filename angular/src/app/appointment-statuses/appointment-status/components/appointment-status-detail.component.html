@@ -1,0 +1,52 @@
+<abp-modal [busy]="service.isBusy" [(visible)]="service.isVisible">
+  <ng-template #abpHeader>
+    <h3>
+      {{ (service.selected ? 'AbpUi::Edit' : '::NewAppointmentStatus') | abpLocalization }}
+    </h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <form
+      [formGroup]="service.form"
+      id="appointment-status"
+      (ngSubmit)="service.submitForm()"
+      validateOnSubmit
+    >
+      <ul ngbNav #nav="ngbNav" class="nav-tabs">
+        <li ngbNavItem>
+          <a ngbNavLink>
+            {{ '::AppointmentStatus' | abpLocalization }}
+          </a>
+          <ng-template ngbNavContent>
+            <div class="mt-2 fade-in-top">
+              <div class="mb-3">
+                <label class="form-label" for="appointment-status-name">
+                  {{ '::Name' | abpLocalization }} *
+                </label>
+
+                <input
+                  id="appointment-status-name"
+                  formControlName="name"
+                  class="form-control"
+                  maxlength="100"
+                  autofocus
+                />
+              </div>
+            </div>
+          </ng-template>
+        </li>
+      </ul>
+      <div [ngbNavOutlet]="nav"></div>
+    </form>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="submit" formName="appointment-status">
+      {{ 'AbpUi::Save' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

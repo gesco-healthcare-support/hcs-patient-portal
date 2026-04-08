@@ -1,0 +1,208 @@
+<abp-modal [busy]="service.isBusy" [(visible)]="service.isVisible">
+  <ng-template #abpHeader>
+    <h3>
+      {{ (service.selected ? 'AbpUi::Edit' : '::NewAppointment') | abpLocalization }}
+    </h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <form
+      [formGroup]="service.form"
+      id="appointment"
+      (ngSubmit)="service.submitForm()"
+      validateOnSubmit
+    >
+      <ul ngbNav #nav="ngbNav" class="nav-tabs">
+        <li ngbNavItem>
+          <a ngbNavLink>
+            {{ '::Appointment' | abpLocalization }}
+          </a>
+          <ng-template ngbNavContent>
+            <div class="mt-2 fade-in-top">
+              <div class="mb-3">
+                <label class="form-label" for="appointment-panel-number">
+                  {{ '::PanelNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="appointment-panel-number"
+                  formControlName="panelNumber"
+                  class="form-control"
+                  maxlength="50"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="appointment-appointment-date">
+                  {{ '::AppointmentDate' | abpLocalization }} *
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    readonly
+                    id="appointment-appointment-date"
+                    formControlName="appointmentDate"
+                    class="form-control"
+                    ngbDatepicker
+                    #appointmentDateInput
+                    #appointmentDateDatepicker="ngbDatepicker"
+                    (click)="appointmentDateDatepicker.open()"
+                    (keyup.space)="appointmentDateDatepicker.open()"
+                  />
+                  @if (appointmentDateInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          appointmentDateDatepicker.writeValue(null);
+                          appointmentDateDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="appointment-request-confirmation-number">
+                  {{ '::RequestConfirmationNumber' | abpLocalization }} *
+                </label>
+
+                <input
+                  id="appointment-request-confirmation-number"
+                  formControlName="requestConfirmationNumber"
+                  class="form-control"
+                  maxlength="50"
+                  [readonly]="service.selected"
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="appointment-due-date">
+                  {{ '::DueDate' | abpLocalization }}
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    readonly
+                    id="appointment-due-date"
+                    formControlName="dueDate"
+                    class="form-control"
+                    ngbDatepicker
+                    #dueDateInput
+                    #dueDateDatepicker="ngbDatepicker"
+                    (click)="dueDateDatepicker.open()"
+                    (keyup.space)="dueDateDatepicker.open()"
+                  />
+                  @if (dueDateInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          dueDateDatepicker.writeValue(null);
+                          dueDateDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              @if (!service.selected) {
+                <div class="mb-3">
+                  <label class="form-label" for="appointment-appointment-status">
+                    {{ '::AppointmentStatus' | abpLocalization }} *
+                  </label>
+
+                  <select
+                    id="appointment-appointment-status"
+                    formControlName="appointmentStatus"
+                    class="form-select form-control"
+                  >
+                    <option [ngValue]="null"></option>
+                    @for (option of service.appointmentStatusTypeOptions; track option.key) {
+                      <option [ngValue]="option.value">
+                        {{ '::Enum:AppointmentStatusType.' + option.value | abpLocalization }}
+                      </option>
+                    }
+                  </select>
+                </div>
+              }
+
+              <div class="mb-3">
+                <label class="form-label" for="appointment-patient-id">
+                  {{ '::Patient' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="appointment-patient-id"
+                  formControlName="patientId"
+                  [getFn]="service.getPatientLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="appointment-identity-user-id">
+                  {{ '::IdentityUser' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="appointment-identity-user-id"
+                  formControlName="identityUserId"
+                  [getFn]="service.getIdentityUserLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="appointment-appointment-type-id">
+                  {{ '::AppointmentType' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="appointment-appointment-type-id"
+                  formControlName="appointmentTypeId"
+                  [getFn]="service.getAppointmentTypeLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="appointment-location-id">
+                  {{ '::Location' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="appointment-location-id"
+                  formControlName="locationId"
+                  [getFn]="service.getLocationLookup"
+                ></abp-lookup-select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="appointment-doctor-availability-id">
+                  {{ '::DoctorAvailability' | abpLocalization }} *
+                </label>
+                <abp-lookup-select
+                  cid="appointment-doctor-availability-id"
+                  formControlName="doctorAvailabilityId"
+                  [getFn]="service.getDoctorAvailabilityLookup"
+                ></abp-lookup-select>
+              </div>
+            </div>
+          </ng-template>
+        </li>
+      </ul>
+      <div [ngbNavOutlet]="nav"></div>
+    </form>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ 'AbpUi::Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="submit" formName="appointment">
+      {{ 'AbpUi::Save' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

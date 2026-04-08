@@ -1,0 +1,57 @@
+﻿using Asp.Versioning;
+using System;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Volo.Abp;
+using Volo.Abp.AspNetCore.Mvc;
+using Volo.Abp.Application.Dtos;
+using HealthcareSupport.CaseEvaluation.Books;
+
+namespace HealthcareSupport.CaseEvaluation.Controllers.Books;
+
+[RemoteService]
+[Area("app")]
+[ControllerName("Book")]
+[Route("api/app/book")]
+public class BookController : AbpController, IBookAppService
+{
+    protected IBookAppService _booksAppService;
+
+    public BookController(IBookAppService booksAppService)
+    {
+        _booksAppService = booksAppService;
+    }
+
+    [HttpGet]
+    public virtual Task<PagedResultDto<BookDto>> GetListAsync(PagedAndSortedResultRequestDto input)
+    {
+        return _booksAppService.GetListAsync(input);
+    }
+
+    [HttpGet]
+    [Route("{id}")]
+    public virtual Task<BookDto> GetAsync(Guid id)
+    {
+        return _booksAppService.GetAsync(id);
+    }
+
+    [HttpPost]
+    public virtual Task<BookDto> CreateAsync(CreateUpdateBookDto input)
+    {
+        return _booksAppService.CreateAsync(input);
+    }
+
+    [HttpPut]
+    [Route("{id}")]
+    public virtual Task<BookDto> UpdateAsync(Guid id, CreateUpdateBookDto input)
+    {
+        return _booksAppService.UpdateAsync(id, input);
+    }
+
+    [HttpDelete]
+    [Route("{id}")]
+    public virtual Task DeleteAsync(Guid id)
+    {
+        return _booksAppService.DeleteAsync(id);
+    }
+}

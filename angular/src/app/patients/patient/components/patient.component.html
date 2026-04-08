@@ -1,0 +1,605 @@
+<abp-page [title]="title | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button
+        *abpPermission="'CaseEvaluation.Patients.Create'"
+        class="btn btn-primary btn-sm"
+        type="button"
+        (click)="create()"
+      >
+        <i class="fa fa-plus me-1" aria-hidden="true"></i>
+        {{ '::NewPatient' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <abp-advanced-entity-filters localizationSourceName="" [list]="list">
+    @if (service.filters; as filters) {
+      <abp-advanced-entity-filters-form>
+        <form #filterForm (keyup.enter)="list.get()">
+          <div class="row">
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="firstNameFilter">
+                  {{ '::FirstName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="firstNameFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.firstName"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="lastNameFilter">
+                  {{ '::LastName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="lastNameFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.lastName"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="middleNameFilter">
+                  {{ '::MiddleName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="middleNameFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.middleName"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="emailFilter">
+                  {{ '::Email' | abpLocalization }}
+                </label>
+
+                <input
+                  id="emailFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.email"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="genderIdFilter">
+                  {{ '::GenderId' | abpLocalization }}
+                </label>
+
+                <select
+                  id="genderIdFilter"
+                  class="form-select form-control"
+                  [(ngModel)]="filters.genderId"
+                  [ngModelOptions]="{ standalone: true }"
+                >
+                  <option [ngValue]="null"></option>
+                  @for (option of genderOptions; track option.value) {
+                    <option [ngValue]="option.value">
+                      {{ '::Enum:Gender.' + option.value | abpLocalization }}
+                    </option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="minDateOfBirth">
+                  {{ '::MinDateOfBirth' | abpLocalization }}
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    id="minDateOfBirth"
+                    class="form-control"
+                    #minDateOfBirthInput
+                    #minDateOfBirthDatepicker="ngbDatepicker"
+                    name="minDateOfBirth"
+                    ngbDatepicker
+                    container="body"
+                    readonly
+                    (click)="minDateOfBirthDatepicker.toggle()"
+                    (keyup.space)="minDateOfBirthDatepicker.toggle()"
+                    [(ngModel)]="filters.dateOfBirthMin"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  @if (minDateOfBirthInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          minDateOfBirthDatepicker.writeValue(null);
+                          minDateOfBirthDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="maxDateOfBirth">
+                  {{ '::MaxDateOfBirth' | abpLocalization }}
+                </label>
+
+                <div class="input-group" validationTarget>
+                  <input
+                    id="maxDateOfBirth"
+                    class="form-control"
+                    #maxDateOfBirthInput
+                    #maxDateOfBirthDatepicker="ngbDatepicker"
+                    name="maxDateOfBirth"
+                    ngbDatepicker
+                    readonly
+                    (click)="maxDateOfBirthDatepicker.toggle()"
+                    (keyup.space)="maxDateOfBirthDatepicker.toggle()"
+                    [(ngModel)]="filters.dateOfBirthMax"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  @if (maxDateOfBirthInput.value) {
+                    <div class="input-group-append">
+                      <button
+                        class="btn btn-link px-2"
+                        type="button"
+                        [title]="'AbpUi::Clear' | abpLocalization"
+                        (click)="
+                          maxDateOfBirthDatepicker.writeValue(null);
+                          maxDateOfBirthDatepicker.manualDateChange(null, true)
+                        "
+                      >
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="phoneNumberFilter">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="phoneNumberFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.phoneNumber"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="socialSecurityNumberFilter">
+                  {{ '::SocialSecurityNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="socialSecurityNumberFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.socialSecurityNumber"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="addressFilter">
+                  {{ '::Address' | abpLocalization }}
+                </label>
+
+                <input
+                  id="addressFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.address"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="cityFilter">
+                  {{ '::City' | abpLocalization }}
+                </label>
+
+                <input
+                  id="cityFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.city"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="zipCodeFilter">
+                  {{ '::ZipCode' | abpLocalization }}
+                </label>
+
+                <input
+                  id="zipCodeFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.zipCode"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="refferedByFilter">
+                  {{ '::RefferedBy' | abpLocalization }}
+                </label>
+
+                <input
+                  id="refferedByFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.refferedBy"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="cellPhoneNumberFilter">
+                  {{ '::CellPhoneNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="cellPhoneNumberFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.cellPhoneNumber"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="streetFilter">
+                  {{ '::Street' | abpLocalization }}
+                </label>
+
+                <input
+                  id="streetFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.street"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="interpreterVendorNameFilter">
+                  {{ '::InterpreterVendorName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="interpreterVendorNameFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.interpreterVendorName"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="apptNumberFilter">
+                  {{ '::ApptNumber' | abpLocalization }}
+                </label>
+
+                <input
+                  id="apptNumberFilter"
+                  class="form-control"
+                  [(ngModel)]="filters.apptNumber"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="stateIdFilter">
+                  {{ '::State' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="stateIdFilter"
+                  [getFn]="serviceDetail.getStateLookup"
+                  [(ngModel)]="filters.stateId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="appointmentLanguageIdFilter">
+                  {{ '::AppointmentLanguage' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="appointmentLanguageIdFilter"
+                  [getFn]="serviceDetail.getAppointmentLanguageLookup"
+                  [(ngModel)]="filters.appointmentLanguageId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto">
+              <div class="mb-3">
+                <label class="form-label" for="identityUserIdFilter">
+                  {{ '::IdentityUser' | abpLocalization }}
+                </label>
+                <abp-lookup-select
+                  cid="identityUserIdFilter"
+                  [getFn]="serviceDetail.getIdentityUserLookup"
+                  [(ngModel)]="filters.identityUserId"
+                  [ngModelOptions]="{ standalone: true }"
+                ></abp-lookup-select>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-auto align-self-end mb-3">
+              <div class="row">
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-outline-primary" (click)="clearFilters()">
+                    <span>{{ 'AbpUi::Clear' | abpLocalization }}</span>
+                  </button>
+                </div>
+                <div class="col-6 col-sm-auto d-grid">
+                  <button type="button" class="btn btn-primary" (click)="list.get()">
+                    <span>{{ 'AbpUi::Refresh' | abpLocalization }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </abp-advanced-entity-filters-form>
+    }
+  </abp-advanced-entity-filters>
+
+  <div class="card">
+    <div class="card-body">
+      <ngx-datatable
+        default
+        [rows]="service.data.items"
+        [count]="service.data.totalCount"
+        [list]="list"
+      >
+        @if (isActionButtonVisible) {
+          <ngx-datatable-column
+            [name]="'AbpUi::Actions' | abpLocalization"
+            [maxWidth]="150"
+            [width]="150"
+            [sortable]="false"
+          >
+            <ng-template let-row="row" let-i="rowIndex" ngx-datatable-cell-template>
+              <div ngbDropdown container="body" class="d-inline-block">
+                <button
+                  class="btn btn-primary btn-sm dropdown-toggle"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  ngbDropdownToggle
+                >
+                  <i class="fa fa-cog me-1" aria-hidden="true"></i>
+                  {{ 'AbpUi::Actions' | abpLocalization }}
+                </button>
+
+                <div ngbDropdownMenu>
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Patients.Edit'"
+                    (click)="update(row)"
+                  >
+                    {{ 'AbpUi::Edit' | abpLocalization }}
+                  </button>
+
+                  <button
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Patients.Delete'"
+                    (click)="delete(row)"
+                  >
+                    {{ 'AbpUi::Delete' | abpLocalization }}
+                  </button>
+                </div>
+              </div>
+            </ng-template>
+          </ngx-datatable-column>
+        }
+        <ngx-datatable-column name="{{ '::FirstName' | abpLocalization }}" prop="patient.firstName">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.firstName }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::LastName' | abpLocalization }}" prop="patient.lastName">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.lastName }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::MiddleName' | abpLocalization }}"
+          prop="patient.middleName"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.middleName }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Email' | abpLocalization }}" prop="patient.email">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.email }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Gender' | abpLocalization }}" prop="patient.genderId">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{
+              row.patient.genderId !== null
+                ? ('::Enum:Gender.' + row.patient.genderId | abpLocalization)
+                : ''
+            }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::DateOfBirth' | abpLocalization }}"
+          prop="patient.dateOfBirth"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.dateOfBirth | abpUtcToLocal: 'date' }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::PhoneNumber' | abpLocalization }}"
+          prop="patient.phoneNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.phoneNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::SocialSecurityNumber' | abpLocalization }}"
+          prop="patient.socialSecurityNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.socialSecurityNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Address' | abpLocalization }}" prop="patient.address">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.address }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::City' | abpLocalization }}" prop="patient.city">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.city }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::ZipCode' | abpLocalization }}" prop="patient.zipCode">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.zipCode }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::RefferedBy' | abpLocalization }}"
+          prop="patient.refferedBy"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.refferedBy }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::CellPhoneNumber' | abpLocalization }}"
+          prop="patient.cellPhoneNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.cellPhoneNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::PhoneNumberType' | abpLocalization }}"
+          prop="patient.phoneNumberTypeId"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{
+              row.patient.phoneNumberTypeId !== null
+                ? ('::Enum:PhoneNumberType.' + row.patient.phoneNumberTypeId | abpLocalization)
+                : ''
+            }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Street' | abpLocalization }}" prop="patient.street">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.street }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::InterpreterVendorName' | abpLocalization }}"
+          prop="patient.interpreterVendorName"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.interpreterVendorName }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::ApptNumber' | abpLocalization }}"
+          prop="patient.apptNumber"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.apptNumber }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::OthersLanguageName' | abpLocalization }}"
+          prop="patient.othersLanguageName"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.patient.othersLanguageName }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::State' | abpLocalization }}" prop="state.name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.state?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::AppointmentLanguage' | abpLocalization }}"
+          prop="appointmentLanguage.name"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.appointmentLanguage?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::IdentityUser' | abpLocalization }}"
+          prop="identityUser.name"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.identityUser?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::Tenant' | abpLocalization }}" prop="tenant.name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.tenant?.name }}
+          </ng-template>
+        </ngx-datatable-column>
+      </ngx-datatable>
+    </div>
+  </div>
+</abp-page>
+
+@defer (when serviceDetail.isVisible) {
+  @if (serviceDetail.isVisible) {
+    <app-patient-detail-modal />
+  }
+}

@@ -1,0 +1,70 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  dotnet-audit:
+    name: '.NET Vulnerability Audit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet list HealthcareSupport.CaseEvaluation.slnx package --vulnerable --include-transitive
+
+  npm-audit:
+    name: 'npm Vulnerability Audit'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: angular
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: yarn audit --level moderate || true
+
+  secret-scan:
+    name: 'Secret Detection'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  codeql:
+    name: 'CodeQL Analysis'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp, javascript-typescript
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - run: dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
+      - uses: github/codeql-action/analyze@v3

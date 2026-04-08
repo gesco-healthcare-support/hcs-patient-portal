@@ -1,0 +1,18 @@
+backend:
+  - changed-files:
+    - any-glob-to-any-file: 'src/**'
+frontend:
+  - changed-files:
+    - any-glob-to-any-file: 'angular/**'
+database:
+  - changed-files:
+    - any-glob-to-any-file: '**/Migrations/**'
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
+docker:
+  - changed-files:
+    - any-glob-to-any-file: 'docker/**'
+docs:
+  - changed-files:
+    - any-glob-to-any-file: 'docs/**'

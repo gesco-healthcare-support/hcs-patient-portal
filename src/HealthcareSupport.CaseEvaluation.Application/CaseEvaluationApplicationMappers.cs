@@ -1,0 +1,348 @@
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
+using HealthcareSupport.CaseEvaluation.WcabOffices;
+using Volo.Saas.Tenants;
+using Volo.Abp.Identity;
+using HealthcareSupport.CaseEvaluation.Doctors;
+using HealthcareSupport.CaseEvaluation.Locations;
+using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
+using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using System;
+using HealthcareSupport.CaseEvaluation.Shared;
+using HealthcareSupport.CaseEvaluation.States;
+using System.Linq;
+using System.Collections.Generic;
+using Riok.Mapperly.Abstractions;
+using Volo.Abp.Mapperly;
+using HealthcareSupport.CaseEvaluation.Books;
+
+namespace HealthcareSupport.CaseEvaluation;
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CaseEvaluationBookToBookDtoMapper : MapperBase<Book, BookDto>
+{
+    public override partial BookDto Map(Book source);
+    public override partial void Map(Book source, BookDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CaseEvaluationCreateUpdateBookDtoToBookMapper : MapperBase<CreateUpdateBookDto, Book>
+{
+    public override partial Book Map(CreateUpdateBookDto source);
+    public override partial void Map(CreateUpdateBookDto source, Book destination);
+}
+
+[Mapper]
+public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
+{
+    public override partial StateDto Map(State source);
+    public override partial void Map(State source, StateDto destination);
+}
+
+[Mapper]
+public partial class AppointmentTypeToAppointmentTypeDtoMappers : MapperBase<AppointmentType, AppointmentTypeDto>
+{
+    public override partial AppointmentTypeDto Map(AppointmentType source);
+    public override partial void Map(AppointmentType source, AppointmentTypeDto destination);
+}
+
+[Mapper]
+public partial class AppointmentTypeToAppointmentTypeExcelDtoMappers : MapperBase<AppointmentType, AppointmentTypeExcelDto>
+{
+    public override partial AppointmentTypeExcelDto Map(AppointmentType source);
+    public override partial void Map(AppointmentType source, AppointmentTypeExcelDto destination);
+}
+
+[Mapper]
+public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase<AppointmentStatus, AppointmentStatusDto>
+{
+    public override partial AppointmentStatusDto Map(AppointmentStatus source);
+    public override partial void Map(AppointmentStatus source, AppointmentStatusDto destination);
+}
+
+[Mapper]
+public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : MapperBase<AppointmentLanguage, AppointmentLanguageDto>
+{
+    public override partial AppointmentLanguageDto Map(AppointmentLanguage source);
+    public override partial void Map(AppointmentLanguage source, AppointmentLanguageDto destination);
+}
+
+[Mapper]
+public partial class LocationToLocationDtoMappers : MapperBase<Location, LocationDto>
+{
+    public override partial LocationDto Map(Location source);
+    public override partial void Map(Location source, LocationDto destination);
+}
+
+[Mapper]
+public partial class LocationWithNavigationPropertiesToLocationWithNavigationPropertiesDtoMapper : MapperBase<LocationWithNavigationProperties, LocationWithNavigationPropertiesDto>
+{
+    public override partial LocationWithNavigationPropertiesDto Map(LocationWithNavigationProperties source);
+    public override partial void Map(LocationWithNavigationProperties source, LocationWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class StateToLookupDtoGuidMapper : MapperBase<State, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(State source);
+    public override partial void Map(State source, LookupDto<Guid> destination);
+
+    public override void AfterMap(State source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class AppointmentTypeToLookupDtoGuidMapper : MapperBase<AppointmentType, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(AppointmentType source);
+    public override partial void Map(AppointmentType source, LookupDto<Guid> destination);
+
+    public override void AfterMap(AppointmentType source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class WcabOfficeToWcabOfficeDtoMappers : MapperBase<WcabOffice, WcabOfficeDto>
+{
+    public override partial WcabOfficeDto Map(WcabOffice source);
+    public override partial void Map(WcabOffice source, WcabOfficeDto destination);
+}
+
+[Mapper]
+public partial class WcabOfficeToWcabOfficeExcelDtoMappers : MapperBase<WcabOffice, WcabOfficeExcelDto>
+{
+    public override partial WcabOfficeExcelDto Map(WcabOffice source);
+    public override partial void Map(WcabOffice source, WcabOfficeExcelDto destination);
+}
+
+[Mapper]
+public partial class WcabOfficeWithNavigationPropertiesToWcabOfficeWithNavigationPropertiesDtoMapper : MapperBase<WcabOfficeWithNavigationProperties, WcabOfficeWithNavigationPropertiesDto>
+{
+    public override partial WcabOfficeWithNavigationPropertiesDto Map(WcabOfficeWithNavigationProperties source);
+    public override partial void Map(WcabOfficeWithNavigationProperties source, WcabOfficeWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class DoctorToDoctorDtoMappers : MapperBase<Doctor, DoctorDto>
+{
+    public override partial DoctorDto Map(Doctor source);
+    public override partial void Map(Doctor source, DoctorDto destination);
+}
+
+[Mapper]
+public partial class DoctorWithNavigationPropertiesToDoctorWithNavigationPropertiesDtoMapper : MapperBase<DoctorWithNavigationProperties, DoctorWithNavigationPropertiesDto>
+{
+    public override partial DoctorWithNavigationPropertiesDto Map(DoctorWithNavigationProperties source);
+    public override partial void Map(DoctorWithNavigationProperties source, DoctorWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class IdentityUserToLookupDtoGuidMapper : MapperBase<IdentityUser, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(IdentityUser source);
+    public override partial void Map(IdentityUser source, LookupDto<Guid> destination);
+
+    public override void AfterMap(IdentityUser source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Email;
+    }
+}
+
+[Mapper]
+public partial class TenantToLookupDtoGuidMapper : MapperBase<Tenant, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(Tenant source);
+    public override partial void Map(Tenant source, LookupDto<Guid> destination);
+
+    public override void AfterMap(Tenant source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(Location source);
+    public override partial void Map(Location source, LookupDto<Guid> destination);
+
+    public override void AfterMap(Location source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBase<DoctorAvailability, DoctorAvailabilityDto>
+{
+    public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
+    public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
+}
+
+[Mapper]
+public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper : MapperBase<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>
+{
+    public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
+    public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class PatientToPatientDtoMappers : MapperBase<Patient, PatientDto>
+{
+    public override partial PatientDto Map(Patient source);
+    public override partial void Map(Patient source, PatientDto destination);
+}
+
+[Mapper]
+public partial class PatientWithNavigationPropertiesToPatientWithNavigationPropertiesDtoMapper : MapperBase<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>
+{
+    public override partial PatientWithNavigationPropertiesDto Map(PatientWithNavigationProperties source);
+    public override partial void Map(PatientWithNavigationProperties source, PatientWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentLanguageToLookupDtoGuidMapper : MapperBase<AppointmentLanguage, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(AppointmentLanguage source);
+    public override partial void Map(AppointmentLanguage source, LookupDto<Guid> destination);
+
+    public override void AfterMap(AppointmentLanguage source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class AppointmentToAppointmentDtoMappers : MapperBase<Appointment, AppointmentDto>
+{
+    public override partial AppointmentDto Map(Appointment source);
+    public override partial void Map(Appointment source, AppointmentDto destination);
+}
+
+[Mapper]
+public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper : MapperBase<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>
+{
+    public override partial AppointmentWithNavigationPropertiesDto Map(AppointmentWithNavigationProperties source);
+    public override partial void Map(AppointmentWithNavigationProperties source, AppointmentWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentStatusToLookupDtoGuidMapper : MapperBase<AppointmentStatus, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(AppointmentStatus source);
+    public override partial void Map(AppointmentStatus source, LookupDto<Guid> destination);
+
+    public override void AfterMap(AppointmentStatus source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
+public partial class PatientToLookupDtoGuidMapper : MapperBase<Patient, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(Patient source);
+    public override partial void Map(Patient source, LookupDto<Guid> destination);
+
+    public override void AfterMap(Patient source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Email;
+    }
+}
+
+[Mapper]
+public partial class DoctorAvailabilityToLookupDtoGuidMapper : MapperBase<DoctorAvailability, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(DoctorAvailability source);
+    public override partial void Map(DoctorAvailability source, LookupDto<Guid> destination);
+}
+
+[Mapper]
+public partial class AppointmentEmployerDetailToAppointmentEmployerDetailDtoMappers : MapperBase<AppointmentEmployerDetail, AppointmentEmployerDetailDto>
+{
+    public override partial AppointmentEmployerDetailDto Map(AppointmentEmployerDetail source);
+    public override partial void Map(AppointmentEmployerDetail source, AppointmentEmployerDetailDto destination);
+}
+
+[Mapper]
+public partial class AppointmentEmployerDetailWithNavigationPropertiesToAppointmentEmployerDetailWithNavigationPropertiesDtoMapper : MapperBase<AppointmentEmployerDetailWithNavigationProperties, AppointmentEmployerDetailWithNavigationPropertiesDto>
+{
+    public override partial AppointmentEmployerDetailWithNavigationPropertiesDto Map(AppointmentEmployerDetailWithNavigationProperties source);
+    public override partial void Map(AppointmentEmployerDetailWithNavigationProperties source, AppointmentEmployerDetailWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentToLookupDtoGuidMapper : MapperBase<Appointment, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(Appointment source);
+    public override partial void Map(Appointment source, LookupDto<Guid> destination);
+
+    public override void AfterMap(Appointment source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.RequestConfirmationNumber;
+    }
+}
+
+[Mapper]
+public partial class AppointmentAccessorToAppointmentAccessorDtoMappers : MapperBase<AppointmentAccessor, AppointmentAccessorDto>
+{
+    public override partial AppointmentAccessorDto Map(AppointmentAccessor source);
+    public override partial void Map(AppointmentAccessor source, AppointmentAccessorDto destination);
+}
+
+[Mapper]
+public partial class AppointmentAccessorWithNavigationPropertiesToAppointmentAccessorWithNavigationPropertiesDtoMapper : MapperBase<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>
+{
+    public override partial AppointmentAccessorWithNavigationPropertiesDto Map(AppointmentAccessorWithNavigationProperties source);
+    public override partial void Map(AppointmentAccessorWithNavigationProperties source, AppointmentAccessorWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class ApplicantAttorneyToApplicantAttorneyDtoMappers : MapperBase<ApplicantAttorney, ApplicantAttorneyDto>
+{
+    public override partial ApplicantAttorneyDto Map(ApplicantAttorney source);
+    public override partial void Map(ApplicantAttorney source, ApplicantAttorneyDto destination);
+}
+
+[Mapper]
+public partial class ApplicantAttorneyWithNavigationPropertiesToApplicantAttorneyWithNavigationPropertiesDtoMapper : MapperBase<ApplicantAttorneyWithNavigationProperties, ApplicantAttorneyWithNavigationPropertiesDto>
+{
+    public override partial ApplicantAttorneyWithNavigationPropertiesDto Map(ApplicantAttorneyWithNavigationProperties source);
+    public override partial void Map(ApplicantAttorneyWithNavigationProperties source, ApplicantAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentApplicantAttorneyToAppointmentApplicantAttorneyDtoMappers : MapperBase<AppointmentApplicantAttorney, AppointmentApplicantAttorneyDto>
+{
+    public override partial AppointmentApplicantAttorneyDto Map(AppointmentApplicantAttorney source);
+    public override partial void Map(AppointmentApplicantAttorney source, AppointmentApplicantAttorneyDto destination);
+}
+
+[Mapper]
+public partial class AppointmentApplicantAttorneyWithNavigationPropertiesToAppointmentApplicantAttorneyWithNavigationPropertiesDtoMapper : MapperBase<AppointmentApplicantAttorneyWithNavigationProperties, AppointmentApplicantAttorneyWithNavigationPropertiesDto>
+{
+    public override partial AppointmentApplicantAttorneyWithNavigationPropertiesDto Map(AppointmentApplicantAttorneyWithNavigationProperties source);
+    public override partial void Map(AppointmentApplicantAttorneyWithNavigationProperties source, AppointmentApplicantAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<ApplicantAttorney, LookupDto<Guid>>
+{
+    public override partial LookupDto<Guid> Map(ApplicantAttorney source);
+    public override partial void Map(ApplicantAttorney source, LookupDto<Guid> destination);
+
+    public override void AfterMap(ApplicantAttorney source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.FirmName;
+    }
+}
