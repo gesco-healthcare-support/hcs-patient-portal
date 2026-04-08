@@ -30,7 +30,7 @@
     "@volo/abp.ng.file-management": "~10.0.2",
     "@volo/abp.ng.saas": "~10.0.2",
     "@volo/abp.ng.text-template-management": "~10.0.2",
-    "@volosoft/abp.ng.theme.lepton-x": "~5.0.2",
+    "@volosoft/abp.ng.theme.lepton-x": "~5.2.0",
     "@angular/animations": "~20.0.0",
     "@angular/common": "~20.0.0",
     "@angular/compiler": "~20.0.0",
