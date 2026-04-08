@@ -33,7 +33,11 @@ jobs:
                      src/HealthcareSupport.CaseEvaluation.DbMigrator \
                      test/HealthcareSupport.CaseEvaluation.TestBase \
                      test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
-            echo '{}' > "$dir/appsettings.secrets.json"
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
           done
       - run: |
           dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
