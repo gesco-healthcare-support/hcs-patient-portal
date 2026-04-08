@@ -56,7 +56,7 @@ jobs:
           existing=$(gh pr list --base staging --head development --state open --json number -q '.[0].number')
           echo "existing=$existing" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
       - name: Create PR
         if: steps.check.outputs.existing == ''
         run: |
@@ -66,4 +66,4 @@ jobs:
             --title "Promote: development -> staging" \
             --body "Auto-generated. Development validation passed."
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}

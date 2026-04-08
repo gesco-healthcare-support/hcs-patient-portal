@@ -24,7 +24,7 @@ jobs:
           existing=$(gh pr list --base development --head main --state open --json number -q '.[0].number')
           echo "existing=$existing" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
 
       - name: Create PR
         if: steps.check.outputs.existing == ''
@@ -35,4 +35,4 @@ jobs:
             --title "Sync: main -> development" \
             --body "Auto-generated after merge to main. Review and merge to promote to development."
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
