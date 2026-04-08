@@ -1,5 +1,6 @@
 name: Auto PR to Development
 
+# Triggers ONLY when a PR is merged to main (push event = post-merge)
 on:
   push:
     branches: [main]
@@ -11,9 +12,12 @@ permissions:
 jobs:
   auto-pr:
     name: 'Auto PR: main -> development'
+    # Skip if this is the initial push (no PRs merged yet)
+    if: github.event.head_commit.message != '' && !startsWith(github.event.head_commit.message, 'Initial commit')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Check for existing PR
         id: check
         run: |
@@ -21,6 +25,7 @@ jobs:
           echo "existing=$existing" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create PR
         if: steps.check.outputs.existing == ''
         run: |
@@ -28,6 +33,6 @@ jobs:
             --base development \
             --head main \
             --title "Sync: main -> development" \
-            --body "Auto-generated sync PR. All CI checks passed on main."
+            --body "Auto-generated after merge to main. Review and merge to promote to development."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

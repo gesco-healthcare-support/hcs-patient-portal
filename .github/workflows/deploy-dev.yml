@@ -1,5 +1,6 @@
 name: Deploy Dev
 
+# Triggers ONLY when a PR is merged to development (push event = post-merge)
 on:
   push:
     branches: [development]
@@ -15,6 +16,8 @@ env:
 jobs:
   validate:
     name: 'Dev: Validate'
+    # Skip initial/bulk pushes
+    if: github.event.head_commit.message != '' && !startsWith(github.event.head_commit.message, 'Initial commit')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
