@@ -295,10 +295,10 @@
     semver "7.7.2"
     yargs "17.7.2"
 
-"@angular/common@~20.0.0":
-  version "20.0.7"
-  resolved "https://registry.yarnpkg.com/@angular/common/-/common-20.0.7.tgz#f813b2a4f96dd6411ed25cc28d105a5be3b2dfe4"
-  integrity sha512-1LQrpLqTeB4K9LYrDI91SbN+BaLkTnw4905ZQJrySJzX7s37eB2uJdtY8RKS8VgNithGpknoCtPYRDVX+At75Q==
+"@angular/common@~20.3.14":
+  version "20.3.14"
+  resolved "https://registry.yarnpkg.com/@angular/common/-/common-20.3.14.tgz#62d7e693ae70d3ac41aa424c602c490c0e8d46c5"
+  integrity sha512-OOUvjTtnpktJLsNupA+GFT2q5zNocPdpOENA8aSrXvAheNybLjgi+otO3U3sQsvB1VwaoEZ9GT5O3lZlstnA/A==
   dependencies:
     tslib "^2.3.0"
 
