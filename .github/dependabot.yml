@@ -1,0 +1,42 @@
+version: 2
+
+# Version-update PRs are disabled (limit: 0) until ABP Commercial supports Angular 20.3+.
+# Dependabot security alerts remain active — they are configured in repo settings,
+# independent of this file.
+# Re-enable by restoring open-pull-requests-limit to 5/3 when ABP catches up.
+
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 0
+    labels: ["dependencies", "backend"]
+    target-branch: "main"
+
+  - package-ecosystem: "npm"
+    directory: "/angular"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 0
+    labels: ["dependencies", "frontend"]
+    target-branch: "main"
+
+  - package-ecosystem: "npm"
+    directory: "/src/HealthcareSupport.CaseEvaluation.AuthServer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 0
+    labels: ["dependencies", "backend"]
+    target-branch: "main"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    labels: ["dependencies", "ci"]
+    target-branch: "main"

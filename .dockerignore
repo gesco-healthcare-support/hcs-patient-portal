@@ -6,8 +6,12 @@
 .vs
 docs
 Logs
+etc
 **/.env
 **/appsettings.Local.json
 **/appsettings.secrets.json
 **/bin/Debug
 **/obj
+**/node_modules
+angular/e2e
+angular/dist
