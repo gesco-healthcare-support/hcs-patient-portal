@@ -8,11 +8,14 @@ RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > Nu
 COPY common.props .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
+COPY test/ test/
 
 # Create placeholder secrets files (ABP .csproj references these)
 RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.secrets.json
 RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json
 RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.DbMigrator/appsettings.secrets.json
+RUN echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json
+RUN echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
 
 RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 RUN dotnet publish src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \

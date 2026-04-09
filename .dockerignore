@@ -6,7 +6,6 @@
 .vs
 docs
 Logs
-test
 etc
 **/.env
 **/appsettings.Local.json
