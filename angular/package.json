@@ -19,7 +19,7 @@
     "@abp/ng.oauth": "~10.0.2",
     "@abp/ng.setting-management": "~10.0.2",
     "@abp/ng.theme.shared": "~10.0.2",
-    "@abp/ng.feature-management": "~10.0.2",
+    "@abp/ng.feature-management": "~10.1.1",
     "@volo/abp.commercial.ng.ui": "~10.0.2",
     "@volo/abp.ng.account": "~10.0.2",
     "@volo/abp.ng.audit-logging": "~10.0.2",
