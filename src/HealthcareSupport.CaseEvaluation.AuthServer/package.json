@@ -7,6 +7,11 @@
     "@volo/account": "~10.0.2"
   },
   "resolutions": {
-    "jquery": "3.7.1"
+    "jquery": "3.7.1",
+    "fast-xml-parser": ">=5.5.7",
+    "lodash": ">=4.18.0",
+    "lodash-es": ">=4.18.0",
+    "minimatch": ">=3.1.4",
+    "brace-expansion": ">=1.1.13"
   }
 }
