@@ -17,6 +17,15 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
     target-branch: "main"
+    ignore:
+      # Angular 20.0 -> 20.3 breaks ABP Commercial 10.0.2 (duplicate InjectionToken declarations)
+      # Remove these ignores when ABP releases a version targeting Angular 20.3+
+      - dependency-name: "@angular/core"
+        versions: [">= 20.1.0"]
+      - dependency-name: "@angular/compiler"
+        versions: [">= 20.1.0"]
+      - dependency-name: "@angular/common"
+        versions: [">= 20.1.0"]
 
   - package-ecosystem: "npm"
     directory: "/src/HealthcareSupport.CaseEvaluation.AuthServer"
