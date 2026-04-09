@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@volo/abp.aspnetcore.mvc.ui.theme.leptonx": "~5.0.2",
-    "@volo/account": "~10.0.2"
+    "@volo/account": "~10.2.0"
   },
   "resolutions": {
     "jquery": "3.7.1",
