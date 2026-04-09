@@ -44,6 +44,19 @@
     "tslib": "^2.0.0",
     "zone.js": "~0.15.0"
   },
+  "resolutions": {
+    "vite": ">=7.3.2",
+    "rollup": ">=4.59.0",
+    "tar": ">=7.5.11",
+    "lodash": ">=4.18.0",
+    "minimatch": ">=3.1.4",
+    "picomatch": ">=4.0.4",
+    "nanoid": ">=5.0.9",
+    "qs": ">=6.14.2",
+    "immutable": ">=5.1.5",
+    "flatted": ">=3.4.2",
+    "brace-expansion": ">=1.1.13"
+  },
   "devDependencies": {
     "@abp/ng.schematics": "~10.0.2",
     "@angular-eslint/builder": "~20.0.0",
