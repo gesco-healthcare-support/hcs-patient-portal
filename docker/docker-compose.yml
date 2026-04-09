@@ -31,11 +31,18 @@ services:
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
+      OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:4200"
+      OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:44327"
     depends_on:
       sql-server:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
 
   authserver:
     build:
@@ -45,19 +52,29 @@ services:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     container_name: patient-portal-auth
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
+      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:44368"
       App__CorsOrigins: "http://localhost:4200,http://localhost:44327"
+      AuthServer__Authority: "http://localhost:44368"
+      AuthServer__RequireHttpsMetadata: "false"
       ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
     ports:
       - "44368:8080"
     depends_on:
-      sql-server:
-        condition: service_healthy
+      db-migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   api:
     build:
@@ -67,7 +84,9 @@ services:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     container_name: patient-portal-api
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
+      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:44327"
       App__CorsOrigins: "http://localhost:4200"
       AuthServer__Authority: "http://authserver:8080"
@@ -78,10 +97,16 @@ services:
     ports:
       - "44327:8080"
     depends_on:
-      sql-server:
-        condition: service_healthy
+      db-migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   angular:
     build:
@@ -90,8 +115,11 @@ services:
     container_name: patient-portal-ui
     ports:
       - "4200:80"
+    volumes:
+      - ./dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   sqldata:

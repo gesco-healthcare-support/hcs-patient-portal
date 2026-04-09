@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY angular/package.json angular/yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install
 COPY angular/ .
 RUN yarn build:prod
 
