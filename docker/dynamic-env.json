@@ -1,0 +1,25 @@
+{
+  "production": false,
+  "application": {
+    "baseUrl": "http://localhost:4200",
+    "name": "CaseEvaluation",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "http://localhost:44368/",
+    "redirectUri": "http://localhost:4200",
+    "clientId": "CaseEvaluation_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone CaseEvaluation"
+  },
+  "apis": {
+    "default": {
+      "url": "http://localhost:44327",
+      "rootNamespace": "HealthcareSupport.CaseEvaluation"
+    },
+    "AbpAccountPublic": {
+      "url": "http://localhost:44368",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}

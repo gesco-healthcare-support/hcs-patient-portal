@@ -72,6 +72,32 @@ cd angular && yarn install && npx ng build --configuration development && npx se
 - API: https://localhost:44327
 - Angular: http://localhost:4200
 
+### Docker Setup (Alternative)
+
+Run the full stack in Docker without installing .NET SDK or Node.js locally:
+
+```bash
+# 1. Copy and edit environment file
+cp docker/.env.example docker/.env
+# Edit docker/.env with your ABP API key, license code, and passwords
+
+# 2. Start all services (from repo root)
+docker compose -f docker/docker-compose.yml up --build
+
+# 3. Wait for all services to be healthy, then open:
+#    - Angular UI: http://localhost:4200
+#    - API Swagger: http://localhost:44327/swagger
+#    - AuthServer: http://localhost:44368
+
+# 4. Stop all services
+docker compose -f docker/docker-compose.yml down
+
+# 5. Stop and remove data volumes (fresh start)
+docker compose -f docker/docker-compose.yml down -v
+```
+
+**Requirements:** Docker Desktop with Docker Compose V2. No .NET SDK or Node.js needed.
+
 ### Running Tests
 ```bash
 dotnet test                          # All backend tests
