@@ -234,5 +234,5 @@ Optional IDE integration is configured via profiles in `etc/abp-studio/`:
 
 **Related:**
 - [Getting Started](../onboarding/GETTING-STARTED.md)
-- [Docker & Deployment](DOCKER-AND-DEPLOYMENT.md)
+- [Docker & Deployment](../runbooks/DOCKER-DEV.md)
 - [Migration Guide](../database/MIGRATION-GUIDE.md)

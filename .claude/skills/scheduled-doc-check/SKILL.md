@@ -20,6 +20,13 @@ tasks, or manually when checking overall doc health.
    - Does `src/HealthcareSupport.CaseEvaluation.Domain/{Feature}/CLAUDE.md` exist?
    - Does `docs/features/{feature-kebab}/overview.md` exist?
    - What is the `<!-- Last synced from ... on YYYY-MM-DD -->` date in overview.md?
+3. Check repo-map freshness: read `docs/repo-map/index.json` and extract `generated_at`.
+   If the file is missing or older than 30 days, flag as `STALE` in the report and
+   suggest running `/generate-repo-map`.
+4. Check that navigation for the augmented documentation is intact. Specifically,
+   verify these directories exist and have at least one `.md` file each:
+   `docs/security/`, `docs/decisions/`, `docs/runbooks/`, `docs/repo-map/`,
+   `docs/verification/`. If any are missing or empty, flag as `GAP` in the report.
 
 ---
 
