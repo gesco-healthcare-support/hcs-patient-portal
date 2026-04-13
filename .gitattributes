@@ -1,1 +1,4 @@
 **/wwwroot/libs/** linguist-vendored
+
+# Shell scripts must keep LF endings (Docker containers run Linux)
+*.sh text eol=lf

@@ -22,7 +22,10 @@ import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
 import { HttpErrorComponent, provideThemeLeptonX } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { provideLogo, withEnvironmentOptions } from '@abp/ng.theme.shared';
-import { ApplicationConfig } from '@angular/core';
+import { ApplicationConfig, Injector } from '@angular/core';
+import { CHECK_AUTHENTICATION_STATE_FN_KEY, ConfigStateService } from '@abp/ng.core';
+import { clearOAuthStorage } from '@abp/ng.oauth';
+import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { environment } from '../environments/environment';
@@ -52,6 +55,20 @@ export const appConfig: ApplicationConfig = {
       }),
     ),
     provideAbpOAuth(),
+    // ABP 10.0.2 bug fix: checkAccessToken uses this.injector instead of the injector parameter.
+    // In strict mode, this is undefined for plain functions, crashing app init after OAuth login.
+    // Fixed in ABP 10.1.0. Remove this override when upgrading past 10.1.0.
+    // Ref: @abp/ng.oauth/fesm2022/abp-ng.oauth.mjs line 358
+    {
+      provide: CHECK_AUTHENTICATION_STATE_FN_KEY,
+      useValue: (injector: Injector) => {
+        const configState = injector.get(ConfigStateService);
+        const oAuth = injector.get(OAuthService);
+        if (oAuth.hasValidAccessToken() && !configState.getDeep('currentUser.id')) {
+          clearOAuthStorage(injector);
+        }
+      },
+    },
     provideIdentityConfig(),
     provideSettingManagementConfig(),
     provideFeatureManagementConfig(),
