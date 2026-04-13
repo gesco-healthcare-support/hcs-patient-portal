@@ -16,9 +16,14 @@ else
   echo "  Warning: gitleaks not installed. Skipping full secret scan."
 fi
 
-# Backend build check (Debug config for speed; CI runs Release on PR)
+# Backend build check (Debug config for speed; CI runs Release on PR).
+# Under WSL, `dotnet` alone is not resolvable by sh/dash; fall back to
+# `dotnet.exe` so Windows dotnet is invoked via WSL interop.
+DOTNET="dotnet"
+command -v "$DOTNET" > /dev/null 2>&1 || DOTNET="dotnet.exe"
+
 echo "  Building backend (Debug)..."
-dotnet build HealthcareSupport.CaseEvaluation.slnx -c Debug --nologo -v q
+"$DOTNET" build HealthcareSupport.CaseEvaluation.slnx -c Debug --nologo -v q
 if [ $? -ne 0 ]; then
   echo "Backend build failed. Fix before pushing."
   exit 1
