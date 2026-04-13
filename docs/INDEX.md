@@ -77,7 +77,14 @@ mindmap
 
 | Goal | Start Here |
 |------|-----------|
+| **Get the 30-second summary (for managers)** | [Executive Summary](executive-summary.md) |
 | **Get the app running locally** | [Getting Started](onboarding/GETTING-STARTED.md) |
+| **Troubleshoot local dev failures** | [Local Dev Runbook](runbooks/LOCAL-DEV.md) |
+| **Run the app in Docker** | [Docker Dev Runbook](runbooks/DOCKER-DEV.md) |
+| **Find PHI data flows & threat model** | [Security Docs](security/THREAT-MODEL.md) |
+| **See what decisions were made and why** | [Architecture Decision Records](decisions/README.md) |
+| **Navigate the codebase structure** | [Repository Map](repo-map/README.md) |
+| **Respond to a security incident** | [Incident Response](runbooks/INCIDENT-RESPONSE.md) |
 | **See all known bugs and gaps** | [Issues Overview](issues/OVERVIEW.md) |
 | **Understand what this app does** | [Business Domain Overview](business-domain/DOMAIN-OVERVIEW.md) |
 | **Understand the architecture** | [System Architecture Overview](architecture/OVERVIEW.md) |
@@ -134,8 +141,32 @@ flowchart TB
 ## Documentation by Section
 
 ### Getting Started
+- [Executive Summary](executive-summary.md) -- Manager-friendly overview: purpose, stack, current state, risks
 - [Getting Started](onboarding/GETTING-STARTED.md) -- From zero to running app with troubleshooting
 - [Glossary](GLOSSARY.md) -- Domain and technical terminology
+
+### Repository Map
+- [Repository Map README](repo-map/README.md) -- How to read and regenerate the map
+- [Repository Map Summary](repo-map/map.md) -- Top-ranked files, project dependency graph, stack detection
+- [Repository Map Index (JSON)](repo-map/index.json) -- Machine-readable structural index
+
+### Security
+- [Threat Model](security/THREAT-MODEL.md) -- STRIDE analysis of Angular, API, AuthServer, SQL Server
+- [PHI Data Flows](security/DATA-FLOWS.md) -- Where PHI lives, how it moves, cross-tenant risk
+- [Authorization Matrix](security/AUTHORIZATION.md) -- Permissions, roles, endpoint mappings
+- [Secrets Management](security/SECRETS-MANAGEMENT.md) -- How secrets are injected, gaps, rotation process
+- [HIPAA Compliance Inventory](security/HIPAA-COMPLIANCE.md) -- Technical safeguards + HIPAA-readiness gaps
+
+### Architecture Decisions
+- [ADR Index](decisions/README.md) -- All architecture decision records with template
+
+### Runbooks
+- [Local Dev Troubleshooting](runbooks/LOCAL-DEV.md) -- Five most common local dev failures + fixes
+- [Docker Dev Runbook](runbooks/DOCKER-DEV.md) -- Docker Compose setup, operations, troubleshooting
+- [Incident Response](runbooks/INCIDENT-RESPONSE.md) -- PHI exposure playbook, investigation steps
+
+### Verification
+- [Documentation Baseline](verification/BASELINE.md) -- Structural + link check results and health score
 
 ### Architecture
 - [System Architecture Overview](architecture/OVERVIEW.md) -- High-level system design, deployment topology, tech stack
@@ -202,7 +233,7 @@ flowchart TB
 
 ### DevOps
 - [Development Setup](devops/DEVELOPMENT-SETUP.md) -- Complete local development environment
-- [Docker & Deployment](devops/DOCKER-AND-DEPLOYMENT.md) -- Docker Compose and Helm charts
+- [Docker & Deployment](runbooks/DOCKER-DEV.md) -- Docker Compose setup, operations, troubleshooting
 - [Testing Strategy](devops/TESTING-STRATEGY.md) -- Test projects, patterns, and infrastructure
 
 ### Issues & Technical Debt

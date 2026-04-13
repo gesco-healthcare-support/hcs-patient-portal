@@ -305,4 +305,4 @@ flowchart BT
 - [DDD Layers](DDD-LAYERS.md) -- Layer responsibilities and dependency rules
 - [System Overview](OVERVIEW.md) -- High-level architecture, deployment topology, and tech stack
 - [Development Setup](../devops/DEVELOPMENT-SETUP.md) -- Local development environment configuration
-- [Docker & Deployment](../devops/DOCKER-AND-DEPLOYMENT.md) -- Containerized deployment with Docker Compose and Helm
+- [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- Containerized development with Docker Compose

@@ -115,8 +115,8 @@ No generated proxy service — Angular components call the API directly via `Res
 ## Links
 
 - Root architecture: [CLAUDE.md](/CLAUDE.md)
-- Related: [Patients CLAUDE.md](../../Domain/Patients/CLAUDE.md) — Patient records created by RegisterAsync
-- Related: [Appointments CLAUDE.md](../../Domain/Appointments/CLAUDE.md) — booking form uses external user lookup
+- Related: [Patients CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) — Patient records created by RegisterAsync
+- Related: [Appointments CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md) — booking form uses external user lookup
 
 <!-- MANUAL:START -->
 <!-- MANUAL:END -->

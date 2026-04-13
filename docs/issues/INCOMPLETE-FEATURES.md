@@ -266,4 +266,4 @@ The existing `TestBase` project provides the necessary infrastructure. Refer to 
 - [User Roles & Actors](../business-domain/USER-ROLES-AND-ACTORS.md) -- Role definitions
 - [Component Patterns](../frontend/COMPONENT-PATTERNS.md) -- How to build new Angular feature modules
 - [Testing Strategy](../devops/TESTING-STRATEGY.md) -- Test infrastructure and patterns
-- [Docker & Deployment](../devops/DOCKER-AND-DEPLOYMENT.md) -- Existing Docker and Helm assets
+- [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- Docker Compose development setup
