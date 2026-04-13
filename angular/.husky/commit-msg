@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+# Enforce conventional commit messages.
+# commitlint is installed in angular/, so invoke from there.
+# $1 is the path to COMMIT_EDITMSG, relative to repo root (cwd of this hook).
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+( cd "$REPO_ROOT/angular" && npx --no -- commitlint --edit "$REPO_ROOT/$1" )
