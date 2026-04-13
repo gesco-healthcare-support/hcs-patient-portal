@@ -67,6 +67,64 @@ cd angular && yarn install && npx ng build --configuration development && npx se
 
 **NEVER use `ng serve` or `yarn start`** -- causes NullInjectorError with ABP on Angular 20.
 
+### Activating Local Git Hooks
+
+Git hooks (Husky + commitlint + lint-staged + gitleaks) install automatically
+the first time you run `yarn install` inside `angular/`:
+
+```bash
+cd angular && yarn install   # also runs husky bootstrap
+```
+
+After install, every `git commit` runs:
+
+- `gitleaks protect --staged` against staged files (blocks committed secrets)
+- `lint-staged` (eslint --fix on staged `.ts` / `.html` files)
+- `dotnet format --verify-no-changes` on staged `.cs` files
+- `commitlint` against your commit message (must be Conventional Commits)
+
+Every `git push` also runs:
+
+- Full-repo `gitleaks detect`
+- `dotnet build HealthcareSupport.CaseEvaluation.slnx -c Debug`
+  (CI runs Release on the PR; Debug here keeps push fast)
+
+**Gitleaks must be installed separately** (it is not an npm package):
+
+```bash
+# macOS
+brew install gitleaks
+
+# Linux / WSL (x64)
+curl -sSfL -o /tmp/gitleaks.tar.gz \
+  https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+install -m 0755 /tmp/gitleaks ~/.local/bin/gitleaks
+
+# Windows / Git Bash: download the windows-x64 zip from the same releases
+# page and place gitleaks.exe on PATH (e.g. C:\Users\<you>\bin\).
+```
+
+Verify with `gitleaks version` (expect 8.21.x). If gitleaks is not on PATH,
+both commit and push hooks print a warning and continue (they do NOT block).
+CI scans server-side regardless, so a missing local gitleaks is a
+degraded-but-not-broken state, not a security regression.
+
+**WSL users:** the hooks detect WSL and handle cross-shell quirks automatically
+(path translation for Windows Node, `dotnet` -> `dotnet.exe` fallback). If
+WSL `git status` shows every file as "modified" after pulling, your WSL git
+probably has `core.autocrlf=false` while Windows git has `true`. Align them:
+
+```bash
+git config --global core.autocrlf true
+# then, inside the repo:
+git rm --cached -r -q . && git reset --hard HEAD
+```
+
+**To skip hooks for an emergency commit:** `git commit --no-verify`. Do not
+make this a habit; CI catches what you skipped, but only after you have
+already pushed.
+
 ### Service Ports
 - AuthServer: https://localhost:44368
 - API: https://localhost:44327
