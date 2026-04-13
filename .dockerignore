@@ -1,5 +1,4 @@
 .git
-.git.backup-*
 .github
 .claude
 .idea
@@ -7,11 +6,16 @@
 docs
 Logs
 etc
+
 **/.env
 **/appsettings.Local.json
 **/appsettings.secrets.json
+
 **/bin/Debug
 **/obj
 **/node_modules
-angular/e2e
+
+angular/node_modules
 angular/dist
+angular/e2e
+angular/.angular
