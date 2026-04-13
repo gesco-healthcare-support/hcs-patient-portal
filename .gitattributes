@@ -2,3 +2,8 @@
 
 # Shell scripts must keep LF endings (Docker containers run Linux)
 *.sh text eol=lf
+
+# Husky hook scripts have no extension but are POSIX shell scripts
+angular/.husky/pre-commit text eol=lf
+angular/.husky/commit-msg text eol=lf
+angular/.husky/pre-push text eol=lf

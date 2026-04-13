@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-
-# Enforce conventional commit messages
-npx --no -- commitlint --edit "$1"
