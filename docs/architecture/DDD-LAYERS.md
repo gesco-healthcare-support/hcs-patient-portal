@@ -113,7 +113,7 @@ Defines the public contract of the application layer -- DTOs, service interfaces
 |----------|----------|
 | **DTOs** | `*Dto`, `*CreateDto`, `*UpdateDto`, `*WithNavigationPropertiesDto` per entity |
 | **Service Interfaces** | `IAppointmentsAppService`, `IPatientsAppService`, `IDoctorsAppService`, etc. |
-| **Permissions** | `CaseEvaluationPermissions.cs` -- 15 entity groups x 4 CRUD permissions (Create, Read, Update, Delete) |
+| **Permissions** | `CaseEvaluationPermissions.cs` -- 16 groups: 1 Dashboard (Host/Tenant) + 15 entity groups x 4 CRUD permissions each |
 | **Permission Provider** | `CaseEvaluationPermissionDefinitionProvider.cs` -- registers permissions with ABP |
 
 **Rules:**

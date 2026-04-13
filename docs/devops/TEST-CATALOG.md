@@ -1,4 +1,4 @@
-[Home](INDEX.md) > Test Catalog
+[Home](../INDEX.md) > Test Catalog
 
 # Test Catalog & User Flow Coverage
 

@@ -303,6 +303,46 @@ throw new UserFriendlyException(L["FromDateCannotBeInThePast"]);
 
 ---
 
+## ARC-08: Missing [RemoteService(IsEnabled = false)] on 3 AppServices
+
+**Severity:** Medium
+**Status:** Open
+
+### Description
+
+Per [ADR-002](../decisions/002-manual-controllers-not-auto.md), every AppService in this project should carry `[RemoteService(IsEnabled = false)]` to prevent ABP from auto-generating duplicate routes alongside the manual controllers in `HttpApi/`. A code audit on 2026-04-13 found 3 of 18 concrete AppServices missing this attribute.
+
+### Affected Files
+
+- `src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorTenantAppService.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application/Users/UserExtendedAppService.cs`
+
+(`CaseEvaluationAppService.cs` is the abstract base class and is correctly excluded.)
+
+### Impact
+
+ABP may register auto-controllers for these services, creating duplicate endpoint registrations alongside the manual controllers in `HttpApi/Controllers/`. Clients routing through the auto-generated URL will bypass the manual controller's route conventions and any future customizations (serialization, authorization overrides, versioning).
+
+### Recommended Fix
+
+Add `[RemoteService(IsEnabled = false)]` to each affected class. Zero behavior change is expected for consumers of the manual controllers; the attribute simply prevents the auto-registration.
+
+```csharp
+[RemoteService(IsEnabled = false)]
+public class DoctorTenantAppService : CaseEvaluationAppService, IDoctorTenantAppService
+{
+    // ...
+}
+```
+
+### Related
+
+- [ADR-002: Manual Controllers, Not Auto](../decisions/002-manual-controllers-not-auto.md)
+- [Application Layer CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Application/CLAUDE.md)
+
+---
+
 ## Related Documentation
 
 - [Issues Overview](OVERVIEW.md) -- All issues by category and severity

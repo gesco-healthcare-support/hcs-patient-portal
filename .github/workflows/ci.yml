@@ -49,6 +49,22 @@ jobs:
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
 
+  docs-structure:
+    name: 'Docs: Structure Check'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Verify documentation structure
+        run: python .claude/scripts/verify_structure.py
+      - name: Check documentation links
+        run: python .claude/scripts/check-links.py || true
+        # Link check is non-blocking: pre-existing broken links (tracked in
+        # docs/verification/BASELINE.md) should not fail CI. The job still
+        # prints the full report for visibility.
+
   backend-test:
     name: 'Backend: Test'
     runs-on: ubuntu-latest

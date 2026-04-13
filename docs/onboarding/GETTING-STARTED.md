@@ -184,5 +184,5 @@ Redis is disabled by default. Only needed for multi-instance deployment. Set `Re
 **Next steps:**
 - [Common Tasks](COMMON-TASKS.md) -- add entities, run migrations, create tests
 - [Architecture Overview](../architecture/OVERVIEW.md) -- understand the system structure
-- [Docker & Deployment](../devops/DOCKER-AND-DEPLOYMENT.md) -- containerization
+- [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- containerization
 - [Testing Strategy](../devops/TESTING-STRATEGY.md) -- running and writing tests

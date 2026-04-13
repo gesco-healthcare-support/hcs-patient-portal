@@ -119,6 +119,15 @@ Scan the diff for PHI compliance:
 5. **Access control:** If new endpoints are added, verify they have `[Authorize]` with
    appropriate permission attributes
 
+6. **Security documentation impact:** If the PR adds a new entity with PHI fields, modifies
+   multi-tenancy scope, or changes an authorization gate, flag that the following may need
+   updates:
+   - `docs/security/DATA-FLOWS.md` -- add entity to PHI inventory
+   - `docs/security/AUTHORIZATION.md` -- add new permissions to the matrix
+   - `docs/security/THREAT-MODEL.md` -- update STRIDE table for affected component
+   If the PR directly edits files in `docs/security/`, spot-check two specific claims
+   against source code (read the referenced .cs / .ts file and verify the claim holds).
+
 ---
 
 ## Step 6 — OUTPUT REVIEW
