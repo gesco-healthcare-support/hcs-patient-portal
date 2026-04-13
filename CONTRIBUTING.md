@@ -18,7 +18,7 @@ feature/* --> main --> development --> staging --> production
 | main | Backend Build, Frontend Build | 1 |
 | development | + Backend Test, Frontend Lint | 1 |
 | staging | + Frontend Test, Dependency Review | 1 |
-| production | + Secret Detection, Docker Build | 2 |
+| production | + Secret Detection | 2 |
 
 ## Development Workflow
 

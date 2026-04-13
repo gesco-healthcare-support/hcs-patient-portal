@@ -19,7 +19,13 @@ to files within that subtree only — but still check links that point outward.
 
 ### 1a. Discover all docs
 
-Glob `docs/**/*.md` recursively. For each file record:
+Glob `docs/**/*.md` recursively. This inventory **must include** the
+following subdirectories introduced by the documentation augmentation:
+`docs/security/`, `docs/decisions/`, `docs/runbooks/`, `docs/repo-map/`,
+and `docs/verification/`. All are Type B (no `Last synced from` header) --
+they make verifiable claims about the codebase and must be spot-checked.
+
+For each file record:
 - Relative path from repo root
 - File size (line count)
 - Whether the first line matches `<!-- Last synced from ... on YYYY-MM-DD -->` — if yes, classify as **Type A** and extract:

@@ -8,7 +8,71 @@ This guide takes you from a fresh clone to a running application. The Patient Po
 
 For detailed configuration (connection strings, HTTPS certificates, Redis, ABP Studio profiles), see [Development Setup](../devops/DEVELOPMENT-SETUP.md).
 
-## Prerequisites
+## ABP Commercial License (Required Before Anything Else)
+
+This project uses **ABP Commercial**, which validates its license at runtime. Before running the application — whether via Docker or locally — you must authenticate the ABP CLI on your machine:
+
+```bash
+# Install ABP CLI (if not already installed)
+dotnet tool install -g Volo.Abp.Studio.Cli
+
+# Log in with your ABP Commercial account
+abp login <your-username>
+```
+
+This creates `~/.abp/cli/access-token.bin` on your machine. Docker mounts this file into containers automatically. Without it, all .NET services will fail at startup with `ABP-LIC-ERROR - License check failed`.
+
+You also need the `AbpLicenseCode` value — find it in any `src/*/appsettings.secrets.json` file. If you don't have these files yet, ask a team member for the ABP license credentials.
+
+---
+
+## Quick Start with Docker (Recommended)
+
+The fastest path from clone to running app. Only requires **Docker Desktop** and **Git** — no .NET SDK, Node.js, or SQL Server installation needed.
+
+```bash
+git clone https://github.com/gesco-healthcare-support/hcs-patient-portal.git
+cd hcs-patient-portal
+
+# 1. Create environment file
+cp .env.example .env
+# Edit .env with your ABP NuGet key, SA password, encryption passphrase, and ABP license code
+
+# 2. Copy ABP secrets
+cp docker/appsettings.secrets.json.example docker/appsettings.secrets.json
+# Edit docker/appsettings.secrets.json — paste your AbpLicenseCode
+
+# 3. Start everything
+docker compose up --build
+```
+
+Wait ~3-5 minutes for first build. When you see all health checks pass, open http://localhost:4200.
+
+| Service | URL | Container |
+|---------|-----|-----------|
+| Angular | http://localhost:4200 | patient-portal-ui |
+| API + Swagger | http://localhost:44327/swagger | patient-portal-api |
+| AuthServer | http://localhost:44368 | patient-portal-auth |
+| SQL Server | localhost:1434 | patient-portal-db |
+| Redis | localhost:6379 | patient-portal-redis |
+
+```bash
+# Stop all services
+docker compose down
+
+# Stop and wipe database (fresh start)
+docker compose down -v
+```
+
+> **Windows path length note:** .NET native DLLs can fail to load if the project path exceeds ~200 characters. Clone to a short path (e.g., `C:\Dev\hcs-portal` or use `subst` to create a drive alias). On macOS/Linux this is not an issue. See [Troubleshooting](#deep-dive-windows-path-length) for details.
+
+---
+
+## Local Setup (Without Docker)
+
+Use this method when you need full debugging, hot-reload, or IDE integration. Requires installing all tools locally.
+
+### Prerequisites
 
 | Tool | Version | How to Check | How to Install |
 |------|---------|-------------|----------------|
@@ -18,9 +82,9 @@ For detailed configuration (connection strings, HTTPS certificates, Redis, ABP S
 | Angular CLI | Latest | `ng version` | `npm install -g @angular/cli` |
 | ABP CLI | Latest | `abp --version` | `dotnet tool install -g Volo.Abp.Studio.Cli` |
 
-Optional: Redis (disabled by default), Docker Desktop.
+Optional: Redis (disabled by default).
 
-## Step 1: Clone and Position
+### Step 1: Clone and Position
 
 ```bash
 git clone <repository-url>
@@ -133,6 +197,174 @@ Open **http://localhost:4200**, log in with `admin@abp.io` and the `TEST_PASSWOR
 | API Host | https://localhost:44327/swagger | Swagger API explorer |
 | Angular | http://localhost:4200 | LeptonX themed SPA |
 
+## Running Services Independently
+
+Use these commands when you need to start individual services for debugging, testing, or focused development.
+
+### Docker Compose — Single Service
+
+```bash
+# Start only infrastructure (SQL + Redis)
+docker compose up -d sql-server redis
+
+# Run migrations only
+docker compose up db-migrator
+
+# Start AuthServer only (after migrations)
+docker compose up authserver
+
+# Start API only
+docker compose up api
+
+# Start Angular only
+docker compose up angular
+
+# Start everything except Angular (backend-only development)
+docker compose up sql-server redis db-migrator authserver api
+```
+
+### Docker Compose — Log Levels
+
+```bash
+# Default: shows interleaved logs from all services
+docker compose up
+
+# Detached (background) — no console output
+docker compose up -d
+
+# Follow logs for a specific service
+docker compose logs -f authserver
+docker compose logs -f api
+docker compose logs -f angular
+
+# Follow logs for multiple services
+docker compose logs -f authserver api
+
+# Show last 50 lines only
+docker compose logs --tail 50 api
+
+# Show timestamps
+docker compose logs -f -t api
+```
+
+### Docker Compose — Rebuild and Debug
+
+```bash
+# Rebuild a single service (after Dockerfile or code changes)
+docker compose up --build api
+
+# Rebuild without cache (forces fresh NuGet/npm restore)
+docker compose build --no-cache api
+docker compose up api
+
+# Run a shell inside a running container
+docker exec -it patient-portal-api /bin/bash
+docker exec -it patient-portal-auth /bin/bash
+docker exec -it patient-portal-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C
+
+# Check container resource usage
+docker stats --no-stream
+
+# Inspect environment variables inside a container
+docker exec patient-portal-api env | sort
+```
+
+### Local Development (No Docker)
+
+For local development with full .NET hot-reload and debugging:
+
+**AuthServer** (Terminal 1 — start first):
+```bash
+# Standard
+dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+
+# Verbose logging (shows SQL queries, ABP internals)
+dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer --verbosity detailed
+
+# Watch mode (auto-restart on code changes)
+dotnet watch run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+```
+
+**API Host** (Terminal 2 — start after AuthServer):
+```bash
+# Standard
+dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+
+# Verbose logging
+dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host --verbosity detailed
+
+# Watch mode
+dotnet watch run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+```
+
+**Angular** (Terminal 3 — start last):
+```bash
+cd angular
+
+# Standard build + serve (use this, NOT ng serve)
+npx ng build --configuration development && npx serve -s dist/CaseEvaluation/browser -p 4200
+
+# Production build (optimized, no source maps)
+npx ng build --configuration production && npx serve -s dist/CaseEvaluation/browser -p 4200
+```
+
+> **Critical:** Never use `ng serve` or `yarn start`. See [Deep Dive](#deep-dive-why-ng-serve-breaks).
+
+**DbMigrator** (one-time, run before services):
+```bash
+# Standard
+dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+
+# Skip Redis connection (useful when Redis isn't running)
+dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
+```
+
+### Logging Configuration
+
+Logging is configured via Serilog in each service's `Program.cs`. Override at runtime using environment variables:
+
+```bash
+# .NET services — set minimum log level
+Serilog__MinimumLevel__Default=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+
+# Docker — override via environment
+docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && dotnet HealthcareSupport.CaseEvaluation.HttpApi.Host.dll'
+```
+
+| Level | What it shows | Use when |
+|-------|---------------|----------|
+| `Information` (default) | Startup, requests, migrations | Normal development |
+| `Debug` | + ABP module loading, DI resolution | Investigating startup issues |
+| `Warning` | Only warnings and errors | Watching for problems in stable environment |
+| `Verbose` | Everything including framework internals | Last resort deep debugging |
+
+Override specific namespaces for targeted debugging:
+```bash
+# See all SQL queries
+Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+
+# See ABP internals
+Serilog__MinimumLevel__Override__Volo.Abp=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+```
+
+### Health Check Endpoints
+
+Both AuthServer and API Host expose health check endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/health-status` | JSON health report (database, Redis connectivity) |
+| `/health-ui` | Visual health dashboard (browser) |
+| `/health-api` | Machine-readable health API |
+
+```bash
+# Quick check from terminal
+curl http://localhost:44327/health-status
+curl http://localhost:44368/health-status
+```
+
+---
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |
@@ -184,5 +416,5 @@ Redis is disabled by default. Only needed for multi-instance deployment. Set `Re
 **Next steps:**
 - [Common Tasks](COMMON-TASKS.md) -- add entities, run migrations, create tests
 - [Architecture Overview](../architecture/OVERVIEW.md) -- understand the system structure
-- [Docker & Deployment](../devops/DOCKER-AND-DEPLOYMENT.md) -- containerization
+- [Docker & Deployment](../runbooks/DOCKER-DEV.md) -- containerization
 - [Testing Strategy](../devops/TESTING-STRATEGY.md) -- running and writing tests

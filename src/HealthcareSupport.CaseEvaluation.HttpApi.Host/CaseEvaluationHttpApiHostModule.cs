@@ -156,6 +156,20 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 options.Authority = configuration["AuthServer:Authority"];
                 options.RequireHttpsMetadata = configuration.GetValue<bool>("AuthServer:RequireHttpsMetadata");
                 options.Audience = "CaseEvaluation";
+
+                // Docker/K8s split-horizon: the API reaches AuthServer via internal DNS
+                // (e.g. http://authserver:8080) but tokens carry the public issuer URL
+                // (e.g. http://localhost:44368). Three things must align:
+                //   1. MetadataAddress  -> internal URL for OIDC discovery fetch
+                //   2. ValidIssuer      -> public URL matching the "iss" claim in tokens
+                //   3. Authority        -> public URL for default issuer validation
+                // When MetaAddress == Authority (local dev), this block is skipped entirely.
+                var metaAddress = configuration["AuthServer:MetaAddress"];
+                if (!string.IsNullOrEmpty(metaAddress) && metaAddress != configuration["AuthServer:Authority"])
+                {
+                    options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
+                    options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
+                }
             });
 
         context.Services.Configure<AbpClaimsPrincipalFactoryOptions>(options =>

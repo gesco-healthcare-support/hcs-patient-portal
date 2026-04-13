@@ -231,6 +231,20 @@ After writing the feature docs, check `docs/INDEX.md` for a
 3. If the `### Feature Documentation` section doesn't exist, create it
    between `### Frontend` and `### Business Domain` in the `## Documentation by Section` area
 
+## Step 4.5 -- ADR cross-linking
+
+After updating `overview.md`, scan `docs/decisions/` for any ADR files whose
+body or title mentions this feature name (case-insensitive). If found, add a
+line to the `## Links` / `## Related` section of the feature's `overview.md`:
+
+```markdown
+- Related decisions: [ADR-NNN](../../decisions/NNN-slug.md), ...
+```
+
+This creates a bidirectional link so feature readers discover relevant
+decisions. If no ADRs mention the feature, skip this step without adding
+anything.
+
 <!-- SKILL-ASSESSMENT:
 Date: 2026-04-03
 Features synced: 15 (14 new + 1 pre-existing)
