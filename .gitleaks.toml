@@ -1,5 +1,8 @@
 [extend]
-# Use default gitleaks rules
+# Inherit the upstream default ruleset (aws-access-token, generic-api-key,
+# private keys, etc.). Without this, gitleaks 8.x loads ZERO rules even
+# when [allowlist] is present and silently passes every commit.
+useDefault = true
 
 [allowlist]
 description = "Known safe patterns"
