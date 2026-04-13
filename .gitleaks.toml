@@ -1,11 +1,17 @@
 [extend]
-# Use default gitleaks rules
+# Inherit the upstream default ruleset (aws-access-token, generic-api-key,
+# private keys, etc.). Without this, gitleaks 8.x loads ZERO rules even
+# when [allowlist] is present and silently passes every commit.
+useDefault = true
 
 [allowlist]
 description = "Known safe patterns"
 paths = [
   '''angular/node_modules''',
   '''\.git\.backup-.*''',
+  # Data-seeding scripts use synthetic tenant/user keys (T1_P1, T4_NullPatient, etc.)
+  # per the HIPAA "synthetic data only" rule. Whole directory is test scaffolding.
+  '''scripts/phases/Phase-.*\.ps1''',
 ]
 regexTarget = "match"
 regexes = [
@@ -15,4 +21,6 @@ regexes = [
   '''\$\{.*\}''',
   '''your-.*-here''',
   '''generate-your-own.*''',
+  # Synthetic seeded-tenant keys: T1_P1, T2_AA1, T4_NullPatient, T5_DA2, etc.
+  '''T\d+_[A-Za-z]+\d*''',
 ]

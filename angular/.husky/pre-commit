@@ -1,0 +1,49 @@
+#!/usr/bin/env sh
+
+echo "Running pre-commit checks..."
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+# 1. SECRET DETECTION (most critical for public repo)
+if command -v gitleaks > /dev/null 2>&1; then
+  echo "  Scanning for secrets..."
+  gitleaks protect --staged --verbose --source "$REPO_ROOT"
+  if [ $? -ne 0 ]; then
+    echo "Gitleaks found secrets in staged files. Fix before committing."
+    exit 1
+  fi
+else
+  echo "  Warning: gitleaks not installed. Skipping secret scan."
+  echo "  Install (WSL):       curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz -C ~/.local/bin gitleaks"
+  echo "  Install (Git Bash):  see CONTRIBUTING.md \"Activating Local Git Hooks\""
+fi
+
+# 2. ANGULAR LINT + FORMAT (only staged files matching lint-staged config)
+if [ -d "$REPO_ROOT/angular/node_modules" ]; then
+  echo "  Linting staged Angular files..."
+  ( cd "$REPO_ROOT/angular" && npx --no -- lint-staged )
+  LINT_EXIT=$?
+  if [ $LINT_EXIT -ne 0 ]; then
+    echo "Angular lint/format failed. Fix before committing."
+    exit 1
+  fi
+fi
+
+# 3. DOTNET FORMAT CHECK (only staged .cs files).
+# Under WSL, `dotnet` alone is not resolvable by sh/dash; fall back to
+# `dotnet.exe` so Windows dotnet is invoked via WSL interop.
+CS_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.cs')
+if [ -n "$CS_FILES" ]; then
+  DOTNET="dotnet"
+  command -v "$DOTNET" > /dev/null 2>&1 || DOTNET="dotnet.exe"
+
+  echo "  Checking C# formatting..."
+  "$DOTNET" format HealthcareSupport.CaseEvaluation.slnx --verify-no-changes --include $CS_FILES
+  if [ $? -ne 0 ]; then
+    echo "C# formatting issues found. Run 'dotnet format' to fix."
+    exit 1
+  fi
+fi
+
+echo "Pre-commit checks passed."

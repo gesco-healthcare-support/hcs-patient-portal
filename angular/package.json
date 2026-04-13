@@ -10,7 +10,8 @@
     "test": "ng test",
     "lint": "ng lint",
     "symlinks:setup": "cd scripts && pwsh ./setup-symlinks.ps1",
-    "symlinks:remove": "cd scripts && pwsh ./remove-symlinks.ps1"
+    "symlinks:remove": "cd scripts && pwsh ./remove-symlinks.ps1",
+    "prepare": "cd .. && husky angular/.husky"
   },
   "private": true,
   "dependencies": {
@@ -57,8 +58,20 @@
     "flatted": ">=3.4.2",
     "brace-expansion": ">=1.1.13"
   },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix --max-warnings=0"
+    ],
+    "*.html": [
+      "eslint --fix --max-warnings=0"
+    ]
+  },
   "devDependencies": {
     "@abp/ng.schematics": "~10.0.2",
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
     "@angular-eslint/builder": "~20.0.0",
     "@angular-eslint/eslint-plugin": "~20.0.0",
     "@angular-eslint/eslint-plugin-template": "~20.0.0",
