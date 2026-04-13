@@ -4,4 +4,12 @@
 # commitlint is installed in angular/, so invoke from there.
 # $1 is the path to COMMIT_EDITMSG, relative to repo root (cwd of this hook).
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-( cd "$REPO_ROOT/angular" && npx --no -- commitlint --edit "$REPO_ROOT/$1" )
+COMMIT_MSG_FILE="$REPO_ROOT/$1"
+
+# Under WSL, Windows Node (bundled with Windows-installed node_modules) cannot
+# parse /mnt/... paths. Convert to a Windows path so Windows Node can read it.
+if grep -qi microsoft /proc/version 2>/dev/null && command -v wslpath > /dev/null 2>&1; then
+  COMMIT_MSG_FILE="$(wslpath -w "$COMMIT_MSG_FILE")"
+fi
+
+( cd "$REPO_ROOT/angular" && npx --no -- commitlint --edit "$COMMIT_MSG_FILE" )
