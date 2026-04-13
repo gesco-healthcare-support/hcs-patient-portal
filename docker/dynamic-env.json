@@ -10,7 +10,8 @@
     "redirectUri": "http://localhost:4200",
     "clientId": "CaseEvaluation_App",
     "responseType": "code",
-    "scope": "offline_access openid profile email phone CaseEvaluation"
+    "scope": "offline_access openid profile email phone CaseEvaluation",
+    "requireHttps": false
   },
   "apis": {
     "default": {

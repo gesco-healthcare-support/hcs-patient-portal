@@ -1,23 +1,24 @@
 services:
   sql-server:
-    image: mcr.microsoft.com/azure-sql-edge:1.0.7
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: patient-portal-db
     environment:
-      SA_PASSWORD: "${SA_PASSWORD}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
       ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
     ports:
       - "1434:1433"
     volumes:
       - sqldata:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -Q "SELECT 1" -C -b -o /dev/null
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -C -b -o /dev/null
       interval: 10s
       timeout: 3s
       retries: 10
-      start_period: 10s
+      start_period: 15s
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     container_name: patient-portal-redis
     ports:
       - "6379:6379"
@@ -26,17 +27,19 @@ services:
 
   db-migrator:
     build:
-      context: ..
-      dockerfile: docker/dbmigrator.Dockerfile
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.DbMigrator/Dockerfile
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:4200"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:44327"
+    volumes:
+      - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
+      - ${HOME}/.abp/cli:/root/.abp/cli:ro
     depends_on:
       sql-server:
         condition: service_healthy
@@ -46,22 +49,25 @@ services:
 
   authserver:
     build:
-      context: ..
-      dockerfile: docker/authserver.Dockerfile
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     container_name: patient-portal-auth
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
-      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
+      AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:44368"
       App__CorsOrigins: "http://localhost:4200,http://localhost:44327"
       AuthServer__Authority: "http://localhost:44368"
       AuthServer__RequireHttpsMetadata: "false"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+    volumes:
+      - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
+      - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "44368:8080"
     depends_on:
@@ -78,22 +84,26 @@ services:
 
   api:
     build:
-      context: ..
-      dockerfile: docker/api.Dockerfile
+      context: .
+      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     container_name: patient-portal-api
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
-      ABP_LICENSE_CODE: "${ABP_LICENSE_CODE}"
+      AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:44327"
       App__CorsOrigins: "http://localhost:4200"
-      AuthServer__Authority: "http://authserver:8080"
+      AuthServer__Authority: "http://localhost:44368"
+      AuthServer__MetaAddress: "http://authserver:8080"
       AuthServer__RequireHttpsMetadata: "false"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+    volumes:
+      - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
+      - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "44327:8080"
     depends_on:
@@ -110,13 +120,13 @@ services:
 
   angular:
     build:
-      context: ..
-      dockerfile: docker/angular.Dockerfile
+      context: ./angular
+      dockerfile: Dockerfile
     container_name: patient-portal-ui
     ports:
       - "4200:80"
     volumes:
-      - ./dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
+      - ./docker/dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
     depends_on:
       api:
         condition: service_healthy
