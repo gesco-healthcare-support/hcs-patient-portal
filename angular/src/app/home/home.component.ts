@@ -19,12 +19,9 @@ import { AppointmentDetailViewService } from '../appointments/appointment/servic
     NgxDatatableDefaultDirective,
     NgxDatatableListDirective,
     PageComponent,
-    TopHeaderNavbarComponent],
-    providers: [
-      ListService,
-      AppointmentViewService,
-      AppointmentDetailViewService,
-    ]
+    TopHeaderNavbarComponent,
+  ],
+  providers: [ListService, AppointmentViewService, AppointmentDetailViewService],
 })
 export class HomeComponent implements OnInit {
   private authService = inject(AuthService);
@@ -58,7 +55,7 @@ export class HomeComponent implements OnInit {
   private get isAttorneyUser(): boolean {
     const roles = this.currentUser?.roles ?? [];
     const attorneyRoles = ['applicant attorney', 'defense attorney'];
-    return roles.some(role => attorneyRoles.includes(role?.toLowerCase() ?? ''));
+    return roles.some((role) => attorneyRoles.includes(role?.toLowerCase() ?? ''));
   }
 
   get hasLoggedIn(): boolean {
@@ -73,7 +70,7 @@ export class HomeComponent implements OnInit {
 
     const roles = this.currentUser?.roles ?? [];
     const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    return roles.some(role => externalUserRoles.includes(role?.toLowerCase() ?? ''));
+    return roles.some((role) => externalUserRoles.includes(role?.toLowerCase() ?? ''));
   }
 
   get displayUserName(): string {

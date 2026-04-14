@@ -5,7 +5,7 @@ export const LOCATION_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/location.component').then(c => c.LocationComponent);
+      return import('./components/location.component').then((c) => c.LocationComponent);
     },
     canActivate: [authGuard, permissionGuard],
   },

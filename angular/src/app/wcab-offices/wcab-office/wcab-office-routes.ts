@@ -5,7 +5,7 @@ export const WCAB_OFFICE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/wcab-office.component').then(c => c.WcabOfficeComponent);
+      return import('./components/wcab-office.component').then((c) => c.WcabOfficeComponent);
     },
     canActivate: [authGuard, permissionGuard],
   },

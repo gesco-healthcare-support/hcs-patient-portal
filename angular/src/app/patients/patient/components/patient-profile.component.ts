@@ -6,7 +6,11 @@ import { AuthService, ConfigStateService, LocalizationPipe, RestService } from '
 import { PageComponent } from '@abp/ng.components/page';
 import { DateAdapter, TimeAdapter, ButtonComponent } from '@abp/ng.theme.shared';
 import { TopHeaderNavbarComponent } from '../../../shared/components/top-header-navbar/top-header-navbar.component';
-import { PatientDto, PatientUpdateDto, PatientWithNavigationPropertiesDto } from '../../../proxy/patients/models';
+import {
+  PatientDto,
+  PatientUpdateDto,
+  PatientWithNavigationPropertiesDto,
+} from '../../../proxy/patients/models';
 import { genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import { finalize } from 'rxjs/operators';
@@ -62,7 +66,10 @@ export class PatientProfileComponent implements OnInit {
     firstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     lastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     middleName: [null as string | null, [Validators.maxLength(50)]],
-    email: [null as string | null, [Validators.required, Validators.maxLength(50), Validators.email]],
+    email: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50), Validators.email],
+    ],
     genderId: [null as number | null, [Validators.required]],
     dateOfBirth: [null as string | null, [Validators.required]],
     phoneNumber: [null as string | null, [Validators.maxLength(20)]],
@@ -102,9 +109,7 @@ export class PatientProfileComponent implements OnInit {
   get isExternalUserNonPatient(): boolean {
     const roles = this.currentUser?.roles ?? [];
     return roles.some(
-      r =>
-        r?.toLowerCase() === 'applicant attorney' ||
-        r?.toLowerCase() === 'defense attorney',
+      (r) => r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
     );
   }
 
@@ -139,7 +144,7 @@ export class PatientProfileComponent implements OnInit {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isBusy = false)))
-      .subscribe(updated => {
+      .subscribe((updated) => {
         if (this.selected?.patient) {
           this.selected.patient = {
             ...this.selected.patient,
@@ -164,7 +169,10 @@ export class PatientProfileComponent implements OnInit {
   private loadMyProfile(): void {
     if (this.isExternalUserNonPatient) {
       this.restService
-        .request<any, { identityUserId: string; firstName: string; lastName: string; email: string }>(
+        .request<
+          any,
+          { identityUserId: string; firstName: string; lastName: string; email: string }
+        >(
           {
             method: 'GET',
             url: '/api/app/external-users/me',
@@ -172,7 +180,7 @@ export class PatientProfileComponent implements OnInit {
           { apiName: 'Default' },
         )
         .pipe(finalize(() => (this.isLoading = false)))
-        .subscribe(response => {
+        .subscribe((response) => {
           if (!response?.identityUserId) {
             this.notFound = true;
             return;
@@ -203,7 +211,7 @@ export class PatientProfileComponent implements OnInit {
           { apiName: 'Default' },
         )
         .pipe(finalize(() => (this.isLoading = false)))
-        .subscribe(response => {
+        .subscribe((response) => {
           if (!response?.patient) {
             this.notFound = true;
             return;
