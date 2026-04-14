@@ -1,0 +1,35 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.vscode-dotnet-runtime",
+    "redhat.vscode-xml",
+    "angular.ng-template",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "editorconfig.editorconfig",
+    "christian-kohler.npm-intellisense",
+    "humao.rest-client",
+    "ms-azuretools.vscode-containers",
+    "ms-vscode-remote.remote-containers",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory",
+    "codezombiech.gitignore",
+    "github.vscode-github-actions",
+    "ziyasal.vscode-open-in-github",
+    "gruntfuggly.todo-tree",
+    "alefragnani.project-manager",
+    "streetsidesoftware.code-spell-checker",
+    "shardulm94.trailing-spaces",
+    "oderwat.indent-rainbow",
+    "mechatroner.rainbow-csv",
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+    "anthropic.claude-code"
+  ],
+  "unwantedRecommendations": [
+    "eamodio.gitlens",
+    "stylelint.vscode-stylelint",
+    "bradlc.vscode-tailwindcss"
+  ]
+}
