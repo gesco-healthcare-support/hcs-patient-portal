@@ -13,10 +13,7 @@ import {
 } from '@ng-bootstrap/ng-bootstrap';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { ListService, LocalizationPipe, PermissionDirective } from '@abp/ng.core';
-import {
-  DateAdapter,
-  TimeAdapter,
-} from '@abp/ng.theme.shared';
+import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { PageComponent, PageToolbarContainerComponent } from '@abp/ng.components/page';
 import {
   AdvancedEntityFiltersComponent,

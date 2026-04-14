@@ -100,7 +100,7 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
 
     if (useCurrentMonthControl) {
       this.subscriptions.add(
-        useCurrentMonthControl.valueChanges.subscribe(value => {
+        useCurrentMonthControl.valueChanges.subscribe((value) => {
           if (value) {
             selectedMonthControl?.patchValue(null, { emitEvent: false });
           }
@@ -111,7 +111,7 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
 
     if (selectedMonthControl) {
       this.subscriptions.add(
-        selectedMonthControl.valueChanges.subscribe(value => {
+        selectedMonthControl.valueChanges.subscribe((value) => {
           if (value !== null && value !== undefined && value !== '') {
             useCurrentMonthControl?.patchValue(false, { emitEvent: false });
             this.updateMonthValidators(false);
@@ -122,7 +122,7 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
 
     if (slotModeControl) {
       this.subscriptions.add(
-        slotModeControl.valueChanges.subscribe(value => {
+        slotModeControl.valueChanges.subscribe((value) => {
           this.updateSlotModeValidators(value);
         }),
       );
@@ -188,10 +188,11 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     if (value.slotMode === 'weekdays') {
       const month = this.resolveSelectedMonth();
       const year = new Date().getFullYear();
-      const fromDay = value.fromDay === null || value.fromDay === undefined ? null : Number(value.fromDay);
+      const fromDay =
+        value.fromDay === null || value.fromDay === undefined ? null : Number(value.fromDay);
       const toDay = value.toDay === null || value.toDay === undefined ? null : Number(value.toDay);
       const dates = this.buildWeekdayDates(year, month, fromDay, toDay);
-      payloads = dates.map(date => ({
+      payloads = dates.map((date) => ({
         ...basePayload,
         fromDate: date,
         toDate: date,
@@ -212,11 +213,11 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     this.service
       .generatePreview(payloads)
       .pipe(finalize(() => (this.isGenerating = false)))
-      .subscribe(result => {
+      .subscribe((result) => {
         this.preview = result ?? [];
         this.updateConflictState();
         if (!this.hasConflicts) {
-          this.preview.forEach(item => (item.sameTimeValidation = null));
+          this.preview.forEach((item) => (item.sameTimeValidation = null));
         }
         this.expandedRows.clear();
       });
@@ -229,12 +230,12 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
 
     const slots = this.preview
       .reduce((acc, day) => acc.concat(this.getSlots(day)), [])
-      .filter(slot => !slot.isConflict);
+      .filter((slot) => !slot.isConflict);
     if (slots.length < 1) {
       return;
     }
 
-    const requests = slots.map(slot =>
+    const requests = slots.map((slot) =>
       this.service.create({
         availableDate: slot.availableDate,
         fromTime: slot.fromTime,
@@ -279,12 +280,12 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
   }
 
   removeSlot(day: DoctorAvailabilitySlotsPreviewDto, slot: { timeId: number }) {
-    const slots = this.getSlots(day).filter(item => item.timeId !== slot.timeId);
+    const slots = this.getSlots(day).filter((item) => item.timeId !== slot.timeId);
 
     day.doctorAvailabilities = slots;
 
     if (slots.length === 0) {
-      this.preview = this.preview.filter(item => item !== day);
+      this.preview = this.preview.filter((item) => item !== day);
     }
 
     this.updateConflictState();
@@ -292,7 +293,7 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
 
   private updateConflictState() {
     const allSlots = this.preview.reduce((acc, day) => acc.concat(this.getSlots(day)), []);
-    const anyConflict = allSlots.some(slot => !!slot.isConflict);
+    const anyConflict = allSlots.some((slot) => !!slot.isConflict);
     this.hasConflicts = anyConflict;
     this.validationMessage = anyConflict
       ? 'Some generated slots already exist. Please remove them before submitting.'

@@ -6,7 +6,7 @@ export const DOCTOR_AVAILABILITY_ROUTES: Routes = [
     path: '',
     loadComponent: () => {
       return import('./components/doctor-availability.component').then(
-        c => c.DoctorAvailabilityComponent,
+        (c) => c.DoctorAvailabilityComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
@@ -15,7 +15,7 @@ export const DOCTOR_AVAILABILITY_ROUTES: Routes = [
     path: 'generate',
     loadComponent: () => {
       return import('./components/doctor-availability-generate.component').then(
-        c => c.DoctorAvailabilityGenerateComponent,
+        (c) => c.DoctorAvailabilityGenerateComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
@@ -24,7 +24,7 @@ export const DOCTOR_AVAILABILITY_ROUTES: Routes = [
     path: 'add',
     loadComponent: () => {
       return import('./components/doctor-availability-generate.component').then(
-        c => c.DoctorAvailabilityGenerateComponent,
+        (c) => c.DoctorAvailabilityGenerateComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
