@@ -33,13 +33,35 @@ fi
 # 3. DOTNET FORMAT CHECK (only staged .cs files).
 # Under WSL, `dotnet` alone is not resolvable by sh/dash; fall back to
 # `dotnet.exe` so Windows dotnet is invoked via WSL interop.
-CS_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.cs')
-if [ -n "$CS_FILES" ]; then
+
+# 3a. Reject .cs filenames containing spaces -- non-standard and breaks
+# argument passing to dotnet format. Rename the file before committing.
+# Emergency override: git commit --no-verify (admin use only).
+BAD_CS_NAMES=$(git diff --cached --name-only --diff-filter=ACM -- '*.cs' | \
+  while IFS= read -r f; do
+    case "$(basename "$f")" in *' '*) printf '%s\n' "$f" ;; esac
+  done)
+if [ -n "$BAD_CS_NAMES" ]; then
+  echo "ERROR: C# filenames with spaces are not allowed:"
+  echo "$BAD_CS_NAMES" | sed 's/^/  /'
+  echo "  Rename before committing. Emergency override: git commit --no-verify"
+  exit 1
+fi
+
+# 3b. Run dotnet format --verify-no-changes on every staged .cs file.
+# Paths are joined with ';' (dotnet format's documented multi-path separator)
+# and passed as a single quoted argument so spaces in directory paths survive.
+# Semicolons in .cs paths are invalid on Windows, so this separator is safe.
+CS_FILES_RAW=$(git diff --cached --name-only --diff-filter=ACM -- '*.cs')
+if [ -n "$CS_FILES_RAW" ]; then
   DOTNET="dotnet"
   command -v "$DOTNET" > /dev/null 2>&1 || DOTNET="dotnet.exe"
 
+  CS_FILES_JOINED=$(printf '%s' "$CS_FILES_RAW" | tr '\n' ';' | sed 's/;$//')
+
   echo "  Checking C# formatting..."
-  "$DOTNET" format HealthcareSupport.CaseEvaluation.slnx --verify-no-changes --include $CS_FILES
+  "$DOTNET" format HealthcareSupport.CaseEvaluation.slnx \
+    --verify-no-changes --include "$CS_FILES_JOINED"
   if [ $? -ne 0 ]; then
     echo "C# formatting issues found. Run 'dotnet format' to fix."
     exit 1
