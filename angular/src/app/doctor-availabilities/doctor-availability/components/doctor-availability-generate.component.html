@@ -9,7 +9,12 @@
         <i class="fa fa-rotate-left me-1" aria-hidden="true"></i>
         {{ '::Reset' | abpLocalization }}
       </button>
-      <button class="btn btn-primary btn-sm" type="button" [disabled]="isGenerating" (click)="generate()">
+      <button
+        class="btn btn-primary btn-sm"
+        type="button"
+        [disabled]="isGenerating"
+        (click)="generate()"
+      >
         <i class="fa fa-bolt me-1" aria-hidden="true"></i>
         {{ '::GenerateSlot' | abpLocalization }}
       </button>
@@ -25,7 +30,12 @@
             <label class="form-check-label">{{ '::SlotByDates' | abpLocalization }}</label>
           </div>
           <div class="form-check me-3">
-            <input class="form-check-input" type="radio" value="weekdays" formControlName="slotMode" />
+            <input
+              class="form-check-input"
+              type="radio"
+              value="weekdays"
+              formControlName="slotMode"
+            />
             <label class="form-check-label">{{ '::SlotByWeekdays' | abpLocalization }}</label>
           </div>
         </div>
@@ -298,9 +308,13 @@
                             </td>
                             <td>
                               @if (slot.isConflict) {
-                                <span class="text-danger">{{ 'AbpUi::Yes' | abpLocalization }}</span>
+                                <span class="text-danger">
+                                  {{ 'AbpUi::Yes' | abpLocalization }}
+                                </span>
                               } @else {
-                                <span class="text-success">{{ 'AbpUi::No' | abpLocalization }}</span>
+                                <span class="text-success">
+                                  {{ 'AbpUi::No' | abpLocalization }}
+                                </span>
                               }
                             </td>
                             <td>
@@ -329,7 +343,12 @@
       <button class="btn btn-secondary" type="button" (click)="goBack()">
         {{ 'AbpUi::Cancel' | abpLocalization }}
       </button>
-      <button class="btn btn-primary" type="button" [disabled]="isSubmitting || !canSubmit" (click)="submit()">
+      <button
+        class="btn btn-primary"
+        type="button"
+        [disabled]="isSubmitting || !canSubmit"
+        (click)="submit()"
+      >
         {{ 'AbpUi::Submit' | abpLocalization }}
       </button>
     </div>

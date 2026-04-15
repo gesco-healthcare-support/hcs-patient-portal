@@ -24,7 +24,7 @@ export abstract class AbstractApplicantAttorneyViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.applicantAttorney.id)),
       )
       .subscribe(this.list.get);

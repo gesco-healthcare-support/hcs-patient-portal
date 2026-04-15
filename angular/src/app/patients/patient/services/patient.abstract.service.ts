@@ -24,7 +24,7 @@ export abstract class AbstractPatientViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.patient.id)),
       )
       .subscribe(this.list.get);

@@ -16,7 +16,11 @@
         <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="isSaving">
           {{ isSaving ? 'Saving...' : 'Save' }}
         </button>
-        <button type="button" class="btn btn-info text-white btn-sm" (click)="openUploadDocuments()">
+        <button
+          type="button"
+          class="btn btn-info text-white btn-sm"
+          (click)="openUploadDocuments()"
+        >
           Upload Documents
         </button>
         <button type="button" class="btn btn-primary btn-sm" (click)="openHelp()">Help</button>
@@ -56,7 +60,9 @@
             <div class="fw-semibold">{{ appointment.appointmentType?.name }}</div>
           </div>
           <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">{{ '::RequestConfirmationNumber' | abpLocalization }}</div>
+            <div class="text-muted small">
+              {{ '::RequestConfirmationNumber' | abpLocalization }}
+            </div>
             <div class="fw-semibold">{{ appointment.appointment?.requestConfirmationNumber }}</div>
           </div>
           <div class="col-md-2 col-sm-6">
@@ -74,11 +80,15 @@
           </div>
           <div class="col-md-2 col-sm-6">
             <div class="text-muted small">{{ '::AppointmentDate' | abpLocalization }}</div>
-            <div class="fw-semibold">{{ appointment.appointment?.appointmentDate | date: 'M/d/yyyy' }}</div>
+            <div class="fw-semibold">
+              {{ appointment.appointment?.appointmentDate | date: 'M/d/yyyy' }}
+            </div>
           </div>
           <div class="col-md-2 col-sm-6">
             <div class="text-muted small">Appointment Time</div>
-            <div class="fw-semibold">{{ appointment.appointment?.appointmentDate | date: 'hh:mm a' }}</div>
+            <div class="fw-semibold">
+              {{ appointment.appointment?.appointmentDate | date: 'hh:mm a' }}
+            </div>
           </div>
         </div>
       </div>
@@ -159,7 +169,9 @@
             <input class="form-control" [(ngModel)]="patientForm.email" disabled />
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::CellPhoneNumber' | abpLocalization }}</label>
+            <label class="form-label fw-semibold">
+              {{ '::CellPhoneNumber' | abpLocalization }}
+            </label>
             <input class="form-control" [(ngModel)]="patientForm.cellPhoneNumber" />
           </div>
           <div class="col-md-3 mb-3">
@@ -185,7 +197,9 @@
           </div>
 
           <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::SocialSecurityNumber' | abpLocalization }}</label>
+            <label class="form-label fw-semibold">
+              {{ '::SocialSecurityNumber' | abpLocalization }}
+            </label>
             <input class="form-control" [(ngModel)]="patientForm.socialSecurityNumber" />
           </div>
           <div class="col-md-3 mb-3">
@@ -215,7 +229,9 @@
             <input class="form-control" [(ngModel)]="patientForm.zipCode" />
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::AppointmentLanguage' | abpLocalization }}</label>
+            <label class="form-label fw-semibold">
+              {{ '::AppointmentLanguage' | abpLocalization }}
+            </label>
             <abp-lookup-select
               cid="appointment-view-language-id"
               [(ngModel)]="patientForm.appointmentLanguageId"
@@ -269,15 +285,27 @@
         <div class="row g-3">
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">Employer Name</label>
-            <input class="form-control" [(ngModel)]="employerForm.employerName" placeholder="EMPLOYER NAME" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.employerName"
+              placeholder="EMPLOYER NAME"
+            />
           </div>
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">Occupation</label>
-            <input class="form-control" [(ngModel)]="employerForm.occupation" placeholder="OCCUPATION" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.occupation"
+              placeholder="OCCUPATION"
+            />
           </div>
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.phoneNumber" placeholder="PHONE NUMBER" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.phoneNumber"
+              placeholder="PHONE NUMBER"
+            />
           </div>
 
           <div class="col-md-3 mb-3">
@@ -342,7 +370,11 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">Or select</label>
-                <select class="form-select" [(ngModel)]="applicantAttorneyForm.identityUserId" (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)">
+                <select
+                  class="form-select"
+                  [(ngModel)]="applicantAttorneyForm.identityUserId"
+                  (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)"
+                >
                   <option [ngValue]="null">Select Applicant Attorney</option>
                   @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
                     <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
@@ -366,27 +398,51 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Firm Name</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.firmName" placeholder="FIRM NAME" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.firmName"
+                placeholder="FIRM NAME"
+              />
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label fw-semibold">Web Address</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.webAddress" placeholder="WEB ADDRESS" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.webAddress"
+                placeholder="WEB ADDRESS"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Phone Number</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.phoneNumber" placeholder="PHONE NUMBER" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.phoneNumber"
+                placeholder="PHONE NUMBER"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Fax</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.faxNumber" placeholder="FAX" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.faxNumber"
+                placeholder="FAX"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Street</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.street" placeholder="STREET" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.street"
+                placeholder="STREET"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">City</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.city" placeholder="CITY" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.city"
+                placeholder="CITY"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">State</label>
@@ -398,7 +454,11 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Zip Code</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.zipCode" placeholder="ZIP" />
+              <input
+                class="form-control"
+                [(ngModel)]="applicantAttorneyForm.zipCode"
+                placeholder="ZIP"
+              />
             </div>
           </div>
         </div>
@@ -428,7 +488,9 @@
             <tbody>
               @if (appointmentAuthorizedUsers.length === 0) {
                 <tr>
-                  <td colspan="5" class="text-muted text-center py-3">No additional authorized users.</td>
+                  <td colspan="5" class="text-muted text-center py-3">
+                    No additional authorized users.
+                  </td>
                 </tr>
               } @else {
                 @for (row of appointmentAuthorizedUsers; track row.accessorId) {
@@ -438,10 +500,18 @@
                     <td>{{ row.userRole }}</td>
                     <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
                     <td>
-                      <button type="button" class="btn btn-link p-0 me-2" (click)="openEditAuthorizedUserModal(row)">
+                      <button
+                        type="button"
+                        class="btn btn-link p-0 me-2"
+                        (click)="openEditAuthorizedUserModal(row)"
+                      >
                         <i class="fa fa-pencil"></i>
                       </button>
-                      <button type="button" class="btn btn-link text-danger p-0" (click)="removeAuthorizedUser(row)">
+                      <button
+                        type="button"
+                        class="btn btn-link text-danger p-0"
+                        (click)="removeAuthorizedUser(row)"
+                      >
                         <i class="fa fa-trash"></i>
                       </button>
                     </td>
@@ -461,9 +531,16 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              {{ authorizedUserModalMode === 'edit' ? 'Edit Authorized User' : 'Add Authorized User' }}
+              {{
+                authorizedUserModalMode === 'edit' ? 'Edit Authorized User' : 'Add Authorized User'
+              }}
             </h5>
-            <button type="button" class="btn-close" aria-label="Close" (click)="closeAuthorizedUserModal()"></button>
+            <button
+              type="button"
+              class="btn-close"
+              aria-label="Close"
+              (click)="closeAuthorizedUserModal()"
+            ></button>
           </div>
           <div class="modal-body">
             <div class="row g-3">
@@ -503,8 +580,16 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" (click)="closeAuthorizedUserModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" (click)="saveAuthorizedUserFromModal()">Save</button>
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              (click)="closeAuthorizedUserModal()"
+            >
+              Cancel
+            </button>
+            <button type="button" class="btn btn-primary" (click)="saveAuthorizedUserFromModal()">
+              Save
+            </button>
           </div>
         </div>
       </div>

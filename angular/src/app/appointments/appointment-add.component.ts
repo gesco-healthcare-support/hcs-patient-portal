@@ -2,7 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ConfigStateService, ListService, LocalizationPipe, PagedResultDto, RestService } from '@abp/ng.core';
+import {
+  ConfigStateService,
+  ListService,
+  LocalizationPipe,
+  PagedResultDto,
+  RestService,
+} from '@abp/ng.core';
 import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
@@ -21,7 +27,10 @@ import { BookingStatus } from '../proxy/enums/booking-status.enum';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import { genderOptions } from '../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../proxy/enums/phone-number-type.enum';
-import type { PatientUpdateDto, PatientWithNavigationPropertiesDto } from '../proxy/patients/models';
+import type {
+  PatientUpdateDto,
+  PatientWithNavigationPropertiesDto,
+} from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
@@ -90,7 +99,8 @@ export class AppointmentAddComponent {
   private availableSlotsRequestVersion = 0;
   readonly minimumBookingDays = 3;
   readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
-  appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> = [];
+  appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
+    [];
   readonly genderOptions = genderOptions;
   readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
   readonly accessTypeOptions = [
@@ -122,7 +132,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/appointments/appointment-status-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -132,7 +146,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/appointments/appointment-type-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -142,7 +160,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/appointments/location-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -152,7 +174,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/patients/state-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -162,7 +188,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/patients/appointment-language-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -172,7 +202,11 @@ export class AppointmentAddComponent {
       {
         method: 'GET',
         url: '/api/app/appointments/patient-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -180,7 +214,7 @@ export class AppointmentAddComponent {
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
     appointmentDate: [null as string | null, [Validators.required]],
-    requestConfirmationNumber: ["A" as string | null, [Validators.maxLength(50)]],
+    requestConfirmationNumber: ['A' as string | null, [Validators.maxLength(50)]],
     dueDate: [null as string | null],
     patientId: [null as string | null, [Validators.required]],
     identityUserId: [null as string | null, [Validators.required]],
@@ -191,7 +225,10 @@ export class AppointmentAddComponent {
     firstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     lastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     middleName: [null as string | null, [Validators.maxLength(50)]],
-    email: [{ value: null as string | null, disabled: true }, [Validators.required, Validators.maxLength(50), Validators.email]],
+    email: [
+      { value: null as string | null, disabled: true },
+      [Validators.required, Validators.maxLength(50), Validators.email],
+    ],
     genderId: [null as number | null],
     dateOfBirth: [null as string | null],
     cellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
@@ -232,23 +269,21 @@ export class AppointmentAddComponent {
   constructor() {
     this.form
       .get('locationId')
-      ?.valueChanges.subscribe(locationId => this.updateLocationSelection(locationId));
-    this.form
-      .get('locationId')
-      ?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
+      ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
+    this.form.get('locationId')?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
     this.form
       .get('appointmentTypeId')
       ?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
     this.form
       .get('appointmentDate')
-      ?.valueChanges.subscribe(value => this.onAppointmentDateChanged(value));
+      ?.valueChanges.subscribe((value) => this.onAppointmentDateChanged(value));
     this.form
       .get('appointmentTime')
-      ?.valueChanges.subscribe(value => this.onAppointmentTimeChanged(value));
+      ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
     this.loadCurrentPatientProfile();
     this.loadExternalAuthorizedUsers();
-    this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe(value => {
+    this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
       this.onAuthorizedUserIdentityChanged(value);
     });
   }
@@ -273,9 +308,7 @@ export class AppointmentAddComponent {
   get isExternalUserNonPatient(): boolean {
     const roles = this.currentUser?.roles ?? [];
     return roles.some(
-      r =>
-        r?.toLowerCase() === 'applicant attorney' ||
-        r?.toLowerCase() === 'defense attorney',
+      (r) => r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
     );
   }
 
@@ -312,7 +345,7 @@ export class AppointmentAddComponent {
 
     if (this.form.invalid) {
       this.patientLoadMessage = 'Please complete all required fields before saving.';
-      Object.keys(this.form.controls).forEach(key => {
+      Object.keys(this.form.controls).forEach((key) => {
         this.form.get(key)?.markAsTouched();
       });
       return;
@@ -337,7 +370,9 @@ export class AppointmentAddComponent {
       const rawAfter = this.form.getRawValue();
       const payload: AppointmentCreateDto = {
         panelNumber: rawAfter.panelNumber ?? undefined,
-        appointmentDate: this.combineAppointmentDateAndTime(rawAfter.appointmentDate, rawAfter.appointmentTime) ?? undefined,
+        appointmentDate:
+          this.combineAppointmentDateAndTime(rawAfter.appointmentDate, rawAfter.appointmentTime) ??
+          undefined,
         requestConfirmationNumber: rawAfter.requestConfirmationNumber || 'A',
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
@@ -445,7 +480,16 @@ export class AppointmentAddComponent {
 
   private loadExternalUserProfile(): void {
     this.restService
-      .request<any, { identityUserId: string; firstName: string; lastName: string; email: string; userRole?: string }>(
+      .request<
+        any,
+        {
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          userRole?: string;
+        }
+      >(
         {
           method: 'GET',
           url: '/api/app/external-users/me',
@@ -453,7 +497,7 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe(profile => {
+      .subscribe((profile) => {
         if (!profile?.identityUserId) {
           return;
         }
@@ -494,8 +538,10 @@ export class AppointmentAddComponent {
         });
         const identityUserId = profile.identityUserId ?? this.currentUser?.id ?? null;
         const isApplicantAttorney =
-          (profile.userRole?.toLowerCase() === 'applicant attorney') ||
-          (this.currentUser?.roles ?? []).some((r: string) => r?.toLowerCase() === 'applicant attorney');
+          profile.userRole?.toLowerCase() === 'applicant attorney' ||
+          (this.currentUser?.roles ?? []).some(
+            (r: string) => r?.toLowerCase() === 'applicant attorney',
+          );
         if (isApplicantAttorney && identityUserId) {
           this.loadApplicantAttorneyForCurrentUser(identityUserId);
         } else {
@@ -539,7 +585,7 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .pipe(finalize(() => (this.isProfileLoading = false)))
-      .subscribe(profile => {
+      .subscribe((profile) => {
         const patient = profile?.patient;
         if (!patient?.id) {
           return;
@@ -603,7 +649,9 @@ export class AppointmentAddComponent {
       refferedBy: raw.refferedBy ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       street: raw.street ?? undefined,
-      interpreterVendorName: raw.needsInterpreter ? raw.interpreterVendorName ?? undefined : undefined,
+      interpreterVendorName: raw.needsInterpreter
+        ? (raw.interpreterVendorName ?? undefined)
+        : undefined,
       stateId: raw.stateId ?? undefined,
       appointmentLanguageId: raw.appointmentLanguageId ?? undefined,
     };
@@ -655,7 +703,10 @@ export class AppointmentAddComponent {
       );
       if (profile?.patient?.id) {
         this.currentPatientProfile = profile;
-        this.patientLabel = [profile.patient.firstName, profile.patient.lastName].filter(Boolean).join(' ').trim();
+        this.patientLabel = [profile.patient.firstName, profile.patient.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
         this.form.patchValue({
           patientId: profile.patient.id,
           identityUserId: profile.patient.identityUserId ?? null,
@@ -684,10 +735,12 @@ export class AppointmentAddComponent {
         this.form.patchValue({ patientId: null }, { emitEvent: false });
         this.currentPatientProfile = undefined;
         this.patientLabel = '';
-        this.patientLoadMessage = 'No patient found with this email. Fill in the form below to create a new patient.';
+        this.patientLoadMessage =
+          'No patient found with this email. Fill in the form below to create a new patient.';
       }
     } catch {
-      this.patientLoadMessage = 'Unable to load patient. Please try again or fill in the form to create new.';
+      this.patientLoadMessage =
+        'Unable to load patient. Please try again or fill in the form to create new.';
     } finally {
       this.isProfileLoading = false;
     }
@@ -750,7 +803,7 @@ export class AppointmentAddComponent {
         },
         { apiName: 'Default' },
       )
-      .subscribe(profile => {
+      .subscribe((profile) => {
         const patient = profile?.patient;
         if (!patient?.id) {
           return;
@@ -866,7 +919,8 @@ export class AppointmentAddComponent {
       accessTypeId: item.accessTypeId,
     });
     this.selectedAuthorizedUser =
-      this.externalAuthorizedUserOptions.find(x => x.identityUserId === item.identityUserId) ?? null;
+      this.externalAuthorizedUserOptions.find((x) => x.identityUserId === item.identityUserId) ??
+      null;
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -892,9 +946,10 @@ export class AppointmentAddComponent {
     }
 
     const mapped: AppointmentAuthorizedUserDraft = {
-      id: this.authorizedUserModalMode === 'edit'
-        ? this.appointmentAuthorizedUsers[this.editingAuthorizedUserIndex]?.id
-        : undefined,
+      id:
+        this.authorizedUserModalMode === 'edit'
+          ? this.appointmentAuthorizedUsers[this.editingAuthorizedUserIndex]?.id
+          : undefined,
       identityUserId: this.selectedAuthorizedUser.identityUserId,
       firstName: this.selectedAuthorizedUser.firstName,
       lastName: this.selectedAuthorizedUser.lastName,
@@ -917,12 +972,12 @@ export class AppointmentAddComponent {
   }
 
   getAccessTypeLabel(value: number): string {
-    return this.accessTypeOptions.find(x => x.value === value)?.label ?? '';
+    return this.accessTypeOptions.find((x) => x.value === value)?.label ?? '';
   }
 
   private onAuthorizedUserIdentityChanged(identityUserId: string | null): void {
     this.selectedAuthorizedUser =
-      this.externalAuthorizedUserOptions.find(x => x.identityUserId === identityUserId) ?? null;
+      this.externalAuthorizedUserOptions.find((x) => x.identityUserId === identityUserId) ?? null;
   }
 
   private loadExternalAuthorizedUsers(): void {
@@ -935,7 +990,7 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: result => {
+        next: (result) => {
           this.externalAuthorizedUserOptions = result?.items ?? [];
           this.applicantAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'applicant attorney',
@@ -953,7 +1008,25 @@ export class AppointmentAddComponent {
     if (!email) return;
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<any, { applicantAttorneyId?: string; identityUserId: string; firstName: string; lastName: string; email: string; firmName?: string; webAddress?: string; phoneNumber?: string; faxNumber?: string; street?: string; city?: string; stateId?: string; zipCode?: string; concurrencyStamp?: string } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -963,7 +1036,7 @@ export class AppointmentAddComponent {
       )
       .pipe(finalize(() => (this.isApplicantAttorneyLoading = false)))
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyId = data.applicantAttorneyId ?? null;
             this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
@@ -1007,7 +1080,25 @@ export class AppointmentAddComponent {
     }
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<any, { applicantAttorneyId?: string; identityUserId: string; firstName: string; lastName: string; email: string; firmName?: string; webAddress?: string; phoneNumber?: string; faxNumber?: string; street?: string; city?: string; stateId?: string; zipCode?: string; concurrencyStamp?: string } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -1017,7 +1108,7 @@ export class AppointmentAddComponent {
       )
       .pipe(finalize(() => (this.isApplicantAttorneyLoading = false)))
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyId = data.applicantAttorneyId ?? null;
             this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
@@ -1042,7 +1133,25 @@ export class AppointmentAddComponent {
 
   private loadApplicantAttorneyForCurrentUser(identityUserId: string): void {
     this.restService
-      .request<any, { applicantAttorneyId?: string; identityUserId: string; firstName: string; lastName: string; email: string; firmName?: string; webAddress?: string; phoneNumber?: string; faxNumber?: string; street?: string; city?: string; stateId?: string; zipCode?: string; concurrencyStamp?: string } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -1051,7 +1160,7 @@ export class AppointmentAddComponent {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyId = data.applicantAttorneyId ?? null;
             this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
@@ -1074,7 +1183,9 @@ export class AppointmentAddComponent {
       });
   }
 
-  private async upsertApplicantAttorneyForAppointmentIfProvided(appointmentId?: string): Promise<void> {
+  private async upsertApplicantAttorneyForAppointmentIfProvided(
+    appointmentId?: string,
+  ): Promise<void> {
     const raw = this.form.getRawValue();
     if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyIdentityUserId) {
       return;
@@ -1154,7 +1265,9 @@ export class AppointmentAddComponent {
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
       street: raw.street ?? undefined,
-      interpreterVendorName: needsInterpreter ? raw.interpreterVendorName ?? undefined : undefined,
+      interpreterVendorName: needsInterpreter
+        ? (raw.interpreterVendorName ?? undefined)
+        : undefined,
       apptNumber: existing.apptNumber ?? undefined,
       othersLanguageName: existing.othersLanguageName ?? undefined,
       stateId: raw.stateId ?? undefined,
@@ -1211,7 +1324,11 @@ export class AppointmentAddComponent {
     this.isLocationSelected = !!locationId;
 
     if (!this.isLocationSelected) {
-      this.form.patchValue({ appointmentDate: null, appointmentTime: null, doctorAvailabilityId: null });
+      this.form.patchValue({
+        appointmentDate: null,
+        appointmentTime: null,
+        doctorAvailabilityId: null,
+      });
       this.form.get('appointmentDate')?.clearValidators();
     } else {
       this.form.get('appointmentDate')?.setValidators([Validators.required]);
@@ -1243,14 +1360,14 @@ export class AppointmentAddComponent {
     this.isAvailableDatesLoading = true;
 
     this.fetchAllAvailableSlots(locationId, appointmentTypeId)
-      .then(items => {
+      .then((items) => {
         if (requestVersion !== this.availableSlotsRequestVersion) {
           return;
         }
 
         this.availableDateKeys.clear();
         this.availableSlotsByDate.clear();
-        (items ?? []).forEach(item => {
+        (items ?? []).forEach((item) => {
           const availability = item?.doctorAvailability;
           const rawDate = availability?.availableDate as string | undefined;
           const dateKey = this.toDateKeyFromApi(rawDate);
@@ -1264,7 +1381,7 @@ export class AppointmentAddComponent {
             if (fromTime) {
               const existingSlots = this.availableSlotsByDate.get(dateKey) ?? [];
               const exists = existingSlots.some(
-                slot => slot.time === fromTime && slot.doctorAvailabilityId === availabilityId,
+                (slot) => slot.time === fromTime && slot.doctorAvailabilityId === availabilityId,
               );
               if (!exists) {
                 existingSlots.push({ time: fromTime, doctorAvailabilityId: availabilityId });
@@ -1274,7 +1391,9 @@ export class AppointmentAddComponent {
           }
         });
 
-        const selectedDate = this.toDateKeyFromControl(this.form.get('appointmentDate')?.value ?? null);
+        const selectedDate = this.toDateKeyFromControl(
+          this.form.get('appointmentDate')?.value ?? null,
+        );
         if (selectedDate && !this.availableDateKeys.has(selectedDate)) {
           this.form.patchValue(
             { appointmentDate: null, appointmentTime: null, doctorAvailabilityId: null },
@@ -1325,7 +1444,10 @@ export class AppointmentAddComponent {
   private onAppointmentDateChanged(value: string | null): void {
     const dateKey = this.toDateKeyFromControl(value);
     if (!dateKey || !this.availableDateKeys.has(dateKey)) {
-      this.form.patchValue({ appointmentTime: null, doctorAvailabilityId: null }, { emitEvent: false });
+      this.form.patchValue(
+        { appointmentTime: null, doctorAvailabilityId: null },
+        { emitEvent: false },
+      );
       this.clearTimeSlots();
       return;
     }
@@ -1334,16 +1456,21 @@ export class AppointmentAddComponent {
   }
 
   private populateTimeSlotsForDate(dateKey: string): void {
-    const slots = (this.availableSlotsByDate.get(dateKey) ?? []).sort((a, b) => a.time.localeCompare(b.time));
-    this.appointmentTimeOptions = slots.map(slot => ({
+    const slots = (this.availableSlotsByDate.get(dateKey) ?? []).sort((a, b) =>
+      a.time.localeCompare(b.time),
+    );
+    this.appointmentTimeOptions = slots.map((slot) => ({
       value: slot.time,
       label: this.toTimeLabel(slot.time),
       doctorAvailabilityId: slot.doctorAvailabilityId,
     }));
 
     const selected = this.form.get('appointmentTime')?.value;
-    if (!selected || !slots.some(slot => slot.time === selected)) {
-      this.form.patchValue({ appointmentTime: null, doctorAvailabilityId: null }, { emitEvent: false });
+    if (!selected || !slots.some((slot) => slot.time === selected)) {
+      this.form.patchValue(
+        { appointmentTime: null, doctorAvailabilityId: null },
+        { emitEvent: false },
+      );
       return;
     }
 
@@ -1360,8 +1487,11 @@ export class AppointmentAddComponent {
       return;
     }
 
-    const selectedOption = this.appointmentTimeOptions.find(option => option.value === value);
-    this.form.patchValue({ doctorAvailabilityId: selectedOption?.doctorAvailabilityId ?? null }, { emitEvent: false });
+    const selectedOption = this.appointmentTimeOptions.find((option) => option.value === value);
+    this.form.patchValue(
+      { doctorAvailabilityId: selectedOption?.doctorAvailabilityId ?? null },
+      { emitEvent: false },
+    );
   }
 
   private toTimeLabel(time: string): string {
@@ -1377,7 +1507,10 @@ export class AppointmentAddComponent {
       .padStart(2, '0')} ${suffix}`;
   }
 
-  private combineAppointmentDateAndTime(dateValue?: string | null, timeValue?: string | null): string | undefined {
+  private combineAppointmentDateAndTime(
+    dateValue?: string | null,
+    timeValue?: string | null,
+  ): string | undefined {
     const dateKey = this.toDateKeyFromControl(dateValue ?? null);
     if (!dateKey) {
       return undefined;
@@ -1399,27 +1532,30 @@ export class AppointmentAddComponent {
   private isBeforeMinimumBookingDateKey(dateKey: string): boolean {
     // Parse the date parts from the key (format: YYYY-MM-DD)
     const [year, month, day] = dateKey.split('-').map(Number);
-    
+
     // Create dates in local timezone (not UTC)
     const selected = new Date(year, month - 1, day); // month is 0-indexed in JS
     selected.setHours(0, 0, 0, 0);
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const threshold = new Date(today);
     threshold.setDate(threshold.getDate() + this.minimumBookingDays);
-    
+
     console.log('Date check:', {
       selected: selected.toISOString(),
       threshold: threshold.toISOString(),
-      isBefore: selected < threshold
+      isBefore: selected < threshold,
     });
-    
+
     return selected < threshold;
   }
 
-  private async fetchAllAvailableSlots(locationId: string, appointmentTypeId: string): Promise<any[]> {
+  private async fetchAllAvailableSlots(
+    locationId: string,
+    appointmentTypeId: string,
+  ): Promise<any[]> {
     const allItems: any[] = [];
     let skipCount = 0;
     const pageSize = 1000;

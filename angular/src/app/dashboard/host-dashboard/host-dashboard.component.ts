@@ -36,7 +36,6 @@ const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(
   ],
   providers: [{ provide: NgbDateAdapter, useClass: NgbDateNativeAdapter }],
 })
-
 export class HostDashboardComponent implements AfterViewInit {
   fb = inject(FormBuilder);
 
@@ -63,7 +62,7 @@ export class HostDashboardComponent implements AfterViewInit {
       },
     ],
   });
-  
+
   ngAfterViewInit() {
     this.refresh();
   }
@@ -80,7 +79,7 @@ export class HostDashboardComponent implements AfterViewInit {
     this.editionsUsageWidget?.draw();
     this.latestTenantsWidget?.draw();
   }
-  
+
   private convertToString(value: Date): string {
     return value ? value.toLocalISOString() : '';
   }

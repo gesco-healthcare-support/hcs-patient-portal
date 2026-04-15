@@ -48,7 +48,7 @@ export abstract class AbstractLocationViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.location.id)),
       )
       .subscribe(this.list.get);
@@ -74,7 +74,7 @@ export abstract class AbstractLocationViewService {
         messageLocalizationParams: [messageParam],
       })
       .pipe(
-        filter(result => result === Confirmation.Status.confirm),
+        filter((result) => result === Confirmation.Status.confirm),
         switchMap(() => this.bulkDeleteRequest()),
       )
       .subscribe();

@@ -14,7 +14,7 @@ import { filter } from 'rxjs/operators';
     <abp-dynamic-layout />
     <abp-gdpr-cookie-consent />
   `,
-  imports: [LoaderBarComponent, DynamicLayoutComponent, GdprCookieConsentComponent]
+  imports: [LoaderBarComponent, DynamicLayoutComponent, GdprCookieConsentComponent],
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
@@ -26,8 +26,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.subscription.add(
       this.router.events
-        .pipe(filter(event => event instanceof NavigationEnd))
-        .subscribe(() => this.updatePatientRoleClass())
+        .pipe(filter((event) => event instanceof NavigationEnd))
+        .subscribe(() => this.updatePatientRoleClass()),
     );
   }
 
@@ -40,9 +40,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private updatePatientRoleClass(): void {
     const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
-    const roles = (currentUser?.roles ?? []).map(role => (role ?? '').toLowerCase().trim());
+    const roles = (currentUser?.roles ?? []).map((role) => (role ?? '').toLowerCase().trim());
     const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    const isExternalUser = externalUserRoles.some(role => roles.includes(role));
+    const isExternalUser = externalUserRoles.some((role) => roles.includes(role));
 
     document.body.classList.toggle('externaluser-role', isExternalUser);
     document.documentElement.classList.toggle('externaluser-role', isExternalUser);
@@ -50,17 +50,29 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private applySidebarVisibility(isExternalUser: boolean): void {
-    const sidebarSelectors = ['.lpx-sidebar-container', '.lpx-sidebar', '.lpx-menu-container', '.lpx-menu', 'aside'];
-    const mainSelectors = ['.lpx-content-container', '.lpx-main-container', '.lpx-main-content', '.lpx-page', 'main'];
+    const sidebarSelectors = [
+      '.lpx-sidebar-container',
+      '.lpx-sidebar',
+      '.lpx-menu-container',
+      '.lpx-menu',
+      'aside',
+    ];
+    const mainSelectors = [
+      '.lpx-content-container',
+      '.lpx-main-container',
+      '.lpx-main-content',
+      '.lpx-page',
+      'main',
+    ];
 
     for (const selector of sidebarSelectors) {
-      document.querySelectorAll<HTMLElement>(selector).forEach(el => {
+      document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
         el.classList.toggle('externaluser-sidebar-hidden', isExternalUser);
       });
     }
 
     for (const selector of mainSelectors) {
-      document.querySelectorAll<HTMLElement>(selector).forEach(el => {
+      document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
         el.classList.toggle('externaluser-main-full', isExternalUser);
       });
     }

@@ -5,7 +5,7 @@ export const STATE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/state.component').then(c => c.StateComponent);
+      return import('./components/state.component').then((c) => c.StateComponent);
     },
     canActivate: [authGuard, permissionGuard],
   },

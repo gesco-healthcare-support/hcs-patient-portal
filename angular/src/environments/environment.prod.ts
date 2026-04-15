@@ -12,7 +12,7 @@ const oAuthConfig = {
   impersonation: {
     tenantImpersonation: true,
     userImpersonation: true,
-  }
+  },
 };
 
 export const environment = {
@@ -34,6 +34,6 @@ export const environment = {
   },
   remoteEnv: {
     url: '/getEnvConfig',
-    mergeStrategy: 'deepmerge'
-  }
+    mergeStrategy: 'deepmerge',
+  },
 } as Environment;

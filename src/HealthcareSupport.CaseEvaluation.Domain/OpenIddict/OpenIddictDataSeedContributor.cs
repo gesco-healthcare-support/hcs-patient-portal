@@ -36,10 +36,10 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
 
     private async Task CreateScopesAsync()
     {
-        await CreateScopesAsync(new OpenIddictScopeDescriptor 
+        await CreateScopesAsync(new OpenIddictScopeDescriptor
         {
-            Name = "CaseEvaluation", 
-            DisplayName = "CaseEvaluation API", 
+            Name = "CaseEvaluation",
+            DisplayName = "CaseEvaluation API",
             Resources = { "CaseEvaluation" }
         });
     }
@@ -86,8 +86,8 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
             );
         }
 
-        
-        
+
+
 
 
 

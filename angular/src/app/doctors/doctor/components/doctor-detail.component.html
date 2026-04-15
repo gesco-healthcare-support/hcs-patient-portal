@@ -90,7 +90,7 @@
           <a ngbNavLink>
             {{ '::AppointmentTypes' | abpLocalization }}
             @if (this.service.form.controls['appointmentTypeIds']; as control) {
-              <span> ({{ control.value?.length }}) </span>
+              <span>({{ control.value?.length }})</span>
             }
           </a>
           <ng-template ngbNavContent>
@@ -108,7 +108,7 @@
           <a ngbNavLink>
             {{ '::Locations' | abpLocalization }}
             @if (this.service.form.controls['locationIds']; as control) {
-              <span> ({{ control.value?.length }}) </span>
+              <span>({{ control.value?.length }})</span>
             }
           </a>
           <ng-template ngbNavContent>

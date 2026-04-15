@@ -45,7 +45,8 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
 
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
-        context.Services.AddAbpDbContext<CaseEvaluationDbContext>(options => {
+        context.Services.AddAbpDbContext<CaseEvaluationDbContext>(options =>
+        {
             /* Remove "includeAllEntities: true" to create
                  * default repositories only for aggregate roots */
             options.AddDefaultRepositories(includeAllEntities: true);
@@ -64,7 +65,8 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<ApplicantAttorney, ApplicantAttorneys.EfCoreApplicantAttorneyRepository>();
             options.AddRepository<AppointmentApplicantAttorney, AppointmentApplicantAttorneys.EfCoreAppointmentApplicantAttorneyRepository>();
         });
-        context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options => {
+        context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options =>
+        {
             /* Remove "includeAllEntities: true" to create
                  * default repositories only for aggregate roots */
             options.AddDefaultRepositories(includeAllEntities: true);
@@ -74,7 +76,8 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             return;
         }
 
-        Configure<AbpDbContextOptions>(options => {
+        Configure<AbpDbContextOptions>(options =>
+        {
             /* The main point to change your DBMS.
             * See also CaseEvaluationDbContextFactoryBase for EF Core tooling. */
             options.UseSqlServer();

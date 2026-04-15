@@ -42,7 +42,7 @@ export abstract class AbstractDoctorAvailabilityViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() =>
           this.proxyService.deleteByDate({
             locationId: row.locationId,
@@ -62,7 +62,7 @@ export abstract class AbstractDoctorAvailabilityViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() =>
           this.proxyService.deleteBySlot({
             locationId: availability.locationId ?? '',
@@ -141,16 +141,24 @@ export abstract class AbstractDoctorAvailabilityViewService {
         group.reservedCount += 1;
       }
 
-      if (availability.fromTime && this.toMinutes(availability.fromTime) < this.toMinutes(group.minFromTime)) {
+      if (
+        availability.fromTime &&
+        this.toMinutes(availability.fromTime) < this.toMinutes(group.minFromTime)
+      ) {
         group.minFromTime = availability.fromTime;
       }
 
-      if (availability.toTime && this.toMinutes(availability.toTime) > this.toMinutes(group.maxToTime)) {
+      if (
+        availability.toTime &&
+        this.toMinutes(availability.toTime) > this.toMinutes(group.maxToTime)
+      ) {
         group.maxToTime = availability.toTime;
       }
     }
 
-    return Array.from(groups.values()).sort((a, b) => a.availableDate.localeCompare(b.availableDate));
+    return Array.from(groups.values()).sort((a, b) =>
+      a.availableDate.localeCompare(b.availableDate),
+    );
   }
 
   private toMinutes(value: string | null | undefined): number {
@@ -158,7 +166,7 @@ export abstract class AbstractDoctorAvailabilityViewService {
       return 0;
     }
 
-    const parts = value.split(':').map(part => Number(part));
+    const parts = value.split(':').map((part) => Number(part));
     const hours = parts[0] ?? 0;
     const minutes = parts[1] ?? 0;
     return hours * 60 + minutes;

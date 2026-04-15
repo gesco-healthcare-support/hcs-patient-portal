@@ -86,7 +86,10 @@ export abstract class AbstractDoctorAvailabilityDetailViewService {
       availableDate: [this.normalizeDate(availableDate) ?? null, [Validators.required]],
       fromTime: [this.normalizeTime(fromTime) ?? null, [Validators.required]],
       toTime: [this.normalizeTime(toTime) ?? null, [Validators.required]],
-      bookingStatusId: [bookingStatusId ?? this.bookingStatusOptions[0]?.value ?? null, [Validators.required]],
+      bookingStatusId: [
+        bookingStatusId ?? this.bookingStatusOptions[0]?.value ?? null,
+        [Validators.required],
+      ],
       locationId: [locationId ?? null, [Validators.required]],
       appointmentTypeId: [appointmentTypeId ?? null, []],
     });
