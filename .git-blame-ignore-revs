@@ -1,0 +1,3 @@
+# Prettier big-bang format + dotnet format whitespace (Layer 1 implementation)
+# Added via PR #42 "chore(hooks): add Prettier formatting to pre-commit pipeline"
+0a051493d8ac4a411478613bc43b5543529b192a
