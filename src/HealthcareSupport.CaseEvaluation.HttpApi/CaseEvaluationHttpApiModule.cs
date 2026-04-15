@@ -17,22 +17,22 @@ using Volo.Abp.OpenIddict;
 
 namespace HealthcareSupport.CaseEvaluation;
 
- [DependsOn(
-    typeof(CaseEvaluationApplicationContractsModule),
-    typeof(AbpPermissionManagementHttpApiModule),
-    typeof(AbpSettingManagementHttpApiModule),
-    typeof(AbpIdentityHttpApiModule),
-    typeof(AbpAccountAdminHttpApiModule),
-    typeof(AbpAccountPublicHttpApiModule),
-    typeof(TextTemplateManagementHttpApiModule),
-    typeof(AbpAuditLoggingHttpApiModule),
-    typeof(AbpOpenIddictProHttpApiModule),
-    typeof(LanguageManagementHttpApiModule),
-    typeof(FileManagementHttpApiModule),
-    typeof(SaasHostHttpApiModule),
-    typeof(AbpGdprHttpApiModule),
-    typeof(AbpFeatureManagementHttpApiModule)
-    )]
+[DependsOn(
+   typeof(CaseEvaluationApplicationContractsModule),
+   typeof(AbpPermissionManagementHttpApiModule),
+   typeof(AbpSettingManagementHttpApiModule),
+   typeof(AbpIdentityHttpApiModule),
+   typeof(AbpAccountAdminHttpApiModule),
+   typeof(AbpAccountPublicHttpApiModule),
+   typeof(TextTemplateManagementHttpApiModule),
+   typeof(AbpAuditLoggingHttpApiModule),
+   typeof(AbpOpenIddictProHttpApiModule),
+   typeof(LanguageManagementHttpApiModule),
+   typeof(FileManagementHttpApiModule),
+   typeof(SaasHostHttpApiModule),
+   typeof(AbpGdprHttpApiModule),
+   typeof(AbpFeatureManagementHttpApiModule)
+   )]
 public class CaseEvaluationHttpApiModule : AbpModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
