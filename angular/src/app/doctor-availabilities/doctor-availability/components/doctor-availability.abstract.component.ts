@@ -32,8 +32,8 @@ export abstract class AbstractDoctorAvailabilityComponent implements OnInit, OnD
     this.service.hookToQuery();
     this.subscriptions.add(
       this.router.events
-        .pipe(filter(event => event instanceof NavigationEnd))
-        .subscribe(event => {
+        .pipe(filter((event) => event instanceof NavigationEnd))
+        .subscribe((event) => {
           const navigation = event as NavigationEnd;
           if (navigation.urlAfterRedirects.startsWith('/doctor-management/doctor-availabilities')) {
             this.list.get();
@@ -116,5 +116,4 @@ export abstract class AbstractDoctorAvailabilityComponent implements OnInit, OnD
 
     return value.length >= 5 ? value.slice(0, 5) : value;
   }
-
 }

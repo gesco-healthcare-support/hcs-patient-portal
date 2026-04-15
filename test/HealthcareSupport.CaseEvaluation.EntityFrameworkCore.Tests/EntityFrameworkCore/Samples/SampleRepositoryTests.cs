@@ -29,12 +29,12 @@ public class SampleRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
          */
         await WithUnitOfWorkAsync(async () =>
         {
-                //Act
-                var adminUser = await _appUserRepository
-                .FirstOrDefaultAsync(u => u.UserName == "admin");
+            //Act
+            var adminUser = await _appUserRepository
+            .FirstOrDefaultAsync(u => u.UserName == "admin");
 
-                //Assert
-                adminUser.ShouldNotBeNull();
+            //Assert
+            adminUser.ShouldNotBeNull();
         });
     }
 }

@@ -25,7 +25,7 @@ class Program
             .WriteTo.Async(c => c.File("Logs/logs.txt"))
             .WriteTo.Async(c => c.Console())
             .CreateLogger();
-    
+
         DisableRedis = args.Contains("--disable-redis");
 
         await CreateHostBuilder(args).RunConsoleAsync();
@@ -39,6 +39,6 @@ class Program
             {
                 services.AddHostedService<DbMigratorHostedService>();
             });
-    
+
     public static bool DisableRedis;
 }

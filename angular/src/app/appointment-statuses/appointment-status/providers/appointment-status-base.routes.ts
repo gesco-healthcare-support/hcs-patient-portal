@@ -14,5 +14,5 @@ export const APPOINTMENT_STATUS_BASE_ROUTES: ABP.Route[] = [
     parentName: '::Menu:AppointmentManagement',
     requiredPolicy: 'CaseEvaluation.AppointmentStatuses',
     order: 2,
-  }
+  },
 ];

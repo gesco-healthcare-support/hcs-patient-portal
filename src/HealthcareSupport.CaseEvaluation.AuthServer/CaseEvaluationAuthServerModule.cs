@@ -131,7 +131,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
             {
                 options.DisableTransportSecurityRequirement = true;
             });
-            
+
             Configure<ForwardedHeadersOptions>(options =>
             {
                 options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
@@ -213,7 +213,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
                 var redis = ConnectionMultiplexer.Connect(configuration["Redis:Configuration"]!);
                 dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, "CaseEvaluation-Protection-Keys");
             }
-        
+
             context.Services.AddSingleton<IDistributedLockProvider>(sp =>
             {
                 var connection = ConnectionMultiplexer
@@ -240,12 +240,12 @@ public class CaseEvaluationAuthServerModule : AbpModule
                     .AllowCredentials();
             });
         });
-        
+
         context.Services.Configure<AbpClaimsPrincipalFactoryOptions>(options =>
         {
             options.IsDynamicClaimsEnabled = true;
         });
-        
+
         context.Services.AddAuthentication()
         .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
         {
@@ -289,14 +289,14 @@ public class CaseEvaluationAuthServerModule : AbpModule
                 options.WithProperty(x => x.ConsumerSecret, isSecret: true);
             }
         );
-        
+
         context.Services.Configure<AbpAccountOptions>(options =>
         {
             options.TenantAdminUserName = "admin";
             options.ImpersonationTenantPermission = SaasHostPermissions.Tenants.Impersonation;
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
         });
-        
+
         Configure<LeptonXThemeOptions>(options =>
         {
             options.DefaultStyle = LeptonXStyleNames.System;

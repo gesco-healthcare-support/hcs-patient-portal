@@ -79,7 +79,7 @@ cd angular && yarn install   # also runs husky bootstrap
 After install, every `git commit` runs:
 
 - `gitleaks protect --staged` against staged files (blocks committed secrets)
-- `lint-staged` (eslint --fix on staged `.ts` / `.html` files)
+- `lint-staged` (prettier --write + eslint --fix on staged `.ts` / `.html` files; prettier --write on `.scss` / `.css` / `.json` / `.md` files)
 - `dotnet format --verify-no-changes` on staged `.cs` files
 - `commitlint` against your commit message (must be Conventional Commits)
 
@@ -124,6 +124,35 @@ git rm --cached -r -q . && git reset --hard HEAD
 **To skip hooks for an emergency commit:** `git commit --no-verify`. Do not
 make this a habit; CI catches what you skipped, but only after you have
 already pushed.
+
+### GUI Git Clients (VS Code, GitHub Desktop)
+
+GUI clients do not source `.bashrc` or `.zshrc`, so nvm-managed Node is
+invisible to hooks. If commits from the VS Code source-control sidebar fail
+with "command not found", create a Husky init script:
+
+**Windows (Git Bash) -- if Node is installed via nvm-windows:**
+
+```bash
+mkdir -p ~/.config/husky
+cat > ~/.config/husky/init.sh << 'EOF'
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+EOF
+```
+
+**WSL / macOS / Linux -- if Node is installed via nvm:**
+
+```bash
+mkdir -p ~/.config/husky
+cat > ~/.config/husky/init.sh << 'EOF'
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+EOF
+```
+
+This file is machine-local (not committed to the repo). Husky sources it
+before every hook execution, ensuring `node`, `npx`, and `yarn` are on PATH.
 
 ### Service Ports
 - AuthServer: https://localhost:44368
