@@ -201,6 +201,10 @@ jobs:
     needs: [changes, frontend-build]
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
     timeout-minutes: 25
+    # Phase A: non-blocking. The hard-fail for missing specs is intentional
+    # (no silent-pass), but Phase A merges stay unblocked until Phase B adds
+    # specs. Phase C removes this flag to make the gate blocking.
+    continue-on-error: true
     defaults:
       run:
         working-directory: angular
