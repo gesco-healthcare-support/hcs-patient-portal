@@ -76,7 +76,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   update(record: DoctorWithNavigationPropertiesDto) {
-    this.proxyService.getWithNavigationProperties(record.doctor.id).subscribe(data => {
+    this.proxyService.getWithNavigationProperties(record.doctor.id).subscribe((data) => {
       this.selected = data;
       this.showForm();
     });

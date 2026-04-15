@@ -9,6 +9,6 @@ import { TenantDashboardComponent } from './tenant-dashboard/tenant-dashboard.co
     <app-host-dashboard *abpPermission="'CaseEvaluation.Dashboard.Host'" />
     <app-tenant-dashboard *abpPermission="'CaseEvaluation.Dashboard.Tenant'" />
   `,
-  imports: [HostDashboardComponent,TenantDashboardComponent, PermissionDirective]
+  imports: [HostDashboardComponent, TenantDashboardComponent, PermissionDirective],
 })
 export class DashboardComponent {}

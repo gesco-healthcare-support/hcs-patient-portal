@@ -212,8 +212,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     }
 
     private void ConfigureDistributedLocking(
-    	ServiceConfigurationContext context,
-    	IConfiguration configuration)
+        ServiceConfigurationContext context,
+        IConfiguration configuration)
     {
         if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)
         {
@@ -248,7 +248,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             });
         });
     }
-    
+
     private void ConfigureExternalProviders(ServiceConfigurationContext context)
     {
         context.Services

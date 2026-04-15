@@ -6,7 +6,7 @@ export const APPOINTMENT_STATUS_ROUTES: Routes = [
     path: '',
     loadComponent: () => {
       return import('./components/appointment-status.component').then(
-        c => c.AppointmentStatusComponent,
+        (c) => c.AppointmentStatusComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],

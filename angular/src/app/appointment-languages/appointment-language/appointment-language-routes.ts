@@ -6,7 +6,7 @@ export const APPOINTMENT_LANGUAGE_ROUTES: Routes = [
     path: '',
     loadComponent: () => {
       return import('./components/appointment-language.component').then(
-        c => c.AppointmentLanguageComponent,
+        (c) => c.AppointmentLanguageComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],

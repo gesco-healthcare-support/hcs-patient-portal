@@ -12,7 +12,7 @@ const oAuthConfig = {
   impersonation: {
     tenantImpersonation: true,
     userImpersonation: true,
-  }
+  },
 };
 
 export const environment = {

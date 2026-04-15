@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AuthServer",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/HealthcareSupport.CaseEvaluation.AuthServer/bin/Debug/net10.0/HealthcareSupport.CaseEvaluation.AuthServer.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/HealthcareSupport.CaseEvaluation.AuthServer",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "https://localhost:44368"
+      }
+    },
+    {
+      "name": "HttpApi.Host",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/HealthcareSupport.CaseEvaluation.HttpApi.Host/bin/Debug/net10.0/HealthcareSupport.CaseEvaluation.HttpApi.Host.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/HealthcareSupport.CaseEvaluation.HttpApi.Host",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "https://localhost:44327/swagger"
+      }
+    },
+    {
+      "name": "Angular (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "ng: build-and-serve",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/angular"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack",
+      "configurations": ["AuthServer", "HttpApi.Host", "Angular (Chrome)"]
+    }
+  ]
+}

@@ -214,11 +214,15 @@
                   (click)="toggleRow(row.id)"
                   [attr.aria-expanded]="isExpanded(row.id)"
                 >
-                  <i class="fa" [class.fa-plus-circle]="!isExpanded(row.id)" [class.fa-minus-circle]="isExpanded(row.id)"></i>
+                  <i
+                    class="fa"
+                    [class.fa-plus-circle]="!isExpanded(row.id)"
+                    [class.fa-minus-circle]="isExpanded(row.id)"
+                  ></i>
                 </button>
               </td>
               <td>{{ row.locationName }}</td>
-              <td>{{ row.availableDate | date : 'yyyy-MM-dd' }}</td>
+              <td>{{ row.availableDate | date: 'yyyy-MM-dd' }}</td>
               <td>{{ row.availableCount }}</td>
               <td>{{ row.bookedCount }}</td>
               <td>{{ row.reservedCount }}</td>
@@ -257,9 +261,13 @@
                           </td>
                           <td>
                             @if (slot.doctorAvailability?.bookingStatusId === 8) {
-                              <span class="badge bg-success">{{ '::Enum:BookingStatus.8' | abpLocalization }}</span>
+                              <span class="badge bg-success">
+                                {{ '::Enum:BookingStatus.8' | abpLocalization }}
+                              </span>
                             } @else if (slot.doctorAvailability?.bookingStatusId === 9) {
-                              <span class="badge bg-danger">{{ '::Enum:BookingStatus.9' | abpLocalization }}</span>
+                              <span class="badge bg-danger">
+                                {{ '::Enum:BookingStatus.9' | abpLocalization }}
+                              </span>
                             } @else if (slot.doctorAvailability?.bookingStatusId === 10) {
                               <span class="badge bg-warning text-dark">
                                 {{ '::Enum:BookingStatus.10' | abpLocalization }}
@@ -267,8 +275,8 @@
                             } @else {
                               {{
                                 slot.doctorAvailability?.bookingStatusId !== null
-                                  ? ('::Enum:BookingStatus.' + slot.doctorAvailability?.bookingStatusId
-                                      | abpLocalization)
+                                  ? ('::Enum:BookingStatus.' +
+                                      slot.doctorAvailability?.bookingStatusId | abpLocalization)
                                   : ''
                               }}
                             }
@@ -321,4 +329,3 @@
     </div>
   </div>
 </abp-page>
-

@@ -38,7 +38,7 @@ export abstract class AbstractAppointmentTypeViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.id)),
       )
       .subscribe(this.list.get);

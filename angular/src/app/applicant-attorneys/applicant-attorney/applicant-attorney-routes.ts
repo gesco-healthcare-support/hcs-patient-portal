@@ -6,7 +6,7 @@ export const APPLICANT_ATTORNEY_ROUTES: Routes = [
     path: '',
     loadComponent: () => {
       return import('./components/applicant-attorney.component').then(
-        c => c.ApplicantAttorneyComponent,
+        (c) => c.ApplicantAttorneyComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],

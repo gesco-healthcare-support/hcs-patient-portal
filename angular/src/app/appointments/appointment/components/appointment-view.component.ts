@@ -2,7 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ConfigStateService, ListResultDto, LocalizationPipe, PagedResultDto, RestService } from '@abp/ng.core';
+import {
+  ConfigStateService,
+  ListResultDto,
+  LocalizationPipe,
+  PagedResultDto,
+  RestService,
+} from '@abp/ng.core';
 import type {
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
@@ -14,9 +20,7 @@ import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { firstValueFrom } from 'rxjs';
-import {
-  NgbDatepickerModule
-} from '@ng-bootstrap/ng-bootstrap';
+import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -40,12 +44,12 @@ type AppointmentAuthorizedUserRow = {
   selector: 'app-appointment-view',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
+    CommonModule,
+    FormsModule,
     ReactiveFormsModule,
     LocalizationPipe,
     LookupSelectComponent,
-    NgbDatepickerModule
+    NgbDatepickerModule,
   ],
   templateUrl: './appointment-view.component.html',
 })
@@ -140,7 +144,11 @@ export class AppointmentViewComponent implements OnInit {
       {
         method: 'GET',
         url: '/api/app/patients/state-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -150,7 +158,11 @@ export class AppointmentViewComponent implements OnInit {
       {
         method: 'GET',
         url: '/api/app/patients/appointment-language-lookup',
-        params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+        params: {
+          filter: input.filter,
+          skipCount: input.skipCount,
+          maxResultCount: input.maxResultCount,
+        },
       },
       { apiName: 'Default' },
     );
@@ -166,7 +178,7 @@ export class AppointmentViewComponent implements OnInit {
     }
 
     this.appointmentService.getWithNavigationProperties(id).subscribe({
-      next: data => {
+      next: (data) => {
         this.appointment = data;
         this.panelNumber = data.appointment?.panelNumber ?? '';
         this.loadEmployerDetails(data.appointment?.id);
@@ -212,8 +224,7 @@ export class AppointmentViewComponent implements OnInit {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
     return roles.some(
       (r: string) =>
-        r?.toLowerCase() === 'applicant attorney' ||
-        r?.toLowerCase() === 'defense attorney',
+        r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
     );
   }
 
@@ -285,7 +296,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: updatedPatient => {
+        next: (updatedPatient) => {
           const payload: AppointmentUpdateDto = {
             panelNumber: this.panelNumber || undefined,
             appointmentDate: selected.appointmentDate,
@@ -304,7 +315,7 @@ export class AppointmentViewComponent implements OnInit {
           };
 
           this.appointmentService.update(selected.id, payload).subscribe({
-            next: async updated => {
+            next: async (updated) => {
               try {
                 if (this.appointment?.appointment) {
                   this.appointment.appointment = { ...this.appointment.appointment, ...updated };
@@ -315,9 +326,11 @@ export class AppointmentViewComponent implements OnInit {
                 await this.upsertEmployerDetails(updated.id);
                 await this.upsertApplicantAttorneyDetails(updated.id);
                 this.panelNumber = updated.panelNumber ?? '';
-                this.successMessage = 'Appointment, patient, employer and applicant attorney details updated successfully.';
+                this.successMessage =
+                  'Appointment, patient, employer and applicant attorney details updated successfully.';
               } catch {
-                this.errorMessage = 'Appointment and patient updated, but employer details save failed.';
+                this.errorMessage =
+                  'Appointment and patient updated, but employer details save failed.';
               } finally {
                 this.isSaving = false;
               }
@@ -377,7 +390,9 @@ export class AppointmentViewComponent implements OnInit {
 
   onAuthorizedUserIdentityChange(identityUserId: string | null): void {
     this.authorizedUserDraft.identityUserId = identityUserId;
-    const selected = this.externalAuthorizedUserOptions.find(x => x.identityUserId === identityUserId);
+    const selected = this.externalAuthorizedUserOptions.find(
+      (x) => x.identityUserId === identityUserId,
+    );
     this.authorizedUserDraft.firstName = selected?.firstName ?? '';
     this.authorizedUserDraft.lastName = selected?.lastName ?? '';
     this.authorizedUserDraft.email = selected?.email ?? '';
@@ -391,7 +406,7 @@ export class AppointmentViewComponent implements OnInit {
     }
 
     const duplicate = this.appointmentAuthorizedUsers.some(
-      x =>
+      (x) =>
         x.identityUserId === this.authorizedUserDraft.identityUserId &&
         x.accessorId !== this.editingAuthorizedUserId,
     );
@@ -448,11 +463,13 @@ export class AppointmentViewComponent implements OnInit {
       ),
     );
 
-    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.filter(x => x.accessorId !== item.accessorId);
+    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.filter(
+      (x) => x.accessorId !== item.accessorId,
+    );
   }
 
   getAccessTypeLabel(value: number): string {
-    return this.accessTypeOptions.find(x => x.value === value)?.label ?? '';
+    return this.accessTypeOptions.find((x) => x.value === value)?.label ?? '';
   }
 
   private loadExternalAuthorizedUsers(): void {
@@ -465,7 +482,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: result => {
+        next: (result) => {
           this.externalAuthorizedUserOptions = result?.items ?? [];
           this.applicantAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'applicant attorney',
@@ -480,21 +497,24 @@ export class AppointmentViewComponent implements OnInit {
     if (!email) return;
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<any, {
-        applicantAttorneyId?: string;
-        identityUserId: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        firmName?: string;
-        webAddress?: string;
-        phoneNumber?: string;
-        faxNumber?: string;
-        street?: string;
-        city?: string;
-        stateId?: string;
-        zipCode?: string;
-      } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -503,7 +523,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyForm = {
               applicantAttorneyId: data.applicantAttorneyId ?? null,
@@ -520,7 +540,9 @@ export class AppointmentViewComponent implements OnInit {
               stateId: data.stateId ?? null,
               zipCode: data.zipCode ?? '',
             };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
+            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
+              emitEvent: false,
+            });
           }
           this.isApplicantAttorneyLoading = false;
         },
@@ -534,21 +556,24 @@ export class AppointmentViewComponent implements OnInit {
     if (!identityUserId) return;
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<any, {
-        applicantAttorneyId?: string;
-        identityUserId: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        firmName?: string;
-        webAddress?: string;
-        phoneNumber?: string;
-        faxNumber?: string;
-        street?: string;
-        city?: string;
-        stateId?: string;
-        zipCode?: string;
-      } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -557,7 +582,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyForm = {
               applicantAttorneyId: data.applicantAttorneyId ?? null,
@@ -574,7 +599,9 @@ export class AppointmentViewComponent implements OnInit {
               stateId: data.stateId ?? null,
               zipCode: data.zipCode ?? '',
             };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
+            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
+              emitEvent: false,
+            });
           }
           this.isApplicantAttorneyLoading = false;
         },
@@ -604,11 +631,13 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: result => {
-          this.appointmentAuthorizedUsers = (result?.items ?? []).map(item => {
+        next: (result) => {
+          this.appointmentAuthorizedUsers = (result?.items ?? []).map((item) => {
             const accessor = item?.appointmentAccessor;
             const identityUser = item?.identityUser;
-            const option = this.externalAuthorizedUserOptions.find(x => x.identityUserId === accessor?.identityUserId);
+            const option = this.externalAuthorizedUserOptions.find(
+              (x) => x.identityUserId === accessor?.identityUserId,
+            );
             return {
               accessorId: accessor?.id ?? '',
               identityUserId: accessor?.identityUserId ?? '',
@@ -624,12 +653,17 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   private refreshAuthorizedUserRoles(): void {
-    if (this.appointmentAuthorizedUsers.length === 0 || this.externalAuthorizedUserOptions.length === 0) {
+    if (
+      this.appointmentAuthorizedUsers.length === 0 ||
+      this.externalAuthorizedUserOptions.length === 0
+    ) {
       return;
     }
 
-    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.map(item => {
-      const option = this.externalAuthorizedUserOptions.find(x => x.identityUserId === item.identityUserId);
+    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.map((item) => {
+      const option = this.externalAuthorizedUserOptions.find(
+        (x) => x.identityUserId === item.identityUserId,
+      );
       return option ? { ...item, userRole: option.userRole || item.userRole } : item;
     });
   }
@@ -654,7 +688,9 @@ export class AppointmentViewComponent implements OnInit {
         stateId: applicant.stateId ?? null,
         zipCode: applicant.zipCode ?? '',
       };
-      this.applicantAttorneyStateIdControl.setValue(applicant.stateId ?? null, { emitEvent: false });
+      this.applicantAttorneyStateIdControl.setValue(applicant.stateId ?? null, {
+        emitEvent: false,
+      });
     } else {
       this.loadApplicantAttorneyDetails(data?.appointment?.id, () => {
         if (this.isApplicantAttorney && !this.applicantAttorneyForm.identityUserId) {
@@ -668,21 +704,24 @@ export class AppointmentViewComponent implements OnInit {
     const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
     if (!currentUserId) return;
     this.restService
-      .request<any, {
-        applicantAttorneyId?: string;
-        identityUserId: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        firmName?: string;
-        webAddress?: string;
-        phoneNumber?: string;
-        faxNumber?: string;
-        street?: string;
-        city?: string;
-        stateId?: string;
-        zipCode?: string;
-      } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -691,7 +730,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyForm = {
               applicantAttorneyId: data.applicantAttorneyId ?? null,
@@ -708,7 +747,9 @@ export class AppointmentViewComponent implements OnInit {
               stateId: data.stateId ?? null,
               zipCode: data.zipCode ?? '',
             };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
+            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
+              emitEvent: false,
+            });
           }
         },
       });
@@ -721,21 +762,24 @@ export class AppointmentViewComponent implements OnInit {
     }
 
     this.restService
-      .request<any, {
-        applicantAttorneyId?: string;
-        identityUserId: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        firmName?: string;
-        webAddress?: string;
-        phoneNumber?: string;
-        faxNumber?: string;
-        street?: string;
-        city?: string;
-        stateId?: string;
-        zipCode?: string;
-      } | null>(
+      .request<
+        any,
+        {
+          applicantAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+        } | null
+      >(
         {
           method: 'GET',
           url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
@@ -743,7 +787,7 @@ export class AppointmentViewComponent implements OnInit {
         { apiName: 'Default' },
       )
       .subscribe({
-        next: data => {
+        next: (data) => {
           if (data) {
             this.applicantAttorneyForm = {
               applicantAttorneyId: data.applicantAttorneyId ?? null,
@@ -760,7 +804,9 @@ export class AppointmentViewComponent implements OnInit {
               stateId: data.stateId ?? null,
               zipCode: data.zipCode ?? '',
             };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
+            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
+              emitEvent: false,
+            });
           } else {
             onEmpty?.();
           }
@@ -772,7 +818,11 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   private async upsertApplicantAttorneyDetails(appointmentId?: string): Promise<void> {
-    if (!appointmentId || !this.applicantAttorneyEnabled || !this.applicantAttorneyForm.identityUserId) {
+    if (
+      !appointmentId ||
+      !this.applicantAttorneyEnabled ||
+      !this.applicantAttorneyForm.identityUserId
+    ) {
       return;
     }
 
@@ -822,7 +872,7 @@ export class AppointmentViewComponent implements OnInit {
         },
         { apiName: 'Default' },
       )
-      .subscribe(response => {
+      .subscribe((response) => {
         const item = response?.items?.[0];
         const employer = item?.appointmentEmployerDetail;
         if (!employer?.id) {
@@ -883,7 +933,8 @@ export class AppointmentViewComponent implements OnInit {
           { apiName: 'Default' },
         ),
       );
-      this.employerDetailConcurrencyStamp = updated?.concurrencyStamp ?? this.employerDetailConcurrencyStamp;
+      this.employerDetailConcurrencyStamp =
+        updated?.concurrencyStamp ?? this.employerDetailConcurrencyStamp;
       return;
     }
 

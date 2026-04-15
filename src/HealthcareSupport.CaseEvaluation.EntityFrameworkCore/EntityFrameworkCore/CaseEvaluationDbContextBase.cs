@@ -22,7 +22,7 @@ public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDb
     where TDbContext : DbContext
 {
     public DbSet<Book> Books { get; set; }
-    
+
     public CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
         : base(options)
     {
@@ -48,7 +48,7 @@ public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDb
         builder.ConfigureTextTemplateManagement();
         builder.ConfigureBlobStoring();
         builder.ConfigureGdpr();
-        
+
         builder.Entity<Book>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Books",

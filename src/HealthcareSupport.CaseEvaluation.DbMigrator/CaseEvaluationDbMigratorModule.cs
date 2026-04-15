@@ -22,7 +22,7 @@ public class CaseEvaluationDbMigratorModule : AbpModule
             var configuration = context.Services.GetConfiguration();
             configuration["Redis:IsEnabled"] = "false";
         }
-        
+
         base.PreConfigureServices(context);
     }
 
