@@ -1,0 +1,43 @@
+name: Lint Meta
+
+# YAML workflow and Markdown documentation lint. Fast feedback on CI / docs
+# drift. Both jobs are `continue-on-error: true` during Phase A; Phase C flips
+# them to blocking.
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  yamllint:
+    name: 'Lint: YAML workflows'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: .github/workflows/
+          config_data: |
+            extends: default
+            rules:
+              line-length: { max: 200, level: warning }
+              truthy: { check-keys: false }
+              document-start: disable
+              comments-indentation: disable
+
+  markdownlint:
+    name: 'Lint: Markdown'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: 'docs/**/*.md README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md'
+          config: '.markdownlint.json'
