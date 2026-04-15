@@ -1,0 +1,74 @@
+{
+  "csharp.semanticHighlighting.enabled": true,
+  "csharp.inlayHints.enableInlayHintsForTypes": false,
+  "dotnet.inlayHints.enableInlayHintsForParameters": false,
+  "csharp.maxProjectFileCountForDiagnosticAnalysis": 100,
+
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.implementationsCodeLens.enabled": false,
+  "typescript.referencesCodeLens.enabled": false,
+  "typescript.surveys.enabled": false,
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": false,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp"
+  },
+  "eslint.validate": ["javascript", "typescript", "html"],
+
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "off",
+  "editor.renderWhitespace": "selection",
+  "editor.suggest.preview": false,
+  "editor.largeFileOptimizations": true,
+  "editor.linkedEditing": true,
+  "editor.copyWithSyntaxHighlighting": false,
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/.abpstudio/**": true,
+    "**/coverage/**": true,
+    "**/Logs/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/.git": true,
+    "**/.abpstudio": true,
+    "**/coverage": true,
+    "**/Logs": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.abpstudio": true
+  },
+
+  "git.autofetch": false,
+  "git.confirmSync": true,
+  "git.openRepositoryInParentFolders": "never",
+
+  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
+
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "*.component.ts": "${capture}.component.html, ${capture}.component.scss, ${capture}.component.spec.ts",
+    "*.service.ts": "${capture}.service.spec.ts",
+    "*.csproj": "$(capture).csproj.user",
+    "angular.json": "tsconfig.json, tsconfig.app.json, tsconfig.spec.json, .eslintrc.json, .prettierrc, karma.conf.js, commitlint.config.js"
+  }
+}

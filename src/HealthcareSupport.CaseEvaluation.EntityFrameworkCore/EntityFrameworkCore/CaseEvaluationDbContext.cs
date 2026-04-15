@@ -53,7 +53,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<Location>(b => {
+            builder.Entity<Location>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Locations", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(Location.Name)).IsRequired().HasMaxLength(LocationConsts.NameMaxLength);
@@ -69,7 +70,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<WcabOffice>(b => {
+            builder.Entity<WcabOffice>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "WcabOffices", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(WcabOffice.Name)).IsRequired().HasMaxLength(WcabOfficeConsts.NameMaxLength);
@@ -88,7 +90,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<Doctor>(b => {
+            builder.Entity<Doctor>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Doctors", CaseEvaluationConsts.DbSchema);
                 b.Property(x => x.TenantId).HasColumnName(nameof(Doctor.TenantId));
                 b.ConfigureByConvention();
@@ -99,7 +102,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
             });
-            builder.Entity<DoctorAppointmentType>(b => {
+            builder.Entity<DoctorAppointmentType>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorAppointmentType", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.HasKey(x => new { x.DoctorId, x.AppointmentTypeId });
@@ -107,7 +111,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.HasOne(x => x.AppointmentType).WithMany(x => x.DoctorAppointmentTypes).HasForeignKey(x => x.AppointmentTypeId).IsRequired().OnDelete(DeleteBehavior.Cascade);
                 b.HasIndex(x => new { x.DoctorId, x.AppointmentTypeId });
             });
-            builder.Entity<DoctorLocation>(b => {
+            builder.Entity<DoctorLocation>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorLocation", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.HasKey(x => new { x.DoctorId, x.LocationId });
@@ -123,7 +128,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<AppointmentStatus>(b => {
+            builder.Entity<AppointmentStatus>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
@@ -136,7 +142,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<AppointmentType>(b => {
+            builder.Entity<AppointmentType>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypes", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(AppointmentType.Name)).IsRequired().HasMaxLength(AppointmentTypeConsts.NameMaxLength);
@@ -146,14 +153,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<AppointmentLanguage>(b => {
+            builder.Entity<AppointmentLanguage>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentLanguages", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(AppointmentLanguage.Name)).IsRequired().HasMaxLength(AppointmentLanguageConsts.NameMaxLength);
             });
         }
 
-        builder.Entity<DoctorAvailability>(b => {
+        builder.Entity<DoctorAvailability>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorAvailabilities", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(DoctorAvailability.TenantId));
@@ -166,7 +175,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
         });
         if (builder.IsHostDatabase())
         {
-            builder.Entity<Patient>(b => {
+            builder.Entity<Patient>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Patients", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.FirstName).HasColumnName(nameof(Patient.FirstName)).IsRequired().HasMaxLength(PatientConsts.FirstNameMaxLength);
@@ -194,7 +204,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             });
         }
 
-        builder.Entity<Appointment>(b => {
+        builder.Entity<Appointment>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Appointments", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(Appointment.TenantId));
@@ -218,14 +229,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-            builder.Entity<State>(b => {
+            builder.Entity<State>(b =>
+            {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "States", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(State.Name)).IsRequired();
             });
         }
 
-        builder.Entity<AppointmentEmployerDetail>(b => {
+        builder.Entity<AppointmentEmployerDetail>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentEmployerDetails", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentEmployerDetail.TenantId));
@@ -238,7 +251,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
-        builder.Entity<AppointmentAccessor>(b => {
+        builder.Entity<AppointmentAccessor>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentAccessors", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentAccessor.TenantId));
@@ -246,7 +260,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
-        builder.Entity<ApplicantAttorney>(b => {
+        builder.Entity<ApplicantAttorney>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ApplicantAttorneys", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(ApplicantAttorney.TenantId));
@@ -261,7 +276,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
-        builder.Entity<AppointmentApplicantAttorney>(b => {
+        builder.Entity<AppointmentApplicantAttorney>(b =>
+        {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentApplicantAttorneys", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentApplicantAttorney.TenantId));

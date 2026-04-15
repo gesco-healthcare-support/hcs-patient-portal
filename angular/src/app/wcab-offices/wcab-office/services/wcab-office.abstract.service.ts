@@ -51,7 +51,7 @@ export abstract class AbstractWcabOfficeViewService {
     this.confirmationService
       .warn('::DeleteConfirmationMessage', '::AreYouSure', { messageLocalizationParams: [] })
       .pipe(
-        filter(status => status === Confirmation.Status.confirm),
+        filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.wcabOffice.id)),
       )
       .subscribe(this.list.get);
@@ -77,7 +77,7 @@ export abstract class AbstractWcabOfficeViewService {
         messageLocalizationParams: [messageParam],
       })
       .pipe(
-        filter(result => result === Confirmation.Status.confirm),
+        filter((result) => result === Confirmation.Status.confirm),
         switchMap(() => this.bulkDeleteRequest()),
       )
       .subscribe();
@@ -155,7 +155,7 @@ export abstract class AbstractWcabOfficeViewService {
         ),
         finalize(() => (this.isExportToExcelBusy = false)),
       )
-      .subscribe(result => {
+      .subscribe((result) => {
         this.abpWindowService.downloadBlob(result, 'WcabOffice.xlsx');
       });
   }

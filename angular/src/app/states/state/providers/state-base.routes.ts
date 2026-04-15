@@ -15,5 +15,5 @@ export const STATE_BASE_ROUTES: ABP.Route[] = [
     parentName: '::Menu:Configurations',
     requiredPolicy: 'CaseEvaluation.States',
     order: 1,
-  }
+  },
 ];

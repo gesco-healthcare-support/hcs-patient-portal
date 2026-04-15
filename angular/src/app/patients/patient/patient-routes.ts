@@ -5,7 +5,7 @@ export const PATIENT_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/patient.component').then(c => c.PatientComponent);
+      return import('./components/patient.component').then((c) => c.PatientComponent);
     },
     canActivate: [authGuard, permissionGuard],
   },

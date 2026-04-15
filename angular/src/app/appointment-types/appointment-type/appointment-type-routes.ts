@@ -6,7 +6,7 @@ export const APPOINTMENT_TYPE_ROUTES: Routes = [
     path: '',
     loadComponent: () => {
       return import('./components/appointment-type.component').then(
-        c => c.AppointmentTypeComponent,
+        (c) => c.AppointmentTypeComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
