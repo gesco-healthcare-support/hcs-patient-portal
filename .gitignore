@@ -301,3 +301,7 @@ Logs/
 
 # Local appsettings overrides (contain secrets)
 appsettings.Local.json
+
+# Personal / IDE-exported workspace artifacts
+*.code-profile
+temp.md
