@@ -1,0 +1,38 @@
+name: TruffleHog (PR)
+
+# Per-PR secret scan. Backs up the Layer 1 pre-commit gitleaks hook for
+# commits that bypass it (web UI, Dependabot, --no-verify). Scoped to the
+# PR commit range via base/head SHAs.
+#
+# Previously used gitleaks-action@v2, but that action requires a paid
+# GITLEAKS_LICENSE for any GitHub organization repo (even public ones).
+# TruffleHog is free for public org repos and is already the tool used by
+# security.yml for the weekly full-history scan.
+#
+# --only-verified filters out unverified detections so this gate stays
+# high-signal on a per-PR basis. The weekly scan in security.yml runs
+# without --only-verified for broader coverage.
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    name: 'TruffleHog: PR commits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@v3.94.3
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --only-verified
