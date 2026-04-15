@@ -1,9 +1,10 @@
 name: Commitlint
 
 # Validates every commit in a PR against the Conventional Commits config at
-# angular/commitlint.config.js (same config the Husky commit-msg hook uses
-# locally). Catches commits from the GitHub web UI, Dependabot, or any
-# developer who bypassed the local hook with --no-verify.
+# angular/commitlint.config.mjs (ES module sibling of the Husky commit-msg
+# hook's angular/commitlint.config.js -- wagoid v6 rejects .js configFile).
+# Catches commits from the GitHub web UI, Dependabot, or any developer who
+# bypassed the local hook with --no-verify.
 
 on:
   pull_request:
@@ -32,6 +33,6 @@ jobs:
         run: yarn install --frozen-lockfile
       - uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: angular/commitlint.config.js
+          configFile: angular/commitlint.config.mjs
           failOnWarnings: false
           failOnErrors: true
