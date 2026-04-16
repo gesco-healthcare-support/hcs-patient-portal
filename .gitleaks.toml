@@ -4,14 +4,51 @@
 # when [allowlist] is present and silently passes every commit.
 useDefault = true
 
+# -------------------------------------------------------------------
+# Scan mode convention for this repository
+# -------------------------------------------------------------------
+# All hooks and CI gates use GIT-AWARE scans, never `--no-git`:
+#   pre-commit hook: `gitleaks protect --staged`
+#   pre-push hook:   `gitleaks detect` (walks git log)
+#   CI (Layer 2):    `gitleaks detect --log-opts="$BASE..$HEAD"`
+#   weekly sweep:    TruffleHog in `.github/workflows/security.yml`
+#
+# Running `gitleaks detect --no-git` walks the working tree and will report
+# false positives from gitignored local dev files (`.env`, `.env.local`,
+# `appsettings.secrets.json`, `Logs/*.txt`, `node_modules/**`). That mode is
+# reserved for one-off audits; the allowlist below exists so that even those
+# audits stay quiet about known-safe paths.
+# -------------------------------------------------------------------
+
 [allowlist]
 description = "Known safe patterns"
+# NOTE: gitleaks reports file paths with the native OS separator (backslash
+# on Windows, forward slash on Linux/macOS). Patterns below use the character
+# class `[\\/]` everywhere a directory separator appears so they match on
+# both platforms.
 paths = [
-  '''angular/node_modules''',
+  # All node_modules directories anywhere in the repo. Bundled dependency
+  # READMEs and type definitions contain example tokens that are not secrets.
+  '''[\\/]node_modules[\\/]''',
+  # Old git-history backups created during inheritance-phase rewrites.
   '''\.git\.backup-.*''',
-  # Data-seeding scripts use synthetic tenant/user keys (T1_P1, T4_NullPatient, etc.)
-  # per the HIPAA "synthetic data only" rule. Whole directory is test scaffolding.
-  '''scripts/phases/Phase-.*\.ps1''',
+  # Runtime application logs. Gitignored, so they never reach a git-aware
+  # scan, but `--no-git` audits pick them up. The app writing secrets into
+  # these logs is a separate bug (PII logging) tracked in
+  # docs/issues/SECURITY.md.
+  '''[\\/]Logs[\\/].*\.txt''',
+  # Local developer env files. Gitignored and expected to contain real local
+  # secrets on the developer's machine. Ignored by git-aware scans; only
+  # `--no-git` ever sees them.
+  '''^\.env(\.[A-Za-z0-9_-]+)?$''',
+  # Docker-compose local secret files. Gitignored.
+  '''docker[\\/]appsettings\.secrets\.json$''',
+  # Per-project appsettings.secrets.json files. Gitignored.
+  '''[\\/]appsettings\.secrets\.json$''',
+  # Data-seeding scripts use synthetic tenant/user keys (T1_P1,
+  # T4_NullPatient, etc.) per the HIPAA "synthetic data only" rule. Whole
+  # directory is test scaffolding.
+  '''scripts[\\/]phases[\\/]Phase-.*\.ps1''',
 ]
 regexTarget = "match"
 regexes = [
