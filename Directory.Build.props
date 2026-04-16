@@ -1,0 +1,34 @@
+<Project>
+
+  <!--
+    Repo-wide .NET build defaults. Every .csproj under this repo inherits these
+    properties automatically via MSBuild's Directory.Build.props discovery.
+
+    Added as part of Layer 2 CI rollout, Phase A, PR 1 (see
+    docs/verification/layer2-phase-a-inventory.md once Phase A completes).
+
+    TreatWarningsAsErrors stays false here so this PR does not flip the
+    codebase to strict mode in one step; Phase B #3 resolves the existing
+    warnings and then flips this to true.
+  -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!--
+      NuGet lock files: committing packages.lock.json per project lets
+      actions/dependency-review-action scan transitive NuGet dependencies on
+      every PR. RestoreLockedMode stays false locally so day-to-day package
+      tweaks do not fail restore; CI can opt in via the dotnet restore flag
+      for locked mode when we want strict reproducibility.
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>false</RestoreLockedMode>
+  </PropertyGroup>
+
+</Project>
