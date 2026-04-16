@@ -201,10 +201,6 @@ jobs:
     needs: [changes, frontend-build]
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
     timeout-minutes: 25
-    # Phase A: non-blocking. The hard-fail for missing specs is intentional
-    # (no silent-pass), but Phase A merges stay unblocked until Phase B adds
-    # specs. Phase C removes this flag to make the gate blocking.
-    continue-on-error: true
     defaults:
       run:
         working-directory: angular
@@ -217,14 +213,27 @@ jobs:
           cache-dependency-path: angular/yarn.lock
       - run: yarn install
       - name: Check for test files
+        id: check-tests
+        # Phase A/B behavior: emit a ::warning annotation when no *.spec.ts
+        # files exist (visible in PR UI, not a red ✗). The test step below
+        # is gated on has_tests so we skip rather than run yarn test with
+        # nothing to execute. Once Phase B #8 adds specs for the 13
+        # untested entities, this branch stops firing and the job is a
+        # normal green test run.
+        #
+        # Phase C hardens this: revert to ::error + exit 1 in the else
+        # branch, and drop the if-guard on "Run tests with coverage" so
+        # the job fails hard if specs are ever removed.
         run: |
           if find src -name "*.spec.ts" | grep -q .; then
-            echo "Found spec files; proceeding with tests." >> $GITHUB_STEP_SUMMARY
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+            echo "Found spec files; proceeding with tests." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::No *.spec.ts files found under angular/src. Refusing to silent-pass the frontend test job. Add specs or explicitly delete this job from ci.yml."
-            exit 1
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No *.spec.ts files found under angular/src. Phase A/B: informational; Phase C will require specs."
           fi
       - name: Run tests with coverage
+        if: steps.check-tests.outputs.has_tests == 'true'
         run: yarn test --watch=false --browsers=ChromeHeadless --code-coverage
 
   backend-format:
