@@ -13,14 +13,51 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  changes:
+    name: 'Meta: Changed paths'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'src/**'
+              - 'test/**'
+              - '*.sln'
+              - '*.slnx'
+              - 'Directory.Build.props'
+              - 'NuGet.Config.template'
+              - 'common.props'
+              - 'global.json'
+            frontend:
+              - 'angular/**'
+            shared:
+              - '.github/**'
+              - 'docs/**'
+              - '.editorconfig'
+              - '.gitleaks.toml'
+              - '.markdownlint.json'
+
   backend-build:
     name: 'Backend: Build'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -59,6 +96,9 @@ jobs:
   docs-structure:
     name: 'Docs: Structure Check'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.shared == 'true'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -75,7 +115,9 @@ jobs:
   backend-test:
     name: 'Backend: Test'
     runs-on: ubuntu-latest
-    needs: backend-build
+    needs: [changes, backend-build]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -118,6 +160,9 @@ jobs:
   frontend-build:
     name: 'Frontend: Build'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: angular
@@ -134,6 +179,9 @@ jobs:
   frontend-lint:
     name: 'Frontend: Lint'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: angular
@@ -150,7 +198,9 @@ jobs:
   frontend-test:
     name: 'Frontend: Test'
     runs-on: ubuntu-latest
-    needs: frontend-build
+    needs: [changes, frontend-build]
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: angular
@@ -164,20 +214,34 @@ jobs:
       - run: yarn install
       - name: Check for test files
         id: check-tests
+        # Phase A/B behavior: emit a ::warning annotation when no *.spec.ts
+        # files exist (visible in PR UI, not a red ✗). The test step below
+        # is gated on has_tests so we skip rather than run yarn test with
+        # nothing to execute. Once Phase B #8 adds specs for the 13
+        # untested entities, this branch stops firing and the job is a
+        # normal green test run.
+        #
+        # Phase C hardens this: revert to ::error + exit 1 in the else
+        # branch, and drop the if-guard on "Run tests with coverage" so
+        # the job fails hard if specs are ever removed.
         run: |
           if find src -name "*.spec.ts" | grep -q .; then
-            echo "has_tests=true" >> $GITHUB_OUTPUT
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+            echo "Found spec files; proceeding with tests." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "has_tests=false" >> $GITHUB_OUTPUT
-            echo "⚠️ No spec files found — skipping frontend tests" >> $GITHUB_STEP_SUMMARY
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No *.spec.ts files found under angular/src. Phase A/B: informational; Phase C will require specs."
           fi
-      - name: Run tests
+      - name: Run tests with coverage
         if: steps.check-tests.outputs.has_tests == 'true'
-        run: yarn test --watch=false --browsers=ChromeHeadless
+        run: yarn test --watch=false --browsers=ChromeHeadless --code-coverage
 
   backend-format:
     name: 'Backend: Format Check'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -210,6 +274,9 @@ jobs:
   frontend-format:
     name: 'Frontend: Format Check'
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
+    timeout-minutes: 10
     continue-on-error: true
     defaults:
       run:
