@@ -36,7 +36,7 @@ This removes 2 items from the Phase B backlog.
 | .NET warnings (CS*) | 428 | See breakdown below | #3 (TreatWarningsAsErrors) |
 | NuGet vulnerability warnings (NU*) | 414 | 108 moderate, 270 high, 36 critical | #12 (Scriban bump) |
 | CodeQL security alerts | 5 | 5 high (all same rule) | #6 |
-| SonarCloud | TBD | Awaiting first main-branch scan | #5 |
+| SonarCloud | 996 issues | 0 blocker, 139 critical, 576 major, 202 minor, 79 info | #5 |
 | OpenSSF Scorecard | Failed to run | `ossf/scorecard-action@v2` unresolvable | #11 + workflow fix |
 | Backend test coverage | Unknown (not collected) | No --collect in current CI | #8 |
 | Frontend test coverage | 0% | No spec files exist | #8 |
@@ -109,14 +109,51 @@ SHA pin. This is a Phase B item (#11).
 
 ### SonarCloud
 
-The SonarCloud analysis ran successfully on PR #62 but the project dashboard data needs
-to be captured from sonarcloud.io directly. The Quality Gate was not waited on
-(`sonar.qualitygate.wait=false`).
+Data captured via SonarCloud public API on 2026-04-16.
 
-**Action:** Visit the SonarCloud dashboard at
-`sonarcloud.io/project/overview?id=gesco-healthcare-support_hcs-patient-portal`
-and record: bugs, vulnerabilities, security hotspots, code smells, duplication %, coverage %,
-and Quality Gate status. Update this section with those numbers.
+**Quality Gate: FAILED** (Sonar way default thresholds)
+
+| Condition | Status | Threshold | Actual |
+|-----------|--------|-----------|--------|
+| New code reliability rating | OK | A | A |
+| New code security rating | FAILED | A | C |
+| New code maintainability rating | OK | A | A |
+| New code duplicated lines | OK | < 3% | 0.0% |
+| New security hotspots reviewed | FAILED | 100% | 0.0% |
+
+**Overall Metrics:**
+
+| Metric | Value |
+|--------|-------|
+| Lines of code | 31,475 |
+| Bugs | 1 |
+| Vulnerabilities | 10 |
+| Security hotspots | 61 |
+| Code smells | 949 (985 total issues) |
+| Coverage | 6.1% |
+| Duplication | 8.7% |
+| Cognitive complexity | 912 |
+| Reliability rating | B |
+| Security rating | C |
+| Maintainability rating | A |
+
+**Issue Severity Breakdown (996 total):**
+
+| Severity | Count |
+|----------|-------|
+| Blocker | 0 |
+| Critical | 139 |
+| Major | 576 |
+| Minor | 202 |
+| Info | 79 |
+
+**Issue Type Breakdown:**
+
+| Type | Count |
+|------|-------|
+| Code smells | 985 |
+| Vulnerabilities | 10 |
+| Bugs | 1 |
 
 ### Test Coverage
 
@@ -157,7 +194,7 @@ Based on the inventory, the original 12-item Phase B list is revised:
 | ~~2~~ | ~~style: apply dotnet format to entire solution~~ | **NOT NEEDED** | Already clean (0 drift) |
 | 3 | fix: enable TreatWarningsAsErrors + resolve .NET warnings | **428 warnings** | 97% nullable, sub-PRs by category |
 | 4 | ~~fix: resolve ESLint warnings across angular/~~ | **NOT NEEDED** | Already clean (0 warnings) |
-| 5 | fix: address SonarCloud findings by severity | **TBD** | Awaiting dashboard data |
+| 5 | fix: address SonarCloud findings by severity | **996 issues** | 10 vulns, 61 hotspots, 949 smells, 1 bug |
 | 6 | fix: address CodeQL security findings | **5 findings** | All X-Frame-Options + bin/ cleanup |
 | 7 | fix: license-compliance violations if any surface | **NONE** | Dependency review passes clean |
 | 8 | chore: expand test coverage to >= 70% per entity | **13 entities** | Longest item |
