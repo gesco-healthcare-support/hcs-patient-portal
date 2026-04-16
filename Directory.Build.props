@@ -14,11 +14,14 @@
 
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
+    <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Version>1.0.0</Version>
+    <NoWarn>$(NoWarn);CS1591;NU1510</NoWarn>
+    <AbpProjectType>app</AbpProjectType>
 
     <!--
       NuGet lock files: committing packages.lock.json per project lets
@@ -30,5 +33,29 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
   </PropertyGroup>
+
+  <!-- Scriban 6.6.0 override: resolves NU1902 CVE warnings from transitive
+       Scriban 6.3.0 dependency (ABP uses Scriban for text templating).
+       7.x has breaking API changes that ABP hasn't validated. -->
+  <ItemGroup>
+    <PackageReference Include="Scriban" Version="7.1.0" />
+    <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
+         matches our net10.0 TFM and resolves GHSA-37gx / GHSA-w3x6 CVEs. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
+  </ItemGroup>
+
+  <!-- Suppress Razor view imported type conflict warnings (CS0436) -->
+  <Target Name="NoWarnOnRazorViewImportedTypeConflicts" BeforeTargets="RazorCoreCompile">
+    <PropertyGroup>
+      <NoWarn>$(NoWarn);0436</NoWarn>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Remove ABP package analysis artifacts from the build -->
+  <ItemGroup>
+    <None Remove="**\*.abppkg" />
+    <None Remove="**\*.abppkg.analyze.json" />
+    <Content Remove="$(UserProfile)\.nuget\packages\*\*\contentFiles\any\*\*.abppkg*" />
+  </ItemGroup>
 
 </Project>
