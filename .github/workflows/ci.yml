@@ -167,3 +167,52 @@ jobs:
       - name: Run tests
         if: steps.check-tests.outputs.has_tests == 'true'
         run: yarn test --watch=false --browsers=ChromeHeadless
+
+  backend-format:
+    name: 'Backend: Format Check'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/common.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+      - name: Create placeholder secrets files
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+      - run: dotnet format HealthcareSupport.CaseEvaluation.slnx --no-restore --verify-no-changes --verbosity diagnostic
+
+  frontend-format:
+    name: 'Frontend: Format Check'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: angular
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: angular/yarn.lock
+      - run: yarn install
+      - run: yarn format:check

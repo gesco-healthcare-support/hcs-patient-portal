@@ -1,0 +1,38 @@
+name: Commitlint
+
+# Validates every commit in a PR against the Conventional Commits config at
+# angular/commitlint.config.mjs (ES module sibling of the Husky commit-msg
+# hook's angular/commitlint.config.js -- wagoid v6 rejects .js configFile).
+# Catches commits from the GitHub web UI, Dependabot, or any developer who
+# bypassed the local hook with --no-verify.
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 'Commitlint: PR commits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: angular/yarn.lock
+      - name: Install commitlint dependencies
+        working-directory: angular
+        run: yarn install --frozen-lockfile
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: angular/commitlint.config.mjs
+          failOnWarnings: false
+          failOnErrors: true
