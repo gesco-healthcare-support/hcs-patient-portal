@@ -48,6 +48,13 @@ jobs:
           done
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
+      - name: Backend Build (warnings-as-errors, informational)
+        continue-on-error: true
+        run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release -warnaserror
+        # Phase A informational step — surfaces the pre-existing warnings that
+        # Phase B #3 will resolve. Does not block merge. When Phase C flips
+        # Directory.Build.props <TreatWarningsAsErrors> to true, this separate
+        # step is removed and -warnaserror folds into the primary build above.
 
   docs-structure:
     name: 'Docs: Structure Check'

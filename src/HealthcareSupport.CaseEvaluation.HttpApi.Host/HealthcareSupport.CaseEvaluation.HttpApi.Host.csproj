@@ -56,4 +56,19 @@
     <None Remove="Logs\**" />
   </ItemGroup>
 
+  <!--
+    SonarCloud analysis surface: link Angular sources so the .NET sonarscanner
+    (which drives the single-project monorepo analysis) picks up TS, HTML, SCSS,
+    and CSS files during the MSBuild-based scan. Visible=false hides these from
+    VS / Rider solution explorers; CopyToOutputDirectory=Never keeps them out
+    of bin/. Files under angular/src/app/proxy are excluded in the scanner
+    command (sonar.exclusions) because they are ABP-generated.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\angular\src\**\*.ts"   Visible="false" CopyToOutputDirectory="Never" />
+    <Content Include="..\..\angular\src\**\*.html" Visible="false" CopyToOutputDirectory="Never" />
+    <Content Include="..\..\angular\src\**\*.scss" Visible="false" CopyToOutputDirectory="Never" />
+    <Content Include="..\..\angular\src\**\*.css"  Visible="false" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
 </Project>
