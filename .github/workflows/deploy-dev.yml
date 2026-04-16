@@ -50,11 +50,33 @@ jobs:
     if: success()
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Check for existing PR
         id: check
         run: |
           existing=$(gh pr list --base staging --head development --state open --json number -q '.[0].number')
           echo "existing=$existing" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
+      - name: Build PR body
+        if: steps.check.outputs.existing == ''
+        run: |
+          git fetch origin staging
+          commits=$(git log origin/staging..origin/development --oneline --no-merges 2>/dev/null || echo "_(unable to determine)_")
+          count=$(echo "$commits" | grep -c . 2>/dev/null || echo "0")
+          cat > /tmp/pr-body.md <<EOF
+          ## Promotion: development -> staging
+
+          **${count} commit(s) to promote:**
+
+          \`\`\`
+          ${commits}
+          \`\`\`
+
+          Auto-generated after development validation passed. Review and merge (merge commit) to promote.
+          EOF
+          sed -i 's/^          //' /tmp/pr-body.md
         env:
           GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
       - name: Create PR
@@ -64,6 +86,6 @@ jobs:
             --base staging \
             --head development \
             --title "ci(sync): promote development to staging" \
-            --body "Auto-generated after development validation passed. Review and rebase-merge to promote changes to staging."
+            --body-file /tmp/pr-body.md
         env:
           GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
