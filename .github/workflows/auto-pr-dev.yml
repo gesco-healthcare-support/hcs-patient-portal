@@ -32,7 +32,7 @@ jobs:
           gh pr create \
             --base development \
             --head main \
-            --title "Sync: main -> development" \
-            --body "Auto-generated after merge to main. Review and merge to promote to development."
+            --title "ci(sync): promote main to development" \
+            --body "Auto-generated after merge to main. Review and rebase-merge to promote changes to development."
         env:
           GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}

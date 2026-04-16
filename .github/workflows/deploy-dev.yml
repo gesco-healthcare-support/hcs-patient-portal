@@ -63,7 +63,7 @@ jobs:
           gh pr create \
             --base staging \
             --head development \
-            --title "Promote: development -> staging" \
-            --body "Auto-generated. Development validation passed."
+            --title "ci(sync): promote development to staging" \
+            --body "Auto-generated after development validation passed. Review and rebase-merge to promote changes to staging."
         env:
           GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
