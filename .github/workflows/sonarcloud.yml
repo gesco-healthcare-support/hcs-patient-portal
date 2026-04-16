@@ -1,0 +1,101 @@
+name: SonarCloud
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+  push:
+    branches: [main]
+
+concurrency:
+  group: sonarcloud-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  analyze:
+    name: 'SonarCloud: Analysis'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: angular/yarn.lock
+
+      - name: Install .NET sonar tooling
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          dotnet tool install --global dotnet-coverage
+
+      - name: Generate NuGet.Config
+        run: sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+
+      - name: Create placeholder secrets files
+        run: |
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
+
+      - name: Angular tests with coverage
+        working-directory: angular
+        run: |
+          yarn install --frozen-lockfile
+          yarn test --watch=false --browsers=ChromeHeadless --code-coverage || true
+        # Tolerates the current silent-skip (most features have no specs yet).
+        # Phase A PR 4 hardens the frontend-test job. LCOV output lands in
+        # angular/coverage/**/lcov.info when specs exist.
+
+      - name: SonarScanner begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet sonarscanner begin
+          /k:"gesco-healthcare-support_hcs-patient-portal"
+          /o:"gesco-healthcare-support"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
+          /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
+          /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**"
+          /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,angular/src/app/proxy/**,**/*.module.ts"
+          /d:sonar.qualitygate.wait=false
+
+      - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
+
+      - run: dotnet build HealthcareSupport.CaseEvaluation.slnx --no-restore -c Release
+
+      - name: Backend tests with coverage
+        run: dotnet-coverage collect "dotnet test HealthcareSupport.CaseEvaluation.slnx --no-build -c Release" -f xml -o coverage.xml
+
+      - name: SonarScanner end
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

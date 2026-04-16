@@ -1,0 +1,67 @@
+name: CodeQL (PR)
+
+# Per-PR CodeQL scanning. Coexists with the weekly CodeQL job in
+# security.yml (schedule: '0 6 * * 1'). Per-PR catches new issues introduced
+# in a branch; the weekly run catches newly published CVE patterns applied
+# retroactively to unchanged code.
+
+on:
+  pull_request:
+    branches: [main, development, staging, production]
+
+concurrency:
+  group: codeql-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: 'CodeQL: ${{ matrix.language }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - if: matrix.language == 'csharp'
+        name: Generate NuGet.Config + placeholder secrets
+        run: |
+          sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/" NuGet.Config.template > NuGet.Config
+          for dir in src/HealthcareSupport.CaseEvaluation.AuthServer \
+                     src/HealthcareSupport.CaseEvaluation.HttpApi.Host \
+                     src/HealthcareSupport.CaseEvaluation.DbMigrator \
+                     test/HealthcareSupport.CaseEvaluation.TestBase \
+                     test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp; do
+            if [ -n "${{ secrets.ABP_LICENSE_CODE }}" ]; then
+              echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > "$dir/appsettings.secrets.json"
+            else
+              echo '{}' > "$dir/appsettings.secrets.json"
+            fi
+          done
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - if: matrix.language == 'csharp'
+        run: dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'
