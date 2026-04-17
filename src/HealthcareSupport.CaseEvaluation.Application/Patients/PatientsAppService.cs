@@ -304,7 +304,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Create)]
     public virtual async Task<PatientDto> CreateAsync(PatientCreateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
@@ -316,7 +316,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Edit)]
     public virtual async Task<PatientDto> UpdateAsync(Guid id, PatientUpdateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }

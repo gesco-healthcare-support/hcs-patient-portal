@@ -100,7 +100,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var items = new List<ExternalUserLookupDto>();
         foreach (var u in usersWithRoleId)
         {
-            var userRole = u.FirstRoleId != default && roleNameMap.TryGetValue(u.FirstRoleId, out var name)
+            var userRole = u.FirstRoleId != Guid.Empty && roleNameMap.TryGetValue(u.FirstRoleId, out var name)
                 ? name
                 : allowedRoleNames[0];
 

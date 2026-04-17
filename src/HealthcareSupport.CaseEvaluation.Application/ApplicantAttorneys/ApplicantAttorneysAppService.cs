@@ -88,7 +88,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Create)]
     public virtual async Task<ApplicantAttorneyDto> CreateAsync(ApplicantAttorneyCreateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
@@ -100,7 +100,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Edit)]
     public virtual async Task<ApplicantAttorneyDto> UpdateAsync(Guid id, ApplicantAttorneyUpdateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }

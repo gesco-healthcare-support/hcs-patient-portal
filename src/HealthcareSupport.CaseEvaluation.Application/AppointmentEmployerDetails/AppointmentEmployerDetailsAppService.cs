@@ -89,7 +89,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize]
     public virtual async Task<AppointmentEmployerDetailDto> CreateAsync(AppointmentEmployerDetailCreateDto input)
     {
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
@@ -109,7 +109,7 @@ public class AppointmentEmployerDetailsAppService : CaseEvaluationAppService, IA
     [Authorize]
     public virtual async Task<AppointmentEmployerDetailDto> UpdateAsync(Guid id, AppointmentEmployerDetailUpdateDto input)
     {
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }

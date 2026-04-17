@@ -92,12 +92,12 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task<AppointmentAccessorDto> CreateAsync(AppointmentAccessorCreateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
@@ -109,12 +109,12 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task<AppointmentAccessorDto> UpdateAsync(Guid id, AppointmentAccessorUpdateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
