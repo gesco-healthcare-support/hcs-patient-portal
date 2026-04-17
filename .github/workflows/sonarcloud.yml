@@ -84,8 +84,8 @@ jobs:
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
           /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
-          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**"
-          /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,angular/src/app/proxy/**,**/*.module.ts"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts"
+          /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,angular/src/app/proxy/**,**/*.module.ts"
           /d:sonar.qualitygate.wait=false
 
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx

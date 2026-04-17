@@ -54,6 +54,14 @@ jobs:
             fi
           done
 
+      - if: matrix.language == 'csharp'
+        name: Clean stale build artifacts before CodeQL init
+        # CodeQL analyzes bin/ and obj/ outputs for compiled languages. Any leftover
+        # web.config or DLL from a previous run (or from the checkout path cache)
+        # surfaces as a CodeQL alert even when the source is clean. Clean first so
+        # the analysis only sees artifacts produced by the build step below.
+        run: dotnet clean HealthcareSupport.CaseEvaluation.slnx -c Release
+
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
