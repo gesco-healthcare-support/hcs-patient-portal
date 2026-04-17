@@ -22,6 +22,8 @@ using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using HealthcareSupport.CaseEvaluation.Books;
 
+[assembly: MapperDefaults(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+
 namespace HealthcareSupport.CaseEvaluation;
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -90,7 +92,9 @@ public partial class LocationWithNavigationPropertiesToLocationWithNavigationPro
 [Mapper]
 public partial class StateToLookupDtoGuidMapper : MapperBase<State, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(State source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(State source, LookupDto<Guid> destination);
 
     public override void AfterMap(State source, LookupDto<Guid> destination)
@@ -102,7 +106,9 @@ public partial class StateToLookupDtoGuidMapper : MapperBase<State, LookupDto<Gu
 [Mapper]
 public partial class AppointmentTypeToLookupDtoGuidMapper : MapperBase<AppointmentType, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(AppointmentType source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(AppointmentType source, LookupDto<Guid> destination);
 
     public override void AfterMap(AppointmentType source, LookupDto<Guid> destination)
@@ -149,7 +155,9 @@ public partial class DoctorWithNavigationPropertiesToDoctorWithNavigationPropert
 [Mapper]
 public partial class IdentityUserToLookupDtoGuidMapper : MapperBase<IdentityUser, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(IdentityUser source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(IdentityUser source, LookupDto<Guid> destination);
 
     public override void AfterMap(IdentityUser source, LookupDto<Guid> destination)
@@ -161,7 +169,9 @@ public partial class IdentityUserToLookupDtoGuidMapper : MapperBase<IdentityUser
 [Mapper]
 public partial class TenantToLookupDtoGuidMapper : MapperBase<Tenant, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(Tenant source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(Tenant source, LookupDto<Guid> destination);
 
     public override void AfterMap(Tenant source, LookupDto<Guid> destination)
@@ -173,7 +183,9 @@ public partial class TenantToLookupDtoGuidMapper : MapperBase<Tenant, LookupDto<
 [Mapper]
 public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(Location source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(Location source, LookupDto<Guid> destination);
 
     public override void AfterMap(Location source, LookupDto<Guid> destination)
@@ -213,7 +225,9 @@ public partial class PatientWithNavigationPropertiesToPatientWithNavigationPrope
 [Mapper]
 public partial class AppointmentLanguageToLookupDtoGuidMapper : MapperBase<AppointmentLanguage, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(AppointmentLanguage source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(AppointmentLanguage source, LookupDto<Guid> destination);
 
     public override void AfterMap(AppointmentLanguage source, LookupDto<Guid> destination)
@@ -239,7 +253,9 @@ public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigat
 [Mapper]
 public partial class AppointmentStatusToLookupDtoGuidMapper : MapperBase<AppointmentStatus, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(AppointmentStatus source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(AppointmentStatus source, LookupDto<Guid> destination);
 
     public override void AfterMap(AppointmentStatus source, LookupDto<Guid> destination)
@@ -251,7 +267,9 @@ public partial class AppointmentStatusToLookupDtoGuidMapper : MapperBase<Appoint
 [Mapper]
 public partial class PatientToLookupDtoGuidMapper : MapperBase<Patient, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(Patient source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(Patient source, LookupDto<Guid> destination);
 
     public override void AfterMap(Patient source, LookupDto<Guid> destination)
@@ -265,6 +283,11 @@ public partial class DoctorAvailabilityToLookupDtoGuidMapper : MapperBase<Doctor
 {
     public override partial LookupDto<Guid> Map(DoctorAvailability source);
     public override partial void Map(DoctorAvailability source, LookupDto<Guid> destination);
+
+    public override void AfterMap(DoctorAvailability source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = $"{source.AvailableDate:yyyy-MM-dd} {source.FromTime}-{source.ToTime}";
+    }
 }
 
 [Mapper]
@@ -284,7 +307,9 @@ public partial class AppointmentEmployerDetailWithNavigationPropertiesToAppointm
 [Mapper]
 public partial class AppointmentToLookupDtoGuidMapper : MapperBase<Appointment, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(Appointment source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(Appointment source, LookupDto<Guid> destination);
 
     public override void AfterMap(Appointment source, LookupDto<Guid> destination)
@@ -338,7 +363,9 @@ public partial class AppointmentApplicantAttorneyWithNavigationPropertiesToAppoi
 [Mapper]
 public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<ApplicantAttorney, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(ApplicantAttorney source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(ApplicantAttorney source, LookupDto<Guid> destination);
 
     public override void AfterMap(ApplicantAttorney source, LookupDto<Guid> destination)
