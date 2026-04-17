@@ -10,7 +10,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 public class AppointmentApplicantAttorneyWithNavigationProperties
 {
     public AppointmentApplicantAttorney AppointmentApplicantAttorney { get; set; } = null!;
-    public Appointment Appointment { get; set; } = null!;
-    public ApplicantAttorney ApplicantAttorney { get; set; } = null!;
-    public IdentityUser IdentityUser { get; set; } = null!;
+    public Appointment? Appointment { get; set; }
+    public ApplicantAttorney? ApplicantAttorney { get; set; }
+    public IdentityUser? IdentityUser { get; set; }
 }

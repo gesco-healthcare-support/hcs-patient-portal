@@ -15,6 +15,6 @@ public class PatientWithNavigationProperties
 
     public AppointmentLanguage? AppointmentLanguage { get; set; }
 
-    public IdentityUser IdentityUser { get; set; } = null!;
+    public IdentityUser? IdentityUser { get; set; }
     public Tenant? Tenant { get; set; }
 }

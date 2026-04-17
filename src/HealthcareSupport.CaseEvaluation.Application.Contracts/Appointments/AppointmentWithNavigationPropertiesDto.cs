@@ -13,10 +13,10 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class AppointmentWithNavigationPropertiesDto
 {
     public AppointmentDto Appointment { get; set; } = null!;
-    public PatientDto Patient { get; set; } = null!;
-    public IdentityUserDto IdentityUser { get; set; } = null!;
-    public AppointmentTypeDto AppointmentType { get; set; } = null!;
-    public LocationDto Location { get; set; } = null!;
-    public DoctorAvailabilityDto DoctorAvailability { get; set; } = null!;
+    public PatientDto? Patient { get; set; }
+    public IdentityUserDto? IdentityUser { get; set; }
+    public AppointmentTypeDto? AppointmentType { get; set; }
+    public LocationDto? Location { get; set; }
+    public DoctorAvailabilityDto? DoctorAvailability { get; set; }
     public AppointmentApplicantAttorneyWithNavigationPropertiesDto? AppointmentApplicantAttorney { get; set; }
 }

@@ -32,6 +32,6 @@ public class EfCoreStateRepository : EfCoreRepository<CaseEvaluationDbContext, S
 
     protected virtual IQueryable<State> ApplyFilter(IQueryable<State> query, string? filterText = null, string? name = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name.Contains(name));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name!.Contains(name!));
     }
 }

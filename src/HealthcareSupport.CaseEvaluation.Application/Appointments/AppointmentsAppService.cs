@@ -74,7 +74,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(await _appointmentRepository.GetWithNavigationPropertiesAsync(id));
+        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>((await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
@@ -86,7 +86,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input)
     {
-        var query = (await _patientRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _patientRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Patients.Patient>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -99,7 +99,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -115,7 +115,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .SelectMany(x => x.AppointmentTypes)
             .Select(x => x.AppointmentType);
 
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -130,7 +130,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var queryable = (await _doctorRepository.GetQueryableAsync())
             .SelectMany(x => x.Locations)
             .Select(x => x.Location);
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -142,7 +142,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetDoctorAvailabilityLookupAsync(LookupRequestDto input)
     {
-        var query = (await _doctorAvailabilityRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.FromTime != null);
+        var query = await _doctorAvailabilityRepository.GetQueryableAsync();
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

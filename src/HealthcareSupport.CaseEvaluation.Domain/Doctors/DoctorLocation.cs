@@ -7,10 +7,10 @@ namespace HealthcareSupport.CaseEvaluation.Doctors;
 public class DoctorLocation : Entity
 {
     public Guid DoctorId { get; protected set; }
-    public virtual Doctor Doctor { get; set; }
+    public virtual Doctor Doctor { get; set; } = null!;
 
     public Guid LocationId { get; protected set; }
-    public virtual Location Location { get; set; }
+    public virtual Location Location { get; set; } = null!;
 
     private DoctorLocation()
     {

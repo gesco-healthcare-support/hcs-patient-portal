@@ -20,7 +20,7 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
     {
     }
 
-    public virtual async Task<AppointmentAccessorWithNavigationProperties> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
+    public virtual async Task<AppointmentAccessorWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         return (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentAccessor => new AppointmentAccessorWithNavigationProperties { AppointmentAccessor = appointmentAccessor, IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == appointmentAccessor.IdentityUserId), Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentAccessor.AppointmentId) }).FirstOrDefault();

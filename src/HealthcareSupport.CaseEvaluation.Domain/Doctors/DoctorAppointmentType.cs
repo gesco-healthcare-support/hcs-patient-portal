@@ -7,10 +7,10 @@ namespace HealthcareSupport.CaseEvaluation.Doctors;
 public class DoctorAppointmentType : Entity
 {
     public Guid DoctorId { get; protected set; }
-    public virtual Doctor Doctor { get; set; }
+    public virtual Doctor Doctor { get; set; } = null!;
 
     public Guid AppointmentTypeId { get; protected set; }
-    public virtual AppointmentType AppointmentType { get; set; }
+    public virtual AppointmentType AppointmentType { get; set; } = null!;
 
     private DoctorAppointmentType()
     {

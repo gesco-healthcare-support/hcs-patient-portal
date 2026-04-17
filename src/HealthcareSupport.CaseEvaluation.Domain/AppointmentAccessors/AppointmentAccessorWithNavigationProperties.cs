@@ -9,6 +9,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 public class AppointmentAccessorWithNavigationProperties
 {
     public AppointmentAccessor AppointmentAccessor { get; set; } = null!;
-    public IdentityUser IdentityUser { get; set; } = null!;
-    public Appointment Appointment { get; set; } = null!;
+    public IdentityUser? IdentityUser { get; set; }
+    public Appointment? Appointment { get; set; }
 }
