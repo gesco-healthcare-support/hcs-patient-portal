@@ -8,7 +8,7 @@ using Serilog.Events;
 
 namespace HealthcareSupport.CaseEvaluation;
 
-public class Program
+public static class Program
 {
     public async static Task<int> Main(string[] args)
     {
