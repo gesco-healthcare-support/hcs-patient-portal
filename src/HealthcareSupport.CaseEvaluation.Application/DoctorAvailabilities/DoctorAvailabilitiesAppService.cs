@@ -7,7 +7,6 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
-using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -231,7 +230,6 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             .ToList();
 
         var location = await _locationRepository.FindAsync(input.First().LocationId);
-        var culture = CultureInfo.GetCultureInfo("en-US");
         var timeRange = $"{DateTime.Today.Add(input[0].FromTime.ToTimeSpan()):hh:mm tt}-{DateTime.Today.Add(input[0].ToTime.ToTimeSpan()):hh:mm tt}";
 
         var previewList = new List<DoctorAvailabilitySlotsPreviewDto>();

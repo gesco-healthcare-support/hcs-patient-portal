@@ -97,11 +97,13 @@ This bug cannot be fully fixed in isolation without first designing the appointm
 ## BUG-03: GetDoctorAvailabilityLookupAsync Filter Condition Is Always False
 
 **Severity:** Medium
-**Status:** Open
+**Status:** **Fixed** -- verified 2026-04-17. `AppointmentsAppService.GetDoctorAvailabilityLookupAsync` at lines 143-153 no longer contains the `WhereIf` with `x.FromTime != null`. The method now paginates without any filter predicate. The "always-false filter" bug is no longer present in the current code.
 
-### Description
+> Note: while this bug is fixed, the method still returns ALL availability records with pagination only (no filtering by user input). If the original intent was to filter by the user's search text, that feature is now simply absent rather than broken. Track as a separate enhancement if needed.
 
-`AppointmentsAppService.GetDoctorAvailabilityLookupAsync` applies a `WhereIf` filter with a condition that can never be true, causing the filter to never execute and returning unfiltered results.
+### Historical Description
+
+`AppointmentsAppService.GetDoctorAvailabilityLookupAsync` applied a `WhereIf` filter with a condition that could never be true, causing the filter to never execute and returning unfiltered results.
 
 ### Affected File
 
@@ -414,7 +416,9 @@ if (input.FromTime >= input.ToTime)
 ## BUG-11: Menu Labels Show Localization Key Prefixes
 
 **Severity:** Medium
-**Status:** Open -- **Confirmed via Docker E2E testing (2026-04-16, ISSUE-003)**
+**Status:** **Fixed** -- verified 2026-04-17. The `Menu:*` keys (`Menu:Home`, `Menu:Dashboard`, `Menu:AppointmentManagement`, `Menu:DoctorManagement`, `Menu:Configurations`, `Menu:Appointments`, `Menu:ApplicantAttorneys`, etc. -- ~19 keys total) are present in `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json`. Menu labels now resolve correctly.
+
+### Historical Description (Confirmed via Docker E2E testing 2026-04-16, ISSUE-003)
 
 ### Description
 

@@ -65,7 +65,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
             {
                 using (_currentTenant.Change(tenant.Id))
                 {
-                    if (tenant.ConnectionStrings.Any())
+                    if (tenant.ConnectionStrings.Count > 0)
                     {
                         var tenantConnectionStrings = tenant.ConnectionStrings
                             .Select(x => x.Value)
@@ -207,7 +207,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
             .FirstOrDefault(d => d.EndsWith(".EntityFrameworkCore"));
     }
 
-    private string? GetSolutionDirectoryPath()
+    private static string? GetSolutionDirectoryPath()
     {
         var currentDirectory = new DirectoryInfo(Directory.GetCurrentDirectory());
 

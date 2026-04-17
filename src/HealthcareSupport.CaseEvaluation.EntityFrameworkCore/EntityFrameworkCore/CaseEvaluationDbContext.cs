@@ -47,9 +47,6 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     {
         builder.SetMultiTenancySide(MultiTenancySides.Both);
         base.OnModelCreating(builder);
-        if (builder.IsHostDatabase())
-        {
-        }
 
         if (builder.IsHostDatabase())
         {
@@ -82,10 +79,6 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.IsActive).HasColumnName(nameof(WcabOffice.IsActive));
                 b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             });
-        }
-
-        if (builder.IsHostDatabase())
-        {
         }
 
         if (builder.IsHostDatabase())
@@ -124,20 +117,12 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         if (builder.IsHostDatabase())
         {
-        }
-
-        if (builder.IsHostDatabase())
-        {
             builder.Entity<AppointmentStatus>(b =>
             {
                 b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
                 b.ConfigureByConvention();
                 b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
             });
-        }
-
-        if (builder.IsHostDatabase())
-        {
         }
 
         if (builder.IsHostDatabase())
@@ -223,9 +208,6 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
         });
-        if (builder.IsHostDatabase())
-        {
-        }
 
         if (builder.IsHostDatabase())
         {
