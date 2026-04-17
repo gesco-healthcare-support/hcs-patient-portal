@@ -2,3 +2,12 @@ port: 6379
 image:
   repository: "redis"
   tag: "7.2.2-alpine"
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 500m
+  requests:
+    memory: 256Mi
+    cpu: 100m
