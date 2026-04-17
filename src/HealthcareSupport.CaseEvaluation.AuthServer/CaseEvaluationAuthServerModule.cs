@@ -26,6 +26,7 @@ using Volo.Abp.AspNetCore.Mvc.UI;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap;
 using Volo.Abp.AspNetCore.Mvc.UI.Bundling;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonX;
+using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonX.Bundling;
 using Volo.Abp.LeptonX.Shared;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
@@ -300,6 +301,11 @@ public class CaseEvaluationAuthServerModule : AbpModule
         Configure<LeptonXThemeOptions>(options =>
         {
             options.DefaultStyle = LeptonXStyleNames.System;
+        });
+
+        Configure<AbpSecurityHeadersOptions>(options =>
+        {
+            options.Headers["X-Frame-Options"] = "DENY";
         });
 
         context.Services.AddCaseEvaluationAuthServerHealthChecks();

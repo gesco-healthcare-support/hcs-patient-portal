@@ -30,6 +30,7 @@ using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
+using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Autofac;
 using Volo.Abp.Caching;
@@ -86,6 +87,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<PermissionManagementOptions>(options =>
         {
             options.IsDynamicPermissionStoreEnabled = true;
+        });
+
+        Configure<AbpSecurityHeadersOptions>(options =>
+        {
+            options.Headers["X-Frame-Options"] = "DENY";
         });
     }
 
