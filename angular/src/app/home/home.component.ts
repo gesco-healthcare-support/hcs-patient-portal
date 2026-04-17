@@ -24,11 +24,11 @@ import { AppointmentDetailViewService } from '../appointments/appointment/servic
   providers: [ListService, AppointmentViewService, AppointmentDetailViewService],
 })
 export class HomeComponent implements OnInit {
-  private authService = inject(AuthService);
-  private configState = inject(ConfigStateService);
+  private readonly authService = inject(AuthService);
+  private readonly configState = inject(ConfigStateService);
   protected list = inject(ListService);
   protected service = inject(AppointmentViewService);
-  private router = inject(Router);
+  private readonly router = inject(Router);
   patientAppointmentRows: any[] = [];
   readonly patientDatatableMessages = {
     emptyMessage: 'No Data Available',
@@ -54,8 +54,8 @@ export class HomeComponent implements OnInit {
   /** Applicant Attorney or Defense Attorney (use AppointmentAccessor filter, not Patient). */
   private get isAttorneyUser(): boolean {
     const roles = this.currentUser?.roles ?? [];
-    const attorneyRoles = ['applicant attorney', 'defense attorney'];
-    return roles.some((role) => attorneyRoles.includes(role?.toLowerCase() ?? ''));
+    const attorneyRoles = new Set(['applicant attorney', 'defense attorney']);
+    return roles.some((role) => attorneyRoles.has(role?.toLowerCase() ?? ''));
   }
 
   get hasLoggedIn(): boolean {
@@ -69,8 +69,8 @@ export class HomeComponent implements OnInit {
     }
 
     const roles = this.currentUser?.roles ?? [];
-    const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    return roles.some((role) => externalUserRoles.includes(role?.toLowerCase() ?? ''));
+    const externalUserRoles = new Set(['patient', 'applicant attorney', 'defense attorney']);
+    return roles.some((role) => externalUserRoles.has(role?.toLowerCase() ?? ''));
   }
 
   get displayUserName(): string {
