@@ -86,6 +86,13 @@ jobs:
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts"
           /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,angular/src/app/proxy/**,**/*.module.ts"
+          /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml
+          /d:sonar.issue.ignore.multicriteria.abpModelState.ruleKey=csharpsquid:S6967
+          /d:sonar.issue.ignore.multicriteria.abpModelState.resourceKey=**/*.cs
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.resourceKey=**/*.cshtml
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.resourceKey=**/*.html
           /d:sonar.qualitygate.wait=false
 
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx
