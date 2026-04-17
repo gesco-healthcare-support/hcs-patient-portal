@@ -103,17 +103,17 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
     [Authorize(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create)]
     public virtual async Task<AppointmentApplicantAttorneyDto> CreateAsync(AppointmentApplicantAttorneyCreateDto input)
     {
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
 
-        if (input.ApplicantAttorneyId == default)
+        if (input.ApplicantAttorneyId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["ApplicantAttorney"]]);
         }
 
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
@@ -125,17 +125,17 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
     [Authorize(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit)]
     public virtual async Task<AppointmentApplicantAttorneyDto> UpdateAsync(Guid id, AppointmentApplicantAttorneyUpdateDto input)
     {
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
 
-        if (input.ApplicantAttorneyId == default)
+        if (input.ApplicantAttorneyId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["ApplicantAttorney"]]);
         }
 
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }

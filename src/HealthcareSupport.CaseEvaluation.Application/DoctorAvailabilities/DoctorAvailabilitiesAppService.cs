@@ -93,7 +93,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Delete)]
     public virtual async Task DeleteBySlotAsync(DoctorAvailabilityDeleteBySlotInputDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -115,7 +115,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Delete)]
     public virtual async Task DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -135,7 +135,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Create)]
     public virtual async Task<DoctorAvailabilityDto> CreateAsync(DoctorAvailabilityCreateDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -147,7 +147,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Edit)]
     public virtual async Task<DoctorAvailabilityDto> UpdateAsync(Guid id, DoctorAvailabilityUpdateDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -166,7 +166,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         foreach (var item in input)
         {
-            if (item.LocationId == default)
+            if (item.LocationId == Guid.Empty)
             {
                 throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
             }
