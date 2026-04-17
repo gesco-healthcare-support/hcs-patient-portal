@@ -13,7 +13,7 @@ import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import {
   NgbDateAdapter,
@@ -376,11 +376,11 @@ export class AppointmentAddComponent {
         requestConfirmationNumber: rawAfter.requestConfirmationNumber || 'A',
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
-        patientId: rawAfter.patientId as string,
-        identityUserId: rawAfter.identityUserId as string,
-        appointmentTypeId: rawAfter.appointmentTypeId as string,
-        locationId: rawAfter.locationId as string,
-        doctorAvailabilityId: rawAfter.doctorAvailabilityId as string,
+        patientId: rawAfter.patientId ?? '',
+        identityUserId: rawAfter.identityUserId ?? '',
+        appointmentTypeId: rawAfter.appointmentTypeId ?? '',
+        locationId: rawAfter.locationId ?? '',
+        doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
       };
 
       const createdAppointment = await firstValueFrom(
@@ -638,9 +638,9 @@ export class AppointmentAddComponent {
       lastName: raw.lastName || '',
       middleName: raw.middleName ?? undefined,
       email: raw.email || '',
-      genderId: (raw.genderId as number) ?? 0,
+      genderId: Number(raw.genderId ?? 0),
       dateOfBirth,
-      phoneNumberTypeId: (raw.phoneNumberTypeId as number) ?? 1,
+      phoneNumberTypeId: Number(raw.phoneNumberTypeId ?? 1),
       phoneNumber: raw.phoneNumber ?? undefined,
       socialSecurityNumber: raw.socialSecurityNumber ?? undefined,
       address: raw.address ?? undefined,
@@ -935,7 +935,7 @@ export class AppointmentAddComponent {
     }
 
     const raw = this.authorizedUserForm.getRawValue();
-    const identityUserId = raw.identityUserId as string;
+    const identityUserId = raw.identityUserId ?? '';
     const accessTypeId = Number(raw.accessTypeId ?? 23);
 
     const duplicateIndex = this.appointmentAuthorizedUsers.findIndex(
@@ -1323,15 +1323,15 @@ export class AppointmentAddComponent {
   private updateLocationSelection(locationId: string | null): void {
     this.isLocationSelected = !!locationId;
 
-    if (!this.isLocationSelected) {
+    if (this.isLocationSelected) {
+      this.form.get('appointmentDate')?.setValidators([Validators.required]);
+    } else {
       this.form.patchValue({
         appointmentDate: null,
         appointmentTime: null,
         doctorAvailabilityId: null,
       });
       this.form.get('appointmentDate')?.clearValidators();
-    } else {
-      this.form.get('appointmentDate')?.setValidators([Validators.required]);
     }
 
     this.form.get('appointmentDate')?.updateValueAndValidity({ emitEvent: false });
@@ -1359,7 +1359,7 @@ export class AppointmentAddComponent {
     const requestVersion = ++this.availableSlotsRequestVersion;
     this.isAvailableDatesLoading = true;
 
-    this.fetchAllAvailableSlots(locationId, appointmentTypeId)
+    this.fetchAllAvailableSlots(locationId!, appointmentTypeId!)
       .then((items) => {
         if (requestVersion !== this.availableSlotsRequestVersion) {
           return;
