@@ -2,9 +2,11 @@
 
 # Incomplete Features
 
-Seven features are either entirely missing, present only as placeholders, or wired up in the backend with no corresponding frontend. These represent the primary functional gaps between the current codebase and a production-ready application.
+Eight features are either entirely missing, present only as placeholders, or wired up in the backend with no corresponding frontend. These represent the primary functional gaps between the current codebase and a production-ready application.
 
 > **Test Status (2026-04-02)**: FEAT-01 confirmed via B11.1.1 (no status transition mechanism; all 13 statuses accepted at creation but immutable afterward). FEAT-02 confirmed via B11.6.1 (Claim Examiner has no specific endpoints or UI). See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+>
+> **Test Status (2026-04-16)**: FEAT-08 confirmed via Docker cold-start E2E test. See [Docker E2E Validation](../verification/DOCKER-E2E-VALIDATION.md).
 
 ---
 
@@ -256,6 +258,64 @@ The test suite contains 13 unique test methods across the entire application. On
 - `HomeComponent` -- role-based routing logic
 
 The existing `TestBase` project provides the necessary infrastructure. Refer to [Testing Strategy](../devops/TESTING-STRATEGY.md) for patterns.
+
+---
+
+## FEAT-08: Swagger OAuth Does Not Work From Browser in Docker
+
+**Severity:** Medium
+**Status:** Open -- **Confirmed via Docker E2E testing (2026-04-16, ISSUE-005)**
+
+### Description
+
+When the stack runs in Docker, the Swagger UI's built-in "Authorize" button cannot complete the OAuth flow because the OpenID Connect metadata URL it retrieves points at a Docker-internal hostname that the browser cannot resolve.
+
+### Test Evidence
+
+```
+Docker E2E test (2026-04-16, Playwright MCP):
+  Navigate to http://localhost:44327/swagger
+  Click "Authorize" -> select CaseEvaluation_Swagger client
+  Browser console:
+    net::ERR_NAME_NOT_RESOLVED @ http://authserver:8080/.well-known/openid-configuration
+  Result: OAuth authorize flow cannot complete. Swagger UI stays unauthenticated.
+```
+
+### Root Cause
+
+In `docker-compose.yml`, the `api` service is configured with a split-horizon OIDC setup:
+
+- `AuthServer__Authority: http://localhost:44368` -- public authority URL used to validate JWT issuer claims (what tokens carry).
+- `AuthServer__MetaAddress: http://authserver:8080` -- internal Docker DNS hostname used for backend-to-backend OIDC metadata fetch during ASP.NET JwtBearer handler startup.
+
+`CaseEvaluationHttpApiHostModule.ConfigureSwagger` (lines 181-194) passes `AuthServer:MetaAddress` to `AddAbpSwaggerGenWithOidc`, which writes the Docker-internal URL into the generated OpenAPI security scheme. Swagger UI runs in the user's browser, not inside the Docker network, so `authserver` is not resolvable.
+
+Angular is unaffected because `docker/dynamic-env.json` hard-codes the browser-reachable URLs (`http://localhost:44368` for `oAuthConfig.issuer`).
+
+### Affected Files
+
+- `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs` -- `ConfigureSwagger` method (around lines 181-194) reads the MetaAddress directly
+- `docker-compose.yml` -- `api` service env section (around lines 85-103) sets both Authority and MetaAddress
+
+### Impact
+
+- Manual API exploration via Swagger UI requires a manually obtained bearer token (via curl + the OIDC token endpoint, or copied from a browser devtools Network tab after an Angular login)
+- New developers cannot use Swagger's convenient authorize flow when running the stack in Docker
+- Blocks the documented "use Swagger to test API endpoints" path in [DOCKER-DEV.md](../runbooks/DOCKER-DEV.md)
+- Local (non-Docker) dev is unaffected -- Authority and MetaAddress both resolve to `localhost:44368`
+
+### What Needs to Be Built
+
+Two viable approaches:
+
+1. **Add a separate Swagger-only authority URL.** Introduce `AuthServer__SwaggerMetaAddress` (new env var) defaulting to the Authority URL when unset. Update `ConfigureSwagger` to prefer `SwaggerMetaAddress` over `MetaAddress`. In docker-compose.yml, set it to `http://localhost:44368` so the browser can resolve it while the backend continues to use the internal hostname.
+2. **Proxy the OIDC metadata through the API.** Expose a small pass-through endpoint on the API that fetches and returns the AuthServer's metadata document. Point Swagger at this proxied URL. More code, but preserves a single Authority env var.
+
+Option 1 is simpler and follows the same split-horizon pattern already in use between Authority and MetaAddress. Recommended.
+
+### Open Question
+
+Is the Swagger UI expected to be exercised against Docker at all, or is it intended only for local-dev use? If Docker is not a first-class Swagger target, the lighter-weight fix is to document the curl + bearer token workflow explicitly in DOCKER-DEV.md instead of shipping a code fix.
 
 ---
 

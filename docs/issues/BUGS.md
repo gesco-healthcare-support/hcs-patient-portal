@@ -2,9 +2,11 @@
 
 # Confirmed Bugs
 
-Ten confirmed bugs were identified during the codebase audit and E2E testing. These are not missing features or design concerns -- they are cases where the code produces incorrect results relative to either its own documented intent, the existing business-domain documentation, or basic expected behaviour.
+Twelve confirmed bugs were identified across the codebase audit, E2E functional testing, and the Docker cold-start onboarding test. These are not missing features or design concerns -- they are cases where the code produces incorrect results relative to either its own documented intent, the existing business-domain documentation, or basic expected behaviour.
 
 > **Test Status (2026-04-02)**: BUG-02 confirmed via B11.1.1, BUG-09 confirmed via exploratory test E1, BUG-10 confirmed via B7.4.2 and E7. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+>
+> **Test Status (2026-04-16)**: BUG-11 and BUG-12 observed during the Docker cold-start E2E onboarding test. See [Docker E2E Validation](../verification/DOCKER-E2E-VALIDATION.md).
 
 ---
 
@@ -406,6 +408,93 @@ Add the same validation from `GeneratePreviewAsync` to `CreateAsync`:
 if (input.FromTime >= input.ToTime)
     throw new BusinessException("CaseEvaluation:InvalidTimeRange");
 ```
+
+---
+
+## BUG-11: Menu Labels Show Localization Key Prefixes
+
+**Severity:** Medium
+**Status:** Open -- **Confirmed via Docker E2E testing (2026-04-16, ISSUE-003)**
+
+### Description
+
+The sidebar navigation, dashboard heading, and menu groups display raw localization keys instead of resolved display strings. Users see `Menu:Home`, `Menu:Dashboard`, `Menu:AppointmentManagement`, `Menu:DoctorManagement`, etc. throughout the authenticated UI.
+
+### Test Evidence
+
+```
+Docker E2E test (2026-04-16, Playwright MCP):
+  GET http://localhost:4200 (after login)
+  Sidebar items observed: "Menu:Home", "Menu:Dashboard",
+    "Menu:AppointmentManagement", "Menu:Configurations",
+    "Menu:DoctorManagement", "Menu:Files", "Menu:Saas",
+    "Menu:Administration", "Menu:Appointments", "Menu:ApplicantAttorneys"
+  GET /api/abp/application-localization -> 200 OK
+  Conclusion: localization API returns a response, but the Menu:*
+    namespace keys are not populated with display strings.
+```
+
+The issue also reproduces in local dev (non-Docker), so it is not a Docker-specific problem -- the Docker E2E test simply surfaced an existing gap.
+
+### Affected Files
+
+Likely sources (needs investigation to confirm which is the root cause):
+
+- `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json` -- the `Menu:*` keys may be missing from the English localization resource
+- `angular/src/app/route.provider.ts` and feature module `providers/*.ts` files -- menu registration may be omitting the `| abpLocalization` pipe or using the wrong namespace
+- `CaseEvaluationMenuContributor` (any C#/TypeScript contributor that registers menu entries)
+
+### Impact
+
+- Every authenticated page shows unresolved menu labels in the sidebar
+- Dashboard heading shows "Menu:Dashboard" instead of "Dashboard"
+- Navigation still functions correctly -- routes and clicks work
+- Cosmetic but highly visible; degrades perception of product polish
+
+### Recommended Fix
+
+1. Grep the `Localization/CaseEvaluation/*.json` files for the key `Menu:Home` or `Menu:Dashboard`. If absent, add the `Menu` namespace keys (the convention in ABP is `"Menu:Home": "Home"`, `"Menu:Dashboard": "Dashboard"`, etc.).
+2. If the keys exist, audit the Angular menu registration to ensure the label string uses the `CaseEvaluation` localization namespace (e.g., `'::Menu:Home'`) and that the `| abpLocalization` pipe (or equivalent resolver) is applied in the template.
+3. Verify resolution works locally, then confirm in a fresh Docker cold-start run.
+
+---
+
+## BUG-12: Page Title Shows "MyProjectName" Placeholder
+
+**Severity:** Low
+**Status:** Open -- **Confirmed via Docker E2E testing (2026-04-16, ISSUE-004)**
+
+### Description
+
+The browser tab title intermittently shows `MyProjectName` (the ABP Commercial template default) instead of `CaseEvaluation`. The title alternates between the two values depending on which page is loaded or how the title service re-computes on navigation.
+
+### Test Evidence
+
+```
+Docker E2E test (2026-04-16, Playwright MCP):
+  Navigation across /, /dashboard, /appointments, /doctor-management/doctors
+  Browser tab title observed as: alternating "CaseEvaluation" and "MyProjectName"
+  Root cause: ABP template scaffolded title string not fully renamed
+    during initial project setup
+```
+
+### Affected Files
+
+Search for `MyProjectName` across the repo to enumerate hits. Likely locations:
+
+- `angular/src/index.html` -- static page title
+- `angular/src/app/app.component.ts` or equivalent `Title` service calls
+- `src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/**/*.cshtml` -- Razor page titles
+- Any `appsettings.json` entry that seeds a display name
+
+### Impact
+
+- Browser tab title only -- no functional effect
+- Cosmetic; looks unfinished in user screenshots and demos
+
+### Recommended Fix
+
+Repo-wide search and replace `MyProjectName` -> `CaseEvaluation` (or the product's real display name, if different). Verify both Angular and AuthServer titles are consistent after the change.
 
 ---
 

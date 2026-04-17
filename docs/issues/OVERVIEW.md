@@ -2,9 +2,11 @@
 
 # Known Issues & Technical Debt
 
-This section catalogues all known bugs, architectural concerns, security vulnerabilities, incomplete features, and open questions identified during a codebase audit **and confirmed via automated E2E testing on 2026-04-02**. Issues are grouped by category and assigned a severity level to aid prioritisation.
+This section catalogues all known bugs, architectural concerns, security vulnerabilities, incomplete features, and open questions identified during a codebase audit, **confirmed via automated E2E testing on 2026-04-02**, and **re-verified with a Docker cold-start onboarding test on 2026-04-16**. Issues are grouped by category and assigned a severity level to aid prioritisation.
 
-> **Test Evidence**: 258 automated tests across 16 phases + 18 exploratory tests. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for full results. 246 tests passed, 0 unexpected failures, 5 known gaps confirmed.
+> **Test Evidence (2026-04-02)**: 258 automated tests across 16 phases + 18 exploratory tests. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md) for full results. 246 tests passed, 0 unexpected failures, 5 known gaps confirmed.
+>
+> **Test Evidence (2026-04-16)**: Docker cold-start E2E onboarding test -- clone to running in ~11 min, all services healthy, auth + all CRUD pages work. 3 new issues surfaced: BUG-11, BUG-12, FEAT-08. See [Docker E2E Validation](../verification/DOCKER-E2E-VALIDATION.md).
 
 ---
 
@@ -57,6 +59,8 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 | [BUG-08](BUGS.md#bug-08-quick-startmd-instructs-ng-serve-which-silently-breaks-the-app) | `QUICK-START.md` instructs `ng serve` which silently breaks the app | High | `docs/QUICK-START.md` |
 | [BUG-09](BUGS.md#bug-09-past-date-appointments-accepted-without-validation) | Past-date appointments accepted without validation | Medium | `AppointmentsAppService.cs` |
 | [BUG-10](BUGS.md#bug-10-fromtime--totime-accepted-on-slot-creation) | `fromTime > toTime` accepted on slot creation | Medium | `DoctorAvailabilitiesAppService.cs` |
+| [BUG-11](BUGS.md#bug-11-menu-labels-show-localization-key-prefixes) | Menu labels show localization key prefixes (`Menu:Home`, etc.) | Medium | Localization JSON / Angular menu registration |
+| [BUG-12](BUGS.md#bug-12-page-title-shows-myprojectname-placeholder) | Page title shows "MyProjectName" placeholder | Low | `angular/src/index.html`, AuthServer Razor pages |
 
 ### Incomplete Features
 
@@ -69,6 +73,7 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 | [FEAT-05](INCOMPLETE-FEATURES.md#feat-05-email-system-is-not-wired-up) | Email system is not wired up | Medium | `CaseEvaluationDomainModule.cs` |
 | [FEAT-06](INCOMPLETE-FEATURES.md#feat-06-no-cicd-pipeline) | No CI/CD pipeline | Medium | `etc/` |
 | [FEAT-07](INCOMPLETE-FEATURES.md#feat-07-near-zero-test-coverage) | Near-zero test coverage | Medium | `test/` |
+| [FEAT-08](INCOMPLETE-FEATURES.md#feat-08-swagger-oauth-does-not-work-from-browser-in-docker) | Swagger OAuth does not work from browser in Docker | Medium | `CaseEvaluationHttpApiHostModule.cs`, `docker-compose.yml` |
 
 ### Architecture & Code Quality
 

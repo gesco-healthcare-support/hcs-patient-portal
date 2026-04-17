@@ -143,6 +143,60 @@ Another process (or a local dev run) is using the port. Stop the conflicting pro
 
 ---
 
+## E2E Validation Status
+
+**Last tested:** 2026-04-16 on Windows 11 Enterprise (Docker 29.4.0, Compose v5.1.1)
+**Git commit:** `4ed9c4b` (main)
+**Overall result:** PASS -- all 6 services start, all 8 health checks pass, auth flow and all CRUD pages work
+
+### Timing Benchmarks
+
+| Metric | Duration | Notes |
+|--------|----------|-------|
+| Clone + configure | ~6 min | Includes secret collection |
+| First build (cold) | ~5 min | Pulls base images + NuGet/npm restore + compile |
+| Restart (no rebuild) | ~2 min | `docker compose down` then `up -d` |
+| Full rebuild after `down -v` | ~1 min | Docker layer cache warm; DB reseeded (67 tables) |
+| Total clone-to-running | ~11 min | |
+| Disk usage | ~28 GB images, ~24 GB build cache | First build only |
+
+### Known Issues (Docker-Specific)
+
+**Swagger OAuth does not work from browser** (degraded, not a blocker).
+The API's `AuthServer__MetaAddress` is `http://authserver:8080` -- a Docker-internal hostname for backend-to-backend OIDC validation. Swagger UI runs in the user's browser and cannot resolve `authserver`. Clicking "Authorize" in Swagger fails with `ERR_NAME_NOT_RESOLVED`. Workaround: use curl with a manually obtained bearer token, or test via the Angular UI. Fix requires a separate browser-accessible authority URL for Swagger's OpenAPI security definition.
+
+**Menu labels show localization key prefixes** (cosmetic).
+Sidebar items display as "Menu:Home", "Menu:Dashboard", etc. instead of resolved display names. The localization API (`/api/abp/application-localization`) returns 200 but the `Menu:*` keys are not resolving to friendly strings. Navigation works correctly despite the display issue. This also occurs in local dev -- not Docker-specific.
+
+**Page title shows "MyProjectName"** (cosmetic).
+The browser tab title intermittently shows "MyProjectName" (ABP template default) instead of "CaseEvaluation". A search-and-replace for "MyProjectName" across the Angular and AuthServer projects is needed.
+
+**Git Bash rewrites `/opt/` paths in `docker exec`** (Windows only, cosmetic).
+Running `docker exec patient-portal-db /opt/mssql-tools18/bin/sqlcmd ...` from Git Bash (MSYS2) converts `/opt/` to a Windows path before Docker receives it. Fix: wrap the command in `bash -c '...'` inside the container, or use PowerShell/WSL instead.
+
+### Angular Route Quick Reference
+
+Routes use ABP module prefixes. Use the sidebar for navigation; these are the actual URLs:
+
+| Feature | Route |
+|---------|-------|
+| Dashboard | `/dashboard` |
+| Appointments | `/appointments` |
+| Appointment Types | `/appointment-management/appointment-types` |
+| Appointment Statuses | `/appointment-management/appointment-statuses` |
+| Appointment Languages | `/appointment-management/appointment-languages` |
+| Doctors | `/doctor-management/doctors` |
+| Patients | `/doctor-management/patients` |
+| Locations | `/doctor-management/locations` |
+| Doctor Availabilities | `/doctor-management/doctor-availabilities` |
+| WCAB Offices | `/doctor-management/wcab-offices` |
+| Applicant Attorneys | `/applicant-attorneys` |
+| States | `/configurations/states` |
+
+Full route tree with guards and components: [Routing & Navigation](../frontend/ROUTING-AND-NAVIGATION.md)
+
+---
+
 ## What This Setup Does NOT Do
 
 - **Production deployment.** `docker-compose.yml` is for local dev. Production deploy targets (Kubernetes manifests, cloud host configs) are not yet in the repo.
