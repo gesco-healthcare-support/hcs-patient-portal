@@ -47,7 +47,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
 
     public virtual async Task<ApplicantAttorneyWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<ApplicantAttorneyWithNavigationProperties, ApplicantAttorneyWithNavigationPropertiesDto>(await _applicantAttorneyRepository.GetWithNavigationPropertiesAsync(id));
+        return ObjectMapper.Map<ApplicantAttorneyWithNavigationProperties, ApplicantAttorneyWithNavigationPropertiesDto>((await _applicantAttorneyRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     public virtual async Task<ApplicantAttorneyDto> GetAsync(Guid id)
@@ -57,7 +57,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
-        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.States.State>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -69,7 +69,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

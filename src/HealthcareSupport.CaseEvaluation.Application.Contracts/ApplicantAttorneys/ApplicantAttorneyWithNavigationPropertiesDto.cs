@@ -11,5 +11,5 @@ public class ApplicantAttorneyWithNavigationPropertiesDto
     public ApplicantAttorneyDto ApplicantAttorney { get; set; } = null!;
     public StateDto? State { get; set; }
 
-    public IdentityUserDto IdentityUser { get; set; } = null!;
+    public IdentityUserDto? IdentityUser { get; set; }
 }

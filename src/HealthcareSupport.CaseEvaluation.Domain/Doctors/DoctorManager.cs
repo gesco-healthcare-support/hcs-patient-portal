@@ -52,7 +52,8 @@ public class DoctorManager : DomainService
         Check.NotNull(gender, nameof(gender));
         var queryable = await _doctorRepository.WithDetailsAsync(x => x.AppointmentTypes, x => x.Locations);
         var query = queryable.Where(x => x.Id == id);
-        var doctor = await AsyncExecuter.FirstOrDefaultAsync(query);
+        var doctor = await AsyncExecuter.FirstOrDefaultAsync(query)
+            ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Doctor), id);
         doctor.IdentityUserId = identityUserId;
         doctor.FirstName = firstName;
         doctor.LastName = lastName;

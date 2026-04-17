@@ -5,7 +5,7 @@ namespace HealthcareSupport.CaseEvaluation.Books;
 
 public class Book : AuditedAggregateRoot<Guid>
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public BookType Type { get; set; }
 

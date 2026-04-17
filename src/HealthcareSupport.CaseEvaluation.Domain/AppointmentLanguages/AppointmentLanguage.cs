@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 public class AppointmentLanguage : FullAuditedEntity<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     protected AppointmentLanguage()
     {

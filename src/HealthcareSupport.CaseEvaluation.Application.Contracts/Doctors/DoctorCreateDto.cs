@@ -20,7 +20,7 @@ public class DoctorCreateDto
     public Gender Gender { get; set; } = ((Gender[])Enum.GetValues(typeof(Gender)))[0];
     public Guid? IdentityUserId { get; set; }
 
-    public List<Guid> AppointmentTypeIds { get; set; }
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
-    public List<Guid> LocationIds { get; set; }
+    public List<Guid> LocationIds { get; set; } = new();
 }

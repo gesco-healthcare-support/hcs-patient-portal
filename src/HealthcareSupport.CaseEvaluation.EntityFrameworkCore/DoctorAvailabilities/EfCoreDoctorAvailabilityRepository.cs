@@ -20,7 +20,7 @@ public class EfCoreDoctorAvailabilityRepository : EfCoreRepository<CaseEvaluatio
     {
     }
 
-    public virtual async Task<DoctorAvailabilityWithNavigationProperties> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
+    public virtual async Task<DoctorAvailabilityWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         return (await GetDbSetAsync()).Where(b => b.Id == id).Select(doctorAvailability => new DoctorAvailabilityWithNavigationProperties { DoctorAvailability = doctorAvailability, Location = dbContext.Set<Location>().FirstOrDefault(c => c.Id == doctorAvailability.LocationId), AppointmentType = dbContext.Set<AppointmentType>().FirstOrDefault(c => c.Id == doctorAvailability.AppointmentTypeId) }).FirstOrDefault();

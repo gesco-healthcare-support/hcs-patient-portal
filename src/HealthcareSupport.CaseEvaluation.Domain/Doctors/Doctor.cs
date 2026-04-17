@@ -17,21 +17,21 @@ public class Doctor : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual Guid? TenantId { get; set; }
 
     [NotNull]
-    public virtual string FirstName { get; set; }
+    public virtual string FirstName { get; set; } = null!;
 
     [NotNull]
-    public virtual string LastName { get; set; }
+    public virtual string LastName { get; set; } = null!;
 
     [NotNull]
-    public virtual string Email { get; set; }
+    public virtual string Email { get; set; } = null!;
 
     public virtual Gender Gender { get; set; }
 
     public Guid? IdentityUserId { get; set; }
 
-    public virtual ICollection<DoctorAppointmentType> AppointmentTypes { get; protected set; }
+    public virtual ICollection<DoctorAppointmentType> AppointmentTypes { get; protected set; } = new Collection<DoctorAppointmentType>();
 
-    public virtual ICollection<DoctorLocation> Locations { get; protected set; }
+    public virtual ICollection<DoctorLocation> Locations { get; protected set; } = new Collection<DoctorLocation>();
 
     protected Doctor()
     {

@@ -36,7 +36,18 @@ public partial class CaseEvaluationBookToBookDtoMapper : MapperBase<Book, BookDt
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CaseEvaluationCreateUpdateBookDtoToBookMapper : MapperBase<CreateUpdateBookDto, Book>
 {
+    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
+    [MapperIgnoreTarget(nameof(Book.CreationTime))]
+    [MapperIgnoreTarget(nameof(Book.CreatorId))]
+    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
+    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
     public override partial Book Map(CreateUpdateBookDto source);
+
+    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
+    [MapperIgnoreTarget(nameof(Book.CreationTime))]
+    [MapperIgnoreTarget(nameof(Book.CreatorId))]
+    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
+    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
     public override partial void Map(CreateUpdateBookDto source, Book destination);
 }
 
@@ -145,7 +156,7 @@ public partial class DoctorToDoctorDtoMappers : MapperBase<Doctor, DoctorDto>
     public override partial void Map(Doctor source, DoctorDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class DoctorWithNavigationPropertiesToDoctorWithNavigationPropertiesDtoMapper : MapperBase<DoctorWithNavigationProperties, DoctorWithNavigationPropertiesDto>
 {
     public override partial DoctorWithNavigationPropertiesDto Map(DoctorWithNavigationProperties source);
@@ -215,7 +226,7 @@ public partial class PatientToPatientDtoMappers : MapperBase<Patient, PatientDto
     public override partial void Map(Patient source, PatientDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class PatientWithNavigationPropertiesToPatientWithNavigationPropertiesDtoMapper : MapperBase<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>
 {
     public override partial PatientWithNavigationPropertiesDto Map(PatientWithNavigationProperties source);
@@ -243,7 +254,7 @@ public partial class AppointmentToAppointmentDtoMappers : MapperBase<Appointment
     public override partial void Map(Appointment source, AppointmentDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper : MapperBase<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>
 {
     public override partial AppointmentWithNavigationPropertiesDto Map(AppointmentWithNavigationProperties source);
@@ -281,7 +292,9 @@ public partial class PatientToLookupDtoGuidMapper : MapperBase<Patient, LookupDt
 [Mapper]
 public partial class DoctorAvailabilityToLookupDtoGuidMapper : MapperBase<DoctorAvailability, LookupDto<Guid>>
 {
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial LookupDto<Guid> Map(DoctorAvailability source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
     public override partial void Map(DoctorAvailability source, LookupDto<Guid> destination);
 
     public override void AfterMap(DoctorAvailability source, LookupDto<Guid> destination)
@@ -325,7 +338,7 @@ public partial class AppointmentAccessorToAppointmentAccessorDtoMappers : Mapper
     public override partial void Map(AppointmentAccessor source, AppointmentAccessorDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentAccessorWithNavigationPropertiesToAppointmentAccessorWithNavigationPropertiesDtoMapper : MapperBase<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>
 {
     public override partial AppointmentAccessorWithNavigationPropertiesDto Map(AppointmentAccessorWithNavigationProperties source);
@@ -339,7 +352,7 @@ public partial class ApplicantAttorneyToApplicantAttorneyDtoMappers : MapperBase
     public override partial void Map(ApplicantAttorney source, ApplicantAttorneyDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class ApplicantAttorneyWithNavigationPropertiesToApplicantAttorneyWithNavigationPropertiesDtoMapper : MapperBase<ApplicantAttorneyWithNavigationProperties, ApplicantAttorneyWithNavigationPropertiesDto>
 {
     public override partial ApplicantAttorneyWithNavigationPropertiesDto Map(ApplicantAttorneyWithNavigationProperties source);
@@ -353,7 +366,7 @@ public partial class AppointmentApplicantAttorneyToAppointmentApplicantAttorneyD
     public override partial void Map(AppointmentApplicantAttorney source, AppointmentApplicantAttorneyDto destination);
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentApplicantAttorneyWithNavigationPropertiesToAppointmentApplicantAttorneyWithNavigationPropertiesDtoMapper : MapperBase<AppointmentApplicantAttorneyWithNavigationProperties, AppointmentApplicantAttorneyWithNavigationPropertiesDto>
 {
     public override partial AppointmentApplicantAttorneyWithNavigationPropertiesDto Map(AppointmentApplicantAttorneyWithNavigationProperties source);
@@ -370,6 +383,6 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
 
     public override void AfterMap(ApplicantAttorney source, LookupDto<Guid> destination)
     {
-        destination.DisplayName = source.FirmName;
+        destination.DisplayName = source.FirmName ?? string.Empty;
     }
 }
