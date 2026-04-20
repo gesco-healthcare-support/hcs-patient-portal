@@ -258,3 +258,7 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 | Q12 | Default password intent | SEC-05 / FEAT-05 fix scope |
 
 > **Note**: Most of these questions can be resolved without the previous developer by making a judgment call based on standard workers' compensation IME industry practice, California DWC regulations, or ABP Framework defaults. See [Questions for Previous Developer](QUESTIONS-FOR-PREVIOUS-DEVELOPER.md) for questions that cannot be resolved from any artifact.
+
+## Related deferred technical debt
+
+- [P-11](research/P-11.md) — `DoctorAvailabilitiesAppService.GeneratePreviewAsync` cognitive complexity 41 refactor. Suppressed in SonarCloud until Phase B-6 tests land and Phase C removes the suppression.
