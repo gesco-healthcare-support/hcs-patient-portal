@@ -104,6 +104,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q5: What are the `InternalUserComments` and `IsPatientAlreadyExist` fields on Appointment?
 
+**Research**: see [research/Q-05.md](research/Q-05.md) for official docs, community findings, gotchas, and recommended approach.
+
 **Why we need to know**: These fields exist in the database and entity but are never set, never updated, and never exposed in any update DTO. They take up space and create confusion.
 
 **What we found**:
@@ -134,6 +136,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q7: Why is `DoctorConsts.EmailMaxLength = 49`?
+
+**Research**: see [research/Q-07.md](research/Q-07.md) for RFC 5321/5322 analysis, ASP.NET Core Identity comparison, and migration guidance.
 
 **Why we need to know**: This is an unusual number (not a power of 2, not a standard like 50 or 100). If it's intentional (e.g., matching a legacy system constraint), we need to preserve it. If it's a typo, we should fix it.
 
@@ -170,6 +174,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q9: What social OAuth providers were configured?
 
+**Research**: see [research/Q-09.md](research/Q-09.md) for HIPAA implications, BAA availability per provider, and removal-vs-keep recommendation.
+
 **Why we need to know**: The AuthServer supports dynamic external login providers (Google, Microsoft, Twitter) but the configuration is in `appsettings.secrets.json` which is not in the repository.
 
 **What we found**:
@@ -184,6 +190,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q10: Is the File Management (blob storage) module actually used?
+
+**Research**: see [research/Q-10.md](research/Q-10.md) for ABP module-removal checklist, migration strategy, and keep-vs-remove decision criteria.
 
 **Why we need to know**: `Volo.FileManagement` is installed and wired into multiple module dependencies, but we found zero usage. Removing it would simplify the dependency graph.
 

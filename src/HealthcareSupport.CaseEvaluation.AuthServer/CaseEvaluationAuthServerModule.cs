@@ -174,7 +174,6 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         Configure<AbpAuditingOptions>(options =>
         {
-            //options.IsEnabledForGetRequests = true;
             options.ApplicationName = "AuthServer";
         });
 

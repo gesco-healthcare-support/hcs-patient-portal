@@ -16,8 +16,6 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         booksPermission.AddChild(CaseEvaluationPermissions.Books.Create, L("Permission:Books.Create"));
         booksPermission.AddChild(CaseEvaluationPermissions.Books.Edit, L("Permission:Books.Edit"));
         booksPermission.AddChild(CaseEvaluationPermissions.Books.Delete, L("Permission:Books.Delete"));
-        //Define your own permissions here. Example:
-        //myGroup.AddPermission(CaseEvaluationPermissions.MyPermission1, L("Permission:MyPermission1"));
         var statePermission = myGroup.AddPermission(CaseEvaluationPermissions.States.Default, L("Permission:States"));
         statePermission.AddChild(CaseEvaluationPermissions.States.Create, L("Permission:Create"));
         statePermission.AddChild(CaseEvaluationPermissions.States.Edit, L("Permission:Edit"));

@@ -189,11 +189,18 @@ Users receive no email confirmation when they register, no notification when the
 ## FEAT-06: No CI/CD Pipeline
 
 **Severity:** Medium
-**Status:** Open
+**Status:** **Fixed** -- verified 2026-04-17. 17 GitHub Actions workflows now present under `.github/workflows/`:
 
-### Description
+- `ci.yml` -- full backend + frontend build, test, lint, format pipeline
+- `release.yml` -- semantic versioning + GitHub releases
+- `deploy-dev.yml`, `promote-staging.yml` -- deployment automation
+- `codeql-pr.yml`, `security.yml`, `sonarcloud.yml` -- static analysis
+- `doc-check.yml`, `commitlint.yml`, `lint-meta.json` -- QA gates
+- `labeler.yml`, `pr-title.yml`, `pr-size.yml`, `auto-pr-dev.yml`, `trufflehog-pr.yml`, `dependency-review.yml`, `scorecard.yml` -- PR automation
 
-The repository contains Docker Compose files, Dockerfiles, and a Helm chart directory (`etc/helm/`), but no automated build or deployment pipeline exists.
+### Historical Description
+
+The repository contained Docker Compose files, Dockerfiles, and a Helm chart directory (`etc/helm/`), but no automated build or deployment pipeline existed.
 
 ### What Exists
 

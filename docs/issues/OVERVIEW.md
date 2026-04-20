@@ -51,7 +51,7 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 |---|---|---|---|
 | [BUG-01](BUGS.md#bug-01-slot-conflict-detection-logic-is-inverted) | Slot conflict detection logic is inverted | High | `DoctorAvailabilitiesAppService.cs` |
 | [BUG-02](BUGS.md#bug-02-appointment-status-changes-are-never-persisted) | Appointment status changes are never persisted | High | `AppointmentUpdateDto.cs`, `AppointmentViewComponent` |
-| [BUG-03](BUGS.md#bug-03-getdoctoravailabilitylookupasync-filter-condition-is-always-false) | `GetDoctorAvailabilityLookupAsync` filter is always false | Medium | `AppointmentsAppService.cs` |
+| [BUG-03](BUGS.md#bug-03-getdoctoravailabilitylookupasync-filter-condition-is-always-false) | `GetDoctorAvailabilityLookupAsync` filter is always false -- **Fixed 2026-04-17** | Medium | `AppointmentsAppService.cs` |
 | [BUG-04](BUGS.md#bug-04-slot-preview-uses-only-the-first-inputs-location-label) | Slot preview uses only the first input's location label | Medium | `DoctorAvailabilitiesAppService.cs` |
 | [BUG-05](BUGS.md#bug-05-slot-save-fires-n1-individual-http-posts) | Slot save fires N+1 individual HTTP POSTs | Medium | `doctor-availability-generate.component.ts` |
 | [BUG-06](BUGS.md#bug-06-goback-always-navigates-to-root) | `goBack()` always navigates to root regardless of origin | Low | `appointment-view.component.ts`, `appointment-add.component.ts` |
@@ -59,7 +59,7 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 | [BUG-08](BUGS.md#bug-08-quick-startmd-instructs-ng-serve-which-silently-breaks-the-app) | `QUICK-START.md` instructs `ng serve` which silently breaks the app | High | `docs/QUICK-START.md` |
 | [BUG-09](BUGS.md#bug-09-past-date-appointments-accepted-without-validation) | Past-date appointments accepted without validation | Medium | `AppointmentsAppService.cs` |
 | [BUG-10](BUGS.md#bug-10-fromtime--totime-accepted-on-slot-creation) | `fromTime > toTime` accepted on slot creation | Medium | `DoctorAvailabilitiesAppService.cs` |
-| [BUG-11](BUGS.md#bug-11-menu-labels-show-localization-key-prefixes) | Menu labels show localization key prefixes (`Menu:Home`, etc.) | Medium | Localization JSON / Angular menu registration |
+| [BUG-11](BUGS.md#bug-11-menu-labels-show-localization-key-prefixes) | Menu labels show localization key prefixes (`Menu:Home`, etc.) -- **Fixed 2026-04-17** | Medium | Localization JSON / Angular menu registration |
 | [BUG-12](BUGS.md#bug-12-page-title-shows-myprojectname-placeholder) | Page title shows "MyProjectName" placeholder | Low | `angular/src/index.html`, AuthServer Razor pages |
 
 ### Incomplete Features
@@ -71,7 +71,7 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 | [FEAT-03](INCOMPLETE-FEATURES.md#feat-03-tenant-dashboard-is-a-placeholder) | Tenant dashboard is a placeholder | Medium | `tenant-dashboard.component.ts` |
 | [FEAT-04](INCOMPLETE-FEATURES.md#feat-04-appointmentemployerdetail-and-appointmentaccessor-have-no-angular-modules) | `AppointmentEmployerDetail` and `AppointmentAccessor` have no Angular modules | Medium | `angular/src/app/` |
 | [FEAT-05](INCOMPLETE-FEATURES.md#feat-05-email-system-is-not-wired-up) | Email system is not wired up | Medium | `CaseEvaluationDomainModule.cs` |
-| [FEAT-06](INCOMPLETE-FEATURES.md#feat-06-no-cicd-pipeline) | No CI/CD pipeline | Medium | `etc/` |
+| [FEAT-06](INCOMPLETE-FEATURES.md#feat-06-no-cicd-pipeline) | No CI/CD pipeline -- **Fixed 2026-04-17** (17 GitHub Actions workflows) | Medium | `.github/workflows/` |
 | [FEAT-07](INCOMPLETE-FEATURES.md#feat-07-near-zero-test-coverage) | Near-zero test coverage | Medium | `test/` |
 | [FEAT-08](INCOMPLETE-FEATURES.md#feat-08-swagger-oauth-does-not-work-from-browser-in-docker) | Swagger OAuth does not work from browser in Docker | Medium | `CaseEvaluationHttpApiHostModule.cs`, `docker-compose.yml` |
 
