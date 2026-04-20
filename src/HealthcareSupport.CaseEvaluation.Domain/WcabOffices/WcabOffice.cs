@@ -14,10 +14,10 @@ namespace HealthcareSupport.CaseEvaluation.WcabOffices;
 public class WcabOffice : FullAuditedAggregateRoot<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     [NotNull]
-    public virtual string Abbreviation { get; set; }
+    public virtual string Abbreviation { get; set; } = null!;
 
     [CanBeNull]
     public virtual string? Address { get; set; }

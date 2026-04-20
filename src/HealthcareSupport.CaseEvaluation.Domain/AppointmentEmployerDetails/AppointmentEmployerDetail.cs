@@ -17,10 +17,10 @@ public class AppointmentEmployerDetail : FullAuditedAggregateRoot<Guid>, IMultiT
     public virtual Guid? TenantId { get; set; }
 
     [NotNull]
-    public virtual string EmployerName { get; set; }
+    public virtual string EmployerName { get; set; } = null!;
 
     [NotNull]
-    public virtual string Occupation { get; set; }
+    public virtual string Occupation { get; set; } = null!;
 
     [CanBeNull]
     public virtual string? PhoneNumber { get; set; }

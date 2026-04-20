@@ -6,5 +6,5 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 
 public class AppointmentLanguageDto : FullAuditedEntityDto<Guid>
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

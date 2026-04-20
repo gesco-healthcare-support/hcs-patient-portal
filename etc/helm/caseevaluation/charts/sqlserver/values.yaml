@@ -1,5 +1,18 @@
 port: 1433
-sa_password: "REPLACE_ME"
+# Placeholder. Production deployments MUST override via --set saPassword=...
+# or a values file kept out of version control.
+saPassword: "CHANGE_ME_IN_PROD"
 image:
   repository: "mcr.microsoft.com/azure-sql-edge"
   tag: "1.0.7"
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    memory: 4Gi
+    cpu: 2000m
+    ephemeral-storage: 4Gi
+  requests:
+    memory: 2Gi
+    cpu: 500m
+    ephemeral-storage: 2Gi

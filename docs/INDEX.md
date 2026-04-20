@@ -167,6 +167,7 @@ flowchart TB
 
 ### Verification
 - [Documentation Baseline](verification/BASELINE.md) -- Structural + link check results and health score
+- [Docker E2E Validation](verification/DOCKER-E2E-VALIDATION.md) -- Cold-start Docker onboarding test, 2026-04-16
 
 ### Architecture
 - [System Architecture Overview](architecture/OVERVIEW.md) -- High-level system design, deployment topology, tech stack

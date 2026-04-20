@@ -33,7 +33,7 @@ public abstract class CaseEvaluationDbContextFactoryBase<TDbContext> : IDesignTi
 
     protected abstract TDbContext CreateDbContext(DbContextOptions<TDbContext> dbContextOptions);
 
-    protected IConfigurationRoot BuildConfiguration()
+    protected static IConfigurationRoot BuildConfiguration()
     {
         var builder = new ConfigurationBuilder()
             .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "../HealthcareSupport.CaseEvaluation.DbMigrator/"))

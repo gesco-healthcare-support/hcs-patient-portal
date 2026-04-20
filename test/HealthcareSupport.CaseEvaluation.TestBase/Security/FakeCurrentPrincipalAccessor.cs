@@ -14,7 +14,7 @@ public class FakeCurrentPrincipalAccessor : ThreadCurrentPrincipalAccessor
         return GetPrincipal();
     }
 
-    private ClaimsPrincipal GetPrincipal()
+    private static ClaimsPrincipal GetPrincipal()
     {
         return new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
         {

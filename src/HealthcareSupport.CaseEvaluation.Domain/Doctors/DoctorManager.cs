@@ -52,7 +52,8 @@ public class DoctorManager : DomainService
         Check.NotNull(gender, nameof(gender));
         var queryable = await _doctorRepository.WithDetailsAsync(x => x.AppointmentTypes, x => x.Locations);
         var query = queryable.Where(x => x.Id == id);
-        var doctor = await AsyncExecuter.FirstOrDefaultAsync(query);
+        var doctor = await AsyncExecuter.FirstOrDefaultAsync(query)
+            ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Doctor), id);
         doctor.IdentityUserId = identityUserId;
         doctor.FirstName = firstName;
         doctor.LastName = lastName;
@@ -66,7 +67,7 @@ public class DoctorManager : DomainService
 
     private async Task SetAppointmentTypesAsync(Doctor doctor, List<Guid> appointmentTypeIds)
     {
-        if (appointmentTypeIds == null || !appointmentTypeIds.Any())
+        if (appointmentTypeIds == null || appointmentTypeIds.Count == 0)
         {
             doctor.RemoveAllAppointmentTypes();
             return;
@@ -74,7 +75,7 @@ public class DoctorManager : DomainService
 
         var query = (await _appointmentTypeRepository.GetQueryableAsync()).Where(x => appointmentTypeIds.Contains(x.Id)).Select(x => x.Id);
         var appointmentTypeIdsInDb = await AsyncExecuter.ToListAsync(query);
-        if (!appointmentTypeIdsInDb.Any())
+        if (appointmentTypeIdsInDb.Count == 0)
         {
             return;
         }
@@ -88,7 +89,7 @@ public class DoctorManager : DomainService
 
     private async Task SetLocationsAsync(Doctor doctor, List<Guid> locationIds)
     {
-        if (locationIds == null || !locationIds.Any())
+        if (locationIds == null || locationIds.Count == 0)
         {
             doctor.RemoveAllLocations();
             return;
@@ -96,7 +97,7 @@ public class DoctorManager : DomainService
 
         var query = (await _locationRepository.GetQueryableAsync()).Where(x => locationIds.Contains(x.Id)).Select(x => x.Id);
         var locationIdsInDb = await AsyncExecuter.ToListAsync(query);
-        if (!locationIdsInDb.Any())
+        if (locationIdsInDb.Count == 0)
         {
             return;
         }

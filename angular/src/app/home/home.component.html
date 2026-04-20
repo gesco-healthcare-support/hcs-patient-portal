@@ -122,10 +122,10 @@
                 <p class="lead text-muted mb-2">
                   Click to login or register to create a new account below.
                 </p>
-                <a (click)="login()" class="px-4 btn btn-primary mb-4" role="button">
+                <button type="button" (click)="login()" class="px-4 btn btn-primary mb-4">
                   <i class="fa fa-sign-in"></i>
                   {{ 'AbpAccount::Login' | abpLocalization }}
-                </a>
+                </button>
               }
             </div>
           </div>

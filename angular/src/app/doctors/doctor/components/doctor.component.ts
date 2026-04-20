@@ -18,7 +18,7 @@ import {
   NgxDatatableDefaultDirective,
   NgxDatatableListDirective,
 } from '@abp/ng.theme.shared';
-import { PageComponent, PageToolbarContainerComponent } from '@abp/ng.components/page';
+import { PageComponent } from '@abp/ng.components/page';
 import {
   AdvancedEntityFiltersComponent,
   AdvancedEntityFiltersFormComponent,

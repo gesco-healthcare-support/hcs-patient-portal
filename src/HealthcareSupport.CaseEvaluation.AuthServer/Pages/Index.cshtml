@@ -26,7 +26,7 @@
 
                     @if (!BrandingProvider.LogoUrl.IsNullOrEmpty())
                     {
-                        <a class="navbar-brand" href="~/" alt="@BrandingProvider.AppName"></a>
+                        <a class="navbar-brand" href="~/" aria-label="@BrandingProvider.AppName">@BrandingProvider.AppName</a>
                     }
                     else
                     {
@@ -107,7 +107,7 @@
                                                             }
 
                                                             <div class="mx-auto">
-                                                                <img src="@logoUri" style="height:64px" class="mb-3" />
+                                                                <img src="@logoUri" style="height:64px" class="mb-3" alt="@application.DisplayName" />
                                                             </div>
                                                         }
                                                         <h4>@application.DisplayName</h4>

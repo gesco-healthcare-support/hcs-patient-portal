@@ -1,8 +1,7 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { ConfigStateService } from '@abp/ng.core';
+import { ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
 import { Router, NavigationEnd } from '@angular/router';
 import { GdprCookieConsentComponent } from '@volo/abp.ng.gdpr/config';
-import { DynamicLayoutComponent } from '@abp/ng.core';
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -40,9 +39,11 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private updatePatientRoleClass(): void {
     const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
-    const roles = (currentUser?.roles ?? []).map((role) => (role ?? '').toLowerCase().trim());
+    const roles = new Set(
+      (currentUser?.roles ?? []).map((role) => (role ?? '').toLowerCase().trim()),
+    );
     const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    const isExternalUser = externalUserRoles.some((role) => roles.includes(role));
+    const isExternalUser = externalUserRoles.some((role) => roles.has(role));
 
     document.body.classList.toggle('externaluser-role', isExternalUser);
     document.documentElement.classList.toggle('externaluser-role', isExternalUser);

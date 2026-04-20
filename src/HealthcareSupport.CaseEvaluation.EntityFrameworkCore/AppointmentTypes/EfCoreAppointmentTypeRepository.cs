@@ -32,6 +32,6 @@ public class EfCoreAppointmentTypeRepository : EfCoreRepository<CaseEvaluationDb
 
     protected virtual IQueryable<AppointmentType> ApplyFilter(IQueryable<AppointmentType> query, string? filterText = null, string? name = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name.Contains(name));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name!.Contains(name!));
     }
 }

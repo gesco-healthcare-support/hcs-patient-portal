@@ -51,7 +51,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
 
     public virtual async Task<AppointmentAccessorWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>(await _appointmentAccessorRepository.GetWithNavigationPropertiesAsync(id));
+        return ObjectMapper.Map<AppointmentAccessorWithNavigationProperties, AppointmentAccessorWithNavigationPropertiesDto>((await _appointmentAccessorRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     public virtual async Task<AppointmentAccessorDto> GetAsync(Guid id)
@@ -61,7 +61,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -73,7 +73,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter));
+        var query = (await _appointmentRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.RequestConfirmationNumber != null && x.RequestConfirmationNumber.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Appointments.Appointment>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -92,12 +92,12 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task<AppointmentAccessorDto> CreateAsync(AppointmentAccessorCreateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
@@ -109,12 +109,12 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task<AppointmentAccessorDto> UpdateAsync(Guid id, AppointmentAccessorUpdateDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
-        if (input.AppointmentId == default)
+        if (input.AppointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }

@@ -23,6 +23,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P1: Is there an active client engagement, contract, or Statement of Work?
 
+**Research**: see [research/P-01.md](research/P-01.md) for 17 USC § 101/201 work-for-hire analysis, CA Labor Code § 2870, and IP-due-diligence checklist.
+
 **Why this is irreplaceable**: If this system was built under a contract or SOW, there are legally binding obligations -- feature commitments, delivery dates, ownership of IP, liability clauses -- that exist entirely outside this repository. No contract document was found in the codebase.
 
 **Consequence of not knowing**: We may inadvertently breach a contract by changing scope, reprioritising features, or delaying delivery. Alternatively, we may invest effort on features that were already contractually descoped, or miss a delivery deadline we didn't know existed.
@@ -33,6 +35,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P2: Has this application ever been deployed to a production or staging environment with real patient data?
 
+**Research**: see [research/P-02.md](research/P-02.md) for breach-notification analysis, TruffleHog/git-history verification procedure, and default-assumption guidance.
+
 **Why this is irreplaceable**: If real Protected Health Information (PHI) -- patient names, dates of injury, claim numbers, employer details -- was ever loaded into any environment, HIPAA's Breach Notification Rule may apply to how we handle the transition. There is no production deployment configuration in the repository, but that does not mean one was never created.
 
 **Consequence of not knowing**: If real patient data exists in an environment we don't know about, it is currently unsecured and unmonitored. If a breach occurred before or during the handover, notification obligations may already be running.
@@ -42,6 +46,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P3: Were any HIPAA compliance decisions made, and was legal counsel involved?
+
+**Research**: see [research/P-03.md](research/P-03.md) for 45 CFR § 164.308 risk-analysis requirement, CA CMIA + SB 446 overlay, HIPAA-eligible cloud-service matrix, and pre-deploy blocker list.
 
 **Why this is irreplaceable**: A workers' compensation IME platform that handles patient health information is likely subject to HIPAA. Any formal compliance decisions -- whether a Business Associate Agreement (BAA) was required, which safeguards were deemed sufficient, whether the system was classified as a covered entity or business associate -- were made by people, not written into code.
 
@@ -59,6 +65,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P4: Who is the actual end client, and what is their contact information?
 
+**Research**: see [research/P-04.md](research/P-04.md) for CA IME market landscape, bizfile.sos.ca.gov lookup procedure, and "Gesco is sponsor" default assumption.
+
 **Why this is irreplaceable**: The name "Healthcare Support" appears in the solution name, but the identity of the organisation that commissioned this system, their business contact, and their technical contact cannot be determined from the code. If we need to make product decisions, understand the user base, or communicate about the handover, we need to know who to call.
 
 **Consequence of not knowing**: We may make product decisions based on incorrect assumptions about who the end users are (e.g., assuming a national carrier when this is a single regional TPA). We have no one to notify if a security issue is discovered.
@@ -68,6 +76,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P5: Are there any external service accounts we need to take ownership of?
+
+**Research**: see [research/P-05.md](research/P-05.md) for ABP + GitHub org-ownership audit, BAA-required vendor list, and ICANN domain-transfer process.
 
 **Why this is irreplaceable**: Running a web application typically requires accounts with third-party services that are not reflected in the code: SMTP relay (SendGrid, Mailgun, SES), error monitoring (Sentry, Application Insights), cloud hosting, domain registrar, SSL certificate authority, CDN. These accounts are under the previous developer's email and will become inaccessible if that relationship ends.
 
@@ -86,6 +96,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P6: Were any features, behaviours, or constraints communicated verbally to the client that are not in the code?
 
+**Research**: see [research/P-06.md](research/P-06.md) for commitment-drift phenomenon, parol-evidence-rule implications, and JAD-style scope-validation workshop template.
+
 **Why this is irreplaceable**: Software projects routinely involve verbal commitments made in demos, calls, or emails that are never written into specifications or tickets. These commitments shape client expectations. The previous developer is the only person who knows what was promised.
 
 **Consequence of not knowing**: We may build something the client explicitly said they didn't want, or fail to build something they were told to expect. In a healthcare context, an undocumented verbal commitment about data retention, access control, or audit trails could be legally significant.
@@ -101,6 +113,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P7: Why was this project handed over, and what is the nature of the handover?
+
+**Research**: see [research/P-07.md](research/P-07.md) for handover-checklist industry norms, warranty-period timelines, NDA-vs-trade-secret limits on what a prior dev can share, and git-history-squash interpretation.
 
 **Why this is irreplaceable**: The circumstances of the handover -- contract completion, scope change, relationship breakdown, developer capacity -- affect how we interpret the state of the codebase. An intentional handover after completed work is different from an abrupt exit. This context affects how we handle client communication, what we assume is "done enough" versus abandoned, and how we handle the transition.
 
@@ -118,6 +132,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P8: Were any real users (doctors, administrators, patients, adjusters) involved in design or testing?
 
+**Research**: see [research/P-08.md](research/P-08.md) for healthcare UX-research constraints (HIPAA + de-identification), standard interview templates, and guerilla UX recommendation (5 users / 30 min / synthetic workflows).
+
 **Why this is irreplaceable**: If actual end users participated in requirements gathering, user testing, or feedback sessions, their input shaped product decisions that are invisible in the code. No user research artefacts were found in the repository -- but they may exist elsewhere (Notion, Confluence, Google Docs, the developer's laptop).
 
 **Consequence of not knowing**: We may "fix" UI or workflow decisions that were deliberately shaped by user research, inadvertently making the product worse for its intended audience.
@@ -134,6 +150,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P9: Were discussions held about integration with California DWC systems or insurance carrier systems?
 
+**Research**: see [research/P-09.md](research/P-09.md) for DWC EAMS / JET File / EDEX overview, Jopari clearinghouse landscape, and X12 837/275 workers'-comp EDI norms.
+
 **Why this is irreplaceable**: Workers' compensation IME scheduling in California operates within a regulated ecosystem -- the Division of Workers' Compensation (DWC), insurance carriers, third-party administrators, and utilisation review organisations. If the previous developer had conversations about integrating with any of these systems, those discussions represent product direction that is invisible in the codebase.
 
 **Consequence of not knowing**: We may build a self-contained system when the client expected it to exchange data with a carrier's system. Or we may attempt integrations that were already investigated and ruled out.
@@ -149,6 +167,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P10: Are there security vulnerabilities or incidents that were discovered but not disclosed?
+
+**Research**: see [research/P-10.md](research/P-10.md) for HHS OCR Breach Portal + CA AG breach-list lookup, TruffleHog historical-scan procedure, CISA SSVC triage framework, and ISO 29147 CVD-policy template.
 
 **Why this is irreplaceable**: A developer who found a security issue and did not fix it has information that cannot be recovered from code analysis alone. Our audit found committed secrets (SEC-01), PII logging (SEC-02), and open authorization gaps (SEC-03) -- but we cannot know whether these were known, whether they were exploited, or whether additional vulnerabilities were found and silently left.
 

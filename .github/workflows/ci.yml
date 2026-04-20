@@ -51,6 +51,9 @@ jobs:
               - '.editorconfig'
               - '.gitleaks.toml'
               - '.markdownlint.json'
+              - 'README.md'
+              - 'CONTRIBUTING.md'
+              - 'CHANGELOG.md'
 
   backend-build:
     name: 'Backend: Build'

@@ -8,5 +8,5 @@ public class AppointmentLanguageUpdateDto
 {
     [Required]
     [StringLength(AppointmentLanguageConsts.NameMaxLength)]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

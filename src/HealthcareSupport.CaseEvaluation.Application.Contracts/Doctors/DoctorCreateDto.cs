@@ -17,10 +17,10 @@ public class DoctorCreateDto
     [EmailAddress]
     [StringLength(DoctorConsts.EmailMaxLength)]
     public string Email { get; set; } = null!;
-    public Gender Gender { get; set; } = ((Gender[])Enum.GetValues(typeof(Gender)))[0];
+    public Gender Gender { get; set; } = Enum.GetValues<Gender>()[0];
     public Guid? IdentityUserId { get; set; }
 
-    public List<Guid> AppointmentTypeIds { get; set; }
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
-    public List<Guid> LocationIds { get; set; }
+    public List<Guid> LocationIds { get; set; } = new();
 }

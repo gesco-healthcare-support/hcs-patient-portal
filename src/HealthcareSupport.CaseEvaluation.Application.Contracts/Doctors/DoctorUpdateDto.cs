@@ -22,9 +22,9 @@ public class DoctorUpdateDto : IHasConcurrencyStamp
 
     public Guid? IdentityUserId { get; set; }
 
-    public List<Guid> AppointmentTypeIds { get; set; }
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
-    public List<Guid> LocationIds { get; set; }
+    public List<Guid> LocationIds { get; set; } = new();
 
     public string ConcurrencyStamp { get; set; } = null!;
 }
