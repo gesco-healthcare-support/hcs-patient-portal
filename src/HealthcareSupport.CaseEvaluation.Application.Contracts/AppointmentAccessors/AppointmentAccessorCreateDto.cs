@@ -7,7 +7,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 
 public class AppointmentAccessorCreateDto
 {
-    public AccessType AccessTypeId { get; set; } = ((AccessType[])Enum.GetValues(typeof(AccessType)))[0];
+    public AccessType AccessTypeId { get; set; } = Enum.GetValues<AccessType>()[0];
     public Guid IdentityUserId { get; set; }
 
     public Guid AppointmentId { get; set; }

@@ -22,7 +22,7 @@ public class EfCoreApplicantAttorneyRepository : EfCoreRepository<CaseEvaluation
     public virtual async Task<ApplicantAttorneyWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return (await GetDbSetAsync()).Where(b => b.Id == id).Select(applicantAttorney => new ApplicantAttorneyWithNavigationProperties { ApplicantAttorney = applicantAttorney, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == applicantAttorney.StateId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == applicantAttorney.IdentityUserId) }).FirstOrDefault();
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(applicantAttorney => new ApplicantAttorneyWithNavigationProperties { ApplicantAttorney = applicantAttorney, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == applicantAttorney.StateId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == applicantAttorney.IdentityUserId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<ApplicantAttorneyWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firmName = null, string? phoneNumber = null, string? city = null, Guid? stateId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -53,6 +53,11 @@ public class EfCoreApplicantAttorneyRepository : EfCoreRepository<CaseEvaluation
         return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.ApplicantAttorney.FirmName!.Contains(filterText!) || e.ApplicantAttorney.PhoneNumber!.Contains(filterText!) || e.ApplicantAttorney.City!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firmName), e => e.ApplicantAttorney.FirmName!.Contains(firmName!)).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.ApplicantAttorney.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.ApplicantAttorney.City!.Contains(city!)).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId);
     }
 
+    protected virtual IQueryable<ApplicantAttorney> ApplyFilter(IQueryable<ApplicantAttorney> query, string? filterText = null, string? firmName = null, string? phoneNumber = null, string? city = null)
+    {
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirmName!.Contains(filterText!) || e.PhoneNumber!.Contains(filterText!) || e.City!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firmName), e => e.FirmName!.Contains(firmName!)).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!));
+    }
+
     public virtual async Task<List<ApplicantAttorney>> GetListAsync(string? filterText = null, string? firmName = null, string? phoneNumber = null, string? city = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = ApplyFilter((await GetQueryableAsync()), filterText, firmName, phoneNumber, city);
@@ -65,10 +70,5 @@ public class EfCoreApplicantAttorneyRepository : EfCoreRepository<CaseEvaluation
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(query, filterText, firmName, phoneNumber, city, stateId, identityUserId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
-    }
-
-    protected virtual IQueryable<ApplicantAttorney> ApplyFilter(IQueryable<ApplicantAttorney> query, string? filterText = null, string? firmName = null, string? phoneNumber = null, string? city = null)
-    {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirmName!.Contains(filterText!) || e.PhoneNumber!.Contains(filterText!) || e.City!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firmName), e => e.FirmName!.Contains(firmName!)).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!));
     }
 }

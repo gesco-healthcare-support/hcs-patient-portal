@@ -29,7 +29,7 @@ public class EfCoreWcabOfficeRepository : EfCoreRepository<CaseEvaluationDbConte
     public virtual async Task<WcabOfficeWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return (await GetDbSetAsync()).Where(b => b.Id == id).Select(wcabOffice => new WcabOfficeWithNavigationProperties { WcabOffice = wcabOffice, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == wcabOffice.StateId) }).FirstOrDefault();
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(wcabOffice => new WcabOfficeWithNavigationProperties { WcabOffice = wcabOffice, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == wcabOffice.StateId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<WcabOfficeWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? name = null, string? abbreviation = null, string? address = null, string? city = null, string? zipCode = null, bool? isActive = null, Guid? stateId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -57,6 +57,11 @@ public class EfCoreWcabOfficeRepository : EfCoreRepository<CaseEvaluationDbConte
         return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.WcabOffice.Name!.Contains(filterText!) || e.WcabOffice.Abbreviation!.Contains(filterText!) || e.WcabOffice.Address!.Contains(filterText!) || e.WcabOffice.City!.Contains(filterText!) || e.WcabOffice.ZipCode!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.WcabOffice.Name!.Contains(name!)).WhereIf(!string.IsNullOrWhiteSpace(abbreviation), e => e.WcabOffice.Abbreviation!.Contains(abbreviation!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.WcabOffice.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.WcabOffice.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.WcabOffice.ZipCode!.Contains(zipCode!)).WhereIf(isActive.HasValue, e => e.WcabOffice.IsActive == isActive).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId);
     }
 
+    protected virtual IQueryable<WcabOffice> ApplyFilter(IQueryable<WcabOffice> query, string? filterText = null, string? name = null, string? abbreviation = null, string? address = null, string? city = null, string? zipCode = null, bool? isActive = null)
+    {
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!) || e.Abbreviation!.Contains(filterText!) || e.Address!.Contains(filterText!) || e.City!.Contains(filterText!) || e.ZipCode!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name!.Contains(name!)).WhereIf(!string.IsNullOrWhiteSpace(abbreviation), e => e.Abbreviation!.Contains(abbreviation!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.ZipCode!.Contains(zipCode!)).WhereIf(isActive.HasValue, e => e.IsActive == isActive);
+    }
+
     public virtual async Task<List<WcabOffice>> GetListAsync(string? filterText = null, string? name = null, string? abbreviation = null, string? address = null, string? city = null, string? zipCode = null, bool? isActive = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = ApplyFilter((await GetQueryableAsync()), filterText, name, abbreviation, address, city, zipCode, isActive);
@@ -69,10 +74,5 @@ public class EfCoreWcabOfficeRepository : EfCoreRepository<CaseEvaluationDbConte
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(query, filterText, name, abbreviation, address, city, zipCode, isActive, stateId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
-    }
-
-    protected virtual IQueryable<WcabOffice> ApplyFilter(IQueryable<WcabOffice> query, string? filterText = null, string? name = null, string? abbreviation = null, string? address = null, string? city = null, string? zipCode = null, bool? isActive = null)
-    {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!) || e.Abbreviation!.Contains(filterText!) || e.Address!.Contains(filterText!) || e.City!.Contains(filterText!) || e.ZipCode!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(name), e => e.Name!.Contains(name!)).WhereIf(!string.IsNullOrWhiteSpace(abbreviation), e => e.Abbreviation!.Contains(abbreviation!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.ZipCode!.Contains(zipCode!)).WhereIf(isActive.HasValue, e => e.IsActive == isActive);
     }
 }
