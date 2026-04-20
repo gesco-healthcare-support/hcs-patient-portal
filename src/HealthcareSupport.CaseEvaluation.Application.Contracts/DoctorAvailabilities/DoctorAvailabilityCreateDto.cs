@@ -13,7 +13,7 @@ public class DoctorAvailabilityCreateDto
 
     public TimeOnly ToTime { get; set; }
 
-    public BookingStatus BookingStatusId { get; set; } = ((BookingStatus[])Enum.GetValues(typeof(BookingStatus)))[0];
+    public BookingStatus BookingStatusId { get; set; } = Enum.GetValues<BookingStatus>()[0];
     public Guid LocationId { get; set; }
 
     public Guid? AppointmentTypeId { get; set; }

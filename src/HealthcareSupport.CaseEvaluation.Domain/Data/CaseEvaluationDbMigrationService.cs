@@ -82,7 +82,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
                     await SeedDataAsync(tenant);
                 }
 
-                Logger.LogInformation($"Successfully completed {tenant.Name} tenant database migrations.");
+                Logger.LogInformation("Successfully completed {TenantName} tenant database migrations.", tenant.Name);
             }
 
             Logger.LogInformation("Successfully completed all database migrations.");
@@ -92,8 +92,8 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
 
     private async Task MigrateDatabaseSchemaAsync(Tenant? tenant = null)
     {
-        Logger.LogInformation(
-            $"Migrating schema for {(tenant == null ? "host" : tenant.Name + " tenant")} database...");
+        var scope = tenant == null ? "host" : tenant.Name + " tenant";
+        Logger.LogInformation("Migrating schema for {Scope} database...", scope);
 
         foreach (var migrator in _dbSchemaMigrators)
         {
@@ -103,7 +103,8 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
 
     private async Task SeedDataAsync(Tenant? tenant = null)
     {
-        Logger.LogInformation($"Executing {(tenant == null ? "host" : tenant.Name + " tenant")} database seed...");
+        var scope = tenant == null ? "host" : tenant.Name + " tenant";
+        Logger.LogInformation("Executing {Scope} database seed...", scope);
 
         await _dataSeeder.SeedAsync(new DataSeedContext(tenant?.Id)
             .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName,
@@ -141,7 +142,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         }
         catch (Exception e)
         {
-            Logger.LogWarning("Couldn't determinate if any migrations exist : " + e.Message);
+            Logger.LogWarning(e, "Couldn't determine if any migrations exist.");
             return false;
         }
     }

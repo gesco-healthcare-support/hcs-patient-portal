@@ -20,7 +20,7 @@ public class PatientCreateDto
     [EmailAddress]
     [StringLength(PatientConsts.EmailMaxLength)]
     public string Email { get; set; } = null!;
-    public Gender GenderId { get; set; } = ((Gender[])Enum.GetValues(typeof(Gender)))[0];
+    public Gender GenderId { get; set; } = Enum.GetValues<Gender>()[0];
     public DateTime DateOfBirth { get; set; }
 
     [StringLength(PatientConsts.PhoneNumberMaxLength)]
@@ -44,7 +44,7 @@ public class PatientCreateDto
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
     public string? CellPhoneNumber { get; set; }
 
-    public PhoneNumberType PhoneNumberTypeId { get; set; } = ((PhoneNumberType[])Enum.GetValues(typeof(PhoneNumberType)))[0];
+    public PhoneNumberType PhoneNumberTypeId { get; set; } = Enum.GetValues<PhoneNumberType>()[0];
     [StringLength(PatientConsts.StreetMaxLength)]
     public string? Street { get; set; }
 
