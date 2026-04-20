@@ -353,7 +353,7 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   openHelp(): void {
-    window.open('https://abp.io/docs/latest/getting-started', '_blank');
+    window.open('https://abp.io/docs/latest/getting-started', '_blank', 'noopener,noreferrer');
   }
 
   openAddAuthorizedUserModal(): void {
