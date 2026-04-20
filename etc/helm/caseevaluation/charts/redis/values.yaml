@@ -8,6 +8,8 @@ resources:
   limits:
     memory: 1Gi
     cpu: 500m
+    ephemeral-storage: 1Gi
   requests:
     memory: 256Mi
     cpu: 100m
+    ephemeral-storage: 256Mi

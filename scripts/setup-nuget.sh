@@ -6,21 +6,21 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 TEMPLATE="$REPO_ROOT/NuGet.Config.template"
 OUTPUT="$REPO_ROOT/NuGet.Config"
 
-if [ ! -f "$TEMPLATE" ]; then
-  echo "Error: NuGet.Config.template not found at $TEMPLATE"
+if [[ ! -f "$TEMPLATE" ]]; then
+  echo "Error: NuGet.Config.template not found at $TEMPLATE" >&2
   exit 1
 fi
 
-if [ -f "$OUTPUT" ]; then
+if [[ -f "$OUTPUT" ]]; then
   echo "NuGet.Config already exists. Overwrite? (y/N)"
   read -r answer
-  if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+  if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
     echo "Aborted."
     exit 0
   fi
 fi
 
-if [ -n "$ABP_NUGET_API_KEY" ]; then
+if [[ -n "$ABP_NUGET_API_KEY" ]]; then
   echo "Using ABP_NUGET_API_KEY from environment variable."
   KEY="$ABP_NUGET_API_KEY"
 else
@@ -28,8 +28,8 @@ else
   read -r KEY
 fi
 
-if [ -z "$KEY" ]; then
-  echo "Error: API key cannot be empty."
+if [[ -z "$KEY" ]]; then
+  echo "Error: API key cannot be empty." >&2
   exit 1
 fi
 
