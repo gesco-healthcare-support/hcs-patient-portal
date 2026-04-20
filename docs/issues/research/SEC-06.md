@@ -24,10 +24,22 @@
 Per [docs/verification/PHASE-B-CONTINUATION.md](../../verification/PHASE-B-CONTINUATION.md) Phase B criterion #6 is "Scorecard runs successfully" — not "alerts = 0." The criterion was met when PR #81 pinned `ossf/scorecard-action` to `@v2.4.3`. None of the 100 alerts blocks a deploy or weakens code-level security — they are supply-chain hardening signals.
 
 Fixing them now would:
+
 - Add a 1-hour mechanical PR (SHA pinning all actions via StepSecurity secureworkflow).
 - Add a 30-minute PR for Dockerfile digest pinning (7 files).
 - Add a policy decision for CodeReviewID that reshapes the solo-dev workflow.
 - Delay Phase B-6 (the actual critical-path Phase-B finisher — test coverage).
+
+## Related deferred hotspot dispositions (Phase-B closure, 2026-04-20)
+
+SonarCloud Security Hotspots were dispositioned at Phase-B closure. Two categories were ACKNOWLEDGED rather than SAFE because they represent known patterns with future refactor work:
+
+- **`githubactions:S7636` (25 findings) — secret expansion in `run` blocks.** The pattern `sed "s/\${ABP_NUGET_API_KEY}/${{ secrets.ABP_NUGET_API_KEY }}/"` and `echo "{\"AbpLicenseCode\": \"${{ secrets.ABP_LICENSE_CODE }}\"}" > appsettings.secrets.json` appears across 10+ workflow files. GitHub Actions auto-masks known secret values in logs, so the runtime leak surface is small, but the idiomatic fix is to expose secrets via `env:` mapping at the job or step level and reference `$ABP_NUGET_API_KEY` shell variables in the `run:` block. Phase-C task: refactor every ABP_NUGET_API_KEY + ABP_LICENSE_CODE expansion site to the `env:` form. Affected files: ci.yml (9 sites), codeql-pr.yml (3), deploy-dev.yml (3), promote-staging.yml (3), security.yml (4), sonarcloud.yml (3).
+- **`githubactions:S7637` (9 findings) — tag-pinned actions.** Same backlog as the top-level SHA-pinning item above; both are addressed by the StepSecurity secureworkflow sweep.
+
+One category — `csharpsquid:S4502` on `ExternalSignupController` (CSRF exempt for public signup) — is ACKNOWLEDGED with a separate follow-up in `docs/issues/research/` for rate-limiting + CAPTCHA on the public signup endpoint.
+
+All other Phase-B closure hotspots were marked SAFE (docker build-time ARGs, multi-stage COPY patterns, Helm-overridden root users, internal-cluster http references, internal dev tools) or FIXED (4 hotspots: 1 × `window.open` noopener + 3 × `X-Content-Type-Options` headers in web.config files).
 
 ## Phase-C remediation sequence (recommended)
 
