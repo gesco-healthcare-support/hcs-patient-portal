@@ -100,21 +100,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var items = new List<ExternalUserLookupDto>();
         foreach (var u in usersWithRoleId)
         {
+            if (!MatchesExternalUserFilter(u.Name, u.Surname, u.Email, filter))
+            {
+                continue;
+            }
+
             var userRole = u.FirstRoleId != Guid.Empty && roleNameMap.TryGetValue(u.FirstRoleId, out var name)
                 ? name
                 : allowedRoleNames[0];
-
-            if (!string.IsNullOrWhiteSpace(filter))
-            {
-                var f = filter.ToLowerInvariant();
-                var matches = (u.Name != null && u.Name.Contains(f, StringComparison.OrdinalIgnoreCase)) ||
-                             (u.Surname != null && u.Surname.Contains(f, StringComparison.OrdinalIgnoreCase)) ||
-                             (u.Email != null && u.Email.Contains(f, StringComparison.OrdinalIgnoreCase));
-                if (!matches)
-                {
-                    continue;
-                }
-            }
 
             items.Add(new ExternalUserLookupDto
             {
@@ -128,6 +121,18 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
         return new ListResultDto<ExternalUserLookupDto>(items);
+    }
+
+    private static bool MatchesExternalUserFilter(string? name, string? surname, string? email, string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return true;
+        }
+
+        return (name != null && name.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+               (surname != null && surname.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+               (email != null && email.Contains(filter, StringComparison.OrdinalIgnoreCase));
     }
 
     [Authorize]

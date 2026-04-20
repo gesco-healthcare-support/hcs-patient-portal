@@ -161,30 +161,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
     {
-        if (input.PatientId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["Patient"]]);
-        }
-
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        if (input.AppointmentTypeId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentType"]]);
-        }
-
-        if (input.LocationId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
-        }
-
-        if (input.DoctorAvailabilityId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
-        }
+        ValidateCreateGuids(input);
 
         var patient = await _patientRepository.FindAsync(input.PatientId);
         if (patient == null)
@@ -216,6 +193,47 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected availability slot does not exist."]);
         }
 
+        ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
+
+        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, input.AppointmentStatus, input.PanelNumber, input.DueDate);
+
+        doctorAvailability.BookingStatusId = BookingStatus.Booked;
+        await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
+
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    private void ValidateCreateGuids(AppointmentCreateDto input)
+    {
+        if (input.PatientId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Patient"]]);
+        }
+
+        if (input.IdentityUserId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
+        }
+
+        if (input.AppointmentTypeId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentType"]]);
+        }
+
+        if (input.LocationId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
+        }
+
+        if (input.DoctorAvailabilityId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
+        }
+    }
+
+    private void ValidateDoctorAvailabilityForBooking(AppointmentCreateDto input, DoctorAvailability doctorAvailability)
+    {
         if (doctorAvailability.BookingStatusId != BookingStatus.Available)
         {
             throw new UserFriendlyException(L["The selected availability slot is no longer available."]);
@@ -241,14 +259,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             throw new UserFriendlyException(L["The selected appointment time is outside the availability slot range."]);
         }
-
-        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
-        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, input.AppointmentStatus, input.PanelNumber, input.DueDate);
-
-        doctorAvailability.BookingStatusId = BookingStatus.Booked;
-        await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
-
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
     private async Task<string> GenerateNextRequestConfirmationNumberAsync()
