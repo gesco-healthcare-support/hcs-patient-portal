@@ -12,8 +12,7 @@ public static class HealthChecksBuilderExtensions
 {
     public static void AddCaseEvaluationAuthServerHealthChecks(this IServiceCollection services)
     {
-        // Add your health checks here
-        var healthChecksBuilder = services.AddHealthChecks();
+        services.AddHealthChecks();
 
         var configuration = services.GetConfiguration();
         var healthCheckUrl = configuration["App:HealthCheckUrl"];

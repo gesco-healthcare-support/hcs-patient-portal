@@ -8,7 +8,7 @@ using Serilog.Events;
 
 namespace HealthcareSupport.CaseEvaluation.DbMigrator;
 
-class Program
+static class Program
 {
     static async Task Main(string[] args)
     {

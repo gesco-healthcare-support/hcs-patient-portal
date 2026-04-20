@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.States;
 public class State : FullAuditedAggregateRoot<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     protected State()
     {

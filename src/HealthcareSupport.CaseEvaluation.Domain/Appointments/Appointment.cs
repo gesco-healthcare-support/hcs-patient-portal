@@ -28,7 +28,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual bool IsPatientAlreadyExist { get; set; }
 
     [NotNull]
-    public virtual string RequestConfirmationNumber { get; set; }
+    public virtual string RequestConfirmationNumber { get; set; } = null!;
 
     public virtual DateTime? DueDate { get; set; }
 

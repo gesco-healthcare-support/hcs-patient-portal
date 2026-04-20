@@ -11,11 +11,7 @@ import {
   ButtonComponent,
 } from '@abp/ng.theme.shared';
 
-import {
-  LookupSelectComponent,
-  LookupTypeaheadComponent,
-  LookupTypeaheadMtmComponent,
-} from '@volo/abp.commercial.ng.ui';
+import { LookupSelectComponent, LookupTypeaheadMtmComponent } from '@volo/abp.commercial.ng.ui';
 
 import {
   NgbNavModule,

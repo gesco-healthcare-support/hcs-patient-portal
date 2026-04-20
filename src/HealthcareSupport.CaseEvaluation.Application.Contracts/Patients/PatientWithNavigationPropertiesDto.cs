@@ -15,6 +15,6 @@ public class PatientWithNavigationPropertiesDto
 
     public AppointmentLanguageDto? AppointmentLanguage { get; set; }
 
-    public IdentityUserDto IdentityUser { get; set; } = null!;
+    public IdentityUserDto? IdentityUser { get; set; }
     public SaasTenantDto? Tenant { get; set; }
 }

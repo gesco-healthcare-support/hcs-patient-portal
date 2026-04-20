@@ -9,6 +9,6 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 public class AppointmentEmployerDetailWithNavigationPropertiesDto
 {
     public AppointmentEmployerDetailDto AppointmentEmployerDetail { get; set; } = null!;
-    public AppointmentDto Appointment { get; set; } = null!;
+    public AppointmentDto? Appointment { get; set; }
     public StateDto? State { get; set; }
 }

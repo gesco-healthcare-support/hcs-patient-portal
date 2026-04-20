@@ -56,20 +56,5 @@ public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDb
             b.ConfigureByConvention(); //auto configure for the base class props
             b.Property(x => x.Name).IsRequired().HasMaxLength(128);
         });
-
-        /* Configure your own tables/entities inside here */
-
-        //builder.Entity<YourEntity>(b =>
-        //{
-        //    b.ToTable(CaseEvaluationConsts.DbTablePrefix + "YourEntities", CaseEvaluationConsts.DbSchema);
-        //    b.ConfigureByConvention(); //auto configure for the base class props
-        //    //...
-        //});
-
-        //if (builder.IsHostDatabase())
-        //{
-        //    /* Tip: Configure mappings like that for the entities only available in the host side,
-        //     * but should not be in the tenant databases. */
-        //}
     }
 }

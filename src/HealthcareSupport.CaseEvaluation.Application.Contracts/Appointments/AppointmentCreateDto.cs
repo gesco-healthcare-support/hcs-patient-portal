@@ -15,7 +15,7 @@ public class AppointmentCreateDto
     public string RequestConfirmationNumber { get; set; } = null!;
     public DateTime? DueDate { get; set; }
 
-    public AppointmentStatusType AppointmentStatus { get; set; } = ((AppointmentStatusType[])Enum.GetValues(typeof(AppointmentStatusType)))[0];
+    public AppointmentStatusType AppointmentStatus { get; set; } = Enum.GetValues<AppointmentStatusType>()[0];
     public Guid PatientId { get; set; }
 
     public Guid IdentityUserId { get; set; }

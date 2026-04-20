@@ -74,7 +74,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(await _appointmentRepository.GetWithNavigationPropertiesAsync(id));
+        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>((await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
@@ -86,7 +86,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input)
     {
-        var query = (await _patientRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _patientRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Patients.Patient>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -99,7 +99,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter));
+        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -115,7 +115,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .SelectMany(x => x.AppointmentTypes)
             .Select(x => x.AppointmentType);
 
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -130,7 +130,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var queryable = (await _doctorRepository.GetQueryableAsync())
             .SelectMany(x => x.Locations)
             .Select(x => x.Location);
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -142,7 +142,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetDoctorAvailabilityLookupAsync(LookupRequestDto input)
     {
-        var query = (await _doctorAvailabilityRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.FromTime != null);
+        var query = await _doctorAvailabilityRepository.GetQueryableAsync();
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -161,30 +161,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
     {
-        if (input.PatientId == default)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["Patient"]]);
-        }
-
-        if (input.IdentityUserId == default)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        if (input.AppointmentTypeId == default)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentType"]]);
-        }
-
-        if (input.LocationId == default)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
-        }
-
-        if (input.DoctorAvailabilityId == default)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
-        }
+        ValidateCreateGuids(input);
 
         var patient = await _patientRepository.FindAsync(input.PatientId);
         if (patient == null)
@@ -216,6 +193,47 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected availability slot does not exist."]);
         }
 
+        ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
+
+        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, input.AppointmentStatus, input.PanelNumber, input.DueDate);
+
+        doctorAvailability.BookingStatusId = BookingStatus.Booked;
+        await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
+
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    private void ValidateCreateGuids(AppointmentCreateDto input)
+    {
+        if (input.PatientId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Patient"]]);
+        }
+
+        if (input.IdentityUserId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
+        }
+
+        if (input.AppointmentTypeId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentType"]]);
+        }
+
+        if (input.LocationId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
+        }
+
+        if (input.DoctorAvailabilityId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
+        }
+    }
+
+    private void ValidateDoctorAvailabilityForBooking(AppointmentCreateDto input, DoctorAvailability doctorAvailability)
+    {
         if (doctorAvailability.BookingStatusId != BookingStatus.Available)
         {
             throw new UserFriendlyException(L["The selected availability slot is no longer available."]);
@@ -241,14 +259,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             throw new UserFriendlyException(L["The selected appointment time is outside the availability slot range."]);
         }
-
-        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
-        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, input.AppointmentStatus, input.PanelNumber, input.DueDate);
-
-        doctorAvailability.BookingStatusId = BookingStatus.Booked;
-        await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
-
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
     private async Task<string> GenerateNextRequestConfirmationNumberAsync()
@@ -284,27 +294,27 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentDto> UpdateAsync(Guid id, AppointmentUpdateDto input)
     {
-        if (input.PatientId == default)
+        if (input.PatientId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Patient"]]);
         }
 
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
-        if (input.AppointmentTypeId == default)
+        if (input.AppointmentTypeId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentType"]]);
         }
 
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
 
-        if (input.DoctorAvailabilityId == default)
+        if (input.DoctorAvailabilityId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
         }
@@ -390,7 +400,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
-        if (input.IdentityUserId == default)
+        if (input.IdentityUserId == Guid.Empty)
         {
             return;
         }
@@ -402,7 +412,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         }
 
         ApplicantAttorney applicantAttorney;
-        if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != default)
+        if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != Guid.Empty)
         {
             applicantAttorney = await _applicantAttorneyRepository.GetAsync(input.ApplicantAttorneyId.Value);
             applicantAttorney = await _applicantAttorneyManager.UpdateAsync(

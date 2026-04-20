@@ -30,6 +30,7 @@ using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
+using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Autofac;
 using Volo.Abp.Caching;
@@ -87,6 +88,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             options.IsDynamicPermissionStoreEnabled = true;
         });
+
+        Configure<AbpSecurityHeadersOptions>(options =>
+        {
+            options.Headers["X-Frame-Options"] = "DENY";
+        });
     }
 
     private void ConfigureStudio(IHostEnvironment hostingEnvironment)
@@ -100,7 +106,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
     }
 
-    private void ConfigureHealthChecks(ServiceConfigurationContext context)
+    private static void ConfigureHealthChecks(ServiceConfigurationContext context)
     {
         context.Services.AddCaseEvaluationHealthChecks();
     }
@@ -148,7 +154,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
-    private void ConfigureAuthentication(ServiceConfigurationContext context, IConfiguration configuration)
+    private static void ConfigureAuthentication(ServiceConfigurationContext context, IConfiguration configuration)
     {
         context.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddAbpJwtBearer(options =>
@@ -193,7 +199,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             });
     }
 
-    private void ConfigureDataProtection(
+    private static void ConfigureDataProtection(
         ServiceConfigurationContext context,
         IConfiguration configuration,
         IWebHostEnvironment hostingEnvironment)
@@ -211,7 +217,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
     }
 
-    private void ConfigureDistributedLocking(
+    private static void ConfigureDistributedLocking(
         ServiceConfigurationContext context,
         IConfiguration configuration)
     {
@@ -227,7 +233,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
-    private void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
+    private static void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
     {
         context.Services.AddCors(options =>
         {
@@ -249,7 +255,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
-    private void ConfigureExternalProviders(ServiceConfigurationContext context)
+    private static void ConfigureExternalProviders(ServiceConfigurationContext context)
     {
         context.Services
             .AddDynamicExternalLoginProviderOptions<GoogleOptions>(

@@ -103,6 +103,12 @@
           "Microsoft.EntityFrameworkCore": "10.0.0"
         }
       },
+      "Scriban": {
+        "type": "Direct",
+        "requested": "[7.1.0, )",
+        "resolved": "7.1.0",
+        "contentHash": "8paijHmWYO7zxSRNLlbDzzaFT7By827wIgdOrAg9q64+XasUYK8RCT3Y4mbISxeQ3iNdaK7wGeDmT2GWRtqRBQ=="
+      },
       "Serilog.AspNetCore": {
         "type": "Direct",
         "requested": "[9.0.0, )",
@@ -125,6 +131,15 @@
         "contentHash": "SnmRknWsSMgyo9wDXeZZCqSp48kkQYy44taSM6vcpxfiRICzSf09oLKEmVr0RCwQnfd8mJQ2WNN6nvhqf0RowQ==",
         "dependencies": {
           "Serilog": "4.1.0"
+        }
+      },
+      "System.Security.Cryptography.Xml": {
+        "type": "Direct",
+        "requested": "[10.0.6, )",
+        "resolved": "10.0.6",
+        "contentHash": "71yFkEElPZKZ9jbZQTe1CWeHYXEtnCXwZnHnfeA8pP47tCXBUoWk+6zSIZ7RXO90nZjXgPNil6BFGWb1OBqA5w==",
+        "dependencies": {
+          "System.Security.Cryptography.Pkcs": "10.0.6"
         }
       },
       "Volo.Abp.AspNetCore.Authentication.JwtBearer": {
@@ -858,11 +873,6 @@
         "resolved": "4.3.1",
         "contentHash": "oSE+OVLHyiojrws0QVbQaAT2YKsYbyHqJXPdV7EhGseR/dYgeWS2x1T5qY5I4E+RJkJqMSG+FyZOq4SljWgJWQ=="
       },
-      "Scriban": {
-        "type": "Transitive",
-        "resolved": "6.3.0",
-        "contentHash": "WIOcfb9xOk6sYvYeinh3J9BLOJlZquUY3lIZmBaBNz2ci/mpB6vfjxn6dLyZSzviqzv9Pe8fbmDLjS7oCxNQNA=="
-      },
       "Serilog": {
         "type": "Transitive",
         "resolved": "4.3.0",
@@ -1092,8 +1102,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "9.0.4",
-        "contentHash": "cUFTcMlz/Qw9s90b2wnWSCvHdjv51Bau9FQqhsr4TlwSe1OX+7SoXUqphis5G74MLOvMOCghxPPlEqOdCrVVGA=="
+        "resolved": "10.0.6",
+        "contentHash": "88tquaGJ1htm4DHWS6x9jwER7sFET2SVRN7HqO1FYZwE0diDcUmz0ajhVa8ZD2HGhDJBueSPjP/gqyP3gXtT2A=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -2897,6 +2907,7 @@
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "MiniExcel": "[1.41.4, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.Account.Pro.Admin.Application": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application": "[10.0.2, )",
@@ -2916,6 +2927,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.Account.Pro.Admin.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application.Contracts": "[10.0.2, )",
@@ -2935,6 +2947,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
@@ -2958,6 +2971,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain.Shared": "[10.0.2, )",
@@ -2979,6 +2993,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.0, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.AuditLogging.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.EntityFrameworkCore": "[10.0.2, )",
@@ -2999,6 +3014,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
+          "Scriban": "[7.1.0, )",
           "Volo.Abp.Account.Pro.Admin.HttpApi": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.HttpApi": "[10.0.2, )",
           "Volo.Abp.AuditLogging.HttpApi": "[10.0.2, )",

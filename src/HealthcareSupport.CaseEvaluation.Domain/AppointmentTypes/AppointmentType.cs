@@ -14,11 +14,11 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 public class AppointmentType : FullAuditedEntity<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     [CanBeNull]
     public virtual string? Description { get; set; }
-    public virtual ICollection<DoctorAppointmentType> DoctorAppointmentTypes { get; set; }
+    public virtual ICollection<DoctorAppointmentType> DoctorAppointmentTypes { get; set; } = new Collection<DoctorAppointmentType>();
 
     protected AppointmentType()
     {

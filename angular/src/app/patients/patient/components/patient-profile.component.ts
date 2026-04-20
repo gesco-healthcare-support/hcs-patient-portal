@@ -2,7 +2,13 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AuthService, ConfigStateService, LocalizationPipe, RestService } from '@abp/ng.core';
+import {
+  AuthService,
+  AutofocusDirective,
+  ConfigStateService,
+  LocalizationPipe,
+  RestService,
+} from '@abp/ng.core';
 import { PageComponent } from '@abp/ng.components/page';
 import { DateAdapter, TimeAdapter, ButtonComponent } from '@abp/ng.theme.shared';
 import { TopHeaderNavbarComponent } from '../../../shared/components/top-header-navbar/top-header-navbar.component';
@@ -15,7 +21,6 @@ import { genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import { finalize } from 'rxjs/operators';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
-import { AutofocusDirective } from '@abp/ng.core';
 import {
   NgbDateAdapter,
   NgbDatepickerModule,
