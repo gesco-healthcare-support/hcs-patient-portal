@@ -20,10 +20,10 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
     {
     }
 
-    public virtual async Task<AppointmentAccessorWithNavigationProperties> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
+    public virtual async Task<AppointmentAccessorWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentAccessor => new AppointmentAccessorWithNavigationProperties { AppointmentAccessor = appointmentAccessor, IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == appointmentAccessor.IdentityUserId), Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentAccessor.AppointmentId) }).FirstOrDefault();
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(appointmentAccessor => new AppointmentAccessorWithNavigationProperties { AppointmentAccessor = appointmentAccessor, IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == appointmentAccessor.IdentityUserId), Appointment = dbContext.Set<Appointment>().FirstOrDefault(c => c.Id == appointmentAccessor.AppointmentId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<AppointmentAccessorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, AccessType? accessTypeId = null, Guid? identityUserId = null, Guid? appointmentId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -54,6 +54,11 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
         return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(accessTypeId.HasValue, e => e.AppointmentAccessor.AccessTypeId == accessTypeId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentId != null && appointmentId != Guid.Empty, e => e.Appointment != null && e.Appointment.Id == appointmentId);
     }
 
+    protected virtual IQueryable<AppointmentAccessor> ApplyFilter(IQueryable<AppointmentAccessor> query, string? filterText = null, AccessType? accessTypeId = null)
+    {
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(accessTypeId.HasValue, e => e.AccessTypeId == accessTypeId);
+    }
+
     public virtual async Task<List<AppointmentAccessor>> GetListAsync(string? filterText = null, AccessType? accessTypeId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = ApplyFilter((await GetQueryableAsync()), filterText, accessTypeId);
@@ -66,10 +71,5 @@ public class EfCoreAppointmentAccessorRepository : EfCoreRepository<CaseEvaluati
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(query, filterText, accessTypeId, identityUserId, appointmentId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
-    }
-
-    protected virtual IQueryable<AppointmentAccessor> ApplyFilter(IQueryable<AppointmentAccessor> query, string? filterText = null, AccessType? accessTypeId = null)
-    {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(accessTypeId.HasValue, e => e.AccessTypeId == accessTypeId);
     }
 }

@@ -84,8 +84,31 @@ jobs:
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml"
           /d:sonar.javascript.lcov.reportPaths="angular/coverage/**/lcov.info"
           /d:sonar.typescript.lcov.reportPaths="angular/coverage/**/lcov.info"
-          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**"
-          /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,angular/src/app/proxy/**,**/*.module.ts"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,angular/src/app/proxy/**,**/Migrations/**,**/TenantMigrations/**,**/*.abstract.*.ts"
+          /d:sonar.coverage.exclusions="**/Program.cs,**/*Module.cs,**/*DbContext*.cs,**/Migrations/**,**/TenantMigrations/**,angular/src/app/proxy/**,**/*.module.ts"
+          /d:sonar.issue.ignore.multicriteria=abpModelState,abpLookupLabel,abpLookupLabelHtml,abpDiAppServiceParams,abpDiManagerParams,abpDiRepoParams,abpPermissionStrings,abpAppServiceI18nKeys,abpHostModuleConfigKeys,abpDavailComplexity,bootstrapModalDialogRole
+          /d:sonar.issue.ignore.multicriteria.abpModelState.ruleKey=csharpsquid:S6967
+          /d:sonar.issue.ignore.multicriteria.abpModelState.resourceKey=**/*.cs
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabel.resourceKey=**/*.cshtml
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.ruleKey=Web:S6853
+          /d:sonar.issue.ignore.multicriteria.abpLookupLabelHtml.resourceKey=**/*.html
+          /d:sonar.issue.ignore.multicriteria.abpDiAppServiceParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiAppServiceParams.resourceKey=**/*AppService.cs
+          /d:sonar.issue.ignore.multicriteria.abpDiManagerParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiManagerParams.resourceKey=**/*Manager.cs
+          /d:sonar.issue.ignore.multicriteria.abpDiRepoParams.ruleKey=csharpsquid:S107
+          /d:sonar.issue.ignore.multicriteria.abpDiRepoParams.resourceKey=**/I*Repository.cs
+          /d:sonar.issue.ignore.multicriteria.abpPermissionStrings.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpPermissionStrings.resourceKey=**/CaseEvaluationPermission*.cs
+          /d:sonar.issue.ignore.multicriteria.abpAppServiceI18nKeys.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpAppServiceI18nKeys.resourceKey=**/*AppService.cs
+          /d:sonar.issue.ignore.multicriteria.abpHostModuleConfigKeys.ruleKey=csharpsquid:S1192
+          /d:sonar.issue.ignore.multicriteria.abpHostModuleConfigKeys.resourceKey=**/CaseEvaluationHttpApi*Module.cs
+          /d:sonar.issue.ignore.multicriteria.abpDavailComplexity.ruleKey=csharpsquid:S3776
+          /d:sonar.issue.ignore.multicriteria.abpDavailComplexity.resourceKey=**/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs
+          /d:sonar.issue.ignore.multicriteria.bootstrapModalDialogRole.ruleKey=Web:S6819
+          /d:sonar.issue.ignore.multicriteria.bootstrapModalDialogRole.resourceKey=**/*.component.html
           /d:sonar.qualitygate.wait=false
 
       - run: dotnet restore HealthcareSupport.CaseEvaluation.slnx

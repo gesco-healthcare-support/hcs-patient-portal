@@ -2,8 +2,6 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
-using HealthcareSupport.CaseEvaluation.Locations;
-using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,10 +21,10 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
     {
     }
 
-    public virtual async Task<DoctorWithNavigationProperties> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
+    public virtual async Task<DoctorWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return (await GetDbSetAsync()).Where(b => b.Id == id).Include(x => x.AppointmentTypes).Include(x => x.Locations).Select(doctor => new DoctorWithNavigationProperties
+        return await (await GetDbSetAsync()).Where(b => b.Id == id).Include(x => x.AppointmentTypes).Include(x => x.Locations).Select(doctor => new DoctorWithNavigationProperties
         {
             Doctor = doctor,
             IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == doctor.IdentityUserId),
@@ -38,7 +36,7 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
             from doctorLocations in doctor.Locations
             join _location in dbContext.Set<Location>() on doctorLocations.LocationId equals _location.Id
             select _location).ToList()
-        }).FirstOrDefault();
+        }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<DoctorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, Guid? identityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -65,7 +63,12 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
 
     protected virtual IQueryable<DoctorWithNavigationProperties> ApplyFilter(IQueryable<DoctorWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? email = null, Guid? identityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName!.Contains(filterText!) || e.Doctor.LastName!.Contains(filterText!) || e.Doctor.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName.Contains(firstName)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName.Contains(lastName)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email.Contains(email)).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName!.Contains(filterText!) || e.Doctor.LastName!.Contains(filterText!) || e.Doctor.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email!.Contains(email!)).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
+    }
+
+    protected virtual IQueryable<Doctor> ApplyFilter(IQueryable<Doctor> query, string? filterText = null, string? firstName = null, string? lastName = null, string? email = null)
+    {
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName!.Contains(filterText!) || e.LastName!.Contains(filterText!) || e.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email!.Contains(email!));
     }
 
     public virtual async Task<List<Doctor>> GetListAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -80,10 +83,5 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(query, filterText, firstName, lastName, email, identityUserId, appointmentTypeId, locationId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
-    }
-
-    protected virtual IQueryable<Doctor> ApplyFilter(IQueryable<Doctor> query, string? filterText = null, string? firstName = null, string? lastName = null, string? email = null)
-    {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName!.Contains(filterText!) || e.LastName!.Contains(filterText!) || e.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName.Contains(firstName)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName.Contains(lastName)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email.Contains(email));
     }
 }

@@ -9,6 +9,6 @@ namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 public class DoctorAvailabilityWithNavigationPropertiesDto
 {
     public DoctorAvailabilityDto DoctorAvailability { get; set; } = null!;
-    public LocationDto Location { get; set; } = null!;
+    public LocationDto? Location { get; set; }
     public AppointmentTypeDto? AppointmentType { get; set; }
 }

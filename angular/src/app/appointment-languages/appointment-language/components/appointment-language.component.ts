@@ -19,10 +19,7 @@ import {
   NgxDatatableListDirective,
 } from '@abp/ng.theme.shared';
 import { PageComponent, PageToolbarContainerComponent } from '@abp/ng.components/page';
-import {
-  AdvancedEntityFiltersComponent,
-  AdvancedEntityFiltersFormComponent,
-} from '@volo/abp.commercial.ng.ui';
+import { AdvancedEntityFiltersComponent } from '@volo/abp.commercial.ng.ui';
 import { AppointmentLanguageViewService } from '../services/appointment-language.service';
 import { AppointmentLanguageDetailViewService } from '../services/appointment-language-detail.service';
 import { AppointmentLanguageDetailModalComponent } from './appointment-language-detail.component';

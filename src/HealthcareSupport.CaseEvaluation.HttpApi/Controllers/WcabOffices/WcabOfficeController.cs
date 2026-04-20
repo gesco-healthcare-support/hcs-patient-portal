@@ -9,7 +9,6 @@ using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Content;
-using HealthcareSupport.CaseEvaluation.Shared;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.WcabOffices;
 

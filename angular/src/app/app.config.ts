@@ -1,11 +1,18 @@
-import { provideAbpCore, withOptions } from '@abp/ng.core';
-import { provideAbpOAuth } from '@abp/ng.oauth';
+import {
+  CHECK_AUTHENTICATION_STATE_FN_KEY,
+  ConfigStateService,
+  provideAbpCore,
+  withOptions,
+} from '@abp/ng.core';
+import { clearOAuthStorage, provideAbpOAuth } from '@abp/ng.oauth';
 import { provideSettingManagementConfig } from '@abp/ng.setting-management/config';
 import { provideFeatureManagementConfig } from '@abp/ng.feature-management';
 import {
   provideAbpThemeShared,
-  withValidationBluePrint,
+  provideLogo,
+  withEnvironmentOptions,
   withHttpErrorConfig,
+  withValidationBluePrint,
 } from '@abp/ng.theme.shared';
 import { provideIdentityConfig } from '@volo/abp.ng.identity/config';
 import { provideCommercialUiConfig } from '@volo/abp.commercial.ng.ui/config';
@@ -21,10 +28,7 @@ import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
 import { HttpErrorComponent, provideThemeLeptonX } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
-import { provideLogo, withEnvironmentOptions } from '@abp/ng.theme.shared';
 import { ApplicationConfig, Injector } from '@angular/core';
-import { CHECK_AUTHENTICATION_STATE_FN_KEY, ConfigStateService } from '@abp/ng.core';
-import { clearOAuthStorage } from '@abp/ng.oauth';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';

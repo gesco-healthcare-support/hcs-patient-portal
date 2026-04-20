@@ -56,7 +56,7 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
         var serviceResult = await _doctorsAppService.CreateAsync(input);
         // Assert
         var result = await _doctorRepository.FindAsync(c => c.Id == serviceResult.Id);
-        result.ShouldNotBe(null);
+        result.ShouldNotBeNull();
         result.FirstName.ShouldBe("c014822702a54810a377d172f55e915329a52881e14c4dbb90");
         result.LastName.ShouldBe("b54dcc63c7d74c90af5b316d936dc9d2ed673f2df76d417390");
         result.Email.ShouldBe("27ff91b42eed448e91265@e00ce97ffe31409791156.com");
@@ -78,7 +78,7 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
         var serviceResult = await _doctorsAppService.UpdateAsync(Guid.Parse("63b171d1-b8d1-4a84-98c2-435381633f67"), input);
         // Assert
         var result = await _doctorRepository.FindAsync(c => c.Id == serviceResult.Id);
-        result.ShouldNotBe(null);
+        result.ShouldNotBeNull();
         result.FirstName.ShouldBe("7ecabf274da4454ea567089e82eb4445bf17ff277cfd4ef5bf");
         result.LastName.ShouldBe("8ebad7371dd3486b92cb3c8fe35d6aa8ae60dfe41f24489da3");
         result.Email.ShouldBe("626ec684c0084734b43ed@cf38013ab1b448b58871f.com");

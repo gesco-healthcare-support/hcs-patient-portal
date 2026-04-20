@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 public class AppointmentStatus : FullAuditedEntity<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     protected AppointmentStatus()
     {

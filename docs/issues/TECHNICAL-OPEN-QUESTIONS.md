@@ -21,6 +21,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q1: What is the intended appointment status workflow?
 
+**Research**: see [research/Q-01.md](research/Q-01.md) for state-machine library options (Stateless vs ABP Elsa), audit-log strategy, and likely default answers to the 5 sub-questions.
+
 **Why we need to know**: We need to implement FEAT-01 (status transitions). The 13 statuses are defined but there's no state machine, no transition rules, and no way to change status after creation.
 
 **What we found**:
@@ -44,6 +46,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q2: Is the `AppointmentStatus` lookup table intentional or a design mistake?
 
+**Research**: see [research/Q-02.md](research/Q-02.md) for enum-vs-lookup tradeoffs in ABP, ABP's `Enum:` localization convention, and keep-vs-delete recommendation.
+
 **Why we need to know**: There are TWO disconnected representations of appointment status, and we need to know which one is the source of truth before building the workflow.
 
 **What we found**:
@@ -59,6 +63,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q3: Should confirmation numbers be globally unique or unique per tenant?
 
+**Research**: see [research/Q-03.md](research/Q-03.md) for filtered-unique-index pattern, concurrency strategy (unique-index + retry loop), and A99999 overflow mitigation.
+
 **Why we need to know**: The current implementation queries globally but the system is multi-tenant. Tenants currently get independent A00001 sequences (confirmed in testing), but the code has no explicit tenant filter in the query.
 
 **What we found**:
@@ -73,6 +79,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q4: What is the Claim Examiner role supposed to do?
+
+**Research**: see [research/Q-04.md](research/Q-04.md) for CA workers'-comp claim-examiner definition, likely answers to the 4 sub-questions, and keep-flag-deferred recommendation.
 
 **Why we need to know**: We registered it as a role, it appears in the signup flow, but it has zero functionality. We need to know whether to build it out or remove it.
 
@@ -96,6 +104,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q5: What are the `InternalUserComments` and `IsPatientAlreadyExist` fields on Appointment?
 
+**Research**: see [research/Q-05.md](research/Q-05.md) for official docs, community findings, gotchas, and recommended approach.
+
 **Why we need to know**: These fields exist in the database and entity but are never set, never updated, and never exposed in any update DTO. They take up space and create confusion.
 
 **What we found**:
@@ -109,6 +119,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q6: Was there supposed to be a minimum advance booking window (e.g., 3 days)?
+
+**Research**: see [research/Q-06.md](research/Q-06.md) for 8 CCR § 31.3 / § 35 analysis, 7-day minimum + 20-day soft-warning recommendation, and ABP Setting design.
 
 **Why we need to know**: Our testing showed that appointments can be created for past dates (BUG-09). We need to know whether any time-based restriction was intended.
 
@@ -125,6 +137,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q7: Why is `DoctorConsts.EmailMaxLength = 49`?
 
+**Research**: see [research/Q-07.md](research/Q-07.md) for RFC 5321/5322 analysis, ASP.NET Core Identity comparison, and migration guidance.
+
 **Why we need to know**: This is an unusual number (not a power of 2, not a standard like 50 or 100). If it's intentional (e.g., matching a legacy system constraint), we need to preserve it. If it's a typo, we should fix it.
 
 **What we found**:
@@ -140,6 +154,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q8: What is the intended deployment target?
+
+**Research**: see [research/Q-08.md](research/Q-08.md) for Azure vs AWS comparison, ACA vs App Service tradeoff, HIPAA-eligible service shortlist, and Key Vault + Managed Identity pattern.
 
 **Why we need to know**: We need to set up CI/CD, secrets management, and infrastructure. The codebase has zero deployment configuration beyond Docker Compose (which uses hardcoded passwords).
 
@@ -158,6 +174,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q9: What social OAuth providers were configured?
 
+**Research**: see [research/Q-09.md](research/Q-09.md) for HIPAA implications, BAA availability per provider, and removal-vs-keep recommendation.
+
 **Why we need to know**: The AuthServer supports dynamic external login providers (Google, Microsoft, Twitter) but the configuration is in `appsettings.secrets.json` which is not in the repository.
 
 **What we found**:
@@ -172,6 +190,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q10: Is the File Management (blob storage) module actually used?
+
+**Research**: see [research/Q-10.md](research/Q-10.md) for ABP module-removal checklist, migration strategy, and keep-vs-remove decision criteria.
 
 **Why we need to know**: `Volo.FileManagement` is installed and wired into multiple module dependencies, but we found zero usage. Removing it would simplify the dependency graph.
 
@@ -188,6 +208,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q11: Who owns the ABP Commercial license?
 
+**Research**: see [research/Q-11.md](research/Q-11.md) for ABP org-ownership audit procedure, live-key-rotation plan (the key in `NuGet.Config` is committed), and licence-transfer process via `license@abp.io`.
+
 **Why we need to know**: The NuGet API key in `NuGet.Config` and the npm tokens authenticate against Volo's commercial package feeds. If the license is under the previous developer's personal account, it will expire or be revoked.
 
 **What we found**:
@@ -202,6 +224,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q12: Is the default password for all users intentional for production?
+
+**Research**: see [research/Q-12.md](research/Q-12.md) for NIST 800-63B Rev 4 guidance, short-term (random + force-change) and long-term (invite-token) fixes, and ABP Identity integration points.
 
 **Why we need to know**: `GetOrCreatePatientForAppointmentBookingAsync` in `PatientsAppService.cs` creates new identity users with a hardcoded default password. In production, every patient would have the same guessable password.
 
@@ -234,3 +258,7 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 | Q12 | Default password intent | SEC-05 / FEAT-05 fix scope |
 
 > **Note**: Most of these questions can be resolved without the previous developer by making a judgment call based on standard workers' compensation IME industry practice, California DWC regulations, or ABP Framework defaults. See [Questions for Previous Developer](QUESTIONS-FOR-PREVIOUS-DEVELOPER.md) for questions that cannot be resolved from any artifact.
+
+## Related deferred technical debt
+
+- [P-11](research/P-11.md) — `DoctorAvailabilitiesAppService.GeneratePreviewAsync` cognitive complexity 41 refactor. Suppressed in SonarCloud until Phase B-6 tests land and Phase C removes the suppression.

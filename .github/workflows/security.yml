@@ -5,10 +5,6 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
-
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -17,6 +13,8 @@ jobs:
   dotnet-audit:
     name: '.NET Vulnerability Audit'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -30,6 +28,8 @@ jobs:
   npm-audit:
     name: 'npm Vulnerability Audit'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: angular
@@ -43,11 +43,13 @@ jobs:
   secret-scan:
     name: 'Secret Detection'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@main
+      - uses: trufflesecurity/trufflehog@v3.94.3
         with:
           extra_args: --only-verified
 
@@ -55,10 +57,11 @@ jobs:
     name: 'CodeQL Analysis'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: csharp, javascript-typescript
       - uses: actions/setup-dotnet@v4
@@ -80,4 +83,4 @@ jobs:
             fi
           done
       - run: dotnet build HealthcareSupport.CaseEvaluation.slnx -c Release
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4

@@ -13,14 +13,40 @@ spec:
       labels:
         app: "{{ .Release.Name }}-{{ .Chart.Name }}"
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
       containers:
         - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: "{{ .Values.image.pullPolicy }}"
           name: "{{ .Release.Name }}-{{ .Chart.Name }}"
           ports:
             - name: "{{ .Chart.Name }}"
               containerPort: {{ .Values.port }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           env:
-          - name: "SA_PASSWORD"
-            value: "{{ .Values.sa_password }}"
-          - name: "ACCEPT_EULA"
-            value: "Y"
+            - name: "SA_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Release.Name }}-{{ .Chart.Name }}-secret"
+                  key: sa-password
+            - name: "ACCEPT_EULA"
+              value: "Y"
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10

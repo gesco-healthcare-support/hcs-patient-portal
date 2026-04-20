@@ -7,7 +7,7 @@ RUN yarn install --frozen-lockfile
 COPY . /app
 
 ARG NG_CONFIG=docker
-RUN npx ng build --configuration ${NG_CONFIG}
+RUN npx ng build --configuration "${NG_CONFIG}"
 
 FROM nginx:alpine
 COPY dynamic-env.json /usr/share/nginx/html

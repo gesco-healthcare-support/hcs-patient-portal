@@ -179,6 +179,23 @@ def rank_cs_files(cs_entries: list[dict]) -> Counter:
     return file_rank
 
 
+def _resolve_relative_ts_import(src_dir, imp: str, by_file: dict) -> str | None:
+    """Resolve a relative TS import to a repo-relative file path, if known."""
+    resolved_base = (src_dir / imp).resolve()
+    for candidate in (
+        resolved_base.with_suffix(".ts"),
+        resolved_base.with_suffix(".tsx"),
+        resolved_base / "index.ts",
+    ):
+        try:
+            rel_target = rel(candidate)
+        except ValueError:
+            continue
+        if rel_target in by_file:
+            return rel_target
+    return None
+
+
 def rank_ts_files(ts_entries: list[dict]) -> Counter:
     """Count how many files import a given path. Normalizes relative imports
     to absolute file paths where possible.
@@ -190,19 +207,9 @@ def rank_ts_files(ts_entries: list[dict]) -> Counter:
         for imp in entry.get("imports", []):
             if not imp.startswith("."):
                 continue  # external package
-            resolved_base = (src_dir / imp).resolve()
-            for candidate in (
-                resolved_base.with_suffix(".ts"),
-                resolved_base.with_suffix(".tsx"),
-                resolved_base / "index.ts",
-            ):
-                try:
-                    rel_target = rel(candidate)
-                except ValueError:
-                    continue
-                if rel_target in by_file:
-                    file_rank[rel_target] += 1
-                    break
+            rel_target = _resolve_relative_ts_import(src_dir, imp, by_file)
+            if rel_target is not None:
+                file_rank[rel_target] += 1
     return file_rank
 
 

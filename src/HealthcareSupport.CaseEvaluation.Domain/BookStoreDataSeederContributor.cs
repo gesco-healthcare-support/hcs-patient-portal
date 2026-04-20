@@ -26,7 +26,7 @@ public class CaseEvaluationDataSeederContributor
                 {
                     Name = "1984",
                     Type = BookType.Dystopia,
-                    PublishDate = new DateTime(1949, 6, 8),
+                    PublishDate = new DateTime(1949, 6, 8, 0, 0, 0, DateTimeKind.Utc),
                     Price = 19.84f
                 },
                 autoSave: true
@@ -37,7 +37,7 @@ public class CaseEvaluationDataSeederContributor
                 {
                     Name = "The Hitchhiker's Guide to the Galaxy",
                     Type = BookType.ScienceFiction,
-                    PublishDate = new DateTime(1995, 9, 27),
+                    PublishDate = new DateTime(1995, 9, 27, 0, 0, 0, DateTimeKind.Utc),
                     Price = 42.0f
                 },
                 autoSave: true

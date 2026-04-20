@@ -16,7 +16,7 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 public class Location : FullAuditedAggregateRoot<Guid>
 {
     [NotNull]
-    public virtual string Name { get; set; }
+    public virtual string Name { get; set; } = null!;
 
     [CanBeNull]
     public virtual string? Address { get; set; }
@@ -34,7 +34,7 @@ public class Location : FullAuditedAggregateRoot<Guid>
     public Guid? StateId { get; set; }
 
     public Guid? AppointmentTypeId { get; set; }
-    public virtual ICollection<DoctorLocation> DoctorLocations { get; set; }
+    public virtual ICollection<DoctorLocation> DoctorLocations { get; set; } = new Collection<DoctorLocation>();
 
     protected Location()
     {

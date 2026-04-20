@@ -50,20 +50,25 @@ def gather_md_files() -> list[Path]:
     return sorted(files)
 
 
+def _skip_reason(target: str) -> tuple[bool, str] | None:
+    """Return (True, detail) when the link doesn't need filesystem resolution."""
+    if not target:
+        return True, "empty"
+    if re.match(r"^[a-z][a-z0-9+.-]*:", target):
+        return True, "external"
+    if target.startswith("#"):
+        return True, "anchor"
+    if "{" in target and "}" in target:
+        return True, "template"
+    return None
+
+
 def validate_link(source_file: Path, target: str) -> tuple[bool, str]:
     """Return (is_valid, detail)."""
     target = target.strip()
-    if not target:
-        return True, "empty"
-    # Skip external / scheme links
-    if re.match(r"^[a-z][a-z0-9+.-]*:", target):
-        return True, "external"
-    # Skip anchor-only
-    if target.startswith("#"):
-        return True, "anchor"
-    # Skip template placeholders (e.g. {feature-kebab}, {target})
-    if "{" in target and "}" in target:
-        return True, "template"
+    skip = _skip_reason(target)
+    if skip is not None:
+        return skip
     # Strip anchor fragment
     path_part = target.split("#", 1)[0]
     if not path_part:

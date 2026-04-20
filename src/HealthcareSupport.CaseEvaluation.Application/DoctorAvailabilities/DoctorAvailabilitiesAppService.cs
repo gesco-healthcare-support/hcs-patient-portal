@@ -7,7 +7,6 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
-using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -49,7 +48,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<DoctorAvailabilityWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>(await _doctorAvailabilityRepository.GetWithNavigationPropertiesAsync(id));
+        return ObjectMapper.Map<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>((await _doctorAvailabilityRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
@@ -61,7 +60,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetLocationLookupAsync(LookupRequestDto input)
     {
-        var query = (await _locationRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = (await _locationRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -74,7 +73,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentTypeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter));
+        var query = (await _appointmentTypeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -93,7 +92,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Delete)]
     public virtual async Task DeleteBySlotAsync(DoctorAvailabilityDeleteBySlotInputDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -115,7 +114,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Delete)]
     public virtual async Task DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -135,7 +134,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Create)]
     public virtual async Task<DoctorAvailabilityDto> CreateAsync(DoctorAvailabilityCreateDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -147,7 +146,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Edit)]
     public virtual async Task<DoctorAvailabilityDto> UpdateAsync(Guid id, DoctorAvailabilityUpdateDto input)
     {
-        if (input.LocationId == default)
+        if (input.LocationId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
@@ -166,7 +165,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         foreach (var item in input)
         {
-            if (item.LocationId == default)
+            if (item.LocationId == Guid.Empty)
             {
                 throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
             }
@@ -231,7 +230,6 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             .ToList();
 
         var location = await _locationRepository.FindAsync(input.First().LocationId);
-        var culture = CultureInfo.GetCultureInfo("en-US");
         var timeRange = $"{DateTime.Today.Add(input[0].FromTime.ToTimeSpan()):hh:mm tt}-{DateTime.Today.Add(input[0].ToTime.ToTimeSpan()):hh:mm tt}";
 
         var previewList = new List<DoctorAvailabilitySlotsPreviewDto>();
