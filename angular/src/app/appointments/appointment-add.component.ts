@@ -1359,7 +1359,7 @@ export class AppointmentAddComponent {
     const requestVersion = ++this.availableSlotsRequestVersion;
     this.isAvailableDatesLoading = true;
 
-    this.fetchAllAvailableSlots(locationId!, appointmentTypeId!)
+    this.fetchAllAvailableSlots(locationId, appointmentTypeId)
       .then((items) => {
         if (requestVersion !== this.availableSlotsRequestVersion) {
           return;

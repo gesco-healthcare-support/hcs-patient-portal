@@ -26,9 +26,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+CLAUDE_MD = "CLAUDE.md"
 
 REQUIRED_FILES = [
-    "CLAUDE.md",
+    CLAUDE_MD,
     "docs/INDEX.md",
     "docs/executive-summary.md",
     "docs/verification/BASELINE.md",
@@ -119,7 +120,7 @@ def check_feature_claude_coverage(r: Report) -> int:
     for child in sorted(DOMAIN_ROOT.iterdir()):
         if not child.is_dir() or child.name in DOMAIN_EXCLUDE:
             continue
-        claude = child / "CLAUDE.md"
+        claude = child / CLAUDE_MD
         if claude.is_file():
             covered += 1
             r.ok(f"feature CLAUDE.md: {child.name}")
@@ -145,7 +146,7 @@ def check_repo_map_freshness(r: Report) -> None:
     try:
         data = json.loads(index.read_text(encoding="utf-8"))
         generated_at = datetime.fromisoformat(data["generated_at"])
-    except (json.JSONDecodeError, KeyError, ValueError) as exc:
+    except (KeyError, ValueError) as exc:
         r.fail(f"docs/repo-map/index.json unreadable: {exc}")
         return
     age_days = (datetime.now(timezone.utc) - generated_at).days
@@ -207,7 +208,7 @@ def count_feature_rows_in_claude_md(text: str) -> int:
 
 
 def check_feature_count_consistency(r: Report, covered_count: int) -> None:
-    root_claude = REPO_ROOT / "CLAUDE.md"
+    root_claude = REPO_ROOT / CLAUDE_MD
     if not root_claude.is_file():
         r.fail("root CLAUDE.md missing; skipping feature-count consistency")
         return

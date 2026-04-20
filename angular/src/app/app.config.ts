@@ -30,7 +30,7 @@ import { HttpErrorComponent, provideThemeLeptonX } from '@volosoft/abp.ng.theme.
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector } from '@angular/core';
 import { OAuthService } from 'angular-oauth2-oidc';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { environment } from '../environments/environment';
 import { APP_ROUTES } from './app.routes';
@@ -51,7 +51,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(APP_ROUTES),
     APP_ROUTE_PROVIDER,
-    provideAnimationsAsync(),
+    provideAnimations(),
     provideAbpCore(
       withOptions({
         environment,
