@@ -4,12 +4,12 @@
     Repo-wide .NET build defaults. Every .csproj under this repo inherits these
     properties automatically via MSBuild's Directory.Build.props discovery.
 
-    Added as part of Layer 2 CI rollout, Phase A, PR 1 (see
-    docs/verification/layer2-phase-a-inventory.md once Phase A completes).
+    Added as part of Layer 2 CI rollout, Phase A, PR 1.
 
-    TreatWarningsAsErrors stays false here so this PR does not flip the
-    codebase to strict mode in one step; Phase B #3 resolves the existing
-    warnings and then flips this to true.
+    TreatWarningsAsErrors flipped to true in Phase B-6 PR-0 after B-2.1 closed
+    out the 480 nullability warnings. Local builds now match CI's -warnaserror
+    enforcement. Test-project-specific analyzer relaxations (if needed) live in
+    test/Directory.Build.props.
   -->
 
   <PropertyGroup>
@@ -18,7 +18,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Version>1.0.0</Version>
     <NoWarn>$(NoWarn);CS1591;NU1510</NoWarn>
     <AbpProjectType>app</AbpProjectType>

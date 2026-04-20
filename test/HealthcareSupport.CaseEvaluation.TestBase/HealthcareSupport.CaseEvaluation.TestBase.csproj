@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HealthcareSupport.CaseEvaluation.Domain\HealthcareSupport.CaseEvaluation.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Volo.Abp.Autofac" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.TestBase" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.Authorization" Version="10.0.2" />
@@ -38,6 +42,16 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.extensibility.execution" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Synthetic test data generation (Phase B-6).
+         Bogus: Apache-2.0, actively maintained (v35.6.5, 2025-10-25).
+         HIPAA Safe Harbor compliant when used with deterministic Randomizer.Seed;
+         see test/HealthcareSupport.CaseEvaluation.TestBase/Data/TestStringUtility.cs
+         and docs/plans/2026-04-20-phase-b6-tier1.md for usage rules. -->
+    <PackageReference Include="Bogus" Version="35.6.5" />
+    <PackageReference Include="Bogus.Healthcare" Version="35.6.5" />
   </ItemGroup>
 
 </Project>
