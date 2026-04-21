@@ -305,3 +305,6 @@ appsettings.Local.json
 # Personal / IDE-exported workspace artifacts
 *.code-profile
 temp.md
+
+# Local execution scratch of the worktree setup plan (not for commit)
+/WORKTREE_SETUP_PLAN.md
