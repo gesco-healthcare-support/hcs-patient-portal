@@ -147,6 +147,10 @@ cd angular && npm test                                                         #
 - **Modify `appsettings.secrets.json`** in any project — contains ABP license keys. These files are not in `.gitignore`; treat as sensitive.
 - **Skip the `AppointmentManager` domain service for create/update** — business rules (slot booking, confirmation number generation `A#####`) live there, not in the AppService directly.
 
+## Vocabulary
+
+- **Promotion cascade** -- the branch-promotion flow `main -> development -> staging -> production`, where `main` is the default branch and integration trunk. The first two hops auto-open promotion PRs (`auto-pr-dev.yml` fires on push to `main`; `deploy-dev.yml` fires on push to `development`); `staging -> production` is always a manually-opened PR. One direction only; never merge a downstream branch back into an upstream branch. When Adrian says "the cascade" in conversation, he means this. Full canonical reference: `~/.claude/rules/code-standards.md` (Git Workflow section) and `docs/handoffs/2026-04-20-gitlab-flow-branching-model-verification/VERDICT.md`.
+
 ## Context Management
 
 When compacting, always preserve:

@@ -679,8 +679,8 @@ Every Tier-1/Tier-2/Tier-3 PR MUST include:
 | `labeler.yml` | PR | Auto-label by changed paths (backend/frontend/deps/ci) | Active |
 | `trufflehog-pr.yml` | PR | TruffleHog v3.94.3 secret scan on diff | Active |
 | `auto-pr-dev.yml` | push to main | Auto-opens promotion PR main -> development | Active |
-| `promote-staging.yml` | push to development | Placeholder; re-runs build+test (no Docker deploy yet) | Placeholder (Layer 3 deferred) |
-| `deploy-dev.yml` | push to development | Placeholder; re-runs build+test (no Docker deploy yet) | Placeholder (Layer 3 deferred) |
+| `deploy-dev.yml` | push to development | Runs validate (build+test placeholder, Layer 3 deferred), then auto-opens promotion PR development -> staging on success | Active (validate placeholder; auto-PR active) |
+| `promote-staging.yml` | push to staging | Runs integration-validate (build+test placeholder, Layer 3 deferred); staging -> production PR is always manual | Active (validate placeholder) |
 | `release.yml` | tag push | Semantic versioning + changelog automation | Placeholder |
 
 ### 14.2 Layer-1 local Git hooks (`angular/.husky/`)
