@@ -326,6 +326,51 @@ Is the Swagger UI expected to be exercised against Docker at all, or is it inten
 
 ---
 
+---
+
+## FEAT-09: Patient has TenantId but does not implement IMultiTenant (patient-non-multitenant) {#patient-non-multitenant}
+
+**Severity:** High (HIPAA / cross-tenant data leakage)
+**Status:** Open
+
+### Description
+
+The `Patient` entity carries a nullable `TenantId` column but does NOT implement `IMultiTenant`. ABP's automatic multi-tenant data filter therefore does not apply to Patient queries: calling `CurrentTenant.Change(tenantId)` and then `GetListAsync` returns patients from every tenant, not just the scoped one. This is documented at [src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) and ENCODED as a passing integration test in PR-1C: `PatientsAppServiceTests.GetListAsync_InTenantAContextScope_StillReturnsPatientsFromAllTenants`. A companion `[Fact(Skip=...)]` test is staged to flip to the opposite assertion once this is fixed.
+
+### What Needs to Be Built
+
+1. `Patient` implements `IMultiTenant` (or equivalent manual filter applied in repository queries at every entry point).
+2. The DbContext entity config for Patient moves OUT of the `IsHostDatabase()` guard so the tenant filter can bind.
+3. The skipped test `GetListAsync_InTenantAContextScope_ReturnsOnlyTenantAPatients_AfterFix` flips live and asserts the new behaviour.
+4. All existing Patient queries (AppService, booking flow, profile) audit for correctness after the filter engages.
+
+### Why Not Yet Fixed
+
+Retrofitting `IMultiTenant` onto an entity with existing production data is a migration-heavy change (tenant-column constraint tightening, data backfill for existing rows, cross-tenant reference audit). Tracked for Phase C.
+
+---
+
+## FEAT-10: Test base lacks a WithCurrentUser helper (test-current-user-faking) {#test-current-user-faking}
+
+**Severity:** Low (blocks specific test coverage, not production behaviour)
+**Status:** Open
+
+### Description
+
+`GetMyProfileAsync` / `UpdateMyProfileAsync` on `PatientsAppService` resolve the logged-in patient via `CurrentUser.Id`. The integration-test base (`CaseEvaluationApplicationTestBase<TStartupModule>`) does not yet expose a helper to fake `ICurrentUser.Id` inside a scope, which means these endpoints cannot be exercised by tests directly. PR-1C ships the intended test shells as `[Fact(Skip=...)]` so they're visible as known gaps.
+
+### What Needs to Be Built
+
+1. A `WithCurrentUser(Guid userId, string[] roles)` helper on the test base (likely using ABP's `ICurrentUser` substitutable pattern or a scoped fake registered in Autofac).
+2. The two skipped profile tests in `PatientsAppServiceTests` flip live.
+3. Future PRs for role-aware tests (Accessor scoping, Attorney-only endpoints) reuse the helper.
+
+### Why Not Yet Built
+
+The profile endpoints are a small part of Patient surface; adding the faking infrastructure in PR-1C would have roughly doubled its scope. Deferred to a follow-up.
+
+---
+
 ## Related Documentation
 
 - [Issues Overview](OVERVIEW.md) -- All issues by category and severity
