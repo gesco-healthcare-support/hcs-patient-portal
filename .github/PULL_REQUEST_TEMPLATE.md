@@ -16,6 +16,18 @@
 - [ ] Angular build succeeds (`npx ng build --configuration development`)
 - [ ] Manual testing performed (describe what was tested)
 
+## Screenshots
+
+<!--
+Default (no UI change): N/A.
+If UI files changed (angular/**, *.component.*, *.html, *.scss):
+ - If Playwright MCP is installed in the session, Claude MUST capture before/after screenshots via the MCP, commit them to .github/pr-media/, and embed them here via relative markdown image links, e.g. ![intake form -- after](./.github/pr-media/patient-intake-after.png).
+ - If no Playwright MCP is available, leave "TODO: attach before/after" and attach via the GitHub web UI before merge.
+Synthetic data only -- never capture real patient data.
+-->
+
+N/A (no UI change)
+
 ## Documentation
 
 - [ ] Feature CLAUDE.md updated (if applicable)
