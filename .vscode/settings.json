@@ -62,8 +62,6 @@
   "git.confirmSync": true,
   "git.openRepositoryInParentFolders": "never",
 
-  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
-
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
     "*.component.ts": "${capture}.component.html, ${capture}.component.scss, ${capture}.component.spec.ts",
