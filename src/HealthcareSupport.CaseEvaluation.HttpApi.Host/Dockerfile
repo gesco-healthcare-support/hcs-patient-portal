@@ -5,7 +5,7 @@ WORKDIR /src
 COPY NuGet.Config.template .
 RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
 
-COPY common.props .
+COPY Directory.Build.props .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
 COPY test/ test/
