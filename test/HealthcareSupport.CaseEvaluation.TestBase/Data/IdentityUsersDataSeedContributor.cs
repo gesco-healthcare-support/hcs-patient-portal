@@ -69,6 +69,12 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
                 IdentityUsersTestData.PatientUserName,
                 IdentityUsersTestData.PatientEmail,
                 IdentityUsersTestData.PatientRoleName);
+
+            await SeedUserAsync(
+                IdentityUsersTestData.Patient2UserId,
+                IdentityUsersTestData.Patient2UserName,
+                IdentityUsersTestData.Patient2Email,
+                IdentityUsersTestData.PatientRoleName);
         }
 
         _isSeeded = true;
