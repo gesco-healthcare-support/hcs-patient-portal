@@ -327,10 +327,13 @@ API validates tokens against AuthServer; Angular calls both.
 feature/* --> main --> development --> staging --> production
 ```
 
-Features branch from `main`, merge back to `main` after review, and promote
-forward via `auto-pr-dev.yml` (to `development`) and then manually through
-`staging` and `production`. Promotion PRs between long-lived branches must
-use **rebase**, never a merge commit.
+Features branch from `main` and are merged back to `main` via a manual PR
+after review. Promotion then cascades automatically: `auto-pr-dev.yml` opens
+the `main -> development` PR, and `deploy-dev.yml` opens the
+`development -> staging` PR after its validate job passes. The
+`staging -> production` PR is always opened manually and requires two
+approvals. Promotion PRs between long-lived branches must use **rebase**,
+never a merge commit.
 
 ### Branch Protection (Progressive Hardening)
 
