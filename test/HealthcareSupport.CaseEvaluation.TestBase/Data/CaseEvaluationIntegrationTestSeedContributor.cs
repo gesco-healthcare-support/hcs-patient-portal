@@ -22,13 +22,16 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 {
     private bool _isSeeded;
     private readonly IDoctorRepository _doctorRepository;
+    private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     public CaseEvaluationIntegrationTestSeedContributor(
         IDoctorRepository doctorRepository,
+        IdentityUsersDataSeedContributor identityUsersSeeder,
         IUnitOfWorkManager unitOfWorkManager)
     {
         _doctorRepository = doctorRepository;
+        _identityUsersSeeder = identityUsersSeeder;
         _unitOfWorkManager = unitOfWorkManager;
     }
 
@@ -39,6 +42,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             return;
         }
 
+        await _identityUsersSeeder.SeedAsync(context);
         await SeedDoctorsAsync();
 
         await _unitOfWorkManager.Current!.SaveChangesAsync();
