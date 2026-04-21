@@ -1,0 +1,9 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using Xunit;
+
+namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
+
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+public class EfCoreDoctorAvailabilitiesAppServiceTests : DoctorAvailabilitiesAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}
