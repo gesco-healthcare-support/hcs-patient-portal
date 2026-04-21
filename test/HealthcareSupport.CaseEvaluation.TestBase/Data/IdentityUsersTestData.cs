@@ -26,4 +26,25 @@ public static class IdentityUsersTestData
     public const string StaffAdminUserName = "TEST-staff-admin";
     public const string AttorneyUserName = "TEST-attorney";
     public const string PatientUserName = "TEST-patient";
+
+    // Synthetic emails consumed by downstream seeds (e.g., PatientsDataSeedContributor
+    // looks up the patient user by email, Appointment booking flows assert against
+    // AttorneyEmail, etc.).
+    public const string StaffAdminEmail = "TEST-staff-admin@test.local";
+    public const string AttorneyEmail = "TEST-attorney@test.local";
+    public const string PatientEmail = "TEST-patient@test.local";
+
+    // Role names mirror the production DoctorTenantAppService.EnsureRoleAsync pattern.
+    // All three are seeded in host context in this PR to avoid depending on SaaS
+    // Tenant rows existing; the PR-1C Patients work will rescope patient/attorney
+    // users into TenantA once the cross-tenant visibility tests add their own
+    // minimal Tenant-row seeding.
+    public const string AdminRoleName = "Admin";
+    public const string AttorneyRoleName = "Attorney";
+    public const string PatientRoleName = "Patient";
+
+    // Password satisfying ABP IdentityOptions.Password defaults
+    // (RequireDigit, RequireLowercase, RequireNonAlphanumeric, RequireUppercase, RequiredLength=6).
+    // Used only by the test seed contributor; never hits production.
+    public const string SeedPassword = "Test-User1!";
 }
