@@ -80,6 +80,19 @@
           "Microsoft.Identity.Client.Extensions.Msal": "4.73.1"
         }
       },
+      "Bogus": {
+        "type": "Transitive",
+        "resolved": "35.6.5",
+        "contentHash": "2FGZn+aAVHjmCgClgmGkTDBVZk0zkLvAKGaxEf5JL6b3i9JbHTE4wnuY4vHCuzlCmJdU6VZjgDfHwmYkQF8VAA=="
+      },
+      "Bogus.Healthcare": {
+        "type": "Transitive",
+        "resolved": "35.6.5",
+        "contentHash": "FUX5rtFXSxxQJlNCr8yqLSpn1SS8eXq83k6AbFWbY4r9iWQVt+3hk07bv6mIQg6alAhRn26IgGgZFJ9NsXRYpg==",
+        "dependencies": {
+          "Bogus": "35.6.5"
+        }
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.6.2",
@@ -2775,6 +2788,9 @@
       "healthcaresupport.caseevaluation.testbase": {
         "type": "Project",
         "dependencies": {
+          "Bogus": "[35.6.5, )",
+          "Bogus.Healthcare": "[35.6.5, )",
+          "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "NSubstitute": "[5.3.0, )",
           "Scriban": "[7.1.0, )",

@@ -9,12 +9,12 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Books;
 
-public abstract class BookAppService_Tests<TStartupModule> : CaseEvaluationApplicationTestBase<TStartupModule>
+public abstract class BookAppServiceTests<TStartupModule> : CaseEvaluationApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
     private readonly IBookAppService _bookAppService;
 
-    protected BookAppService_Tests()
+    protected BookAppServiceTests()
     {
         _bookAppService = GetRequiredService<IBookAppService>();
     }

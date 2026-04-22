@@ -1,47 +1,61 @@
 using Shouldly;
-using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Doctors;
-using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using HealthcareSupport.CaseEvaluation.TestData;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.Doctors;
 
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class DoctorRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IDoctorRepository _doctorRepository;
+    private readonly ICurrentTenant _currentTenant;
 
     public DoctorRepositoryTests()
     {
         _doctorRepository = GetRequiredService<IDoctorRepository>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
     public async Task GetListAsync()
     {
-        // Arrange
+        // Doctors are tenant-scoped (IMultiTenant). Both seeded doctors live in
+        // TenantA; a repository-level query must run inside that tenant's scope
+        // for the IMultiTenant filter to see them.
         await WithUnitOfWorkAsync(async () =>
         {
-            // Act
-            var result = await _doctorRepository.GetListAsync(firstName: "551551e068be423cb150129a2fb3fd1f0c6bc2ecc74145619f", lastName: "221de0f2b24843429fbb2b7101ced2cbcca103583b4d4cd89c", email: "7c7fa4aa54e94b09adf79@07d1fd7ead804f659d7d5.com");
-            // Assert
-            result.Count.ShouldBe(1);
-            result.FirstOrDefault().ShouldNotBe(null);
-            result.First().Id.ShouldBe(Guid.Parse("63b171d1-b8d1-4a84-98c2-435381633f67"));
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _doctorRepository.GetListAsync(
+                    firstName: DoctorsTestData.Doctor1FirstName,
+                    lastName: DoctorsTestData.Doctor1LastName,
+                    email: DoctorsTestData.Doctor1Email);
+
+                result.Count.ShouldBe(1);
+                result.FirstOrDefault().ShouldNotBe(null);
+                result.First().Id.ShouldBe(DoctorsTestData.Doctor1Id);
+            }
         });
     }
 
     [Fact]
     public async Task GetCountAsync()
     {
-        // Arrange
         await WithUnitOfWorkAsync(async () =>
         {
-            // Act
-            var result = await _doctorRepository.GetCountAsync(firstName: "b032f90ee6b14bec8ce85eb2c239d6779b0a5be0ee7a4dc2be", lastName: "1967da12b041453b9280d4befe7d582fe8e72d7b5a13447291", email: "eb5b574cbd18458f84700@a4260fb508044a75afd13.com");
-            // Assert
-            result.ShouldBe(1);
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var result = await _doctorRepository.GetCountAsync(
+                    firstName: DoctorsTestData.Doctor2FirstName,
+                    lastName: DoctorsTestData.Doctor2LastName,
+                    email: DoctorsTestData.Doctor2Email);
+
+                result.ShouldBe(1);
+            }
         });
     }
 }
