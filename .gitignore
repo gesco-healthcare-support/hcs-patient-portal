@@ -302,6 +302,9 @@ Logs/
 # Local appsettings overrides (contain secrets)
 appsettings.Local.json
 
+# Local Angular environment overrides (per-worktree port/baseUrl)
+angular/src/environments/environment.local.ts
+
 # Personal / IDE-exported workspace artifacts
 *.code-profile
 temp.md
