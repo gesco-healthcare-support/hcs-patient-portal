@@ -225,8 +225,16 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     }
 
     // ------------------------------------------------------------------------
-    // HIPAA-critical cross-tenant visibility (Patient has TenantId but is NOT IMultiTenant).
-    // Seeded Patient1 -> TenantA, Patient2 -> TenantB.
+    // Cross-tenant visibility (HIPAA-critical).
+    //
+    // Intent model:
+    //   - HostAdmin (host scope, dev/debug role) sees patients from every tenant.
+    //     This is intentional and correct forever.
+    //   - Any tenant-scoped caller (TenantAdmin, Doctor, Patient, ...) should see
+    //     only their tenant's patients. This is NOT enforced today because
+    //     Patient does not implement IMultiTenant and PatientsAppService has no
+    //     manual tenant filter. The skipped test below pins the target behaviour;
+    //     it will flip green when the bug is fixed.
     // ------------------------------------------------------------------------
 
     [Fact]
@@ -239,31 +247,25 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
 
         patient1.ShouldNotBeNull();
         patient2.ShouldNotBeNull();
-        patient1!.Patient.TenantId.ShouldBe(PatientsTestData.TenantAId);
-        patient2!.Patient.TenantId.ShouldBe(PatientsTestData.TenantBId);
+        patient1!.Patient.TenantId.ShouldBe(TenantsTestData.TenantARef);
+        patient2!.Patient.TenantId.ShouldBe(TenantsTestData.TenantBRef);
     }
 
-    [Fact]
-    public async Task GetListAsync_InTenantAContextScope_StillReturnsPatientsFromAllTenants()
+    [Fact(Skip = "KNOWN BUG: PatientsAppService.GetListAsync has no tenant filter, so "
+              + "tenant-scoped callers (TenantAdmin, Doctor, attorney, patient, etc.) "
+              + "currently see all tenants' patients. When Patient becomes IMultiTenant "
+              + "(or AppService adds a manual CurrentTenant.Id filter), this test flips green. "
+              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#patient-imultitenant")]
+    public async Task GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients()
     {
-        // Patient does not implement IMultiTenant, so CurrentTenant.Change is a no-op
-        // for its queries. Both seeded patients show up regardless of tenant context.
-        // This ENCODES the documented anomaly at src/.../Patients/CLAUDE.md#L153.
-        using (_currentTenant.Change(PatientsTestData.TenantAId))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var result = await _patientsAppService.GetListAsync(new GetPatientsInput());
 
+            // Target behaviour: tenant-scoped caller sees ONLY their tenant's patients.
             result.Items.Any(x => x.Patient.Id == PatientsTestData.Patient1Id).ShouldBeTrue();
-            result.Items.Any(x => x.Patient.Id == PatientsTestData.Patient2Id).ShouldBeTrue();
+            result.Items.Any(x => x.Patient.Id == PatientsTestData.Patient2Id).ShouldBeFalse();
         }
-    }
-
-    [Fact(Skip = "KNOWN GAP: Patient has TenantId but does not implement IMultiTenant; "
-              + "once that changes, this test should assert TenantA context returns Patient1 only. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#patient-non-multitenant")]
-    public Task GetListAsync_InTenantAContextScope_ReturnsOnlyTenantAPatients_AfterFix()
-    {
-        return Task.CompletedTask;
     }
 
     // ------------------------------------------------------------------------
@@ -329,8 +331,8 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             GenderId = Gender.Male,
             DateOfBirth = PatientsTestData.FixedDateOfBirth,
             PhoneNumberTypeId = PhoneNumberType.Work,
-            IdentityUserId = IdentityUsersTestData.PatientUserId,
-            TenantId = PatientsTestData.TenantAId
+            IdentityUserId = IdentityUsersTestData.Patient1UserId,
+            TenantId = TenantsTestData.TenantARef
         };
     }
 

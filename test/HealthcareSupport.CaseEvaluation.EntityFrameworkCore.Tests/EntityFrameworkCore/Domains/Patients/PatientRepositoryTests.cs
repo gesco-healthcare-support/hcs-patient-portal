@@ -61,7 +61,7 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
         await WithUnitOfWorkAsync(async () =>
         {
             var result = await _patientRepository.GetListWithNavigationPropertiesAsync(
-                identityUserId: IdentityUsersTestData.PatientUserId);
+                identityUserId: IdentityUsersTestData.Patient1UserId);
 
             result.Count.ShouldBe(1);
             result[0].Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
@@ -79,9 +79,9 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
             result.ShouldNotBeNull();
             result!.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
             // Tenant nav prop resolves because the orchestrator seeds TenantA as a real
-            // SaasTenants row (via reflection over the non-public constructor).
+            // SaasTenants row (via ITenantManager.CreateAsync, which is the production path).
             result.Tenant.ShouldNotBeNull();
-            result.Tenant!.Id.ShouldBe(PatientsTestData.TenantAId);
+            result.Tenant!.Id.ShouldBe(TenantsTestData.TenantARef);
         });
     }
 }

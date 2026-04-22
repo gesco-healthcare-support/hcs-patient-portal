@@ -1,6 +1,4 @@
 using System;
-using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -20,22 +18,21 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 /// IDataSeedContributor implementations because ABP does not guarantee the
 /// execution order of multiple contributors (see ABP forum #571).
 ///
-/// Tier-1 PRs extend this class with additional private SeedXAsync methods
-/// and add them to SeedAsync's await chain in strict FK-dependency order
-/// (IdentityUser -&gt; Doctor -&gt; Patient -&gt; ... etc).
+/// Seed order (strict FK dependency chain):
+///   Tenant -&gt; IdentityUser -&gt; Doctor -&gt; Patient -&gt; (future: DoctorAvailability, Appointment, ApplicantAttorney, ...)
 ///
-/// Tenant rows are seeded via reflection because Volo.Saas.Tenants.Tenant exposes
-/// only a non-public (Guid id, string name) constructor. ITenantManager would work
-/// but is heavier (async, validates name uniqueness against the full host context)
-/// than a test seed needs. Patient has a FK to Tenant (SetNull on delete); without
-/// these rows, seeded patients fail the FK constraint. Future PRs can migrate this
-/// to ITenantManager if richer tenant state is needed.
+/// Tenants are created via <c>ITenantManager.CreateAsync(name)</c> -- the same
+/// framework path production uses (DoctorTenantAppService.CreateAsync hits this
+/// transitively through TenantAppService). Returned tenant GUIDs are captured
+/// into <see cref="TenantsTestData"/> static properties so downstream seeds and
+/// tests can reference them.
 /// </summary>
 public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor, ISingletonDependency
 {
     private bool _isSeeded;
     private readonly IDoctorRepository _doctorRepository;
     private readonly IPatientRepository _patientRepository;
+    private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
     private readonly ICurrentTenant _currentTenant;
@@ -44,6 +41,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     public CaseEvaluationIntegrationTestSeedContributor(
         IDoctorRepository doctorRepository,
         IPatientRepository patientRepository,
+        ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
         ICurrentTenant currentTenant,
@@ -51,6 +49,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     {
         _doctorRepository = doctorRepository;
         _patientRepository = patientRepository;
+        _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
         _currentTenant = currentTenant;
@@ -66,102 +65,60 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         await SeedTenantsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         await _identityUsersSeeder.SeedAsync(context);
         await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         await SeedDoctorsAsync();
         await SeedPatientsAsync();
-
         await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         _isSeeded = true;
     }
 
     private async Task SeedTenantsAsync()
     {
+        // ITenantManager.CreateAsync constructs + validates uniqueness, it does not
+        // itself insert the Tenant into SaasTenants. Explicitly InsertAsync after
+        // each CreateAsync so the row exists before downstream FKs reference it.
         using (_currentTenant.Change(null))
         {
-            if (await _tenantRepository.FindAsync(PatientsTestData.TenantAId) == null)
-            {
-                await _tenantRepository.InsertAsync(CreateTenant(PatientsTestData.TenantAId, PatientsTestData.TenantAName));
-            }
+            var tenantA = await _tenantManager.CreateAsync(TenantsTestData.TenantAName);
+            await _tenantRepository.InsertAsync(tenantA);
+            TenantsTestData.TenantARef = tenantA.Id;
 
-            if (await _tenantRepository.FindAsync(PatientsTestData.TenantBId) == null)
-            {
-                await _tenantRepository.InsertAsync(CreateTenant(PatientsTestData.TenantBId, PatientsTestData.TenantBName));
-            }
+            var tenantB = await _tenantManager.CreateAsync(TenantsTestData.TenantBName);
+            await _tenantRepository.InsertAsync(tenantB);
+            TenantsTestData.TenantBRef = tenantB.Id;
         }
-    }
-
-    /// <summary>
-    /// Instantiates a Volo.Saas.Tenants.Tenant via its non-public (Guid, string)
-    /// constructor. Direct `new Tenant(id, name)` will not compile because the
-    /// constructor is protected/internal to the Saas assembly. Using ITenantManager
-    /// instead would also work but is heavier for test seeding.
-    /// </summary>
-    /// <summary>
-    /// Constructs a Volo.Saas.Tenants.Tenant via reflection. The public signature
-    /// we rely on is (Guid id, string name, string normalizedName) -- the Tenant
-    /// constructor is internal/protected so direct `new Tenant(...)` does not
-    /// compile from outside the Saas assembly. If this constructor signature
-    /// changes upstream, the fallback enumerates the available constructors and
-    /// tries the first one that starts with (Guid, string, ...).
-    /// </summary>
-    private static Tenant CreateTenant(Guid id, string name)
-    {
-        var flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-        var normalizedName = name.ToUpperInvariant();
-
-        var ctor = typeof(Tenant).GetConstructor(flags, binder: null,
-            types: new[] { typeof(Guid), typeof(string), typeof(string) }, modifiers: null);
-        if (ctor != null)
-        {
-            return (Tenant)ctor.Invoke(new object[] { id, name, normalizedName });
-        }
-
-        foreach (var candidate in typeof(Tenant).GetConstructors(flags))
-        {
-            var ps = candidate.GetParameters();
-            if (ps.Length >= 2
-                && ps[0].ParameterType == typeof(Guid)
-                && ps[1].ParameterType == typeof(string))
-            {
-                var args = new object?[ps.Length];
-                args[0] = id;
-                args[1] = name;
-                for (var i = 2; i < ps.Length; i++)
-                {
-                    args[i] = ps[i].ParameterType == typeof(string) && !ps[i].HasDefaultValue
-                        ? normalizedName
-                        : ps[i].HasDefaultValue
-                            ? ps[i].DefaultValue
-                            : (ps[i].ParameterType.IsValueType ? Activator.CreateInstance(ps[i].ParameterType) : null);
-                }
-                return (Tenant)candidate.Invoke(args);
-            }
-        }
-
-        var sigs = string.Join("; ", typeof(Tenant).GetConstructors(flags)
-            .Select(c => "(" + string.Join(", ", c.GetParameters().Select(p => p.ParameterType.Name)) + ")"));
-        throw new InvalidOperationException(
-            $"No Volo.Saas.Tenants.Tenant constructor matches (Guid, string, ...). Available: {sigs}");
     }
 
     private async Task SeedDoctorsAsync()
     {
-        await _doctorRepository.InsertAsync(new Doctor(
-            id: DoctorsTestData.Doctor1Id,
-            firstName: DoctorsTestData.Doctor1FirstName,
-            lastName: DoctorsTestData.Doctor1LastName,
-            email: DoctorsTestData.Doctor1Email,
-            gender: default,
-            identityUserId: null));
+        // Both doctors scoped to TenantA -- reflects the realistic case of a
+        // practice with multiple practitioners. Doctor2 was previously planned
+        // for TenantB but this complicates host-context tests unnecessarily:
+        // Patient tests don't depend on Doctor tenancy, and keeping the tenant
+        // model "two-tenant for Patients, one-tenant for Doctors" keeps existing
+        // Doctor tests workable with a single tenant-context wrap.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _doctorRepository.InsertAsync(new Doctor(
+                id: DoctorsTestData.Doctor1Id,
+                firstName: DoctorsTestData.Doctor1FirstName,
+                lastName: DoctorsTestData.Doctor1LastName,
+                email: DoctorsTestData.Doctor1Email,
+                gender: default,
+                identityUserId: IdentityUsersTestData.Doctor1UserId));
 
-        await _doctorRepository.InsertAsync(new Doctor(
-            id: DoctorsTestData.Doctor2Id,
-            firstName: DoctorsTestData.Doctor2FirstName,
-            lastName: DoctorsTestData.Doctor2LastName,
-            email: DoctorsTestData.Doctor2Email,
-            gender: default,
-            identityUserId: null));
+            await _doctorRepository.InsertAsync(new Doctor(
+                id: DoctorsTestData.Doctor2Id,
+                firstName: DoctorsTestData.Doctor2FirstName,
+                lastName: DoctorsTestData.Doctor2LastName,
+                email: DoctorsTestData.Doctor2Email,
+                gender: default,
+                identityUserId: IdentityUsersTestData.Doctor2UserId));
+        }
     }
 
     private async Task SeedPatientsAsync()
@@ -170,8 +127,8 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             id: PatientsTestData.Patient1Id,
             stateId: null,
             appointmentLanguageId: null,
-            identityUserId: IdentityUsersTestData.PatientUserId,
-            tenantId: PatientsTestData.TenantAId,
+            identityUserId: IdentityUsersTestData.Patient1UserId,
+            tenantId: TenantsTestData.TenantARef,
             firstName: PatientsTestData.Patient1FirstName,
             lastName: PatientsTestData.Patient1LastName,
             email: PatientsTestData.Patient1Email,
@@ -188,7 +145,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             stateId: null,
             appointmentLanguageId: null,
             identityUserId: IdentityUsersTestData.Patient2UserId,
-            tenantId: PatientsTestData.TenantBId,
+            tenantId: TenantsTestData.TenantBRef,
             firstName: PatientsTestData.Patient2FirstName,
             lastName: PatientsTestData.Patient2LastName,
             email: PatientsTestData.Patient2Email,
