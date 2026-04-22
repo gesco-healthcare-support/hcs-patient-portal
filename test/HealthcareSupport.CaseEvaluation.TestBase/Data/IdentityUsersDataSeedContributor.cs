@@ -10,17 +10,24 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Testing;
 
 /// <summary>
-/// Seeds the three IdentityUsers + roles that every Tier-1 entity FKs into.
-/// Closes the PR-0 gap identified while preparing PR-1C (Patients): without these
-/// users, no Patient / ApplicantAttorney / AppointmentAccessor seed can satisfy
-/// the required IdentityUserId FK, which is why earlier PRs were forced to
-/// validation-only "Wave 1" coverage.
+/// Seeds the nine test users across the seven intended application roles:
 ///
-/// Invoked by <see cref="CaseEvaluationIntegrationTestSeedContributor"/> as its
-/// first seed call (FK ordering). Not registered as an IDataSeedContributor itself
-/// so ABP's non-deterministic contributor ordering cannot interleave it with the
-/// orchestrator. Mirrors the production pattern in
-/// HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CreateDoctorUserAsync.
+///   Host scope: HostAdmin (role "admin").
+///   TenantA:    TenantAdmin1, Doctor1, ApplicantAttorney1, DefenseAttorney1, ClaimExaminer1, Patient1.
+///   TenantB:    Doctor2, Patient2.
+///
+/// Mirrors production's tenant-provisioning pattern (DoctorTenantAppService.CreateAsync)
+/// by wrapping each tenant's user + role creation in _currentTenant.Change(tenantId).
+/// Each tenant has its own row per role because role definitions in ABP are
+/// tenant-scoped when created inside a tenant context.
+///
+/// Must run AFTER the orchestrator's SeedTenantsAsync step -- this contributor
+/// reads TenantsTestData.TenantARef / TenantBRef which are populated there.
+/// Throws InvalidOperationException with a clear diagnostic if called out of order.
+///
+/// Invoked by <see cref="CaseEvaluationIntegrationTestSeedContributor"/>. Not
+/// registered as an IDataSeedContributor itself so ABP's non-deterministic
+/// multi-contributor ordering cannot interleave it with the orchestrator.
 /// </summary>
 public class IdentityUsersDataSeedContributor : ISingletonDependency
 {
@@ -46,29 +53,101 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
             return;
         }
 
+        RequireTenantsSeeded();
+
+        await SeedHostAdminAsync();
+        await SeedTenantAUsersAsync();
+        await SeedTenantBUsersAsync();
+
+        _isSeeded = true;
+    }
+
+    private static void RequireTenantsSeeded()
+    {
+        if (TenantsTestData.TenantARef == Guid.Empty || TenantsTestData.TenantBRef == Guid.Empty)
+        {
+            throw new InvalidOperationException(
+                "IdentityUsersDataSeedContributor requires TenantsTestData.TenantARef/TenantBRef to be populated. " +
+                "The orchestrator must call its SeedTenantsAsync step before invoking this contributor.");
+        }
+    }
+
+    private async Task SeedHostAdminAsync()
+    {
         using (_currentTenant.Change(null))
         {
-            await EnsureRoleAsync(IdentityUsersTestData.AdminRoleName);
-            await EnsureRoleAsync(IdentityUsersTestData.AttorneyRoleName);
+            await EnsureRoleAsync(IdentityUsersTestData.HostAdminRoleName);
+            await SeedUserAsync(
+                IdentityUsersTestData.HostAdminId,
+                IdentityUsersTestData.HostAdminUserName,
+                IdentityUsersTestData.HostAdminEmail,
+                IdentityUsersTestData.HostAdminRoleName);
+        }
+    }
+
+    private async Task SeedTenantAUsersAsync()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await EnsureRoleAsync(IdentityUsersTestData.TenantAdminRoleName);
+            await EnsureRoleAsync(IdentityUsersTestData.DoctorRoleName);
+            await EnsureRoleAsync(IdentityUsersTestData.ApplicantAttorneyRoleName);
+            await EnsureRoleAsync(IdentityUsersTestData.DefenseAttorneyRoleName);
+            await EnsureRoleAsync(IdentityUsersTestData.ClaimExaminerRoleName);
             await EnsureRoleAsync(IdentityUsersTestData.PatientRoleName);
 
             await SeedUserAsync(
-                IdentityUsersTestData.StaffAdminId,
-                IdentityUsersTestData.StaffAdminUserName,
-                IdentityUsersTestData.StaffAdminEmail,
-                IdentityUsersTestData.AdminRoleName);
+                IdentityUsersTestData.TenantAdmin1UserId,
+                IdentityUsersTestData.TenantAdmin1UserName,
+                IdentityUsersTestData.TenantAdmin1Email,
+                IdentityUsersTestData.TenantAdminRoleName);
 
             await SeedUserAsync(
-                IdentityUsersTestData.AttorneyUserId,
-                IdentityUsersTestData.AttorneyUserName,
-                IdentityUsersTestData.AttorneyEmail,
-                IdentityUsersTestData.AttorneyRoleName);
+                IdentityUsersTestData.Doctor1UserId,
+                IdentityUsersTestData.Doctor1UserName,
+                IdentityUsersTestData.Doctor1Email,
+                IdentityUsersTestData.DoctorRoleName);
+
+            // Doctor2 lives in the same tenant as Doctor1 (realistic case of a
+            // practice with multiple practitioners). Matches the doctor seed in
+            // the orchestrator.
+            await SeedUserAsync(
+                IdentityUsersTestData.Doctor2UserId,
+                IdentityUsersTestData.Doctor2UserName,
+                IdentityUsersTestData.Doctor2Email,
+                IdentityUsersTestData.DoctorRoleName);
 
             await SeedUserAsync(
-                IdentityUsersTestData.PatientUserId,
-                IdentityUsersTestData.PatientUserName,
-                IdentityUsersTestData.PatientEmail,
+                IdentityUsersTestData.ApplicantAttorney1UserId,
+                IdentityUsersTestData.ApplicantAttorney1UserName,
+                IdentityUsersTestData.ApplicantAttorney1Email,
+                IdentityUsersTestData.ApplicantAttorneyRoleName);
+
+            await SeedUserAsync(
+                IdentityUsersTestData.DefenseAttorney1UserId,
+                IdentityUsersTestData.DefenseAttorney1UserName,
+                IdentityUsersTestData.DefenseAttorney1Email,
+                IdentityUsersTestData.DefenseAttorneyRoleName);
+
+            await SeedUserAsync(
+                IdentityUsersTestData.ClaimExaminer1UserId,
+                IdentityUsersTestData.ClaimExaminer1UserName,
+                IdentityUsersTestData.ClaimExaminer1Email,
+                IdentityUsersTestData.ClaimExaminerRoleName);
+
+            await SeedUserAsync(
+                IdentityUsersTestData.Patient1UserId,
+                IdentityUsersTestData.Patient1UserName,
+                IdentityUsersTestData.Patient1Email,
                 IdentityUsersTestData.PatientRoleName);
+        }
+    }
+
+    private async Task SeedTenantBUsersAsync()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await EnsureRoleAsync(IdentityUsersTestData.PatientRoleName);
 
             await SeedUserAsync(
                 IdentityUsersTestData.Patient2UserId,
@@ -76,8 +155,6 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
                 IdentityUsersTestData.Patient2Email,
                 IdentityUsersTestData.PatientRoleName);
         }
-
-        _isSeeded = true;
     }
 
     private async Task EnsureRoleAsync(string roleName)
@@ -93,7 +170,8 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
         if (!result.Succeeded)
         {
             throw new InvalidOperationException(
-                $"Failed to seed role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                $"Failed to seed role '{roleName}' in tenant {_currentTenant.Id?.ToString() ?? "(host)"}: " +
+                string.Join(", ", result.Errors.Select(e => e.Description)));
         }
     }
 
@@ -111,14 +189,16 @@ public class IdentityUsersDataSeedContributor : ISingletonDependency
         if (!createResult.Succeeded)
         {
             throw new InvalidOperationException(
-                $"Failed to seed user '{userName}': {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+                $"Failed to seed user '{userName}' in tenant {_currentTenant.Id?.ToString() ?? "(host)"}: " +
+                string.Join(", ", createResult.Errors.Select(e => e.Description)));
         }
 
         var roleResult = await _userManager.AddToRoleAsync(user, roleName);
         if (!roleResult.Succeeded)
         {
             throw new InvalidOperationException(
-                $"Failed to assign role '{roleName}' to user '{userName}': {string.Join(", ", roleResult.Errors.Select(e => e.Description))}");
+                $"Failed to assign role '{roleName}' to user '{userName}': " +
+                string.Join(", ", roleResult.Errors.Select(e => e.Description)));
         }
     }
 }

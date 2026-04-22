@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Doctors;
@@ -13,11 +14,13 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
 {
     private readonly IDoctorsAppService _doctorsAppService;
     private readonly IRepository<Doctor, Guid> _doctorRepository;
+    private readonly ICurrentTenant _currentTenant;
 
     protected DoctorsAppServiceTests()
     {
         _doctorsAppService = GetRequiredService<IDoctorsAppService>();
         _doctorRepository = GetRequiredService<IRepository<Doctor, Guid>>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -35,11 +38,17 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
     [Fact]
     public async Task GetAsync()
     {
-        // Act
-        var result = await _doctorsAppService.GetAsync(DoctorsTestData.Doctor1Id);
-        // Assert
-        result.ShouldNotBeNull();
-        result.Id.ShouldBe(DoctorsTestData.Doctor1Id);
+        // DoctorsAppService.GetAsync does not disable the IMultiTenant filter,
+        // so looking up a tenant-scoped Doctor requires running inside that
+        // tenant's context. Both seeded doctors live in TenantA (see orchestrator).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Act
+            var result = await _doctorsAppService.GetAsync(DoctorsTestData.Doctor1Id);
+            // Assert
+            result.ShouldNotBeNull();
+            result.Id.ShouldBe(DoctorsTestData.Doctor1Id);
+        }
     }
 
     [Fact]
@@ -81,15 +90,20 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
             Email = email,
             Gender = default
         };
-        // Act
-        var serviceResult = await _doctorsAppService.UpdateAsync(DoctorsTestData.Doctor1Id, input);
-        // Assert
-        var result = await _doctorRepository.FindAsync(c => c.Id == serviceResult.Id);
-        result.ShouldNotBeNull();
-        result.FirstName.ShouldBe(firstName);
-        result.LastName.ShouldBe(lastName);
-        result.Email.ShouldBe(email);
-        result.Gender.ShouldBe(default);
+        // Wrap in TenantA context because Doctor1 is seeded there and
+        // DoctorsAppService.UpdateAsync does not disable the IMultiTenant filter.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Act
+            var serviceResult = await _doctorsAppService.UpdateAsync(DoctorsTestData.Doctor1Id, input);
+            // Assert
+            var result = await _doctorRepository.FindAsync(c => c.Id == serviceResult.Id);
+            result.ShouldNotBeNull();
+            result.FirstName.ShouldBe(firstName);
+            result.LastName.ShouldBe(lastName);
+            result.Email.ShouldBe(email);
+            result.Gender.ShouldBe(default);
+        }
     }
 
     [Fact]

@@ -5,14 +5,13 @@ namespace HealthcareSupport.CaseEvaluation.TestData;
 
 /// <summary>
 /// Hardcoded synthetic GUIDs + Bogus-generated field values for Patient entities
-/// seeded by the integration-test orchestrator
-/// (<see cref="HealthcareSupport.CaseEvaluation.Testing.CaseEvaluationIntegrationTestSeedContributor"/>).
-/// The tenant GUIDs live here rather than in IdentityUsersTestData because the
-/// Patient entity is the primary Tier-1 surface that asserts against them — the
-/// HIPAA-critical cross-tenant visibility tests in PR-1C turn on the fact that
-/// Patient has a TenantId column but does not implement IMultiTenant, so the
-/// multi-tenant filter does not apply (see
-/// src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md).
+/// seeded by <see cref="HealthcareSupport.CaseEvaluation.Testing.CaseEvaluationIntegrationTestSeedContributor"/>.
+///
+/// Tenant GUIDs previously lived here (as deterministic Guid.Parse constants).
+/// They moved to <see cref="TenantsTestData"/> in the tenant-semantics cleanup
+/// because tenants are now created via <c>ITenantManager.CreateAsync</c> and
+/// their Ids are captured at seed time rather than hardcoded -- reflecting
+/// production's tenant-provisioning path rather than a framework bypass.
 ///
 /// Field values use Bogus seeded with the repo-wide deterministic seed in
 /// <see cref="TestStringUtility"/>. SSN uses a hex-shaped synthetic value to stay
@@ -23,19 +22,11 @@ public static class PatientsTestData
     public static readonly Guid Patient1Id = Guid.Parse("c1111111-1111-1111-1111-111111111111");
     public static readonly Guid Patient2Id = Guid.Parse("c2222222-2222-2222-2222-222222222222");
 
-    // Deterministic tenant GUIDs consumed by the cross-tenant visibility tests.
-    // Seeded as real SaasTenants rows by the orchestrator in PR-1C.
-    public static readonly Guid TenantAId = Guid.Parse("b1111111-1111-1111-1111-111111111111");
-    public static readonly Guid TenantBId = Guid.Parse("b2222222-2222-2222-2222-222222222222");
-
-    public const string TenantAName = "TEST-tenant-a";
-    public const string TenantBName = "TEST-tenant-b";
-
     // DOB fixed per .claude/rules/test-data.md — never a real birthday shape.
     public static readonly DateTime FixedDateOfBirth = new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     // Gender / PhoneNumberType enum int values used by the seed to avoid
-    // taking a dependency on the Enums namespace from TestBase.
+    // taking a dependency on the Enums namespace from TestBase consumers.
     // Gender.Male = 1; PhoneNumberType.Work = 28.
     public const int PatientGenderIdValue = 1;
     public const int PatientPhoneNumberTypeIdValue = 28;

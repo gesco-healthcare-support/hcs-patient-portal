@@ -328,25 +328,39 @@ Is the Swagger UI expected to be exercised against Docker at all, or is it inten
 
 ---
 
-## FEAT-09: Patient has TenantId but does not implement IMultiTenant (patient-non-multitenant) {#patient-non-multitenant}
+## FEAT-09: Patient cross-tenant visibility leak -- AppService has no tenant filter (patient-imultitenant) {#patient-imultitenant}
 
 **Severity:** High (HIPAA / cross-tenant data leakage)
 **Status:** Open
 
 ### Description
 
-The `Patient` entity carries a nullable `TenantId` column but does NOT implement `IMultiTenant`. ABP's automatic multi-tenant data filter therefore does not apply to Patient queries: calling `CurrentTenant.Change(tenantId)` and then `GetListAsync` returns patients from every tenant, not just the scoped one. This is documented at [src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md](../../src/HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) and ENCODED as a passing integration test in PR-1C: `PatientsAppServiceTests.GetListAsync_InTenantAContextScope_StillReturnsPatientsFromAllTenants`. A companion `[Fact(Skip=...)]` test is staged to flip to the opposite assertion once this is fixed.
+Today, any authenticated user with the `Patients.Default` permission can call `GET /api/app/patients` and see patients from every tenant. The root cause has two layers:
+
+1. The `Patient` entity carries a nullable `TenantId` column but does NOT implement `IMultiTenant`. ABP's automatic multi-tenant data filter does not apply to Patient queries.
+2. `PatientsAppService.GetListAsync` does not add a manual `WHERE TenantId = CurrentTenant.Id` clause to compensate.
+
+Result: tenant-scoped business users (TenantAdmin, Doctor, attorney, patient) see every tenant's patients instead of only their own. This is the HIPAA leak.
+
+The intent is that **only the host admin** (dev/debug role, outside business usage) sees cross-tenant results. Every other caller should be tenant-scoped.
+
+### Test encoding
+
+`PatientsAppServiceTests.GetListAsync_FromHostContext_ReturnsPatientsFromBothTenants` passes green -- this is correct intended behaviour for host admin and stays green forever.
+
+`PatientsAppServiceTests.GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` ships as `[Fact(Skip=...)]` pointing at this anchor. When the fix lands, it flips live.
 
 ### What Needs to Be Built
 
-1. `Patient` implements `IMultiTenant` (or equivalent manual filter applied in repository queries at every entry point).
-2. The DbContext entity config for Patient moves OUT of the `IsHostDatabase()` guard so the tenant filter can bind.
-3. The skipped test `GetListAsync_InTenantAContextScope_ReturnsOnlyTenantAPatients_AfterFix` flips live and asserts the new behaviour.
-4. All existing Patient queries (AppService, booking flow, profile) audit for correctness after the filter engages.
+1. `Patient` implements `IMultiTenant` (the "framework way") -- the Patient DbContext config moves out of the `IsHostDatabase()` guard and ABP's automatic filter engages. Host-admin paths that need cross-tenant visibility wrap in `using (IDataFilter.Disable<IMultiTenant>())`, the same pattern `DoctorsAppService.GetListAsync` already uses.
+2. Optional but recommended: host-admin role check is added to `PatientsAppService.GetListAsync` (and similar) so the `IDataFilter.Disable` branch only fires for the host-admin role, not just any host-context caller.
+3. The skipped target test `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` flips green.
 
 ### Why Not Yet Fixed
 
-Retrofitting `IMultiTenant` onto an entity with existing production data is a migration-heavy change (tenant-column constraint tightening, data backfill for existing rows, cross-tenant reference audit). Tracked for Phase C.
+Pre-deployment: no production Patient data exists, so there is no data-migration cost. The fix itself is a small, targeted schema + entity change. Scheduled after Tier-1 test coverage completes so the Patient test suite gives the fix a safety net.
+
+Prior ratio\-nale in this doc -- "migration heavy due to existing data" -- is obsolete given the pre-deployment state.
 
 ---
 
@@ -368,6 +382,80 @@ Retrofitting `IMultiTenant` onto an entity with existing production data is a mi
 ### Why Not Yet Built
 
 The profile endpoints are a small part of Patient surface; adding the faking infrastructure in PR-1C would have roughly doubled its scope. Deferred to a follow-up.
+
+---
+
+## FEAT-11: HostAdmin role has no formal definition (host-admin-role-formal-definition) {#host-admin-role-formal-definition}
+
+**Severity:** Medium (architectural debt; obstructs role-based gating)
+**Status:** Open
+
+### Description
+
+The "host admin" is conceptually the dev/debug superuser who sees every tenant's data for maintenance and debugging purposes -- not a business user. In the current codebase, this role has no formal definition. The only thing playing the part is ABP's built-in `admin` user (seeded by the framework's default `IdentityDataSeedContributor` on the host database). There is no explicit `HostAdmin` role constant, no host-level permission group that gates it, and no policy binding.
+
+Observed symptoms:
+- Host-level capabilities (cross-tenant `GetListAsync` calls that bypass the multi-tenant filter) are effectively gated only by "is the caller's `CurrentTenant.Id == null`". Any authenticated user who ends up in host context gets the capability.
+- There is no `[Authorize(Policy = "HostAdmin")]` or equivalent to explicitly restrict the superuser surface.
+
+### Impact
+
+Without an explicit HostAdmin role, the difference between "a business user who happens to be operating in host context" and "the dev/maintainer superuser" cannot be enforced. The FEAT-09 fix (adding tenant filtering to Patients) should target only non-HostAdmin callers, which requires the role to exist.
+
+### What Needs to Be Built
+
+1. Introduce a `HostAdmin` role, seeded in the host database by a new per-project seed contributor.
+2. Add a host-level permission group in `CaseEvaluationPermissions` (e.g., `CaseEvaluation.Host.*`) registered with `MultiTenancySides.Host`.
+3. Bind the HostAdmin role to this permission group.
+4. Rename the `admin` role assignment to `HostAdmin` for the dev/maintenance user, or give that user both.
+
+Test infra already pre-models this: `IdentityUsersTestData.HostAdminId` with role constant `"admin"` today, updatable to `"HostAdmin"` once the role ships.
+
+---
+
+## FEAT-12: TenantAdmin role is conflated with Doctor role (tenant-admin-role-separation) {#tenant-admin-role-separation}
+
+**Severity:** Medium (architectural debt; blocks per-tenant admin distinct from practitioner)
+**Status:** Open
+
+### Description
+
+When a new SaaS tenant is provisioned, `DoctorTenantAppService.CreateAsync` creates the first user and assigns them the `Doctor` role. This conflates two distinct responsibilities:
+
+1. **TenantAdmin** -- the business role responsible for administering the practice (managing staff, billing, scheduling settings). Conceptually closer to "office manager."
+2. **Doctor** -- a practicing physician whose workflows are clinical (appointments, availability, evaluations). Conceptually "the practitioner."
+
+A single role cannot correctly permission-gate both without over-granting.
+
+### Impact
+
+- The first user of a tenant has full privileges across both admin and clinical surfaces, with no principle-of-least-privilege option for practices that want to separate admin from practitioner.
+- Future test scenarios that need "tenant admin but not a doctor" (e.g., a staff scheduler) cannot be modeled faithfully.
+
+### What Needs to Be Built
+
+1. Introduce a `TenantAdmin` role via `EnsureRoleAsync("TenantAdmin")` inside the tenant-provisioning flow.
+2. Update `DoctorTenantAppService.CreateAsync` so the tenant-creating user gets `TenantAdmin`. Adding Doctor becomes a separate explicit action (either in the same flow for practices that are solo-practitioner, or deferred to a subsequent onboarding step).
+3. Bind appropriate permissions to each role in `CaseEvaluationPermissionDefinitionProvider`.
+
+Test infra pre-models this: `IdentityUsersTestData.TenantAdmin1UserId` with role `"TenantAdmin"` already ships in the tenant-semantics cleanup, so tests are ready when the role lands in production code.
+
+---
+
+## FEAT-13: Dashboard.Host permission is registered as tenant-scoped (dashboard-host-permission-scope-typo) {#dashboard-host-permission-scope-typo}
+
+**Severity:** Low (cosmetic / latent bug; doesn't affect current behaviour)
+**Status:** Open
+
+### Description
+
+In `CaseEvaluationPermissionDefinitionProvider.cs`, the `Dashboard.Host` permission is registered with `MultiTenancySides.Tenant` despite the `.Host` naming. This is either a typo or a stale change; the intent was surely `MultiTenancySides.Host` since the sibling `.Tenant` permission already covers tenant-side dashboard access.
+
+Harmless today because no code actually checks `Dashboard.Host`, but it will cause confusion the moment someone tries to gate a host-side dashboard endpoint with it -- the permission will be scoped to the wrong side.
+
+### What Needs to Be Built
+
+Change the registration of `Dashboard.Host` from `MultiTenancySides.Tenant` to `MultiTenancySides.Host` in the provider. One-line fix, zero behaviour change today.
 
 ---
 
