@@ -33,6 +33,7 @@ static class Program
 
     public static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration((ctx, cfg) => cfg.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true))
             .AddAppSettingsSecretsJson()
             .ConfigureLogging((context, logging) => logging.ClearProviders())
             .ConfigureServices((hostContext, services) =>
