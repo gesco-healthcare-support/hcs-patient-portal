@@ -10,7 +10,7 @@
 
 ## Purpose
 
-The Appointments feature moves a booking from a booker (applicant attorney, patient, claim examiner, or defense attorney) through a medical-examiner practice's review and -- on approval -- generates a **Packet** of the appointment's data that is delivered to all case parties AND to the other softwares that sit alongside the Patient Portal in the California workers'-compensation pipeline. Without the Packet hand-off to both audiences the application does not fulfil its role in the business pipeline, so Appointments is the core product surface for the MVP, not just a scheduling UI. [Source: Adrian-confirmed 2026-04-23]
+The Appointments feature moves a booking from a booker (applicant attorney, patient, claim examiner, or defense attorney) through a medical-examiner practice's review and -- on approval -- delivers the appointment's data to every case party via email in strict, legally-compliant formats that serve as evidence of communication (per California workers'-comp ex-parte rules). At MVP the portal is **appointment-booking-only, not case-tracking** (Adrian 2026-04-24): the day-of-exam lifecycle, structured hand-offs to downstream softwares, and specific software-to-software integration formats are all post-MVP. Appointments is nonetheless the core product surface because data capture on the booking form AND legally-required notifications to parties are the two things the portal MUST do for it to play its role in Gesco's workers'-compensation pipeline. [Source: Adrian-confirmed 2026-04-23 on product purpose, 2026-04-24 on MVP scope boundary]
 
 ## Personas and goals
 
@@ -62,11 +62,23 @@ Adrian's 2026-04-23 rough estimate, pending real usage data or firmer business /
 
 #### Examiner office staff
 
-Within the office, a dedicated tenant-level admin role (Adrian's 2026-04-23 handle: **doctor's admin**; other working names raised in this interview: Office Manager, Scheduler, TenantAdmin) holds (a) the authority to approve / reject / send-back-for-info on pending requests and (b) the authority to cancel or reschedule approved appointments. The medical examiner (Doctor role) can also approve / reject / send-back on the review queue. Other staff users inside the tenant can VIEW the queue for scheduling context but cannot take decision or modification actions. [UNKNOWN -- queued for Adrian: is the final role name a single role that owns both the approval authority (this interview 2026-04-22) and the modification authority (this interview 2026-04-23), or two separate roles? Do the current working handles `doctor's admin`, `Office Manager`, `Scheduler` refer to the same role?] [Source: Adrian-confirmed 2026-04-22, extended 2026-04-23]
+Within the office, a dedicated tenant-level admin role (Adrian's working handle: **doctor's admin**; other working names raised: Office Manager, Scheduler, TenantAdmin) handles four appointment-related responsibilities at MVP: [Source: Adrian-confirmed 2026-04-22, extended 2026-04-23 and 2026-04-24]
+
+1. **Review decisions.** Approve, reject, or send-back-for-info on pending appointment requests by reading the information the booker provided on the form.
+2. **Phone / email intake.** When someone calls or emails the office wanting to book an appointment rather than using the portal, office staff book it themselves on the caller's behalf.
+3. **Modifications.** Cancel or reschedule approved appointments (subject to the MVP-scope caveat in the Modifications subsection below).
+4. **Form-data edits.** Make changes to the appointment form data when a booker requests a change (e.g., updated contact info, corrected attorney info).
+
+The medical examiner (Doctor role) can also approve / reject / send-back on the review queue. Other staff users inside the tenant can VIEW the queue for scheduling context but cannot take any of the four actions above. [UNKNOWN -- queued for Adrian: is the final role name one role that owns all four actions, or split across two or more? Do the working handles `doctor's admin` / `Office Manager` / `Scheduler` refer to the same role?]
 
 #### Host admin (Gesco-side)
 
-Always has authority to cancel or reschedule any appointment, across any tenant. The host admin's **reason to exist is precisely this** -- to step in when the doctor's office cannot or will not modify an appointment directly ("that is the point of that admin", Adrian 2026-04-23). No appointment-approval authority in the doctor's review queue (that belongs to the tenant-level admin); modification authority is universal. [Source: Adrian-confirmed 2026-04-23]
+Gesco-internal superuser for the portal, with unconditional cross-tenant authority. The host admin exists for two related reasons: [Source: Adrian-confirmed 2026-04-23, extended 2026-04-24]
+
+1. **Oversight.** General administrative visibility across all tenants that no other portal user has.
+2. **Break-glass access.** When something goes wrong with an appointment at a tenant -- whether the doctor's office cannot or will not act, or a higher-level correction is needed -- the host admin can step in and modify the appointment directly. Cancel / reschedule authority is unconditional across every tenant.
+
+No appointment-approval authority in the doctor's review queue (that belongs to the tenant-level admin). Modification authority is universal.
 
 ## Intended workflow
 
@@ -82,13 +94,22 @@ The MVP pipeline, end to end:
 4. **Appointment booking** -- a booker submits a request against a slot.
 5. **Booking confirmation and modification notifications** -- email notifications to all case parties at submit, approval, and modifications.
 6. **Appointment approvals** -- the doctor's office reviews the request (approve / reject / send-back-for-info).
-7. **Packet generation and delivery** -- on approval, the system generates a Packet of the appointment's data and delivers it both to the other parties on the case and to the other softwares in the pipeline.
+7. **Data delivery to all case parties via email** -- on approval, the appointment's data is delivered to every case party by email in a strict, legally-compliant format. The email is the MVP realization of what Adrian calls the "Packet" concept -- it is the portal's hand-off of data to the parties. Structured hand-offs to other softwares in the pipeline (Case Tracking, MRR AI, DWC/EAMS, insurance-carrier systems) are deferred; see Post-MVP deferrals below.
 
-[Source: Adrian-confirmed 2026-04-23]
+[Source: Adrian-confirmed 2026-04-23 on purpose; narrowed 2026-04-24 to email-only for MVP]
 
 Appointments as a feature owns steps 4-7. Steps 1-2 are owned by the Auth-and-Roles cross-cutting concern; step 3 is owned by DoctorAvailabilities.
 
-The full 13-state lifecycle in [APPOINTMENT-LIFECYCLE.md](../business-domain/APPOINTMENT-LIFECYCLE.md) is ratified as long-term intent (see `docs/product/README.md` classification). Whether every state in that lifecycle is MVP-scoped -- in particular the day-of-exam states (`CheckedIn`, `CheckedOut`, `Billed`, `NoShow`) -- is not finalized as of 2026-04-23. [Source: Adrian-confirmed 2026-04-23]
+### Post-MVP deferrals (confirmed 2026-04-24)
+
+These are explicitly out of MVP scope per Adrian 2026-04-24 and are listed here so the MVP boundary is unambiguous:
+
+- **Day-of-exam lifecycle** -- `CheckedIn`, `CheckedOut`, `Billed`, `NoShow` states and their transitions. "This is an appointment portal, it handles appointment booking, not case tracking." The enum retains these values for long-term intent (per `APPOINTMENT-LIFECYCLE.md`) but no MVP work implements them.
+- **Structured Packet delivery to other softwares** -- API integrations, file drops, webhooks, or any non-email delivery channel to Case Tracking, MRR AI, DWC/EAMS, carrier systems, or TPA systems. "As long as we collect the data, we can format it as required" -- Adrian 2026-04-24. MVP collects data; post-MVP builds the software-specific format translators and delivery channels.
+- **HIPAA formal classification + broader California medical-privacy review** (CMIA, SB 446, CCPA/CPRA) -- revisited during the limited-user-testing phase after MVP.
+- **MRR AI integration** -- that project is not active; integration details will be defined after the MRR AI project resumes.
+
+[Source: Adrian-confirmed 2026-04-24]
 
 ### Booking flow (MVP)
 
@@ -101,8 +122,8 @@ Any of the four booker personas (applicant attorney, patient, claim examiner, de
 - The patient / client
 - The applicant attorney
 - The defense attorney
-- The insurance people [UNKNOWN -- queued for manager: Adrian uses "insurance people" and "claim adjustors / claim examiners" as separate items in the notification list but is not certain whether they are two labels for the same persona or distinct recipient groups (e.g., a broader carrier / TPA distribution list on top of the individual named claim examiner). Resolving this changes whether the data model needs one or two insurance-side recipient slots per appointment. Confirmed with Adrian 2026-04-22.]
-- The claim adjustors / claim examiners
+- The insurance company (a contact for the carrier or TPA itself, distinct from the specific adjustor on the case) [Source: Adrian-confirmed 2026-04-24]
+- The claim adjustor / claim examiner (the specific individual from the insurance company handling this case) [Source: Adrian-confirmed 2026-04-24]
 - The doctor's office (examiner + their office staff)
 
 **Step 2 -- Doctor's office reviews the request.**
@@ -121,7 +142,7 @@ On each decision, the system emails **all the same parties** (patient, applicant
 
 All events (submission, decision, resulting status) are persisted to the database. [Source: Adrian-confirmed 2026-04-22]
 
-**Steps 3+ (post-approval)** -- [UNKNOWN -- queued for Adrian: from Approved through CheckedIn, CheckedOut, Billed, who owns each transition, and what happens if the patient does not show up.]
+**Steps 3+ (post-approval)** -- **NOT IN MVP.** The portal is appointment-booking-only; the day-of-exam states (`CheckedIn`, `CheckedOut`, `Billed`, `NoShow`) and their transitions are deferred. No-show handling, check-in, check-out, and billing workflows are post-MVP concerns; they will live in downstream products or in the office's own processes at MVP time. [Source: Adrian-confirmed 2026-04-24]
 
 ### Reevaluation flow
 
@@ -160,7 +181,11 @@ This MVP intent means the 13-state enum's `CancellationRequested` and `Reschedul
 - **Attorney information is mandatory on patient-initiated bookings, with a controlled self-represented exception.** The booking form treats attorney information as required. Attempting to skip the attorney section triggers a popup that asks whether the patient is self-represented or is missing the attorney's info. Self-represented -> continue with an active warning banner persistently visible. Missing info -> hard-block, with instructions to contact the attorney (either for the info or to have the attorney book through their own account). [Source: Adrian-confirmed 2026-04-23]
 - **Attorneys can book for multiple patients; lists are tenant-scoped.** An attorney managing many cases sees a per-tenant list inside each tenant context. An attorney who works with several tenants does NOT get a unified cross-tenant inbox at MVP; they see separate per-tenant lists. [Source: Adrian-confirmed 2026-04-23]
 - **Defense-attorney bookings must identify the applicant attorney.** When a defense attorney books an appointment, entering the applicant attorney's contact information is mandatory so the all-parties notification reaches them. This is the ex-parte rule applied to the defense-booking path. [Source: Adrian-confirmed 2026-04-23]
-- **Reevaluation is a distinct booking type, not a repeat of a first-time appointment.** The patient dashboard surfaces it as its own action button. Reevaluation form design, eligibility rules, and downstream differences from a first-time booking are [UNKNOWN -- queued for manager]. [Source: Adrian-confirmed 2026-04-23 on existence; design details pending]
+- **Reevaluation is a distinct booking type, not a repeat of a first-time appointment.** The patient dashboard surfaces it as its own action button. Adrian's rough guess 2026-04-24: reevaluation is somewhat more complex than a first-time appointment, but most of the necessary data is already available from the first appointment (so the booker fills fewer fields). Reevaluation form design, eligibility rules, and the exact extra-complexity fields are [UNKNOWN -- queued for manager]. [Source: Adrian-confirmed 2026-04-23 on existence; best-guess 2026-04-24 on shape; exact design pending]
+- **MVP scope limit: Appointments is a booking portal, not case tracking.** The day-of-exam lifecycle states (`CheckedIn`, `CheckedOut`, `Billed`, `NoShow`) are defined in the enum for long-term intent (see `APPOINTMENT-LIFECYCLE.md`) but are NOT used in MVP. MVP responsibility ends when the appointment is approved and data / notifications are delivered to the case parties. Day-of-exam handling lives post-MVP, likely in downstream products or in office-side manual processes. [Source: Adrian-confirmed 2026-04-24]
+- **Tenant is pre-decided for a patient booking, not an open choice.** When a patient logs in, their tenant context is already fixed (via the invitation email). Patients do not pick their tenant during booking. Non-patient bookers work within the tenant context of the patient they are booking for. Upstream of the portal, some system or human decides which tenant a patient is booking under; that upstream decision is not open to the booker at portal time. [Source: Adrian-confirmed 2026-04-24]
+- **Notification emails use strict, legally-compliant formats.** Because most Appointments notifications are legally-required communications (per the ex-parte rule), each email template must follow a specific format that serves as defensible evidence of communication. Specific per-template content / structure is [UNKNOWN -- queued for Adrian to confirm with legal and the client]. [Source: Adrian-confirmed 2026-04-24]
+- **MVP data delivery beyond email is deferred.** Post-MVP: structured Packet delivery to downstream softwares (Case Tracking, MRR AI, DWC/EAMS, carrier systems, TPA systems). MVP collects the full dataset on the booking form and stores every event; post-MVP formats and delivers it to each software that needs it. "As long as we collect the data, we can format it as required." [Source: Adrian-confirmed 2026-04-24]
 - **On approval, a Packet is generated and delivered to two audiences: all case parties AND the other softwares in the pipeline.** The Packet hand-off is mandatory for the Patient Portal to function in its California workers'-comp business pipeline; an approval that does not produce a Packet is a bug. Specific Packet contents, formats, and recipient-software list are being clarified in follow-up interview turns. [Source: Adrian-confirmed 2026-04-23]
 - **Modifications (cancel / reschedule) on an approved appointment can be initiated only by a tenant-level admin (doctor's admin) or the host admin.** Bookers cannot initiate modifications through the portal; modification requests reach an admin via out-of-portal channels (phone, email, support). The host admin exists specifically to step in when the doctor's admin cannot or will not act. **Caveat:** whether cancel/reschedule is an MVP feature at all is pending manager confirmation per Adrian 2026-04-23 -- this rule describes the intended flow IF the feature is in MVP. [Source: Adrian-confirmed 2026-04-23 as stated intent; NEEDS CONFIRMATION on MVP inclusion]
 
@@ -193,33 +218,30 @@ The form does not rely on every party pre-existing as a user or record in the sy
 - [UNKNOWN -- queued for manager: is there a regulatory notification requirement (e.g., DWC section 35 records-exchange, QME panel notifications) tied to these emails, or are they purely operational?]
 - [UNKNOWN -- queued for Adrian: SMS or any other channel beyond email for MVP?]
 
-### Packet generation and delivery (MVP -- core product surface)
+### Data delivery on approval (MVP -- email-only)
 
-On appointment approval, the system generates a **Packet** (Adrian's working name; final term TBD) of the appointment's data and delivers it to **two audiences**: [Source: Adrian-confirmed 2026-04-23]
+On each appointment event (submission, decision, modification), the appointment's data is stored in the database AND delivered to every case party by email in a strict, legally-compliant format.
 
-1. **The other parties on the case** -- the same notification-recipient list captured on the booking form (patient, applicant attorney, defense attorney, insurance people, claim adjustors).
-2. **The other softwares** that operate alongside the Patient Portal in the California workers'-compensation pipeline.
+The "Packet" concept (Adrian's working term, introduced 2026-04-23) denotes the bundle of appointment data the portal is responsible for capturing and handing off. **At MVP the hand-off is email-only** to the party list: patient, applicant attorney, defense attorney, insurance company, claim adjustor, doctor's office. Structured hand-offs to other softwares in the California workers'-compensation pipeline (Case Tracking, MRR AI, DWC/EAMS, insurance-carrier systems, TPA systems) are **post-MVP** per Adrian 2026-04-24. MVP collects the data; post-MVP builds the software-specific formatters and delivery channels. [Source: Adrian-confirmed 2026-04-23 on the Packet concept; narrowed 2026-04-24 to email-only for MVP]
 
-The Packet hand-off is the reason the Patient Portal exists in its business pipeline; it is not a post-MVP addition. Without it the application cannot function inside the California system. [Source: Adrian-confirmed 2026-04-23]
+The portal's MVP responsibility with respect to data hand-off is therefore:
 
-**Packet design is an active work item, not finalized.** Adrian has confirmed the Packet exists as a concept, that it is the reason the application works in the business pipeline, and that it's not yet designed in full. Specifically known 2026-04-23: [Source: Adrian-confirmed 2026-04-23]
+1. **Collect** every appointment's data on the booking form, including patient, insurance + adjustor, and applicant + defense attorney info.
+2. **Store** every event (submission, decision, modification) in the database for audit.
+3. **Send** the data to every case party via email on each event, in a legally-compliant strict format (per the ex-parte-communication rule).
 
-- **Confirmed content piece:** some of the information entered about the patient on the booking form is sent to the doctor's office as part of the Packet. This is one concrete example, not the full Packet definition.
-- **Form factor direction:** the Packet will use **templates** of some kind (exact template technology and format -- PDF, Word mail-merge, email body, structured data, or a mix -- is not yet decided).
-- **Everything else** -- what data goes to which audience, in what format, via what mechanism -- is **[UNKNOWN -- queued for Adrian]** as an explicit follow-up interview pass. The Packet surface gets its own design interview before it can be specced.
+That is the full MVP scope for data hand-off. Translation to structured formats for downstream softwares, non-email delivery channels, schemas per recipient, and retry / failure / replay semantics are all post-MVP.
 
-**Specific follow-up interview threads (parked until the Packet design pass):**
+**Open follow-ups (still parked, narrower now):**
 
-- What is in a Packet, per audience? Per-audience tailoring vs one bundle? Which Appointment and related-record fields?
-- Delivery mechanism per audience -- email attachment vs downloadable link for parties, vs API / file drop / webhook for other softwares.
-- Specific "other softwares" in MVP delivery scope. Candidates: downstream Gesco products (Case Tracking, MRR AI), upstream (Digital Forms), California-state systems (DWC / EAMS), insurance-carrier platforms, TPA systems.
-- Delivery timing -- immediately on approval, on a schedule, queued-and-retryable.
-- Failure behavior -- if a Packet fails to deliver to one of the other softwares, what happens?
-- Packet evolution on modifications -- is a new Packet generated and redelivered? Does it supersede the earlier one?
+- Exact content / structure of each email template (per-event, per-party-type?). Queued for Adrian to confirm with legal + client; this blocks email-template implementation in MVP. [UNKNOWN]
+- Whether some parties receive a distinct email variant vs. all parties receiving the same email (e.g., the doctor's office may need review-context info the patient does not). Adrian 2026-04-23 said some patient info goes to the doctor's office; whether that is a distinct email or the same all-parties email is [UNKNOWN -- queued for Adrian].
 
 ### Upstream pipeline (Digital Forms hand-in)
 
-[UNKNOWN -- queued for manager / pipeline architect: does any Digital Forms artifact flow INTO an appointment at booking time, or is the booking form the sole data origin? This is the upstream mirror of the Packet hand-off and remains open from Phase 0.]
+Adrian 2026-04-24: Digital Forms specifics remain unknown; however, the tenant under which a patient books IS pre-decided (not an open choice at booking time), meaning at least the tenant-assignment piece is resolved upstream of the portal. [Source: Adrian-confirmed 2026-04-24]
+
+Remaining upstream items -- whether Digital Forms pre-fills any other fields (patient demographics, claim number, employer info, attorney contacts) into the booking form, or whether the booker re-enters everything from scratch -- are [UNKNOWN -- Adrian doesn't personally hold the answer; queued for manager / pipeline architect].
 
 ## Edge cases and error behaviors
 
@@ -250,13 +272,15 @@ The Packet hand-off is the reason the Patient Portal exists in its business pipe
 
 Pending Phase 3 cross-reference pass. Candidate entries surfaced during evidence load + confirmed intent (to be reconciled against `docs/issues/` IDs in Phase 3):
 
-- `[observed, not authoritative]` Code accepts any of the 13 status values at creation with no validation; status is then frozen (no update path). No state-machine enforcement. **Intent divergence:** confirmed two-step flow implies Pending -> (Approved | Rejected | NeedsMoreInfo) transitions must be server-side-enforced, per-role, with an audit trail.
+- `[observed, not authoritative]` Code accepts any of the 13 status values at creation with no validation; status is then frozen (no update path). No state-machine enforcement. **Intent divergence (MVP-scoped per Adrian 2026-04-24):** MVP needs server-side-enforced, per-role, audit-trailed transitions for the request / review arc only: Pending -> (Approved | Rejected | AwaitingMoreInfo). Admin-initiated cancel / reschedule arcs are MVP-provisional (see Modifications subsection caveat). Day-of-exam transitions (`CheckedIn`, `CheckedOut`, `Billed`, `NoShow`) are explicitly NOT MVP.
 - `[observed, not authoritative]` The 13-state enum has no `NeedsMoreInfo` / `InfoRequested` value, but the confirmed flow requires a "send back requesting more information" action. **Intent divergence:** either the enum is missing a state, or the action is an email-only exchange that does not mutate the appointment's status. Resolution pending Q2 of the interview.
 - `[observed, not authoritative]` No email-notification code path exists for appointment-request submission or for doctor's-office decisions; FEAT-05 tracks the fact that `NullEmailSender` is wired in `#if DEBUG` and no templates / trigger points exist. **Intent divergence:** confirmed intent requires two notification events to the full party list at MVP; FEAT-05 is therefore MVP-blocking, not "nice to have".
 - `[observed, not authoritative]` No doctor's-office review queue UI exists in the Angular project. The list page is a generic all-appointments grid, not a "pending review" bucket. **Intent divergence:** confirmed flow requires the office to see and act on pending requests; the list UI should surface the review queue explicitly.
 - `[observed, not authoritative]` The current booking form has email-like fields on related records (e.g., `Patient.Email`, `ApplicantAttorney.Email`, `AppointmentEmployerDetail`), but not all are required and there is no single "notification recipient list" concept on the Appointment itself. No dedicated email fields exist on the Appointment for defense-attorney, claim-examiner, or insurance-contact recipients. **Intent divergence:** the confirmed form UX requires a required-email field for every party-to-notify on the Appointment, independent of whether the party is linked via an existing entity. Several of those fields don't exist today; Adrian intends to add them when he next touches the form.
 - `[observed, not authoritative]` The only tenant-level role the code defines today is `Doctor` (assigned to the first user of a new tenant via `DoctorTenantAppService.CreateAsync`). There is no `Office Manager`, `Scheduler`, or equivalent role. `FEAT-12` already tracks the Doctor-vs-TenantAdmin conflation as separate tech debt. **Intent divergence:** confirmed intent is that decision authority lives in a dedicated decision role (Office Manager / Scheduler) plus Doctor. That role needs to be introduced, seeded during tenant provisioning, and bound to the approve / reject / send-back permissions -- net new MVP-blocking work that sits on top of FEAT-12.
-- `[observed, not authoritative]` No Packet-generation code path exists anywhere in the project. There is no data model for what a Packet contains, no generator, no delivery mechanism (email attachment / API call / file drop / webhook), and no downstream-software integration. **Intent divergence:** Packet generation + delivery on approval is THE product purpose per Adrian-confirmed intent (2026-04-23), making it the single largest MVP-blocking gap between implementation and intent. Volume of work depends on how many downstream softwares the MVP delivers to and how tailored each Packet form is; currently unscoped pending follow-up interview.
+- `[observed, not authoritative]` No email-based data-delivery code path exists for appointment events (submit, decision, modification). `FEAT-05` tracks the fact that `NullEmailSender` is wired in `#if DEBUG` and no templates or trigger points exist. **Intent divergence (narrowed 2026-04-24):** MVP intent is that each event sends legally-compliant, strict-format emails to every case party (ex-parte rule). This IS the MVP realization of the Packet hand-off. Structured format delivery to downstream softwares (Case Tracking, MRR AI, DWC/EAMS, carrier systems, TPA systems) is POST-MVP per Adrian 2026-04-24 and is NOT part of the current MVP gap. The MVP-blocking work is: real email sender (FEAT-05), strict-format templates per event + party-type, and per-event trigger wiring. The broader software-hand-off scope I previously flagged 2026-04-23 as the single biggest MVP gap is now explicitly post-MVP.
+
+- **Scope boundary (not a code/intent gap):** The enum values `CheckedIn`, `CheckedOut`, `Billed`, `NoShow` exist for long-term intent per `APPOINTMENT-LIFECYCLE.md`. They are NOT in MVP scope per Adrian 2026-04-24. No MVP implementation work targets these states; they remain defined for future phases. Flagging here so Phase 3 does not treat their absence as an implementation gap.
 - `[observed, not authoritative]` The 13-state enum defines `CancellationRequested` and `RescheduleRequested` states (booker-initiated request flows per `APPOINTMENT-LIFECYCLE.md`). **Intent divergence with MVP scope:** confirmed MVP intent (Adrian 2026-04-23) is that ONLY admins (doctor's admin, host admin) can initiate modifications; bookers have no cancel/reschedule action in MVP. Therefore `CancellationRequested` and `RescheduleRequested` states are **unused in MVP** and remain as future-state placeholders. Only the admin-initiated outcome states (`CancelledNoBill`, `CancelledLate`, `RescheduledNoBill`, `RescheduledLate`) are in MVP scope for the cancel/reschedule branches.
 - `[observed, not authoritative]` `HostAdmin` is not a formally-defined role in the codebase (per `FEAT-11`). **Intent divergence:** confirmed MVP intent (Adrian 2026-04-23) is that host admin has a specific operational authority in Appointments -- unconditional cancel/reschedule across all tenants. The role must be defined, seeded on the host database, and bound to that specific authority. `FEAT-11` therefore becomes MVP-blocking for Appointments, not just architectural debt.
 - `[observed, not authoritative]` The current booking form does not capture the patient's insurance or claim-adjustor information as structured fields on the Appointment / related entities. **Intent divergence (Adrian-confirmed 2026-04-23):** insurance and adjustor info is a required part of the patient booking flow. Fields need to be added to the form and to the underlying entity / DTO set.
