@@ -107,8 +107,60 @@ docker compose down
 
 **Connect to SQL from host:**
 ```bash
-sqlcmd -S localhost,1434 -U sa -P "<SA_PASSWORD>" -C -Q "SELECT name FROM sys.databases"
+# Main uses SQL_HOST_PORT=1434 by default; other worktrees override in their .env.
+sqlcmd -S "localhost,${SQL_HOST_PORT:-1434}" -U sa -P "<SA_PASSWORD>" -C -Q "SELECT name FROM sys.databases"
 ```
+
+---
+
+## Running multiple worktrees concurrently
+
+The compose file is parameterised so you can run one stack per worktree simultaneously, e.g. `main` + `development` + a feature branch, each on its own host ports with its own isolated SQL container and volume. This is the recommended workflow for parallel Claude Code sessions.
+
+Per-worktree isolation comes from two mechanisms:
+
+1. **Compose project name defaults to the worktree directory basename.** Containers become `main-sql-server-1`, `development-sql-server-1`, etc. Networks become `<project>_default`. Named volumes become `<project>_sqldata`. No explicit config needed.
+2. **Host ports and URL env vars come from each worktree's own `.env` file.** The compose file reads these as `${AUTH_PORT:-44368}`, etc., falling back to main's defaults when unset.
+
+### Per-worktree `.env` overrides
+
+Main uses the defaults (nothing to set). For `development`, `staging`, or a feature worktree, append the override block to the worktree's `.env` (the file is gitignored):
+
+```
+AUTH_PORT=44378           # 44368 + (offset * 10), default 44368 = main
+API_PORT=44337            # 44327 + (offset * 10), default 44327
+NG_PORT=4210              # 4200 + (offset * 10), default 4200
+SQL_HOST_PORT=1444        # 1434 + offset, default 1434
+REDIS_HOST_PORT=6389      # 6379 + offset, default 6379
+NG_CONFIG=local           # 'local' reads environment.local.ts (generated per worktree by scripts/worktrees/render-config.sh); 'docker' (default) reads environment.docker.ts
+```
+
+`scripts/worktrees/add-worktree.sh` writes this block automatically for feature worktrees. For the persistent worktrees (`main`, `development`, `staging`), the values are:
+
+| Worktree | AUTH_PORT | API_PORT | NG_PORT | SQL_HOST_PORT | REDIS_HOST_PORT | NG_CONFIG |
+|---|---:|---:|---:|---:|---:|---|
+| `main` | 44368 | 44327 | 4200 | 1434 | 6379 | docker (default) |
+| `development` | 44378 | 44337 | 4210 | 1444 | 6389 | local |
+| `staging` | 44388 | 44347 | 4220 | 1454 | 6399 | local |
+
+See `.env.example` for the authoritative documented block.
+
+### Inspecting running stacks
+
+```bash
+# All containers grouped by compose project
+docker ps --format "table {{.Names}}\t{{.Status}}" | awk -F- '{print $1}' | sort -u
+
+# Only main's stack
+cd /w/patient-portal/main && docker compose ps
+
+# Stop only main's stack (others keep running)
+cd /w/patient-portal/main && docker compose down
+```
+
+### Resource caveats
+
+Each worktree's stack runs its own SQL Server (roughly 2 GB RAM), AuthServer, API, Angular, and Redis. Running three concurrently needs at least 8 GB allocated to Docker Desktop / WSL2. If WSL is capped tighter in `~/.wslconfig`, bump it before bringing up a third stack.
 
 ---
 
@@ -138,8 +190,8 @@ If you changed the Angular port, reset the DB (`docker compose down -v`) so the 
 **Build fails with "ABP NuGet unauthorized":**
 `ABP_NUGET_API_KEY` in `.env` is missing or invalid. Update `.env` and rebuild with `--no-cache`.
 
-**Port conflict on 1434 / 44327 / 44368 / 4200:**
-Another process (or a local dev run) is using the port. Stop the conflicting process or change the host port in `docker-compose.yml` (e.g. `"45327:8080"` instead of `"44327:8080"`).
+**Port conflict on 1434 / 44327 / 44368 / 4200 / 6379:**
+Another worktree's stack is bound to the same ports, or a local dev run is using them. Options: (a) stop the conflicting process, or (b) add the per-worktree override block to this worktree's `.env` so it binds a different offset. See "Running multiple worktrees concurrently" above.
 
 ---
 
