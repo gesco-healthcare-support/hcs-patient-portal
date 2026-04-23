@@ -42,6 +42,41 @@ Context: the patient dashboard is planned to have a "Book a reevaluation" button
 
 ---
 
+### Q19. Can the doctor's office edit a booked slot's time or location directly, or must every change go through the cancel/reschedule flow?
+
+The developer's intuition (2026-04-24) is no -- once a slot is booked, its time and location should be locked. Any shift the office wants to make should go through the formal cancel/reschedule flow (subject to Q1 on whether that flow is in MVP at all). This keeps the audit trail clean and avoids back-door edits.
+
+Please confirm or correct. If direct edits ARE allowed, we need to spec: who receives notification, what the notification says, and whether the appointment ID and history are preserved through the shift.
+
+---
+
+### Q18. How is slot duration determined? Is it tied to the appointment type, or does the office pick it independently each time they publish slots?
+
+Three candidate models:
+
+- **Derived from the appointment type.** Each type (QME, AME, IME, reevaluation, etc.) has a standard duration. When the office publishes a typed slot, the duration comes from the type. The office can't vary duration within a type.
+- **Independently set per slot.** The office picks a duration when publishing (this is what the code does today, with a default of 15 minutes). Slots of the same type can have different durations.
+- **Default from type, overridable per slot.** Each type has a default duration; the office can override it for specific slots.
+
+This decision affects how the data model represents duration (on the type, on the slot, or both), how the slot-publishing UI works, and how the booker's time-picker filters available times.
+
+---
+
+### Q17. What does "Reserved" mean as a slot status, and is it a real MVP feature?
+
+The code defines three slot statuses -- Available, Booked, and Reserved -- but nothing in the code actually sets a slot to Reserved. It's an unused state. Before we build anything around it we need to know what it's for.
+
+The developer's leading guess, from the 2026-04-24 conversation, is that Reserved is meant to be the state of a slot that has a booking request pending office review. That would map cleanly to the two-step booking flow (booker submits -> slot goes Reserved; office approves -> Booked; office rejects or send-back-expires -> back to Available). This guess has not been confirmed.
+
+Two other candidate meanings were considered and mostly rejected by the developer as self-contradictory:
+
+- "Reserved means the doctor is busy during that time" -- if the doctor is busy, the slot should not have been published in the first place.
+- "Reserved means an approved appointment" -- an approved appointment is already Booked; a separate label would be redundant.
+
+Can you confirm what Reserved should mean at MVP? If the pending-review interpretation is right, we also need to decide: does the slot stay Reserved during the "send-back-for-info" state while the booker is responding, or does it come back to Available until they re-submit?
+
+---
+
 ## For legal or compliance
 
 ### Q7. Which California workers'-comp rules apply to how this portal schedules appointments, sends notifications, and hands off data?
@@ -90,5 +125,6 @@ The developer confirmed 2026-04-24 that the **tenant** a patient books under is 
 
 ## Change log
 
+- 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots).
 - 2026-04-24 -- resolution round. Q2, Q3, Q4, Q5, Q6, Q8, Q10, Q12, Q13, Q14, Q15 moved to Recently resolved (closed or deferred per answers and scope decisions). Q9 narrowed from "are notifications required" to "what is the exact format per event / party". Q11 narrowed (tenant pre-decided; remaining pre-fill question still open). Q16 annotated with the developer's rough working guess. Glossary trimmed.
 - 2026-04-23 -- first draft.
