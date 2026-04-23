@@ -57,9 +57,12 @@ use **rebase**, never a merge commit, to preserve linear history.
    fill in the summary, test plan, documentation, and HIPAA checklist.
 4. After CI passes and one approval, merge (squash is the default for feature
    branches).
-5. Code promotes automatically via `auto-pr-dev.yml`
-   (`main` -> `development`) and then, after review, on to `staging`.
-6. Promotion to `production` is manual and requires two approvals.
+5. Code promotes automatically via two workflows: `auto-pr-dev.yml` opens the
+   `main` -> `development` PR on push to `main`, and `deploy-dev.yml` opens
+   the `development` -> `staging` PR after its validate job passes on push
+   to `development`. Review and merge each promotion PR manually.
+6. Promotion `staging` -> `production` is always opened manually and
+   requires two approvals.
 
 ## Commit Messages
 
