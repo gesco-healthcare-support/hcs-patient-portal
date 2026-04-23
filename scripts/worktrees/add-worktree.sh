@@ -23,6 +23,16 @@ TARGET="$ROOT/$SLUG"
 
 [ -d "$TARGET" ] && { echo "error: $TARGET already exists" >&2; exit 1; }
 
+# Main must have a populated .env before we can seed the new worktree's .env.
+# .env is gitignored so `git worktree add` does not carry it forward; we copy
+# main's file below. Fail fast with a clear bootstrap hint if main is not set
+# up yet.
+if [ ! -f "$MAIN/.env" ]; then
+  echo "error: $MAIN/.env not found." >&2
+  echo "  bootstrap with: cp $MAIN/.env.example $MAIN/.env && edit to fill in secrets" >&2
+  exit 1
+fi
+
 # Pick the next +10 port offset. main/development/staging hold offsets 0/1/2;
 # feature worktrees take offset 3 onward.
 offset=3
@@ -52,6 +62,13 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH" \
 else
   git worktree add -b "$BRANCH" "$TARGET" main
 fi
+
+# Seed .env (and .env.local if present) from main. `git worktree add` only
+# checks out tracked files, so the new worktree has neither file until we
+# copy. Copy rather than symlink so per-worktree secrets can drift if ever
+# needed (e.g. scoped test credentials); by default they match main.
+cp "$MAIN/.env" "$TARGET/.env"
+[ -f "$MAIN/.env.local" ] && cp "$MAIN/.env.local" "$TARGET/.env.local"
 
 # Copy secrets into all worktrees (this includes the new one).
 "$MAIN/scripts/worktrees/refresh-secrets.sh"

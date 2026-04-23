@@ -22,5 +22,18 @@ for wt in "$ROOT"/*/; do
     cp "$SRC" "$dest"
   done
   cp "$SRC" "$wt/test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json"
+
+  # Also copy into docker/ so docker-compose.yml's bind mount finds a real
+  # file. If Docker pre-created an empty directory there (happens when a
+  # prior `docker compose up -d` hit a missing source file), remove it first.
+  # Skip the self-copy when the loop visits main (src and dest resolve equal).
+  wt_docker="$wt/docker/appsettings.secrets.json"
+  src_real="$(cd "$(dirname "$SRC")" 2>/dev/null && pwd)/$(basename "$SRC")"
+  wt_docker_parent="$(cd "$(dirname "$wt_docker")" 2>/dev/null && pwd || echo "")"
+  if [ -n "$wt_docker_parent" ] && [ "$src_real" != "$wt_docker_parent/$(basename "$wt_docker")" ]; then
+    [ -d "$wt_docker" ] && rm -rf "$wt_docker"
+    cp "$SRC" "$wt_docker"
+  fi
+
   echo "refreshed secrets in $wt"
 done
