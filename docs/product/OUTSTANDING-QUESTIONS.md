@@ -42,6 +42,20 @@ Context: the patient dashboard is planned to have a "Book a reevaluation" button
 
 ---
 
+### Q23. When an appointment request is submitted for a patient who doesn't yet have an account at that tenant, when should the portal invite email fire?
+
+Three candidate models to pick from (please pick one or correct):
+
+- **On request submit.** The invite fires the moment the booker submits the request. The patient can log in right away, see their pending request, and be a full party to it during the office's review window. If the office rejects or the request expires, the patient still has an account (but no appointment).
+- **On office approval.** The invite fires only after the doctor's office approves the request. Until approval, the patient has no portal access -- they hear about the request via whoever submitted on their behalf or via the other recipients. Rejected or expired requests never produce a portal account.
+- **Both.** Request-submit triggers a plain informational email to the patient ("a request has been submitted for you") without creating a portal account. Approval triggers the actual portal invite ("click to set up your account and see your appointment"). Two email templates on the patient side; portal access gated to approval.
+
+This decides whether the patient is reachable through the portal during the review window, whether rejected requests produce orphan accounts, and how many email templates we need on the patient side.
+
+Related but separate: (a) how long is the invite link valid before it expires, (b) can the office re-send the invite if the patient misses it, (c) what if the patient's email address has a typo and the invite bounces?
+
+---
+
 ### Q22. What profile fields does a doctor need to carry, from the case-record and regulatory-compliance perspective?
 
 The code today captures first name, last name, email, and gender. The developer doesn't know whether that's enough for the MVP case record / regulatory paperwork. Candidates we'd consider adding if required: medical credentials (MD, DO, specialty certifications), QME / state license number, practice / office name, bio, photo, years of experience, languages spoken.
@@ -154,6 +168,7 @@ The developer confirmed 2026-04-24 that the **tenant** a patient books under is 
 
 ## Change log
 
+- 2026-04-24 (later) -- Patients session added Q23 (when the patient invite email fires -- on request submit, on approval, or both). Flagged a T4/T5 tension for T10 resolution: T4 said practice-side doctor's admin can edit form data on booker request; T5 says patient-data changes post-submit require Gesco-side admins, not practice-side. Boundary to be pinned down in the Auth-and-Roles cross-cutting session.
 - 2026-04-24 (later) -- Doctors session added Q20 (host-admin-only onboarding MVP OK?), Q21 (doctor login + Gesco-side "manager" role), Q22 (required doctor profile fields for case record / regulatory).
 - 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots).
 - 2026-04-24 -- resolution round. Q2, Q3, Q4, Q5, Q6, Q8, Q10, Q12, Q13, Q14, Q15 moved to Recently resolved (closed or deferred per answers and scope decisions). Q9 narrowed from "are notifications required" to "what is the exact format per event / party". Q11 narrowed (tenant pre-decided; remaining pre-fill question still open). Q16 annotated with the developer's rough working guess. Glossary trimmed.
