@@ -14,19 +14,59 @@ The Appointments feature moves a booking from a booker (applicant attorney, pati
 
 ## Personas and goals
 
-Persona definitions live in [00-BUSINESS-CONTEXT.md](00-BUSINESS-CONTEXT.md). This section captures feature-specific goals only.
+Persona definitions live in [00-BUSINESS-CONTEXT.md](00-BUSINESS-CONTEXT.md). This section captures feature-specific goals, portal experience, and role authority per persona, per Adrian 2026-04-22 / 2026-04-23.
 
-**Booker personas (all four first-class at MVP per 00-BUSINESS-CONTEXT.md):**
+### Booker personas
 
-- Applicant attorney -- goals for Appointments: [UNKNOWN -- queued for Adrian]
-- Patient (injured worker) -- goals for Appointments: [UNKNOWN -- queued for Adrian]
-- Claim examiner -- goals for Appointments: [UNKNOWN -- queued for Adrian]
-- Defense attorney -- goals for Appointments: [UNKNOWN -- queued for Adrian]
+All four booker personas are first-class at MVP per [00-BUSINESS-CONTEXT.md](00-BUSINESS-CONTEXT.md), but their goals, portal experience, and expected traffic share differ meaningfully. [Source: Adrian-confirmed 2026-04-23]
 
-**Non-booker personas:**
+#### Patient (injured worker)
 
-- Examiner office staff -- role in Appointments: within the office, a dedicated tenant-level admin role (Adrian's 2026-04-23 handle: **doctor's admin**; other working names raised in this interview: Office Manager, Scheduler, TenantAdmin) holds (a) the authority to approve / reject / send-back-for-info on pending requests and (b) the authority to cancel or reschedule approved appointments. The medical examiner (Doctor role) can also approve / reject / send-back on the review queue. Other staff users inside the tenant can VIEW the queue for scheduling context but cannot take decision or modification actions. [UNKNOWN -- queued for Adrian: is the final role name a single role that owns both the approval authority (this interview 2026-04-22) and the modification authority (this interview 2026-04-23), or two separate roles? Do the current working handles `doctor's admin`, `Office Manager`, `Scheduler` refer to the same role?] [Source: Adrian-confirmed 2026-04-22, extended 2026-04-23]
-- Host admin (Gesco-side) -- role in Appointments: always has authority to cancel or reschedule any appointment, across any tenant. The host admin's **reason to exist is precisely this** -- to step in when the doctor's office cannot or will not modify an appointment directly ("that is the point of that admin", Adrian 2026-04-23). No appointment-approval authority in the doctor's review queue (that belongs to the tenant-level admin); modification authority is universal. [Source: Adrian-confirmed 2026-04-23]
+Together with the applicant attorney, the patient drives the majority of portal traffic at MVP.
+
+- **Onboarding.** The patient is invited to the portal by email with their tenant already selected. Tenant discovery is deliberately controlled: the patient does not browse a list of tenants or type one in, because (a) they may not know the exact name of their examiner's practice as stored in the system, and (b) exposing the full tenant list would reveal medical-practice relationships protected by legal / medical-privacy norms. [Source: Adrian-confirmed 2026-04-23]
+- **Registration / login.** The patient completes account creation from the invite; subsequent visits use standard login. [Source: Adrian-confirmed 2026-04-23]
+- **Dashboard view (limited scope, patient role).** Two action buttons -- **Book an appointment** and **Book a reevaluation** -- plus a list of this patient's own appointments at this specific tenant (active and completed). The patient sees nothing else; no menus, pages, or data for any other area of the portal. [Source: Adrian-confirmed 2026-04-23]
+- **Booking-form fill.** Patient fills their own personal information, their insurance and adjustor information, and their applicant-attorney and defense-attorney information. The self-represented exception path is specified in "Business rules" and "Edge cases". [Source: Adrian-confirmed 2026-04-23]
+- **Reevaluation flow.** Reached from the "Book a reevaluation" button. This is a distinct booking type, not a second first-time appointment. Form design and rules are [UNKNOWN -- queued for manager: what counts as a reevaluation in our product's sense, how does it differ from a first-time booking, who is eligible, what fields does it capture, what notifications does it trigger?].
+
+#### Applicant attorney
+
+Represents the injured worker in the workers'-compensation matter. Together with the patient, drives the majority of portal traffic.
+
+- **Registration, login, and per-booking form flow** mirror the patient's, with the difference that an attorney manages many cases rather than one. [Source: Adrian-confirmed 2026-04-23]
+- **Multi-patient management.** The attorney can book appointments for multiple patients and see all of them in a list. The list is **tenant-scoped**: an attorney who works with several tenants (several medical-examiner practices) sees a separate per-tenant list in each tenant context, NOT a unified cross-tenant inbox. [Source: Adrian-confirmed 2026-04-23]
+
+#### Defense attorney
+
+Represents the employer or carrier in the contested matter. Can book appointments, but does so **uncommonly**; most bookings originate from the patient / applicant-attorney side. [Source: Adrian-confirmed 2026-04-23]
+
+- **Registration, login, and form flow** mirror the applicant-attorney flow. [Source: Adrian-confirmed 2026-04-23]
+- **When defense attorney books:** the defense attorney must still enter the applicant attorney's information as part of the booking. Any action one party takes must be visible to every other party on the case so the matter stays on the right side of California's **ex-parte-communication rule** (see Business rules). Failing to inform all parties is a legal risk, not just a UX miss. [Source: Adrian-confirmed 2026-04-23]
+
+#### Claim examiner
+
+Insurance-side claim-file manager. Can book appointments but does so **very rarely** -- generally only on behalf of patients who are self-represented (no attorney). Even in that case, most self-represented patients book their own appointments, so claim-examiner bookings are edge-case traffic at MVP. [Source: Adrian-confirmed 2026-04-23]
+
+#### Rough traffic distribution at MVP
+
+Adrian's 2026-04-23 rough estimate, pending real usage data or firmer business / client estimate:
+
+1. Patients + applicant attorneys -- majority of portal traffic.
+2. Defense-attorney bookings -- uncommon.
+3. Claim-examiner bookings -- very rare; mostly for self-represented patients, who in turn usually self-book anyway.
+
+[Source: Adrian best-guess 2026-04-23 -- NEEDS CONFIRMATION against real usage data or business estimate]
+
+### Non-booker personas
+
+#### Examiner office staff
+
+Within the office, a dedicated tenant-level admin role (Adrian's 2026-04-23 handle: **doctor's admin**; other working names raised in this interview: Office Manager, Scheduler, TenantAdmin) holds (a) the authority to approve / reject / send-back-for-info on pending requests and (b) the authority to cancel or reschedule approved appointments. The medical examiner (Doctor role) can also approve / reject / send-back on the review queue. Other staff users inside the tenant can VIEW the queue for scheduling context but cannot take decision or modification actions. [UNKNOWN -- queued for Adrian: is the final role name a single role that owns both the approval authority (this interview 2026-04-22) and the modification authority (this interview 2026-04-23), or two separate roles? Do the current working handles `doctor's admin`, `Office Manager`, `Scheduler` refer to the same role?] [Source: Adrian-confirmed 2026-04-22, extended 2026-04-23]
+
+#### Host admin (Gesco-side)
+
+Always has authority to cancel or reschedule any appointment, across any tenant. The host admin's **reason to exist is precisely this** -- to step in when the doctor's office cannot or will not modify an appointment directly ("that is the point of that admin", Adrian 2026-04-23). No appointment-approval authority in the doctor's review queue (that belongs to the tenant-level admin); modification authority is universal. [Source: Adrian-confirmed 2026-04-23]
 
 ## Intended workflow
 
@@ -83,6 +123,12 @@ All events (submission, decision, resulting status) are persisted to the databas
 
 **Steps 3+ (post-approval)** -- [UNKNOWN -- queued for Adrian: from Approved through CheckedIn, CheckedOut, Billed, who owns each transition, and what happens if the patient does not show up.]
 
+### Reevaluation flow
+
+A distinct second booking type, reached from the patient's "Book a reevaluation" dashboard button (see Personas > Patient). Reevaluation is not treated as a repeat first-time appointment; it is a separate flow with its own form and rules. [Source: Adrian-confirmed 2026-04-23 on existence]
+
+Design details are [UNKNOWN -- queued for manager: what counts as a reevaluation in the product's sense, who is eligible to book one, which fields the form captures, and whether the approval / notification / Packet flow diverges from a first-time booking]. See `OUTSTANDING-QUESTIONS.md` Q16.
+
 ### Modifications (cancel / reschedule of an approved appointment)
 
 **Provisional framing caveat.** Adrian flagged 2026-04-23 that **whether cancellation is an MVP feature at all** has not been confirmed with his manager. The flow below describes his current intent if cancellation lands in MVP; it is working-hypothesis content, not settled scope. [Source: Adrian best-guess 2026-04-23 -- NEEDS CONFIRMATION on "is cancel/reschedule in the MVP feature list?"]
@@ -104,11 +150,17 @@ This MVP intent means the 13-state enum's `CancellationRequested` and `Reschedul
 ### Confirmed rules
 
 - **Two-step request/review flow is mandatory for MVP.** A booker cannot unilaterally confirm an appointment; only the doctor's office can approve, reject, or return-for-more-info. [Source: Adrian-confirmed 2026-04-22]
-- **All case parties are notified at both steps.** Request submission and doctor's-office decision both trigger emails to the full party list. A decision that sends no notification is a bug. [Source: Adrian-confirmed 2026-04-22]
+- **All case parties are notified at both steps -- a legal, not UX, requirement.** Request submission and doctor's-office decision both trigger emails to the full party list. The rationale is California's **ex-parte-communication rule**: any action one party takes on a workers'-compensation matter must be visible to every other party, or the communication is considered ex-parte and impermissible. A decision (or any other appointment-affecting action) that sends no notification is therefore not just a UX bug but a legal-compliance bug. [Source: Adrian-confirmed 2026-04-22, rationale clarified 2026-04-23]
 - **The doctor's office's decision options are exactly three: approve, reject, send-back-for-info.** Not two (no approve/reject-only flow). Not an unbounded set. The send-back action moves the appointment into a distinct "Awaiting more info from booker" status, not an email-only exchange. [Source: Adrian-confirmed 2026-04-22]
 - **Recipient emails are captured on the booking form and are required inputs.** Every party that must be notified has a required email field on the form; the form is the canonical distribution list for this appointment. [Source: Adrian-confirmed 2026-04-22]
 - **The decision authority inside a practice is role-gated, not tenant-wide.** Only users holding a dedicated decision role (working name Office Manager / Scheduler) and the medical examiner (Doctor) can approve / reject / send-back-for-info. Other tenant-scoped users see the review queue but cannot act. [Source: Adrian-confirmed 2026-04-22]
 - **All events are persisted.** Submission, every decision, and the resulting status are stored in the database -- no ephemeral in-memory state. [Source: Adrian-confirmed 2026-04-22]
+- **Ex-parte communication foundation rule.** California workers'-compensation practice forbids one party taking a case-affecting action without every other party's visibility. This foundational rule is the "why" behind several specific rules in this feature: all-parties notification on every event, required-email fields per party on the form, and the defense-attorney requirement to enter applicant-attorney info at booking time. Any future Appointments feature that involves party communication must preserve the same foundation. [Source: Adrian-confirmed 2026-04-23]
+- **Patient registration is email-invite-based with the tenant pre-selected.** Patients do not choose or browse tenants; they arrive via an invitation email scoped to a specific examiner's practice. Deliberate constraint: patients may not know the exact tenant name as stored, and exposing the tenant list would reveal medical-practice relationships protected by legal / medical-privacy norms. [Source: Adrian-confirmed 2026-04-23]
+- **Attorney information is mandatory on patient-initiated bookings, with a controlled self-represented exception.** The booking form treats attorney information as required. Attempting to skip the attorney section triggers a popup that asks whether the patient is self-represented or is missing the attorney's info. Self-represented -> continue with an active warning banner persistently visible. Missing info -> hard-block, with instructions to contact the attorney (either for the info or to have the attorney book through their own account). [Source: Adrian-confirmed 2026-04-23]
+- **Attorneys can book for multiple patients; lists are tenant-scoped.** An attorney managing many cases sees a per-tenant list inside each tenant context. An attorney who works with several tenants does NOT get a unified cross-tenant inbox at MVP; they see separate per-tenant lists. [Source: Adrian-confirmed 2026-04-23]
+- **Defense-attorney bookings must identify the applicant attorney.** When a defense attorney books an appointment, entering the applicant attorney's contact information is mandatory so the all-parties notification reaches them. This is the ex-parte rule applied to the defense-booking path. [Source: Adrian-confirmed 2026-04-23]
+- **Reevaluation is a distinct booking type, not a repeat of a first-time appointment.** The patient dashboard surfaces it as its own action button. Reevaluation form design, eligibility rules, and downstream differences from a first-time booking are [UNKNOWN -- queued for manager]. [Source: Adrian-confirmed 2026-04-23 on existence; design details pending]
 - **On approval, a Packet is generated and delivered to two audiences: all case parties AND the other softwares in the pipeline.** The Packet hand-off is mandatory for the Patient Portal to function in its California workers'-comp business pipeline; an approval that does not produce a Packet is a bug. Specific Packet contents, formats, and recipient-software list are being clarified in follow-up interview turns. [Source: Adrian-confirmed 2026-04-23]
 - **Modifications (cancel / reschedule) on an approved appointment can be initiated only by a tenant-level admin (doctor's admin) or the host admin.** Bookers cannot initiate modifications through the portal; modification requests reach an admin via out-of-portal channels (phone, email, support). The host admin exists specifically to step in when the doctor's admin cannot or will not act. **Caveat:** whether cancel/reschedule is an MVP feature at all is pending manager confirmation per Adrian 2026-04-23 -- this rule describes the intended flow IF the feature is in MVP. [Source: Adrian-confirmed 2026-04-23 as stated intent; NEEDS CONFIRMATION on MVP inclusion]
 
@@ -171,14 +223,24 @@ The Packet hand-off is the reason the Patient Portal exists in its business pipe
 
 ## Edge cases and error behaviors
 
-[UNKNOWN -- queued for Adrian. Candidate edge cases to cover:]
+### Confirmed
 
-- Double-submit: booker clicks Submit twice. Intended behaviour? [UNKNOWN]
-- Concurrent booking of the same slot by two bookers. Which one wins? [UNKNOWN]
-- Booker tries to book a past date. Hard block or warn-and-allow? [UNKNOWN]
-- Booker tries to book beyond the advance-booking window. Hard block or warn? [UNKNOWN]
-- Slot becomes unavailable between form open and submit. Error behaviour? [UNKNOWN]
-- Patient doesn't show up. What's the intended next step and who owns it? [UNKNOWN]
+- **Self-represented patient flow.** The booking form treats attorney info as required. A patient attempting to skip the attorney section sees a popup with two choices: "I'm self-represented" or "I don't have the attorney's info". [Source: Adrian-confirmed 2026-04-23]
+  - **Self-represented** -> patient continues filling the form; an active warning banner is persistently visible during the remaining flow, clearly communicating that the patient has elected to proceed without attorney representation.
+  - **Missing info** -> patient is hard-blocked from submitting. The UI instructs them to contact their attorney to obtain the attorney's info, or to have the attorney book the appointment through their own account.
+- **Attorney working with multiple tenants.** The attorney sees a separate per-tenant list in each tenant context, not a unified cross-tenant inbox. Attempting to cross-reference appointments between tenants is not a supported operation at MVP. [Source: Adrian-confirmed 2026-04-23]
+- **Defense attorney without applicant-attorney info.** The defense attorney cannot skip entering applicant-attorney info (no self-represented equivalent for defense-initiated bookings). The ex-parte rule requires the applicant attorney be notified; missing that contact is a hard-block. [Source: Adrian-confirmed 2026-04-23, implied by the ex-parte foundation rule and defense-attorney booking description]
+
+### Candidate edge cases still open
+
+- Double-submit: booker clicks Submit twice. Intended behaviour? [UNKNOWN -- queued for Adrian]
+- Concurrent booking of the same slot by two bookers. Which one wins? [UNKNOWN -- queued for Adrian]
+- Booker tries to book a past date. Hard block or warn-and-allow? [UNKNOWN -- queued for Adrian] (Note: `docs/issues/research/BUG-09.md` documents that the server currently accepts past dates; this is an observed bug, not intent.)
+- Booker tries to book beyond the advance-booking window. Hard block or warn? [UNKNOWN -- queued for Adrian] (Refines `docs/issues/research/Q-06.md`.)
+- Slot becomes unavailable between form open and submit. Error behaviour? [UNKNOWN -- queued for Adrian]
+- Patient-invite email never arrives or is lost in spam. Retry mechanism, expiration, manual resend path? [UNKNOWN -- queued for Adrian]
+- Patient doesn't show up (NoShow). Next step and who owns it? [UNKNOWN -- depends on day-of-exam MVP scope decision (see `OUTSTANDING-QUESTIONS.md` Q2)]
+- Attorney account used by a non-attorney (assistant, paralegal). Intended behaviour? [UNKNOWN -- queued for Adrian: does the attorney persona support delegated sub-users or is one-login-per-person assumed at MVP?]
 
 ## Success criteria
 
@@ -197,6 +259,11 @@ Pending Phase 3 cross-reference pass. Candidate entries surfaced during evidence
 - `[observed, not authoritative]` No Packet-generation code path exists anywhere in the project. There is no data model for what a Packet contains, no generator, no delivery mechanism (email attachment / API call / file drop / webhook), and no downstream-software integration. **Intent divergence:** Packet generation + delivery on approval is THE product purpose per Adrian-confirmed intent (2026-04-23), making it the single largest MVP-blocking gap between implementation and intent. Volume of work depends on how many downstream softwares the MVP delivers to and how tailored each Packet form is; currently unscoped pending follow-up interview.
 - `[observed, not authoritative]` The 13-state enum defines `CancellationRequested` and `RescheduleRequested` states (booker-initiated request flows per `APPOINTMENT-LIFECYCLE.md`). **Intent divergence with MVP scope:** confirmed MVP intent (Adrian 2026-04-23) is that ONLY admins (doctor's admin, host admin) can initiate modifications; bookers have no cancel/reschedule action in MVP. Therefore `CancellationRequested` and `RescheduleRequested` states are **unused in MVP** and remain as future-state placeholders. Only the admin-initiated outcome states (`CancelledNoBill`, `CancelledLate`, `RescheduledNoBill`, `RescheduledLate`) are in MVP scope for the cancel/reschedule branches.
 - `[observed, not authoritative]` `HostAdmin` is not a formally-defined role in the codebase (per `FEAT-11`). **Intent divergence:** confirmed MVP intent (Adrian 2026-04-23) is that host admin has a specific operational authority in Appointments -- unconditional cancel/reschedule across all tenants. The role must be defined, seeded on the host database, and bound to that specific authority. `FEAT-11` therefore becomes MVP-blocking for Appointments, not just architectural debt.
+- `[observed, not authoritative]` The current booking form does not capture the patient's insurance or claim-adjustor information as structured fields on the Appointment / related entities. **Intent divergence (Adrian-confirmed 2026-04-23):** insurance and adjustor info is a required part of the patient booking flow. Fields need to be added to the form and to the underlying entity / DTO set.
+- `[observed, not authoritative]` Patient registration in the current codebase uses the generic ABP external-signup flow, where an external user chooses their user type (`Patient`, `ClaimExaminer`, `ApplicantAttorney`, `DefenseAttorney`). No invitation-based flow exists where the patient is emailed a tenant-scoped link that pre-selects the examiner's practice. **Intent divergence (Adrian-confirmed 2026-04-23):** patient registration is invite-based with tenant pre-selected; tenant discovery is deliberately controlled. The invite-email + tenant-pre-selection UX needs to be designed and built; the existing signup flow may remain for non-patient personas.
+- `[observed, not authoritative]` No self-represented patient popup / warning-banner / hard-block UX exists. **Intent divergence (Adrian-confirmed 2026-04-23):** self-represented path with a popup and persistent warning banner, and a hard-block on missing attorney info, are required MVP components of the booking form.
+- `[observed, not authoritative]` No reevaluation booking type exists. The Appointment entity treats all bookings uniformly; there is no second-button flow, no reevaluation-specific fields, and no second workflow. **Intent divergence (Adrian-confirmed 2026-04-23 on existence, design pending manager):** reevaluation is a distinct MVP booking type.
+- `[observed, not authoritative]` The attorney-side booking list is not implemented as a multi-patient, per-tenant view. The code has `AppointmentApplicantAttorney` as a join entity but no dedicated attorney dashboard listing the attorney's patients' appointments within a tenant. **Intent divergence (Adrian-confirmed 2026-04-23):** attorneys need a per-tenant multi-patient list view in MVP.
 - `[observed, not authoritative]` `DeleteAsync` does not release the `DoctorAvailability` slot back to `Available`. Slot stays `Booked` after an appointment is deleted.
 - `[observed, not authoritative]` Server does not reject past-date bookings. The 3-day minimum lead time exists only in the Angular datepicker.
 - `[observed, not authoritative]` `Appointments.Edit` and `Appointments.Create` permissions are checked in the Angular UI but are NOT enforced in `AppointmentsAppService.UpdateAsync` / `CreateAsync` -- any authenticated user can bypass via direct API call.
