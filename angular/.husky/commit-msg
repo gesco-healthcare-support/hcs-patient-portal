@@ -2,9 +2,18 @@
 
 # Enforce conventional commit messages.
 # commitlint is installed in angular/, so invoke from there.
-# $1 is the path to COMMIT_EDITMSG, relative to repo root (cwd of this hook).
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-COMMIT_MSG_FILE="$REPO_ROOT/$1"
+
+# Git passes COMMIT_EDITMSG's path differently depending on whether the commit
+# happens in a normal checkout or a linked worktree:
+#   - normal checkout: $1 is relative to the worktree root (e.g. ".git/COMMIT_EDITMSG")
+#   - linked worktree: $1 is absolute (points to <main>/.git/worktrees/<name>/COMMIT_EDITMSG)
+# Match absolute paths (Unix /path, Windows C:/path, Windows C:\path) and
+# pass them through untouched; otherwise join with REPO_ROOT.
+case "$1" in
+  /*|[A-Za-z]:/*|[A-Za-z]:\\*) COMMIT_MSG_FILE="$1" ;;
+  *)                           COMMIT_MSG_FILE="$REPO_ROOT/$1" ;;
+esac
 
 # Under WSL, Windows Node (bundled with Windows-installed node_modules) cannot
 # parse /mnt/... paths. Convert to a Windows path so Windows Node can read it.
