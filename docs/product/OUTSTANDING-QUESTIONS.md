@@ -42,6 +42,35 @@ Context: the patient dashboard is planned to have a "Book a reevaluation" button
 
 ---
 
+### Q22. What profile fields does a doctor need to carry, from the case-record and regulatory-compliance perspective?
+
+The code today captures first name, last name, email, and gender. The developer doesn't know whether that's enough for the MVP case record / regulatory paperwork. Candidates we'd consider adding if required: medical credentials (MD, DO, specialty certifications), QME / state license number, practice / office name, bio, photo, years of experience, languages spoken.
+
+Please advise which of these are required by California workers'-comp paperwork or expected by the case parties (attorneys, insurance, adjustors) seeing the doctor's name on an appointment confirmation or Packet.
+
+---
+
+### Q21. Who actually logs into the portal day-to-day -- the doctor themselves, the doctor's admin or intake staff, and/or Gesco-side account managers?
+
+The developer's leaning (2026-04-24) is that the medical examiner themselves probably does NOT log in; the portal's day-to-day users are the doctor's admin or intake staff (at the practice) and "the doctor's manager at our side" (on Gesco's side). That last phrase needs clarification: is it the same as the already-defined host admin (one Gesco superuser across all tenants), or a more specific role (a Gesco account manager who handles a portfolio of specific doctors)?
+
+Please confirm:
+
+- Should we plan for the doctor to have a portal login at MVP, yes or no?
+- On the Gesco side, is "doctor's manager" a separate role from host admin, or the same thing?
+
+The answer decides whether each practice is onboarded with one user (just the admin) or two (admin + doctor), and whether a separate Gesco-side "account manager" role needs to be defined for MVP.
+
+---
+
+### Q20. For MVP, is it OK for the host admin to create new doctor practices manually through an admin screen (no invite flow, no self-service signup)?
+
+The developer's MVP call (2026-04-24) is yes -- host admin creates the tenant, the doctor's profile, and the initial user account by hand; invite-email or self-service signup flows for doctors are deferred until after MVP.
+
+Please confirm this is acceptable for MVP. If we need an invite or self-service flow for doctors at MVP, that's a meaningful additional build item.
+
+---
+
 ### Q19. Can the doctor's office edit a booked slot's time or location directly, or must every change go through the cancel/reschedule flow?
 
 The developer's intuition (2026-04-24) is no -- once a slot is booked, its time and location should be locked. Any shift the office wants to make should go through the formal cancel/reschedule flow (subject to Q1 on whether that flow is in MVP at all). This keeps the audit trail clean and avoids back-door edits.
@@ -125,6 +154,7 @@ The developer confirmed 2026-04-24 that the **tenant** a patient books under is 
 
 ## Change log
 
+- 2026-04-24 (later) -- Doctors session added Q20 (host-admin-only onboarding MVP OK?), Q21 (doctor login + Gesco-side "manager" role), Q22 (required doctor profile fields for case record / regulatory).
 - 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots).
 - 2026-04-24 -- resolution round. Q2, Q3, Q4, Q5, Q6, Q8, Q10, Q12, Q13, Q14, Q15 moved to Recently resolved (closed or deferred per answers and scope decisions). Q9 narrowed from "are notifications required" to "what is the exact format per event / party". Q11 narrowed (tenant pre-decided; remaining pre-fill question still open). Q16 annotated with the developer's rough working guess. Glossary trimmed.
 - 2026-04-23 -- first draft.
