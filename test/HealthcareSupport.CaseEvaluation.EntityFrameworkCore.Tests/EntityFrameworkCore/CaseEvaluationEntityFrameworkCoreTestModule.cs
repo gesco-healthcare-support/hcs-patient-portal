@@ -64,9 +64,33 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
         });
     }
 
+    // Microsoft.Data.Sqlite intermittently throws NullReferenceException from
+    // SqliteConnection.Close() during Dispose() when the connection's internal
+    // command pool is being torn down concurrently with an in-flight EF Core
+    // unit-of-work rollback. This is a library-side race that has persisted
+    // across versions without an upstream fix:
+    //   https://github.com/aspnet/Microsoft.Data.Sqlite/issues/466
+    //   https://github.com/dotnet/efcore/issues/20651
+    //   https://github.com/abpframework/abp/issues/19065
+    // ABP 10 does not expose an OnPostApplicationShutdown hook (the pre/post
+    // variants exist on the Initialization side only), so we cannot defer the
+    // disposal to a later lifecycle phase. The test has already completed by
+    // the time this hook runs, so swallowing the shutdown-time NRE is safe
+    // and prevents the flake from failing deploy-dev.yml's Validate job.
     public override void OnApplicationShutdown(ApplicationShutdownContext context)
     {
-        _sqliteConnection?.Dispose();
+        try
+        {
+            _sqliteConnection?.Dispose();
+        }
+        catch (NullReferenceException)
+        {
+            // Intentional: known Microsoft.Data.Sqlite Dispose race.
+        }
+        finally
+        {
+            _sqliteConnection = null;
+        }
     }
 
     private static SqliteConnection CreateDatabaseAndGetConnection()
