@@ -32,9 +32,27 @@ findings. It makes no recommendation on solution or sequence. This tree:
 | 1.5. Service verification | Done | `probes/service-status.md` -- all 3 services up on HTTPS |
 | 2. Per-capability research | Done | 39 briefs + 36 probe logs in `solutions/` and `probes/` |
 | 3. Dependency synthesis | Done | `dependencies.md` -- Mermaid graph + 4-wave topological sort |
-| 4. Blocked-on-scope routing | Done | `blocked-on-scope.md` -- 10 caps routed to 32 open questions |
-| 5. Wave-ordered plan | Done | Wave ordering + first-10-days below |
-| 6. Handoff | In progress | See final status on close |
+| 4. Blocked-on-scope routing | Done (LOCKED 2026-04-24) | `blocked-on-scope.md` -- all 20 scope questions answered via live Q&A with Adrian |
+| 5. Wave-ordered plan | Done (REVISED 2026-04-24) | Wave ordering + first-10-days below; effort range ~70-100 engineer-days |
+| 6. Handoff | Done | See final status at end of session |
+
+## Scope-lock note (2026-04-24)
+
+All 20 open scope questions closed via interactive Q&A with Adrian. Nothing is blocked on scope. Seven briefs carry a `## Status (scope-locked 2026-04-24)` section at the top documenting the locked answer + effort adjustment. `blocked-on-scope.md` records each answer with context.
+
+Key MVP scope decisions (see `blocked-on-scope.md` for full list):
+- **Roles:** 3 internal tiers (IT Admin / Staff Supervisor / Clinic Staff) + 4 external roles (Patient, Claim Examiner, Applicant Attorney, Defense Attorney). Baseline permission grants seeded.
+- **Signup:** email-invite only for all 4 external roles (no anonymous self-signup); login is self-service via ABP Account Module.
+- **13-state lifecycle:** MVP state SUBSET (Pending, Approved, Rejected, MoreInfoRequested (new), RescheduleRequested, CancellationRequested, CancelledNoBill/Late, RescheduledNoBill/Late). OUT: CheckedIn, CheckedOut, Billed, NoShow.
+- **Attorney model:** Option B split (ApplicantAttorney + DefenseAttorney as separate entities).
+- **Blob storage:** DB BLOB for MVP; config-only swap to S3 post-MVP.
+- **Background jobs:** Hangfire IN Wave 0 (mandatory; legal CCR-driven recurring jobs).
+- **Email:** ABP SmtpEmailSender + AWS SES SMTP.
+- **Templates:** ABP TextTemplateManagement; bodies copied from OLD's EmailTemplates.
+- **System parameters:** ABP SettingManagement; no port of OLD entity.
+- **Legal schedules (CCR 8 31.5 / 33 / 34):** 3 Hangfire jobs + 4 UI validations + 10 settings; exact legal values pending Adrian's legal staff + manager sign-off.
+- **Scope dropped from MVP:** appointment-notes, anonymous-document-upload, joint-declarations, appointment-request-report-export, sms-sender-consumer.
+- **Scope added to MVP:** document-packages (admin CRUD), user-query-contact-us, custom-fields (reinterpreted as per-type field config), appointment-documents, appointment-injury-workflow.
 
 ## Wave-ordered MVP plan
 

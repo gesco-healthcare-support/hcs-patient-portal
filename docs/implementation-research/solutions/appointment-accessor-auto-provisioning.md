@@ -1,5 +1,14 @@
 # AppointmentAccessor auto-user-provisioning
 
+## Status (scope-locked 2026-04-24 -- SCOPE EXPANDED)
+
+Adrian's Q&A answer Q12 elevates this capability:
+- **OLD scope:** specialised accessor-only `FindOrCreateAccessorUserAsync` method on `AppointmentAccessorManager`.
+- **NEW scope (locked):** canonical `FindOrCreateExternalUserAsync` method used by ALL external-user creation (Patient, Claim Examiner, Applicant Attorney, Defense Attorney). This becomes the backbone of the email-invite signup flow.
+- Flow: admin creates pending user via `/identity/users` Admin UI -> selects tenant + role + name + email -> system calls `FindOrCreateExternalUserAsync` -> creates IdentityUser with role, generates password-reset token, emails invite link via `IAccountEmailer.SendPasswordResetLinkAsync` -> user clicks, sets password, logs in.
+- **For Patient role invite specifically:** after creating IdentityUser, call `PatientManager.FindOrCreateAsync` (patient-auto-match logic) to create/attach the Patient entity. This replaces the anonymous signup flow that `new-sec-04` just removed.
+- Effort revised: **L+ (~5-6 days)**, up from L (~4 days). Additional work: tenant-scoped parameter handling in Manager, 4-role branching for Patient-vs-non-Patient entity creation, audit log of who-invited-whom.
+
 ## Source gap IDs
 
 - G2-05 (track 02) -- [02-domain-entities-services.md](../../gap-analysis/02-domain-entities-services.md#mvp-blocking-gaps-capability-present-in-old-absent-in-new): `AppointmentAccessorManager.CreateAsync:22-29` only takes a pre-existing `identityUserId`. OLD's `AppointmentAccessorDomain.cs:263-354` auto-creates the user when the accessor email is not yet a User.

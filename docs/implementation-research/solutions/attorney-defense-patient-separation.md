@@ -1,5 +1,18 @@
 # Defense vs Patient attorney separation
 
+## Status (scope-locked 2026-04-24)
+
+**Option B chosen.** Adrian's Q&A answer Q3: split into separate entities; rename to keep WCAB-standard naming.
+- Keep existing `ApplicantAttorney` entity (already WCAB-named, plaintiff side).
+- Add NEW `DefenseAttorney` entity parallel to `ApplicantAttorney` with identical firm-detail schema.
+- Add NEW `AppointmentDefenseAttorney` join parallel to `AppointmentApplicantAttorney`.
+- Effort locked: **M (~5 days)**. Two parallel entity surfaces + 2 AppServices + 2 controllers + 2 proxies + 2 Angular feature modules + 1 migration.
+- Permission matrix additions (from Q2 answer):
+  - Defense Attorney role: `DefenseAttorneys.Default/Create/Edit`, `AppointmentDefenseAttorneys.Default/Create`.
+  - Staff Supervisor: `DefenseAttorneys.Default/Create/Edit`, `AppointmentDefenseAttorneys.Default/Create/Edit`.
+  - Clinic Staff: `DefenseAttorneys.Default`, `AppointmentDefenseAttorneys.Default`.
+  - IT Admin: all Defense* permissions including Delete.
+
 ## Source gap IDs
 
 - DB-05 (track 01) -- [01-database-schema.md](../../gap-analysis/01-database-schema.md#database--domain): `Models\AppointmentDefenseAttorney.cs` + 17 firm-detail columns on `AppointmentDefenseAttorneys` table. NEW has Applicant Attorney only. Inventory effort: M (5 points).

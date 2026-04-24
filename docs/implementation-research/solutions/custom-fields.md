@@ -1,5 +1,17 @@
 # Capability research: custom-fields (per-AppointmentType extra fields)
 
+## Status (scope-locked 2026-04-24 -- SCOPE REINTERPRETED)
+
+Adrian's Q&A answer Q4 REINTERPRETS this capability:
+- **NOT** a dynamic form builder.
+- **NOT** per-tenant field definitions via `ObjectExtensionManager`.
+- **Actual scope:** all appointment fields are in the form BY DEFAULT (same field set for every appointment type). AppointmentType selection triggers **visibility / pre-fill / disable** behavior on specific fields. No new fields are ever added.
+- Implementation: a single `AppointmentTypeFieldConfig` table with rows `(AppointmentTypeId, FieldName, Hidden, ReadOnly, DefaultValue)`. Angular form reads the config on AppointmentType change + updates field attributes accordingly.
+- Admin screen: CRUD the field-config rows per AppointmentType.
+- Effort revised: **S (~1 day)**, down from S-M.
+
+The research below (sections 0-13) describes the ObjectExtensionManager approach originally scoped. Use it only for the context around OLD's fixed-type CustomField schema (track-10 erratum 4). The actual MVP implementation is the simpler field-config table above.
+
 ## 0. Header context
 
 - Gap IDs rolled up: DB-11 (schema), G2-N2 (domain/services -- listed Non-MVP in track 02), 03-G12 (application service), G-API-07 (5 REST endpoints + lookups), 5-G10 (`CustomFields` permission group), A8-03 (Angular proxy service), UI-08 (`/custom-fields` admin screen).

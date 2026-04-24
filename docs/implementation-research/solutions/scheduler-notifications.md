@@ -1,5 +1,29 @@
 # Scheduler + recurring notification-dispatch jobs
 
+## Status (scope-locked 2026-04-24 -- SCOPE REFOCUSED)
+
+Adrian's Q&A answer Q9 replaces the generic 9-job scope with 3 specific CCR-driven jobs + 4 UI validations + 10 ABP Settings:
+
+**3 Hangfire recurring jobs (CCR-driven):**
+1. `RequestSchedulingReminderJob` (daily 08:00 local) -- CCR 8 Sec. 31.5 90-day rule; reminders at days 30 / 60 / 75 / 85 / 90.
+2. `CancellationRescheduleReminderJob` (daily 08:00 local) -- CCR 8 Sec. 34(e) 60-day reschedule rule; reminders at days 45 / 55.
+3. `AppointmentDayReminderJob` (daily 07:00 local) -- clinic UX; emails at T-7 days + T-1 day.
+
+**4 UI validations** (live inside `AppointmentsAppService` + `AppointmentChangeRequestsAppService`, not here):
+- Admin cancel-on-behalf-of-doctor with < 6 business days (CCR 8 Sec. 34(d)).
+- Party cancel/reschedule with < 6 business days (CCR 8 Sec. 34(h)).
+- Unavailability edit with < 30 days notice (CCR 8 Sec. 33).
+- Doctor cumulative unavailability approaching 120 days/year (CCR 8 Sec. 33).
+
+**10 ABP Settings** (keys + default legal values; exact values pending Adrian's legal staff + manager sign-off):
+See `blocked-on-scope.md` Q9 for the full setting-key list + default values.
+
+**Library addition:** `Nager.Date` NuGet for US federal + California state holiday awareness (business-day calculator). ~0.5d.
+
+**Effort revised: M (~3-4 days)** for the 3 jobs + Settings wiring + Nager.Date integration. UI validations live in their respective AppService briefs.
+
+**Post-MVP (out of this capability's scope):** CCR 8 Sec. 38 30-day report-service rule, extension-notice rule, missed-appointment-fee liability. All depend on the check-in/check-out/bill states that are OUT of MVP per the Q1 answer.
+
 ## Source gap IDs
 
 - G2-11 (track 02 -- 9 recurring email / SMS jobs driven by

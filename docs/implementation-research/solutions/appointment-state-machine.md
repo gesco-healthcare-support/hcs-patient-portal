@@ -1,5 +1,13 @@
 # Appointment state-transition enforcement (13-state lifecycle)
 
+## Status (scope-locked 2026-04-24)
+
+MVP state subset, not full 13-state enforcement. Adrian's Q&A answer Q1:
+- **IN:** Pending, Approved, Rejected, **MoreInfoRequested (new, not in OLD's 13)**, RescheduleRequested, CancellationRequested, CancelledNoBill, CancelledLate, RescheduledNoBill, RescheduledLate.
+- **OUT:** CheckedIn, CheckedOut, Billed, NoShow.
+- Effort revised: **S-M (~1.5 days)**, down from M (~3 days). Fewer transitions to configure in Stateless; `MoreInfoRequested` added as a new state (new transition: Pending -> MoreInfoRequested on admin action).
+- Sections below (Alternatives / Recommended solution) remain accurate for the implementation shape (Stateless library + ILocalEventBus fan-out); only the transition set shrinks.
+
 ## Source gap IDs
 
 - [G2-01 -- Appointment state-transition enforcement (track 02)](../../gap-analysis/02-domain-entities-services.md)

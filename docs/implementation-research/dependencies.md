@@ -1,90 +1,94 @@
 # Dependency graph + wave ordering
 
-**Phase 3 output.** Built from the `## Dependencies` section of each brief in `solutions/`. 39 capabilities total, 0 cycles detected. 4 waves.
+**Phase 3 output, locked 2026-04-24.** Built from the `## Dependencies` section of each brief in `solutions/`, refreshed after the Q&A scope lock in `blocked-on-scope.md`. 39 capabilities total: 34 IN-MVP, 4 OUT-of-MVP (handled post-MVP), 1 doc-only. 0 cycles detected. 4 waves.
 
-## Wave ordering (topological sort)
+## Scope delta vs initial Phase 3 draft
 
-Wave N contains capabilities whose blocked-by set is entirely in waves < N. Within a wave, ordering is by effort + risk (smaller + lower-risk first for quick wins).
+- `appointment-notes`, `anonymous-document-upload`, `joint-declarations`, `appointment-request-report-export` -> OUT of MVP.
+- `document-packages`, `user-query-contact-us`, `custom-fields`, `appointment-documents`, `appointment-injury-workflow` -> IN-MVP.
+- `background-jobs-infrastructure` (Hangfire) promoted from deferred to Wave 0 mandatory (legal recurring jobs).
+- `sms-sender-consumer` -> OUT of MVP (defer; OLD has SMS disabled).
 
-### Wave 0 -- foundation + leaf fixes (14 capabilities)
+## Wave ordering
 
-No hard cross-capability blockers. Safe to parallelise across engineers. Strongly recommended "first 10 days" tranche.
+### Wave 0 -- foundation + leaf fixes (15 capabilities)
 
-| slug | effort | blocked-on-scope (Q#) |
+Safe to parallelise. First-10-days tranche.
+
+| slug | effort | note |
 |---|---|---|
-| [new-sec-05-hsts-header](solutions/new-sec-05-hsts-header.md) | XS | none |
-| [new-sec-01-appointment-route-permission-guard](solutions/new-sec-01-appointment-route-permission-guard.md) | XS-S | none |
-| [new-sec-03-transactional-tenant-provisioning](solutions/new-sec-03-transactional-tenant-provisioning.md) | XS-S | none |
-| [new-sec-02-method-level-authorize](solutions/new-sec-02-method-level-authorize.md) | S-M | none |
-| [new-sec-04-external-signup-real-defaults](solutions/new-sec-04-external-signup-real-defaults.md) | S | none |
-| [rest-api-parity-cleanup](solutions/rest-api-parity-cleanup.md) | S (doc-only + ADR-006) | Q28 (resolved static) |
-| [lookup-data-seeds](solutions/lookup-data-seeds.md) | S | Q23 (answered in brief) |
-| [internal-role-seeds](solutions/internal-role-seeds.md) | S (Q21=1) / S-M (Q21=3+Q22=no) / M (Q21=3+Q22=yes) | Q21, Q22 |
-| [blob-storage-provider](solutions/blob-storage-provider.md) | M | Q17 (answered DB BLOB) |
-| [email-sender-consumer](solutions/email-sender-consumer.md) | S-M | track-06 email Q (resolved SES-SMTP) |
-| [background-jobs-infrastructure](solutions/background-jobs-infrastructure.md) | S-M | Q18 (answered Hangfire) |
-| [system-parameters-vs-abp-settings](solutions/system-parameters-vs-abp-settings.md) | S | Q8 (answered ABP Settings) |
-| [users-admin-management](solutions/users-admin-management.md) | S (verify only) | none |
-| [patient-auto-match](solutions/patient-auto-match.md) | M | none; subsumes NEW-SEC-04 |
+| [new-sec-05-hsts-header](solutions/new-sec-05-hsts-header.md) | XS | 1-line fix |
+| [new-sec-01-appointment-route-permission-guard](solutions/new-sec-01-appointment-route-permission-guard.md) | XS-S | 2-line Angular fix |
+| [new-sec-03-transactional-tenant-provisioning](solutions/new-sec-03-transactional-tenant-provisioning.md) | XS-S | UoW flag flip |
+| [new-sec-02-method-level-authorize](solutions/new-sec-02-method-level-authorize.md) | S | attribute additions on 3 AppServices + 4 helpers |
+| [new-sec-04-external-signup-real-defaults](solutions/new-sec-04-external-signup-real-defaults.md) | S | **Rewritten scope:** remove anonymous signup endpoint, not fix defaults |
+| [rest-api-parity-cleanup](solutions/rest-api-parity-cleanup.md) | S | ADR-006 cascade-delete + G-API-17/18/20/21 docs |
+| [lookup-data-seeds](solutions/lookup-data-seeds.md) | S | 5 reference seeders + 1 demo Location seeder |
+| [internal-role-seeds](solutions/internal-role-seeds.md) | S-M | 3 internal tiers + baseline grants; permission matrix authored |
+| [blob-storage-provider](solutions/blob-storage-provider.md) | M | DB BLOB for MVP; S3 migration = config-only post-MVP |
+| [email-sender-consumer](solutions/email-sender-consumer.md) | S-M | ABP SmtpEmailSender + AWS SES SMTP |
+| [background-jobs-infrastructure](solutions/background-jobs-infrastructure.md) | S-M | **Now mandatory Wave 0:** Hangfire + SQL Server storage |
+| [system-parameters-vs-abp-settings](solutions/system-parameters-vs-abp-settings.md) | S | ABP SettingManagement + ~12 SettingDefinitions |
+| [users-admin-management](solutions/users-admin-management.md) | S | verify-only; delegate to ABP Identity |
+| [patient-auto-match](solutions/patient-auto-match.md) | M | FindOrCreateAsync; subsumes NEW-SEC-04 remediation |
+| [account-self-service](solutions/account-self-service.md) | S | verify ABP Account Module wired; delegate to @volo/abp.ng.account/public |
 
-**Wave 0 effort roll-up:** 5 XS/XS-S + 6 S/S-M + 3 M = **~13-18 engineer-days** when parallelised.
+**Wave 0 effort roll-up:** ~15-22 engineer-days when parallelised across 4-6 engineers. Slightly higher than prior 13-18d estimate due to Hangfire promotion (+2-3d) + permission-matrix authoring in `internal-role-seeds` (+0.5-1d) + `account-self-service` moved earlier since email is in the same wave.
 
-### Wave 1 -- depends on Wave 0 (12 capabilities)
+### Wave 1 -- depends on Wave 0 (11 capabilities)
 
-| slug | effort | blocked by | blocked-on-scope |
-|---|---|---|---|
-| [appointment-state-machine](solutions/appointment-state-machine.md) | M (~3d) | none strictly | Q5 |
-| [appointment-lead-time-limits](solutions/appointment-lead-time-limits.md) | M | system-parameters-vs-abp-settings | indirect Q8 |
-| [appointment-accessor-auto-provisioning](solutions/appointment-accessor-auto-provisioning.md) | L | email-sender-consumer, internal-role-seeds | Q22 |
-| [account-self-service](solutions/account-self-service.md) | S | email-sender-consumer | Q16 |
-| [templates-email-sms](solutions/templates-email-sms.md) | M | email-sender-consumer | Q7 |
-| [appointment-full-field-snapshot](solutions/appointment-full-field-snapshot.md) | S-M | lookup-data-seeds, internal-role-seeds | none |
-| [appointment-documents](solutions/appointment-documents.md) | L (~7d) | blob-storage-provider, lookup-data-seeds | indirect Q17 |
-| [sms-sender-consumer](solutions/sms-sender-consumer.md) | 0 (defer) or M (port) | background-jobs-infrastructure | track-06 SMS Q (defer recommended) |
-| [custom-fields](solutions/custom-fields.md) | S-M | lookup-data-seeds | Q6 |
-| [user-query-contact-us](solutions/user-query-contact-us.md) | 0 (Q11=no) or S | none | Q11 |
-| [document-packages](solutions/document-packages.md) | 0 (Q9=no) or M (Q9=yes) | blob-storage-provider, appointment-documents | Q9 |
-| [attorney-defense-patient-separation](solutions/attorney-defense-patient-separation.md) | S-M (A) or M (B) | none | Q1, Q2 |
-| [new-qual-01-critical-path-test-coverage](solutions/new-qual-01-critical-path-test-coverage.md) | M | logical: new-sec-02/03/04 fixes | none |
+| slug | effort | blocked by |
+|---|---|---|
+| [appointment-state-machine](solutions/appointment-state-machine.md) | S-M (~1.5d) | none (scope reduced: MVP state subset only) |
+| [appointment-lead-time-limits](solutions/appointment-lead-time-limits.md) | M | system-parameters-vs-abp-settings |
+| [appointment-accessor-auto-provisioning](solutions/appointment-accessor-auto-provisioning.md) | L+ (~5-6d) | email-sender-consumer, internal-role-seeds; **Rewritten scope:** `FindOrCreateExternalUserAsync` is canonical for all 4 external roles, not just accessors |
+| [templates-email-sms](solutions/templates-email-sms.md) | M | email-sender-consumer |
+| [appointment-full-field-snapshot](solutions/appointment-full-field-snapshot.md) | S-M | lookup-data-seeds, internal-role-seeds |
+| [appointment-documents](solutions/appointment-documents.md) | L (~7d) | blob-storage-provider, lookup-data-seeds |
+| [custom-fields](solutions/custom-fields.md) | S (~1d) | lookup-data-seeds; **Rewritten scope:** per-AppointmentType field visibility / pre-fill / disable config, NOT dynamic form builder |
+| [document-packages](solutions/document-packages.md) | M | blob-storage-provider, appointment-documents |
+| [attorney-defense-patient-separation](solutions/attorney-defense-patient-separation.md) | M (~5d) | none (Option B locked: split DefenseAttorney + AppointmentDefenseAttorney) |
+| [user-query-contact-us](solutions/user-query-contact-us.md) | S (~1d) | email-sender-consumer (optional notify-admin-on-submit) |
+| [new-qual-01-critical-path-test-coverage](solutions/new-qual-01-critical-path-test-coverage.md) | M | logical: NEW-SEC-02/03/04 fixes (tests encode current-behaviour then fix PRs invert) |
 
-**Wave 1 effort roll-up:** assuming scope-clarifying answers lean minimal: 1 XS + 4 S/S-M + 4 M + 2 L = **~25-35 engineer-days** when parallelised.
+**Wave 1 effort roll-up:** ~28-38 engineer-days. Higher than prior 25-35d due to attorney-separation +3.5d (Option B) + accessor-provisioning +~1d (canonical external-user invite).
 
-### Wave 2 -- depends on Wave 1 (10 capabilities)
+### Wave 2 -- depends on Wave 1 (8 capabilities)
 
 | slug | effort | blocked by |
 |---|---|---|
 | [appointment-booking-cascade](solutions/appointment-booking-cascade.md) | M | appointment-state-machine |
-| [appointment-search-listview](solutions/appointment-search-listview.md) | S | lookup-data-seeds (W0), internal-role-seeds (W0) |
-| [appointment-change-log-audit](solutions/appointment-change-log-audit.md) | S-M | internal-role-seeds (W0), appointment-state-machine (W1) |
+| [appointment-search-listview](solutions/appointment-search-listview.md) | S | lookup-data-seeds, internal-role-seeds (Wave 0) |
+| [appointment-change-log-audit](solutions/appointment-change-log-audit.md) | S-M (~2.5d) | internal-role-seeds (W0), appointment-state-machine (W1) |
 | [appointment-injury-workflow](solutions/appointment-injury-workflow.md) | L (~7d) | lookup-data-seeds (W0) |
-| [anonymous-document-upload](solutions/anonymous-document-upload.md) | L | appointment-documents, blob, email |
-| [joint-declarations](solutions/joint-declarations.md) | M | blob, email, attorney-defense-patient-separation |
-| [appointment-notes](solutions/appointment-notes.md) | S | appointment-accessor-auto-provisioning |
 | [external-user-home](solutions/external-user-home.md) | S | internal-role-seeds, new-sec-04 |
-| [scheduler-notifications](solutions/scheduler-notifications.md) | M (~3-4d) | background-jobs, email, templates, accessor |
-| [dashboard-counters](solutions/dashboard-counters.md) | S-M | internal-role-seeds, appointment-state-machine |
+| [scheduler-notifications](solutions/scheduler-notifications.md) | M (~3-4d) | background-jobs (W0), email (W0), templates (W1), accessor (W1); **Rewritten scope:** 3 specific CCR-driven jobs (RequestScheduling / CancellationReschedule / AppointmentDay reminders) |
+| [dashboard-counters](solutions/dashboard-counters.md) | S-M (~2d) | internal-role-seeds, appointment-state-machine; **Revised scope:** all 13 cards in DTO, placeholders for post-MVP |
 
-**Wave 2 effort roll-up:** ~22-30 engineer-days.
-
-### Wave 3 -- depends on Wave 2 (2 capabilities)
+### Wave 3 -- depends on Wave 2 (1 capability in MVP)
 
 | slug | effort | blocked by |
 |---|---|---|
-| [appointment-change-requests](solutions/appointment-change-requests.md) | L (~7.5d) | appointment-state-machine (W1), appointment-booking-cascade (W2) |
-| [appointment-request-report-export](solutions/appointment-request-report-export.md) | M | appointment-full-field-snapshot (W1), appointment-search-listview (W2), lookup-data-seeds (W0) |
+| [appointment-change-requests](solutions/appointment-change-requests.md) | L (~7.5d) | appointment-state-machine, appointment-booking-cascade |
 
-**Wave 3 effort roll-up:** ~10-12 engineer-days.
+### Out of MVP (4 capabilities; handled post-MVP)
 
-## Mermaid graph
+- [appointment-notes](solutions/appointment-notes.md) -- features-after-MVP, pending manager call.
+- [anonymous-document-upload](solutions/anonymous-document-upload.md) -- post-MVP; no current use case.
+- [joint-declarations](solutions/joint-declarations.md) -- post-MVP.
+- [appointment-request-report-export](solutions/appointment-request-report-export.md) -- post-MVP.
+- [sms-sender-consumer](solutions/sms-sender-consumer.md) -- post-MVP (track-10 erratum 2: OLD has SMS disabled).
+
+## Mermaid graph (MVP-scoped)
 
 ```mermaid
 graph TD
-  subgraph W0["Wave 0 foundation + leaf fixes"]
+  subgraph W0["Wave 0 (15 foundation + leaf fixes)"]
     SEC05[new-sec-05-hsts-header]
-    SEC01[new-sec-01-appointment-route-permission-guard]
-    SEC03[new-sec-03-transactional-tenant-provisioning]
-    SEC02[new-sec-02-method-level-authorize]
-    SEC04[new-sec-04-external-signup-real-defaults]
+    SEC01[new-sec-01-route-guard]
+    SEC03[new-sec-03-txn-tenant]
+    SEC02[new-sec-02-method-authz]
+    SEC04[new-sec-04-signup-redesign]
     APIP[rest-api-parity-cleanup]
     LS[lookup-data-seeds]
     IRS[internal-role-seeds]
@@ -94,58 +98,53 @@ graph TD
     SYS[system-parameters-vs-abp-settings]
     UAM[users-admin-management]
     PAM[patient-auto-match]
+    ACC_SS[account-self-service]
   end
 
-  subgraph W1["Wave 1"]
+  subgraph W1["Wave 1 (11)"]
     SM[appointment-state-machine]
     LT[appointment-lead-time-limits]
-    ACC[appointment-accessor-auto-provisioning]
-    ACC_SS[account-self-service]
+    ACC[accessor-auto-provisioning]
     TPL[templates-email-sms]
     FFS[appointment-full-field-snapshot]
     DOCS[appointment-documents]
-    SMS[sms-sender-consumer]
     CF[custom-fields]
-    UQ[user-query-contact-us]
     DPK[document-packages]
     ATY[attorney-defense-patient-separation]
-    QUAL01[new-qual-01-critical-path-test-coverage]
+    UQ[user-query-contact-us]
+    QUAL01[new-qual-01-test-coverage]
   end
 
-  subgraph W2["Wave 2"]
+  subgraph W2["Wave 2 (8)"]
     BC[appointment-booking-cascade]
     SRC[appointment-search-listview]
     LOG[appointment-change-log-audit]
     INJ[appointment-injury-workflow]
-    ANON[anonymous-document-upload]
-    JD[joint-declarations]
-    NOT[appointment-notes]
     EXH[external-user-home]
     SCH[scheduler-notifications]
     DC[dashboard-counters]
   end
 
-  subgraph W3["Wave 3"]
+  subgraph W3["Wave 3 (1)"]
     CR[appointment-change-requests]
-    RPT[appointment-request-report-export]
   end
 
+  EMAIL --> ACC_SS
   SYS --> LT
   EMAIL --> ACC
   IRS --> ACC
-  EMAIL --> ACC_SS
   EMAIL --> TPL
   LS --> FFS
   IRS --> FFS
   BLOB --> DOCS
   LS --> DOCS
-  BGJ --> SMS
   LS --> CF
   BLOB --> DPK
   DOCS --> DPK
   SEC02 --> QUAL01
   SEC03 --> QUAL01
   SEC04 --> QUAL01
+  EMAIL --> UQ
 
   SM --> BC
   LS --> SRC
@@ -153,13 +152,6 @@ graph TD
   IRS --> LOG
   SM --> LOG
   LS --> INJ
-  DOCS --> ANON
-  BLOB --> ANON
-  EMAIL --> ANON
-  BLOB --> JD
-  EMAIL --> JD
-  ATY --> JD
-  ACC --> NOT
   IRS --> EXH
   SEC04 --> EXH
   BGJ --> SCH
@@ -171,32 +163,28 @@ graph TD
 
   SM --> CR
   BC --> CR
-  FFS --> RPT
-  SRC --> RPT
-  LS --> RPT
-
-  PAM -.->|"subsumes fix"| SEC04
 ```
+
+## Effort roll-up (revised post-Q&A)
+
+- **Wave 0:** ~15-22 engineer-days
+- **Wave 1:** ~28-38 engineer-days
+- **Wave 2:** ~20-28 engineer-days
+- **Wave 3:** ~7-10 engineer-days
+
+**Grand total: ~70-100 engineer-days.** (Prior estimate 70-95; slightly wider band now that scope is locked -- attorney-separation Option B + accessor-provisioning scope expansion add ~5d, partly offset by state-machine subset saving ~1.5d and dropped OUT-MVP capabilities.)
+
+At 1 engineer (Adrian), ~16-22 calendar weeks (4-5.5 months) at 100% allocation with some parallel-PR opportunity within waves.
 
 ## Cycle audit
 
-Run verification: every edge in the graph points forward in wave index; no back-edges. 0 cycles detected.
+Every edge forward-pointing across waves. 0 cycles.
 
-## Blocked-on-scope contingency
+## Post-MVP backlog (not in waves above)
 
-10 of 39 capabilities carry a `Blocked by open question` tag. Their wave position is STABLE if Adrian answers the default recommendation in each brief; it SHIFTS if he answers otherwise. Details routed to `blocked-on-scope.md`.
-
-## Effort roll-up
-
-- **Wave 0:** ~13-18 engineer-days (parallelisable across 4-6 engineers)
-- **Wave 1:** ~25-35 engineer-days
-- **Wave 2:** ~22-30 engineer-days
-- **Wave 3:** ~10-12 engineer-days
-
-**Grand total: 70-95 engineer-days MVP**, before scope-question answers shrink or expand it. Assumes 1 engineer (Adrian) working serially with some parallelisable PRs within waves: ~16-22 calendar weeks (4-5.5 months) at 100% allocation.
-
-## Acknowledged soft edges
-
-- `patient-auto-match` subsumes the fix for `new-sec-04-external-signup-real-defaults` (cleaner flow replaces hardcoded defaults). Coordinate to avoid merge collision.
-- `new-qual-01-critical-path-test-coverage` is LOGICALLY blocked by `new-sec-02/03/04` but technically can land FIRST with tests encoding current-defective-behaviour (per `memory/feedback_encode_gaps_in_tests.md`). The fix PRs flip Skip / invert assertions.
-- `rest-api-parity-cleanup` is documentation-only (ADR-006 + track-04 intentional-diffs); no code in this capability.
+- appointment-notes, anonymous-document-upload, joint-declarations, appointment-request-report-export (scope drops).
+- sms-sender-consumer (defer).
+- CCR 8 Sec. 38 30-day report rule + extension-notice rule + missed-appointment-fee liability (depend on check-in/check-out/bill which are OUT of MVP state-subset).
+- BRAND-01, BRAND-02, BRAND-03 (per-tenant branding) -- deferred per Adrian 2026-04-23.
+- Q32 Book demo feature removal.
+- Q29 PROD schema parity verification (Adrian provides pre-launch).

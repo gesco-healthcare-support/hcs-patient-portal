@@ -1,5 +1,18 @@
 # NEW-SEC-04: Remove hardcoded Gender/DOB/PhoneType in ExternalSignup.RegisterAsync
 
+## Status (scope-locked 2026-04-24 -- SCOPE REWRITTEN)
+
+Adrian's Q&A answer Q12 changes this capability's target action:
+- **OLD scope (superseded):** fix hardcoded `Gender.Male` / today-DOB / `PhoneNumberType.Home` in `ExternalSignupAppService.RegisterAsync`.
+- **NEW scope (locked):** REMOVE or gut the anonymous `ExternalSignupAppService.RegisterAsync` endpoint entirely. All external-user creation is now email-invite only (driven by admin through `/identity/users` + the `FindOrCreateExternalUserAsync` method in the revised `appointment-accessor-auto-provisioning` capability).
+- Implementation:
+  1. Remove `[AllowAnonymous]` + `[RemoteService(IsEnabled = true)]` from `ExternalSignupAppService.RegisterAsync` (or delete the service entirely).
+  2. Remove Angular routes / components that call `/api/public/external-signup/register`.
+  3. Remove `/api/public/external-signup/register` controller route.
+  4. Ensure there is no other anonymous user-creation surface left.
+- Effort unchanged (~1 day), but the action changes from "patch fields" to "remove endpoint".
+- Tests encoded in `new-qual-01-critical-path-test-coverage` should assert the endpoint returns 404 / is absent from the swagger surface post-fix.
+
 ## Source gap IDs
 
 - NEW-SEC-04 -- `../gap-analysis/10-deep-dive-findings.md:80-90` (MVP-blocking,

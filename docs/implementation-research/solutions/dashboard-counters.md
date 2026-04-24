@@ -1,5 +1,26 @@
 # Dashboard counter cards (per-role)
 
+## Status (scope-locked 2026-04-24)
+
+Adrian's Q&A answer Q11 Part B: keep all 13 OLD cards in the DTO; implement only the MVP-meaningful ones; rest remain placeholders showing 0 / "--" until post-MVP data (check-in/check-out/bill/no-show) lands.
+
+**Implemented in MVP (~5 cards, real data):**
+- Pending Requests (count of unapproved booking requests via `AppointmentChangeRequests` with status=Pending)
+- Approved This Week (count via Appointments where `AppointmentStatusId == Approved && ApprovedAt >= last Monday`)
+- Rejected This Week (count via Appointments where `AppointmentStatusId == Rejected && UpdatedAt >= last Monday`)
+- Pending Change Requests (count via AppointmentChangeRequests where status=Pending)
+- Requests Approaching Legal Deadline (count via Appointments where `RequestDate <= now - 60 days && !Approved && !Rejected`) -- links to CCR Sec. 31.5 90-day rule from scheduler-notifications
+
+**Placeholder in MVP (~8 cards, return 0 or "--"):**
+- Billed This Month (requires Billed state -- OUT of MVP state subset)
+- No-Show This Month (requires NoShow state -- OUT)
+- Rescheduled This Month (requires RescheduledNoBill/RescheduledLate tracking -- partial)
+- Cancelled This Week (requires cancel states -- partial)
+- Total Appointments (too generic; scoped out for MVP clarity)
+- Etc. (exact final list of placeholders pending Adrian's manager confirmation per Q13)
+
+Effort: **S-M (~2 days)**, up from S. DTO defines all 13 fields; AppService populates real data for 5 and hardcoded 0 / "--" for 8; Angular dashboard renders all 13 cards. Post-MVP can flip individual placeholders to real data without DTO surgery.
+
 ## Source gap IDs
 
 - [03-G08 -- Dashboard counters service](../../gap-analysis/03-application-services-dtos.md)
