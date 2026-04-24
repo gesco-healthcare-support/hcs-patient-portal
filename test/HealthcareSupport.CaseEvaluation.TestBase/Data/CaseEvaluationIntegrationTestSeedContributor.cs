@@ -108,6 +108,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await SeedStatesAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
+        await SeedAppointmentTypesAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         await SeedLocationsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
@@ -161,10 +164,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         using (_currentTenant.Change(null))
         {
             // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
-            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
-                id: LocationsTestData.AppointmentType1Id,
-                name: LocationsTestData.AppointmentType1Name));
-
+            // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location1Id,
                 stateId: LocationsTestData.State1Id,
@@ -496,6 +496,30 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             detail2.City = AppointmentEmployerDetailsTestData.Detail2City;
             detail2.ZipCode = AppointmentEmployerDetailsTestData.Detail2ZipCode;
             await _appointmentEmployerDetailRepository.InsertAsync(detail2);
+        }
+    }
+
+    private async Task SeedAppointmentTypesAsync()
+    {
+        // AppointmentType is host-only (NOT IMultiTenant; NOT AggregateRoot --
+        // it is `FullAuditedEntity<Guid>`). Two types seeded so Tier-3 tests
+        // exercise both the Description-populated path (AppointmentType2) and
+        // the null-Description path (AppointmentType1):
+        //   AppointmentType1 -- TEST-IME-Eval (no Description; previously
+        //                       seeded inline inside SeedLocationsAsync -- this
+        //                       phase replaces that, hence runs BEFORE it).
+        //   AppointmentType2 -- TEST-Orthopedic (with Description for the
+        //                       optional-field coverage test).
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: AppointmentTypesTestData.AppointmentType1Id,
+                name: AppointmentTypesTestData.AppointmentType1Name));
+
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: AppointmentTypesTestData.AppointmentType2Id,
+                name: AppointmentTypesTestData.AppointmentType2Name,
+                description: AppointmentTypesTestData.AppointmentType2Description));
         }
     }
 
