@@ -4,11 +4,21 @@
 
 Below are the questions currently open on the Patient Portal. Each section is addressed to a specific person (your business / product manager, a lawyer or compliance person, whoever owns how our different products fit together). Sections are self-contained, so any one of them can be copied into an email or meeting agenda on its own.
 
+Items that have been escalated for further consultation live separately in [escalations/open-items.md](escalations/open-items.md). They are kept out of this file so the live-questions list here stays focused on what the direct manager can still answer.
+
 A short glossary at the bottom explains the recurring terms (Packet, doctor's admin, and so on).
 
 ---
 
-## Recently resolved (2026-04-24)
+## Recently resolved
+
+### 2026-04-24 (later -- from the first round of email responses)
+
+- **Q16. Reevaluation flow** -- RESOLVED. Manager described the core dedup flow (match on Name + Date of Birth + SSN; confirmation prompt "We found an existing record..."); fine details added 2026-04-24 in a follow-up with Adrian. Full behaviour -- including dedup scope (reevaluation only), which fields pre-fill (patient PII only), the case-number / confirmation-number field on the form, and the claim-level "same case" semantics -- is captured in the `appointments.md` Reevaluation-flow subsection.
+- **Q17. Reserved slot status** -- RESOLVED. Manager validated the pending-review interpretation ("you might be correct") Adrian proposed during T3. Reserved = slot with a pending appointment request awaiting office review; state-transition model confirmed (Available -> Reserved on submit; Reserved -> Booked on approve; Reserved -> Available on reject or send-back-expires). Captured in `doctor-availabilities.md`.
+- **Q18. Slot duration model** -- RESOLVED. 15 min is the default; the office can change duration in the new-slot publishing form before publishing. Once published and booked, duration is locked per the T7 universal post-submit lock rule. Matches the "independently set per slot" candidate model from the original question. Captured in `doctor-availabilities.md`.
+
+### 2026-04-24 (earlier -- from the T2 resolution round)
 
 The resolutions below have been folded into `docs/product/appointments.md`. Kept here so the history is visible.
 
@@ -27,20 +37,6 @@ The resolutions below have been folded into `docs/product/appointments.md`. Kept
 ---
 
 ## For your business / product manager
-
-### Q1. Should the portal let anyone cancel or reschedule an approved appointment?
-
-If yes: who is allowed to do it -- staff at the doctor's office, a central admin on our side, or both? And what notifications go out when it happens?
-
----
-
-### Q16. What is a "reevaluation" in our portal, and how does its booking flow differ from a first-time appointment?
-
-Specifically: what triggers a reevaluation (patient request, doctor request, regulatory follow-up, something else?), who is allowed to book one (the original patient and their attorney, the defense, only the doctor's office?), what fields the reevaluation form needs to capture, and whether the approval, notifications, and email data-delivery differ from a first-time booking.
-
-Context: the patient dashboard is planned to have a "Book a reevaluation" button alongside "Book an appointment". The developer's rough working guess is that a reevaluation is somewhat more complex than a first-time booking, but that most of the case data is already available from the first appointment (so the booker fills in fewer fields). Specifics are not yet decided.
-
----
 
 ### Q23. When an appointment request is submitted for a patient who doesn't yet have an account at that tenant, when should the portal invite email fire?
 
@@ -77,6 +73,14 @@ The answer decides whether each practice is onboarded with one user (just the ad
 
 ---
 
+### Q20. For MVP, is it OK for the host admin to create new doctor practices manually through an admin screen (no invite flow, no self-service signup)?
+
+The developer's MVP call (2026-04-24) is yes -- host admin creates the tenant, the doctor's profile, and the initial user account by hand; invite-email or self-service signup flows for doctors are deferred until after MVP.
+
+Please confirm this is acceptable for MVP. If we need an invite or self-service flow for doctors at MVP, that's a meaningful additional build item.
+
+---
+
 ### Q25. When a single law firm has multiple attorneys using the portal for different cases, does our team treat them as one firm contact with several attorneys, or as several independent attorney contacts who happen to share a firm name?
 
 Specifically, in normal operations:
@@ -97,49 +101,6 @@ Also: is there anything NOT on that list that is required (for example, bar numb
 
 ---
 
-### Q20. For MVP, is it OK for the host admin to create new doctor practices manually through an admin screen (no invite flow, no self-service signup)?
-
-The developer's MVP call (2026-04-24) is yes -- host admin creates the tenant, the doctor's profile, and the initial user account by hand; invite-email or self-service signup flows for doctors are deferred until after MVP.
-
-Please confirm this is acceptable for MVP. If we need an invite or self-service flow for doctors at MVP, that's a meaningful additional build item.
-
----
-
-### Q19. Can the doctor's office edit a booked slot's time or location directly, or must every change go through the cancel/reschedule flow?
-
-The developer's intuition (2026-04-24) is no -- once a slot is booked, its time and location should be locked. Any shift the office wants to make should go through the formal cancel/reschedule flow (subject to Q1 on whether that flow is in MVP at all). This keeps the audit trail clean and avoids back-door edits.
-
-Please confirm or correct. If direct edits ARE allowed, we need to spec: who receives notification, what the notification says, and whether the appointment ID and history are preserved through the shift.
-
----
-
-### Q18. How is slot duration determined? Is it tied to the appointment type, or does the office pick it independently each time they publish slots?
-
-Three candidate models:
-
-- **Derived from the appointment type.** Each type (QME, AME, IME, reevaluation, etc.) has a standard duration. When the office publishes a typed slot, the duration comes from the type. The office can't vary duration within a type.
-- **Independently set per slot.** The office picks a duration when publishing (this is what the code does today, with a default of 15 minutes). Slots of the same type can have different durations.
-- **Default from type, overridable per slot.** Each type has a default duration; the office can override it for specific slots.
-
-This decision affects how the data model represents duration (on the type, on the slot, or both), how the slot-publishing UI works, and how the booker's time-picker filters available times.
-
----
-
-### Q17. What does "Reserved" mean as a slot status, and is it a real MVP feature?
-
-The code defines three slot statuses -- Available, Booked, and Reserved -- but nothing in the code actually sets a slot to Reserved. It's an unused state. Before we build anything around it we need to know what it's for.
-
-The developer's leading guess, from the 2026-04-24 conversation, is that Reserved is meant to be the state of a slot that has a booking request pending office review. That would map cleanly to the two-step booking flow (booker submits -> slot goes Reserved; office approves -> Booked; office rejects or send-back-expires -> back to Available). This guess has not been confirmed.
-
-Two other candidate meanings were considered and mostly rejected by the developer as self-contradictory:
-
-- "Reserved means the doctor is busy during that time" -- if the doctor is busy, the slot should not have been published in the first place.
-- "Reserved means an approved appointment" -- an approved appointment is already Booked; a separate label would be redundant.
-
-Can you confirm what Reserved should mean at MVP? If the pending-review interpretation is right, we also need to decide: does the slot stay Reserved during the "send-back-for-info" state while the booker is responding, or does it come back to Available until they re-submit?
-
----
-
 ## For legal or compliance
 
 ### Q7. Which California workers'-comp rules apply to how this portal schedules appointments, sends notifications, and hands off data?
@@ -152,7 +113,7 @@ Rules that look relevant from our research:
 
 Do all of these apply? Are there others we're missing? And do non-QME exams (AMEs and other IMEs) follow a different set of rules?
 
-**Status:** the developer is gathering answers and will bring them back.
+**Status 2026-04-24:** the manager flagged this needs further research because some rules have already changed. Actively in progress on the manager's side; awaiting the updated summary.
 
 ---
 
@@ -162,6 +123,8 @@ The developer confirmed 2026-04-24 that most of the notifications the portal sen
 
 Also: are there audit-trail, retry-on-bounce, delivery-receipt, or logging expectations attached to the legal-evidence standard?
 
+**Status 2026-04-24 (partial answer):** the direct manager confirmed a related UX expectation -- after each notification event the system should show a clear success confirmation to the booker ("A confirmation email has been sent successfully"). That success-UX intent is folded into `appointments.md`. The exact per-event / per-party-type legal-compliant format remains open and has been moved to [escalations/open-items.md](escalations/open-items.md) (Item 2) for further consultation.
+
 ---
 
 ## For whoever owns how our products fit together
@@ -169,6 +132,20 @@ Also: are there audit-trail, retry-on-bounce, delivery-receipt, or logging expec
 ### Q11. Does the upstream form-capture product send any information INTO the portal when a booking is made?
 
 The developer confirmed 2026-04-24 that the **tenant** a patient books under is **pre-decided upstream** (it is not an open choice on the booking form), so at least the tenant-assignment piece already comes from outside the portal. The remaining question: does form-capture also pre-fill any other fields (patient demographics, claim number, employer information, attorney contact details) into the booking, or is the booking form the sole data origin for everything else?
+
+**Status 2026-04-24:** the manager flagged that an in-person conversation is needed to get through this one -- the phrasing and scope of the question doesn't translate well in writing. Pending Adrian's in-person discussion with the manager.
+
+---
+
+## Escalated items (tracked separately)
+
+The following items have been moved to [escalations/open-items.md](escalations/open-items.md) for further consultation. They remain open; they are tracked out-of-band from this file.
+
+| Item | Topic | Original question |
+| ---- | ----- | ----------------- |
+| 1 | Cancel / reschedule MVP scope | formerly Q1 |
+| 2 | Exact format of each required notification email | Q9 format specifics (success-UX intent already answered; format remains open) |
+| 3 | Direct edits on booked slots | formerly Q19 |
 
 ---
 
@@ -188,9 +165,11 @@ The developer confirmed 2026-04-24 that the **tenant** a patient books under is 
 
 ## Change log
 
+- 2026-04-24 (email-responses round) -- processed manager responses to round-1 and round-2 emails. Resolved: Q16 (reevaluation flow -- manager described dedup, Adrian added fine details on case-number field + pre-fill scope), Q17 (Reserved = pending-review state, manager-validated), Q18 (15 min default at publishing, no type-derived duration). Escalated to `escalations/open-items.md`: Q1 (cancel/reschedule scope), Q9 format specifics (success-UX partial answer stays here), Q19 (direct edits on booked slots). Status updates: Q7 manager is actively researching (some rules changed), Q11 needs in-person conversation with manager. Introduced the escalation folder so PN-bound items are tracked separately from the regular list.
+- 2026-04-24 (T7 AppointmentEmployerDetails) -- no new manager questions added directly. Resolved in session: (a) employer info is required on every booking, no exceptions; retired / self-employed / unemployed patients still name the employer relevant to the claim; (b) whether the employer is a notification recipient depends on the case -- self-insured or directly-involved employers are parties, off-case employers are just data on file; entity needs an Email field and the appointment needs a "notify employer" flag; (c) post-submit changes to ANY form-captured data (patient, attorneys, employer, insurance, etc.) require Gesco-side admins running the proper process. This (c) answer RESOLVES the T4/T5 tension previously flagged: T4's "practice-side doctor's admin can make form-data edits" authority applies pre-submit only; after request-submit the form data is locked and all changes are Gesco-side. appointments.md, patients.md, and appointment-employer-details.md updated accordingly.
 - 2026-04-24 (later) -- Attorney cluster session (T6) added Q24 (required attorney firm-profile fields for the legal record) and Q25 (one-firm-with-many-attorneys vs each-attorney-is-its-own-contact). Resolved directly in session: (a) defense attorneys get symmetric treatment to applicant attorneys, with saved firm profiles and the same booking flow -- the current code's asymmetry is an intent gap, not a design choice; (b) no ad-hoc access grants at MVP -- portal access is strictly tied to legal-party membership, and staff use the party's registered credentials; (c) one applicant attorney per appointment at MVP, no co-counsel. Claim Examiner role (Q4 from the original research list) remains minimally wired at MVP: CE can book rarely for self-represented patients (per T2), receives all-parties notifications, and sees appointments where they are a legal party -- no dedicated dashboard or CE-specific actions at MVP. Internal methodology note: architecture-framed questions must be reshaped into business-behaviour questions before they go to managers; see `feedback_business_questions_not_architecture_questions` memory.
-- 2026-04-24 (later) -- Patients session added Q23 (when the patient invite email fires -- on request submit, on approval, or both). Flagged a T4/T5 tension for T10 resolution: T4 said practice-side doctor's admin can edit form data on booker request; T5 says patient-data changes post-submit require Gesco-side admins, not practice-side. Boundary to be pinned down in the Auth-and-Roles cross-cutting session.
+- 2026-04-24 (later) -- Patients session added Q23 (when the patient invite email fires -- on request submit, on approval, or both). Flagged a T4/T5 tension for T10 resolution: T4 said practice-side doctor's admin can edit form data on booker request; T5 says patient-data changes post-submit require Gesco-side admins, not practice-side. Boundary to be pinned down in the Auth-and-Roles cross-cutting session. (This tension was resolved 2026-04-24 during T7; see above.)
 - 2026-04-24 (later) -- Doctors session added Q20 (host-admin-only onboarding MVP OK?), Q21 (doctor login + Gesco-side "manager" role), Q22 (required doctor profile fields for case record / regulatory).
-- 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots).
+- 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots). Q17, Q18 now resolved; Q19 escalated.
 - 2026-04-24 -- resolution round. Q2, Q3, Q4, Q5, Q6, Q8, Q10, Q12, Q13, Q14, Q15 moved to Recently resolved (closed or deferred per answers and scope decisions). Q9 narrowed from "are notifications required" to "what is the exact format per event / party". Q11 narrowed (tenant pre-decided; remaining pre-fill question still open). Q16 annotated with the developer's rough working guess. Glossary trimmed.
 - 2026-04-23 -- first draft.
