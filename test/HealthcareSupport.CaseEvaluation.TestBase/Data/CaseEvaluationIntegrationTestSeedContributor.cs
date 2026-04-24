@@ -105,6 +105,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await _identityUsersSeeder.SeedAsync(context);
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
+        await SeedStatesAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         await SeedLocationsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
@@ -157,10 +160,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Appointment both FK into Location).
         using (_currentTenant.Change(null))
         {
-            await _stateRepository.InsertAsync(new State(
-                id: LocationsTestData.State1Id,
-                name: LocationsTestData.State1Name));
-
+            // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
             await _appointmentTypeRepository.InsertAsync(new AppointmentType(
                 id: LocationsTestData.AppointmentType1Id,
                 name: LocationsTestData.AppointmentType1Name));
@@ -496,6 +496,35 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             detail2.City = AppointmentEmployerDetailsTestData.Detail2City;
             detail2.ZipCode = AppointmentEmployerDetailsTestData.Detail2ZipCode;
             await _appointmentEmployerDetailRepository.InsertAsync(detail2);
+        }
+    }
+
+    private async Task SeedStatesAsync()
+    {
+        // State is host-only (NOT IMultiTenant). The IMultiTenant filter does
+        // not apply regardless of CurrentTenant context (external research
+        // Track 1.1), so the `_currentTenant.Change(null)` wrap is parity-only.
+        // Three states seeded so Tier-3 tests can exercise multi-state list +
+        // Name-filter assertions:
+        //   State1 -- TEST-California (also referenced by Location1 +
+        //             AppointmentEmployerDetail Detail1 from prior tiers; this
+        //             phase replaces the inline insert that previously lived
+        //             inside SeedLocationsAsync, hence runs BEFORE it).
+        //   State2 -- TEST-Nevada
+        //   State3 -- TEST-Oregon
+        using (_currentTenant.Change(null))
+        {
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State1Id,
+                name: StatesTestData.State1Name));
+
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State2Id,
+                name: StatesTestData.State2Name));
+
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State3Id,
+                name: StatesTestData.State3Name));
         }
     }
 }
