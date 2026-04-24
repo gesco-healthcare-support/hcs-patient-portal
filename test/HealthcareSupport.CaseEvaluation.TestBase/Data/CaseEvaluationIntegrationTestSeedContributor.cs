@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -50,6 +51,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
+    private readonly IAppointmentStatusRepository _appointmentStatusRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -68,6 +70,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IAppointmentAccessorRepository appointmentAccessorRepository,
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
+        IAppointmentStatusRepository appointmentStatusRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -85,6 +88,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
+        _appointmentStatusRepository = appointmentStatusRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -109,6 +113,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedAppointmentTypesAsync();
+        await SeedAppointmentStatusesAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedLocationsAsync();
@@ -520,6 +525,28 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+        }
+    }
+
+    private async Task SeedAppointmentStatusesAsync()
+    {
+        // AppointmentStatus is host-only (NOT IMultiTenant; NOT AggregateRoot)
+        // -- a lookup table parallel to but distinct from the
+        // `AppointmentStatusType` enum used on Appointment.AppointmentStatus.
+        // No FK from Appointment to this entity (gap encoded as Skip Fact).
+        // Two statuses seeded so Tier-3 tests exercise multi-row list +
+        // FilterText filtering. Names use scratch labels (TEST-PendingLabel,
+        // TEST-ApprovedLabel) so DeleteAllAsync(filterText) tests can target
+        // scratch-only data without wiping the seeded rows.
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
+                id: AppointmentStatusesTestData.Status1Id,
+                name: AppointmentStatusesTestData.Status1Name));
+
+            await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
+                id: AppointmentStatusesTestData.Status2Id,
+                name: AppointmentStatusesTestData.Status2Name));
         }
     }
 
