@@ -77,6 +77,26 @@ The answer decides whether each practice is onboarded with one user (just the ad
 
 ---
 
+### Q25. When a single law firm has multiple attorneys using the portal for different cases, does our team treat them as one firm contact with several attorneys, or as several independent attorney contacts who happen to share a firm name?
+
+Specifically, in normal operations:
+
+- Would we ever want to send a case notification to "the firm" at a single address, or do notifications always go to a specific individual attorney?
+- If two attorneys at the same firm update the firm's address or phone, should the change show up on the other attorney's profile too, or is each attorney's record independent?
+- When we report on which firms are using the portal, do we count the firm once or count each attorney separately?
+
+The answer decides how the portal stores firm info: either shared across attorneys at the same firm (one firm record, many attorney records) or duplicated per attorney (each attorney carries their own copy of the firm's details).
+
+---
+
+### Q24. What law-firm information do we actually need to capture on each attorney's saved profile to satisfy the legal case record?
+
+The code today captures firm name, firm address, phone, fax, web address, street, city, zip, and state for each attorney -- all optional. We need to know which of these are actually required for the legal paperwork or the case record, which are nice-to-have, and which we can drop.
+
+Also: is there anything NOT on that list that is required (for example, bar number, state bar registration, license number)?
+
+---
+
 ### Q20. For MVP, is it OK for the host admin to create new doctor practices manually through an admin screen (no invite flow, no self-service signup)?
 
 The developer's MVP call (2026-04-24) is yes -- host admin creates the tenant, the doctor's profile, and the initial user account by hand; invite-email or self-service signup flows for doctors are deferred until after MVP.
@@ -168,7 +188,7 @@ The developer confirmed 2026-04-24 that the **tenant** a patient books under is 
 
 ## Change log
 
-- 2026-04-24 (later) -- Attorney cluster session (T6) added no new manager questions directly. Resolved: (a) defense attorneys get symmetric treatment to applicant attorneys, with saved firm profiles and the same booking flow -- the current code's asymmetry is an intent gap, not a design choice; (b) no ad-hoc access grants at MVP -- portal access is strictly tied to legal-party membership, and staff use the party's registered credentials; (c) one applicant attorney per appointment at MVP, no co-counsel. Claim Examiner role (Q4 from the original research list) remains minimally wired at MVP: CE can book rarely for self-represented patients (per T2), receives all-parties notifications, and sees appointments where they are a legal party -- no dedicated dashboard or CE-specific actions at MVP. Internal methodology note: architecture-framed questions must be reshaped into business-behaviour questions before they go to managers; see `feedback_business_questions_not_architecture_questions` memory.
+- 2026-04-24 (later) -- Attorney cluster session (T6) added Q24 (required attorney firm-profile fields for the legal record) and Q25 (one-firm-with-many-attorneys vs each-attorney-is-its-own-contact). Resolved directly in session: (a) defense attorneys get symmetric treatment to applicant attorneys, with saved firm profiles and the same booking flow -- the current code's asymmetry is an intent gap, not a design choice; (b) no ad-hoc access grants at MVP -- portal access is strictly tied to legal-party membership, and staff use the party's registered credentials; (c) one applicant attorney per appointment at MVP, no co-counsel. Claim Examiner role (Q4 from the original research list) remains minimally wired at MVP: CE can book rarely for self-represented patients (per T2), receives all-parties notifications, and sees appointments where they are a legal party -- no dedicated dashboard or CE-specific actions at MVP. Internal methodology note: architecture-framed questions must be reshaped into business-behaviour questions before they go to managers; see `feedback_business_questions_not_architecture_questions` memory.
 - 2026-04-24 (later) -- Patients session added Q23 (when the patient invite email fires -- on request submit, on approval, or both). Flagged a T4/T5 tension for T10 resolution: T4 said practice-side doctor's admin can edit form data on booker request; T5 says patient-data changes post-submit require Gesco-side admins, not practice-side. Boundary to be pinned down in the Auth-and-Roles cross-cutting session.
 - 2026-04-24 (later) -- Doctors session added Q20 (host-admin-only onboarding MVP OK?), Q21 (doctor login + Gesco-side "manager" role), Q22 (required doctor profile fields for case record / regulatory).
 - 2026-04-24 (later) -- DoctorAvailabilities session added Q17 (Reserved slot status), Q18 (slot duration model), Q19 (direct edits on booked slots).
