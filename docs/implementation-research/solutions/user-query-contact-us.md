@@ -1,0 +1,11 @@
+# UserQuery / contact-us
+
+**Status:** stub -- pending Phase 2 research  
+**Slug:** user-query-contact-us  
+**Source gap IDs:**
+
+- 03-G14
+- G-API-08
+
+<!-- Stub. Phase 2 agent replaces this file with the completed 11-section brief.
+     See ../README.md for the schema. -->
