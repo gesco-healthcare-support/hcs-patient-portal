@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -48,6 +49,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
+    private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -65,6 +67,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IRepository<Appointment, Guid> appointmentRepository,
         IAppointmentAccessorRepository appointmentAccessorRepository,
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
+        IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -81,6 +84,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentRepository = appointmentRepository;
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
+        _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -117,6 +121,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         await SeedAppointmentAccessorsAsync();
         await SeedAppointmentApplicantAttorneysAsync();
+        await SeedAppointmentEmployerDetailsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -447,6 +452,50 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 appointmentId: AppointmentsTestData.Appointment2Id,
                 applicantAttorneyId: ApplicantAttorneysTestData.Attorney2Id,
                 identityUserId: IdentityUsersTestData.DefenseAttorney1UserId));
+        }
+    }
+
+    private async Task SeedAppointmentEmployerDetailsAsync()
+    {
+        // AppointmentEmployerDetail is IMultiTenant with 6 string fields: 2
+        // required (EmployerName + Occupation, both max 255, guarded by the ctor
+        // via Check.NotNull + Check.Length) and 4 optional (PhoneNumber, Street,
+        // City, ZipCode) assigned post-construction. StateId is nullable so
+        // Detail1 populates it (nav-prop join test) and Detail2 leaves it null
+        // (null FK branch coverage). The manager's NotNullOrWhiteSpace +
+        // per-field length guards are exercised by the validation tests rather
+        // than the seed.
+        //
+        // Runs after SeedAppointmentApplicantAttorneysAsync so all
+        // appointment-child seeds stay grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var detail1 = new AppointmentEmployerDetail(
+                id: AppointmentEmployerDetailsTestData.Detail1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                stateId: LocationsTestData.State1Id,
+                employerName: AppointmentEmployerDetailsTestData.Detail1EmployerName,
+                occupation: AppointmentEmployerDetailsTestData.Detail1Occupation);
+            detail1.PhoneNumber = AppointmentEmployerDetailsTestData.Detail1PhoneNumber;
+            detail1.Street = AppointmentEmployerDetailsTestData.Detail1Street;
+            detail1.City = AppointmentEmployerDetailsTestData.Detail1City;
+            detail1.ZipCode = AppointmentEmployerDetailsTestData.Detail1ZipCode;
+            await _appointmentEmployerDetailRepository.InsertAsync(detail1);
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var detail2 = new AppointmentEmployerDetail(
+                id: AppointmentEmployerDetailsTestData.Detail2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                stateId: null,
+                employerName: AppointmentEmployerDetailsTestData.Detail2EmployerName,
+                occupation: AppointmentEmployerDetailsTestData.Detail2Occupation);
+            detail2.PhoneNumber = AppointmentEmployerDetailsTestData.Detail2PhoneNumber;
+            detail2.Street = AppointmentEmployerDetailsTestData.Detail2Street;
+            detail2.City = AppointmentEmployerDetailsTestData.Detail2City;
+            detail2.ZipCode = AppointmentEmployerDetailsTestData.Detail2ZipCode;
+            await _appointmentEmployerDetailRepository.InsertAsync(detail2);
         }
     }
 }
