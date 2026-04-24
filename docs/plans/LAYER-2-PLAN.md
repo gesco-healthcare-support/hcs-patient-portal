@@ -5,7 +5,7 @@
 
 ## Status summary
 
-PR-stage CI hardening. Identical checks at every gate (Fowler Pattern 3: "same static checks everywhere, environment-specific stages downstream" -- anti-pattern to avoid is graduated gates like "main needs 2 checks, staging needs 7"). 17 GitHub Actions workflows in place covering build, test, lint, format, coverage, security scanning, and branch promotion. Phase A merged; Phase B in progress (only B-6 open; Tier 1 MERGED 2026-04-24, Tier 2 + Tier 3 remain); Phase C is backlog. `main` builds 0/0 with `-warnaserror`; 0 Dependabot alerts; 0 CodeQL alerts; SonarCloud 40 issues (0 BUG, 0 VULN, 40 smells).
+PR-stage CI hardening. Identical checks at every gate (Fowler Pattern 3: "same static checks everywhere, environment-specific stages downstream" -- anti-pattern to avoid is graduated gates like "main needs 2 checks, staging needs 7"). 17 GitHub Actions workflows in place covering build, test, lint, format, coverage, security scanning, and branch promotion. Phase A merged; Phase B in progress (only B-6 open; Tier 1 + Tier 2 MERGED 2026-04-24, Tier 3 remains); Phase C is backlog. `main` builds 0/0 with `-warnaserror`; 0 Dependabot alerts; 0 CodeQL alerts; SonarCloud 40 issues (0 BUG, 0 VULN, 40 smells).
 
 ## Sub-items
 
@@ -47,4 +47,4 @@ Pop up to [PROGRAM.md](./PROGRAM.md); that master's `Active child:` pointer move
 
 ## Last updated
 
-2026-04-24 -- B-6 Tier 1 MERGED (PR-1E #135); active-child still `LAYER-2-PHASE-B-PLAN.md` while Tier 2/3 remain.
+2026-04-24 -- B-6 Tier 2 MERGED (PR-2D #144); active-child still `LAYER-2-PHASE-B-PLAN.md` while Tier 3 remains.
