@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -22,7 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 /// execution order of multiple contributors (see ABP forum #571).
 ///
 /// Seed order (strict FK dependency chain):
-///   Tenant -&gt; IdentityUser -&gt; Location (+ State, AppointmentType) -&gt; Doctor -&gt; Patient -&gt; (future: DoctorAvailability, Appointment, ApplicantAttorney, ...)
+///   Tenant -&gt; IdentityUser -&gt; Location (+ State, AppointmentType) -&gt; Doctor -&gt; Patient -&gt; ApplicantAttorney -&gt; (future: DoctorAvailability, Appointment, ...)
 ///
 /// Tenants are created via <c>ITenantManager.CreateAsync(name)</c> -- the same
 /// framework path production uses (DoctorTenantAppService.CreateAsync hits this
@@ -38,6 +39,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly ILocationRepository _locationRepository;
     private readonly IRepository<State, Guid> _stateRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
+    private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -50,6 +52,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         ILocationRepository locationRepository,
         IRepository<State, Guid> stateRepository,
         IRepository<AppointmentType, Guid> appointmentTypeRepository,
+        IApplicantAttorneyRepository applicantAttorneyRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -61,6 +64,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _locationRepository = locationRepository;
         _stateRepository = stateRepository;
         _appointmentTypeRepository = appointmentTypeRepository;
+        _applicantAttorneyRepository = applicantAttorneyRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -86,6 +90,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         await SeedDoctorsAsync();
         await SeedPatientsAsync();
+        await SeedApplicantAttorneysAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -223,5 +228,56 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             genderId: (Gender)PatientsTestData.PatientGenderIdValue,
             dateOfBirth: PatientsTestData.FixedDateOfBirth,
             phoneNumberTypeId: (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue));
+    }
+
+    private async Task SeedApplicantAttorneysAsync()
+    {
+        // ApplicantAttorney is IMultiTenant. Two attorneys seeded so tests can
+        // exercise tenant isolation (the contrast case vs Patient's non-IMultiTenant
+        // leak at docs/issues/INCOMPLETE-FEATURES.md FEAT-09):
+        //   Attorney1 -- TenantARef, IdentityUserId = ApplicantAttorney1UserId
+        //   Attorney2 -- TenantBRef, IdentityUserId = DefenseAttorney1UserId
+        // IdentityUserId FK integrity at DB level is tenant-agnostic; ABP's
+        // IMultiTenant filter acts on ApplicantAttorney.TenantId which is set
+        // by the CurrentTenant context at insert time.
+        //
+        // The ctor sets FirmName + FirmAddress + PhoneNumber (3 fields via args).
+        // ApplicantAttorneyManager normally assigns WebAddress + FaxNumber +
+        // Street + City + ZipCode (5 fields) post-construction on the entity.
+        // The seed assigns both paths directly so tests can assert against the
+        // ctor path AND the manager-post-construction path end-to-end.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var attorney1 = new ApplicantAttorney(
+                id: ApplicantAttorneysTestData.Attorney1Id,
+                stateId: null,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId,
+                firmName: ApplicantAttorneysTestData.Attorney1FirmName,
+                firmAddress: ApplicantAttorneysTestData.Attorney1FirmAddress,
+                phoneNumber: ApplicantAttorneysTestData.Attorney1PhoneNumber);
+            attorney1.WebAddress = ApplicantAttorneysTestData.Attorney1WebAddress;
+            attorney1.FaxNumber = ApplicantAttorneysTestData.Attorney1FaxNumber;
+            attorney1.Street = ApplicantAttorneysTestData.Attorney1Street;
+            attorney1.City = ApplicantAttorneysTestData.Attorney1City;
+            attorney1.ZipCode = ApplicantAttorneysTestData.Attorney1ZipCode;
+            await _applicantAttorneyRepository.InsertAsync(attorney1);
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var attorney2 = new ApplicantAttorney(
+                id: ApplicantAttorneysTestData.Attorney2Id,
+                stateId: null,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+                firmName: ApplicantAttorneysTestData.Attorney2FirmName,
+                firmAddress: ApplicantAttorneysTestData.Attorney2FirmAddress,
+                phoneNumber: ApplicantAttorneysTestData.Attorney2PhoneNumber);
+            attorney2.WebAddress = ApplicantAttorneysTestData.Attorney2WebAddress;
+            attorney2.FaxNumber = ApplicantAttorneysTestData.Attorney2FaxNumber;
+            attorney2.Street = ApplicantAttorneysTestData.Attorney2Street;
+            attorney2.City = ApplicantAttorneysTestData.Attorney2City;
+            attorney2.ZipCode = ApplicantAttorneysTestData.Attorney2ZipCode;
+            await _applicantAttorneyRepository.InsertAsync(attorney2);
+        }
     }
 }
