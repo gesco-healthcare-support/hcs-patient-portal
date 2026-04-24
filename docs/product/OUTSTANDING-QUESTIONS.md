@@ -101,6 +101,39 @@ Also: is there anything NOT on that list that is required (for example, bar numb
 
 ---
 
+### Q26. What is the intended MVP role of the WCAB Office catalogue in the portal?
+
+The portal has a complete `WcabOffice` entity (California Workers' Comp Appeals Board district-office records -- name, abbreviation, address, active / inactive flag) with admin CRUD, an Angular admin screen, and an Excel export. But no other feature references it -- no appointment, no case record, no notification reads the list. Adrian does not personally know what WCAB offices are meant to do inside the Patient Portal.
+
+Candidates we would consider:
+
+- **Data directory only.** Staff reference the list for case context (e.g., to know which WCAB handles a given case). No live business linkage; no FK from Appointment.
+- **Planned future linkage.** The catalogue is seeded in advance because an upcoming feature will link an appointment or case record to a WCAB office.
+- **Downstream consumption.** Case Tracking, MRR AI, or another Gesco product consumes this list and the Patient Portal is the source of truth.
+- **Not needed at MVP.** The feature was over-built; retire it or deprioritise until a concrete need arises.
+
+Please tell us what the catalogue is actually for -- or whether we should drop it -- and we will scope the admin UI and any downstream linkage accordingly.
+
+Related but smaller: the Excel export on this list is currently reachable without logging in (marked `[AllowAnonymous]` in code). No PHI is at risk (WCAB offices are public DWC data), but the pattern is inconsistent with every other export in the portal. We can close that gap as part of answering the main question.
+
+---
+
+### Q27. When a booker picks an Appointment Type on the booking form, which specific fields on the appointment does the type pre-fill?
+
+Adrian confirmed 2026-04-24 that picking an Appointment Type drives multiple other fields on the appointment (it is not just a classification label). He did not know which specific fields; this one is for you.
+
+Candidate fields we would consider:
+
+- **Default slot duration** -- e.g., QME Orthopedic defaults to 45 minutes, AME Psychiatric to 60 minutes.
+- **Default billing rate / pricing** -- each type carries its own rate.
+- **Required prep documents** -- certain types require specific medical records handed over in advance.
+- **Default prep instructions for the patient** -- e.g., fasting, wearing loose clothing, bringing current imaging.
+- **Default time-of-day alignment** -- some types only happen at specific times.
+
+Please tell us which of these the type should actually drive, plus anything we have missed. For each field you confirm, we also need to know whether the type's default is editable by the booker on a specific appointment or locked.
+
+---
+
 ## For legal or compliance
 
 ### Q7. Which California workers'-comp rules apply to how this portal schedules appointments, sends notifications, and hands off data?
@@ -165,6 +198,7 @@ The following items have been moved to [escalations/open-items.md](escalations/o
 
 ## Change log
 
+- 2026-04-24 (T8 Lookup cluster) -- six files drafted: `locations.md`, `states.md`, `wcab-offices.md`, `appointment-types.md`, `appointment-languages.md`, `appointment-statuses.md`. Major resolutions via Adrian interview (Q-A, Q-A2, Q-A3, Q-I, Q-K, Q-M and their follow-ups): (a) **Locations are TENANT-SPECIFIC**, not host-scoped. Host admin creates the initial list at tenant onboarding; doctor's admin edits ongoing. Users see only their tenant's locations. Substantial intent-vs-code gap -- code has `Location` host-scoped -- needs `IMultiTenant` + data migration in follow-up work. (b) **States / Appointment Types / Appointment Languages are common global + per-tenant HIDE/SHOW**. Host admin owns the base list; tenants can hide entries they do not use but cannot add their own. Per-tenant visibility flag is intent-only, not in code. (c) **Appointment Language is a workflow trigger, not storage-only**. Non-English on the Patient record legally requires Gesco to arrange a translator and notify all case parties so scheduling can happen; English is a hard exclusion (no English-to-English translation). Entirely unbuilt in code. (d) **Appointment Type drives multiple fields** on the appointment; specific pre-fill fields queued via Q27 (manager). (e) **`AppointmentStatus` entity is DROPPED at MVP** -- enum + existing `en.json` localization already covers display labels. Resolves the original Q2 seed (enum vs lookup table). Follow-up build item removes the entity, AppService, DTOs, permissions, Angular UI, migration. (f) **Portal's operational lifecycle scope narrowed to pre-approval + reschedule / cancel only**; post-approval states (CheckedIn, CheckedOut, Billed, NoShow, CancelledLate) are downstream concerns. `appointments.md` (T2) carries the full 13-state lifecycle; T11 cross-cutting doc needs to re-scope to match this portal-scope boundary. (g) **WCAB offices' MVP role is unknown to Adrian**; queued via Q26 (manager). New active manager questions added: Q26 (WCAB purpose + the incidental `[AllowAnonymous]` Excel-export gap) and Q27 (Appointment Type pre-fill fields). Tensions flagged (NOT silently reconciled): the OUTSTANDING-QUESTIONS.md glossary line "shared reference data ... the same across all practices" predates the Q-A / Q-A2 answers and should read "common base with per-tenant hide/show" for States / Types / Languages / Statuses and "tenant-specific" for Locations; the root CLAUDE.md's "intentionally shared across all tenants" wording for Locations also diverges from intent. Glossary and root CLAUDE.md corrections are OUT of T8 scope (T8 only appends this change-log entry); those updates will need a separate turn. Methodology note: T8 initially drafted from code research + inline-seeds without asking Adrian; he corrected mid-session. New memory at `feedback_docs_product_interview_driven.md` captures the rule -- intent docs are ALWAYS interview-driven; the `feedback_research_decide_dont_ask.md` rule applies only to code-build flows.
 - 2026-04-24 (email-responses round) -- processed manager responses to round-1 and round-2 emails. Resolved: Q16 (reevaluation flow -- manager described dedup, Adrian added fine details on case-number field + pre-fill scope), Q17 (Reserved = pending-review state, manager-validated), Q18 (15 min default at publishing, no type-derived duration). Escalated to `escalations/open-items.md`: Q1 (cancel/reschedule scope), Q9 format specifics (success-UX partial answer stays here), Q19 (direct edits on booked slots). Status updates: Q7 manager is actively researching (some rules changed), Q11 needs in-person conversation with manager. Introduced the escalation folder so PN-bound items are tracked separately from the regular list.
 - 2026-04-24 (T7 AppointmentEmployerDetails) -- no new manager questions added directly. Resolved in session: (a) employer info is required on every booking, no exceptions; retired / self-employed / unemployed patients still name the employer relevant to the claim; (b) whether the employer is a notification recipient depends on the case -- self-insured or directly-involved employers are parties, off-case employers are just data on file; entity needs an Email field and the appointment needs a "notify employer" flag; (c) post-submit changes to ANY form-captured data (patient, attorneys, employer, insurance, etc.) require Gesco-side admins running the proper process. This (c) answer RESOLVES the T4/T5 tension previously flagged: T4's "practice-side doctor's admin can make form-data edits" authority applies pre-submit only; after request-submit the form data is locked and all changes are Gesco-side. appointments.md, patients.md, and appointment-employer-details.md updated accordingly.
 - 2026-04-24 (later) -- Attorney cluster session (T6) added Q24 (required attorney firm-profile fields for the legal record) and Q25 (one-firm-with-many-attorneys vs each-attorney-is-its-own-contact). Resolved directly in session: (a) defense attorneys get symmetric treatment to applicant attorneys, with saved firm profiles and the same booking flow -- the current code's asymmetry is an intent gap, not a design choice; (b) no ad-hoc access grants at MVP -- portal access is strictly tied to legal-party membership, and staff use the party's registered credentials; (c) one applicant attorney per appointment at MVP, no co-counsel. Claim Examiner role (Q4 from the original research list) remains minimally wired at MVP: CE can book rarely for self-represented patients (per T2), receives all-parties notifications, and sees appointments where they are a legal party -- no dedicated dashboard or CE-specific actions at MVP. Internal methodology note: architecture-framed questions must be reshaped into business-behaviour questions before they go to managers; see `feedback_business_questions_not_architecture_questions` memory.
