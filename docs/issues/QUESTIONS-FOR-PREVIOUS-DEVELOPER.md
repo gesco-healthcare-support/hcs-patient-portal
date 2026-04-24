@@ -1,6 +1,10 @@
 [Home](../INDEX.md) > [Issues](./) > Questions for Previous Developer
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # Questions for the Previous Developer
+
+> **2026-04-24 reorganization note**: Several of the 10 questions below have been resolved or removed-as-out-of-scope during the product-intent capture rounds. See `docs/product/OUTSTANDING-QUESTIONS.md` "Recently resolved" section (2026-04-24, T2 resolution round) for the authoritative answers. RESOLVED markers are added inline below; original wording preserved for audit trail. The 32 consolidated open questions for Adrian live in `docs/gap-analysis/README.md` lines 227-271.
 
 These questions represent knowledge that **exists only in the previous developer's memory** (or in private communications, signed agreements, or external accounts we have no access to). Unlike code-level ambiguities that can be resolved by examining the codebase or researching industry standards, the answers to these questions **cannot be reconstructed from any artifact in this repository**.
 
@@ -22,6 +26,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P1: Is there an active client engagement, contract, or Statement of Work?
+
+> **REMOVED-AS-OUT-OF-SCOPE (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` "Recently resolved" -> 2026-04-24 (T2 resolution round) -> Q5: legacy business / contractual questions (contract, end client, handover, prior user research) declared out of scope for this documentation. Manager statement: "The application has to work as I tell you it should." Original entry preserved below for audit trail.
 
 **Research**: see [research/P-01.md](research/P-01.md) for 17 USC § 101/201 work-for-hire analysis, CA Labor Code § 2870, and IP-due-diligence checklist.
 
@@ -47,6 +53,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P3: Were any HIPAA compliance decisions made, and was legal counsel involved?
 
+> **DEFERRED post-MVP (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` "Recently resolved" -> 2026-04-24 (T2 resolution round) -> Q6: HIPAA classification deferred to post-MVP (revisited during limited-user testing). Q8 (CMIA, SB 446, CCPA / CPRA) deferred on the same timeline. Original entry preserved below for audit trail.
+
 **Research**: see [research/P-03.md](research/P-03.md) for 45 CFR § 164.308 risk-analysis requirement, CA CMIA + SB 446 overlay, HIPAA-eligible cloud-service matrix, and pre-deploy blocker list.
 
 **Why this is irreplaceable**: A workers' compensation IME platform that handles patient health information is likely subject to HIPAA. Any formal compliance decisions -- whether a Business Associate Agreement (BAA) was required, which safeguards were deemed sufficient, whether the system was classified as a covered entity or business associate -- were made by people, not written into code.
@@ -64,6 +72,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P4: Who is the actual end client, and what is their contact information?
+
+> **REMOVED-AS-OUT-OF-SCOPE (2026-04-24)**: Folded into the Q5 out-of-scope decision (legacy business / contractual questions). See `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round). Original entry preserved below for audit trail.
 
 **Research**: see [research/P-04.md](research/P-04.md) for CA IME market landscape, bizfile.sos.ca.gov lookup procedure, and "Gesco is sponsor" default assumption.
 
@@ -96,6 +106,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P6: Were any features, behaviours, or constraints communicated verbally to the client that are not in the code?
 
+> **REMOVED-AS-NOT-RELEVANT (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round) -> Q15: verbal promises to the end client removed as not relevant to this build. Original entry preserved below for audit trail.
+
 **Research**: see [research/P-06.md](research/P-06.md) for commitment-drift phenomenon, parol-evidence-rule implications, and JAD-style scope-validation workshop template.
 
 **Why this is irreplaceable**: Software projects routinely involve verbal commitments made in demos, calls, or emails that are never written into specifications or tickets. These commitments shape client expectations. The previous developer is the only person who knows what was promised.
@@ -113,6 +125,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P7: Why was this project handed over, and what is the nature of the handover?
+
+> **REMOVED-AS-OUT-OF-SCOPE (2026-04-24)**: Folded into the Q5 out-of-scope decision. See `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round). Original entry preserved below for audit trail.
 
 **Research**: see [research/P-07.md](research/P-07.md) for handover-checklist industry norms, warranty-period timelines, NDA-vs-trade-secret limits on what a prior dev can share, and git-history-squash interpretation.
 
@@ -132,6 +146,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 
 ## P8: Were any real users (doctors, administrators, patients, adjusters) involved in design or testing?
 
+> **REMOVED-AS-NOT-RELEVANT (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round) -> Q14: user research with real bookers removed as not relevant to this build. Original entry preserved below for audit trail.
+
 **Research**: see [research/P-08.md](research/P-08.md) for healthcare UX-research constraints (HIPAA + de-identification), standard interview templates, and guerilla UX recommendation (5 users / 30 min / synthetic workflows).
 
 **Why this is irreplaceable**: If actual end users participated in requirements gathering, user testing, or feedback sessions, their input shaped product decisions that are invisible in the code. No user research artefacts were found in the repository -- but they may exist elsewhere (Notion, Confluence, Google Docs, the developer's laptop).
@@ -149,6 +165,8 @@ Questions are ordered from highest-risk (legal/compliance exposure) to operation
 ---
 
 ## P9: Were discussions held about integration with California DWC systems or insurance carrier systems?
+
+> **PARTIALLY DEFERRED (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round) -> Q10: structured Packet delivery to other software systems deferred to post-MVP; at MVP delivery is by email only. Q12 (case-tracking hand-off) and Q13 (MRR AI data flow) also deferred. Q7 (which California workers'-comp rules apply) still actively in research on the manager's side. Original entry preserved below for audit trail.
 
 **Research**: see [research/P-09.md](research/P-09.md) for DWC EAMS / JET File / EDEX overview, Jopari clearinghouse landscape, and X12 837/275 workers'-comp EDI norms.
 

@@ -1,5 +1,7 @@
 [Home](../INDEX.md) > [Issues](./) > Overview
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # Known Issues & Technical Debt
 
 This section catalogues all known bugs, architectural concerns, security vulnerabilities, incomplete features, and open questions identified during a codebase audit, **confirmed via automated E2E testing on 2026-04-02**, and **re-verified with a Docker cold-start onboarding test on 2026-04-16**. Issues are grouped by category and assigned a severity level to aid prioritisation.
@@ -72,8 +74,14 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 | [FEAT-04](INCOMPLETE-FEATURES.md#feat-04-appointmentemployerdetail-and-appointmentaccessor-have-no-angular-modules) | `AppointmentEmployerDetail` and `AppointmentAccessor` have no Angular modules | Medium | `angular/src/app/` |
 | [FEAT-05](INCOMPLETE-FEATURES.md#feat-05-email-system-is-not-wired-up) | Email system is not wired up | Medium | `CaseEvaluationDomainModule.cs` |
 | [FEAT-06](INCOMPLETE-FEATURES.md#feat-06-no-cicd-pipeline) | No CI/CD pipeline -- **Fixed 2026-04-17** (17 GitHub Actions workflows) | Medium | `.github/workflows/` |
-| [FEAT-07](INCOMPLETE-FEATURES.md#feat-07-near-zero-test-coverage) | Near-zero test coverage | Medium | `test/` |
+| [FEAT-07](INCOMPLETE-FEATURES.md#feat-07-test-coverage-gaps-mostly-obsolete) | Test coverage gaps (mostly obsolete -- 115 methods now; Angular tests still absent) | Medium | `test/`, `angular/` |
 | [FEAT-08](INCOMPLETE-FEATURES.md#feat-08-swagger-oauth-does-not-work-from-browser-in-docker) | Swagger OAuth does not work from browser in Docker | Medium | `CaseEvaluationHttpApiHostModule.cs`, `docker-compose.yml` |
+| [FEAT-09](INCOMPLETE-FEATURES.md#patient-imultitenant) | Patient cross-tenant visibility leak (no IMultiTenant filter) | High | `Patient.cs`, `PatientsAppService.cs` |
+| [FEAT-10](INCOMPLETE-FEATURES.md#test-current-user-faking) | Test base lacks a WithCurrentUser helper | Low | `CaseEvaluationApplicationTestBase` |
+| [FEAT-11](INCOMPLETE-FEATURES.md#host-admin-role-formal-definition) | HostAdmin role has no formal definition | Medium | `CaseEvaluationPermissions`, identity seeders |
+| [FEAT-12](INCOMPLETE-FEATURES.md#tenant-admin-role-separation) | TenantAdmin role is conflated with Doctor role | Medium | `DoctorTenantAppService.cs` |
+| [FEAT-13](INCOMPLETE-FEATURES.md#dashboard-host-permission-scope-typo) | `Dashboard.Host` permission registered as tenant-scoped | Low | `CaseEvaluationPermissionDefinitionProvider.cs` |
+| [FEAT-14](INCOMPLETE-FEATURES.md#test-fk-enforcement) | SQLite test DB does not enforce foreign-key constraints | Medium | `CaseEvaluationEntityFrameworkCoreTestModule.cs` |
 
 ### Architecture & Code Quality
 
@@ -93,7 +101,7 @@ This section catalogues all known bugs, architectural concerns, security vulnera
 
 Questions are split into two tiers based on recoverability:
 
-### Tier 1 — Irreversible (requires the previous developer)
+### Tier 1 -- Irreversible (requires the previous developer)
 
 These 10 questions represent knowledge that exists only in the previous developer's memory or private communications and cannot be reconstructed from any artifact. **Full details: [Questions for Previous Developer](QUESTIONS-FOR-PREVIOUS-DEVELOPER.md).**
 
@@ -110,7 +118,7 @@ These 10 questions represent knowledge that exists only in the previous develope
 | P9 | Were external system integrations (DWC, carriers) discussed? | Product: self-contained vs connected architecture |
 | P10 | Are there known security vulnerabilities or prior incidents? | Legal + Security: inheriting a compromised system |
 
-### Tier 2 — Technical (resolvable from codebase or industry research)
+### Tier 2 -- Technical (resolvable from codebase or industry research)
 
 These 12 questions are code-level ambiguities. Most can be resolved by examining the codebase, making a judgment call, or researching California workers' compensation standards. **Full details: [Technical Open Questions](TECHNICAL-OPEN-QUESTIONS.md).**
 
