@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -46,6 +47,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IDoctorAvailabilityRepository _doctorAvailabilityRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
+    private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -62,6 +64,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IDoctorAvailabilityRepository doctorAvailabilityRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         IAppointmentAccessorRepository appointmentAccessorRepository,
+        IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -77,6 +80,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _appointmentRepository = appointmentRepository;
         _appointmentAccessorRepository = appointmentAccessorRepository;
+        _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -112,6 +116,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedAppointmentAccessorsAsync();
+        await SeedAppointmentApplicantAttorneysAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -412,6 +417,36 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
                 appointmentId: AppointmentsTestData.Appointment2Id,
                 accessTypeId: AppointmentAccessorsTestData.Accessor2AccessType));
+        }
+    }
+
+    private async Task SeedAppointmentApplicantAttorneysAsync()
+    {
+        // AppointmentApplicantAttorney is IMultiTenant. Two join rows seeded so
+        // Tier-2 tests can assert tenant isolation + the unusual `Id asc` default
+        // sort on GetListAsync (contrast with CreationTime desc elsewhere). Each
+        // join lives in the same tenant as its parent Appointment so the ABP
+        // IMultiTenant filter resolves predictably under a tenant-scoped wrap:
+        //   Join1 -- TenantA, Appointment1, Attorney1, ApplicantAttorney1UserId
+        //   Join2 -- TenantB, Appointment2, Attorney2, DefenseAttorney1UserId
+        // Runs after SeedAppointmentAccessorsAsync so the orchestrator keeps all
+        // appointment-child seeds grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentApplicantAttorneyRepository.InsertAsync(new AppointmentApplicantAttorney(
+                id: AppointmentApplicantAttorneysTestData.Join1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentApplicantAttorneyRepository.InsertAsync(new AppointmentApplicantAttorney(
+                id: AppointmentApplicantAttorneysTestData.Join2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                applicantAttorneyId: ApplicantAttorneysTestData.Attorney2Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId));
         }
     }
 }
