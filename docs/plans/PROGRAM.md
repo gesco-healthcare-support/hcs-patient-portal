@@ -18,7 +18,7 @@ Source: [PHASE-B6-TEST-COVERAGE-KICKOFF.md](./PHASE-B6-TEST-COVERAGE-KICKOFF.md)
 
 ## Currently active
 
-[LAYER-2-PLAN.md](./LAYER-2-PLAN.md) -- Phase B-6 Tier 1 in flight. PR-1D (#129) merged 2026-04-24; PR-1E (ApplicantAttorneys, last Tier-1 PR) in progress.
+[LAYER-2-PLAN.md](./LAYER-2-PLAN.md) -- Phase B-6 Tier 1 MERGED 2026-04-24 (PR-1E #135 closed the set). Next atomic unit: draft Tier 2 plan in a fresh plan-mode session.
 
 ## Upcoming queue
 
@@ -55,4 +55,4 @@ When all 4 layers are complete, the program is done. Archive this file to `docs/
 
 ## Last updated
 
-2026-04-24 -- initial creation. B-6 Tier 1 in flight; PR-1D #129 merged; PR-1E (ApplicantAttorneys, this PR's nested plan) in progress.
+2026-04-24 -- B-6 Tier 1 MERGED; next atomic unit is Tier 2 planning at Level 3 ([LAYER-2-PHASE-B-6-PLAN.md](./LAYER-2-PHASE-B-6-PLAN.md)).

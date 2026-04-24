@@ -1,31 +1,31 @@
 # Layer 2 Phase B-6 -- Test Coverage
 
 **Parent:** [LAYER-2-PHASE-B-PLAN.md](./LAYER-2-PHASE-B-PLAN.md)
-**Active child:** [2026-04-20-phase-b6-tier1.md](./2026-04-20-phase-b6-tier1.md)
+**Active child:** TBD -- draft Tier 2 plan at `docs/plans/YYYY-MM-DD-phase-b6-tier2.md` in the next plan-mode session (Tier 2 scope summary below; do NOT pre-create the file).
 
 ## Status summary
 
-Expand SonarCloud overall coverage from ~7% baseline to >= 60%, new-code coverage >= 80%, Quality Gate green on new code. Three tiers organised by entity priority. Tier 1 covers the 5 critical-path entities + shared test infrastructure; 4 of 6 PRs merged, PR-1D (#129) landed 2026-04-24, PR-1E (ApplicantAttorneys) in progress.
+Expand SonarCloud overall coverage from ~7% baseline to >= 60%, new-code coverage >= 80%, Quality Gate green on new code. Three tiers organised by entity priority. **Tier 1 COMPLETE 2026-04-24** -- all 6 PRs MERGED (PR-0 #99, PR-1A #101, PR-1B #102, PR-1C #104, PR-1D #129, PR-1E #135, plus sub-PRs #103 identity-seed and #115 tenant cleanup). Tier 2 and Tier 3 not yet started.
 
-Coverage baseline: SonarCloud overall coverage 7.3% (verified against `main@ab7461ad2c` on 2026-04-20). Tier 1 target: ~25-30% per the Tier-1 plan. Full B-6 target: >= 60% overall, >= 80% new-code, Quality Gate green on new code.
+Coverage trajectory: 7.3% baseline (verified `main@ab7461ad2c` on 2026-04-20) -> 19.6% after PR-1D (#129, measured 2026-04-24 pre-PR-1E). Post-PR-1E measurement pending SonarCloud refresh on `main@ca8af28`; expected 22-30%+ range. Tier-1 target was 25-30%. Full B-6 target: >= 60% overall, >= 80% new-code, Quality Gate green on new code.
 
 ## Sub-items
 
 | Tier | Scope | Plan | Status |
 |---|---|---|---|
-| **1** | **5 critical entities (Appointments, Patients, DoctorAvailabilities, Locations, ApplicantAttorneys) + PR-0 shared test infra** | [2026-04-20-phase-b6-tier1.md](./2026-04-20-phase-b6-tier1.md) | **IN PROGRESS** (4 merged PRs + PR-1D #129 merged + PR-1E in flight) |
+| 1 | 5 critical entities (Appointments, Patients, DoctorAvailabilities, Locations, ApplicantAttorneys) + PR-0 shared test infra | [2026-04-20-phase-b6-tier1.md](./2026-04-20-phase-b6-tier1.md) | **MERGED 2026-04-24** (PR-0 #99, PR-1A #101, PR-1B #102, PR-1C #104, PR-1D #129, PR-1E #135 + sub-PRs #103, #115) |
 | 2 | 3 secondary entities (AppointmentAccessors, AppointmentApplicantAttorneys, AppointmentEmployerDetails) | drafted after Tier 1 merges + coverage delta measured | NOT STARTED |
 | 3 | 5 host-only lookup entities (States, AppointmentTypes, AppointmentStatuses, AppointmentLanguages, WcabOffices) | drafted after Tier 2 merges | NOT STARTED |
 
 ## Currently active
 
-[2026-04-20-phase-b6-tier1.md](./2026-04-20-phase-b6-tier1.md) -- T6 / PR-1E (ApplicantAttorneys) is the last Tier-1 PR.
+None -- Tier 1 just closed. The next atomic unit is **drafting the Tier 2 plan** (`docs/plans/YYYY-MM-DD-phase-b6-tier2.md`) in a fresh plan-mode session, using the Tier 2 scope summary below plus [PHASE-B6-TEST-COVERAGE-KICKOFF.md](./PHASE-B6-TEST-COVERAGE-KICKOFF.md) sections 11 and 12 for context.
 
 ## Upcoming queue
 
-1. Tier 2 -- draft after Tier 1 merges and SonarCloud coverage delta is measured.
+1. **Tier 2 planning** -- next atomic unit. Prerequisite: SonarCloud coverage delta from Tier 1 should be verified (expected 25-30%+; readable on the SonarCloud project dashboard once the post-PR-1E analysis on `main` finishes). Tier 2 seed infrastructure open question: its 3 entities FK into `Appointment`, which is NOT yet seeded in the orchestrator -- Tier 2 drafting must decide between adding Appointment + DoctorAvailability Wave-2 seeds to the orchestrator vs. inline-seeding minimal Appointments in each test body. This decision shapes the PR count (1 big seed-infra PR + 3 entity PRs vs. 3 entity PRs with denser setup in each).
 2. Tier 3 -- draft after Tier 2 merges.
-3. B-6 closure -- verify coverage targets; flip Quality Gate on new-code from informational to required.
+3. B-6 closure -- verify coverage targets (>= 60% overall, >= 80% new-code, Quality Gate green on new code); flip Quality Gate from informational to required.
 
 ## Scope summary for un-drafted sub-items
 
@@ -66,4 +66,4 @@ Pop up to [LAYER-2-PHASE-B-PLAN.md](./LAYER-2-PHASE-B-PLAN.md); mark B-6 MERGED 
 
 ## Last updated
 
-2026-04-24 -- initial creation (Tier 1 in flight; PR-1D #129 merged; PR-1E in progress).
+2026-04-24 -- Tier 1 MERGED (PR-1E #135 closed the set); active-child pointer advanced to Tier 2 planning.
