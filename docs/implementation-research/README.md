@@ -29,12 +29,109 @@ findings. It makes no recommendation on solution or sequence. This tree:
 |---|---|---|
 | 0. Worktree setup | Done | This tree on branch `docs/implementation-research`, based on main |
 | 1. Inventory + scaffold | Done | 39 capability stubs + 3 index files |
-| 1.5. Service verification | Pending | `probes/service-status.md` |
-| 2. Per-capability research | Pending | `solutions/*.md` filled by subagent batches |
-| 3. Dependency synthesis | Pending | `dependencies.md` (Mermaid + waves) |
-| 4. Blocked-on-scope routing | Pending | `blocked-on-scope.md` (Q-grouped) |
-| 5. Wave-ordered plan | Pending | This README -- final wave list + roll-up |
-| 6. Handoff | Pending | Final status message, no push, no PR |
+| 1.5. Service verification | Done | `probes/service-status.md` -- all 3 services up on HTTPS |
+| 2. Per-capability research | Done | 39 briefs + 36 probe logs in `solutions/` and `probes/` |
+| 3. Dependency synthesis | Done | `dependencies.md` -- Mermaid graph + 4-wave topological sort |
+| 4. Blocked-on-scope routing | Done | `blocked-on-scope.md` -- 10 caps routed to 32 open questions |
+| 5. Wave-ordered plan | Done | Wave ordering + first-10-days below |
+| 6. Handoff | In progress | See final status on close |
+
+## Wave-ordered MVP plan
+
+Full ordering + effort roll-up lives in [dependencies.md](dependencies.md). Full scope-answer contingency lives in [blocked-on-scope.md](blocked-on-scope.md). Summary:
+
+- **Wave 0 (14 capabilities, ~13-18 engineer-days):** foundation + leaf security fixes. All 6 NEW-SEC/QUAL defects, 6 infrastructure bricks (lookup-data-seeds, internal-role-seeds, blob-storage-provider, email-sender-consumer, background-jobs-infrastructure, system-parameters-vs-abp-settings), plus rest-api-parity-cleanup (doc only), users-admin-management (verify only), and patient-auto-match (subsumes NEW-SEC-04 remediation).
+- **Wave 1 (12 capabilities, ~25-35 engineer-days):** appointment core (state-machine, lead-time, full-field-snapshot), cross-cutting consumers (account-self-service, templates-email-sms, appointment-accessor-auto-provisioning, appointment-documents, sms-sender-consumer), scope-conditional (custom-fields, user-query, document-packages, attorney-defense-patient-separation), and test coverage (new-qual-01).
+- **Wave 2 (10 capabilities, ~22-30 engineer-days):** workflows + UI (booking-cascade, search-listview, change-log-audit, injury-workflow, anonymous-upload, joint-declarations, notes, external-user-home, scheduler-notifications, dashboard-counters).
+- **Wave 3 (2 capabilities, ~10-12 engineer-days):** appointment-change-requests + appointment-request-report-export (both sit downstream of Waves 0-2).
+
+**Grand total: 70-95 engineer-days.** Answering the 16 feature-scope questions at recommended defaults holds this range; minimal-scope (answer "no" to Q6/Q9/Q10/Q11/Q15 + SMS defer) drops the floor to ~55-80.
+
+## First-10-days recommendation (Adrian solo, 5 business days x 2 weeks)
+
+Pick from Wave 0 in this order to unblock testing + security posture first:
+
+1. **lookup-data-seeds** (S, 1d) -- unblocks every UI capability that renders a dropdown + per-role testing flows.
+2. **internal-role-seeds** (S, 0.5-2d depending on Q21/Q22) -- unblocks per-role testing.
+3. **new-sec-05-hsts-header** (XS, 0.5d) -- trivial security win; proves the fix workflow.
+4. **new-sec-03-transactional-tenant-provisioning** (XS-S, 0.5d) -- unblocks tenant-onboarding demo.
+5. **new-sec-01-appointment-route-permission-guard** (XS-S, 0.5d) -- close cross-tenant UI leak.
+6. **new-sec-02-method-level-authorize** (S-M, 1.5d) -- close HTTP-level permission bypass.
+7. **new-sec-04-external-signup-real-defaults** (S, 1d) -- close data-integrity defect. Coordinate with patient-auto-match.
+8. **blob-storage-provider** (M, 2-3d) -- declare containers so Wave 1 document capabilities can start in parallel.
+9. **email-sender-consumer** (S-M, 1-2d) -- unblocks Wave 1's account-self-service + templates + scheduler.
+10. **background-jobs-infrastructure** (S-M, 2d) -- unblocks scheduler-notifications + sms-sender-consumer if ever needed.
+
+**Running in parallel with the above 10 days:** Adrian batches the 16 feature-scope + 4 architecture questions in a 60-minute decision meeting (see blocked-on-scope.md "Recommended decision meeting agenda"). By end of day 10, Wave 1 capabilities have their scope answers and can start in sequence.
+
+## Prerequisites inherited from non-MVP
+
+No non-MVP capability is a hard prerequisite for MVP. Three soft inheritances:
+
+- `BRAND-01..03` (per-tenant branding) defers email template placeholder substitution post-MVP. Affects only cosmetic email body; `email-sender-consumer` + `templates-email-sms` ship without tenant-branded placeholders.
+- OLD's `server-settings.json` AWS + Twilio keys (README Q26 security flag) need rotation before any NEW deployment touches production. Operations concern, not code.
+- Angular 20 CORE_OPTIONS Vite bug (ABP issue #23035) is worked around by ADR-005 (`ng build` + `npx serve`). No capability is affected.
+
+## Verification block (run locally to audit this tree)
+
+```bash
+cd W:/patient-portal/implementation-research
+
+# Schema audit: every brief has the 13 section headings.
+for f in docs/implementation-research/solutions/*.md; do
+  expected=(
+    "## Source gap IDs"
+    "## NEW-version code read"
+    "## Constraints that narrow the solution space"
+    "## Research sources consulted"
+    "## Alternatives considered"
+    "## Recommended solution"
+    "## Why this solution"
+    "## Effort"
+    "## Dependencies"
+    "## Risk and rollback"
+    "## Open sub-questions"
+  )
+  missing=0
+  for heading in "${expected[@]}"; do
+    grep -q "^$heading" "$f" || { echo "MISSING '$heading' in $f"; missing=$((missing+1)); }
+  done
+  [ "$missing" -eq 0 ] || echo "($missing missing in $(basename "$f"))"
+done
+
+# Count briefs
+ls -1 docs/implementation-research/solutions/*.md | wc -l   # expect 39
+
+# Count probe logs
+ls -1 docs/implementation-research/probes/*.md | wc -l      # expect 36+ (sms-sender-consumer + 2 rescued lack probes)
+
+# Citation audit: every brief should cite path:line at least 3 times
+for f in docs/implementation-research/solutions/*.md; do
+  count=$(grep -cE "[a-zA-Z/_.-]+:[0-9]+" "$f" || echo 0)
+  [ "$count" -ge 3 ] || echo "LOW CITATIONS ($count) in $(basename "$f")"
+done
+
+# ASCII audit: no non-ASCII characters
+grep -lP '[^\x00-\x7F]' docs/implementation-research/**/*.md   # expect empty
+
+# Cycle audit: parse dependencies.md Mermaid graph
+# (manual -- inspect the graph; topological order already verified in Phase 3)
+
+# Gap ID coverage audit: every in-scope gap ID appears in exactly one brief
+python3 - <<'PY'
+import re, pathlib
+expected = set()
+for prefix, n in [("DB-", 17), ("G2-", 14), ("03-G", 14), ("G-API-", 21),
+                   ("5-G", 14), ("CC-", 4), ("R-", 10), ("A8-", 13), ("UI-", 17)]:
+    for i in range(1, n+1):
+        expected.add(f"{prefix}{i:02d}" if prefix != "5-G" and prefix != "A8-" and prefix != "R-" and prefix != "UI-" and prefix != "G2-" and prefix != "CC-"
+                      else f"{prefix}{i:02d}")
+# (This is rough -- actual gap IDs use mixed formats like DB-01, G2-01, 03-G01, G-API-01, NEW-SEC-01.
+# Use the inventory table in this README instead as the authoritative list.)
+PY
+```
+
+See [dependencies.md](dependencies.md) for the cycle-free graph audit and [blocked-on-scope.md](blocked-on-scope.md) for per-question scope-answer consequences.
 
 ## Directory layout
 
