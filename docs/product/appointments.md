@@ -146,9 +146,25 @@ All events (submission, decision, resulting status) are persisted to the databas
 
 ### Reevaluation flow
 
-A distinct second booking type, reached from the patient's "Book a reevaluation" dashboard button (see Personas > Patient). Reevaluation is not treated as a repeat first-time appointment; it is a separate flow with its own form and rules. [Source: Adrian-confirmed 2026-04-23 on existence]
+A reevaluation is a distinct booking type anchored to an **existing case** -- same patient + same claim as a prior appointment. Not a repeat first-time appointment; a dedicated flow that pre-fills patient identity data but forces fresh entry of case-specific data. Reached from the patient dashboard's "Book a reevaluation" button (see Personas > Patient). [Source: Adrian-confirmed 2026-04-23 on existence, fully specified 2026-04-24 from manager response + Adrian fine-detail follow-up]
 
-Design details are [UNKNOWN -- queued for manager: what counts as a reevaluation in the product's sense, who is eligible to book one, which fields the form captures, and whether the approval / notification / Packet flow diverges from a first-time booking]. See `OUTSTANDING-QUESTIONS.md` Q16.
+**Flow:**
+
+1. Booker clicks "Book a reevaluation".
+2. Booker enters Name + Date of Birth + SSN on the form.
+3. System performs a **dedup check** against existing patient records in the tenant. On match, it prompts: "We found an existing record that matches the information provided. Are you registering the same patient?"
+4. On "yes, same patient", the system pre-fills the **common data** -- patient PII fields (name, DOB, contact info, SSN, etc.). Case-specific fields (attorney info, employer info, insurance / adjustor info, appointment type, location, etc.) are **NOT pre-filled**, even if the booker would prefer to avoid retyping. Rationale: those fields can change case-to-case, and pre-filling them risks stale or wrong data on the new case. [Source: Adrian-confirmed 2026-04-24]
+5. The form presents a **case identifier field** for the Case Number OR Confirmation Number that uniquely identifies the case being reevaluated. The booker fills it in. (Whether we use the existing `RequestConfirmationNumber`, the existing `PanelNumber`, or a new dedicated CaseNumber field is an implementation-side architecture decision.)
+6. The booker fills in the remaining case-specific fields and submits.
+7. From submit onward, the flow mirrors the first-time booking flow -- all-parties notification fires, the request enters the doctor's-office review queue, the same approve / reject / send-back-for-info options apply.
+
+**Dedup scope:** the Name+DOB+SSN match check fires ONLY on the "Book a reevaluation" path. The "Book an appointment" (first-time) path does NOT dedup -- a booker entering data that matches an existing record is still allowed to create a new patient record, because a "new appointment" is understood as a new case / different claim for the same patient, not a reevaluation of an existing case. Returning patients are expected to click "Book a reevaluation" when they want to reuse case data. [Source: Adrian-confirmed 2026-04-24]
+
+**Claim-level semantics:** "reevaluation" = same patient + same claim + different day. "New appointment for the same patient" = same patient + different claim + different day; that is a first-time booking as far as the portal is concerned. A patient can have multiple open or historical claims at a tenant; the case-identifier field on the reevaluation form is what disambiguates them. [Source: Adrian-confirmed 2026-04-24]
+
+**Open architecture detail (not manager-facing):** whether a reevaluation appointment stores a data link back to the prior appointment (parent-appointment FK) or merely shares the CaseNumber / ConfirmationNumber is an implementation choice; both satisfy the business intent. Documented in Known Discrepancies.
+
+See `OUTSTANDING-QUESTIONS.md` (Q16 resolved 2026-04-24).
 
 ### Modifications (cancel / reschedule of an approved appointment)
 
@@ -208,6 +224,12 @@ Email is a first-class integration for MVP. Two notification events confirmed: [
 
 - **Appointment request submitted** -- notify all case parties (patient, applicant attorney, defense attorney, insurance people, claim adjustors, doctor's office).
 - **Doctor's office decision** (approve / reject / send-back-for-info) -- notify the same all-parties list.
+
+**Success-confirmation UX (confirmed).** After each notification event fires, the booker / actor should see a clear UI confirmation that the email went out successfully. Example message: "A confirmation email has been sent successfully." Exact text and placement (toast, inline message, dialog) is a UX implementation detail; the intent is that the user has explicit positive feedback that the legally-required notification actually left the system. [Source: manager response 2026-04-24]
+
+[UNKNOWN -- queued for Adrian: failure-state UX. If a send fails (SMTP error, bounce, recipient unreachable), what does the booker / office see, and what does the system do (retry silently, alert the office, block the submit)? The manager answer only covers the success case.]
+
+**Exact per-event / per-party format.** The legally-defensible format for each event (request-submit, approve, reject, send-back, modifications) per party-type (patient, applicant attorney, defense attorney, insurance company, claim adjustor, doctor's office, and sometimes employer) remains open and is tracked in [escalations/open-items.md](escalations/open-items.md) Item 2 pending further consultation.
 
 **Recipient resolution.** The booking form itself captures the email address for every party that must be notified, and every such email field is a required form input. The form is the source of truth for the per-appointment distribution list; the system does not derive recipients from case-link entities alone. [Source: Adrian-confirmed 2026-04-22]
 
