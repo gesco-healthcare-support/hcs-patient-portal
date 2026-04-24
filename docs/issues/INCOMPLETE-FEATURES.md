@@ -459,6 +459,40 @@ Change the registration of `Dashboard.Host` from `MultiTenancySides.Tenant` to `
 
 ---
 
+## FEAT-14: SQLite test DB does not enforce foreign-key constraints (test-fk-enforcement) {#test-fk-enforcement}
+
+**Severity:** Medium (blocks specific delete-constraint tests; does not affect production)
+**Status:** Open
+
+### Description
+
+`CaseEvaluationEntityFrameworkCoreTestModule.CreateDatabaseAndGetConnection()` opens a single persistent `SqliteConnection` with `"Data Source=:memory:;Foreign Keys=True"` and then explicitly runs `PRAGMA foreign_keys = ON;` after `Open()`. Despite both opt-ins, child-row FK violations (e.g., deleting a `Location` that is referenced by a `DoctorAvailability` or `Appointment`) do NOT raise inside tests. The delete succeeds, leaving orphan rows that would be impossible against production SQL Server with the `NoAction` FKs configured in the DbContext.
+
+### Symptoms Encoded in Phase B-6 Tier-1 PR-1D
+
+- `LocationsAppServiceTests.DeleteAsync_WhenLocationReferencedByDoctorAvailability_Throws` -- skipped.
+- `LocationsAppServiceTests.DeleteAsync_WhenLocationReferencedByAppointment_Throws` -- skipped.
+
+Both bodies are complete, including `autoSave: true` on the child `InsertAsync` calls so the rows persist to the DB before the delete commit; each test flips live the instant test-infra FK enforcement starts working.
+
+### Suspected Cause
+
+ABP / EF Core appear to wrap or pool the shared connection such that the per-connection FK opt-in is bypassed -- either by opening a separate pooled instance for each DbContext or by resetting PRAGMA state on transitions. The manual PRAGMA runs once on the test-startup connection; if subsequent DbContexts see a logically separate wrapper, the FK-on flag is lost.
+
+### What Needs to Be Built
+
+One of the following:
+
+1. Hook `connection.StateChange` in the test module and re-issue `PRAGMA foreign_keys = ON;` on every transition to `Open`. Lightweight; guard against recursion.
+2. Customize `AbpDbContextOptions.Configure` to invoke the PRAGMA inside the DbContext `OnConfiguring` override or via an EF Core interceptor so every context that touches the connection enforces FK.
+3. Let EF Core open/close the connection lifecycle itself (surrender manual `Open()` in the module) so its built-in per-connection PRAGMA hook fires -- requires reworking the "keep the in-memory DB alive" pattern.
+
+### Why Not Yet Fixed
+
+Scope: the shared test module affects every EF Core test in the solution. A partial fix that silently breaks existing tests would be worse than the current documented gap. Deferred to a dedicated test-infra PR after Tier-1 completes; Tier-2 plans depend on this being in place so delete-constraint and cascade tests can ship live rather than skipped.
+
+---
+
 ## Related Documentation
 
 - [Issues Overview](OVERVIEW.md) -- All issues by category and severity
