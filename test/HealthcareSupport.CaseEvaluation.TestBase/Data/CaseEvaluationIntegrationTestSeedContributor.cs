@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -44,6 +45,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IDoctorAvailabilityRepository _doctorAvailabilityRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -59,6 +61,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IDoctorAvailabilityRepository doctorAvailabilityRepository,
         IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentAccessorRepository appointmentAccessorRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -73,6 +76,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _appointmentRepository = appointmentRepository;
+        _appointmentAccessorRepository = appointmentAccessorRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -105,6 +109,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedAppointmentsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedAppointmentAccessorsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -378,6 +385,33 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 appointmentDate: AppointmentsTestData.Appointment2Date,
                 requestConfirmationNumber: AppointmentsTestData.Appointment2RequestConfirmationNumber,
                 appointmentStatus: AppointmentsTestData.Appointment2Status));
+        }
+    }
+
+    private async Task SeedAppointmentAccessorsAsync()
+    {
+        // AppointmentAccessor is IMultiTenant. Two accessors seeded across the
+        // two tenants so Tier-2 tests can assert multi-tenant isolation AND the
+        // View/Edit AccessType split:
+        //   Accessor1 -- TenantA, Appointment1, ApplicantAttorney1UserId, View
+        //   Accessor2 -- TenantB, Appointment2, DefenseAttorney1UserId, Edit
+        // Runs after SeedAppointmentsAsync so Appointment1/2 FKs are satisfied.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentAccessorRepository.InsertAsync(new AppointmentAccessor(
+                id: AppointmentAccessorsTestData.Accessor1Id,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                accessTypeId: AppointmentAccessorsTestData.Accessor1AccessType));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentAccessorRepository.InsertAsync(new AppointmentAccessor(
+                id: AppointmentAccessorsTestData.Accessor2Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                accessTypeId: AppointmentAccessorsTestData.Accessor2AccessType));
         }
     }
 }
