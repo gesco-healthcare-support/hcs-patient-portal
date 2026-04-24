@@ -5,7 +5,7 @@
 
 ## Status summary
 
-14 of 15 sub-items merged. `main` builds 0/0 with `-warnaserror`. SonarCloud shows 40 issues (0 BUG, 0 VULN, 40 smells), CodeQL 0 alerts, Dependabot 0 alerts, Scorecard running (100 alerts deferred to Phase C per SEC-06). 61 SonarCloud security hotspots pending Adrian's manual UI disposition (see [../verification/PHASE-B-CONTINUATION.md](../verification/PHASE-B-CONTINUATION.md) section 4). Only B-6 (test coverage 6% -> 60%) remains open. **B-6 Tier 1 MERGED 2026-04-24** (PR-0 through PR-1E on `main`); Tier 2 and Tier 3 remain.
+14 of 15 sub-items merged. `main` builds 0/0 with `-warnaserror`. SonarCloud shows 40 issues (0 BUG, 0 VULN, 40 smells), CodeQL 0 alerts, Dependabot 0 alerts, Scorecard running (100 alerts deferred to Phase C per SEC-06). 61 SonarCloud security hotspots pending Adrian's manual UI disposition (see [../verification/PHASE-B-CONTINUATION.md](../verification/PHASE-B-CONTINUATION.md) section 4). Only B-6 (test coverage 6% -> 60%) remains open. **B-6 Tier 1 MERGED 2026-04-24** (PR-0 through PR-1E on `main`) and **B-6 Tier 2 MERGED 2026-04-24** (PR-2A #141, PR-2B #142, PR-2C #143, PR-2D #144); Tier 3 remains.
 
 ## Sub-items
 
@@ -25,11 +25,11 @@
 | B-5c-3b | C# complexity + extended ABP baseline suppressions | #90 | MERGED |
 | B-5d | 1 BUG + ~30 cross-language findings (Web, Shell, Python, CSS, JS, Docker, K8s, TS) | #91 | MERGED |
 | B-5f | ABP baseline suppressions (S107 + S1192 scoped to ABP DI patterns) | #87 | MERGED |
-| **B-6** | **Test coverage 6% -> 60% overall, >= 80% new-code** | ongoing | **IN PROGRESS (Tier 1 MERGED 2026-04-24; Tier 2 next)** |
+| **B-6** | **Test coverage 6% -> 60% overall, >= 80% new-code** | ongoing | **IN PROGRESS (Tier 1 + Tier 2 MERGED 2026-04-24; Tier 3 next)** |
 
 ## Currently active
 
-[LAYER-2-PHASE-B-6-PLAN.md](./LAYER-2-PHASE-B-6-PLAN.md) -- B-6 Tier 1 in flight.
+[LAYER-2-PHASE-B-6-PLAN.md](./LAYER-2-PHASE-B-6-PLAN.md) -- B-6 Tier 1 + Tier 2 MERGED; Tier 3 next.
 
 ## Upcoming queue
 
@@ -46,4 +46,4 @@ Pop up to [LAYER-2-PLAN.md](./LAYER-2-PLAN.md); that level's `Active child:` poi
 
 ## Last updated
 
-2026-04-24 -- B-6 Tier 1 MERGED (PR-1E #135); Tier 2 is the next atomic unit.
+2026-04-24 -- B-6 Tier 2 MERGED (PR-2D #144 closed the set); Tier 3 is the next atomic unit.
