@@ -1,6 +1,10 @@
 [Home](../INDEX.md) > [Issues](./) > Security
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # Security Issues
+
+> **2026-04-24 reorganization note**: This file lists 5 issues (SEC-01..SEC-05) discovered during the original 2026-04-02 audit. The 2026-04-23 deep-dive captured 5 additional MVP-blocking security/quality items (NEW-SEC-01..NEW-SEC-05 and NEW-QUAL-01) that should appear in this register. See `docs/gap-analysis/10-deep-dive-findings.md` Part 2 + Part 5. A pointer table is added at the bottom under "Additional security gaps from 2026-04-23 deep-dive".
 
 Five security issues were identified during the codebase audit and confirmed via E2E testing on 2026-04-02. Two are critical and require remediation before any production deployment. All file paths and line numbers are current as of the audit date.
 
@@ -11,7 +15,7 @@ Five security issues were identified during the codebase audit and confirmed via
 ## SEC-01: Secrets Committed to Source Control
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Open -- partial mitigation in place (placeholders); full rotation + history scrub still pending. The "Affected Files and Values" table below already reflects the placeholder-and-Local.json pattern in current code; remaining work is rotation + history audit.
 
 ### Description
 
@@ -55,7 +59,7 @@ Multiple credentials and secret values are committed directly to tracked source 
 ## SEC-02: PII Logging Enabled by Default
 
 **Severity:** High
-**Status:** Open
+**Status:** Open -- guard logic (`App:DisablePII` defaults to false meaning PII-on) unchanged in current code per 2026-04-24 review; opt-out semantics still inverted.
 
 ### Description
 
@@ -97,7 +101,7 @@ Add `App:DisablePII: true` (or remove the key entirely after the fix) to all non
 ## SEC-03: External User Lookup Endpoint Unauthenticated and Unprotected
 
 **Severity:** High
-**Status:** Open
+**Status:** Open -- corroborated independently by `docs/gap-analysis/10-deep-dive-findings.md` Part 2 (NEW-SEC-02 generalises this to most AppService Create/Update/Delete methods missing method-level `[Authorize]`).
 
 ### Description
 
@@ -136,7 +140,7 @@ public virtual async Task<List<ExternalUserLookupDto>> GetExternalUserLookupAsyn
 ## SEC-04: CORS Policy Is Wide Open
 
 **Severity:** Medium
-**Status:** Open
+**Status:** Open -- INDETERMINATE on current code state. <!-- TODO: re-verify against current `CaseEvaluationHttpApiHostModule.cs` to confirm wildcard subdomain + AllowAnyHeader/Method are still live -->.
 
 ### Description
 
@@ -177,7 +181,7 @@ Review whether the wildcard subdomain pattern is necessary and replace with expl
 ## SEC-05: Password Policy Fully Relaxed
 
 **Severity:** High
-**Status:** Open -- **Confirmed via E2E testing (2026-04-02, test B13.4.1)**
+**Status:** Open -- **Confirmed via E2E testing (2026-04-02, test B13.4.1)**. INDETERMINATE on whether ABP Identity settings have since been tightened. <!-- TODO: re-verify password complexity options in current `appsettings.json` / Settings UI seed -->.
 
 ### Description
 
@@ -221,6 +225,19 @@ Configure<IdentityOptions>(options =>
 
 ---
 
+## Additional security gaps from 2026-04-23 deep-dive
+
+The following 5 MVP-blocking security/quality items were captured in `docs/gap-analysis/10-deep-dive-findings.md` Part 2 and Part 5 after this register was first written. They should be folded into this file in a subsequent pass; pointers added here so the audit trail is complete.
+
+| ID | Severity | Summary | Source |
+|---|---|---|---|
+| NEW-SEC-01 | MVP-blocking | `/appointments/view/:id` and `/appointments/add` routes only have `authGuard`, not `permissionGuard` -- any authenticated user can view/add appointments regardless of permission grants | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+| NEW-SEC-02 | MVP-blocking | Most AppService `CreateAsync`/`UpdateAsync`/`DeleteAsync` methods lack method-level `[Authorize(...Create)]` attributes; HTTP-level permission enforcement is missing for mutations. Generalises SEC-03. | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+| NEW-SEC-03 | MVP-blocking | `DoctorTenantAppService.CreateAsync` runs with `isTransactional: false`; partial failure leaves orphaned `SaasTenant` rows. Hardcoded `Gender.Male` + empty `LastName` in Doctor creation. | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+| NEW-SEC-04 | MVP-blocking | `ExternalSignupAppService.RegisterAsync` creates Patient with hardcoded `Gender.Male`, `DateOfBirth = today`, `PhoneNumberType.Home`. Data-quality + legal issue. | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+| NEW-SEC-05 | MVP-blocking | NEW does not send `Strict-Transport-Security` header; OLD does. HTTPS downgrade vulnerability in production. | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+| NEW-QUAL-01 | MVP-blocking | Zero tests for tenant provisioning, permission enforcement, external signup, multi-tenancy filter. Demo-regression risk. | `docs/gap-analysis/10-deep-dive-findings.md` Part 2 |
+
 ## Related Documentation
 
 - [Issues Overview](OVERVIEW.md) -- All issues by category and severity
@@ -228,3 +245,4 @@ Configure<IdentityOptions>(options =>
 - [Middleware & Pipeline](../api/MIDDLEWARE-AND-PIPELINE.md) -- CORS and authentication pipeline
 - [Authentication Flow](../api/AUTHENTICATION-FLOW.md) -- OpenIddict token issuance
 - [User Roles & Actors](../business-domain/USER-ROLES-AND-ACTORS.md) -- Permission model
+- [Gap Analysis: Deep-Dive Findings](../gap-analysis/10-deep-dive-findings.md) -- Source for the NEW-SEC-* / NEW-QUAL-* items above

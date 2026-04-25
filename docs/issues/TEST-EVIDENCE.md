@@ -1,6 +1,12 @@
 [Home](../INDEX.md) > [Issues](./) > Test Evidence
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # E2E Test Evidence Report
+
+> **Status: HISTORICAL BASELINE 2026-04-02.** This report predates Tier 1 + Tier 2 work. It is preserved as a frozen reference for the pre-Tier-1 state of the system. Do NOT update inline -- the canonical live test status lives in [docs/testing/coverage-status.md](../testing/coverage-status.md) (forthcoming, PR-5). For the current backend test count and covered entities, consult that document. Issue references in this report (BUG-XX, SEC-XX, etc.) reflect their state on 2026-04-02; some have since been fixed (e.g., BUG-03, BUG-11, FEAT-06) -- see [OVERVIEW.md](OVERVIEW.md) for current status.
+>
+> **Superseded by:** [docs/testing/coverage-status.md](../testing/coverage-status.md) (forthcoming).
 
 **Date**: 2026-04-02
 **Method**: Automated testing via Plan A (data seeding) + Plan B (E2E test suite) + exploratory tests

@@ -41,5 +41,5 @@ The project is currently maintained by a sole developer. A second developer join
 
 - **ABP Framework vendor lock-in:** The application depends heavily on ABP Commercial (a licensed framework) for multi-tenancy, permissions, identity, and UI theming. The ABP license key is required for builds. If the license expires or ABP discontinues support, significant rework would be needed.
 - **Angular and ABP version coupling:** Angular major version upgrades are blocked until ABP releases compatible packages. Angular 20's Vite dev server is already incompatible with ABP's dependency injection, forcing a workaround build process.
-- **Test coverage gaps:** Only 13 backend test methods exist, covering only the Doctors entity and a scaffold sample. All core features (appointments, patients, availability, external signup) are untested. No Angular component tests exist.
+- **Test coverage gaps:** Backend test coverage: see [docs/testing/coverage-status.md](testing/coverage-status.md). Last verified 2026-04-24. No Angular component tests exist.
 - **No staging or production environment:** The application runs only on localhost. There is no CI/CD pipeline deploying to a staging or production server, no environment-specific configuration, and no operational monitoring. Docker support has been added but not yet deployed to any remote environment.
