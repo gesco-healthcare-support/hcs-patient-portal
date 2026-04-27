@@ -10,29 +10,33 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Identity;
 
 /// <summary>
-/// Seeds the 3 internal Gesco-side role tiers and grants their baseline permissions.
-/// All 3 roles are HOST-SCOPED so they can be assigned across tenants from the host admin
-/// UI (per Q21 lock 2026-04-24 + the brief's recommended scoping pattern). External role
-/// permission grants are deferred -- the existing ExternalUserRoleDataSeedContributor seeds
-/// the role names per tenant; admins assign permissions on first use.
+/// Seeds the 3 internal Gesco-side role tiers and grants their baseline permissions
+/// per Q21+Q22 lock 2026-04-24:
+///  - IT Admin         : HOST-scoped (one host-level role; cross-tenant authority).
+///                       Grants every CaseEvaluation.* permission EXCEPT Dashboard.Tenant
+///                       (which is MultiTenancySides.Tenant only and cannot be granted in
+///                       host scope).
+///  - Staff Supervisor : TENANT-scoped (per-tenant copy). Grants Dashboard.Tenant + every
+///                       operational entity Default+Create+Edit (no Delete; hard-delete
+///                       is IT Admin only).
+///  - Clinic Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
+///                       (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
+///
+/// External role permission grants are deferred -- the existing
+/// ExternalUserRoleDataSeedContributor seeds the role names per tenant; admins assign
+/// permissions on first use.
 ///
 /// NOTE: Permission strings are hardcoded as literals (mirroring the constants in
 /// `Application.Contracts/Permissions/CaseEvaluationPermissions.cs`) because the Domain
 /// layer cannot reference Application.Contracts under ABP's layered architecture. If a
 /// permission name changes, both files must update.
-///
-/// Role matrix (Q21+Q22 lock):
-///  - IT Admin        : every CaseEvaluation.* permission (admin-equivalent).
-///  - Staff Supervisor: Dashboard.Tenant + per-entity Default/Create/Edit (no Delete) across operational entities.
-///  - Clinic Staff    : Dashboard.Tenant + Appointments + Patients (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
 /// </summary>
 public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
-    public const string ItAdminRoleName        = "IT Admin";
+    public const string ItAdminRoleName = "IT Admin";
     public const string StaffSupervisorRoleName = "Staff Supervisor";
-    public const string ClinicStaffRoleName     = "Clinic Staff";
+    public const string ClinicStaffRoleName = "Clinic Staff";
 
-    // ABP role permission provider key.
     // Matches Volo.Abp.PermissionManagement.RolePermissionValueProvider.ProviderName ("R").
     private const string RoleProviderName = "R";
 
@@ -54,27 +58,30 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        // Host-only: skip the per-tenant pass.
-        if (context?.TenantId != null)
+        if (context?.TenantId == null)
         {
-            return;
+            // HOST pass: seed IT Admin (host-scoped) + grant host-side permissions.
+            using (_currentTenant.Change(null))
+            {
+                await EnsureRoleAsync(ItAdminRoleName, tenantId: null);
+                await GrantAllAsync(ItAdminRoleName, ItAdminGrants());
+            }
         }
-
-        // Force host context (no tenant) so IdentityRole gets a null TenantId and grants
-        // are written without tenant scope.
-        using (_currentTenant.Change(null))
+        else
         {
-            await EnsureRoleAsync(ItAdminRoleName);
-            await EnsureRoleAsync(StaffSupervisorRoleName);
-            await EnsureRoleAsync(ClinicStaffRoleName);
+            // PER-TENANT pass: seed Staff Supervisor + Clinic Staff per tenant + grant tenant-side permissions.
+            using (_currentTenant.Change(context.TenantId))
+            {
+                await EnsureRoleAsync(StaffSupervisorRoleName, context.TenantId);
+                await EnsureRoleAsync(ClinicStaffRoleName, context.TenantId);
 
-            await GrantAllAsync(ItAdminRoleName, ItAdminGrants());
-            await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorGrants());
-            await GrantAllAsync(ClinicStaffRoleName, ClinicStaffGrants());
+                await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorGrants());
+                await GrantAllAsync(ClinicStaffRoleName, ClinicStaffGrants());
+            }
         }
     }
 
-    private async Task EnsureRoleAsync(string roleName)
+    private async Task EnsureRoleAsync(string roleName, Guid? tenantId)
     {
         var existing = await _roleManager.FindByNameAsync(roleName);
         if (existing != null)
@@ -82,7 +89,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             return;
         }
 
-        var role = new IdentityRole(Guid.NewGuid(), roleName, tenantId: null);
+        var role = new IdentityRole(Guid.NewGuid(), roleName, tenantId);
         await _roleManager.CreateAsync(role);
     }
 
@@ -95,9 +102,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     }
 
     private static string Default(string entity) => $"{Group}.{entity}";
-    private static string Create(string entity)  => $"{Group}.{entity}.Create";
-    private static string Edit(string entity)    => $"{Group}.{entity}.Edit";
-    private static string Delete(string entity)  => $"{Group}.{entity}.Delete";
+    private static string Create(string entity) => $"{Group}.{entity}.Create";
+    private static string Edit(string entity) => $"{Group}.{entity}.Edit";
+    private static string Delete(string entity) => $"{Group}.{entity}.Delete";
 
     private static readonly string[] AllEntities =
     {
@@ -139,11 +146,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         "WcabOffices",
     };
 
-    /// <summary>IT Admin: full CaseEvaluation.* tree.</summary>
+    /// <summary>
+    /// IT Admin (HOST scope): full CaseEvaluation.* tree. Excludes Dashboard.Tenant
+    /// because it is MultiTenancySides.Tenant only -- ABP rejects host-scoped grants
+    /// for tenant-side permissions. Tenant admins (Staff Supervisor / Clinic Staff)
+    /// hold Dashboard.Tenant inside their tenant scope.
+    /// </summary>
     private static IEnumerable<string> ItAdminGrants()
     {
         yield return $"{Group}.Dashboard.Host";
-        yield return $"{Group}.Dashboard.Tenant";
 
         foreach (var entity in AllEntities)
         {
@@ -155,15 +166,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     }
 
     /// <summary>
-    /// Staff Supervisor: Dashboard.Tenant + every operational entity .Default/.Create/.Edit
-    /// (no .Delete). All lookup reads. Locations.Edit so the supervisor can manage their
-    /// own clinic's location list. NO .Delete (hard-delete is IT-Admin-only per Q21 lock).
+    /// Staff Supervisor (TENANT scope): Dashboard.Tenant + every operational entity
+    /// .Default/.Create/.Edit (no .Delete; hard-delete is IT-Admin-only). All lookup
+    /// reads. Locations.Edit/.Create so the supervisor can manage their clinic's
+    /// location list.
     /// </summary>
     private static IEnumerable<string> StaffSupervisorGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 
-        // Lookup reads (and Locations write, since locations are tenant-operational).
         foreach (var entity in LookupReadEntities)
         {
             yield return Default(entity);
@@ -171,7 +182,6 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Create("Locations");
         yield return Edit("Locations");
 
-        // Operational entities (no Delete).
         foreach (var entity in OperationalEntities)
         {
             yield return Default(entity);
@@ -181,8 +191,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     }
 
     /// <summary>
-    /// Clinic Staff: front-desk receptionist tier. Tightly scoped to booking-flow inputs:
-    /// Appointments + Patients (CRUD-minus-Delete), read-only DoctorAvailabilities + lookups.
+    /// Clinic Staff (TENANT scope): front-desk receptionist tier. Tightly scoped to
+    /// booking-flow inputs: Appointments + Patients (CRUD-minus-Delete), read-only
+    /// DoctorAvailabilities + lookups.
     /// </summary>
     private static IEnumerable<string> ClinicStaffGrants()
     {
