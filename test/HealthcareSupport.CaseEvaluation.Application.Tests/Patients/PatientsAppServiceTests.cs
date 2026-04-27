@@ -3,12 +3,14 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
@@ -20,6 +22,7 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     private readonly PatientManager _patientManager;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     protected PatientsAppServiceTests()
     {
@@ -27,6 +30,7 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         _patientManager = GetRequiredService<PatientManager>();
         _patientRepository = GetRequiredService<IRepository<Patient, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
+        _currentPrincipalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     // ------------------------------------------------------------------------
@@ -300,20 +304,100 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     }
 
     // ------------------------------------------------------------------------
-    // Profile endpoints (skipped — needs WithCurrentUser faking infrastructure)
+    // Wave-2 PR-W2C: profile endpoints flipped live by the new
+    // WithCurrentUser test helper. Plus new GetOrCreatePatientForAppointmentBookingAsync
+    // tests covering the runtime IdentityUser-creation flow.
     // ------------------------------------------------------------------------
 
-    [Fact(Skip = "KNOWN GAP: GetMyProfileAsync reads CurrentUser.Id; test base has no "
-              + "WithCurrentUser helper yet. Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-current-user-faking")]
-    public Task GetMyProfileAsync_WhenCallerIsPatient_ReturnsPatient()
+    [Fact]
+    public void WithCurrentUser_PushesAndRestoresPrincipalOnDispose()
     {
+        // Sanity check the helper before any consumer test depends on it.
+        // ABP's CurrentPrincipalAccessor returns a fresh ClaimsPrincipal
+        // object on each access in the unmodified state, so we compare
+        // claim values rather than reference identity.
+        var userIdBefore = _currentPrincipalAccessor.Principal.FindFirst(AbpClaimTypes.UserId)?.Value;
+
+        using (WithCurrentUser.Run(_currentPrincipalAccessor, IdentityUsersTestData.Patient1UserId, "Patient"))
+        {
+            var inside = _currentPrincipalAccessor.Principal.FindFirst(AbpClaimTypes.UserId)?.Value;
+            inside.ShouldBe(IdentityUsersTestData.Patient1UserId.ToString());
+            _currentPrincipalAccessor.Principal.IsInRole("Patient").ShouldBeTrue();
+        }
+
+        var userIdAfter = _currentPrincipalAccessor.Principal.FindFirst(AbpClaimTypes.UserId)?.Value;
+        userIdAfter.ShouldBe(userIdBefore);
+    }
+
+    [Fact]
+    public async Task GetMyProfileAsync_WhenCallerIsPatient_ReturnsPatient()
+    {
+        // Flips Tier-1 PR-1C's `[Fact(Skip="...needs WithCurrentUser helper")]`
+        // to live now that the helper exists in PR-W2C.
+        using (WithCurrentUser.Run(_currentPrincipalAccessor, IdentityUsersTestData.Patient1UserId, "Patient"))
+        {
+            var result = await _patientsAppService.GetMyProfileAsync();
+
+            result.ShouldNotBeNull();
+            result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+            result.Patient.IdentityUserId.ShouldBe(IdentityUsersTestData.Patient1UserId);
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // GetOrCreatePatientForAppointmentBookingAsync runtime-creation flow.
+    // PR-W2C scope: existing-email path + the hardcoded-admin-password GAP.
+    // The new-email path (which exercises IdentityUserManager.CreateAsync +
+    // role assignment + PatientManager.CreateAsync) and the whitespace-email
+    // path are deferred to a Wave-2 follow-up because ABP's
+    // MethodInvocationValidator preempts whitespace tests via the
+    // [EmailAddress] attribute, and the runtime-creation chain triggers
+    // additional validation that needs scratch-Patient harness work.
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetOrCreatePatient_WhenEmailMatchesPatient1_ReturnsExistingPatient()
+    {
+        // Email lookup hits seeded Patient1; the runtime-creation arm does
+        // not run. Assert returned patient matches the seeded row.
+        var input = new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = PatientsTestData.Patient1FirstName,
+            LastName = PatientsTestData.Patient1LastName,
+            Email = PatientsTestData.Patient1Email,
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = PatientsTestData.FixedDateOfBirth,
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+        };
+
+        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+
+        result.ShouldNotBeNull();
+        result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+    }
+
+    [Fact(Skip = "KNOWN GAP: GetOrCreatePatientForAppointmentBookingAsync uses CaseEvaluationConsts.AdminPasswordDefaultValue for runtime-created IdentityUser. Tracked: src/.../Domain/Patients/CLAUDE.md Known Gotchas (hardcoded admin password) AND docs/gap-analysis NEW-SEC-04. When an invite-token / temp-password flow replaces the hardcoded password, this Fact flips live.")]
+    public Task GetOrCreatePatient_DoesNotUseHardcodedAdminPassword()
+    {
+        // Expected behaviour (not yet implemented):
+        // Newly-created IdentityUser should have a password that requires
+        // a flow-controlled set/reset (invite token, temp password, or
+        // SSO claim) rather than the hardcoded default. Today's behaviour
+        // grants every auto-created Patient the same admin-default password
+        // until they reset it -- a HIPAA-relevant credential exposure.
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: UpdateMyProfileAsync reads CurrentUser.Id; test base has no "
-              + "WithCurrentUser helper yet. Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-current-user-faking")]
+    [Fact(Skip = "KNOWN GAP: UpdateMyProfileAsync mutates seeded Patient1 ConcurrencyStamp; restoring the original FirstName needs scratch-Patient + IdentityUser test isolation. Tracked: docs/issues/INCOMPLETE-FEATURES.md (test-current-user-faking; scratch-patient pattern). Live test is deferred to Wave-2 follow-up that builds the scratch-patient harness.")]
     public Task UpdateMyProfileAsync_WhenCallerIsPatient_UpdatesFields()
     {
+        // Expected behaviour (not yet implemented):
+        // UpdateMyProfileAsync called within a WithCurrentUser scope on a
+        // scratch Patient + IdentityUser pair persists the new FirstName,
+        // LastName, etc. The runtime-creation arm of GetOrCreatePatient
+        // (also Wave-2-deferred) is the natural prerequisite -- once the
+        // harness can spin up scratch Patients, UpdateMyProfileAsync runs
+        // against scratch data without mutating the seeded baseline.
         return Task.CompletedTask;
     }
 
