@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -52,6 +53,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
     private readonly IAppointmentStatusRepository _appointmentStatusRepository;
+    private readonly IAppointmentLanguageRepository _appointmentLanguageRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -71,6 +73,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
         IAppointmentStatusRepository appointmentStatusRepository,
+        IAppointmentLanguageRepository appointmentLanguageRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -89,6 +92,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
         _appointmentStatusRepository = appointmentStatusRepository;
+        _appointmentLanguageRepository = appointmentLanguageRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -114,6 +118,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         await SeedAppointmentTypesAsync();
         await SeedAppointmentStatusesAsync();
+        await SeedAppointmentLanguagesAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedLocationsAsync();
@@ -525,6 +530,25 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+        }
+    }
+
+    private async Task SeedAppointmentLanguagesAsync()
+    {
+        // AppointmentLanguage is host-only (NOT IMultiTenant; NOT
+        // AggregateRoot). NameMaxLength = 50. 1 inbound FK from
+        // Patient.AppointmentLanguageId (nullable SetNull). Two languages
+        // seeded so Tier-3 tests exercise multi-row list + FilterText
+        // filtering: Language1 (TEST-English), Language2 (TEST-Spanish).
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
+                id: AppointmentLanguagesTestData.Language1Id,
+                name: AppointmentLanguagesTestData.Language1Name));
+
+            await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
+                id: AppointmentLanguagesTestData.Language2Id,
+                name: AppointmentLanguagesTestData.Language2Name));
         }
     }
 
