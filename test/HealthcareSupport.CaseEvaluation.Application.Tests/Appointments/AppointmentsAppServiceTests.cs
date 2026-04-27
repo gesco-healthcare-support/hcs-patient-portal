@@ -1,10 +1,16 @@
 using System;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Data;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -15,18 +21,27 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// EntityFrameworkCore.Tests and supplies the TStartupModule that wires in
 /// SQLite + full ABP module graph.
 ///
-/// Phase B-6 Tier-1 PR-1A scope: validation-layer coverage only.
-/// Happy-path CRUD and nav-property tests are deferred to PR-1B (slot seed),
-/// PR-1C (patient seed), and the eventual IdentityUsers seed contributor.
+/// Phase B-6 Tier-1 PR-1A: validation-layer coverage (the original 12 active
+/// Facts + 4 Skip-encoded gap markers below).
+/// Phase B-6 Wave-2 PR-W2A: happy-path CRUD using seeded Appointment1/2 +
+/// Slot1/2/3 + the slot-state intent gap (Available -> Reserved -> Booked).
 /// </summary>
 public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluationApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
     private readonly IAppointmentsAppService _appointmentsAppService;
+    private readonly IAppointmentRepository _appointmentRepository;
+    private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly IDataFilter _dataFilter;
 
     protected AppointmentsAppServiceTests()
     {
         _appointmentsAppService = GetRequiredService<IAppointmentsAppService>();
+        _appointmentRepository = GetRequiredService<IAppointmentRepository>();
+        _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
+        _dataFilter = GetRequiredService<IDataFilter>();
     }
 
     // =====================================================================
@@ -253,6 +268,254 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     // =====================================================================
+    // Wave-2 PR-W2A: happy-path CRUD using seeded Appointment1/2 + slot
+    // booking + confirmation-number format. Read tests use seeded rows
+    // directly. Create tests insert a scratch DoctorAvailability slot first
+    // so they don't mutate the shared seed (Slot1/2/3 stay intact across
+    // test order).
+    // =====================================================================
+
+    [Fact]
+    public async Task GetListAsync_FromHostContextWithFilterDisabled_ReturnsBothSeededAppointments()
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var result = await _appointmentsAppService.GetListAsync(new GetAppointmentsInput());
+
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment1Id).ShouldBeTrue();
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment2Id).ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_FromTenantAContext_ReturnsOnlyAppointment1()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appointmentsAppService.GetListAsync(new GetAppointmentsInput());
+
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment1Id).ShouldBeTrue();
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment2Id).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_FromTenantBContext_ReturnsOnlyAppointment2()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var result = await _appointmentsAppService.GetListAsync(new GetAppointmentsInput());
+
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment2Id).ShouldBeTrue();
+            result.Items.Any(x => x.Appointment.Id == AppointmentsTestData.Appointment1Id).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsAppointment1_WhenInTenantAContext()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appointmentsAppService.GetAsync(AppointmentsTestData.Appointment1Id);
+
+            result.ShouldNotBeNull();
+            result.Id.ShouldBe(AppointmentsTestData.Appointment1Id);
+            result.RequestConfirmationNumber.ShouldBe(AppointmentsTestData.Appointment1RequestConfirmationNumber);
+            result.AppointmentStatus.ShouldBe(AppointmentsTestData.Appointment1Status);
+        }
+    }
+
+    [Fact]
+    public async Task GetWithNavigationPropertiesAsync_ResolvesPatientLocationTypeAndSlot()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appointmentsAppService.GetWithNavigationPropertiesAsync(AppointmentsTestData.Appointment1Id);
+
+            result.ShouldNotBeNull();
+            result.Appointment.Id.ShouldBe(AppointmentsTestData.Appointment1Id);
+            // Patient is NOT IMultiTenant (FEAT-09) but the FK still resolves.
+            result.Patient.ShouldNotBeNull();
+            result.Patient!.Id.ShouldBe(PatientsTestData.Patient1Id);
+            result.AppointmentType.ShouldNotBeNull();
+            result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
+            result.Location.ShouldNotBeNull();
+            result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
+            result.DoctorAvailability.ShouldNotBeNull();
+            result.DoctorAvailability!.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenInputValid_PersistsAppointmentAndReturnsDto()
+    {
+        // Insert a scratch Available slot in TenantA (don't mutate Slot2 from
+        // the shared seed). Then book it via the AppService.
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 1, 10, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            created.ShouldNotBeNull();
+            created.PatientId.ShouldBe(input.PatientId);
+            created.DoctorAvailabilityId.ShouldBe(scratchSlot.Id);
+            created.Id.ShouldNotBe(Guid.Empty);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_GeneratesConfirmationNumberInAFormat()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 2, 5, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(30));
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            // Format confirmed mechanically; race window between MAX read and
+            // INSERT is documented in src/.../Appointments/CLAUDE.md gotcha 5
+            // and is encoded as an inherited skipped Fact, NOT asserted here.
+            Regex.IsMatch(created.RequestConfirmationNumber, @"^A\d{5}$").ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_TwoSequentialCreates_ProduceIncreasingNumbers()
+    {
+        var scratchA = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var scratchB = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 3, 2, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var firstInput = BuildScratchCreateDto(scratchA.Id, scratchA.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var first = await _appointmentsAppService.CreateAsync(firstInput);
+
+            var secondInput = BuildScratchCreateDto(scratchB.Id, scratchB.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var second = await _appointmentsAppService.CreateAsync(secondInput);
+
+            int firstNum = int.Parse(first.RequestConfirmationNumber.Substring(1));
+            int secondNum = int.Parse(second.RequestConfirmationNumber.Substring(1));
+            secondNum.ShouldBeGreaterThan(firstNum);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_FlipsSlotOutOfAvailable_ButNotEnshrineBooked()
+    {
+        // W2-1 lock: assert the slot's status is no longer Available after
+        // booking, but do NOT assert it is Booked. Product intent (per
+        // docs/product/doctor-availabilities.md) is Available -> Reserved
+        // (pending office review) -> Booked. Current code skips Reserved.
+        // The Skip Fact below pins the divergence; this live Fact passes
+        // either way the production code resolves it.
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 4, 7, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+
+            await _appointmentsAppService.CreateAsync(input);
+
+            var slotAfter = await _doctorAvailabilityRepository.GetAsync(scratchSlot.Id);
+            slotAfter.BookingStatusId.ShouldNotBe(BookingStatus.Available);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotIsNotAvailable_Throws()
+    {
+        // Slot1 is seeded as Booked; attempting to book it again must reject.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(
+                DoctorAvailabilitiesTestData.Slot1Id,
+                DoctorAvailabilitiesTestData.Slot1AvailableDate.Date.AddHours(9).AddMinutes(15));
+            input.LocationId = LocationsTestData.Location1Id;
+            input.AppointmentTypeId = LocationsTestData.AppointmentType1Id;
+
+            var ex = await Should.ThrowAsync<UserFriendlyException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+
+            ex.Message.ShouldContain("no longer available");
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotLocationMismatch_Throws()
+    {
+        // Scratch slot at Location2; input asks for Location1.
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 5, 5, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0),
+            locationId: LocationsTestData.Location2Id);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            input.LocationId = LocationsTestData.Location1Id;
+
+            var ex = await Should.ThrowAsync<UserFriendlyException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+
+            ex.Message.ShouldContain("location");
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotDateMismatch_Throws()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 6, 1, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, new DateTime(2027, 6, 8, 10, 15, 0, DateTimeKind.Utc));
+
+            var ex = await Should.ThrowAsync<UserFriendlyException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+
+            ex.Message.ShouldContain("date");
+        }
+    }
+
+    [Fact(Skip = "KNOWN GAP: AppointmentsAppService.CreateAsync should transition slot Available -> Reserved (pending office review) -> Booked, but currently flips directly to Booked. Tracked: docs/product/doctor-availabilities.md slot-lifecycle section AND src/.../Domain/Appointments/CLAUDE.md Business Rule 4 (slot booking is one-way). When production code is fixed to emit Reserved as the post-create state, this Fact flips live.")]
+    public Task CreateAsync_BookingTransitionsSlotToReserved_NotBookedDirectly()
+    {
+        // Expected behaviour (not yet implemented):
+        // After CreateAsync, the slot's BookingStatusId should be `Reserved`,
+        // representing "pending office review" per the product intent doc.
+        // Current code sets it to `Booked` immediately, which conflates the
+        // pending-review and confirmed-booking states.
+        return Task.CompletedTask;
+    }
+
+    // =====================================================================
     // Helpers.
     // =====================================================================
 
@@ -287,6 +550,55 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             PanelNumber = null,
             DueDate = null,
             ConcurrencyStamp = string.Empty,
+        };
+    }
+
+    /// <summary>
+    /// Inserts an Available scratch DoctorAvailability slot in TenantA.
+    /// Tests that need to exercise the booking flow without mutating the
+    /// shared seed (Slot1/2/3) call this to get a fresh, unique slot they
+    /// can flip to Booked without affecting other tests.
+    /// </summary>
+    private async Task<DoctorAvailability> CreateScratchAvailableSlotInTenantAAsync(
+        DateTime scratchDate,
+        TimeOnly scratchFromTime,
+        TimeOnly scratchToTime,
+        Guid? locationId = null)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: Guid.NewGuid(),
+                locationId: locationId ?? LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: scratchDate,
+                fromTime: scratchFromTime,
+                toTime: scratchToTime,
+                bookingStatusId: BookingStatus.Available);
+            return await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
+        }
+    }
+
+    /// <summary>
+    /// Builds a TenantA-scoped CreateDto pre-populated with seeded FK targets
+    /// (Patient1, Patient1's IdentityUser, AppointmentType1, Location1) plus
+    /// the caller-supplied scratch slot id and AppointmentDate. Tests override
+    /// individual fields to drive specific validation paths.
+    /// </summary>
+    private static AppointmentCreateDto BuildScratchCreateDto(Guid scratchSlotId, DateTime appointmentDate)
+    {
+        return new AppointmentCreateDto
+        {
+            PatientId = PatientsTestData.Patient1Id,
+            IdentityUserId = IdentityUsersTestData.Patient1UserId,
+            AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+            LocationId = LocationsTestData.Location1Id,
+            DoctorAvailabilityId = scratchSlotId,
+            AppointmentDate = appointmentDate,
+            RequestConfirmationNumber = "ignored-by-server",
+            AppointmentStatus = AppointmentStatusType.Pending,
+            PanelNumber = null,
+            DueDate = null,
         };
     }
 }
