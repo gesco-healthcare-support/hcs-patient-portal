@@ -1,8 +1,19 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
+using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -19,7 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 /// execution order of multiple contributors (see ABP forum #571).
 ///
 /// Seed order (strict FK dependency chain):
-///   Tenant -&gt; IdentityUser -&gt; Doctor -&gt; Patient -&gt; (future: DoctorAvailability, Appointment, ApplicantAttorney, ...)
+///   Tenant -&gt; IdentityUser -&gt; Location (+ State, AppointmentType) -&gt; DoctorAvailability -&gt; Doctor -&gt; Patient -&gt; ApplicantAttorney -&gt; Appointment
 ///
 /// Tenants are created via <c>ITenantManager.CreateAsync(name)</c> -- the same
 /// framework path production uses (DoctorTenantAppService.CreateAsync hits this
@@ -32,6 +43,17 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private bool _isSeeded;
     private readonly IDoctorRepository _doctorRepository;
     private readonly IPatientRepository _patientRepository;
+    private readonly ILocationRepository _locationRepository;
+    private readonly IRepository<State, Guid> _stateRepository;
+    private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
+    private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
+    private readonly IDoctorAvailabilityRepository _doctorAvailabilityRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
+    private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
+    private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
+    private readonly IAppointmentStatusRepository _appointmentStatusRepository;
+    private readonly IAppointmentLanguageRepository _appointmentLanguageRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -41,6 +63,17 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     public CaseEvaluationIntegrationTestSeedContributor(
         IDoctorRepository doctorRepository,
         IPatientRepository patientRepository,
+        ILocationRepository locationRepository,
+        IRepository<State, Guid> stateRepository,
+        IRepository<AppointmentType, Guid> appointmentTypeRepository,
+        IApplicantAttorneyRepository applicantAttorneyRepository,
+        IDoctorAvailabilityRepository doctorAvailabilityRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentAccessorRepository appointmentAccessorRepository,
+        IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
+        IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
+        IAppointmentStatusRepository appointmentStatusRepository,
+        IAppointmentLanguageRepository appointmentLanguageRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -49,6 +82,17 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     {
         _doctorRepository = doctorRepository;
         _patientRepository = patientRepository;
+        _locationRepository = locationRepository;
+        _stateRepository = stateRepository;
+        _appointmentTypeRepository = appointmentTypeRepository;
+        _applicantAttorneyRepository = applicantAttorneyRepository;
+        _doctorAvailabilityRepository = doctorAvailabilityRepository;
+        _appointmentRepository = appointmentRepository;
+        _appointmentAccessorRepository = appointmentAccessorRepository;
+        _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
+        _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
+        _appointmentStatusRepository = appointmentStatusRepository;
+        _appointmentLanguageRepository = appointmentLanguageRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -69,8 +113,31 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await _identityUsersSeeder.SeedAsync(context);
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
+        await SeedStatesAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedAppointmentTypesAsync();
+        await SeedAppointmentStatusesAsync();
+        await SeedAppointmentLanguagesAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedLocationsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedDoctorAvailabilitiesAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
         await SeedDoctorsAsync();
         await SeedPatientsAsync();
+        await SeedApplicantAttorneysAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedAppointmentsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedAppointmentAccessorsAsync();
+        await SeedAppointmentApplicantAttorneysAsync();
+        await SeedAppointmentEmployerDetailsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -90,6 +157,56 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             var tenantB = await _tenantManager.CreateAsync(TenantsTestData.TenantBName);
             await _tenantRepository.InsertAsync(tenantB);
             TenantsTestData.TenantBRef = tenantB.Id;
+        }
+    }
+
+    private async Task SeedLocationsAsync()
+    {
+        // Host-scoped seeds: Location, State, AppointmentType are all !IMultiTenant.
+        // Location1 references State1 + AppointmentType1 so nav-prop join tests can
+        // assert on populated related entities. Location2 and Location3 keep null
+        // nav FKs to exercise LEFT JOIN with nulls and satisfy the "varied FKs"
+        // clause in the PR-1D T5 plan.
+        //
+        // Runs before Doctor / Patient so the orchestrator's dependency chain
+        // stays consistent for future Wave-2 seeds (DoctorAvailability and
+        // Appointment both FK into Location).
+        using (_currentTenant.Change(null))
+        {
+            // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
+            // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
+            await _locationRepository.InsertAsync(new Location(
+                id: LocationsTestData.Location1Id,
+                stateId: LocationsTestData.State1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                name: LocationsTestData.Location1Name,
+                parkingFee: LocationsTestData.Location1ParkingFee,
+                isActive: LocationsTestData.Location1IsActive,
+                address: LocationsTestData.Location1Address,
+                city: LocationsTestData.Location1City,
+                zipCode: LocationsTestData.Location1ZipCode));
+
+            await _locationRepository.InsertAsync(new Location(
+                id: LocationsTestData.Location2Id,
+                stateId: null,
+                appointmentTypeId: null,
+                name: LocationsTestData.Location2Name,
+                parkingFee: LocationsTestData.Location2ParkingFee,
+                isActive: LocationsTestData.Location2IsActive,
+                address: LocationsTestData.Location2Address,
+                city: LocationsTestData.Location2City,
+                zipCode: LocationsTestData.Location2ZipCode));
+
+            await _locationRepository.InsertAsync(new Location(
+                id: LocationsTestData.Location3Id,
+                stateId: null,
+                appointmentTypeId: null,
+                name: LocationsTestData.Location3Name,
+                parkingFee: LocationsTestData.Location3ParkingFee,
+                isActive: LocationsTestData.Location3IsActive,
+                address: LocationsTestData.Location3Address,
+                city: LocationsTestData.Location3City,
+                zipCode: LocationsTestData.Location3ZipCode));
         }
     }
 
@@ -152,5 +269,337 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             genderId: (Gender)PatientsTestData.PatientGenderIdValue,
             dateOfBirth: PatientsTestData.FixedDateOfBirth,
             phoneNumberTypeId: (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue));
+    }
+
+    private async Task SeedApplicantAttorneysAsync()
+    {
+        // ApplicantAttorney is IMultiTenant. Two attorneys seeded so tests can
+        // exercise tenant isolation (the contrast case vs Patient's non-IMultiTenant
+        // leak at docs/issues/INCOMPLETE-FEATURES.md FEAT-09):
+        //   Attorney1 -- TenantARef, IdentityUserId = ApplicantAttorney1UserId
+        //   Attorney2 -- TenantBRef, IdentityUserId = DefenseAttorney1UserId
+        // IdentityUserId FK integrity at DB level is tenant-agnostic; ABP's
+        // IMultiTenant filter acts on ApplicantAttorney.TenantId which is set
+        // by the CurrentTenant context at insert time.
+        //
+        // The ctor sets FirmName + FirmAddress + PhoneNumber (3 fields via args).
+        // ApplicantAttorneyManager normally assigns WebAddress + FaxNumber +
+        // Street + City + ZipCode (5 fields) post-construction on the entity.
+        // The seed assigns both paths directly so tests can assert against the
+        // ctor path AND the manager-post-construction path end-to-end.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var attorney1 = new ApplicantAttorney(
+                id: ApplicantAttorneysTestData.Attorney1Id,
+                stateId: null,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId,
+                firmName: ApplicantAttorneysTestData.Attorney1FirmName,
+                firmAddress: ApplicantAttorneysTestData.Attorney1FirmAddress,
+                phoneNumber: ApplicantAttorneysTestData.Attorney1PhoneNumber);
+            attorney1.WebAddress = ApplicantAttorneysTestData.Attorney1WebAddress;
+            attorney1.FaxNumber = ApplicantAttorneysTestData.Attorney1FaxNumber;
+            attorney1.Street = ApplicantAttorneysTestData.Attorney1Street;
+            attorney1.City = ApplicantAttorneysTestData.Attorney1City;
+            attorney1.ZipCode = ApplicantAttorneysTestData.Attorney1ZipCode;
+            await _applicantAttorneyRepository.InsertAsync(attorney1);
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var attorney2 = new ApplicantAttorney(
+                id: ApplicantAttorneysTestData.Attorney2Id,
+                stateId: null,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+                firmName: ApplicantAttorneysTestData.Attorney2FirmName,
+                firmAddress: ApplicantAttorneysTestData.Attorney2FirmAddress,
+                phoneNumber: ApplicantAttorneysTestData.Attorney2PhoneNumber);
+            attorney2.WebAddress = ApplicantAttorneysTestData.Attorney2WebAddress;
+            attorney2.FaxNumber = ApplicantAttorneysTestData.Attorney2FaxNumber;
+            attorney2.Street = ApplicantAttorneysTestData.Attorney2Street;
+            attorney2.City = ApplicantAttorneysTestData.Attorney2City;
+            attorney2.ZipCode = ApplicantAttorneysTestData.Attorney2ZipCode;
+            await _applicantAttorneyRepository.InsertAsync(attorney2);
+        }
+    }
+
+    private async Task SeedDoctorAvailabilitiesAsync()
+    {
+        // DoctorAvailability is IMultiTenant. Three slots seeded across TenantA+B
+        // so Tier-2 entities (AppointmentAccessors, AppointmentApplicantAttorneys,
+        // AppointmentEmployerDetails) have valid Appointment FK targets, and so
+        // future DoctorAvailability Wave-2 CRUD tests have slot rows to assert
+        // against. Slot1 + Slot3 are Booked (referenced by Appointment1 + 2);
+        // Slot2 is Available (reserved as a free slot for booking-flow tests).
+        //
+        // Runs AFTER SeedLocationsAsync (LocationId + AppointmentTypeId FKs
+        // satisfied) and BEFORE SeedAppointmentsAsync (Appointment's
+        // DoctorAvailabilityId FK depends on these slots).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+                id: DoctorAvailabilitiesTestData.Slot1Id,
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
+                fromTime: DoctorAvailabilitiesTestData.Slot1FromTime,
+                toTime: DoctorAvailabilitiesTestData.Slot1ToTime,
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus));
+
+            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+                id: DoctorAvailabilitiesTestData.Slot2Id,
+                locationId: LocationsTestData.Location2Id,
+                appointmentTypeId: null,
+                availableDate: DoctorAvailabilitiesTestData.Slot2AvailableDate,
+                fromTime: DoctorAvailabilitiesTestData.Slot2FromTime,
+                toTime: DoctorAvailabilitiesTestData.Slot2ToTime,
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot2BookingStatus));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+                id: DoctorAvailabilitiesTestData.Slot3Id,
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
+                fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
+                toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus));
+        }
+    }
+
+    private async Task SeedAppointmentsAsync()
+    {
+        // Appointment is IMultiTenant. Two appointments seeded so Tier-2 entities
+        // that FK into Appointment (AppointmentAccessors,
+        // AppointmentApplicantAttorneys, AppointmentEmployerDetails) have valid
+        // AppointmentId targets. Minimum viable seed -- no PanelNumber and no
+        // DueDate; status + confirmation number hardcoded in AppointmentsTestData.
+        //
+        // Runs AFTER SeedPatientsAsync + SeedApplicantAttorneysAsync so the
+        // Patient + IdentityUser FKs resolve, and AFTER SeedDoctorAvailabilitiesAsync
+        // so the DoctorAvailabilityId FK resolves.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentRepository.InsertAsync(new Appointment(
+                id: AppointmentsTestData.Appointment1Id,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: AppointmentsTestData.Appointment1Date,
+                requestConfirmationNumber: AppointmentsTestData.Appointment1RequestConfirmationNumber,
+                appointmentStatus: AppointmentsTestData.Appointment1Status));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentRepository.InsertAsync(new Appointment(
+                id: AppointmentsTestData.Appointment2Id,
+                patientId: PatientsTestData.Patient2Id,
+                identityUserId: IdentityUsersTestData.Patient2UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot3Id,
+                appointmentDate: AppointmentsTestData.Appointment2Date,
+                requestConfirmationNumber: AppointmentsTestData.Appointment2RequestConfirmationNumber,
+                appointmentStatus: AppointmentsTestData.Appointment2Status));
+        }
+    }
+
+    private async Task SeedAppointmentAccessorsAsync()
+    {
+        // AppointmentAccessor is IMultiTenant. Two accessors seeded across the
+        // two tenants so Tier-2 tests can assert multi-tenant isolation AND the
+        // View/Edit AccessType split:
+        //   Accessor1 -- TenantA, Appointment1, ApplicantAttorney1UserId, View
+        //   Accessor2 -- TenantB, Appointment2, DefenseAttorney1UserId, Edit
+        // Runs after SeedAppointmentsAsync so Appointment1/2 FKs are satisfied.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentAccessorRepository.InsertAsync(new AppointmentAccessor(
+                id: AppointmentAccessorsTestData.Accessor1Id,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                accessTypeId: AppointmentAccessorsTestData.Accessor1AccessType));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentAccessorRepository.InsertAsync(new AppointmentAccessor(
+                id: AppointmentAccessorsTestData.Accessor2Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                accessTypeId: AppointmentAccessorsTestData.Accessor2AccessType));
+        }
+    }
+
+    private async Task SeedAppointmentApplicantAttorneysAsync()
+    {
+        // AppointmentApplicantAttorney is IMultiTenant. Two join rows seeded so
+        // Tier-2 tests can assert tenant isolation + the unusual `Id asc` default
+        // sort on GetListAsync (contrast with CreationTime desc elsewhere). Each
+        // join lives in the same tenant as its parent Appointment so the ABP
+        // IMultiTenant filter resolves predictably under a tenant-scoped wrap:
+        //   Join1 -- TenantA, Appointment1, Attorney1, ApplicantAttorney1UserId
+        //   Join2 -- TenantB, Appointment2, Attorney2, DefenseAttorney1UserId
+        // Runs after SeedAppointmentAccessorsAsync so the orchestrator keeps all
+        // appointment-child seeds grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentApplicantAttorneyRepository.InsertAsync(new AppointmentApplicantAttorney(
+                id: AppointmentApplicantAttorneysTestData.Join1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                identityUserId: IdentityUsersTestData.ApplicantAttorney1UserId));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentApplicantAttorneyRepository.InsertAsync(new AppointmentApplicantAttorney(
+                id: AppointmentApplicantAttorneysTestData.Join2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                applicantAttorneyId: ApplicantAttorneysTestData.Attorney2Id,
+                identityUserId: IdentityUsersTestData.DefenseAttorney1UserId));
+        }
+    }
+
+    private async Task SeedAppointmentEmployerDetailsAsync()
+    {
+        // AppointmentEmployerDetail is IMultiTenant with 6 string fields: 2
+        // required (EmployerName + Occupation, both max 255, guarded by the ctor
+        // via Check.NotNull + Check.Length) and 4 optional (PhoneNumber, Street,
+        // City, ZipCode) assigned post-construction. StateId is nullable so
+        // Detail1 populates it (nav-prop join test) and Detail2 leaves it null
+        // (null FK branch coverage). The manager's NotNullOrWhiteSpace +
+        // per-field length guards are exercised by the validation tests rather
+        // than the seed.
+        //
+        // Runs after SeedAppointmentApplicantAttorneysAsync so all
+        // appointment-child seeds stay grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var detail1 = new AppointmentEmployerDetail(
+                id: AppointmentEmployerDetailsTestData.Detail1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                stateId: LocationsTestData.State1Id,
+                employerName: AppointmentEmployerDetailsTestData.Detail1EmployerName,
+                occupation: AppointmentEmployerDetailsTestData.Detail1Occupation);
+            detail1.PhoneNumber = AppointmentEmployerDetailsTestData.Detail1PhoneNumber;
+            detail1.Street = AppointmentEmployerDetailsTestData.Detail1Street;
+            detail1.City = AppointmentEmployerDetailsTestData.Detail1City;
+            detail1.ZipCode = AppointmentEmployerDetailsTestData.Detail1ZipCode;
+            await _appointmentEmployerDetailRepository.InsertAsync(detail1);
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var detail2 = new AppointmentEmployerDetail(
+                id: AppointmentEmployerDetailsTestData.Detail2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                stateId: null,
+                employerName: AppointmentEmployerDetailsTestData.Detail2EmployerName,
+                occupation: AppointmentEmployerDetailsTestData.Detail2Occupation);
+            detail2.PhoneNumber = AppointmentEmployerDetailsTestData.Detail2PhoneNumber;
+            detail2.Street = AppointmentEmployerDetailsTestData.Detail2Street;
+            detail2.City = AppointmentEmployerDetailsTestData.Detail2City;
+            detail2.ZipCode = AppointmentEmployerDetailsTestData.Detail2ZipCode;
+            await _appointmentEmployerDetailRepository.InsertAsync(detail2);
+        }
+    }
+
+    private async Task SeedAppointmentTypesAsync()
+    {
+        // AppointmentType is host-only (NOT IMultiTenant; NOT AggregateRoot --
+        // it is `FullAuditedEntity<Guid>`). Two types seeded so Tier-3 tests
+        // exercise both the Description-populated path (AppointmentType2) and
+        // the null-Description path (AppointmentType1):
+        //   AppointmentType1 -- TEST-IME-Eval (no Description; previously
+        //                       seeded inline inside SeedLocationsAsync -- this
+        //                       phase replaces that, hence runs BEFORE it).
+        //   AppointmentType2 -- TEST-Orthopedic (with Description for the
+        //                       optional-field coverage test).
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: AppointmentTypesTestData.AppointmentType1Id,
+                name: AppointmentTypesTestData.AppointmentType1Name));
+
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: AppointmentTypesTestData.AppointmentType2Id,
+                name: AppointmentTypesTestData.AppointmentType2Name,
+                description: AppointmentTypesTestData.AppointmentType2Description));
+        }
+    }
+
+    private async Task SeedAppointmentLanguagesAsync()
+    {
+        // AppointmentLanguage is host-only (NOT IMultiTenant; NOT
+        // AggregateRoot). NameMaxLength = 50. 1 inbound FK from
+        // Patient.AppointmentLanguageId (nullable SetNull). Two languages
+        // seeded so Tier-3 tests exercise multi-row list + FilterText
+        // filtering: Language1 (TEST-English), Language2 (TEST-Spanish).
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
+                id: AppointmentLanguagesTestData.Language1Id,
+                name: AppointmentLanguagesTestData.Language1Name));
+
+            await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
+                id: AppointmentLanguagesTestData.Language2Id,
+                name: AppointmentLanguagesTestData.Language2Name));
+        }
+    }
+
+    private async Task SeedAppointmentStatusesAsync()
+    {
+        // AppointmentStatus is host-only (NOT IMultiTenant; NOT AggregateRoot)
+        // -- a lookup table parallel to but distinct from the
+        // `AppointmentStatusType` enum used on Appointment.AppointmentStatus.
+        // No FK from Appointment to this entity (gap encoded as Skip Fact).
+        // Two statuses seeded so Tier-3 tests exercise multi-row list +
+        // FilterText filtering. Names use scratch labels (TEST-PendingLabel,
+        // TEST-ApprovedLabel) so DeleteAllAsync(filterText) tests can target
+        // scratch-only data without wiping the seeded rows.
+        using (_currentTenant.Change(null))
+        {
+            await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
+                id: AppointmentStatusesTestData.Status1Id,
+                name: AppointmentStatusesTestData.Status1Name));
+
+            await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
+                id: AppointmentStatusesTestData.Status2Id,
+                name: AppointmentStatusesTestData.Status2Name));
+        }
+    }
+
+    private async Task SeedStatesAsync()
+    {
+        // State is host-only (NOT IMultiTenant). The IMultiTenant filter does
+        // not apply regardless of CurrentTenant context (external research
+        // Track 1.1), so the `_currentTenant.Change(null)` wrap is parity-only.
+        // Three states seeded so Tier-3 tests can exercise multi-state list +
+        // Name-filter assertions:
+        //   State1 -- TEST-California (also referenced by Location1 +
+        //             AppointmentEmployerDetail Detail1 from prior tiers; this
+        //             phase replaces the inline insert that previously lived
+        //             inside SeedLocationsAsync, hence runs BEFORE it).
+        //   State2 -- TEST-Nevada
+        //   State3 -- TEST-Oregon
+        using (_currentTenant.Change(null))
+        {
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State1Id,
+                name: StatesTestData.State1Name));
+
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State2Id,
+                name: StatesTestData.State2Name));
+
+            await _stateRepository.InsertAsync(new State(
+                id: StatesTestData.State3Id,
+                name: StatesTestData.State3Name));
+        }
     }
 }

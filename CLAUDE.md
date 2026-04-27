@@ -110,7 +110,7 @@ cd angular && npm test                                                         #
 
 **Test data seeding:** `DoctorsDataSeedContributor` seeds 2 doctors with hardcoded GUIDs — tests assert against those specific IDs. Add new seed contributors for new entity tests.
 
-**Coverage gap:** Only Doctors, Books, and framework services have tests. Patients, Appointments, Locations, DoctorAvailabilities, and all others are untested.
+**Coverage gap:** Backend test coverage: see [docs/testing/coverage-status.md](docs/testing/coverage-status.md). Last verified 2026-04-24.
 
 ## ABP Conventions
 

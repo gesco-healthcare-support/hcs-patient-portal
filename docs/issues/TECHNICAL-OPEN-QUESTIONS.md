@@ -1,6 +1,10 @@
 [Home](../INDEX.md) > [Issues](./) > Technical Open Questions
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # Technical Open Questions
+
+> **2026-04-24 reorganization note**: Several of the 12 questions below now overlap with the consolidated 32-question list in `docs/gap-analysis/README.md` lines 227-271 ("Consolidated open questions for Adrian"). Questions partially or fully resolved during product-intent capture have RESOLVED markers added inline; the original entry is preserved for audit trail. Q11 (ABP license ownership) remains unresolved per the Phase-1 Tier-1 survey.
 
 These questions emerged from a comprehensive codebase audit and E2E testing (258 automated tests + 11 exploratory scenarios run on 2026-04-02). **Every question below represents something we searched the entire codebase for and could not find an answer to.** No assumptions have been made -- these are genuine unknowns that block further development.
 
@@ -20,6 +24,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q1: What is the intended appointment status workflow?
+
+> **PARTIALLY RESOLVED (2026-04-24)**: Day-of-exam lifecycle (check-in / check-out / no-show / billing) is OUT-OF-SCOPE for MVP per `docs/product/OUTSTANDING-QUESTIONS.md` -> 2026-04-24 (T2 resolution round) -> Q2: "The portal is appointment-booking-only, not case-tracking." Reserved-slot status RESOLVED per Q17 (Reserved = pending office review; Available -> Reserved on submit; Reserved -> Booked on approve; Reserved -> Available on reject/expire) -- see `docs/product/doctor-availabilities.md`. Pre-exam transition rules covered in `docs/product/appointments.md`. Whether MVP enforces the 13-state lifecycle vs leaves it advisory remains open per `docs/gap-analysis/README.md:235` (consolidated question 5). Original entry preserved below.
 
 **Research**: see [research/Q-01.md](research/Q-01.md) for state-machine library options (Stateless vs ABP Elsa), audit-log strategy, and likely default answers to the 5 sub-questions.
 
@@ -79,6 +85,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q4: What is the Claim Examiner role supposed to do?
+
+> **RESOLVED (2026-04-24)**: Per `docs/product/OUTSTANDING-QUESTIONS.md` -> Change log entry 2026-04-24 (Attorney cluster session T6): "Claim Examiner role (Q4 from the original research list) remains minimally wired at MVP: CE can book rarely for self-represented patients (per T2), receives all-parties notifications, and sees appointments where they are a legal party -- no dedicated dashboard or CE-specific actions at MVP." Original entry preserved below.
 
 **Research**: see [research/Q-04.md](research/Q-04.md) for CA workers'-comp claim-examiner definition, likely answers to the 4 sub-questions, and keep-flag-deferred recommendation.
 
@@ -155,6 +163,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q8: What is the intended deployment target?
 
+> **RELATED (2026-04-24)**: Storage-provider question for blobs cross-references `docs/gap-analysis/README.md:250` (consolidated question 17: "DB BLOB (ABP default, works now) or S3 (OLD parity, needs creds)?"). Background-jobs choice and OIDC token lifetime tracked in consolidated questions 18 and 19. Original entry preserved below.
+
 **Research**: see [research/Q-08.md](research/Q-08.md) for Azure vs AWS comparison, ACA vs App Service tradeoff, HIPAA-eligible service shortlist, and Key Vault + Managed Identity pattern.
 
 **Why we need to know**: We need to set up CI/CD, secrets management, and infrastructure. The codebase has zero deployment configuration beyond Docker Compose (which uses hardcoded passwords).
@@ -208,6 +218,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 
 ## Q11: Who owns the ABP Commercial license?
 
+> **STILL OPEN (2026-04-24)**: Unresolved per Phase-1 Tier-1 survey. No artifact in `docs/product/` covers license ownership; `docs/gap-analysis/` is silent on this. <!-- TODO: product-intent input needed -->. Original entry preserved below.
+
 **Research**: see [research/Q-11.md](research/Q-11.md) for ABP org-ownership audit procedure, live-key-rotation plan (the key in `NuGet.Config` is committed), and licence-transfer process via `license@abp.io`.
 
 **Why we need to know**: The NuGet API key in `NuGet.Config` and the npm tokens authenticate against Volo's commercial package feeds. If the license is under the previous developer's personal account, it will expire or be revoked.
@@ -224,6 +236,8 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 ---
 
 ## Q12: Is the default password for all users intentional for production?
+
+> **RELATED (2026-04-24)**: Cross-references `docs/gap-analysis/10-deep-dive-findings.md` Part 2 (NEW-SEC-04: ExternalSignupAppService.RegisterAsync hardcoded defaults including DateOfBirth = today). Patient-invite-email-firing-time covered by `docs/product/OUTSTANDING-QUESTIONS.md` Q23 (still open: on submit / on approval / both). Original entry preserved below.
 
 **Research**: see [research/Q-12.md](research/Q-12.md) for NIST 800-63B Rev 4 guidance, short-term (random + force-change) and long-term (invite-token) fixes, and ABP Identity integration points.
 
@@ -258,6 +272,17 @@ Priority: Questions are ordered by impact on development. The first 5 block acti
 | Q12 | Default password intent | SEC-05 / FEAT-05 fix scope |
 
 > **Note**: Most of these questions can be resolved without the previous developer by making a judgment call based on standard workers' compensation IME industry practice, California DWC regulations, or ABP Framework defaults. See [Questions for Previous Developer](QUESTIONS-FOR-PREVIOUS-DEVELOPER.md) for questions that cannot be resolved from any artifact.
+
+## Cross-reference: gap-analysis consolidated questions
+
+The 12 Q-numbered questions above predate the 2026-04-23 OLD-vs-NEW gap analysis. That analysis produced its own 32-question consolidated list with broader feature-scope and architecture coverage. Where overlap exists, treat the gap-analysis list as the canonical question register going forward; the Q-numbered list here is preserved as the original code-audit artifact.
+
+- See `docs/gap-analysis/README.md` lines 227-271 ("Consolidated open questions for Adrian"): 16 feature-scope items, 8 architecture items, 3 security/compliance items, 5 process items.
+- Notable overlaps:
+  - Q1 (status workflow) <-> consolidated #5 (enforce 13-state lifecycle vs advisory)
+  - Q4 (Claim Examiner) <-> consolidated #3 (Claim Examiner sub-entity on Appointment) -- now RESOLVED minimally per Q4 marker above
+  - Q8 (deployment target) <-> consolidated #17, #18 (storage provider, background jobs)
+  - Q12 (default password) <-> consolidated #16 (email verification + forgot password self-service) and `10-deep-dive-findings.md` NEW-SEC-04
 
 ## Related deferred technical debt
 
