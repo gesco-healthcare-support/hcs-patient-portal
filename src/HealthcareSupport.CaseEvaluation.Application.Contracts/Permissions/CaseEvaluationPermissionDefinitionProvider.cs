@@ -72,6 +72,9 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Delete, L("Permission:Delete"));
+
+        var systemParametersPermission = myGroup.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
+        systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
     }
 
     private static LocalizableString L(string name)

@@ -130,4 +130,10 @@ public static class CaseEvaluationPermissions
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
     }
+
+    public static class SystemParameters
+    {
+        public const string Default = GroupName + ".SystemParameters";
+        public const string Edit = Default + ".Edit";
+    }
 }

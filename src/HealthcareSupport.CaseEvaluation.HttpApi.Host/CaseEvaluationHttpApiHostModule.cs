@@ -22,6 +22,10 @@ using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using HealthcareSupport.CaseEvaluation.HealthChecks;
+using Hangfire;
+using Hangfire.SqlServer;
+using HealthcareSupport.CaseEvaluation.BackgroundJobs;
+using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp;
@@ -56,6 +60,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(CaseEvaluationApplicationModule),
     typeof(CaseEvaluationEntityFrameworkCoreModule),
     typeof(AbpSwashbuckleModule),
+    typeof(AbpBackgroundJobsHangfireModule),
     typeof(AbpAspNetCoreSerilogModule)
     )]
 public class CaseEvaluationHttpApiHostModule : AbpModule
@@ -83,6 +88,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureCors(context, configuration);
         ConfigureExternalProviders(context);
         ConfigureHealthChecks(context);
+        ConfigureHangfire(context, configuration);
 
         Configure<PermissionManagementOptions>(options =>
         {
@@ -233,6 +239,36 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
+    /// <summary>
+    /// Wires Hangfire with SQL Server storage to back ABP's background-jobs runtime.
+    /// Wave 0 lays the runtime; Wave 1 capabilities (scheduler-notifications) add the
+    /// recurring-job classes. Schema is auto-created on first connection via
+    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). Dashboard is mounted
+    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; auth-filter
+    /// hardening is deferred to the post-MVP "Wave 0 hardening" tail.
+    /// </summary>
+    private static void ConfigureHangfire(ServiceConfigurationContext context, IConfiguration configuration)
+    {
+        if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)
+        {
+            return;
+        }
+
+        context.Services.AddHangfire(config =>
+        {
+            config.UseSqlServerStorage(
+                configuration.GetConnectionString("Default"),
+                new SqlServerStorageOptions
+                {
+                    CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+                    SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+                    QueuePollInterval = TimeSpan.Zero,
+                    UseRecommendedIsolationLevel = true,
+                    DisableGlobalLocks = true,
+                });
+        });
+    }
+
     private static void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
     {
         context.Services.AddCors(options =>
@@ -320,6 +356,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             var configuration = context.GetConfiguration();
             options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
         });
+
+        // Hangfire dashboard at /hangfire. Wave 0 ships dev-anonymous access (per the
+        // approved plan -- auth filter is policy hardening, deferred to post-MVP tail).
+        // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.
+        if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
+        {
+            app.UseHangfireDashboard("/hangfire", new DashboardOptions
+            {
+                Authorization = new[] { new AnonymousHangfireDashboardAuthorizationFilter() },
+                IgnoreAntiforgeryToken = true,
+            });
+        }
+
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();

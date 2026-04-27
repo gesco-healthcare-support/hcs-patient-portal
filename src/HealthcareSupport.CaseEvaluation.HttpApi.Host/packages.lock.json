@@ -42,6 +42,15 @@
           "StackExchange.Redis": "2.7.33"
         }
       },
+      "Hangfire.SqlServer": {
+        "type": "Direct",
+        "requested": "[1.8.21, )",
+        "resolved": "1.8.21",
+        "contentHash": "uGz9yfyC9hrI4zGWQivpdOv4tLlueKRc1tYN/+/NcsAcW3ciN0fmG4OPpCb7je0+7z/SGBGDpzNrXUiF2x7rHQ==",
+        "dependencies": {
+          "Hangfire.Core": "[1.8.21]"
+        }
+      },
       "IdentityModel": {
         "type": "Direct",
         "requested": "[7.0.0, )",
@@ -190,6 +199,16 @@
           "Autofac.Extras.DynamicProxy": "7.1.0",
           "Microsoft.Bcl.AsyncInterfaces": "10.0.0",
           "Volo.Abp.Castle.Core": "10.0.2"
+        }
+      },
+      "Volo.Abp.BackgroundJobs.HangFire": {
+        "type": "Direct",
+        "requested": "[10.0.2, )",
+        "resolved": "10.0.2",
+        "contentHash": "bzqW9rnTFfS9vFoFsdjU69tB3+CVrT6oKAnokCifngGeCv8PJ6GRkth5l9tSFiJPvH3uUABDgKMbbW6nHTB5VQ==",
+        "dependencies": {
+          "Volo.Abp.BackgroundJobs.Abstractions": "10.0.2",
+          "Volo.Abp.HangFire": "10.0.2"
         }
       },
       "Volo.Abp.Caching.StackExchangeRedis": {
@@ -380,6 +399,30 @@
         "contentHash": "babJpsAwVH3lPjg8cvWGqW+Fos1RN+cqudfkW2EyB2DK2v5yjD2axZ1Uay6kR6ec2/p9ljodktrfoJ2lJ/pwnQ==",
         "dependencies": {
           "Grpc.Core.Api": "2.57.0"
+        }
+      },
+      "Hangfire.AspNetCore": {
+        "type": "Transitive",
+        "resolved": "1.8.21",
+        "contentHash": "G3yP92rPC313zRA1DIaROmF6UYB9NRtMHy64CCq4StqWmyUuFQQsYgZxo+Kp6gd2CbjaSI8JN8canTMYSGfrMw==",
+        "dependencies": {
+          "Hangfire.NetCore": "[1.8.21]"
+        }
+      },
+      "Hangfire.Core": {
+        "type": "Transitive",
+        "resolved": "1.8.21",
+        "contentHash": "UfIDfDKJTue82ShKV/HHEBScAIJMnuiS8c5jcLHThY8i8O0eibCcNjFkVqlvY9cnDiOBZ7EBGWJ8horH9Ykq+g==",
+        "dependencies": {
+          "Newtonsoft.Json": "11.0.1"
+        }
+      },
+      "Hangfire.NetCore": {
+        "type": "Transitive",
+        "resolved": "1.8.21",
+        "contentHash": "NR8BvQqgvVstgY/YZVisuV/XdkKSZGiD+5b+NABuGxu/xDEhycFHS1uIC9zhIYkPr1tThGoThRIH07JWxPZTvQ==",
+        "dependencies": {
+          "Hangfire.Core": "[1.8.21]"
         }
       },
       "Humanizer.Core": {
@@ -1911,6 +1954,17 @@
         "resolved": "10.0.2",
         "contentHash": "AYDEKid36TY44QgTYGX8scrkNYgBswEzoXU3/kgbRVBeBYrKhs38hmQ4S87g1JESMGmWlzq/uzhmSU6VuZmgwg==",
         "dependencies": {
+          "Volo.Abp.Core": "10.0.2"
+        }
+      },
+      "Volo.Abp.HangFire": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "dhfX10dftD7HUbn5Jj5gh8KdOpLezH+Bmf+TtXtADpI4UQhh+OPKLDE64JfTxJPyxw+NpbdtUHdSlhc4SzpJ3w==",
+        "dependencies": {
+          "Hangfire.AspNetCore": "1.8.21",
+          "Newtonsoft.Json": "13.0.4",
+          "Volo.Abp.Authorization.Abstractions": "10.0.2",
           "Volo.Abp.Core": "10.0.2"
         }
       },
