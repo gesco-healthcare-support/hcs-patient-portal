@@ -2,9 +2,11 @@
 
 # Data Integrity Issues
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 Seven data integrity issues were identified. Two are critical and can cause silent data corruption (double-booked slots, duplicate confirmation numbers) under normal concurrent usage. All issues listed here can result in incorrect or unrecoverable data in the production database.
 
-> **Test Status (2026-04-02)**: DAT-01 partially confirmed (EF transaction prevented double-booking in test, but no distributed lock exists). DAT-02 not reproduced in serial testing. DAT-03 confirmed via E6 and B11.2.1 (slot stays Booked after DELETE). DAT-05 confirmed via B10.1 and B11.1.1 (status immutable after creation). SQL integrity checks: 0 orphaned records, 0 null CreatorIds, 0 duplicate confirmation numbers. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+> **Test Status (2026-04-02)**: DAT-01 partially confirmed (EF transaction prevented double-booking in test, but no distributed lock exists). DAT-02 not reproduced in serial testing. DAT-03 confirmed via E6 and B11.2.1 (slot stays Booked after DELETE). DAT-05 confirmed via B10.1 and B11.1.1 (status immutable after creation). SQL integrity checks: 0 orphaned records, 0 null CreatorIds, 0 duplicate confirmation numbers. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md). Live test inventory as of 2026-04-24: 113 [Fact] + 2 [Theory] = 115 methods across 17 files; entities with tests are Appointments, DoctorAvailabilities, Doctors, Patients, Books, AppointmentAccessors, ApplicantAttorneys, Locations.
 
 ---
 
@@ -117,7 +119,9 @@ await using (await _distributedLock.AcquireAsync("confirmation-number-sequence")
 - The new slot remains `Available` and can be double-booked by another patient concurrently.
 - Over time, all rescheduled slots are permanently removed from the available pool even though no appointment occupies them.
 
-This contradicts the documented behaviour in [Appointment Lifecycle](../business-domain/APPOINTMENT-LIFECYCLE.md) and [Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md), which state that cancellation and rescheduling release the original slot.
+Per [docs/product/appointments.md](../product/appointments.md) (Modifications subsection), Adrian's stated intent (best-guess 2026-04-23, NEEDS CONFIRMATION) is that cancellation returns the original slot to `Available` and reschedule releases the old slot and books the new one. **Caveat: whether cancel/reschedule is in MVP scope at all is itself pending manager confirmation.** [docs/product/doctor-availabilities.md](../product/doctor-availabilities.md) Known Discrepancies explicitly classifies the older `business-domain/DOCTOR-AVAILABILITY.md` claim that `Booked -> Available` happens on cancellation as "aspirational, not observed." The integrity gap remains real, but the canonical resolution depends on the cancel/reschedule MVP-scope decision.
+
+<!-- TODO: product-intent input needed -- pending Q1 (cancel/reschedule in MVP) and Q19 (booked-slot edit policy) in docs/product/OUTSTANDING-QUESTIONS.md. -->
 
 ### Recommended Fix
 
@@ -217,9 +221,13 @@ The `Appointment` entity has no foreign key to the `AppointmentStatus` table. Ad
 
 Was `AppointmentStatus` intended to be a FK-based lookup table (replacing the enum), or was the enum always the authoritative representation and the lookup table is dead code? The answer determines whether to remove the table or wire it up as a FK.
 
+Per [docs/product/appointments.md](../product/appointments.md) Known Discrepancies, the 13-state `AppointmentStatusType` enum is described as the authoritative status representation for both MVP and long-term intent (with an additional `AwaitingMoreInfo`-style value to add for the request/review flow). This favors Option A. Confirmation from manager / original developer still desirable before deletion.
+
+<!-- TODO: product-intent input needed -- explicit decision on whether the configurable AppointmentStatus lookup table is intentional or dead code. -->
+
 ### Recommended Fix Options
 
-**Option A -- Remove the lookup table:** Delete `AppointmentStatus` entity, its CRUD services, its Angular module, and its DB migration table. Use the enum exclusively.
+**Option A -- Remove the lookup table:** Delete `AppointmentStatus` entity, its CRUD services, its Angular module, and its DB migration table. Use the enum exclusively. Aligns with `docs/product/appointments.md` enum-as-authoritative framing.
 
 **Option B -- Wire up the lookup table as a FK:** Remove the `AppointmentStatusType` enum, add a FK column `AppointmentStatusId` to `Appointment`, seed the 13 values into the lookup table via a data seed contributor, and manage status labels through the admin UI.
 
@@ -301,7 +309,7 @@ b.HasIndex(x => x.RequestConfirmationNumber).IsUnique();
 b.HasIndex(x => x.Email).IsUnique();
 ```
 
-Note: the `Patient.Email` unique index should be scoped to the tenant using ABP's multi-tenancy data filter to avoid cross-tenant conflicts.
+Note: the `Patient.Email` unique index should be scoped to the tenant using ABP's multi-tenancy data filter to avoid cross-tenant conflicts. Per [docs/product/patients.md](../product/patients.md), patient records are strictly tenant-scoped (the same real person at two tenants is two separate Patient records), so a tenant-scoped unique index aligns with confirmed product intent.
 
 ---
 

@@ -67,7 +67,7 @@ Within the office, a dedicated tenant-level admin role (Adrian's working handle:
 1. **Review decisions.** Approve, reject, or send-back-for-info on pending appointment requests by reading the information the booker provided on the form.
 2. **Phone / email intake.** When someone calls or emails the office wanting to book an appointment rather than using the portal, office staff book it themselves on the caller's behalf.
 3. **Modifications.** Cancel or reschedule approved appointments (subject to the MVP-scope caveat in the Modifications subsection below).
-4. **Form-data edits.** Make changes to the appointment form data when a booker requests a change (e.g., updated contact info, corrected attorney info).
+4. **Pre-submit form-data edits only.** Make changes to the appointment form data when a booker requests a change BEFORE the request is submitted -- e.g., a booker calls back while still drafting and asks for a contact-info correction. **After the request is submitted** and the all-parties notification has fired, no form-data changes happen practice-side; every post-submit change goes through Gesco-side admin per the universal rule (see the "all-form-data locked at submit" business rule below, and cross-refs in `patients.md` and `appointment-employer-details.md`). [Source: Adrian-confirmed 2026-04-22; scope refined 2026-04-24 during T7.]
 
 The medical examiner (Doctor role) can also approve / reject / send-back on the review queue. Other staff users inside the tenant can VIEW the queue for scheduling context but cannot take any of the four actions above. [UNKNOWN -- queued for Adrian: is the final role name one role that owns all four actions, or split across two or more? Do the working handles `doctor's admin` / `Office Manager` / `Scheduler` refer to the same role?]
 
@@ -146,9 +146,25 @@ All events (submission, decision, resulting status) are persisted to the databas
 
 ### Reevaluation flow
 
-A distinct second booking type, reached from the patient's "Book a reevaluation" dashboard button (see Personas > Patient). Reevaluation is not treated as a repeat first-time appointment; it is a separate flow with its own form and rules. [Source: Adrian-confirmed 2026-04-23 on existence]
+A reevaluation is a distinct booking type anchored to an **existing case** -- same patient + same claim as a prior appointment. Not a repeat first-time appointment; a dedicated flow that pre-fills patient identity data but forces fresh entry of case-specific data. Reached from the patient dashboard's "Book a reevaluation" button (see Personas > Patient). [Source: Adrian-confirmed 2026-04-23 on existence, fully specified 2026-04-24 from manager response + Adrian fine-detail follow-up]
 
-Design details are [UNKNOWN -- queued for manager: what counts as a reevaluation in the product's sense, who is eligible to book one, which fields the form captures, and whether the approval / notification / Packet flow diverges from a first-time booking]. See `OUTSTANDING-QUESTIONS.md` Q16.
+**Flow:**
+
+1. Booker clicks "Book a reevaluation".
+2. Booker enters Name + Date of Birth + SSN on the form.
+3. System performs a **dedup check** against existing patient records in the tenant. On match, it prompts: "We found an existing record that matches the information provided. Are you registering the same patient?"
+4. On "yes, same patient", the system pre-fills the **common data** -- patient PII fields (name, DOB, contact info, SSN, etc.). Case-specific fields (attorney info, employer info, insurance / adjustor info, appointment type, location, etc.) are **NOT pre-filled**, even if the booker would prefer to avoid retyping. Rationale: those fields can change case-to-case, and pre-filling them risks stale or wrong data on the new case. [Source: Adrian-confirmed 2026-04-24]
+5. The form presents a **case identifier field** for the Case Number OR Confirmation Number that uniquely identifies the case being reevaluated. The booker fills it in. (Whether we use the existing `RequestConfirmationNumber`, the existing `PanelNumber`, or a new dedicated CaseNumber field is an implementation-side architecture decision.)
+6. The booker fills in the remaining case-specific fields and submits.
+7. From submit onward, the flow mirrors the first-time booking flow -- all-parties notification fires, the request enters the doctor's-office review queue, the same approve / reject / send-back-for-info options apply.
+
+**Dedup scope:** the Name+DOB+SSN match check fires ONLY on the "Book a reevaluation" path. The "Book an appointment" (first-time) path does NOT dedup -- a booker entering data that matches an existing record is still allowed to create a new patient record, because a "new appointment" is understood as a new case / different claim for the same patient, not a reevaluation of an existing case. Returning patients are expected to click "Book a reevaluation" when they want to reuse case data. [Source: Adrian-confirmed 2026-04-24]
+
+**Claim-level semantics:** "reevaluation" = same patient + same claim + different day. "New appointment for the same patient" = same patient + different claim + different day; that is a first-time booking as far as the portal is concerned. A patient can have multiple open or historical claims at a tenant; the case-identifier field on the reevaluation form is what disambiguates them. [Source: Adrian-confirmed 2026-04-24]
+
+**Open architecture detail (not manager-facing):** whether a reevaluation appointment stores a data link back to the prior appointment (parent-appointment FK) or merely shares the CaseNumber / ConfirmationNumber is an implementation choice; both satisfy the business intent. Documented in Known Discrepancies.
+
+See `OUTSTANDING-QUESTIONS.md` (Q16 resolved 2026-04-24).
 
 ### Modifications (cancel / reschedule of an approved appointment)
 
@@ -176,6 +192,7 @@ This MVP intent means the 13-state enum's `CancellationRequested` and `Reschedul
 - **Recipient emails are captured on the booking form and are required inputs.** Every party that must be notified has a required email field on the form; the form is the canonical distribution list for this appointment. [Source: Adrian-confirmed 2026-04-22]
 - **The decision authority inside a practice is role-gated, not tenant-wide.** Only users holding a dedicated decision role (working name Office Manager / Scheduler) and the medical examiner (Doctor) can approve / reject / send-back-for-info. Other tenant-scoped users see the review queue but cannot act. [Source: Adrian-confirmed 2026-04-22]
 - **All events are persisted.** Submission, every decision, and the resulting status are stored in the database -- no ephemeral in-memory state. [Source: Adrian-confirmed 2026-04-22]
+- **All form-captured data is locked at request-submit; post-submit changes require Gesco-side admin only.** Any data entered on the appointment form (patient, attorneys, insurance + adjustor, employer, appointment type, location, etc.) becomes part of the legal record the moment the request is submitted and the all-parties notification email fires. After that moment, every change to every field requires a Gesco-side admin running the change through the proper process; neither the booker nor the practice-side doctor's admin can self-edit submitted form data. Pre-submit corrections during drafting are fine (see the practice-side office-staff persona); the rule applies post-submit only. [Source: Adrian-confirmed 2026-04-24 during T7 interview; uniformly resolves the T4/T5 tension previously flagged in `patients.md`.]
 - **Ex-parte communication foundation rule.** California workers'-compensation practice forbids one party taking a case-affecting action without every other party's visibility. This foundational rule is the "why" behind several specific rules in this feature: all-parties notification on every event, required-email fields per party on the form, and the defense-attorney requirement to enter applicant-attorney info at booking time. Any future Appointments feature that involves party communication must preserve the same foundation. [Source: Adrian-confirmed 2026-04-23]
 - **Patient registration is email-invite-based with the tenant pre-selected.** Patients do not choose or browse tenants; they arrive via an invitation email scoped to a specific examiner's practice. Deliberate constraint: patients may not know the exact tenant name as stored, and exposing the tenant list would reveal medical-practice relationships protected by legal / medical-privacy norms. [Source: Adrian-confirmed 2026-04-23]
 - **Attorney information is mandatory on patient-initiated bookings, with a controlled self-represented exception.** The booking form treats attorney information as required. Attempting to skip the attorney section triggers a popup that asks whether the patient is self-represented or is missing the attorney's info. Self-represented -> continue with an active warning banner persistently visible. Missing info -> hard-block, with instructions to contact the attorney (either for the info or to have the attorney book through their own account). [Source: Adrian-confirmed 2026-04-23]
@@ -207,6 +224,12 @@ Email is a first-class integration for MVP. Two notification events confirmed: [
 
 - **Appointment request submitted** -- notify all case parties (patient, applicant attorney, defense attorney, insurance people, claim adjustors, doctor's office).
 - **Doctor's office decision** (approve / reject / send-back-for-info) -- notify the same all-parties list.
+
+**Success-confirmation UX (confirmed).** After each notification event fires, the booker / actor should see a clear UI confirmation that the email went out successfully. Example message: "A confirmation email has been sent successfully." Exact text and placement (toast, inline message, dialog) is a UX implementation detail; the intent is that the user has explicit positive feedback that the legally-required notification actually left the system. [Source: manager response 2026-04-24]
+
+[UNKNOWN -- queued for Adrian: failure-state UX. If a send fails (SMTP error, bounce, recipient unreachable), what does the booker / office see, and what does the system do (retry silently, alert the office, block the submit)? The manager answer only covers the success case.]
+
+**Exact per-event / per-party format.** The legally-defensible format for each event (request-submit, approve, reject, send-back, modifications) per party-type (patient, applicant attorney, defense attorney, insurance company, claim adjustor, doctor's office, and sometimes employer) remains open and is tracked in [escalations/open-items.md](escalations/open-items.md) Item 2 pending further consultation.
 
 **Recipient resolution.** The booking form itself captures the email address for every party that must be notified, and every such email field is a required form input. The form is the source of truth for the per-appointment distribution list; the system does not derive recipients from case-link entities alone. [Source: Adrian-confirmed 2026-04-22]
 
