@@ -15,6 +15,7 @@ using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.TestData;
+using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -54,6 +55,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
     private readonly IAppointmentStatusRepository _appointmentStatusRepository;
     private readonly IAppointmentLanguageRepository _appointmentLanguageRepository;
+    private readonly IWcabOfficeRepository _wcabOfficeRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
@@ -74,6 +76,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
         IAppointmentStatusRepository appointmentStatusRepository,
         IAppointmentLanguageRepository appointmentLanguageRepository,
+        IWcabOfficeRepository wcabOfficeRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
@@ -93,6 +96,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
         _appointmentStatusRepository = appointmentStatusRepository;
         _appointmentLanguageRepository = appointmentLanguageRepository;
+        _wcabOfficeRepository = wcabOfficeRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
@@ -119,6 +123,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await SeedAppointmentTypesAsync();
         await SeedAppointmentStatusesAsync();
         await SeedAppointmentLanguagesAsync();
+        await SeedWcabOfficesAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await SeedLocationsAsync();
@@ -530,6 +535,39 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+        }
+    }
+
+    private async Task SeedWcabOfficesAsync()
+    {
+        // WcabOffice is host-only (`FullAuditedAggregateRoot<Guid>`, NOT
+        // IMultiTenant). Two offices seeded so Tier-3 tests cover both
+        // branches of the nullable StateId nav-prop hydration AND a
+        // meaningful IsActive filter exclusion case (Office2 IsActive=false).
+        // Excel export (`GetListAsExcelFileAsync`) is OUT OF SCOPE for Tier 3
+        // per Decision T3-5.
+        //   Office1 -- TEST-LosAngelesWcab, all 7 fields populated,
+        //              StateId=State1Id, IsActive=true.
+        //   Office2 -- TEST-FresnoWcab, only required fields populated,
+        //              StateId=null, IsActive=false.
+        using (_currentTenant.Change(null))
+        {
+            await _wcabOfficeRepository.InsertAsync(new WcabOffice(
+                id: WcabOfficesTestData.Office1Id,
+                stateId: StatesTestData.State1Id,
+                name: WcabOfficesTestData.Office1Name,
+                abbreviation: WcabOfficesTestData.Office1Abbreviation,
+                isActive: WcabOfficesTestData.Office1IsActive,
+                address: WcabOfficesTestData.Office1Address,
+                city: WcabOfficesTestData.Office1City,
+                zipCode: WcabOfficesTestData.Office1ZipCode));
+
+            await _wcabOfficeRepository.InsertAsync(new WcabOffice(
+                id: WcabOfficesTestData.Office2Id,
+                stateId: null,
+                name: WcabOfficesTestData.Office2Name,
+                abbreviation: WcabOfficesTestData.Office2Abbreviation,
+                isActive: WcabOfficesTestData.Office2IsActive));
         }
     }
 

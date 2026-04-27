@@ -18,7 +18,7 @@ Source: [PHASE-B6-TEST-COVERAGE-KICKOFF.md](./PHASE-B6-TEST-COVERAGE-KICKOFF.md)
 
 ## Currently active
 
-[LAYER-2-PLAN.md](./LAYER-2-PLAN.md) -- Phase B-6 Tier 2 MERGED 2026-04-24 (PR-2D #144 closed the set). Next atomic unit: draft Tier 3 plan in a fresh plan-mode session.
+[LAYER-2-PLAN.md](./LAYER-2-PLAN.md) -- Phase B-6 Tier 3 MERGED 2026-04-27 (PR-3E #154 closed the set; SonarCloud overall coverage 35.2% post-Tier-3, below the 60% B-6 target). Next atomic unit: draft Wave-2 follow-up plan in a fresh plan-mode session.
 
 ## Upcoming queue
 
@@ -55,4 +55,4 @@ When all 4 layers are complete, the program is done. Archive this file to `docs/
 
 ## Last updated
 
-2026-04-24 -- B-6 Tier 2 MERGED; next atomic unit is Tier 3 planning at Level 3 ([LAYER-2-PHASE-B-6-PLAN.md](./LAYER-2-PHASE-B-6-PLAN.md)).
+2026-04-27 -- B-6 Tier 3 MERGED; next atomic unit is Wave-2 follow-up planning at Level 3 ([LAYER-2-PHASE-B-6-PLAN.md](./LAYER-2-PHASE-B-6-PLAN.md)). SonarCloud overall coverage 35.2%, below the 60% B-6 target.
