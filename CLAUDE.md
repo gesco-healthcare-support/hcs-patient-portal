@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Workers' compensation IME (Independent Medical Examination) scheduling portal for healthcare support staff. Staff book patients with doctors at specific locations and time slots. The system tracks appointments through a 13-state lifecycle (Pending → Approved → CheckedIn → Billed, etc.), manages doctor availability slots, and links applicant attorneys to appointments. Multi-tenant SaaS: master data (Locations, States, AppointmentTypes) is host-scoped; transactional data (Appointments, DoctorAvailabilities) is tenant-scoped.
+Workers' compensation IME (Independent Medical Examination) scheduling portal for healthcare support staff. Staff book patients with doctors at specific locations and time slots. The system tracks appointments through a 13-state lifecycle (Pending → Approved → CheckedIn → Billed, etc.), manages doctor availability slots, and links applicant attorneys to appointments. Multi-tenant SaaS: transactional data (Appointments, DoctorAvailabilities) is tenant-scoped; reference data (States, AppointmentTypes, AppointmentLanguages) is host-scoped with per-tenant hide/show on top (intent per `docs/product/`, not yet in code); Locations are tenant-specific by intent (currently host-scoped in code -- tenant-scoping is a follow-up build item); the AppointmentStatus entity is being dropped at MVP per `docs/product/appointment-statuses.md`.
 
 ## Stack & Versions
 
@@ -130,7 +130,7 @@ cd angular && npm test                                                         #
 
 **7 entities implement `IMultiTenant`:** Doctor, Appointment, DoctorAvailability, ApplicantAttorney, AppointmentAccessor, AppointmentApplicantAttorney, AppointmentEmployerDetail. Tenant filtering is automatic via ABP's data filter — no manual `WHERE TenantId = X` needed. **Note:** Patient has a `TenantId` property but does NOT implement `IMultiTenant` — ABP's automatic tenant filter does not apply to Patient.
 
-**3 entities are host-only** (no `IMultiTenant`): Location, State, WcabOffice. AppointmentType, AppointmentStatus, AppointmentLanguage are also host-scoped. Configuring these in `OnModelCreating` requires the `if (builder.IsHostDatabase())` guard.
+**Reference entities are host-only** (no `IMultiTenant`): State, WcabOffice, AppointmentType, AppointmentLanguage. Configuring these in `OnModelCreating` requires the `if (builder.IsHostDatabase())` guard. **Location** is currently host-scoped in code BUT intent (`docs/product/locations.md`) is tenant-specific; the tenant-scoping refactor is a follow-up build item -- after that ships, `Location` joins the IMultiTenant set above. The **AppointmentStatus entity is being dropped at MVP** per `docs/product/appointment-statuses.md` (the `AppointmentStatusType` enum + `en.json` localization replaces it); do not add new code referencing the entity.
 
 **To access cross-tenant data from Host context:** inject `IDataFilter` and `using (_dataFilter.Disable<IMultiTenant>()) { ... }` — see `DoctorsAppService` for the pattern. Never do this in tenant-context code.
 
@@ -143,7 +143,7 @@ cd angular && npm test                                                         #
 - **Run dotnet from a long project path (Windows)** — if the path exceeds ~200 chars, SNI.dll fails to load (260-char native DLL limit). Use a short path or drive alias.
 - **Omit `[RemoteService(IsEnabled = false)]` on a new AppService** — causes ABP to register duplicate routes alongside the controller.
 - **Use AutoMapper or `ObjectMapper.Map<>` for new mappers** — this project uses Riok.Mapperly; add a new `[Mapper]` partial class to `CaseEvaluationApplicationMappers.cs`.
-- **Add `IMultiTenant` to host-scoped lookup entities** (Location, State, WcabOffice, AppointmentType, AppointmentStatus, AppointmentLanguage) — they are intentionally shared across all tenants.
+- **Add `IMultiTenant` to host-scoped reference entities** (State, WcabOffice, AppointmentType, AppointmentLanguage) -- they are intentionally shared across all tenants (with per-tenant hide/show on top per `docs/product/` intent; the master rows still stay host-managed). **Exception:** `Location` is currently host-scoped but intent (`docs/product/locations.md`) is tenant-specific; a future build item adds `IMultiTenant` to `Location` specifically. The `AppointmentStatus` entity is being dropped at MVP -- do not add new code referencing it.
 - **Modify `appsettings.secrets.json`** in any project — contains ABP license keys. These files are not in `.gitignore`; treat as sensitive.
 - **Skip the `AppointmentManager` domain service for create/update** — business rules (slot booking, confirmation number generation `A#####`) live there, not in the AppService directly.
 
@@ -176,13 +176,13 @@ When starting work on a feature, read files in this order:
 | AppointmentApplicantAttorneys | Join entity: Appointment ↔ Attorney ↔ User | `src/.../Domain/AppointmentApplicantAttorneys/CLAUDE.md` | [overview](docs/features/appointment-applicant-attorneys/overview.md) |
 | AppointmentEmployerDetails | Employer info per appointment (name, occupation, address) | `src/.../Domain/AppointmentEmployerDetails/CLAUDE.md` | [overview](docs/features/appointment-employer-details/overview.md) |
 | AppointmentLanguages | Host-scoped language lookup for interpreter needs | `src/.../Domain/AppointmentLanguages/CLAUDE.md` | [overview](docs/features/appointment-languages/overview.md) |
-| AppointmentStatuses | Host-scoped status label lookup (separate from enum) | `src/.../Domain/AppointmentStatuses/CLAUDE.md` | [overview](docs/features/appointment-statuses/overview.md) |
+| AppointmentStatuses | Status label lookup -- DROP at MVP per `docs/product/appointment-statuses.md` (enum + `en.json` replaces; entity still in code) | `src/.../Domain/AppointmentStatuses/CLAUDE.md` | [overview](docs/features/appointment-statuses/overview.md) |
 | AppointmentTypes | Host-scoped IME type lookup, M2M with Doctor | `src/.../Domain/AppointmentTypes/CLAUDE.md` | [overview](docs/features/appointment-types/overview.md) |
 | Appointments | IME scheduling — 13-state lifecycle, slot booking | `src/.../Domain/Appointments/CLAUDE.md` | [overview](docs/features/appointments/overview.md) |
 | Books | Demo/sample entity from ABP scaffolding, has tests | `src/.../Domain/Books/CLAUDE.md` | [overview](docs/features/books/overview.md) |
 | DoctorAvailabilities | Time slots for doctor scheduling, bulk generation, BookingStatus | `src/.../Domain/DoctorAvailabilities/CLAUDE.md` | [overview](docs/features/doctor-availabilities/overview.md) |
 | Doctors | IME physician profiles, M2M types/locations, tenant provisioning | `src/.../Domain/Doctors/CLAUDE.md` | [overview](docs/features/doctors/overview.md) |
-| Locations | Host-scoped exam locations, parking fee, doctor associations | `src/.../Domain/Locations/CLAUDE.md` | [overview](docs/features/locations/overview.md) |
+| Locations | Tenant-specific exam locations (intent per `docs/product/locations.md`; currently host-scoped in code), parking fee, doctor associations | `src/.../Domain/Locations/CLAUDE.md` | [overview](docs/features/locations/overview.md) |
 | Patients | Patient demographics, booking get-or-create, self-service profile | `src/.../Domain/Patients/CLAUDE.md` | [overview](docs/features/patients/overview.md) |
 | States | Host-scoped US state lookup, 5 inbound FKs | `src/.../Domain/States/CLAUDE.md` | [overview](docs/features/states/overview.md) |
 | WcabOffices | Host-scoped WCAB office lookup, Excel export | `src/.../Domain/WcabOffices/CLAUDE.md` | [overview](docs/features/wcab-offices/overview.md) |
