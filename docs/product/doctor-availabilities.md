@@ -66,7 +66,7 @@ At a single-location practice, the location dropdown degenerates (collapses, hid
 
 ### Slot lifecycle
 
-**Best-guess transitions, pending manager confirmation.** Adrian did not recognise the `Reserved` status in the current code and is not certain what it is for. Of the three candidate meanings he raised (2026-04-24), the one most consistent with the confirmed two-step booking flow in `appointments.md` is that **`Reserved` is the state of a slot with a pending appointment request awaiting office review**. Under that interpretation:
+**Confirmed transitions (manager-validated 2026-04-24).** The manager did not recall the `Reserved` status either and indicated "you might be correct" on Adrian's pending-review interpretation from T3. That interpretation is now the working intent: **`Reserved` is the state of a slot with a pending appointment request awaiting office review**. Under this interpretation:
 
 1. Slot is created by the office as `Available`.
 2. A booker submits an appointment request against the slot -- slot moves to `Reserved` (pending review).
@@ -74,7 +74,7 @@ At a single-location practice, the location dropdown degenerates (collapses, hid
 4. Office rejects the request -- slot moves to `Reserved -> Available` (returned to the pool).
 5. Office sends-back-for-info -- slot stays `Reserved` until booker responds (matching the "Awaiting more info from booker" appointment status).
 
-[Source: Adrian best-guess 2026-04-24 -- NEEDS CONFIRMATION. Queued as OUTSTANDING-QUESTIONS.md Q17.]
+[Source: Adrian best-guess 2026-04-24 at T3 interview; manager-validated 2026-04-24 in email response round ("you might be correct"). Resolves OUTSTANDING-QUESTIONS.md Q17.]
 
 Two rejected candidate meanings (documented here so the manager conversation can rule them out):
 
@@ -96,7 +96,7 @@ Two rejected candidate meanings (documented here so the manager conversation can
 
 ### Open (to resolve during interview)
 
-- Duration -- three candidate models (derived from appointment type, per-slot independent, or default-from-type with override). Adrian does not own the answer and has deferred 2026-04-24 to the relevant department manager. See OUTSTANDING-QUESTIONS.md Q18. [UNKNOWN -- queued for manager]
+- Duration -- **RESOLVED 2026-04-24 by manager response.** 15 min is the default; the office can change the duration in the new-slot publishing form before publishing. Matches the "independently set per slot" candidate model. No type-derived durations; no type-default with override; just one default (15) that the office can change at publishing time. Once a slot is published and then booked, duration is locked per the T7 universal post-submit lock rule. [Source: manager-confirmed 2026-04-24; fine detail Adrian-confirmed 2026-04-24 (set at publishing only, not editable post-booking). Resolves OUTSTANDING-QUESTIONS.md Q18.]
 - Overlap rules -- can two slots at the same location overlap in time? Same time, different locations?
 - Reserved status -- what does it mean and when is it used?
 - Slot editing after booking -- can the office edit a `Booked` slot's time / location?

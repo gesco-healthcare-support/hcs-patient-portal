@@ -1,5 +1,7 @@
 [Home](../INDEX.md) > [Issues](./) > Incomplete Features
 
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
 # Incomplete Features
 
 Eight features are either entirely missing, present only as placeholders, or wired up in the backend with no corresponding frontend. These represent the primary functional gaps between the current codebase and a production-ready application.
@@ -27,7 +29,7 @@ RescheduleRequested, CancellationRequested
 
 None of the following exist in the current codebase:
 
-- A state machine defining which transitions are valid (e.g., `Pending → Approved`, not `Pending → Billed`)
+- A state machine defining which transitions are valid (e.g., `Pending -> Approved`, not `Pending -> Billed`)
 - Server-side enforcement of valid transitions
 - Role-based permission checks on who can trigger which transition (e.g., only a Doctor can approve; only an Admin can mark Billed)
 - Any API endpoint or application service method for transitioning status
@@ -220,7 +222,7 @@ The repository contained Docker Compose files, Dockerfiles, and a Helm chart dir
 
 A minimal CI/CD pipeline should:
 
-1. On every pull request: restore, build, and run the 13 existing backend tests.
+1. On every pull request: restore, build, and run the existing backend tests (115 methods as of 2026-04-24; see [docs/testing/coverage-status.md](../testing/coverage-status.md)).
 2. On merge to `main`: build Docker images, push to a container registry, and deploy to a target environment.
 3. Manage secrets via the chosen platform's secret store (not committed files -- see [SEC-01](SECURITY.md#sec-01-secrets-committed-to-source-control)).
 
@@ -228,43 +230,51 @@ Open question: What is the target deployment platform (Azure, AWS, on-prem)? See
 
 ---
 
-## FEAT-07: Near-Zero Test Coverage
+## FEAT-07: Test Coverage Gaps (Mostly Obsolete)
 
-**Severity:** Medium
-**Status:** Open
+**Severity:** Medium (downgraded from "near-zero" -- see status below)
+**Status:** Mostly Obsolete -- substantial backend coverage shipped via Tier-1 work. Remaining gap: Angular component tests and a handful of backend entities.
 
 ### Description
 
-The test suite contains 13 unique test methods across the entire application. Only the `Doctors` entity and the vestigial `Books` entity have any test coverage. Every core feature -- appointment booking, patient management, doctor availability generation, external signup, and tenant creation -- is completely untested.
+The original "13 unique test methods" claim is stale by +102. As of 2026-04-24 the backend test suite contains **115 test methods across 17 files** (113 `[Fact]` + 2 `[Theory]`), covering 8 entities: `Appointments`, `DoctorAvailabilities`, `Doctors`, `Patients`, `Books`, `AppointmentAccessors`, `ApplicantAttorneys`, `Locations`.
 
-### Current Coverage
+The canonical live coverage numbers live in [docs/testing/coverage-status.md](../testing/coverage-status.md) (forthcoming, PR-5). This issue file reflects a historical snapshot only.
+
+### Current Coverage (2026-04-24)
 
 | Entity / Feature | Backend Tests | Angular Tests |
 |---|---|---|
-| Doctors | 5 methods | None |
-| Books (scaffold, not used) | 3 methods | None |
-| Appointments | 0 | None |
-| Patients | 0 | None |
-| Doctor Availabilities | 0 | None |
+| Appointments | Covered | None |
+| DoctorAvailabilities | Covered | None |
+| Doctors | Covered | None |
+| Patients | Covered | None |
+| Books (scaffold, not used) | Covered (legacy) | None |
+| AppointmentAccessors | Covered | None |
+| ApplicantAttorneys | Covered | None |
+| Locations | Covered | None |
 | External Signup | 0 | None |
 | Tenant / Doctor Creation | 0 | None |
-| All other entities | 0 | None |
+| Other entities (AppointmentEmployerDetail, AppointmentApplicantAttorney, reference-data lookups) | 0 | None |
 
-### What Needs to Be Built
+See [docs/testing/coverage-status.md](../testing/coverage-status.md) for canonical per-method counts.
 
-**Priority 1 -- Application service tests** (highest value given the existing test infrastructure):
-- `AppointmentsAppServiceTests` -- booking, slot availability validation, confirmation number generation
-- `DoctorAvailabilitiesAppServiceTests` -- slot generation, conflict detection, preview
+### What Still Needs to Be Built
+
+**Priority 1 -- Remaining backend application service tests:**
 - `ExternalSignupAppServiceTests` -- registration flow, role assignment, email uniqueness
+- `DoctorTenantAppServiceTests` -- tenant + doctor co-creation, transactional rollback
+- `AppointmentEmployerDetailsAppServiceTests`, `AppointmentApplicantAttorneysAppServiceTests` -- child-entity CRUD
 
 **Priority 2 -- Domain service tests:**
 - `AppointmentManagerTests` -- status transition validation (once [FEAT-01](#feat-01-appointment-status-workflow-has-no-implementation) is implemented)
 
-**Priority 3 -- Angular component tests:**
+**Priority 3 -- Angular component tests** (still entirely absent):
 - `AppointmentAddComponent` -- multi-step form validation, slot selection, patient lookup
 - `HomeComponent` -- role-based routing logic
+- Doctor-availability generate/edit components
 
-The existing `TestBase` project provides the necessary infrastructure. Refer to [Testing Strategy](../devops/TESTING-STRATEGY.md) for patterns.
+The existing `TestBase` project provides the necessary backend infrastructure. Refer to [Testing Strategy](../devops/TESTING-STRATEGY.md) for patterns.
 
 ---
 
@@ -456,6 +466,40 @@ Harmless today because no code actually checks `Dashboard.Host`, but it will cau
 ### What Needs to Be Built
 
 Change the registration of `Dashboard.Host` from `MultiTenancySides.Tenant` to `MultiTenancySides.Host` in the provider. One-line fix, zero behaviour change today.
+
+---
+
+## FEAT-14: SQLite test DB does not enforce foreign-key constraints (test-fk-enforcement) {#test-fk-enforcement}
+
+**Severity:** Medium (blocks specific delete-constraint tests; does not affect production)
+**Status:** Open
+
+### Description
+
+`CaseEvaluationEntityFrameworkCoreTestModule.CreateDatabaseAndGetConnection()` opens a single persistent `SqliteConnection` with `"Data Source=:memory:;Foreign Keys=True"` and then explicitly runs `PRAGMA foreign_keys = ON;` after `Open()`. Despite both opt-ins, child-row FK violations (e.g., deleting a `Location` that is referenced by a `DoctorAvailability` or `Appointment`) do NOT raise inside tests. The delete succeeds, leaving orphan rows that would be impossible against production SQL Server with the `NoAction` FKs configured in the DbContext.
+
+### Symptoms Encoded in Phase B-6 Tier-1 PR-1D
+
+- `LocationsAppServiceTests.DeleteAsync_WhenLocationReferencedByDoctorAvailability_Throws` -- skipped.
+- `LocationsAppServiceTests.DeleteAsync_WhenLocationReferencedByAppointment_Throws` -- skipped.
+
+Both bodies are complete, including `autoSave: true` on the child `InsertAsync` calls so the rows persist to the DB before the delete commit; each test flips live the instant test-infra FK enforcement starts working.
+
+### Suspected Cause
+
+ABP / EF Core appear to wrap or pool the shared connection such that the per-connection FK opt-in is bypassed -- either by opening a separate pooled instance for each DbContext or by resetting PRAGMA state on transitions. The manual PRAGMA runs once on the test-startup connection; if subsequent DbContexts see a logically separate wrapper, the FK-on flag is lost.
+
+### What Needs to Be Built
+
+One of the following:
+
+1. Hook `connection.StateChange` in the test module and re-issue `PRAGMA foreign_keys = ON;` on every transition to `Open`. Lightweight; guard against recursion.
+2. Customize `AbpDbContextOptions.Configure` to invoke the PRAGMA inside the DbContext `OnConfiguring` override or via an EF Core interceptor so every context that touches the connection enforces FK.
+3. Let EF Core open/close the connection lifecycle itself (surrender manual `Open()` in the module) so its built-in per-connection PRAGMA hook fires -- requires reworking the "keep the in-memory DB alive" pattern.
+
+### Why Not Yet Fixed
+
+Scope: the shared test module affects every EF Core test in the solution. A partial fix that silently breaks existing tests would be worse than the current documented gap. Deferred to a dedicated test-infra PR after Tier-1 completes; Tier-2 plans depend on this being in place so delete-constraint and cascade tests can ship live rather than skipped.
 
 ---
 

@@ -2,9 +2,11 @@
 
 # Architecture & Code Quality
 
-Seven architectural concerns and code quality issues were identified. None of these cause immediate runtime errors, but several create misleading behaviour, maintenance risk, or build technical debt that will compound as the codebase grows.
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
 
-> **Test Status (2026-04-02)**: ARC-03 confirmed via B6.2 (Patient registration defaults Gender=Male, DateOfBirth=UtcNow). See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
+Eight architectural concerns and code quality issues were identified. None of these cause immediate runtime errors, but several create misleading behaviour, maintenance risk, or build technical debt that will compound as the codebase grows.
+
+> **Test Status (2026-04-02)**: ARC-03 confirmed via B6.2 (Patient registration defaults Gender=Male, DateOfBirth=UtcNow). See [TEST-EVIDENCE.md](TEST-EVIDENCE.md). Live test count as of 2026-04-24: 113 [Fact] + 2 [Theory] = 115 methods across 17 files. Entities with tests today: Appointments, DoctorAvailabilities, Doctors, Patients, Books, AppointmentAccessors, ApplicantAttorneys, Locations.
 
 ---
 
@@ -36,7 +38,7 @@ The only items missing are an Angular feature module and UI -- confirming this w
 - The `BookStoreDataSeederContributor` runs on every `DbMigrator` execution and inserts book records into the production database.
 - The `BookController` exposes live API endpoints (`GET/POST/PUT/DELETE /api/app/books`) in production.
 - New developers reading the codebase waste time understanding whether `Books` is a real domain concept.
-- The test suite's 3 `BookAppService` tests inflate the apparent test count without covering any real business logic.
+- The test suite includes `Books`-related tests that inflate the apparent test count without covering any real business logic. Books is one of the entities currently carrying tests (per the live 2026-04-24 inventory) but no product-intent doc exists for it because it is not a real domain concept.
 
 ### Recommended Fix
 
@@ -116,6 +118,8 @@ gender: Gender.Male  // hardcoded -- every doctor is created as Male
 - Every doctor has `Gender = Male` regardless of their actual gender.
 - These fields appear in reports, forms, and correspondence. Incorrect demographics in a workers' compensation medical context has legal implications.
 - A database containing hundreds of patients will require a data migration to correct.
+- Confirmed as `NEW-SEC-04` (patient signup) and `NEW-SEC-03` (doctor onboarding) in `docs/gap-analysis/10-deep-dive-findings.md` -- both flagged MVP-blocking.
+- Per `docs/product/patients.md`, patient registration intent is invite-token-based with the patient setting their own profile; the hardcoded defaults bypass that intent entirely.
 
 ### Recommended Fix
 
