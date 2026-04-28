@@ -1,0 +1,38 @@
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
+  <ng-template #abpHeader>
+    <h3>{{ '::Appointment:Modal:RejectTitle' | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <div class="mb-3">
+      <label class="form-label" for="reject-reason">
+        {{ '::Appointment:Modal:RejectReasonLabel' | abpLocalization }} *
+      </label>
+      <textarea
+        id="reject-reason"
+        class="form-control"
+        rows="4"
+        [maxlength]="maxReasonLength"
+        [(ngModel)]="reason"
+        [placeholder]="'::Appointment:Modal:RejectReasonPlaceholder' | abpLocalization"
+        required
+      ></textarea>
+      <small class="text-muted">{{ reason.length }} / {{ maxReasonLength }}</small>
+    </div>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ '::Appointment:Action:Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button
+      iconClass="fa fa-times"
+      buttonType="button"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ '::Appointment:Action:Reject' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>
