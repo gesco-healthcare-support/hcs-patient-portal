@@ -254,6 +254,20 @@ public partial class AppointmentToAppointmentDtoMappers : MapperBase<Appointment
     public override partial void Map(Appointment source, AppointmentDto destination);
 }
 
+[Mapper]
+public partial class AppointmentSendBackInfoToDtoMapper : MapperBase<AppointmentSendBackInfo, AppointmentSendBackInfoDto>
+{
+    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
+    public override partial AppointmentSendBackInfoDto Map(AppointmentSendBackInfo source);
+    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
+    public override partial void Map(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination);
+
+    public override void AfterMap(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination)
+    {
+        destination.FlaggedFields = source.GetFlaggedFields().ToList();
+    }
+}
+
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper : MapperBase<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>
 {

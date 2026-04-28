@@ -43,8 +43,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected AppointmentApplicantAttorneyManager _appointmentApplicantAttorneyManager;
+    protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -58,6 +59,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _appointmentApplicantAttorneyManager = appointmentApplicantAttorneyManager;
+        _sendBackInfoRepository = sendBackInfoRepository;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -499,5 +501,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var appointment = await _appointmentManager.SaveAndResubmitAsync(id, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    [Authorize]
+    public virtual async Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
+    {
+        var queryable = await _sendBackInfoRepository.GetQueryableAsync();
+        var latest = queryable
+            .Where(x => x.AppointmentId == id && !x.IsResolved)
+            .OrderByDescending(x => x.SentBackAt)
+            .FirstOrDefault();
+        return latest == null
+            ? null
+            : ObjectMapper.Map<AppointmentSendBackInfo, AppointmentSendBackInfoDto>(latest);
     }
 }

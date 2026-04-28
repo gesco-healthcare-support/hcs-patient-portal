@@ -147,4 +147,11 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     {
         return _appointmentsAppService.SaveAndResubmitAsync(id);
     }
+
+    [HttpGet]
+    [Route("{id}/send-back-info/latest")]
+    public virtual Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
+    {
+        return _appointmentsAppService.GetLatestUnresolvedSendBackInfoAsync(id);
+    }
 }
