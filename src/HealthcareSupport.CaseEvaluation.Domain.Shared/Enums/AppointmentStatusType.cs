@@ -15,5 +15,6 @@
         Billed = 11,
         RescheduleRequested = 12,
         CancellationRequested = 13,
+        AwaitingMoreInfo = 14,
     }
 }

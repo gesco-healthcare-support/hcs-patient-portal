@@ -70,7 +70,47 @@
 
 ## From Wave 1
 
-(append as Wave 1 ships; same shape as the Wave 0 sections above)
+### On-the-fly W1-1 decisions (logged 2026-04-27 before execution; revisit in cleanup)
+
+- **Send-back `FlaggedFields[]` shape: free-text `string` collection storing
+  appointment-form field names (e.g. `["ClaimNumber", "EmployerAddress"]`).**
+  *Why deferred:* a typed enum / form-field registry would give IDE-assisted
+  refactoring + an admin-UI dropdown for the office's send-back action, but
+  building the registry intersects W2's `custom-fields` cap (per-AppointmentType
+  field visibility / pre-fill / disable config). Field-name strings keep W1-1
+  decoupled from custom-fields scope.
+  *Cleanup task:* once W2 custom-fields lands, refactor `FlaggedFields[]` to
+  reference the `AppointmentTypeFieldDefinition` entity (or whatever form-field
+  registry custom-fields produces); drop the freeform string list.
+- **`Appointment.AppointmentStatus` setter visibility: stays PUBLIC at MVP.**
+  *Why deferred:* the state-machine brief recommends narrowing to `internal`
+  to force callers through `AppointmentManager`, but Mapperly target mapping,
+  ABP `[ConcurrencyStamp]` reflection, and the auto-generated proxy projection
+  all interact with the property. Verifying each integration is non-trivial
+  (~half a day of touchwork). The convention is preserved at MVP via the
+  `AppointmentManager` API surface (no AppService callers mutate status
+  directly). Risk is a future contributor bypassing the manager.
+  *Cleanup task:* narrow setter to `internal` (or `private set` with a
+  `protected internal` mutation method); audit Mapperly targets,
+  `AppointmentDto` projection, and `AppointmentManager.UpdateAsync` flow;
+  add a unit test pinning the manager-only-mutation invariant.
+- **Stateless graph: ALL 14 appointment transitions wired declaratively;
+  only 4 endpoints exposed at W1-1.**
+  *Why kept full:* cheap to wire all states in the same `BuildMachine` call;
+  gives Wave 3 (`appointment-change-requests`) a clean integration point; the
+  `ToDotGraph()` / `ToMermaid()` export documents the full lifecycle in code
+  for review. Cancel / reschedule transitions are configured but unreachable
+  until Wave 3 adds the corresponding endpoints + UI.
+  *Cleanup task:* none beyond the Wave 3 endpoint additions; this is a
+  positive over-investment, not a deferral. Listed here for audit only.
+
+### Cuts logged during W1-0 execution
+
+- **W0-1 SaaS DTO widening** (`CaseEvaluationSaasTenantCreateDto` derived from
+  `SaasTenantCreateDto` + Angular volo-vendor-module form widening): cut from
+  W1-0 -- see Wave 0 cap-internal carry-over note above for full rationale +
+  cleanup task. Doctor row still seeds with `LastName=""` + `Gender=Male`
+  placeholders; cosmetic only.
 
 ## From Wave 2
 
