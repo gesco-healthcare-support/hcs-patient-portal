@@ -33,20 +33,19 @@ public class AppointmentDocumentController : AbpController
     [Consumes("multipart/form-data")]
     public virtual async Task<AppointmentDocumentDto> UploadAsync(
         Guid appointmentId,
-        [FromForm] string? documentName,
-        [FromForm] IFormFile file)
+        [FromForm] UploadAppointmentDocumentForm form)
     {
-        if (file == null || file.Length == 0)
+        if (form?.File == null || form.File.Length == 0)
         {
             throw new UserFriendlyException("File is required.");
         }
-        await using var stream = file.OpenReadStream();
+        await using var stream = form.File.OpenReadStream();
         return await _service.UploadStreamAsync(
             appointmentId,
-            documentName ?? string.Empty,
-            file.FileName,
-            file.ContentType,
-            file.Length,
+            form.DocumentName ?? string.Empty,
+            form.File.FileName,
+            form.File.ContentType,
+            form.File.Length,
             stream);
     }
 
@@ -62,4 +61,15 @@ public class AppointmentDocumentController : AbpController
     {
         return _service.DeleteAsync(id);
     }
+}
+
+/// <summary>
+/// Form-bound wrapper so Swashbuckle can describe the multipart upload as a
+/// single schema (it refuses to mix [FromForm] string + [FromForm] IFormFile
+/// at the action signature level).
+/// </summary>
+public class UploadAppointmentDocumentForm
+{
+    public string? DocumentName { get; set; }
+    public IFormFile File { get; set; } = null!;
 }
