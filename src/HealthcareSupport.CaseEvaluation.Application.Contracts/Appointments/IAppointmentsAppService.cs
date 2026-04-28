@@ -36,4 +36,16 @@ public interface IAppointmentsAppService : IApplicationService
     /// Creates or updates applicant attorney and links to appointment.
     /// </summary>
     Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input);
+
+    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Approved.</summary>
+    Task<AppointmentDto> ApproveAsync(Guid id);
+
+    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Rejected.</summary>
+    Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input);
+
+    /// <summary>W1-1 transition: Pending -> AwaitingMoreInfo. Captures office flagged fields + note.</summary>
+    Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input);
+
+    /// <summary>W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker re-submits.</summary>
+    Task<AppointmentDto> RespondAsync(Guid id);
 }

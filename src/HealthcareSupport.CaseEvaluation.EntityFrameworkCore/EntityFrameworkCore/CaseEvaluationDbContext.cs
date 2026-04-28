@@ -29,6 +29,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentAccessor> AppointmentAccessors { get; set; } = null!;
     public DbSet<AppointmentEmployerDetail> AppointmentEmployerDetails { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
+    public DbSet<AppointmentSendBackInfo> AppointmentSendBackInfos { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<WcabOffice> WcabOffices { get; set; } = null!;
@@ -207,6 +208,22 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<AppointmentSendBackInfo>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentSendBackInfos", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentSendBackInfo.TenantId));
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentSendBackInfo.AppointmentId)).IsRequired();
+            b.Property(x => x.FlaggedFieldsJson).HasColumnName(nameof(AppointmentSendBackInfo.FlaggedFieldsJson)).IsRequired();
+            b.Property(x => x.Note).HasColumnName(nameof(AppointmentSendBackInfo.Note)).HasMaxLength(2000);
+            b.Property(x => x.SentBackAt).HasColumnName(nameof(AppointmentSendBackInfo.SentBackAt)).IsRequired();
+            b.Property(x => x.SentBackByUserId).HasColumnName(nameof(AppointmentSendBackInfo.SentBackByUserId));
+            b.Property(x => x.IsResolved).HasColumnName(nameof(AppointmentSendBackInfo.IsResolved));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentSendBackInfo.ResolvedAt));
+            b.HasIndex(x => x.AppointmentId);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
         if (builder.IsHostDatabase())

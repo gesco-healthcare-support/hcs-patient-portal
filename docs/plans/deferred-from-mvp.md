@@ -112,6 +112,29 @@
   cleanup task. Doctor row still seeds with `LastName=""` + `Gender=Male`
   placeholders; cosmetic only.
 
+### Cuts logged during W1-1 execution
+
+- **Tenant DbContext migration generation is broken in the repo.** Pre-existing
+  before W1-1 (most recent successful `TenantMigrations/` row is dated
+  2026-01-31). `dotnet ef migrations add ... --context CaseEvaluationTenantDbContext`
+  fails with `The entity type 'ExtraPropertyDictionary' requires a primary key`
+  because `CaseEvaluationDbContextFactoryBase` looks up a `TenantDevelopmentTime`
+  connection string that does not exist in `DbMigrator/appsettings.json`. The
+  W0 caps that added new entities (e.g. blob container markers, although those
+  are not actual tables) did not trigger this; W1-1's `AppointmentSendBackInfo`
+  is the first new tenant-eligible table since the regression.
+  *Workaround for MVP:* the host DbContext has `MultiTenancySides.Both` so
+  `AppointmentSendBackInfo` is created in the host DB (where docker dev runs
+  everything via the `Default` connection string). The host migration
+  (`20260428003045_Added_AppointmentSendBackInfo`) covers the demo path.
+  *Cleanup task:* add a `TenantDevelopmentTime` entry to
+  `DbMigrator/appsettings.{Development.json}` pointing at a per-tenant LocalDB
+  / SQL Server name; or refactor `CaseEvaluationDbContextFactoryBase` to fall
+  back to `Default` when the named connection string is missing. After fix,
+  generate the back-fill `Added_AppointmentSendBackInfo` tenant migration so
+  per-tenant-database deployments work. Audit other tenant-side entities
+  added since 2026-01-31 for missing migrations at the same time.
+
 ## From Wave 2
 
 (append as Wave 2 ships)

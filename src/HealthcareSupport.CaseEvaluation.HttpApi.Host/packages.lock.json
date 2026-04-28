@@ -992,6 +992,11 @@
           "Pipelines.Sockets.Unofficial": "2.2.8"
         }
       },
+      "Stateless": {
+        "type": "Transitive",
+        "resolved": "5.20.1",
+        "contentHash": "jQeuXgIeXEjFAImajavoxvJNcevO+zyK+9ICGzy0LRe/e1tP4vJUnO4Yrg6rP601wYRnulQs59mQH73TbIZzNg=="
+      },
       "Swashbuckle.AspNetCore": {
         "type": "Transitive",
         "resolved": "9.0.4",
@@ -3002,6 +3007,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "Scriban": "[7.1.0, )",
+          "Stateless": "[5.20.1, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",

@@ -196,9 +196,19 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
 
         var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
-        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, input.AppointmentStatus, input.PanelNumber, input.DueDate);
 
-        doctorAvailability.BookingStatusId = BookingStatus.Booked;
+        // W1-1: per T11 lifecycle, every booker submission lands at Pending. The
+        // client-supplied AppointmentStatus on AppointmentCreateDto used to be
+        // honored as-is (a known gap from the gap-analysis -- track 02). Force
+        // Pending so external bookers cannot self-approve. The state machine
+        // still allows the office to transition forward via the Approve / Reject
+        // / SendBack endpoints exposed on AppointmentManager.
+        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, AppointmentStatusType.Pending, input.PanelNumber, input.DueDate);
+
+        // W1-1: per T11 slot-sync, submission moves the slot Available -> Reserved
+        // (NOT Booked). The slot cascade flips Reserved -> Booked when the office
+        // approves, or Reserved -> Available when the office rejects.
+        doctorAvailability.BookingStatusId = BookingStatus.Reserved;
         await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
@@ -460,5 +470,34 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, input.IdentityUserId);
         }
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<AppointmentDto> ApproveAsync(Guid id)
+    {
+        var appointment = await _appointmentManager.ApproveAsync(id, CurrentUser.Id);
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input)
+    {
+        var appointment = await _appointmentManager.RejectAsync(id, input?.Reason, CurrentUser.Id);
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input)
+    {
+        var fields = input?.FlaggedFields ?? new List<string>();
+        var appointment = await _appointmentManager.SendBackAsync(id, fields, input?.Note, CurrentUser.Id);
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    [Authorize]
+    public virtual async Task<AppointmentDto> RespondAsync(Guid id)
+    {
+        var appointment = await _appointmentManager.RespondAsync(id, CurrentUser.Id);
+        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 }

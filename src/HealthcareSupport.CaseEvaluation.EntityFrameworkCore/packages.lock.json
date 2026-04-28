@@ -895,6 +895,11 @@
         "resolved": "4.3.1",
         "contentHash": "oSE+OVLHyiojrws0QVbQaAT2YKsYbyHqJXPdV7EhGseR/dYgeWS2x1T5qY5I4E+RJkJqMSG+FyZOq4SljWgJWQ=="
       },
+      "Stateless": {
+        "type": "Transitive",
+        "resolved": "5.20.1",
+        "contentHash": "jQeuXgIeXEjFAImajavoxvJNcevO+zyK+9ICGzy0LRe/e1tP4vJUnO4Yrg6rP601wYRnulQs59mQH73TbIZzNg=="
+      },
       "System.ClientModel": {
         "type": "Transitive",
         "resolved": "1.5.1",
@@ -1977,6 +1982,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "Scriban": "[7.1.0, )",
+          "Stateless": "[5.20.1, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",

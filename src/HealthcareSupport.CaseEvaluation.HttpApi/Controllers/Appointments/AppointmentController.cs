@@ -119,4 +119,32 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     {
         return _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointmentId, input);
     }
+
+    [HttpPost]
+    [Route("{id}/approve")]
+    public virtual Task<AppointmentDto> ApproveAsync(Guid id)
+    {
+        return _appointmentsAppService.ApproveAsync(id);
+    }
+
+    [HttpPost]
+    [Route("{id}/reject")]
+    public virtual Task<AppointmentDto> RejectAsync(Guid id, [FromBody] RejectAppointmentInput input)
+    {
+        return _appointmentsAppService.RejectAsync(id, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/send-back")]
+    public virtual Task<AppointmentDto> SendBackAsync(Guid id, [FromBody] SendBackAppointmentInput input)
+    {
+        return _appointmentsAppService.SendBackAsync(id, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/respond")]
+    public virtual Task<AppointmentDto> RespondAsync(Guid id)
+    {
+        return _appointmentsAppService.RespondAsync(id);
+    }
 }
