@@ -12,10 +12,60 @@
           {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
         </span>
       </h2>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="isSaving">
-          {{ isSaving ? 'Saving...' : 'Save' }}
-        </button>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        @if (canTakeOfficeAction) {
+          <select
+            class="form-select form-select-sm"
+            style="min-width: 220px"
+            [(ngModel)]="selectedAction"
+            [name]="'appointment-action-dropdown'"
+          >
+            <option value="">{{ '::Appointment:Action:ChooseAction' | abpLocalization }}</option>
+            @for (action of availableActions; track action) {
+              <option [value]="action">
+                @switch (action) {
+                  @case ('approve') {
+                    {{ '::Appointment:Action:Approve' | abpLocalization }}
+                  }
+                  @case ('reject') {
+                    {{ '::Appointment:Action:Reject' | abpLocalization }}
+                  }
+                  @case ('sendBack') {
+                    {{ '::Appointment:Action:SendBack' | abpLocalization }}
+                  }
+                }
+              </option>
+            }
+          </select>
+          <button
+            type="button"
+            class="btn btn-success btn-sm"
+            [disabled]="!selectedAction"
+            (click)="dispatchAction()"
+          >
+            {{ '::Appointment:Action:Submit' | abpLocalization }}
+          </button>
+        }
+        @if (isResubmitMode) {
+          <button
+            type="button"
+            class="btn btn-warning btn-sm fw-semibold"
+            (click)="saveAndResubmit()"
+            [disabled]="isSaving"
+          >
+            <i class="fa fa-paper-plane me-1"></i>
+            {{ '::Appointment:Action:SaveAndResubmit' | abpLocalization }}
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            (click)="save()"
+            [disabled]="isSaving"
+          >
+            {{ isSaving ? 'Saving...' : 'Save' }}
+          </button>
+        }
         <button
           type="button"
           class="btn btn-info text-white btn-sm"
@@ -29,9 +79,81 @@
         </button>
       </div>
     </div>
+
+    @if (isResubmitMode && latestSendBackInfo) {
+      <div class="alert alert-warning border-warning border-2 p-3 mb-3" role="alert">
+        <div class="d-flex align-items-start gap-3">
+          <i class="fa fa-exclamation-triangle fa-2x text-warning"></i>
+          <div class="flex-grow-1">
+            <h4 class="alert-heading mb-2">
+              {{ '::Appointment:Banner:Title' | abpLocalization }}
+            </h4>
+            @if (latestSendBackInfo.note) {
+              <div class="mb-3">
+                <div class="fw-semibold small text-muted">
+                  {{ '::Appointment:Banner:NoteHeader' | abpLocalization }}
+                </div>
+                <blockquote class="mb-0 ps-3 border-start border-warning border-3 fst-italic">
+                  {{ latestSendBackInfo.note }}
+                </blockquote>
+              </div>
+            }
+            @if (flaggedSections.length > 0) {
+              <div class="mb-2">
+                <div class="fw-semibold small text-muted mb-1">
+                  {{ '::Appointment:Banner:SectionsHeader' | abpLocalization }}
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  @for (s of flaggedSections; track s.sectionId) {
+                    <span class="badge bg-warning text-dark border border-warning">
+                      {{ s.sectionLabel }}
+                      <span class="ms-1 fw-bold">
+                        {{ '::Appointment:Banner:NeedsReviewPill' | abpLocalization }}
+                      </span>
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+            @if (flaggedFieldLabels.length > 0) {
+              <details class="mt-2">
+                <summary class="small fw-semibold">
+                  {{ '::Appointment:Banner:FieldsHeader' | abpLocalization }}
+                  ({{ flaggedFieldLabels.length }})
+                </summary>
+                <ul class="mt-2 mb-0 small">
+                  @for (label of flaggedFieldLabels; track label) {
+                    <li>{{ label }}</li>
+                  }
+                </ul>
+              </details>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
     @if (successMessage) {
       <div class="alert alert-success py-2">{{ successMessage }}</div>
     }
+
+    <app-approve-confirmation-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="approveModalVisible"
+      (succeeded)="onActionSucceeded($event)"
+    ></app-approve-confirmation-modal>
+
+    <app-reject-appointment-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="rejectModalVisible"
+      (succeeded)="onActionSucceeded($event)"
+    ></app-reject-appointment-modal>
+
+    <app-send-back-appointment-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="sendBackModalVisible"
+      (succeeded)="onActionSucceeded($event)"
+    ></app-send-back-appointment-modal>
 
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
