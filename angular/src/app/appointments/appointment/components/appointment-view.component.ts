@@ -28,6 +28,7 @@ import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
+import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { buildFlaggedFieldLookup } from '../send-back-fields';
 
 type TransitionAction = 'approve' | 'reject' | 'sendBack';
@@ -63,6 +64,7 @@ type AppointmentAuthorizedUserRow = {
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
     SendBackAppointmentModalComponent,
+    AppointmentDocumentsComponent,
   ],
   templateUrl: './appointment-view.component.html',
 })

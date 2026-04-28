@@ -645,6 +645,10 @@
         </div>
       </div>
     </div>
+
+    <app-appointment-documents
+      [appointmentId]="appointment.appointment?.id ?? null"
+    ></app-appointment-documents>
   }
 
   @if (isAuthorizedUserModalOpen) {
