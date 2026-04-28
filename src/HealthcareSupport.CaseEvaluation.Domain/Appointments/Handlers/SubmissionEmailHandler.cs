@@ -1,12 +1,13 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.Emailing;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -35,20 +36,20 @@ public class SubmissionEmailHandler :
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly ISettingProvider _settingProvider;
-    private readonly IEmailSender _emailSender;
+    private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ILogger<SubmissionEmailHandler> _logger;
 
     public SubmissionEmailHandler(
         IRepository<Patient, Guid> patientRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         ISettingProvider settingProvider,
-        IEmailSender emailSender,
+        IBackgroundJobManager backgroundJobManager,
         ILogger<SubmissionEmailHandler> logger)
     {
         _patientRepository = patientRepository;
         _identityUserRepository = identityUserRepository;
         _settingProvider = settingProvider;
-        _emailSender = emailSender;
+        _backgroundJobManager = backgroundJobManager;
         _logger = logger;
     }
 
@@ -86,17 +87,14 @@ public class SubmissionEmailHandler :
             intro: $"Confirmation #{eventData.RequestConfirmationNumber} requested for {dateLine}.",
             details: $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br><strong>Patient:</strong> {WebEncode(patientName)}</p><p>Open the appointments queue in the patient portal to review and approve, reject, or send the request back for more info.</p>");
 
-        try
+        await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
         {
-            await _emailSender.SendAsync(officeEmail, subject, body, isBodyHtml: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "SubmissionEmailHandler: SMTP send failed for office notification on appointment {AppointmentId}. Wiring is correct; configure ACS credentials to deliver.",
-                eventData.AppointmentId);
-        }
+            To = officeEmail,
+            Subject = subject,
+            Body = body,
+            IsBodyHtml = true,
+            Context = $"Submission/Office/{eventData.AppointmentId}",
+        });
     }
 
     private async Task SendBookerConfirmationAsync(
@@ -122,17 +120,14 @@ public class SubmissionEmailHandler :
             intro: $"Your request for {dateLine} has been submitted (Confirmation #{eventData.RequestConfirmationNumber}).",
             details: "<p>The office will review your request and get back to you. If they need anything further they will send the request back with the fields they would like you to update; you can edit and resubmit through the patient portal.</p><p>You will receive a separate email when the office approves or rejects your request.</p>");
 
-        try
+        await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
         {
-            await _emailSender.SendAsync(bookerEmail, subject, body, isBodyHtml: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "SubmissionEmailHandler: SMTP send failed for booker confirmation on appointment {AppointmentId}. Wiring is correct; configure ACS credentials to deliver.",
-                eventData.AppointmentId);
-        }
+            To = bookerEmail,
+            Subject = subject,
+            Body = body,
+            IsBodyHtml = true,
+            Context = $"Submission/Booker/{eventData.AppointmentId}",
+        });
     }
 
     private static string ResolveBookerName(IdentityUser? bookerUser, Patient? patient)

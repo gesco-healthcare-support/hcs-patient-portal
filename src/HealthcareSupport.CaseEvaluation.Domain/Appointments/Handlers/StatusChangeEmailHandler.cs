@@ -2,12 +2,13 @@ using System;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Microsoft.Extensions.Logging;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.Emailing;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
 using Volo.Abp.Uow;
@@ -39,7 +40,7 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
-    private readonly IEmailSender _emailSender;
+    private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
 
     public StatusChangeEmailHandler(
@@ -47,14 +48,14 @@ public class StatusChangeEmailHandler :
         IRepository<Patient, Guid> patientRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
-        IEmailSender emailSender,
+        IBackgroundJobManager backgroundJobManager,
         ILogger<StatusChangeEmailHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _identityUserRepository = identityUserRepository;
         _sendBackInfoRepository = sendBackInfoRepository;
-        _emailSender = emailSender;
+        _backgroundJobManager = backgroundJobManager;
         _logger = logger;
     }
 
@@ -85,20 +86,14 @@ public class StatusChangeEmailHandler :
 
         var (subject, body) = await BuildEmailAsync(template.Value, appointment, eventData);
 
-        try
+        await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
         {
-            await _emailSender.SendAsync(recipientEmail, subject, body, isBodyHtml: true);
-        }
-        catch (Exception ex)
-        {
-            // Placeholder ACS creds in dev WILL throw at the SMTP transport layer;
-            // log and swallow so the user-visible transition still completes.
-            _logger.LogWarning(
-                ex,
-                "StatusChangeEmailHandler: SMTP send failed for {Template} on appointment {AppointmentId}. Wiring is correct; configure ACS credentials to deliver.",
-                template,
-                appointment.Id);
-        }
+            To = recipientEmail,
+            Subject = subject,
+            Body = body,
+            IsBodyHtml = true,
+            Context = $"Transition/{template}/{appointment.Id}",
+        });
     }
 
     private enum EmailTemplate { Approved, Rejected, SendBack }
