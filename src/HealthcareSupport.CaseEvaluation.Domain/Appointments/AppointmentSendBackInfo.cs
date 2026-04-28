@@ -18,9 +18,9 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// Strongly-typed field enum is deferred until W2 custom-fields lands the
 /// canonical form-field registry (see deferred-from-mvp.md ledger).
 ///
-/// Multiple send-back rounds are allowed (Pending -> AwaitingMoreInfo, Respond,
-/// re-send-back). Each round inserts a new row; the most recent row drives the
-/// AwaitingMoreInfo response screen.
+/// Multiple send-back rounds are allowed (Pending -> AwaitingMoreInfo,
+/// SaveAndResubmit, re-send-back). Each round inserts a new row; the most
+/// recent row drives the AwaitingMoreInfo response screen.
 /// </summary>
 public class AppointmentSendBackInfo : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {

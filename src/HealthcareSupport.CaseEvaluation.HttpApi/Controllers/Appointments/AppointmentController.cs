@@ -142,9 +142,9 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     }
 
     [HttpPost]
-    [Route("{id}/respond")]
-    public virtual Task<AppointmentDto> RespondAsync(Guid id)
+    [Route("{id}/save-and-resubmit")]
+    public virtual Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
     {
-        return _appointmentsAppService.RespondAsync(id);
+        return _appointmentsAppService.SaveAndResubmitAsync(id);
     }
 }

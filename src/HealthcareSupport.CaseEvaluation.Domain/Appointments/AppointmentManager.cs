@@ -105,7 +105,7 @@ public class AppointmentManager : DomainService
     /// re-submits the booking form. Marks the latest unresolved
     /// <see cref="AppointmentSendBackInfo"/> row as resolved.
     /// </summary>
-    public virtual async Task<Appointment> RespondAsync(Guid id, Guid? actingUserId)
+    public virtual async Task<Appointment> SaveAndResubmitAsync(Guid id, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);
 
@@ -120,7 +120,7 @@ public class AppointmentManager : DomainService
             await _sendBackInfoRepository.UpdateAsync(latestUnresolved, autoSave: true);
         }
 
-        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.Respond, reason: null, actingUserId);
+        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
     }
 
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
@@ -165,7 +165,7 @@ public class AppointmentManager : DomainService
     /// <summary>
     /// Builds the appointment status state machine. All 14 transitions are
     /// configured declaratively; W1-1 only exposes endpoints for Approve /
-    /// Reject / SendBack / Respond. Cancel / Reschedule / day-of-exam triggers
+    /// Reject / SendBack / SaveAndResubmit. Cancel / Reschedule / day-of-exam triggers
     /// are reachable in the graph but unreachable through the API surface
     /// until Wave 3 (appointment-change-requests).
     /// </summary>
@@ -181,7 +181,7 @@ public class AppointmentManager : DomainService
             .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.AwaitingMoreInfo);
 
         machine.Configure(AppointmentStatusType.AwaitingMoreInfo)
-            .Permit(AppointmentTransitionTrigger.Respond, AppointmentStatusType.Pending)
+            .Permit(AppointmentTransitionTrigger.SaveAndResubmit, AppointmentStatusType.Pending)
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected);
 

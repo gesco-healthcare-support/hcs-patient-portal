@@ -46,6 +46,6 @@ public interface IAppointmentsAppService : IApplicationService
     /// <summary>W1-1 transition: Pending -> AwaitingMoreInfo. Captures office flagged fields + note.</summary>
     Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input);
 
-    /// <summary>W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker re-submits.</summary>
-    Task<AppointmentDto> RespondAsync(Guid id);
+    /// <summary>W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker re-submits the booking form with edits.</summary>
+    Task<AppointmentDto> SaveAndResubmitAsync(Guid id);
 }

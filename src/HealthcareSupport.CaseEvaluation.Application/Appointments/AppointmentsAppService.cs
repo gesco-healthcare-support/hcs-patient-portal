@@ -495,9 +495,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     [Authorize]
-    public virtual async Task<AppointmentDto> RespondAsync(Guid id)
+    public virtual async Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
     {
-        var appointment = await _appointmentManager.RespondAsync(id, CurrentUser.Id);
+        var appointment = await _appointmentManager.SaveAndResubmitAsync(id, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 }
