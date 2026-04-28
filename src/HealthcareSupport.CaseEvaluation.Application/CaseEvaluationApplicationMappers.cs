@@ -255,6 +255,13 @@ public partial class AppointmentToAppointmentDtoMappers : MapperBase<Appointment
 }
 
 [Mapper]
+public partial class AppointmentDocumentToDtoMapper : MapperBase<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto>
+{
+    public override partial HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument source);
+    public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto destination);
+}
+
+[Mapper]
 public partial class AppointmentSendBackInfoToDtoMapper : MapperBase<AppointmentSendBackInfo, AppointmentSendBackInfoDto>
 {
     [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
