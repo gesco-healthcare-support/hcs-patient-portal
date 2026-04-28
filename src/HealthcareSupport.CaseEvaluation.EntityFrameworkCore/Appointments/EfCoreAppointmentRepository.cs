@@ -92,8 +92,19 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
     protected virtual IQueryable<AppointmentWithNavigationProperties> ApplyFilter(CaseEvaluationDbContext dbContext, IQueryable<AppointmentWithNavigationProperties> query, string? filterText, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null)
     {
         var accessorUserId = accessorIdentityUserId; // Capture for closure
+        var ft = filterText;
         return query
-            .WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Appointment.PanelNumber!.Contains(filterText!))
+            // W1-4: extend FilterText to span PanelNumber + RequestConfirmationNumber
+            // + Patient first/last name + booker IdentityUser name/surname so a single
+            // free-text input on the office's queue page finds appointments by any
+            // common identifier the office staff might recall.
+            .WhereIf(!string.IsNullOrWhiteSpace(ft), e =>
+                (e.Appointment.PanelNumber != null && e.Appointment.PanelNumber.Contains(ft!)) ||
+                (e.Appointment.RequestConfirmationNumber != null && e.Appointment.RequestConfirmationNumber.Contains(ft!)) ||
+                (e.Patient != null && e.Patient.FirstName != null && e.Patient.FirstName.Contains(ft!)) ||
+                (e.Patient != null && e.Patient.LastName != null && e.Patient.LastName.Contains(ft!)) ||
+                (e.IdentityUser != null && e.IdentityUser.Name != null && e.IdentityUser.Name.Contains(ft!)) ||
+                (e.IdentityUser != null && e.IdentityUser.Surname != null && e.IdentityUser.Surname.Contains(ft!)))
             .WhereIf(!string.IsNullOrWhiteSpace(panelNumber), e => e.Appointment.PanelNumber!.Contains(panelNumber!))
             .WhereIf(appointmentDateMin.HasValue, e => e.Appointment.AppointmentDate >= appointmentDateMin!.Value)
             .WhereIf(appointmentDateMax.HasValue, e => e.Appointment.AppointmentDate <= appointmentDateMax!.Value)
