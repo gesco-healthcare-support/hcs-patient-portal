@@ -88,10 +88,26 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
     }
 
+    // T3 minimum-bar lookup scope: Patient is not IMultiTenant per CLAUDE.md, so
+    // ABP's automatic tenant filter does NOT apply -- explicit TenantId filter is
+    // required. When the caller is an Applicant Attorney, narrow further to patients
+    // on appointments where EITHER the attorney is the booker (CreatorId match) OR a
+    // separate AppointmentApplicantAttorney link names the attorney (the patient
+    // selected him during their own booking). Comprehensive role-scope helper +
+    // same-firm sharing question deferred to Wave 3 per docs/plans/deferred-from-mvp.md.
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input)
     {
-        var query = (await _patientRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        var query = (await _patientRepository.GetQueryableAsync())
+            .Where(x => x.TenantId == CurrentTenant.Id)
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+
+        if (await IsApplicantAttorneyAsync())
+        {
+            var visiblePatientIds = await GetApplicantAttorneyVisiblePatientIdsAsync();
+            query = query.Where(p => visiblePatientIds.Contains(p.Id));
+        }
+
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Patients.Patient>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -104,7 +120,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+        // IdentityUser is auto-tenant-filtered by ABP. For Applicant Attorney callers,
+        // restrict to (a) self plus (b) bookers on appointments visible to this attorney.
+        var query = (await _identityUserRepository.GetQueryableAsync())
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+
+        if (await IsApplicantAttorneyAsync() && CurrentUser.Id.HasValue)
+        {
+            var selfId = CurrentUser.Id.Value;
+            var visibleBookerIds = await GetApplicantAttorneyVisibleBookerIdsAsync();
+            query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+        }
+
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Abp.Identity.IdentityUser>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -112,6 +139,51 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             TotalCount = totalCount,
             Items = ObjectMapper.Map<List<Volo.Abp.Identity.IdentityUser>, List<LookupDto<Guid>>>(lookupData)
         };
+    }
+
+    private Task<bool> IsApplicantAttorneyAsync()
+    {
+        // Canonical role name from ExternalUserRoleDataSeedContributor (no const exists).
+        // Add role-name consts as a separate refactor; logged in deferred ledger.
+        return Task.FromResult(CurrentUser.IsInRole("Applicant Attorney"));
+    }
+
+    private async Task<List<Guid>> GetApplicantAttorneyVisiblePatientIdsAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return new List<Guid>();
+        }
+
+        var userId = CurrentUser.Id.Value;
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+
+        return await appointmentQuery
+            .Where(a => a.CreatorId == userId
+                        || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToDynamicListAsync<Guid>();
+    }
+
+    private async Task<List<Guid>> GetApplicantAttorneyVisibleBookerIdsAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return new List<Guid>();
+        }
+
+        var userId = CurrentUser.Id.Value;
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+
+        return await appointmentQuery
+            .Where(a => a.CreatorId == userId
+                        || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
+            .Select(a => a.IdentityUserId)
+            .Distinct()
+            .ToDynamicListAsync<Guid>();
     }
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)

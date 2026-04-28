@@ -163,6 +163,19 @@
 - **Backend rename Respond -> SaveAndResubmit landed in W1-1** (commit
   before frontend work, no proxy mismatch window). No cleanup task.
 
+### W1 bugfix sprint -- 2026-04-28 (post-W1 cleanup before W2)
+
+Adrian smoke-tested the post-W1 docker stack 2026-04-28 and reported slow loads (LCP 30.34 s), 1.77 s appointment-submit blocking on SMTP, cross-tenant patient lookup leak, missing tenant-admin path to W1-1 transition dropdown, external-user 403 on the appointment detail link, and HealthChecks UI poller log spam. Plan: `docs/plans/2026-04-28-mvp-wave-1-bugfix.md`. Branch: `fix/w1-bugfix`. Five tasks landed; deferred follow-ups below.
+
+- **B2 SMTP retry policy switch** -- once Azure Communication Services (ACS) Email connection-string credentials land in `docker/appsettings.secrets.json` (the placeholder rows are pre-wired), revisit `SendAppointmentEmailJob`: remove the try/catch around `_emailSender.SendAsync` so failures propagate, and let Hangfire's default retry policy (10 attempts with backoff) handle transient SMTP errors. If Adrian wants email completion to gate the request itself, also flip the two handlers from `_backgroundJobManager.EnqueueAsync` back to direct `await _emailSender.SendAsync` (synchronous). Reference: `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Jobs/SendAppointmentEmailJob.cs` (header doc-comment names the exact edit points).
+- **B3 same-firm-attorney access design question** -- T3 minimum-bar restricts `GetPatientLookupAsync` and `GetIdentityUserLookupAsync` to (a) appointments the current attorney booked OR (b) appointments where the attorney is named via `AppointmentApplicantAttorney`. **Open question for Adrian:** should attorneys at the same law firm see each other's caseload (broader scope), or stay strict per-attorney (current behavior)? This is a product decision, not a code question. Logged so Wave 3 F3-full audit picks it up. No same-firm entity exists today; if "yes", the design also implies a Firm entity.
+- **B4 HealthChecks UI dashboard removal candidate** -- if Adrian finds he never opens `http://localhost:44327/health-ui` post-W3, drop the package: remove `services.AddHealthChecksUI(...)`, `MapHealthChecksUI`, and the `AspNetCore.HealthChecks.UI*` NuGet refs. ~3 packages out of the API image. The plain `/health-status` endpoint (used by docker-compose healthchecks) does NOT depend on the UI package and stays. Roughly 5 minutes of work to revert.
+- **T1 build-config consolidation** -- the docker config now derives from production (Option B). If Angular CLI updates production defaults later (e.g., new optimization flags in CLI 21+), docker auto-inherits, but if Angular changes the production stack in a way that breaks docker-specific runtime needs (e.g., environment.docker.ts), revisit. No active task; logged so future "why is docker = production" question is answerable.
+- **T3 role-name consts refactor** -- `IsApplicantAttorneyAsync()` inlines the literal `"Applicant Attorney"` per `ExternalUserRoleDataSeedContributor.cs:27`. No const declaration exists in that contributor for any of the 4 external roles (Patient, Claim Examiner, Applicant Attorney, Defense Attorney), unlike `InternalUserRoleDataSeedContributor` which uses `ItAdminRoleName` etc. *Cleanup task:* add public consts to `ExternalUserRoleDataSeedContributor` (or a central `CaseEvaluationRoleNames` static class) and replace inlined literals across the codebase. Lands naturally with the W3 F3-full audit since that work touches role-scoping helpers everywhere.
+- **F3-full role-scope audit** (Wave 3) -- see `## From Wave 3` below.
+- **F4-mini queue-grid Review link + read-only edit-mode gate** (Wave 2) -- see `## From Wave 2` below.
+- **F4-full permission redesign** (Wave 3) -- see `## From Wave 3` below.
+
 ### Pre-existing W1-1 ledger entry (kept for completeness)
 
 - **Tenant DbContext migration generation is broken in the repo.** Pre-existing
@@ -188,12 +201,51 @@
 
 ## From Wave 2
 
-(append as Wave 2 ships)
+- **F4-mini -- queue-grid Review link** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). Tenant admin / office staff currently cannot drill from `/appointments` (the queue grid) into `/appointments/view/:id` to use the W1-1 Approve / Reject / SendBack dropdown. Add a "Review" `<a routerLink>` item to the actions dropdown in `angular/src/app/appointments/appointment/components/appointment.component.html` (next to Edit + Delete). Permission gate: visible to anyone with `CaseEvaluation.Appointments.Default`. ~XS effort (~0.5d).
+- **F4-mini -- read-only edit-mode gate on appointment-view** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). External users currently get a fully-editable view page or a 403; should see read-only fields by default, with edit unlocked ONLY when status = `AwaitingMoreInfo` AND the field appears in `latestSendBackInfo.flaggedFields`. Tenant admin / office staff stay editable subject to existing permission gates. Pairs with F3-full / F4-full in Wave 3 but lands first as a small targeted change so the demo path improves before W3 ships. ~S effort (~1d).
+
+(append as Wave 2 ships further)
 
 ## From Wave 3
 
-(append as Wave 3 ships)
+- **F3-full -- comprehensive role-scope helper across ALL lookup / list endpoints** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 3). T3 minimum-bar covers only `GetPatientLookupAsync` and `GetIdentityUserLookupAsync`. The full audit applies the same shape to every other lookup / list / get endpoint (`GetListAsync` for Appointments, DoctorAvailabilities, ApplicantAttorneys, AppointmentApplicantAttorneys, AppointmentEmployerDetails, AppointmentAccessors, plus AppointmentTypes / Locations lookups -- host-scoped reference data, but tenants may want to hide some). Introduce a single `BaseAppService.ScopeForCurrentUserAsync<T>(query)` helper, branch on the canonical role names, and replace inline filters everywhere. Pairs with F4-full so the auth model is coherent. Each per-role decision goes through the AskUserQuestion modal as a row table BEFORE code is written. HIPAA-relevant change. Effort: M (~3-5d).
+- **F4-full -- move class-level `[Authorize(Permissions.X.Default)]` to method-level + row-level access predicate** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 3). Class-level Default-permission gates on `ApplicantAttorneysAppService` and `AppointmentApplicantAttorneysAppService` (and similar) cause external users to 403 when the appointment-view page tries to load attorney info, even for appointments they should see. Fix: read methods (`GetAsync`, `GetListAsync`, `GetWithNavigationPropertiesAsync`) become `[Authorize]` (any signed-in user) plus a runtime per-row "can see this entity?" check that delegates to F3-full's helper. Write methods (`CreateAsync`, `UpdateAsync`, `DeleteAsync`) keep existing permission gates. Effort: M (~2-3d). Pairs with F3-full.
+
+(append as Wave 3 ships further)
 
 ## Resumption order (filled in after Wave 3 demo)
 
 (Adrian populates this when deciding what cleanup to tackle first)
+
+### Candidate post-W3 cleanup -- HTTPS dev migration (Option D from 2026-04-28 W1 bugfix)
+
+**Why deferred from W1 bugfix:** during the 2026-04-28 W1 bugfix sprint Adrian and I weighed four options for the Docker Desktop on Windows + WSL2 IPv6 port-forward bug. Symptom: Chrome's Happy Eyeballs prefers IPv6 first; `wslrelay`'s IPv6 binding for `localhost:4200` (and intermittently other ports) is wedged on the Windows host; pages stall for the OS-level TCP timeout (~21s) before falling through to IPv4. We shipped Option A as the temp fix (5-line `docker-compose.yml` edit -- bind all 5 host ports to `127.0.0.1` so only IPv4 listeners exist; Chrome's IPv6 attempt now fast-fails and falls through immediately). Option D below is the long-term proper fix that also resolves several adjacent issues.
+
+**Scope:**
+
+1. **Generate a localhost-trusted dev TLS cert.** Use `mkcert` (one-time dev install per machine; creates a local CA the OS trusts). Output: `localhost.pem` + `localhost-key.pem` valid for `localhost`, `127.0.0.1`, `::1`.
+2. **Wire nginx for TLS.** Add `listen 443 ssl http2` + cert paths to `angular/nginx.conf`. Drop the plain-HTTP `listen 80` or keep both with redirect.
+3. **Wire Kestrel for TLS.** Set `ASPNETCORE_URLS=https://+:8443` in docker-compose for AuthServer and HttpApi.Host; mount cert as a docker volume; configure Kestrel to use it.
+4. **Update `dynamic-env.json`** to `https://localhost:4200` / `:44327` / `:44368`.
+5. **Update OpenIddict client app registrations** (`OpenIddict__Applications__CaseEvaluation_App__RootUrl` env var in db-migrator service). Re-run migrator to update the seeded redirect URIs.
+6. **Update docker-compose env vars** for the three services to use `https://` for `App__SelfUrl`, `App__CorsOrigins`, `AuthServer__Authority`. Set `AuthServer__RequireHttpsMetadata` back to `true`.
+7. **Revert Option A** -- remove the `127.0.0.1:` host-port-binding prefix in `docker-compose.yml` once HTTPS is verified, OR keep it (HTTPS doesn't require it but loopback-only binding is also fine for dev).
+8. **Smoke test.** Full OAuth flow, all API calls, cache-disabled reloads.
+
+**First-, second-, third-order effects:**
+
+- 1st: dev environment uses HTTPS end-to-end, just like production.
+- 2nd: HTTP/2 multiplexes all of Chrome's parallel requests over a single TCP connection -> Happy Eyeballs only races once -> the IPv6 bug becomes invisible regardless of which port wedges. HSTS (which poisoned us 2026-04-28) works correctly because we're now using HTTPS legitimately.
+- 3rd: every developer needs `mkcert` set up once. Cert renewal needed yearly (or per `mkcert` defaults). Some legacy scripts that hard-code `http://` need updating. Mixed-content / secure-cookie / SameSite=None semantics start matching production -- this catches a class of bugs that Option A masks.
+
+**Estimate:** ~1-2 engineer-days. Lands as its own cap with its own plan in `docs/plans/`.
+
+**Acceptance criteria:**
+
+- `https://localhost:4200/` loads without cert warnings (after `mkcert -install`)
+- Chrome DevTools shows HTTP/2 (`h2`) for all 3 origins
+- OAuth flow works end-to-end
+- Cache-disabled reload works reliably across 10 attempts
+- Option A's `127.0.0.1:` prefix in `docker-compose.yml` can be removed without breaking page loads (proves the fix is real, not coincidental)
+
+**Logged 2026-04-28 by:** W1 bugfix sprint. Plan: `docs/plans/2026-04-28-mvp-wave-1-bugfix.md`. Empirical evidence backing this plan: per-port IPv4/IPv6 probe matrix in that plan's verification section + Chrome MCP traces showing `ERR_CONNECTION_RESET` on cache-disabled reload before the fix.
