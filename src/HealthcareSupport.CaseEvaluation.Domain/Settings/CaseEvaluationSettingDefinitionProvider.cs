@@ -33,6 +33,7 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
 
         // Notifications policy
         Define(context, CaseEvaluationSettings.NotificationsPolicy.CcEmailAddresses, defaultValue: "");
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.OfficeEmail,      defaultValue: "");
     }
 
     private static void Define(ISettingDefinitionContext context, string name, string defaultValue)

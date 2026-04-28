@@ -370,6 +370,10 @@
     "Setting:CaseEvaluation.Documents.JointDeclarationUploadCutoffDays": "Joint declaration upload cutoff (days)",
     "Setting:CaseEvaluation.Documents.JointDeclarationUploadCutoffDays:Description": "Days before the appointment by which joint declarations must be uploaded. Default 7.",
     "Setting:CaseEvaluation.Notifications.CcEmailAddresses": "Notification CC email addresses",
-    "Setting:CaseEvaluation.Notifications.CcEmailAddresses:Description": "Comma-separated email addresses CC'd on every all-parties notification email."
+    "Setting:CaseEvaluation.Notifications.CcEmailAddresses:Description": "Comma-separated email addresses CC'd on every all-parties notification email.",
+    "Setting:CaseEvaluation.Notifications.OfficeEmail": "Office notification email",
+    "Setting:CaseEvaluation.Notifications.OfficeEmail:Description": "Email address that receives 'new appointment request' notifications when a booker submits an appointment. Leave empty to disable office notifications -- bookers will still see new requests in the office's queue.",
+    "Appointment:Search:FilterTextLabel": "Search appointments",
+    "Appointment:Search:FilterTextPlaceholder": "Patient name, attorney, or confirmation #"
   }
 }
