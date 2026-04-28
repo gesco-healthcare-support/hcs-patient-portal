@@ -63,7 +63,9 @@ Safe to parallelise. First-10-days tranche.
 
 **Wave 1 effort roll-up:** ~28-38 engineer-days. Higher than prior 25-35d due to attorney-separation +3.5d (Option B) + accessor-provisioning +~1d (canonical external-user invite).
 
-### Wave 2 -- depends on Wave 1 (8 capabilities)
+### Wave 2 -- depends on Wave 1 (9 capabilities)
+
+> Updated 2026-04-28 (W1 bugfix sprint): +1 cap `F4-mini-review-link-and-readonly-gate` (queue-grid Review link + appointment-view read-only edit-mode gate for external users). XS+S effort (~1.5d). See `docs/plans/deferred-from-mvp.md` "## From Wave 2" for the spec; not yet a separate brief in `solutions/`.
 
 | slug | effort | blocked by |
 |---|---|---|
@@ -75,7 +77,9 @@ Safe to parallelise. First-10-days tranche.
 | [scheduler-notifications](solutions/scheduler-notifications.md) | M (~3-4d) | background-jobs (W0), email (W0), templates (W1), accessor (W1); **Rewritten scope:** 4 jobs -- 3 CCR-driven reminders (RequestScheduling / CancellationReschedule / AppointmentDay) + `AwaitingMoreInfoTimeoutJob` (per T11 follow-on) |
 | [dashboard-counters](solutions/dashboard-counters.md) | S-M (~2d) | internal-role-seeds, appointment-state-machine; **Revised scope:** all 13 cards in DTO, placeholders for post-MVP |
 
-### Wave 3 -- depends on Wave 2 (1 capability in MVP)
+### Wave 3 -- depends on Wave 2 (3 capabilities in MVP)
+
+> Updated 2026-04-28 (W1 bugfix sprint): +2 caps `F3-full-role-scope-audit` (M ~3-5d) and `F4-full-permission-redesign` (M ~2-3d). See `docs/plans/deferred-from-mvp.md` "## From Wave 3" for specs; not yet separate briefs in `solutions/`. Pair with `appointment-change-requests` so the auth/permission/access redesign lands as one coherent change.
 
 | slug | effort | blocked by |
 |---|---|---|
@@ -180,10 +184,10 @@ graph TD
 
 - **Wave 0:** ~15.5-22.5 engineer-days
 - **Wave 1:** ~28-38 engineer-days
-- **Wave 2:** ~20-28 engineer-days
-- **Wave 3:** ~7-10 engineer-days
+- **Wave 2:** ~21.5-29.5 engineer-days (W1 bugfix added F4-mini ~1.5d)
+- **Wave 3:** ~12-18 engineer-days (W1 bugfix added F3-full ~3-5d + F4-full ~2-3d)
 
-**Grand total: ~70.5-100.5 engineer-days.** (Prior 70-100; +0.5d from `security-hardening` add post-scope-lock. Original 70-95 widened due to attorney-separation Option B + accessor-provisioning scope expansion adding ~5d, partly offset by state-machine subset saving ~1.5d and dropped OUT-MVP capabilities.)
+**Grand total: ~77-108 engineer-days.** (Prior 70.5-100.5; +6.5-7.5d for the auth/permission redesign rolled into Wave 2 + Wave 3 from the 2026-04-28 W1 bugfix planning.) (Prior 70-100; +0.5d from `security-hardening` add post-scope-lock. Original 70-95 widened due to attorney-separation Option B + accessor-provisioning scope expansion adding ~5d, partly offset by state-machine subset saving ~1.5d and dropped OUT-MVP capabilities.)
 
 At 1 engineer (Adrian), ~16-22 calendar weeks (4-5.5 months) at 100% allocation with some parallel-PR opportunity within waves.
 
