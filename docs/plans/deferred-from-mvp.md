@@ -114,6 +114,23 @@
 
 ### Cuts logged during W1-1 execution
 
+- **Wave 2 `appointment-injury-workflow` brief covers Insurance Carrier +
+  Claim Adjuster** (the 4 OLD entities `AppointmentInjuryDetail` + body
+  parts + `AppointmentClaimExaminer` + `AppointmentPrimaryInsurance`).
+  Surfaced 2026-04-27 because `dependencies.md` cap name reads as
+  "injury only" -- creates ambiguity. Brief itself is correctly scoped.
+  Clarifying note added to the brief; no scope expansion required.
+  *Cleanup task:* refresh `docs/implementation-research/dependencies.md`
+  cap-name table during Wave 2 plan drafting to disambiguate this.
+- **Wave 1 cap `attorney-defense-patient-separation` stays cut** from
+  my W1 plan (deferred to Wave 2 or post-MVP). Defense Attorney is
+  visible in the W1-1 send-back modal as flag-only checkboxes; the
+  booker form section + entity work ships when that cap lands.
+- **Backend rename Respond -> SaveAndResubmit landed in W1-1** (commit
+  before frontend work, no proxy mismatch window). No cleanup task.
+
+### Pre-existing W1-1 ledger entry (kept for completeness)
+
 - **Tenant DbContext migration generation is broken in the repo.** Pre-existing
   before W1-1 (most recent successful `TenantMigrations/` row is dated
   2026-01-31). `dotnet ef migrations add ... --context CaseEvaluationTenantDbContext`
