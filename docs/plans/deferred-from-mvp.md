@@ -112,6 +112,36 @@
   cleanup task. Doctor row still seeds with `LastName=""` + `Gender=Male`
   placeholders; cosmetic only.
 
+### Cuts logged during W1-2 execution
+
+- **W1-2 inline email body strings instead of ABP TextTemplating.**
+  StatusChangeEmailHandler builds HTML for the 3 transition emails inline
+  (English only, hardcoded copy). Reasoning: ABP's TextTemplateManagement
+  combined with Razor partial files plus localization wiring is overkill
+  for 3 demo emails. Saves ~half a day at MVP.
+  *Cleanup task:* port the 3 inline templates to ABP TextTemplate
+  definitions when post-MVP localization or admin-editable copy is
+  needed. Provider is in place at
+  `src/HealthcareSupport.CaseEvaluation.Domain/Emailing/CaseEvaluationTemplateDefinitionProvider.cs`.
+- **W1-2 single-recipient emails** (booker only). T11 says "all-parties
+  notification on every transition" -- patient + applicant attorney +
+  defense attorney + insurance carrier + claim examiner + doctor's
+  office + (case-by-case) employer. At MVP, only the appointment's
+  IdentityUser (the booker) receives an email per transition.
+  *Cleanup task:* expand StatusChangeEmailHandler.ResolveRecipientEmailAsync
+  to the full all-parties list. Depends on W2 caps shipping the
+  Insurance Carrier + Claim Adjuster + Defense Attorney entities (the
+  recipient sources don't exist yet).
+- **W1-2 SMS path skipped entirely.** No SMS sender wired; no SMS
+  templates. Per dependencies.md scope-lock 2026-04-24.
+- **W1-2 initial-submission email skipped.** No email fires when an
+  appointment lands at Pending on initial submit (status fires only on
+  transitions, not on creation). The office sees new appointments in
+  their queue immediately so no functional gap; bookers see a success
+  toast on submit.
+  *Cleanup task:* add an AppointmentSubmittedEto + handler if office
+  feedback shows they want creation emails too.
+
 ### Cuts logged during W1-1 execution
 
 - **Wave 2 `appointment-injury-workflow` brief covers Insurance Carrier +
