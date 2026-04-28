@@ -67,5 +67,11 @@ public static class CaseEvaluationSettings
         // CSV string of email addresses CC'd on every all-parties notification email.
         // Default empty (no CC); admins set per-tenant.
         public const string CcEmailAddresses = Notifications + ".CcEmailAddresses";
+
+        // Single email address that receives "new appointment request" notifications
+        // for the tenant. Used by W1-1f-A-cleanup SubmissionEmailHandler. Default empty
+        // (no email sent if unset). Tenant-scoped -- each practice sets their own
+        // reception inbox in /setting-management.
+        public const string OfficeEmail = Notifications + ".OfficeEmail";
     }
 }

@@ -20,6 +20,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -44,8 +45,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected AppointmentApplicantAttorneyManager _appointmentApplicantAttorneyManager;
     protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
+    protected ILocalEventBus _localEventBus;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, ILocalEventBus localEventBus)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -60,6 +62,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _applicantAttorneyManager = applicantAttorneyManager;
         _appointmentApplicantAttorneyManager = appointmentApplicantAttorneyManager;
         _sendBackInfoRepository = sendBackInfoRepository;
+        _localEventBus = localEventBus;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -212,6 +215,19 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // approves, or Reserved -> Available when the office rejects.
         doctorAvailability.BookingStatusId = BookingStatus.Reserved;
         await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
+
+        // W1-1f-A-cleanup (Cap B): publish the submission event so SubmissionEmailHandler
+        // dispatches the office "new request" email + the booker "request received"
+        // confirmation. Distinct from AppointmentStatusChangedEto (which fires only
+        // on transitions, not on initial creation).
+        await _localEventBus.PublishAsync(new AppointmentSubmittedEto(
+            appointmentId: appointment.Id,
+            tenantId: appointment.TenantId,
+            bookerUserId: appointment.IdentityUserId,
+            patientId: appointment.PatientId,
+            requestConfirmationNumber: appointment.RequestConfirmationNumber,
+            appointmentDate: appointment.AppointmentDate,
+            submittedAt: DateTime.UtcNow));
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }

@@ -139,8 +139,12 @@
   transitions, not on creation). The office sees new appointments in
   their queue immediately so no functional gap; bookers see a success
   toast on submit.
-  *Cleanup task:* add an AppointmentSubmittedEto + handler if office
-  feedback shows they want creation emails too.
+  **[LANDED IN W1-CLEANUP]** (2026-04-28): AppointmentSubmittedEto
+  published from AppointmentsAppService.CreateAsync; new
+  SubmissionEmailHandler dispatches the office "new request" email
+  (recipient pulled from `CaseEvaluation.Notifications.OfficeEmail`
+  ABP setting per tenant) and a booker "request received" confirmation
+  email. Office email skipped silently if the setting is empty.
 
 ### Cuts logged during W1-1 execution
 
