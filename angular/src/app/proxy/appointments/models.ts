@@ -72,6 +72,27 @@ export interface AppointmentWithNavigationPropertiesDto {
   appointmentApplicantAttorney?: AppointmentApplicantAttorneyWithNavigationPropertiesDto;
 }
 
+export interface RejectAppointmentInput {
+  reason?: string;
+}
+
+export interface SendBackAppointmentInput {
+  flaggedFields: string[];
+  note?: string;
+}
+
+export interface AppointmentSendBackInfoDto {
+  id: string;
+  tenantId?: string;
+  appointmentId: string;
+  flaggedFields: string[];
+  note?: string;
+  sentBackAt: string;
+  sentBackByUserId?: string;
+  isResolved: boolean;
+  resolvedAt?: string;
+}
+
 export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   filterText?: string;
   panelNumber?: string;

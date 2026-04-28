@@ -10,17 +10,28 @@ import {
   RestService,
 } from '@abp/ng.core';
 import type {
+  AppointmentDto,
+  AppointmentSendBackInfoDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
+import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
+import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
+import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
+import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
+import { buildFlaggedFieldLookup } from '../send-back-fields';
+
+type TransitionAction = 'approve' | 'reject' | 'sendBack';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -50,6 +61,10 @@ type AppointmentAuthorizedUserRow = {
     LocalizationPipe,
     LookupSelectComponent,
     NgbDatepickerModule,
+    ApproveConfirmationModalComponent,
+    RejectAppointmentModalComponent,
+    SendBackAppointmentModalComponent,
+    AppointmentDocumentsComponent,
   ],
   templateUrl: './appointment-view.component.html',
 })
@@ -59,6 +74,16 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
+  private readonly toaster = inject(ToasterService);
+
+  // W1-1: state-machine transition UI
+  readonly AppointmentStatusType = AppointmentStatusType;
+  selectedAction: TransitionAction | '' = '';
+  approveModalVisible = false;
+  rejectModalVisible = false;
+  sendBackModalVisible = false;
+  latestSendBackInfo: AppointmentSendBackInfoDto | null = null;
+  private readonly flaggedFieldLookup = buildFlaggedFieldLookup();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
@@ -207,6 +232,7 @@ export class AppointmentViewComponent implements OnInit {
           refferedBy: patient?.refferedBy ?? '',
         };
         this.stateIdControl.setValue(patient?.stateId ?? null, { emitEvent: false });
+        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
         this.isLoading = false;
       },
       error: () => {
@@ -231,6 +257,173 @@ export class AppointmentViewComponent implements OnInit {
   get isApplicantAttorney(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
     return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
+  }
+
+  // ----- W1-1 transition state-machine UI helpers -----
+
+  get currentStatus(): AppointmentStatusType | undefined {
+    return this.appointment?.appointment?.appointmentStatus as AppointmentStatusType | undefined;
+  }
+
+  /**
+   * Internal user with the right to take office actions on this appointment.
+   * MVP heuristic: any user who is NOT an external booker. Server-side
+   * `[Authorize(CaseEvaluationPermissions.Appointments.Edit)]` is the
+   * authoritative gate; this getter just hides the dropdown for external
+   * users. Tightening to a proper PermissionService check is on the ledger.
+   */
+  get canTakeOfficeAction(): boolean {
+    if (!this.appointment) {
+      return false;
+    }
+    const status = this.currentStatus;
+    const officeStatuses: AppointmentStatusType[] = [
+      AppointmentStatusType.Pending,
+      AppointmentStatusType.AwaitingMoreInfo,
+    ];
+    return (
+      !this.isExternalUserNonPatient && status !== undefined && officeStatuses.includes(status)
+    );
+  }
+
+  /**
+   * Action keys the office can pick at the current status.
+   *  Pending: approve | reject | sendBack
+   *  AwaitingMoreInfo: approve | reject  (sendBack would be redundant)
+   */
+  get availableActions(): TransitionAction[] {
+    const status = this.currentStatus;
+    if (status === AppointmentStatusType.Pending) {
+      return ['approve', 'reject', 'sendBack'];
+    }
+    if (status === AppointmentStatusType.AwaitingMoreInfo) {
+      return ['approve', 'reject'];
+    }
+    return [];
+  }
+
+  /**
+   * Booker mode: the appointment is in AwaitingMoreInfo and the current user
+   * is its creator. Server-side ownership enforcement is deferred (ledger);
+   * MVP relies on this UI gate plus the standard tenant filter.
+   */
+  get isResubmitMode(): boolean {
+    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
+      return false;
+    }
+    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
+    const creatorId = this.appointment?.appointment?.creatorId;
+    return !!currentUserId && !!creatorId && currentUserId === creatorId;
+  }
+
+  /**
+   * Distinct sections containing flagged fields. Used to render the amber
+   * pills on the booker banner.
+   */
+  get flaggedSections(): { sectionId: string; sectionLabel: string }[] {
+    if (!this.latestSendBackInfo?.flaggedFields?.length) {
+      return [];
+    }
+    const seen = new Map<string, { sectionId: string; sectionLabel: string }>();
+    for (const key of this.latestSendBackInfo.flaggedFields) {
+      const meta = this.flaggedFieldLookup.get(key);
+      if (meta && !seen.has(meta.sectionId)) {
+        seen.set(meta.sectionId, { sectionId: meta.sectionId, sectionLabel: meta.sectionLabel });
+      }
+    }
+    return Array.from(seen.values());
+  }
+
+  /**
+   * Field-level labels for the "Specific fields flagged" banner subsection.
+   * Falls back to the raw key if the lookup misses (e.g. office flagged a
+   * field name we no longer recognise after a rename).
+   */
+  get flaggedFieldLabels(): string[] {
+    if (!this.latestSendBackInfo?.flaggedFields?.length) {
+      return [];
+    }
+    return this.latestSendBackInfo.flaggedFields.map((key) => {
+      const meta = this.flaggedFieldLookup.get(key);
+      return meta ? `${meta.sectionLabel}: ${meta.fieldLabel}` : key;
+    });
+  }
+
+  /** Triggered when the office clicks Submit on the action dropdown. */
+  dispatchAction(): void {
+    if (!this.appointment?.appointment?.id || !this.selectedAction) {
+      return;
+    }
+    switch (this.selectedAction) {
+      case 'approve':
+        this.approveModalVisible = true;
+        break;
+      case 'reject':
+        this.rejectModalVisible = true;
+        break;
+      case 'sendBack':
+        this.sendBackModalVisible = true;
+        break;
+    }
+  }
+
+  /** Modal-success callback: refresh nav-properties + reset dropdown. */
+  onActionSucceeded(_dto: AppointmentDto): void {
+    this.selectedAction = '';
+    const id = this.appointment?.appointment?.id;
+    if (!id) {
+      return;
+    }
+    this.appointmentService.getWithNavigationProperties(id).subscribe({
+      next: (data) => {
+        this.appointment = data;
+        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
+      },
+    });
+  }
+
+  /**
+   * Booker calls this from the Save & Resubmit button. We persist patient/
+   * employer/attorney edits via the standard save() path, then fire the
+   * SaveAndResubmit transition which auto-flips status to Pending and
+   * marks the latest send-back row resolved server-side.
+   */
+  saveAndResubmit(): void {
+    const id = this.appointment?.appointment?.id;
+    if (!id || this.isSaving) {
+      return;
+    }
+    this.save();
+    // After save() resolves successfully, fire the transition. We wait one
+    // tick so the in-flight PUT for patient/employer/attorney lands first;
+    // the transition itself does not depend on the save's response payload.
+    setTimeout(() => {
+      this.appointmentService.saveAndResubmit(id).subscribe({
+        next: (dto) => {
+          this.toaster.success('::Appointment:Toast:Resubmitted');
+          this.latestSendBackInfo = null;
+          this.onActionSucceeded(dto);
+        },
+      });
+    }, 0);
+  }
+
+  private maybeLoadLatestSendBackInfo(
+    appointmentId: string | undefined,
+    status: AppointmentStatusType | undefined,
+  ): void {
+    if (!appointmentId || status !== AppointmentStatusType.AwaitingMoreInfo) {
+      this.latestSendBackInfo = null;
+      return;
+    }
+    this.appointmentService.getLatestUnresolvedSendBackInfo(appointmentId).subscribe({
+      next: (info) => {
+        this.latestSendBackInfo = info;
+      },
+      error: () => {
+        this.latestSendBackInfo = null;
+      },
+    });
   }
 
   save(): void {

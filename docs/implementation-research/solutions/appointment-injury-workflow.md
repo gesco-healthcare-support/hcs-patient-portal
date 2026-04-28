@@ -1,5 +1,17 @@
 # Appointment injury details + body parts + claim examiner + primary insurance
 
+## Wave 1 confirmation note (2026-04-27)
+
+This brief was already in-scope for Insurance Carrier (= `AppointmentPrimaryInsurance`)
+and Claim Adjuster (= `AppointmentClaimExaminer`) per the title and source gaps
+DB-07 + DB-08. Adrian's W1-1 frontend Q1b answer surfaced an apparent gap in the
+`dependencies.md` summary -- the cap name `appointment-injury-workflow` reads as
+"injury only" but the underlying scope (per this brief) covers all 4 entities:
+`AppointmentInjuryDetail` + body parts + `AppointmentClaimExaminer` + `AppointmentPrimaryInsurance`.
+No scope expansion required; only documentation clarification. The W1-1 send-back
+modal includes Insurance Carrier + Claim Adjuster checkboxes (visible-only at W1
+since the form sections do not ship until this Wave 2 cap lands).
+
 ## Source gap IDs
 
 - [G2-07 (track 02)](../../gap-analysis/02-domain-entities-services.md) -- "AppointmentInjuryDetail + 3 sub-entities (Body Parts + Claim Examiners + Primary Insurance)". Severity MVP-blocking, inventory effort L (7+ days).

@@ -99,6 +99,15 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    public static class AppointmentDocuments
+    {
+        public const string Default = GroupName + ".AppointmentDocuments";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+        // W1-3 cut: Edit + Approve permissions deferred until the doc-status
+        // workflow ships post-MVP.
+    }
+
     public static class AppointmentEmployerDetails
     {
         public const string Default = GroupName + ".AppointmentEmployerDetails";
