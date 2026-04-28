@@ -38,12 +38,20 @@
 - W0-1 data-quality fix: derived CaseEvaluationSaasTenantCreateDto carrying real
   FirstName/LastName/Gender for the onboarded Doctor + Angular tenant-create form
   widening. Doctor rows currently get LastName="" + Gender=Male placeholders.
-  *Note: this MAY land in Wave 1 if the Wave 1 plan rolls it into housekeeping;
-  if so, mark it [LANDED IN W1-X] here when it ships.*
+  **CUT FROM W1-0** (2026-04-27): widening the volo SaaS Host vendor-module
+  Angular page (the Adrian-side admin tenant-create form) requires verifying
+  ABP's `ObjectExtensionManager.ConfigureSaas()` machinery propagates create-DTO
+  extra properties through to the vendor Angular form, OR replacing the volo
+  page with a custom Angular tenant-create page. Non-trivial; demo-non-blocking
+  (Doctor display name shows in admin lists only, not in any demo flow). Pick
+  back up post-W3 cleanup.
 - W0-8 AppService delegation:
   PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync
-  still uses email-only lookup. Wire to PatientManager.FindOrCreateAsync. Same
-  note -- likely lands in Wave 1 with appointment-state-machine.
+  still uses email-only lookup. Wire to PatientManager.FindOrCreateAsync.
+  **[LANDED IN W1-0]** (2026-04-27): wired in
+  src/HealthcareSupport.CaseEvaluation.Application/Patients/PatientsAppService.cs.
+  Email pre-check kept as fast-path; FindOrCreateAsync runs after IdentityUser
+  resolution as 3-of-6 fuzzy-match safety net.
 
 ### W0-7 cosmetic gaps (verified 2026-04-27)
 
