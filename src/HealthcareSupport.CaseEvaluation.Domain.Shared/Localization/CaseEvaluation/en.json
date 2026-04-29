@@ -295,6 +295,7 @@
     "Permission:AppointmentChangeLogs": "View Change Logs",
     "Permission:CustomFields": "Custom Fields (per-AppointmentType config)",
     "FieldName": "Field Name",
+    "Dashboard:Title": "Dashboard",
     "Appointment:Action:Submit": "Submit",
     "Appointment:Action:Cancel": "Cancel",
     "Appointment:Action:ChooseAction": "Choose action...",
