@@ -56,6 +56,12 @@ export abstract class AbstractAppointmentComponent implements OnInit {
 
     const canEdit = this.permissionService.getGrantedPolicy('CaseEvaluation.Appointments.Edit');
     const canDelete = this.permissionService.getGrantedPolicy('CaseEvaluation.Appointments.Delete');
-    this.isActionButtonVisible = canEdit || canDelete;
+    // W2-1: Review (read-only drill-down to /appointments/view/:id) is gated
+    // by the broader Default permission so tenant admins / office staff who
+    // can list appointments can drill in even without Edit/Delete grants.
+    const canReview = this.permissionService.getGrantedPolicy(
+      'CaseEvaluation.Appointments.Default',
+    );
+    this.isActionButtonVisible = canEdit || canDelete || canReview;
   }
 }

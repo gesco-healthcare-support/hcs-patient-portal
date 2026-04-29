@@ -73,5 +73,11 @@ public static class CaseEvaluationSettings
         // (no email sent if unset). Tenant-scoped -- each practice sets their own
         // reception inbox in /setting-management.
         public const string OfficeEmail = Notifications + ".OfficeEmail";
+
+        // Public base URL of the Angular portal, used to build deep-links in
+        // outgoing emails (e.g. SendBack notifications referencing
+        // /appointments/view/:id). Default http://localhost:4200 for dev; admins
+        // override per-tenant in /setting-management for prod / staging URLs.
+        public const string PortalBaseUrl = Notifications + ".PortalBaseUrl";
     }
 }

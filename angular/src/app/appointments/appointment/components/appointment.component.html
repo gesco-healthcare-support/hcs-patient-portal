@@ -232,6 +232,14 @@
                 </button>
 
                 <div ngbDropdownMenu>
+                  <a
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Appointments.Default'"
+                    [routerLink]="['/appointments/view', row.appointment.id]"
+                  >
+                    {{ '::Appointment:Action:Review' | abpLocalization }}
+                  </a>
+
                   <button
                     ngbDropdownItem
                     *abpPermission="'CaseEvaluation.Appointments.Edit'"

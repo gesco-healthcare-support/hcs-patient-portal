@@ -5,12 +5,14 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Handlers;
@@ -41,6 +43,7 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
 
     public StatusChangeEmailHandler(
@@ -49,6 +52,7 @@ public class StatusChangeEmailHandler :
         IRepository<IdentityUser, Guid> identityUserRepository,
         IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
         IBackgroundJobManager backgroundJobManager,
+        ISettingProvider settingProvider,
         ILogger<StatusChangeEmailHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -56,6 +60,7 @@ public class StatusChangeEmailHandler :
         _identityUserRepository = identityUserRepository;
         _sendBackInfoRepository = sendBackInfoRepository;
         _backgroundJobManager = backgroundJobManager;
+        _settingProvider = settingProvider;
         _logger = logger;
     }
 
@@ -157,12 +162,13 @@ public class StatusChangeEmailHandler :
                 var fieldsLine = sendBack?.GetFlaggedFields().Count > 0
                     ? $"Please revisit the flagged fields highlighted on your appointment page: {string.Join(", ", sendBack.GetFlaggedFields())}."
                     : "Please review and resubmit your request.";
+                var deepLink = await BuildAppointmentViewLinkAsync(appointment.Id);
                 return (
                     $"Appointment {confirmation} needs more information",
                     BuildHtml(
                         title: "The office requested changes",
                         intro: $"Confirmation #{confirmation} (requested for {date}) was sent back for more info.",
-                        details: $"<p><strong>Office's note:</strong> {WebEncode(note)}</p><p>{fieldsLine}</p><p>Open the appointment in the patient portal to make changes and resubmit.</p>"));
+                        details: $"<p><strong>Office's note:</strong> {WebEncode(note)}</p><p>{fieldsLine}</p><p><a href=\"{deepLink}\">Open the appointment in the patient portal</a> to make changes and resubmit.</p>"));
             default:
                 throw new ArgumentOutOfRangeException(nameof(template), template, null);
         }
@@ -175,6 +181,19 @@ public class StatusChangeEmailHandler :
             .Where(x => x.AppointmentId == appointmentId)
             .OrderByDescending(x => x.SentBackAt)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Builds an absolute deep-link to the appointment view page, sourcing the
+    /// portal base URL from the per-tenant <c>CaseEvaluation.Notifications.PortalBaseUrl</c>
+    /// setting (defaults to <c>http://localhost:4200</c> for dev). Trailing
+    /// slashes on the base URL are stripped so the joined path stays clean.
+    /// </summary>
+    private async Task<string> BuildAppointmentViewLinkAsync(Guid appointmentId)
+    {
+        var configured = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+        var baseUrl = string.IsNullOrWhiteSpace(configured) ? "http://localhost:4200" : configured!.TrimEnd('/');
+        return $"{baseUrl}/appointments/view/{appointmentId}";
     }
 
     private static string BuildHtml(string title, string intro, string details)
