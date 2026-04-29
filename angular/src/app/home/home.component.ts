@@ -62,14 +62,19 @@ export class HomeComponent implements OnInit {
     return this.authService.isAuthenticated;
   }
 
-  /** Patient, Applicant Attorney, and Defense Attorney share the same layout. */
+  /** Patient, Applicant Attorney, Defense Attorney, and Claim Examiner share the same layout. */
   get isPatientUser(): boolean {
     if (!this.hasLoggedIn) {
       return false;
     }
 
     const roles = this.currentUser?.roles ?? [];
-    const externalUserRoles = new Set(['patient', 'applicant attorney', 'defense attorney']);
+    const externalUserRoles = new Set([
+      'patient',
+      'applicant attorney',
+      'defense attorney',
+      'claim examiner',
+    ]);
     return roles.some((role) => externalUserRoles.has(role?.toLowerCase() ?? ''));
   }
 
@@ -116,6 +121,11 @@ export class HomeComponent implements OnInit {
 
   bookAppointment() {
     this.router.navigateByUrl('/appointments/add?type=1');
+  }
+
+  /** W2-2: Re-evaluation flow uses appointment-add with type=2; same form, different downstream filtering. */
+  bookReEvaluation() {
+    this.router.navigateByUrl('/appointments/add?type=2');
   }
 
   openAppointmentDetail(appointmentId?: string): void {
