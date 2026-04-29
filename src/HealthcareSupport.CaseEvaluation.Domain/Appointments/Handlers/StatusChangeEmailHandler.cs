@@ -103,9 +103,17 @@ public class StatusChangeEmailHandler :
 
     private enum EmailTemplate { Approved, Rejected, SendBack }
 
-    private static EmailTemplate? ResolveTemplate(AppointmentStatusType from, AppointmentStatusType to)
+    // W2-3: from/to are now nullable on the ETO so initial-create + delete
+    // events flow through the same handler chain. Non-transition events
+    // (no ToStatus, or a ToStatus not in the transition templates) just
+    // return null which short-circuits the email send.
+    private static EmailTemplate? ResolveTemplate(AppointmentStatusType? from, AppointmentStatusType? to)
     {
-        return to switch
+        if (!to.HasValue)
+        {
+            return null;
+        }
+        return to.Value switch
         {
             AppointmentStatusType.Approved => EmailTemplate.Approved,
             AppointmentStatusType.Rejected => EmailTemplate.Rejected,

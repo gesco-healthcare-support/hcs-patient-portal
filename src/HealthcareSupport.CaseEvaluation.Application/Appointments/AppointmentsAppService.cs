@@ -232,6 +232,25 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // W2-3: snapshot the appointment's slot before delete, then publish
+        // AppointmentStatusChangedEto with ToStatus = null so SlotCascadeHandler
+        // frees the slot. The publish runs INSIDE this UoW so the slot flip
+        // commits atomically with the delete; if the cascade throws, the delete
+        // rolls back too.
+        var appointment = await _appointmentRepository.FindAsync(id);
+        if (appointment != null)
+        {
+            await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
+                appointmentId: appointment.Id,
+                tenantId: appointment.TenantId,
+                fromStatus: appointment.AppointmentStatus,
+                toStatus: null,
+                actingUserId: CurrentUser.Id,
+                reason: null,
+                occurredAt: DateTime.UtcNow,
+                doctorAvailabilityId: appointment.DoctorAvailabilityId));
+        }
+
         await _appointmentRepository.DeleteAsync(id);
     }
 
@@ -282,11 +301,20 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // / SendBack endpoints exposed on AppointmentManager.
         var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, AppointmentStatusType.Pending, input.PanelNumber, input.DueDate);
 
-        // W1-1: per T11 slot-sync, submission moves the slot Available -> Reserved
-        // (NOT Booked). The slot cascade flips Reserved -> Booked when the office
-        // approves, or Reserved -> Available when the office rejects.
-        doctorAvailability.BookingStatusId = BookingStatus.Reserved;
-        await _doctorAvailabilityRepository.UpdateAsync(doctorAvailability);
+        // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
+        // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
+        // funnels it through the SlotCascadeHandler so all slot writes have a
+        // single source of truth. FromStatus is null to mark this as the
+        // initial-create entry into the lifecycle.
+        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
+            appointmentId: appointment.Id,
+            tenantId: appointment.TenantId,
+            fromStatus: null,
+            toStatus: appointment.AppointmentStatus,
+            actingUserId: CurrentUser.Id,
+            reason: null,
+            occurredAt: DateTime.UtcNow,
+            doctorAvailabilityId: appointment.DoctorAvailabilityId));
 
         // W1-1f-A-cleanup (Cap B): publish the submission event so SubmissionEmailHandler
         // dispatches the office "new request" email + the booker "request received"
@@ -419,7 +447,30 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The {0} field is required.", L["DoctorAvailability"]]);
         }
 
+        // W2-3: snapshot the prior slot ID so we can detect a slot-pointer
+        // change (reschedule) and publish an ETO with both old + new slots so
+        // SlotCascadeHandler frees the old slot and reserves/books the new one
+        // atomically. AppointmentManager.UpdateAsync mutates the entity in
+        // place; comparison after the call is against input.DoctorAvailabilityId.
+        var existing = await _appointmentRepository.FindAsync(id);
+        var oldSlotId = existing?.DoctorAvailabilityId;
+
         var appointment = await _appointmentManager.UpdateAsync(id, input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, input.PanelNumber, input.DueDate, input.ConcurrencyStamp);
+
+        if (oldSlotId.HasValue && oldSlotId.Value != appointment.DoctorAvailabilityId)
+        {
+            await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
+                appointmentId: appointment.Id,
+                tenantId: appointment.TenantId,
+                fromStatus: appointment.AppointmentStatus,
+                toStatus: appointment.AppointmentStatus,
+                actingUserId: CurrentUser.Id,
+                reason: null,
+                occurredAt: DateTime.UtcNow,
+                doctorAvailabilityId: appointment.DoctorAvailabilityId,
+                oldDoctorAvailabilityId: oldSlotId));
+        }
+
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
