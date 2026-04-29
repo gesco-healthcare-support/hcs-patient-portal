@@ -44,6 +44,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<Appointment> Appointments { get; set; } = null!;
     public DbSet<AppointmentSendBackInfo> AppointmentSendBackInfos { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
@@ -253,6 +254,28 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ContentType).HasColumnName("ContentType").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.ContentTypeMaxLength);
             b.Property(x => x.FileSize).HasColumnName("FileSize");
             b.Property(x => x.UploadedByUserId).HasColumnName("UploadedByUserId");
+            // W2-11: review-state columns.
+            b.Property(x => x.Status).HasColumnName("Status").HasDefaultValue(HealthcareSupport.CaseEvaluation.AppointmentDocuments.DocumentStatus.Uploaded);
+            b.Property(x => x.RejectionReason).HasColumnName("RejectionReason").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.RejectionReasonMaxLength);
+            b.Property(x => x.ResponsibleUserId).HasColumnName("ResponsibleUserId");
+            b.Property(x => x.RejectedByUserId).HasColumnName("RejectedByUserId");
+            b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => new { x.AppointmentId, x.Status });
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // W2-11: AppointmentPacket -- per-appointment merged-PDF metadata row.
+        builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentPackets", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.BlobNameMaxLength);
+            b.Property(x => x.Status).HasColumnName("Status");
+            b.Property(x => x.GeneratedAt).HasColumnName("GeneratedAt");
+            b.Property(x => x.RegeneratedAt).HasColumnName("RegeneratedAt");
+            b.Property(x => x.ErrorMessage).HasColumnName("ErrorMessage").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.ErrorMessageMaxLength);
             b.HasIndex(x => x.AppointmentId);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });

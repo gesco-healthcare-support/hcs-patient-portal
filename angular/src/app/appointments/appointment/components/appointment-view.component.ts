@@ -30,6 +30,7 @@ import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
+import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { buildFlaggedFieldLookup } from '../send-back-fields';
 
 type TransitionAction = 'approve' | 'reject' | 'sendBack';
@@ -68,6 +69,7 @@ type AppointmentAuthorizedUserRow = {
     RejectAppointmentModalComponent,
     SendBackAppointmentModalComponent,
     AppointmentDocumentsComponent,
+    AppointmentPacketComponent,
   ],
   templateUrl: './appointment-view.component.html',
 })

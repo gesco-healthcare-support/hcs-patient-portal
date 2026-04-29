@@ -77,9 +77,7 @@ export abstract class AbstractAppointmentComponent implements OnInit {
     // W2-1: Review (read-only drill-down to /appointments/view/:id) is gated
     // by the broader Default permission so tenant admins / office staff who
     // can list appointments can drill in even without Edit/Delete grants.
-    const canReview = this.permissionService.getGrantedPolicy(
-      'CaseEvaluation.Appointments.Default',
-    );
+    const canReview = this.permissionService.getGrantedPolicy('CaseEvaluation.Appointments');
     this.isActionButtonVisible = canEdit || canDelete || canReview;
   }
 }

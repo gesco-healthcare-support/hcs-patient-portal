@@ -113,7 +113,12 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
 
         var appointmentDocumentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocuments.Default, L("Permission:AppointmentDocuments"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Create, L("Permission:Create"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Edit, L("Permission:Edit"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Delete, L("Permission:Delete"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Approve, L("Permission:Approve"));
+
+        var appointmentPacketsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
+        appointmentPacketsPermission.AddChild(CaseEvaluationPermissions.AppointmentPackets.Regenerate, L("Permission:Regenerate"));
     }
 
     private static LocalizableString L(string name)

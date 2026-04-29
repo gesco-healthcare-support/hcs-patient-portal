@@ -740,7 +740,13 @@
 
     <app-appointment-documents
       [appointmentId]="appointment.appointment?.id ?? null"
+      (documentsChanged)="packetPanel.refresh()"
     ></app-appointment-documents>
+
+    <app-appointment-packet
+      #packetPanel
+      [appointmentId]="appointment.appointment?.id ?? null"
+    ></app-appointment-packet>
   }
 
   @if (isAuthorizedUserModalOpen) {

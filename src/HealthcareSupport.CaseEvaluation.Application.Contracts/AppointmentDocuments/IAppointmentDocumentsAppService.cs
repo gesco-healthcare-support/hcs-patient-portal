@@ -25,6 +25,15 @@ public interface IAppointmentDocumentsAppService
     Task<DownloadResult> DownloadAsync(Guid id);
 
     Task DeleteAsync(Guid id);
+
+    /// <summary>W2-11: flip a document's status to Approved. Sets ResponsibleUserId.</summary>
+    Task<AppointmentDocumentDto> ApproveAsync(Guid id);
+
+    /// <summary>W2-11: flip a document's status to Rejected with a required reason. Sets RejectedByUserId.</summary>
+    Task<AppointmentDocumentDto> RejectAsync(Guid id, RejectDocumentInput input);
+
+    /// <summary>W2-11: re-trigger the packet generation job for an appointment.</summary>
+    Task RegeneratePacketAsync(Guid appointmentId);
 }
 
 /// <summary>

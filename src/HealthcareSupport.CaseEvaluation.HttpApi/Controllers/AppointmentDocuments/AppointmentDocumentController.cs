@@ -61,6 +61,24 @@ public class AppointmentDocumentController : AbpController
     {
         return _service.DeleteAsync(id);
     }
+
+    [HttpPost("{id}/approve")]
+    public virtual Task<AppointmentDocumentDto> ApproveAsync(Guid appointmentId, Guid id)
+    {
+        return _service.ApproveAsync(id);
+    }
+
+    [HttpPost("{id}/reject")]
+    public virtual Task<AppointmentDocumentDto> RejectAsync(Guid appointmentId, Guid id, [FromBody] RejectDocumentInput input)
+    {
+        return _service.RejectAsync(id, input);
+    }
+
+    [HttpPost("/api/app/appointments/{appointmentId}/packet/regenerate")]
+    public virtual Task RegeneratePacketAsync(Guid appointmentId)
+    {
+        return _service.RegeneratePacketAsync(appointmentId);
+    }
 }
 
 /// <summary>

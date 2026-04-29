@@ -55,7 +55,12 @@
           <div class="doc-row">
             <i class="fa fa-file fa-lg text-primary"></i>
             <div class="flex-grow-1">
-              <div class="fw-semibold">{{ doc.documentName }}</div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">{{ doc.documentName }}</span>
+                <span class="badge badge-status {{ statusBadgeClass(doc.status) }}">
+                  {{ statusLabel(doc.status) }}
+                </span>
+              </div>
               <div class="doc-meta">
                 {{ doc.fileName }} &middot; {{ formatBytes(doc.fileSize) }}
                 @if (doc.contentType) {
@@ -65,6 +70,13 @@
                   &middot; {{ doc.creationTime | date: 'MMM d, yyyy h:mm a' }}
                 }
               </div>
+              @if (doc.status === DocumentStatus.Rejected && doc.rejectionReason) {
+                <div class="doc-rejection">
+                  <i class="fa fa-triangle-exclamation me-1"></i>
+                  <strong>Reason:</strong>
+                  {{ doc.rejectionReason }}
+                </div>
+              }
             </div>
             <button
               type="button"
@@ -74,6 +86,26 @@
             >
               <i class="fa fa-download"></i>
             </button>
+            @if (canApprove && doc.status !== DocumentStatus.Approved) {
+              <button
+                type="button"
+                class="btn btn-outline-success btn-sm"
+                (click)="approve(doc)"
+                title="Approve"
+              >
+                <i class="fa fa-check"></i>
+              </button>
+            }
+            @if (canApprove && doc.status !== DocumentStatus.Rejected) {
+              <button
+                type="button"
+                class="btn btn-outline-warning btn-sm"
+                (click)="openRejectModal(doc)"
+                title="Reject"
+              >
+                <i class="fa fa-xmark"></i>
+              </button>
+            }
             <button
               type="button"
               class="btn btn-outline-danger btn-sm"
@@ -88,3 +120,44 @@
     }
   </div>
 </div>
+
+@if (rejectingDoc) {
+  <div class="reject-modal-backdrop" (click)="closeRejectModal()">
+    <div class="reject-modal" (click)="$event.stopPropagation()">
+      <h5 class="mb-3">Reject "{{ rejectingDoc.documentName }}"</h5>
+      <div class="mb-3">
+        <label for="reject-reason" class="form-label small text-muted">
+          Rejection Reason (required, max 500 chars)
+        </label>
+        <textarea
+          id="reject-reason"
+          class="form-control"
+          rows="4"
+          [(ngModel)]="rejectionReason"
+          name="reject-reason"
+          maxlength="500"
+          placeholder="Explain why this document is being rejected so the booker can correct and re-upload."
+        ></textarea>
+        <div class="small text-muted text-end mt-1">{{ rejectionReason.length }} / 500</div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          (click)="closeRejectModal()"
+          [disabled]="isSubmittingReject"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-warning btn-sm"
+          (click)="submitReject()"
+          [disabled]="isSubmittingReject || !rejectionReason.trim()"
+        >
+          {{ isSubmittingReject ? 'Submitting...' : 'Reject Document' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

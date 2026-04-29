@@ -103,9 +103,15 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".AppointmentDocuments";
         public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";       // W2-11: edit rejection reason / re-action a document.
         public const string Delete = Default + ".Delete";
-        // W1-3 cut: Edit + Approve permissions deferred until the doc-status
-        // workflow ships post-MVP.
+        public const string Approve = Default + ".Approve"; // W2-11: approve / reject uploaded documents.
+    }
+
+    public static class AppointmentPackets
+    {
+        public const string Default = GroupName + ".AppointmentPackets";
+        public const string Regenerate = Default + ".Regenerate";
     }
 
     public static class AppointmentEmployerDetails
