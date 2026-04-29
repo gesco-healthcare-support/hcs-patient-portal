@@ -204,6 +204,23 @@ Adrian smoke-tested the post-W1 docker stack 2026-04-28 and reported slow loads 
 - **F4-mini -- queue-grid Review link** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). Tenant admin / office staff currently cannot drill from `/appointments` (the queue grid) into `/appointments/view/:id` to use the W1-1 Approve / Reject / SendBack dropdown. Add a "Review" `<a routerLink>` item to the actions dropdown in `angular/src/app/appointments/appointment/components/appointment.component.html` (next to Edit + Delete). Permission gate: visible to anyone with `CaseEvaluation.Appointments.Default`. ~XS effort (~0.5d).
 - **F4-mini -- read-only edit-mode gate on appointment-view** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). External users currently get a fully-editable view page or a 403; should see read-only fields by default, with edit unlocked ONLY when status = `AwaitingMoreInfo` AND the field appears in `latestSendBackInfo.flaggedFields`. Tenant admin / office staff stay editable subject to existing permission gates. Pairs with F3-full / F4-full in Wave 3 but lands first as a small targeted change so the demo path improves before W3 ships. ~S effort (~1d).
 
+### W1-1 polish carry-overs deferred (added 2026-04-29 Wave 2 Phase A prep)
+
+The Phase-A read of `appointment-view.component.ts:391-427` and
+`StatusChangeEmailHandler.cs:62-189` produced a 12-item polish list (full table in
+the canonical Wave 2 plan at
+`C:\Users\RajeevG\.claude\plans\we-are-implementing-this-eager-reddy.md`,
+section "W1-1 polish carry-overs"). Items 1-5 land inside Wave 2 (pre-T0 sweep
+and W2-1). Items 6-12 are out-of-W2 scope and deferred here:
+
+- **Approved transition email content review** (item 6). `StatusChangeEmailHandler.cs:135-141` produces an inline-HTML body with no doctor name, no clinic address, no time-zone-aware date display. Bundle the rewrite with the existing W1-2 ABP TextTemplating port (already on this ledger above).
+- **Rejected transition email content review** (item 7). `StatusChangeEmailHandler.cs:142-151` body is "Reason from the office: X" with no rebooking guidance and no link to start a new request. Bundle with #6.
+- **SendBack transition email content review** (item 8). `StatusChangeEmailHandler.cs:152-165` adequate but reuses generic phrasing; clinic-customizable copy needs ABP TextTemplating. Bundle with #6.
+- **Tenant-customized email From-name** (item 9). `StatusChangeEmailHandler.cs` uses ABP default sender; no per-tenant clinic-name override site exists. W2-10 carries tenant context via the recipient resolver, but per-tenant From-name lookup is post-MVP.
+- **TimeZone-aware email date display** (item 10). `StatusChangeEmailHandler.cs:131` uses `appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt")` rendered in server local TZ. Bundle with localization (i18n + TZ together) post-MVP.
+- **`flaggedFieldLabels` raw-key fallback** (item 11). `appointment-view.component.ts:342-350` falls back to the raw key when the office flagged a field key not in `send-back-fields.ts` (e.g. after a future W2-5 custom-fields rename). Low impact; office workflow won't rename fields mid-flight. Pin if W2-5 changes the registry shape.
+- **Multi-send-back UI surfacing** (item 12). `appointment-view.component.ts:411-427` only drives the banner from the latest unresolved send-back. Multiple successive send-backs (office sends back twice without booker resubmitting between) work correctly server-side but the UI doesn't surface "this is your 2nd send-back". Product decision; capture Adrian's call before adding any visual treatment.
+
 (append as Wave 2 ships further)
 
 ## From Wave 3
