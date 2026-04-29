@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Doctors;
@@ -24,6 +26,8 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
 {
     public DbSet<AppointmentApplicantAttorney> AppointmentApplicantAttorneys { get; set; } = null!;
     public DbSet<ApplicantAttorney> ApplicantAttorneys { get; set; } = null!;
+    public DbSet<AppointmentDefenseAttorney> AppointmentDefenseAttorneys { get; set; } = null!;
+    public DbSet<DefenseAttorney> DefenseAttorneys { get; set; } = null!;
     public DbSet<AppointmentAccessor> AppointmentAccessors { get; set; } = null!;
     public DbSet<AppointmentEmployerDetail> AppointmentEmployerDetails { get; set; } = null!;
     public DbSet<Doctor> Doctors { get; set; } = null!;
@@ -207,6 +211,31 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentApplicantAttorney.TenantId));
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<ApplicantAttorney>().WithMany().IsRequired().HasForeignKey(x => x.ApplicantAttorneyId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<DefenseAttorney>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DefenseAttorneys", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(DefenseAttorney.TenantId));
+            b.Property(x => x.FirmName).HasColumnName(nameof(DefenseAttorney.FirmName)).HasMaxLength(DefenseAttorneyConsts.FirmNameMaxLength);
+            b.Property(x => x.FirmAddress).HasColumnName(nameof(DefenseAttorney.FirmAddress)).HasMaxLength(DefenseAttorneyConsts.FirmAddressMaxLength);
+            b.Property(x => x.WebAddress).HasColumnName(nameof(DefenseAttorney.WebAddress)).HasMaxLength(DefenseAttorneyConsts.WebAddressMaxLength);
+            b.Property(x => x.PhoneNumber).HasColumnName(nameof(DefenseAttorney.PhoneNumber)).HasMaxLength(DefenseAttorneyConsts.PhoneNumberMaxLength);
+            b.Property(x => x.FaxNumber).HasColumnName(nameof(DefenseAttorney.FaxNumber)).HasMaxLength(DefenseAttorneyConsts.FaxNumberMaxLength);
+            b.Property(x => x.Street).HasColumnName(nameof(DefenseAttorney.Street)).HasMaxLength(DefenseAttorneyConsts.StreetMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(DefenseAttorney.City)).HasMaxLength(DefenseAttorneyConsts.CityMaxLength);
+            b.Property(x => x.ZipCode).HasColumnName(nameof(DefenseAttorney.ZipCode)).HasMaxLength(DefenseAttorneyConsts.ZipCodeMaxLength);
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<AppointmentDefenseAttorney>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDefenseAttorneys", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentDefenseAttorney.TenantId));
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<DefenseAttorney>().WithMany().IsRequired().HasForeignKey(x => x.DefenseAttorneyId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
     }

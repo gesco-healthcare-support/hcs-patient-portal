@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -44,10 +46,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected AppointmentApplicantAttorneyManager _appointmentApplicantAttorneyManager;
+    protected IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
+    protected IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
+    protected DefenseAttorneyManager _defenseAttorneyManager;
+    protected AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
     protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     protected ILocalEventBus _localEventBus;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, ILocalEventBus localEventBus)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, ILocalEventBus localEventBus)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -61,6 +67,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _appointmentApplicantAttorneyManager = appointmentApplicantAttorneyManager;
+        _defenseAttorneyRepository = defenseAttorneyRepository;
+        _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
+        _defenseAttorneyManager = defenseAttorneyManager;
+        _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _sendBackInfoRepository = sendBackInfoRepository;
         _localEventBus = localEventBus;
     }
@@ -108,6 +118,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             query = query.Where(p => visiblePatientIds.Contains(p.Id));
         }
 
+        if (await IsDefenseAttorneyAsync())
+        {
+            var visiblePatientIds = await GetDefenseAttorneyVisiblePatientIdsAsync();
+            query = query.Where(p => visiblePatientIds.Contains(p.Id));
+        }
+
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Patients.Patient>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -120,8 +136,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
-        // IdentityUser is auto-tenant-filtered by ABP. For Applicant Attorney callers,
-        // restrict to (a) self plus (b) bookers on appointments visible to this attorney.
+        // IdentityUser is auto-tenant-filtered by ABP. For Applicant or Defense
+        // Attorney callers, restrict to (a) self plus (b) bookers on appointments
+        // where the attorney is named on the appointment's attorney-side join table.
         var query = (await _identityUserRepository.GetQueryableAsync())
             .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
 
@@ -129,6 +146,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             var selfId = CurrentUser.Id.Value;
             var visibleBookerIds = await GetApplicantAttorneyVisibleBookerIdsAsync();
+            query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
+        }
+
+        if (await IsDefenseAttorneyAsync() && CurrentUser.Id.HasValue)
+        {
+            var selfId = CurrentUser.Id.Value;
+            var visibleBookerIds = await GetDefenseAttorneyVisibleBookerIdsAsync();
             query = query.Where(u => u.Id == selfId || visibleBookerIds.Contains(u.Id));
         }
 
@@ -146,6 +170,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Canonical role name from ExternalUserRoleDataSeedContributor (no const exists).
         // Add role-name consts as a separate refactor; logged in deferred ledger.
         return Task.FromResult(CurrentUser.IsInRole("Applicant Attorney"));
+    }
+
+    private Task<bool> IsDefenseAttorneyAsync()
+    {
+        // W2-7 mirror of IsApplicantAttorneyAsync. Canonical role name from
+        // ExternalUserRoleDataSeedContributor; role-name consts deferred to W3
+        // F3-full audit per the deferred ledger.
+        return Task.FromResult(CurrentUser.IsInRole("Defense Attorney"));
     }
 
     private async Task<List<Guid>> GetApplicantAttorneyVisiblePatientIdsAsync()
@@ -181,6 +213,44 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return await appointmentQuery
             .Where(a => a.CreatorId == userId
                         || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
+            .Select(a => a.IdentityUserId)
+            .Distinct()
+            .ToDynamicListAsync<Guid>();
+    }
+
+    private async Task<List<Guid>> GetDefenseAttorneyVisiblePatientIdsAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return new List<Guid>();
+        }
+
+        var userId = CurrentUser.Id.Value;
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+
+        return await appointmentQuery
+            .Where(a => a.CreatorId == userId
+                        || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToDynamicListAsync<Guid>();
+    }
+
+    private async Task<List<Guid>> GetDefenseAttorneyVisibleBookerIdsAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return new List<Guid>();
+        }
+
+        var userId = CurrentUser.Id.Value;
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+
+        return await appointmentQuery
+            .Where(a => a.CreatorId == userId
+                        || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
             .Select(a => a.IdentityUserId)
             .Distinct()
             .ToDynamicListAsync<Guid>();
@@ -610,6 +680,148 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         else
         {
             await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, input.IdentityUserId);
+        }
+    }
+
+    [Authorize]
+    public virtual async Task<DefenseAttorneyDetailsDto?> GetDefenseAttorneyDetailsForBookingAsync(Guid? identityUserId = null, string? email = null)
+    {
+        Guid? resolvedUserId = identityUserId;
+        if (!resolvedUserId.HasValue && !string.IsNullOrWhiteSpace(email))
+        {
+            var userQuery = await _identityUserRepository.GetQueryableAsync();
+            var user = await AsyncExecuter.FirstOrDefaultAsync(userQuery.Where(u => u.Email != null && u.Email.ToLower() == email.Trim().ToLower()));
+            resolvedUserId = user?.Id;
+        }
+
+        if (!resolvedUserId.HasValue)
+        {
+            return null;
+        }
+
+        var defenseQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+        var defense = await AsyncExecuter.FirstOrDefaultAsync(defenseQuery.Where(a => a.IdentityUserId == resolvedUserId.Value));
+        var identityUser = await _identityUserRepository.FindAsync(resolvedUserId.Value);
+        if (identityUser == null)
+        {
+            return null;
+        }
+
+        return new DefenseAttorneyDetailsDto
+        {
+            DefenseAttorneyId = defense?.Id,
+            IdentityUserId = identityUser.Id,
+            FirstName = identityUser.Name ?? string.Empty,
+            LastName = identityUser.Surname ?? string.Empty,
+            Email = identityUser.Email ?? string.Empty,
+            FirmName = defense?.FirmName,
+            WebAddress = defense?.WebAddress,
+            PhoneNumber = defense?.PhoneNumber,
+            FaxNumber = defense?.FaxNumber,
+            Street = defense?.Street,
+            City = defense?.City,
+            StateId = defense?.StateId,
+            ZipCode = defense?.ZipCode,
+            ConcurrencyStamp = defense?.ConcurrencyStamp,
+        };
+    }
+
+    [Authorize]
+    public virtual async Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId)
+    {
+        var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
+        var item = items.FirstOrDefault();
+        if (item?.DefenseAttorney == null || item?.IdentityUser == null)
+        {
+            return null;
+        }
+
+        var d = item.DefenseAttorney;
+        var u = item.IdentityUser;
+        return new DefenseAttorneyDetailsDto
+        {
+            DefenseAttorneyId = d.Id,
+            IdentityUserId = u.Id,
+            FirstName = u.Name ?? string.Empty,
+            LastName = u.Surname ?? string.Empty,
+            Email = u.Email ?? string.Empty,
+            FirmName = d.FirmName,
+            WebAddress = d.WebAddress,
+            PhoneNumber = d.PhoneNumber,
+            FaxNumber = d.FaxNumber,
+            Street = d.Street,
+            City = d.City,
+            StateId = d.StateId,
+            ZipCode = d.ZipCode,
+            ConcurrencyStamp = d.ConcurrencyStamp,
+        };
+    }
+
+    [Authorize]
+    public virtual async Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
+    {
+        if (input.IdentityUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        var appointment = await _appointmentRepository.FindAsync(appointmentId);
+        if (appointment == null)
+        {
+            throw new UserFriendlyException(L["Appointment not found."]);
+        }
+
+        DefenseAttorney defenseAttorney;
+        if (input.DefenseAttorneyId.HasValue && input.DefenseAttorneyId.Value != Guid.Empty)
+        {
+            defenseAttorney = await _defenseAttorneyRepository.GetAsync(input.DefenseAttorneyId.Value);
+            defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
+                defenseAttorney.Id,
+                input.StateId,
+                input.IdentityUserId,
+                input.FirmName,
+                defenseAttorney.FirmAddress,
+                input.PhoneNumber,
+                input.WebAddress,
+                input.FaxNumber,
+                input.Street,
+                input.City,
+                input.ZipCode,
+                input.ConcurrencyStamp);
+        }
+        else
+        {
+            defenseAttorney = await _defenseAttorneyManager.CreateAsync(
+                input.StateId,
+                input.IdentityUserId,
+                input.FirmName,
+                null,
+                input.PhoneNumber,
+                input.WebAddress,
+                input.FaxNumber,
+                input.Street,
+                input.City,
+                input.ZipCode);
+        }
+
+        // W2-7 mirror of UpsertApplicantAttorneyForAppointmentAsync. The applicant-side
+        // upsert reads up to 10 links and updates only the first; preserve that quirk
+        // here for parity (the design fix is a separate refactor per W2-7 deep-dive).
+        var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
+        var link = existing.FirstOrDefault();
+
+        if (link?.AppointmentDefenseAttorney != null)
+        {
+            await _appointmentDefenseAttorneyManager.UpdateAsync(
+                link.AppointmentDefenseAttorney.Id,
+                appointmentId,
+                defenseAttorney.Id,
+                input.IdentityUserId,
+                link.AppointmentDefenseAttorney.ConcurrencyStamp);
+        }
+        else
+        {
+            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, input.IdentityUserId);
         }
     }
 

@@ -140,6 +140,22 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    public static class DefenseAttorneys
+    {
+        public const string Default = GroupName + ".DefenseAttorneys";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentDefenseAttorneys
+    {
+        public const string Default = GroupName + ".AppointmentDefenseAttorneys";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     /// <summary>
     /// W2-4: read-only access to per-appointment audit history. Audit rows
     /// themselves are immutable so no Create/Edit/Delete children apply.

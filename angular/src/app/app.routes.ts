@@ -13,6 +13,7 @@ import { PATIENT_ROUTES } from './patients/patient/patient-routes';
 import { APPOINTMENT_ROUTES } from './appointments/appointment/appointment-routes';
 import { AppointmentAddComponent } from './appointments/appointment-add.component';
 import { APPLICANT_ATTORNEY_ROUTES } from './applicant-attorneys/applicant-attorney/applicant-attorney-routes';
+import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/defense-attorney-routes';
 
 export const APP_ROUTES: Routes = [
   {
@@ -120,4 +121,5 @@ export const APP_ROUTES: Routes = [
   { path: 'doctor-management/doctor-availabilities', children: DOCTOR_AVAILABILITY_ROUTES },
   { path: 'doctor-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
+  { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
 ];

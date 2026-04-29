@@ -120,6 +120,27 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointmentId, input);
     }
 
+    [HttpGet]
+    [Route("defense-attorney-details-for-booking")]
+    public virtual Task<DefenseAttorneyDetailsDto?> GetDefenseAttorneyDetailsForBookingAsync([FromQuery] Guid? identityUserId = null, [FromQuery] string? email = null)
+    {
+        return _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(identityUserId, email);
+    }
+
+    [HttpGet]
+    [Route("{appointmentId}/defense-attorney")]
+    public virtual Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId)
+    {
+        return _appointmentsAppService.GetAppointmentDefenseAttorneyAsync(appointmentId);
+    }
+
+    [HttpPost]
+    [Route("{appointmentId}/defense-attorney")]
+    public virtual Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, [FromBody] DefenseAttorneyDetailsDto input)
+    {
+        return _appointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(appointmentId, input);
+    }
+
     [HttpPost]
     [Route("{id}/approve")]
     public virtual Task<AppointmentDto> ApproveAsync(Guid id)

@@ -137,6 +137,11 @@ export class AppointmentAddComponent {
   isApplicantAttorneyLoading = false;
   applicantAttorneyId: string | null = null;
   applicantAttorneyConcurrencyStamp: string | null = null;
+  defenseAttorneyEmailSearch = '';
+  defenseAttorneyOptions: ExternalAuthorizedUserOption[] = [];
+  isDefenseAttorneyLoading = false;
+  defenseAttorneyId: string | null = null;
+  defenseAttorneyConcurrencyStamp: string | null = null;
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
@@ -286,6 +291,19 @@ export class AppointmentAddComponent {
     applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
     applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    defenseAttorneyEnabled: [false],
+    defenseAttorneyIdentityUserId: [null as string | null],
+    defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
+    defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
+    defenseAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
+    defenseAttorneyStreet: [null as string | null, [Validators.maxLength(255)]],
+    defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyStateId: [null as string | null],
+    defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
   });
 
   constructor() {
@@ -507,6 +525,7 @@ export class AppointmentAddComponent {
 
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
@@ -1106,6 +1125,9 @@ export class AppointmentAddComponent {
           this.applicantAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'applicant attorney',
           );
+          this.defenseAttorneyOptions = (result?.items ?? []).filter(
+            (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'defense attorney',
+          );
         },
       });
   }
@@ -1322,6 +1344,176 @@ export class AppointmentAddComponent {
         {
           method: 'POST',
           url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
+          body,
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
+  // W2-7: defense-attorney section parallel to applicant-attorney. Booker can
+  // populate Both sections on the same appointment. Each section maintains
+  // its own form-control prefix + cached identity/firm references.
+  onDefenseAttorneyEmailSearch(event: Event): void {
+    this.defenseAttorneyEmailSearch = (event.target as HTMLInputElement)?.value?.trim() ?? '';
+  }
+
+  loadDefenseAttorneyByEmail(): void {
+    const email = this.defenseAttorneyEmailSearch?.trim();
+    if (!email) return;
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { email },
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => (this.isDefenseAttorneyLoading = false)))
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
+  onDefenseAttorneySelected(identityUserId: string | null): void {
+    if (!identityUserId) {
+      this.form.patchValue({
+        defenseAttorneyFirstName: null,
+        defenseAttorneyLastName: null,
+        defenseAttorneyEmail: null,
+        defenseAttorneyFirmName: null,
+        defenseAttorneyWebAddress: null,
+        defenseAttorneyPhoneNumber: null,
+        defenseAttorneyFaxNumber: null,
+        defenseAttorneyStreet: null,
+        defenseAttorneyCity: null,
+        defenseAttorneyStateId: null,
+        defenseAttorneyZipCode: null,
+      });
+      this.defenseAttorneyId = null;
+      this.defenseAttorneyConcurrencyStamp = null;
+      return;
+    }
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { identityUserId },
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => (this.isDefenseAttorneyLoading = false)))
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
+  private async upsertDefenseAttorneyForAppointmentIfProvided(
+    appointmentId?: string,
+  ): Promise<void> {
+    const raw = this.form.getRawValue();
+    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyIdentityUserId) {
+      return;
+    }
+    const body = {
+      defenseAttorneyId: this.defenseAttorneyId ?? undefined,
+      identityUserId: raw.defenseAttorneyIdentityUserId,
+      firstName: raw.defenseAttorneyFirstName ?? '',
+      lastName: raw.defenseAttorneyLastName ?? '',
+      email: raw.defenseAttorneyEmail ?? '',
+      firmName: raw.defenseAttorneyFirmName ?? undefined,
+      webAddress: raw.defenseAttorneyWebAddress ?? undefined,
+      phoneNumber: raw.defenseAttorneyPhoneNumber ?? undefined,
+      faxNumber: raw.defenseAttorneyFaxNumber ?? undefined,
+      street: raw.defenseAttorneyStreet ?? undefined,
+      city: raw.defenseAttorneyCity ?? undefined,
+      stateId: raw.defenseAttorneyStateId ?? undefined,
+      zipCode: raw.defenseAttorneyZipCode ?? undefined,
+      concurrencyStamp: this.defenseAttorneyConcurrencyStamp ?? undefined,
+    };
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${appointmentId}/defense-attorney`,
           body,
         },
         { apiName: 'Default' },

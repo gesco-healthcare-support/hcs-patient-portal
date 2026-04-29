@@ -439,162 +439,328 @@
       </div>
     </div>
 
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold">Applicant Attorney Details</h5>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="applicant-attorney-enabled"
-            formControlName="applicantAttorneyEnabled"
-          />
-          <label class="form-check-label" for="applicant-attorney-enabled">Include</label>
-        </div>
-      </div>
-      @if (form.get('applicantAttorneyEnabled')?.value) {
-        <div class="card-body">
-          @if (!isApplicantAttorney) {
-            <div class="row mb-3">
-              <div class="col-md-5">
-                <label class="form-label fw-semibold">Applicant Attorney Email</label>
-                <input
-                  type="email"
-                  class="form-control"
-                  placeholder="Enter email to load existing applicant attorney"
-                  [value]="applicantAttorneyEmailSearch"
-                  (input)="onApplicantAttorneyEmailSearch($event)"
-                />
-              </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <button
-                  type="button"
-                  class="btn btn-outline-primary"
-                  [disabled]="!applicantAttorneyEmailSearch || isApplicantAttorneyLoading"
-                  (click)="loadApplicantAttorneyByEmail()"
-                >
-                  Load Applicant Attorney
-                </button>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Or select from list</label>
-                <select
-                  class="form-select"
-                  formControlName="applicantAttorneyIdentityUserId"
-                  (change)="onApplicantAttorneySelected($any($event.target).value || null)"
-                >
-                  <option [ngValue]="null">Select Applicant Attorney</option>
-                  @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                    <option [value]="opt.identityUserId">
-                      {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
-                    </option>
-                  }
-                </select>
+    <!-- W2-7: Applicant + Defense attorney sections side-by-side (col-md-6 each).
+         Mirrors OLD's appointment-add.component.html layout (lines 654 + 724),
+         where both attorney cards share a single row so the booker fills them
+         in parallel. -->
+    <div class="row">
+      <div class="col-12 col-md-6">
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 fw-bold">Applicant Attorney Details</h5>
+            <div class="form-check form-switch">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                id="applicant-attorney-enabled"
+                formControlName="applicantAttorneyEnabled"
+              />
+              <label class="form-check-label" for="applicant-attorney-enabled">Include</label>
+            </div>
+          </div>
+          @if (form.get('applicantAttorneyEnabled')?.value) {
+            <div class="card-body">
+              @if (!isApplicantAttorney) {
+                <div class="row mb-3">
+                  <div class="col-md-5">
+                    <label class="form-label fw-semibold">Applicant Attorney Email</label>
+                    <input
+                      type="email"
+                      class="form-control"
+                      placeholder="Enter email to load existing applicant attorney"
+                      [value]="applicantAttorneyEmailSearch"
+                      (input)="onApplicantAttorneyEmailSearch($event)"
+                    />
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary"
+                      [disabled]="!applicantAttorneyEmailSearch || isApplicantAttorneyLoading"
+                      (click)="loadApplicantAttorneyByEmail()"
+                    >
+                      Load Applicant Attorney
+                    </button>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-semibold">Or select from list</label>
+                    <select
+                      class="form-select"
+                      formControlName="applicantAttorneyIdentityUserId"
+                      (change)="onApplicantAttorneySelected($any($event.target).value || null)"
+                    >
+                      <option [ngValue]="null">Select Applicant Attorney</option>
+                      @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
+                        <option [value]="opt.identityUserId">
+                          {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
+                        </option>
+                      }
+                    </select>
+                  </div>
+                </div>
+              }
+              <div class="row">
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">First Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyFirstName"
+                    placeholder="FIRST NAME"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Last Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyLastName"
+                    placeholder="LAST NAME"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Email</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyEmail"
+                    placeholder="EMAIL"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Firm Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyFirmName"
+                    placeholder="FIRM NAME"
+                    maxlength="50"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Web Address</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyWebAddress"
+                    placeholder="WEB ADDRESS"
+                    maxlength="100"
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Phone Number</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyPhoneNumber"
+                    placeholder="PHONE NUMBER"
+                    maxlength="20"
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Fax</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyFaxNumber"
+                    placeholder="FAX"
+                    maxlength="19"
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Street</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyStreet"
+                    placeholder="STREET"
+                    maxlength="255"
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">City</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyCity"
+                    placeholder="CITY"
+                    maxlength="50"
+                  />
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">State</label>
+                  <abp-lookup-select
+                    cid="appointment-applicant-attorney-state-id"
+                    formControlName="applicantAttorneyStateId"
+                    [getFn]="getStateLookup"
+                  ></abp-lookup-select>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label fw-semibold">Zip Code</label>
+                  <input
+                    class="form-control"
+                    formControlName="applicantAttorneyZipCode"
+                    placeholder="ZIP"
+                    maxlength="10"
+                  />
+                </div>
               </div>
             </div>
           }
-          <div class="row">
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">First Name</label>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 fw-bold">Defense Attorney Details</h5>
+            <div class="form-check form-switch">
               <input
-                class="form-control"
-                formControlName="applicantAttorneyFirstName"
-                placeholder="FIRST NAME"
-                readonly
+                class="form-check-input"
+                type="checkbox"
+                id="defense-attorney-enabled"
+                formControlName="defenseAttorneyEnabled"
               />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Last Name</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyLastName"
-                placeholder="LAST NAME"
-                readonly
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Email</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyEmail"
-                placeholder="EMAIL"
-                readonly
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Firm Name</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyFirmName"
-                placeholder="FIRM NAME"
-                maxlength="50"
-              />
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Web Address</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyWebAddress"
-                placeholder="WEB ADDRESS"
-                maxlength="100"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Phone Number</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyPhoneNumber"
-                placeholder="PHONE NUMBER"
-                maxlength="20"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Fax</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyFaxNumber"
-                placeholder="FAX"
-                maxlength="19"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Street</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyStreet"
-                placeholder="STREET"
-                maxlength="255"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">City</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyCity"
-                placeholder="CITY"
-                maxlength="50"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">State</label>
-              <abp-lookup-select
-                cid="appointment-applicant-attorney-state-id"
-                formControlName="applicantAttorneyStateId"
-                [getFn]="getStateLookup"
-              ></abp-lookup-select>
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Zip Code</label>
-              <input
-                class="form-control"
-                formControlName="applicantAttorneyZipCode"
-                placeholder="ZIP"
-                maxlength="10"
-              />
+              <label class="form-check-label" for="defense-attorney-enabled">Include</label>
             </div>
           </div>
+          @if (form.get('defenseAttorneyEnabled')?.value) {
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-7">
+                  <label class="form-label fw-semibold">Defense Attorney Email</label>
+                  <div class="d-flex">
+                    <input
+                      type="email"
+                      class="form-control me-2"
+                      placeholder="Enter email to load existing defense attorney"
+                      [value]="defenseAttorneyEmailSearch"
+                      (input)="onDefenseAttorneyEmailSearch($event)"
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary"
+                      [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
+                      (click)="loadDefenseAttorneyByEmail()"
+                    >
+                      Load
+                    </button>
+                  </div>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold">Or select from list</label>
+                  <select
+                    class="form-select"
+                    formControlName="defenseAttorneyIdentityUserId"
+                    (change)="onDefenseAttorneySelected($any($event.target).value || null)"
+                  >
+                    <option [ngValue]="null">Select Defense Attorney</option>
+                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
+                      <option [value]="opt.identityUserId">
+                        {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
+                      </option>
+                    }
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">First Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyFirstName"
+                    placeholder="FIRST NAME"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Last Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyLastName"
+                    placeholder="LAST NAME"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label fw-semibold">Email</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyEmail"
+                    placeholder="EMAIL"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label fw-semibold">Firm Name</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyFirmName"
+                    placeholder="FIRM NAME"
+                    maxlength="50"
+                  />
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label fw-semibold">Web Address</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyWebAddress"
+                    placeholder="WEB ADDRESS"
+                    maxlength="100"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Phone Number</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyPhoneNumber"
+                    placeholder="PHONE NUMBER"
+                    maxlength="20"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Fax</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyFaxNumber"
+                    placeholder="FAX"
+                    maxlength="19"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Street</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyStreet"
+                    placeholder="STREET"
+                    maxlength="255"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">City</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyCity"
+                    placeholder="CITY"
+                    maxlength="50"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">State</label>
+                  <abp-lookup-select
+                    cid="appointment-defense-attorney-state-id"
+                    formControlName="defenseAttorneyStateId"
+                    [getFn]="getStateLookup"
+                  ></abp-lookup-select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Zip Code</label>
+                  <input
+                    class="form-control"
+                    formControlName="defenseAttorneyZipCode"
+                    placeholder="ZIP"
+                    maxlength="10"
+                  />
+                </div>
+              </div>
+            </div>
+          }
         </div>
-      }
+      </div>
     </div>
 
     <div class="card mb-4">

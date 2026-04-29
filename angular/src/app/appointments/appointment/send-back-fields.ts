@@ -11,8 +11,9 @@
  *   - W1: PATIENT_DEMOGRAPHICS, EMPLOYER_DETAIL, APPLICANT_ATTORNEY,
  *     AUTHORIZED_USERS, APPOINTMENT_DETAILS already render as editable
  *     fields on the booker's appointment-add / appointment-view pages.
- *   - W2 (`attorney-defense-patient-separation` cap, currently deferred):
- *     DEFENSE_ATTORNEY fields ship as editable.
+ *   - W2 (`attorney-defense-patient-separation` cap [LANDED IN W2-7]):
+ *     DEFENSE_ATTORNEY fields ship as editable on the booker form
+ *     (appointment-add) parallel to APPLICANT_ATTORNEY.
  *   - W2 (`appointment-injury-workflow` cap): PATIENT_INJURY,
  *     INSURANCE_CARRIER, CLAIM_ADJUSTER fields ship as editable.
  *

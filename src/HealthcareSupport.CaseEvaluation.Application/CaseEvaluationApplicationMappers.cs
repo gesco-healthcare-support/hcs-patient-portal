@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -403,6 +405,48 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
     public override partial void Map(ApplicantAttorney source, LookupDto<Guid> destination);
 
     public override void AfterMap(ApplicantAttorney source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.FirmName ?? string.Empty;
+    }
+}
+
+[Mapper]
+public partial class DefenseAttorneyToDefenseAttorneyDtoMappers : MapperBase<DefenseAttorney, DefenseAttorneyDto>
+{
+    public override partial DefenseAttorneyDto Map(DefenseAttorney source);
+    public override partial void Map(DefenseAttorney source, DefenseAttorneyDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class DefenseAttorneyWithNavigationPropertiesToDefenseAttorneyWithNavigationPropertiesDtoMapper : MapperBase<DefenseAttorneyWithNavigationProperties, DefenseAttorneyWithNavigationPropertiesDto>
+{
+    public override partial DefenseAttorneyWithNavigationPropertiesDto Map(DefenseAttorneyWithNavigationProperties source);
+    public override partial void Map(DefenseAttorneyWithNavigationProperties source, DefenseAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentDefenseAttorneyToAppointmentDefenseAttorneyDtoMappers : MapperBase<AppointmentDefenseAttorney, AppointmentDefenseAttorneyDto>
+{
+    public override partial AppointmentDefenseAttorneyDto Map(AppointmentDefenseAttorney source);
+    public override partial void Map(AppointmentDefenseAttorney source, AppointmentDefenseAttorneyDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class AppointmentDefenseAttorneyWithNavigationPropertiesToAppointmentDefenseAttorneyWithNavigationPropertiesDtoMapper : MapperBase<AppointmentDefenseAttorneyWithNavigationProperties, AppointmentDefenseAttorneyWithNavigationPropertiesDto>
+{
+    public override partial AppointmentDefenseAttorneyWithNavigationPropertiesDto Map(AppointmentDefenseAttorneyWithNavigationProperties source);
+    public override partial void Map(AppointmentDefenseAttorneyWithNavigationProperties source, AppointmentDefenseAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class DefenseAttorneyToLookupDtoGuidMapper : MapperBase<DefenseAttorney, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(DefenseAttorney source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(DefenseAttorney source, LookupDto<Guid> destination);
+
+    public override void AfterMap(DefenseAttorney source, LookupDto<Guid> destination)
     {
         destination.DisplayName = source.FirmName ?? string.Empty;
     }

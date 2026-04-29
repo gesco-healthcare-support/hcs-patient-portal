@@ -72,6 +72,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Delete, L("Permission:Delete"));
+        var defenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.DefenseAttorneys.Default, L("Permission:DefenseAttorneys"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Create, L("Permission:Create"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Edit, L("Permission:Edit"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Delete, L("Permission:Delete"));
+        var appointmentDefenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default, L("Permission:AppointmentDefenseAttorneys"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Create, L("Permission:Create"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Edit, L("Permission:Edit"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete, L("Permission:Delete"));
 
         // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));

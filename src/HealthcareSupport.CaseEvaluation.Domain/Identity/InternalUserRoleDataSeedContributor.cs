@@ -123,6 +123,8 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
+        "DefenseAttorneys",
+        "AppointmentDefenseAttorneys",
     };
 
     private static readonly string[] OperationalEntities =
@@ -135,6 +137,8 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         "AppointmentAccessors",
         "ApplicantAttorneys",
         "AppointmentApplicantAttorneys",
+        "DefenseAttorneys",
+        "AppointmentDefenseAttorneys",
     };
 
     private static readonly string[] LookupReadEntities =
