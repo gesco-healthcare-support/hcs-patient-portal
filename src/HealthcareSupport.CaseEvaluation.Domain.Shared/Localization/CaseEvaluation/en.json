@@ -308,6 +308,7 @@
     "Appointment:Toast:Rejected": "Appointment rejected",
     "Appointment:Toast:SentBack": "Sent back to booker",
     "Appointment:Toast:Resubmitted": "Resubmitted to office",
+    "Appointment:Toast:ResubmitFailed": "Save succeeded, but resubmit failed. Please try again.",
     "Appointment:Banner:Title": "The office requested changes before approving this appointment",
     "Appointment:Banner:NoteHeader": "Office's note",
     "Appointment:Banner:SectionsHeader": "Sections to revise",

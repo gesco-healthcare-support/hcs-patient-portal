@@ -383,29 +383,40 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * Booker calls this from the Save & Resubmit button. We persist patient/
-   * employer/attorney edits via the standard save() path, then fire the
-   * SaveAndResubmit transition which auto-flips status to Pending and
-   * marks the latest send-back row resolved server-side.
+   * Booker calls this from the Save & Resubmit button. Awaits the standard
+   * save() chain (patient + appointment + employer + attorney upserts),
+   * then fires the SaveAndResubmit transition which auto-flips status to
+   * Pending and marks the latest send-back row resolved server-side.
+   *
+   * If save() fails the resubmit is skipped and the user sees save's error
+   * message. If save() succeeds but the transition fails, the changes
+   * persist (the booker effectively "saved") but the appointment stays in
+   * AwaitingMoreInfo so they can retry.
    */
-  saveAndResubmit(): void {
+  async saveAndResubmit(): Promise<void> {
     const id = this.appointment?.appointment?.id;
     if (!id || this.isSaving) {
       return;
     }
-    this.save();
-    // After save() resolves successfully, fire the transition. We wait one
-    // tick so the in-flight PUT for patient/employer/attorney lands first;
-    // the transition itself does not depend on the save's response payload.
-    setTimeout(() => {
-      this.appointmentService.saveAndResubmit(id).subscribe({
-        next: (dto) => {
-          this.toaster.success('::Appointment:Toast:Resubmitted');
-          this.latestSendBackInfo = null;
-          this.onActionSucceeded(dto);
-        },
-      });
-    }, 0);
+    try {
+      await this.save();
+    } catch {
+      // save() populated errorMessage; abort the resubmit transition.
+      return;
+    }
+    this.isSaving = true;
+    try {
+      const dto = await firstValueFrom(this.appointmentService.saveAndResubmit(id));
+      this.toaster.success('::Appointment:Toast:Resubmitted');
+      this.latestSendBackInfo = null;
+      this.onActionSucceeded(dto);
+    } catch {
+      this.toaster.error('::Appointment:Toast:ResubmitFailed');
+      this.errorMessage =
+        'Saved your changes, but submitting back to the office failed. Please try again.';
+    } finally {
+      this.isSaving = false;
+    }
   }
 
   private maybeLoadLatestSendBackInfo(
@@ -426,119 +437,139 @@ export class AppointmentViewComponent implements OnInit {
     });
   }
 
-  save(): void {
-    const selected = this.appointment?.appointment;
-    if (
-      !selected?.id ||
-      !selected.patientId ||
-      !selected.identityUserId ||
-      !selected.appointmentTypeId ||
-      !selected.locationId ||
-      !selected.doctorAvailabilityId ||
-      !selected.requestConfirmationNumber
-    ) {
-      this.errorMessage = 'Appointment data is incomplete and cannot be saved.';
-      return;
-    }
+  /**
+   * Returns a Promise that resolves after the full chain (patient PUT,
+   * appointment PUT, employer + attorney upserts) completes successfully,
+   * or rejects with the first failure. Returning a Promise (rather than
+   * void) lets saveAndResubmit() await this before firing the transition.
+   * Unawaited callers (the existing Save button) get fire-and-forget
+   * behavior identical to the original signature.
+   */
+  save(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const selected = this.appointment?.appointment;
+      if (
+        !selected?.id ||
+        !selected.patientId ||
+        !selected.identityUserId ||
+        !selected.appointmentTypeId ||
+        !selected.locationId ||
+        !selected.doctorAvailabilityId ||
+        !selected.requestConfirmationNumber
+      ) {
+        this.errorMessage = 'Appointment data is incomplete and cannot be saved.';
+        reject(new Error(this.errorMessage));
+        return;
+      }
 
-    this.errorMessage = '';
-    this.successMessage = '';
-    this.isSaving = true;
+      this.errorMessage = '';
+      this.successMessage = '';
+      this.isSaving = true;
 
-    const dateOfBirth = this.formatDateOfBirthForApi(this.patientForm.dateOfBirth);
-    const patientPayload: PatientUpdateDto = {
-      firstName: this.patientForm.firstName,
-      lastName: this.patientForm.lastName,
-      middleName: this.patientForm.middleName || undefined,
-      email: this.patientForm.email,
-      genderId: (this.patientForm.genderId as any) ?? undefined,
-      dateOfBirth: dateOfBirth ?? undefined,
-      phoneNumber: this.patientForm.phoneNumber || undefined,
-      socialSecurityNumber: this.patientForm.socialSecurityNumber || undefined,
-      address: this.patientForm.address || undefined,
-      city: this.patientForm.city || undefined,
-      zipCode: this.patientForm.zipCode || undefined,
-      refferedBy: this.patientForm.refferedBy || undefined,
-      cellPhoneNumber: this.patientForm.cellPhoneNumber || undefined,
-      phoneNumberTypeId: (this.patientForm.phoneNumberTypeId as any) ?? undefined,
-      street: this.patientForm.street || undefined,
-      interpreterVendorName: this.patientForm.needsInterpreter
-        ? this.patientForm.interpreterVendorName || undefined
-        : undefined,
-      apptNumber: this.appointment?.patient?.apptNumber ?? undefined,
-      othersLanguageName: this.appointment?.patient?.othersLanguageName ?? undefined,
-      stateId: this.stateIdControl.value ?? undefined,
-      appointmentLanguageId: this.patientForm.appointmentLanguageId ?? undefined,
-      identityUserId: selected.identityUserId,
-      tenantId: this.appointment?.patient?.tenantId ?? undefined,
-      concurrencyStamp: this.appointment?.patient?.concurrencyStamp,
-    };
+      const dateOfBirth = this.formatDateOfBirthForApi(this.patientForm.dateOfBirth);
+      const patientPayload: PatientUpdateDto = {
+        firstName: this.patientForm.firstName,
+        lastName: this.patientForm.lastName,
+        middleName: this.patientForm.middleName || undefined,
+        email: this.patientForm.email,
+        genderId: (this.patientForm.genderId as any) ?? undefined,
+        dateOfBirth: dateOfBirth ?? undefined,
+        phoneNumber: this.patientForm.phoneNumber || undefined,
+        socialSecurityNumber: this.patientForm.socialSecurityNumber || undefined,
+        address: this.patientForm.address || undefined,
+        city: this.patientForm.city || undefined,
+        zipCode: this.patientForm.zipCode || undefined,
+        refferedBy: this.patientForm.refferedBy || undefined,
+        cellPhoneNumber: this.patientForm.cellPhoneNumber || undefined,
+        phoneNumberTypeId: (this.patientForm.phoneNumberTypeId as any) ?? undefined,
+        street: this.patientForm.street || undefined,
+        interpreterVendorName: this.patientForm.needsInterpreter
+          ? this.patientForm.interpreterVendorName || undefined
+          : undefined,
+        apptNumber: this.appointment?.patient?.apptNumber ?? undefined,
+        othersLanguageName: this.appointment?.patient?.othersLanguageName ?? undefined,
+        stateId: this.stateIdControl.value ?? undefined,
+        appointmentLanguageId: this.patientForm.appointmentLanguageId ?? undefined,
+        identityUserId: selected.identityUserId,
+        tenantId: this.appointment?.patient?.tenantId ?? undefined,
+        concurrencyStamp: this.appointment?.patient?.concurrencyStamp,
+      };
 
-    const patientId = this.appointment?.patient?.id;
-    const updateUrl =
-      patientId && this.isExternalUserNonPatient
-        ? `/api/app/patients/for-appointment-booking/${patientId}`
-        : '/api/app/patients/me';
-    this.restService
-      .request<any, any>(
-        {
-          method: 'PUT',
-          url: updateUrl,
-          body: patientPayload,
-        },
-        { apiName: 'Default' },
-      )
-      .subscribe({
-        next: (updatedPatient) => {
-          const payload: AppointmentUpdateDto = {
-            panelNumber: this.panelNumber || undefined,
-            appointmentDate: selected.appointmentDate,
-            isPatientAlreadyExist: selected.isPatientAlreadyExist,
-            requestConfirmationNumber: selected.requestConfirmationNumber,
-            dueDate: selected.dueDate,
-            internalUserComments: selected.internalUserComments,
-            appointmentApproveDate: selected.appointmentApproveDate,
-            appointmentStatus: selected.appointmentStatus,
-            patientId: selected.patientId,
-            identityUserId: selected.identityUserId,
-            appointmentTypeId: selected.appointmentTypeId,
-            locationId: selected.locationId,
-            doctorAvailabilityId: selected.doctorAvailabilityId,
-            concurrencyStamp: selected.concurrencyStamp,
-          };
+      const patientId = this.appointment?.patient?.id;
+      const updateUrl =
+        patientId && this.isExternalUserNonPatient
+          ? `/api/app/patients/for-appointment-booking/${patientId}`
+          : '/api/app/patients/me';
+      this.restService
+        .request<any, any>(
+          {
+            method: 'PUT',
+            url: updateUrl,
+            body: patientPayload,
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({
+          next: (updatedPatient) => {
+            const payload: AppointmentUpdateDto = {
+              panelNumber: this.panelNumber || undefined,
+              appointmentDate: selected.appointmentDate,
+              isPatientAlreadyExist: selected.isPatientAlreadyExist,
+              requestConfirmationNumber: selected.requestConfirmationNumber,
+              dueDate: selected.dueDate,
+              internalUserComments: selected.internalUserComments,
+              appointmentApproveDate: selected.appointmentApproveDate,
+              appointmentStatus: selected.appointmentStatus,
+              patientId: selected.patientId,
+              identityUserId: selected.identityUserId,
+              appointmentTypeId: selected.appointmentTypeId,
+              locationId: selected.locationId,
+              doctorAvailabilityId: selected.doctorAvailabilityId,
+              concurrencyStamp: selected.concurrencyStamp,
+            };
 
-          this.appointmentService.update(selected.id, payload).subscribe({
-            next: async (updated) => {
-              try {
-                if (this.appointment?.appointment) {
-                  this.appointment.appointment = { ...this.appointment.appointment, ...updated };
+            this.appointmentService.update(selected.id, payload).subscribe({
+              next: async (updated) => {
+                let savedClean = true;
+                try {
+                  if (this.appointment?.appointment) {
+                    this.appointment.appointment = { ...this.appointment.appointment, ...updated };
+                  }
+                  if (this.appointment?.patient) {
+                    this.appointment.patient = { ...this.appointment.patient, ...updatedPatient };
+                  }
+                  await this.upsertEmployerDetails(updated.id);
+                  await this.upsertApplicantAttorneyDetails(updated.id);
+                  this.panelNumber = updated.panelNumber ?? '';
+                  this.successMessage =
+                    'Appointment, patient, employer and applicant attorney details updated successfully.';
+                } catch {
+                  this.errorMessage =
+                    'Appointment and patient updated, but employer details save failed.';
+                  savedClean = false;
+                } finally {
+                  this.isSaving = false;
                 }
-                if (this.appointment?.patient) {
-                  this.appointment.patient = { ...this.appointment.patient, ...updatedPatient };
+                if (savedClean) {
+                  resolve();
+                } else {
+                  reject(new Error(this.errorMessage));
                 }
-                await this.upsertEmployerDetails(updated.id);
-                await this.upsertApplicantAttorneyDetails(updated.id);
-                this.panelNumber = updated.panelNumber ?? '';
-                this.successMessage =
-                  'Appointment, patient, employer and applicant attorney details updated successfully.';
-              } catch {
-                this.errorMessage =
-                  'Appointment and patient updated, but employer details save failed.';
-              } finally {
+              },
+              error: () => {
+                this.errorMessage = 'Patient updated, but appointment save failed.';
                 this.isSaving = false;
-              }
-            },
-            error: () => {
-              this.errorMessage = 'Patient updated, but appointment save failed.';
-              this.isSaving = false;
-            },
-          });
-        },
-        error: () => {
-          this.errorMessage = 'Failed to save patient details.';
-          this.isSaving = false;
-        },
-      });
+                reject(new Error(this.errorMessage));
+              },
+            });
+          },
+          error: () => {
+            this.errorMessage = 'Failed to save patient details.';
+            this.isSaving = false;
+            reject(new Error(this.errorMessage));
+          },
+        });
+    });
   }
 
   openUploadDocuments(): void {
