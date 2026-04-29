@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -22,6 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// SaveAndResubmit, re-send-back). Each round inserts a new row; the most
 /// recent row drives the AwaitingMoreInfo response screen.
 /// </summary>
+[Audited]
 public class AppointmentSendBackInfo : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }

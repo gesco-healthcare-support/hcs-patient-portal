@@ -73,6 +73,9 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Delete, L("Permission:Delete"));
 
+        // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
+        myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
+
         var systemParametersPermission = myGroup.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
         systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
 

@@ -140,6 +140,15 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    /// <summary>
+    /// W2-4: read-only access to per-appointment audit history. Audit rows
+    /// themselves are immutable so no Create/Edit/Delete children apply.
+    /// </summary>
+    public static class AppointmentChangeLogs
+    {
+        public const string Default = GroupName + ".AppointmentChangeLogs";
+    }
+
     public static class SystemParameters
     {
         public const string Default = GroupName + ".SystemParameters";

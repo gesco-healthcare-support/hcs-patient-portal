@@ -291,6 +291,8 @@
     "Appointment:Action:SendBack": "Send Back for More Info",
     "Appointment:Action:SaveAndResubmit": "Save & Resubmit",
     "Appointment:Action:Review": "Review",
+    "Appointment:Action:ViewChangeLog": "View change log",
+    "Permission:AppointmentChangeLogs": "View Change Logs",
     "Appointment:Action:Submit": "Submit",
     "Appointment:Action:Cancel": "Cancel",
     "Appointment:Action:ChooseAction": "Choose action...",

@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   ConfigStateService,
   ListResultDto,
   LocalizationPipe,
   PagedResultDto,
+  PermissionDirective,
   RestService,
 } from '@abp/ng.core';
 import type {
@@ -58,7 +59,9 @@ type AppointmentAuthorizedUserRow = {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     LocalizationPipe,
+    PermissionDirective,
     LookupSelectComponent,
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,

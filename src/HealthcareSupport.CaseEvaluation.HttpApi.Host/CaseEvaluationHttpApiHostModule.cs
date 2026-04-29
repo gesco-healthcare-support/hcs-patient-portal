@@ -33,6 +33,7 @@ using Volo.Abp.Studio;
 using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
+using Volo.Abp.Auditing;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
 using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Serilog;
@@ -93,6 +94,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<PermissionManagementOptions>(options =>
         {
             options.IsDynamicPermissionStoreEnabled = true;
+        });
+
+        // W2-4: stamp the audit-row ApplicationName so /audit-logs distinguishes
+        // API-side activity from AuthServer activity. Without this, HttpApi.Host
+        // entity-change rows ship with an empty ApplicationName, making the
+        // audit grid harder to filter. Cosmetic but improves the audit UX.
+        Configure<AbpAuditingOptions>(options =>
+        {
+            options.ApplicationName = "API";
         });
 
         Configure<AbpSecurityHeadersOptions>(options =>

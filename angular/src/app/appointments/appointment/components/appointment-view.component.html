@@ -73,6 +73,13 @@
         >
           Upload Documents
         </button>
+        <a
+          *abpPermission="'CaseEvaluation.AppointmentChangeLogs'"
+          class="btn btn-outline-secondary btn-sm"
+          [routerLink]="['/appointments/view', appointment.appointment?.id, 'change-log']"
+        >
+          {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
+        </a>
         <button type="button" class="btn btn-primary btn-sm" (click)="openHelp()">Help</button>
         <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
           {{ 'AbpUi::Back' | abpLocalization }}

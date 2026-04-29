@@ -101,6 +101,15 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'appointments/view/:id/change-log',
+    loadComponent: () =>
+      import('./appointments/appointment-change-logs/appointment-change-logs.component').then(
+        (c) => c.AppointmentChangeLogsComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
+  },
+  {
     path: 'doctor-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(

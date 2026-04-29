@@ -1,6 +1,7 @@
 using System;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -22,6 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// the existing FK style (NoAction). The blob save and entity insert happen
 /// inside a single AppService UoW so a partial failure rolls back both.
 /// </summary>
+[Audited]
 public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }
