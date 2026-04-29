@@ -2,6 +2,10 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -31,6 +35,10 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<ApplicantAttorney> ApplicantAttorneys { get; set; } = null!;
     public DbSet<AppointmentDefenseAttorney> AppointmentDefenseAttorneys { get; set; } = null!;
     public DbSet<DefenseAttorney> DefenseAttorneys { get; set; } = null!;
+    public DbSet<AppointmentInjuryDetail> AppointmentInjuryDetails { get; set; } = null!;
+    public DbSet<AppointmentBodyPart> AppointmentBodyParts { get; set; } = null!;
+    public DbSet<AppointmentClaimExaminer> AppointmentClaimExaminers { get; set; } = null!;
+    public DbSet<AppointmentPrimaryInsurance> AppointmentPrimaryInsurances { get; set; } = null!;
     public DbSet<AppointmentAccessor> AppointmentAccessors { get; set; } = null!;
     public DbSet<AppointmentEmployerDetail> AppointmentEmployerDetails { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
@@ -346,6 +354,59 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DefenseAttorney>().WithMany().IsRequired().HasForeignKey(x => x.DefenseAttorneyId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<AppointmentInjuryDetail>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentInjuryDetails", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentInjuryDetail.TenantId));
+            b.Property(x => x.DateOfInjury).HasColumnType("date");
+            b.Property(x => x.ToDateOfInjury).HasColumnType("date");
+            b.Property(x => x.ClaimNumber).HasColumnName(nameof(AppointmentInjuryDetail.ClaimNumber)).IsRequired().HasMaxLength(AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
+            b.Property(x => x.WcabAdj).HasColumnName(nameof(AppointmentInjuryDetail.WcabAdj)).HasMaxLength(AppointmentInjuryDetailConsts.WcabAdjMaxLength);
+            b.Property(x => x.BodyPartsSummary).HasColumnName(nameof(AppointmentInjuryDetail.BodyPartsSummary)).IsRequired().HasMaxLength(AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<WcabOffice>().WithMany().HasForeignKey(x => x.WcabOfficeId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<AppointmentBodyPart>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentBodyParts", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentBodyPart.TenantId));
+            b.Property(x => x.BodyPartDescription).HasColumnName(nameof(AppointmentBodyPart.BodyPartDescription)).IsRequired().HasMaxLength(AppointmentBodyPartConsts.BodyPartDescriptionMaxLength);
+            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<AppointmentClaimExaminer>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentClaimExaminers", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentClaimExaminer.TenantId));
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentClaimExaminer.Name)).HasMaxLength(AppointmentClaimExaminerConsts.NameMaxLength);
+            b.Property(x => x.ClaimExaminerNumber).HasColumnName(nameof(AppointmentClaimExaminer.ClaimExaminerNumber)).HasMaxLength(AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength);
+            b.Property(x => x.Email).HasColumnName(nameof(AppointmentClaimExaminer.Email)).HasMaxLength(AppointmentClaimExaminerConsts.EmailMaxLength);
+            b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentClaimExaminer.PhoneNumber)).HasMaxLength(AppointmentClaimExaminerConsts.PhoneNumberMaxLength);
+            b.Property(x => x.Fax).HasColumnName(nameof(AppointmentClaimExaminer.Fax)).HasMaxLength(AppointmentClaimExaminerConsts.FaxMaxLength);
+            b.Property(x => x.Street).HasColumnName(nameof(AppointmentClaimExaminer.Street)).HasMaxLength(AppointmentClaimExaminerConsts.StreetMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(AppointmentClaimExaminer.City)).HasMaxLength(AppointmentClaimExaminerConsts.CityMaxLength);
+            b.Property(x => x.Zip).HasColumnName(nameof(AppointmentClaimExaminer.Zip)).HasMaxLength(AppointmentClaimExaminerConsts.ZipMaxLength);
+            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
+        builder.Entity<AppointmentPrimaryInsurance>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentPrimaryInsurances", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentPrimaryInsurance.TenantId));
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentPrimaryInsurance.Name)).HasMaxLength(AppointmentPrimaryInsuranceConsts.NameMaxLength);
+            b.Property(x => x.InsuranceNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.InsuranceNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength);
+            b.Property(x => x.Attention).HasColumnName(nameof(AppointmentPrimaryInsurance.Attention)).HasMaxLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength);
+            b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.PhoneNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength);
+            b.Property(x => x.FaxNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.FaxNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength);
+            b.Property(x => x.Street).HasColumnName(nameof(AppointmentPrimaryInsurance.Street)).HasMaxLength(AppointmentPrimaryInsuranceConsts.StreetMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(AppointmentPrimaryInsurance.City)).HasMaxLength(AppointmentPrimaryInsuranceConsts.CityMaxLength);
+            b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
+            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

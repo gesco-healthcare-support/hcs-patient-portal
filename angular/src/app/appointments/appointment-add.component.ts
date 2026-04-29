@@ -34,6 +34,10 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
+import type {
+  AppointmentInjuryDraft,
+  AppointmentInjuryDetailWithNavigationPropertiesDto,
+} from '../proxy/appointment-injury-details/models';
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -142,6 +146,18 @@ export class AppointmentAddComponent {
   isDefenseAttorneyLoading = false;
   defenseAttorneyId: string | null = null;
   defenseAttorneyConcurrencyStamp: string | null = null;
+
+  // W2-8 -- Claim Information (injury workflow). Multi-injury support per OLD:
+  // booker can add multiple AppointmentInjuryDetails (each with its own insurance
+  // + claim examiner) to a single appointment via the modal. injuryDrafts holds
+  // the in-memory list rendered as a table; injuryEditing holds the row being
+  // edited in the modal (or a fresh draft for "Add").
+  injuryDrafts: AppointmentInjuryDraft[] = [];
+  isInjuryModalOpen = false;
+  injuryEditingIndex = -1;
+  injuryEditing: AppointmentInjuryDraft = this.makeEmptyInjuryDraft();
+  wcabOfficeOptions: LookupDto<string>[] = [];
+  injuryStateOptions: LookupDto<string>[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
@@ -526,6 +542,7 @@ export class AppointmentAddComponent {
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
       await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
@@ -1893,5 +1910,202 @@ export class AppointmentAddComponent {
     }
 
     return allItems;
+  }
+
+  // -------- W2-8: Claim Information modal + multi-injury workflow --------
+
+  private makeEmptyInjuryDraft(): AppointmentInjuryDraft {
+    return {
+      isCumulativeInjury: false,
+      dateOfInjury: null,
+      toDateOfInjury: null,
+      claimNumber: '',
+      wcabOfficeId: null,
+      wcabAdj: null,
+      bodyPartsSummary: '',
+      primaryInsurance: {
+        isActive: false,
+        name: null,
+        insuranceNumber: null,
+        attention: null,
+        phoneNumber: null,
+        faxNumber: null,
+        street: null,
+        city: null,
+        stateId: null,
+        zip: null,
+      },
+      claimExaminer: {
+        isActive: false,
+        name: null,
+        email: null,
+        phoneNumber: null,
+        fax: null,
+        street: null,
+        claimExaminerNumber: null,
+        city: null,
+        stateId: null,
+        zip: null,
+      },
+    };
+  }
+
+  loadInjuryLookups(): void {
+    if (this.wcabOfficeOptions.length === 0) {
+      this.restService
+        .request<any, PagedResultDto<LookupDto<string>>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-injury-details/wcab-office-lookup',
+            params: { skipCount: 0, maxResultCount: 200 },
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({ next: (r) => (this.wcabOfficeOptions = r?.items ?? []) });
+    }
+    if (this.injuryStateOptions.length === 0) {
+      this.restService
+        .request<any, PagedResultDto<LookupDto<string>>>(
+          {
+            method: 'GET',
+            url: '/api/app/applicant-attorneys/state-lookup',
+            params: { skipCount: 0, maxResultCount: 200 },
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({ next: (r) => (this.injuryStateOptions = r?.items ?? []) });
+    }
+  }
+
+  openAddInjuryModal(): void {
+    this.injuryEditingIndex = -1;
+    this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.loadInjuryLookups();
+    this.isInjuryModalOpen = true;
+  }
+
+  openEditInjuryModal(index: number): void {
+    const existing = this.injuryDrafts[index];
+    if (!existing) return;
+    // Deep clone so cancel discards in-modal edits.
+    this.injuryEditing = JSON.parse(JSON.stringify(existing));
+    this.injuryEditingIndex = index;
+    this.loadInjuryLookups();
+    this.isInjuryModalOpen = true;
+  }
+
+  closeInjuryModal(): void {
+    this.isInjuryModalOpen = false;
+    this.injuryEditingIndex = -1;
+    this.injuryEditing = this.makeEmptyInjuryDraft();
+  }
+
+  saveInjuryModal(): void {
+    if (
+      !this.injuryEditing.dateOfInjury ||
+      !this.injuryEditing.claimNumber ||
+      !this.injuryEditing.bodyPartsSummary
+    ) {
+      return;
+    }
+    if (this.injuryEditingIndex >= 0) {
+      this.injuryDrafts[this.injuryEditingIndex] = this.injuryEditing;
+    } else {
+      this.injuryDrafts.push(this.injuryEditing);
+    }
+    this.closeInjuryModal();
+  }
+
+  removeInjury(index: number): void {
+    if (index >= 0 && index < this.injuryDrafts.length) {
+      this.injuryDrafts.splice(index, 1);
+    }
+  }
+
+  injuryWcabOfficeName(id: string | null | undefined): string {
+    if (!id) return '';
+    const opt = this.wcabOfficeOptions.find((o) => o.id === id);
+    return opt?.displayName ?? '';
+  }
+
+  private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId || this.injuryDrafts.length === 0) {
+      return;
+    }
+    for (const draft of this.injuryDrafts) {
+      const created = await firstValueFrom(
+        this.restService.request<any, { id: string }>(
+          {
+            method: 'POST',
+            url: '/api/app/appointment-injury-details',
+            body: {
+              appointmentId,
+              dateOfInjury: draft.dateOfInjury,
+              toDateOfInjury: draft.toDateOfInjury,
+              claimNumber: draft.claimNumber,
+              isCumulativeInjury: draft.isCumulativeInjury,
+              wcabAdj: draft.wcabAdj,
+              bodyPartsSummary: draft.bodyPartsSummary,
+              wcabOfficeId: draft.wcabOfficeId,
+            },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      const injuryId = created?.id;
+      if (!injuryId) continue;
+
+      // Insurance: only persist if booker enabled the section.
+      if (draft.primaryInsurance.isActive) {
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-primary-insurances',
+              body: {
+                appointmentInjuryDetailId: injuryId,
+                isActive: true,
+                name: draft.primaryInsurance.name,
+                insuranceNumber: draft.primaryInsurance.insuranceNumber,
+                attention: draft.primaryInsurance.attention,
+                phoneNumber: draft.primaryInsurance.phoneNumber,
+                faxNumber: draft.primaryInsurance.faxNumber,
+                street: draft.primaryInsurance.street,
+                city: draft.primaryInsurance.city,
+                zip: draft.primaryInsurance.zip,
+                stateId: draft.primaryInsurance.stateId,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
+      }
+
+      // Claim Examiner: only persist if booker enabled the section.
+      if (draft.claimExaminer.isActive) {
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-claim-examiners',
+              body: {
+                appointmentInjuryDetailId: injuryId,
+                isActive: true,
+                name: draft.claimExaminer.name,
+                claimExaminerNumber: draft.claimExaminer.claimExaminerNumber,
+                email: draft.claimExaminer.email,
+                phoneNumber: draft.claimExaminer.phoneNumber,
+                fax: draft.claimExaminer.fax,
+                street: draft.claimExaminer.street,
+                city: draft.claimExaminer.city,
+                zip: draft.claimExaminer.zip,
+                stateId: draft.claimExaminer.stateId,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
+      }
+    }
   }
 }

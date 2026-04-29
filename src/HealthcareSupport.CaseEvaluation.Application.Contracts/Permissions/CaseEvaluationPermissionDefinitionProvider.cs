@@ -80,6 +80,22 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Create, L("Permission:Create"));
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Edit, L("Permission:Edit"));
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete, L("Permission:Delete"));
+        var appointmentInjuryDetailPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentInjuryDetails.Default, L("Permission:AppointmentInjuryDetails"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Create, L("Permission:Create"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Edit, L("Permission:Edit"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete, L("Permission:Delete"));
+        var appointmentBodyPartPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentBodyParts.Default, L("Permission:AppointmentBodyParts"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Create, L("Permission:Create"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Edit, L("Permission:Edit"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Delete, L("Permission:Delete"));
+        var appointmentClaimExaminerPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentClaimExaminers.Default, L("Permission:AppointmentClaimExaminers"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Create, L("Permission:Create"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Edit, L("Permission:Edit"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Delete, L("Permission:Delete"));
+        var appointmentPrimaryInsurancePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default, L("Permission:AppointmentPrimaryInsurances"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Create, L("Permission:Create"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Edit, L("Permission:Edit"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Delete, L("Permission:Delete"));
 
         // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));

@@ -2,6 +2,10 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -457,4 +461,39 @@ public partial class AppointmentTypeFieldConfigToAppointmentTypeFieldConfigDtoMa
 {
     public override partial HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source);
     public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source, HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto destination);
+}
+
+[Mapper]
+public partial class AppointmentInjuryDetailToAppointmentInjuryDetailDtoMapper : MapperBase<AppointmentInjuryDetail, AppointmentInjuryDetailDto>
+{
+    public override partial AppointmentInjuryDetailDto Map(AppointmentInjuryDetail source);
+    public override partial void Map(AppointmentInjuryDetail source, AppointmentInjuryDetailDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class AppointmentInjuryDetailWithNavigationPropertiesToAppointmentInjuryDetailWithNavigationPropertiesDtoMapper : MapperBase<AppointmentInjuryDetailWithNavigationProperties, AppointmentInjuryDetailWithNavigationPropertiesDto>
+{
+    public override partial AppointmentInjuryDetailWithNavigationPropertiesDto Map(AppointmentInjuryDetailWithNavigationProperties source);
+    public override partial void Map(AppointmentInjuryDetailWithNavigationProperties source, AppointmentInjuryDetailWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentBodyPartToAppointmentBodyPartDtoMapper : MapperBase<AppointmentBodyPart, AppointmentBodyPartDto>
+{
+    public override partial AppointmentBodyPartDto Map(AppointmentBodyPart source);
+    public override partial void Map(AppointmentBodyPart source, AppointmentBodyPartDto destination);
+}
+
+[Mapper]
+public partial class AppointmentClaimExaminerToAppointmentClaimExaminerDtoMapper : MapperBase<AppointmentClaimExaminer, AppointmentClaimExaminerDto>
+{
+    public override partial AppointmentClaimExaminerDto Map(AppointmentClaimExaminer source);
+    public override partial void Map(AppointmentClaimExaminer source, AppointmentClaimExaminerDto destination);
+}
+
+[Mapper]
+public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDtoMapper : MapperBase<AppointmentPrimaryInsurance, AppointmentPrimaryInsuranceDto>
+{
+    public override partial AppointmentPrimaryInsuranceDto Map(AppointmentPrimaryInsurance source);
+    public override partial void Map(AppointmentPrimaryInsurance source, AppointmentPrimaryInsuranceDto destination);
 }

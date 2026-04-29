@@ -156,6 +156,38 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    public static class AppointmentInjuryDetails
+    {
+        public const string Default = GroupName + ".AppointmentInjuryDetails";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentBodyParts
+    {
+        public const string Default = GroupName + ".AppointmentBodyParts";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentClaimExaminers
+    {
+        public const string Default = GroupName + ".AppointmentClaimExaminers";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentPrimaryInsurances
+    {
+        public const string Default = GroupName + ".AppointmentPrimaryInsurances";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     /// <summary>
     /// W2-4: read-only access to per-appointment audit history. Audit rows
     /// themselves are immutable so no Create/Edit/Delete children apply.
