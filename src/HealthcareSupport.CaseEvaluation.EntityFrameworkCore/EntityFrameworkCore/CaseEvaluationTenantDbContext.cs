@@ -29,6 +29,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<Doctor> Doctors { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
     public DbSet<AppointmentSendBackInfo> AppointmentSendBackInfos { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<AppointmentLanguage> AppointmentLanguages { get; set; } = null!;
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; } = null!;
@@ -142,6 +143,21 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.SentBackByUserId).HasColumnName(nameof(AppointmentSendBackInfo.SentBackByUserId));
             b.Property(x => x.IsResolved).HasColumnName(nameof(AppointmentSendBackInfo.IsResolved));
             b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentSendBackInfo.ResolvedAt));
+            b.HasIndex(x => x.AppointmentId);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocuments", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.DocumentName).HasColumnName("DocumentName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.DocumentNameMaxLength);
+            b.Property(x => x.FileName).HasColumnName("FileName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.FileNameMaxLength);
+            b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.BlobNameMaxLength);
+            b.Property(x => x.ContentType).HasColumnName("ContentType").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.ContentTypeMaxLength);
+            b.Property(x => x.FileSize).HasColumnName("FileSize");
+            b.Property(x => x.UploadedByUserId).HasColumnName("UploadedByUserId");
             b.HasIndex(x => x.AppointmentId);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });

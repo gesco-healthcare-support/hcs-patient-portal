@@ -198,6 +198,41 @@ Adrian smoke-tested the post-W1 docker stack 2026-04-28 and reported slow loads 
   generate the back-fill `Added_AppointmentSendBackInfo` tenant migration so
   per-tenant-database deployments work. Audit other tenant-side entities
   added since 2026-01-31 for missing migrations at the same time.
+  **[PARTIALLY LANDED IN W2-T0]** (2026-04-29): connection-string fall-back
+  to `Default` lands in `CaseEvaluationDbContextFactoryBase.CreateDbContext`
+  -- the original null-connection-string symptom is gone. `AppointmentDocument`
+  DbSet + entity config also added to `CaseEvaluationTenantDbContext` to
+  match the host context. **Tenant migration generation still blocked** by a
+  separate ABP wiring issue: `ConfigureIdentityPro()` and similar host-only
+  module configurations skip Identity table registration on
+  `MultiTenancySides.Tenant`, so `HasOne<IdentityUser>()` navigation refs in
+  tenant-side entity configs leave `IdentityUser`'s `ExtraPropertyDictionary`
+  unmapped, which EF Core treats as an orphan keyless type. New cleanup
+  entry below tracks the remaining work.
+
+- **Tenant DbContext migration generation -- ABP Identity wiring follow-up**
+  (added 2026-04-29 during W2-T0). After T0's connection-string fix landed,
+  `dotnet ef migrations add ... --context CaseEvaluationTenantDbContext` still
+  fails with the same `ExtraPropertyDictionary requires a primary key` error.
+  Root cause confirmed via the ABP issue tracker: `IdentityUser` carries an
+  `IHasExtraProperties` shape; when tenant-side `ConfigureIdentityPro()`
+  skips the Identity table registration (correct for split-DB deployments),
+  the navigation refs from tenant entities still pull `IdentityUser` into
+  the model graph, and EF treats `ExtraPropertyDictionary` as a keyless
+  orphan. Two paths forward (pick at follow-up time):
+  (a) Refactor every `HasOne<IdentityUser>()` in `CaseEvaluationTenantDbContext`
+  to a bare `Property(x => x.IdentityUserId)` (drop the navigation; FK
+  enforcement moves to host-side migration). Verify no tenant-side EF
+  query traverses the User navigation before deciding -- ~1-2h refactor.
+  (b) Configure `IdentityUser` (and similar host types) as keyless / owned /
+  excluded explicitly in tenant context's `OnModelCreating`. Smaller code
+  change but riskier per ABP issue tracker discussion.
+  *MVP impact:* none. Single-DB MVP runs on host migrations
+  (`MultiTenancySides.Both`), and the Wave 2 host migrations cover all the
+  new tenant-eligible entities. Tenant migration regen lands when split-DB
+  deployment is actually scheduled (post-MVP). References:
+  <https://github.com/abpframework/abp/issues/14498>,
+  <https://abp.io/support/questions/7025>.
 
 ## From Wave 2
 
