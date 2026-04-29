@@ -293,6 +293,8 @@
     "Appointment:Action:Review": "Review",
     "Appointment:Action:ViewChangeLog": "View change log",
     "Permission:AppointmentChangeLogs": "View Change Logs",
+    "Permission:CustomFields": "Custom Fields (per-AppointmentType config)",
+    "FieldName": "Field Name",
     "Appointment:Action:Submit": "Submit",
     "Appointment:Action:Cancel": "Cancel",
     "Appointment:Action:ChooseAction": "Choose action...",

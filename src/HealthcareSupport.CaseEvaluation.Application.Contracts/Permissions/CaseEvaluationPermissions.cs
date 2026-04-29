@@ -149,6 +149,19 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".AppointmentChangeLogs";
     }
 
+    /// <summary>
+    /// W2-5: per-AppointmentType field-config admin (Hidden / ReadOnly / DefaultValue).
+    /// Default visibility is read-only for non-admin callers (booker form needs Default
+    /// to fetch the apply-on-change config); Create/Edit/Delete gate admin actions.
+    /// </summary>
+    public static class CustomFields
+    {
+        public const string Default = GroupName + ".CustomFields";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+    }
+
     public static class SystemParameters
     {
         public const string Default = GroupName + ".SystemParameters";

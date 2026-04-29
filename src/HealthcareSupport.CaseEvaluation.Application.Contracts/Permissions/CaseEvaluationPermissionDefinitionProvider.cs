@@ -76,6 +76,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
 
+        // W2-5: per-AppointmentType field-config admin. Default lets the booker
+        // form read the apply-on-change config; Create/Edit/Delete gate admin
+        // mutation paths.
+        var customFieldsPermission = myGroup.AddPermission(CaseEvaluationPermissions.CustomFields.Default, L("Permission:CustomFields"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Create, L("Permission:Create"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Edit, L("Permission:Edit"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Delete, L("Permission:Delete"));
+
         var systemParametersPermission = myGroup.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
         systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
 

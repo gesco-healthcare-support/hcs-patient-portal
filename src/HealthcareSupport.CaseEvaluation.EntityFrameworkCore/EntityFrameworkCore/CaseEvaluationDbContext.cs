@@ -3,6 +3,7 @@ using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
@@ -31,6 +32,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<Appointment> Appointments { get; set; } = null!;
     public DbSet<AppointmentSendBackInfo> AppointmentSendBackInfos { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
+    public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<WcabOffice> WcabOffices { get; set; } = null!;
@@ -241,6 +243,21 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.UploadedByUserId).HasColumnName("UploadedByUserId");
             b.HasIndex(x => x.AppointmentId);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // W2-5: per-AppointmentType field-config table.
+        builder.Entity<AppointmentTypeFieldConfig>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypeFieldConfigs", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentTypeFieldConfig.TenantId));
+            b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(AppointmentTypeFieldConfig.AppointmentTypeId)).IsRequired();
+            b.Property(x => x.FieldName).HasColumnName(nameof(AppointmentTypeFieldConfig.FieldName)).IsRequired().HasMaxLength(AppointmentTypeFieldConfigConsts.FieldNameMaxLength);
+            b.Property(x => x.Hidden).HasColumnName(nameof(AppointmentTypeFieldConfig.Hidden));
+            b.Property(x => x.ReadOnly).HasColumnName(nameof(AppointmentTypeFieldConfig.ReadOnly));
+            b.Property(x => x.DefaultValue).HasColumnName(nameof(AppointmentTypeFieldConfig.DefaultValue)).HasMaxLength(AppointmentTypeFieldConfigConsts.DefaultValueMaxLength);
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique();
+            b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
 
         if (builder.IsHostDatabase())

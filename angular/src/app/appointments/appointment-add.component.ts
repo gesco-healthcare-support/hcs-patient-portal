@@ -35,6 +35,20 @@ import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
 
+// W2-5: per-AppointmentType field-config row, returned by
+// GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
+// Inlined here until the auto-generated proxy is regenerated via
+// `abp generate-proxy` post-W2-5 ship.
+type AppointmentTypeFieldConfigDto = {
+  id: string;
+  tenantId?: string | null;
+  appointmentTypeId: string;
+  fieldName: string;
+  hidden: boolean;
+  readOnly: boolean;
+  defaultValue?: string | null;
+};
+
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
   firstName: string;
@@ -91,6 +105,14 @@ export class AppointmentAddComponent {
   isLocationSelected = false;
   checkForAppointmentTypeSelected = false;
   isAvailableDatesLoading = false;
+
+  // W2-5: per-AppointmentType field-config state. The booker form fetches the
+  // matching config set on AppointmentType selection and applies Hidden /
+  // ReadOnly / DefaultValue to the FormControls below. The Set is also
+  // exposed for HTML to drive [hidden] bindings via isFieldHidden().
+  private readonly hiddenFieldNames = new Set<string>();
+  private readonly readOnlyFieldNames = new Set<string>();
+  private fieldConfigsRequestVersion = 0;
   private readonly availableDateKeys = new Set<string>();
   private readonly availableSlotsByDate = new Map<
     string,
@@ -271,9 +293,10 @@ export class AppointmentAddComponent {
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
     this.form.get('locationId')?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
-    this.form
-      .get('appointmentTypeId')
-      ?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
+    this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
+      this.loadAvailableDatesBySelection();
+      this.applyFieldConfigsForAppointmentType(appointmentTypeId);
+    });
     this.form
       .get('appointmentDate')
       ?.valueChanges.subscribe((value) => this.onAppointmentDateChanged(value));
@@ -286,6 +309,94 @@ export class AppointmentAddComponent {
     this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
       this.onAuthorizedUserIdentityChanged(value);
     });
+  }
+
+  /**
+   * W2-5: HTML helper -- returns true when the per-AppointmentType config
+   * marks this field key as hidden. Use as `[hidden]="isFieldHidden('claimNumber')"`
+   * on the corresponding form-row container so the input is suppressed
+   * without unmounting the FormControl. Form-rows added in W2-7 / W2-8
+   * wire this binding alongside their introduction.
+   */
+  isFieldHidden(fieldName: string): boolean {
+    return this.hiddenFieldNames.has(fieldName);
+  }
+
+  /**
+   * W2-5: HTML helper -- returns true when the per-AppointmentType config
+   * marks this field key as read-only. Backed by the same fetched config
+   * set; complements the FormControl.disable() call below for sections
+   * that need a separate visual treatment.
+   */
+  isFieldReadOnly(fieldName: string): boolean {
+    return this.readOnlyFieldNames.has(fieldName);
+  }
+
+  /**
+   * W2-5: when AppointmentType changes, reset all prior config + fetch the
+   * new set + apply Hidden (state set + control disable) / ReadOnly (state
+   * set + control disable) / DefaultValue (control setValue). Race-safe via
+   * a request-version counter so a rapid type-change cancels the prior
+   * fetch's apply.
+   */
+  private applyFieldConfigsForAppointmentType(appointmentTypeId: string | null): void {
+    this.resetFieldConfigsState();
+
+    if (!appointmentTypeId) {
+      return;
+    }
+
+    const requestVersion = ++this.fieldConfigsRequestVersion;
+    this.restService
+      .request<null, AppointmentTypeFieldConfigDto[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointment-type-field-configs/by-appointment-type/${appointmentTypeId}`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (rows) => {
+          if (requestVersion !== this.fieldConfigsRequestVersion) {
+            // A newer AppointmentType change cancelled this one.
+            return;
+          }
+          for (const row of rows ?? []) {
+            const control = this.form.get(row.fieldName);
+            if (row.hidden) {
+              this.hiddenFieldNames.add(row.fieldName);
+              control?.disable({ emitEvent: false });
+            }
+            if (row.readOnly) {
+              this.readOnlyFieldNames.add(row.fieldName);
+              control?.disable({ emitEvent: false });
+            }
+            if (
+              row.defaultValue !== null &&
+              row.defaultValue !== undefined &&
+              row.defaultValue !== ''
+            ) {
+              control?.setValue(row.defaultValue, { emitEvent: false });
+            }
+          }
+        },
+      });
+  }
+
+  /**
+   * Resets every field's config-driven state so a subsequent AppointmentType
+   * change starts from a clean baseline. Without this, switching from PQME
+   * to AME would carry over PQME's hidden/disabled fields.
+   */
+  private resetFieldConfigsState(): void {
+    for (const fieldName of this.hiddenFieldNames) {
+      this.form.get(fieldName)?.enable({ emitEvent: false });
+    }
+    for (const fieldName of this.readOnlyFieldNames) {
+      this.form.get(fieldName)?.enable({ emitEvent: false });
+    }
+    this.hiddenFieldNames.clear();
+    this.readOnlyFieldNames.clear();
   }
 
   get displayUserName(): string {

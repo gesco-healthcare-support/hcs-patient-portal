@@ -407,3 +407,10 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
         destination.DisplayName = source.FirmName ?? string.Empty;
     }
 }
+
+[Mapper]
+public partial class AppointmentTypeFieldConfigToAppointmentTypeFieldConfigDtoMapper : MapperBase<HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig, HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto>
+{
+    public override partial HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source);
+    public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source, HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto destination);
+}
