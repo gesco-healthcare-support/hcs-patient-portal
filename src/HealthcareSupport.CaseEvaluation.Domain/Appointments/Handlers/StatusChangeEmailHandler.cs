@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -44,6 +45,7 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
+    private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
 
     public StatusChangeEmailHandler(
@@ -53,6 +55,7 @@ public class StatusChangeEmailHandler :
         IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
+        IAppointmentRecipientResolver recipientResolver,
         ILogger<StatusChangeEmailHandler> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -61,6 +64,7 @@ public class StatusChangeEmailHandler :
         _sendBackInfoRepository = sendBackInfoRepository;
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
+        _recipientResolver = recipientResolver;
         _logger = logger;
     }
 
@@ -79,27 +83,39 @@ public class StatusChangeEmailHandler :
             return;
         }
 
-        var recipientEmail = await ResolveRecipientEmailAsync(appointment);
-        if (string.IsNullOrWhiteSpace(recipientEmail))
+        var (subject, body) = await BuildEmailAsync(template.Value, appointment, eventData);
+
+        // W2-10: fan out to all parties via the shared recipient resolver.
+        // MVP renders one body per NotificationKind regardless of role; the
+        // resolver tags each arg with a RecipientRole for forward-compat.
+        var kind = MapTemplateToKind(template.Value);
+        var recipients = await _recipientResolver.ResolveAsync(appointment.Id, kind);
+        if (recipients.Count == 0)
         {
             _logger.LogWarning(
-                "StatusChangeEmailHandler: no recipient email for appointment {AppointmentId}; skipping {Template}.",
+                "StatusChangeEmailHandler: resolver returned 0 recipients for appointment {AppointmentId}; skipping {Template}.",
                 appointment.Id,
                 template);
             return;
         }
 
-        var (subject, body) = await BuildEmailAsync(template.Value, appointment, eventData);
-
-        await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
+        foreach (var args in recipients)
         {
-            To = recipientEmail,
-            Subject = subject,
-            Body = body,
-            IsBodyHtml = true,
-            Context = $"Transition/{template}/{appointment.Id}",
-        });
+            args.Subject = subject;
+            args.Body = body;
+            args.IsBodyHtml = true;
+            args.Context = $"Transition/{template}/{args.Role}/{appointment.Id}";
+            await _backgroundJobManager.EnqueueAsync(args);
+        }
     }
+
+    private static NotificationKind MapTemplateToKind(EmailTemplate t) => t switch
+    {
+        EmailTemplate.Approved => NotificationKind.Approved,
+        EmailTemplate.Rejected => NotificationKind.Rejected,
+        EmailTemplate.SendBack => NotificationKind.AwaitingMoreInfo,
+        _ => NotificationKind.Approved,
+    };
 
     private enum EmailTemplate { Approved, Rejected, SendBack }
 

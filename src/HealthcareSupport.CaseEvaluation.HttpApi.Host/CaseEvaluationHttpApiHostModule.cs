@@ -377,10 +377,67 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 Authorization = new[] { new AnonymousHangfireDashboardAuthorizationFilter() },
                 IgnoreAntiforgeryToken = true,
             });
+
+            // W2-10: register the 3 CCR-driven recurring jobs. Cron timezone is
+            // explicit America/Los_Angeles per the deep-dive (08:00 PT for CCR
+            // jobs, 07:00 PT for the appointment-day job). Job classes are
+            // resolved through ABP DI inside an AbpBackgroundJobExecutionWrapper
+            // shape that the lambda invokes via the IServiceProvider.
+            ConfigureHangfireRecurringJobs();
         }
 
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    /// <summary>
+    /// W2-10: register the 3 CCR-driven Hangfire recurring jobs.
+    /// Each cron runs in America/Los_Angeles timezone (per CCR text + OLD's
+    /// scheduler convention).
+    /// </summary>
+    private static void ConfigureHangfireRecurringJobs()
+    {
+        var pacificTime = TryGetPacificTimeZone();
+        var options = new RecurringJobOptions { TimeZone = pacificTime };
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.CronExpression,
+            options);
+    }
+
+    private static TimeZoneInfo TryGetPacificTimeZone()
+    {
+        // .NET 6+ supports IANA timezone IDs cross-platform; fall back to the
+        // Windows ID if the IANA lookup fails (older runtime / missing tzdata).
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        }
+        catch
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
+        }
     }
 }

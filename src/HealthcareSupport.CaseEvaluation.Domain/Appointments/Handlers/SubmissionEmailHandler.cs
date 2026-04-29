@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
@@ -37,6 +38,7 @@ public class SubmissionEmailHandler :
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly ILogger<SubmissionEmailHandler> _logger;
 
     public SubmissionEmailHandler(
@@ -44,12 +46,14 @@ public class SubmissionEmailHandler :
         IRepository<IdentityUser, Guid> identityUserRepository,
         ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
+        IAppointmentRecipientResolver recipientResolver,
         ILogger<SubmissionEmailHandler> logger)
     {
         _patientRepository = patientRepository;
         _identityUserRepository = identityUserRepository;
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
+        _recipientResolver = recipientResolver;
         _logger = logger;
     }
 
@@ -62,8 +66,36 @@ public class SubmissionEmailHandler :
         var patientName = ResolvePatientName(patient);
         var dateLine = eventData.AppointmentDate.ToString("MMM d, yyyy h:mm tt");
 
-        await SendOfficeEmailAsync(eventData, bookerName, patientName, dateLine);
-        await SendBookerConfirmationAsync(eventData, bookerUser, patient, dateLine);
+        // W2-10: fan out to all parties via the shared recipient resolver.
+        // Replaces W1-2's two-recipient direct enqueue (office + booker).
+        // If the resolver returns 0 recipients (unexpected -- usually means
+        // the OfficeEmail setting is unset AND the booker has no email),
+        // fall back to the W1-2 paths so the demo still emits something.
+        var recipients = await _recipientResolver.ResolveAsync(eventData.AppointmentId, NotificationKind.Submitted);
+        if (recipients.Count == 0)
+        {
+            _logger.LogWarning(
+                "SubmissionEmailHandler: resolver returned 0 recipients for appointment {AppointmentId}; falling back to W1-2 office+booker path.",
+                eventData.AppointmentId);
+            await SendOfficeEmailAsync(eventData, bookerName, patientName, dateLine);
+            await SendBookerConfirmationAsync(eventData, bookerUser, patient, dateLine);
+            return;
+        }
+
+        var subject = $"New appointment request {eventData.RequestConfirmationNumber}";
+        var body = BuildHtml(
+            title: "A new appointment request was submitted",
+            intro: $"Confirmation #{eventData.RequestConfirmationNumber} requested for {dateLine}.",
+            details: $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br><strong>Patient:</strong> {WebEncode(patientName)}</p><p>Open the appointments queue in the patient portal to review the request and respond.</p>");
+
+        foreach (var args in recipients)
+        {
+            args.Subject = subject;
+            args.Body = body;
+            args.IsBodyHtml = true;
+            args.Context = $"Submission/{args.Role}/{eventData.AppointmentId}";
+            await _backgroundJobManager.EnqueueAsync(args);
+        }
     }
 
     private async Task SendOfficeEmailAsync(

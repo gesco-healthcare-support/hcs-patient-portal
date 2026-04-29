@@ -80,4 +80,24 @@ public static class CaseEvaluationSettings
         // override per-tenant in /setting-management for prod / staging URLs.
         public const string PortalBaseUrl = Notifications + ".PortalBaseUrl";
     }
+
+    /// <summary>
+    /// W2-10 -- CCR Title 8 Sec. 31.5 / 34(e) reminder windows + appointment-day
+    /// reminder T-N day windows. Defaults match CCR text; tenant admins can
+    /// shorten / lengthen via /setting-management. Comma-separated integers
+    /// stored as a single setting value (parsed by the recurring job at run-time).
+    /// </summary>
+    public static class RemindersPolicy
+    {
+        public const string Sec31_5ElapsedDayAnchors = Notifications + ".Reminders.Sec31_5ElapsedDayAnchors";
+        public const string Sec34eElapsedDayAnchors = Notifications + ".Reminders.Sec34eElapsedDayAnchors";
+        public const string AppointmentDayTMinusAnchors = Notifications + ".Reminders.AppointmentDayTMinusAnchors";
+        public const string Sec31_5Cron = Notifications + ".Reminders.Sec31_5Cron";
+        public const string Sec34eCron = Notifications + ".Reminders.Sec34eCron";
+        public const string AppointmentDayCron = Notifications + ".Reminders.AppointmentDayCron";
+        public const string ReminderTimezoneId = Notifications + ".Reminders.TimezoneId";
+        public const string RemindersEnabled = Notifications + ".Reminders.Enabled";
+        public const string ReminderCcEmail = Notifications + ".Reminders.CcEmail";
+        public const string ReminderSignoff = Notifications + ".Reminders.Signoff";
+    }
 }

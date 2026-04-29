@@ -1,4 +1,5 @@
 using System;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -23,4 +24,12 @@ public class SendAppointmentEmailArgs
     /// "Submission/Office/{appointmentId}", "Transition/Approved/{appointmentId}", etc.
     /// </summary>
     public string Context { get; set; } = string.Empty;
+
+    /// <summary>
+    /// W2-10: party role tag attached when the recipient was resolved by
+    /// <c>IAppointmentRecipientResolver</c>. Nullable for backward-compat with
+    /// W1-2 single-recipient call sites that did not set a role. Future
+    /// per-recipient template-layer changes branch on this field.
+    /// </summary>
+    public RecipientRole? Role { get; set; }
 }

@@ -201,6 +201,7 @@
               class="form-control form-control-sm"
               [(ngModel)]="panelNumber"
               maxlength="50"
+              [disabled]="!canEdit('panelNumber')"
             />
           </div>
           <div class="col-md-2 col-sm-6">
@@ -231,15 +232,27 @@
         <div class="row g-3">
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.lastName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.lastName"
+              [disabled]="!canEdit('lastName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.firstName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.firstName"
+              [disabled]="!canEdit('firstName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.middleName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.middleName"
+              [disabled]="!canEdit('middleName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
@@ -253,6 +266,7 @@
                     [name]="'view-gender'"
                     [(ngModel)]="patientForm.genderId"
                     [value]="option.value"
+                    [disabled]="!canEdit('genderId')"
                   />
                   <label class="form-check-label" [for]="'view-gender-' + option.key">
                     {{ '::Enum:Gender.' + option.value | abpLocalization }}
@@ -275,6 +289,7 @@
                 #dateOfBirthDatepicker="ngbDatepicker"
                 (click)="dateOfBirthDatepicker.open()"
                 (keyup.space)="dateOfBirthDatepicker.open()"
+                [disabled]="!canEdit('dateOfBirth')"
               />
               @if (dateOfBirthInput.value) {
                 <div class="input-group-append">
@@ -301,11 +316,19 @@
             <label class="form-label fw-semibold">
               {{ '::CellPhoneNumber' | abpLocalization }}
             </label>
-            <input class="form-control" [(ngModel)]="patientForm.cellPhoneNumber" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.cellPhoneNumber"
+              [disabled]="!canEdit('cellPhoneNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input class="form-control mb-2" [(ngModel)]="patientForm.phoneNumber" />
+            <input
+              class="form-control mb-2"
+              [(ngModel)]="patientForm.phoneNumber"
+              [disabled]="!canEdit('phoneNumber')"
+            />
             <div class="d-flex gap-3">
               @for (option of phoneNumberTypeOptions; track option.key) {
                 <div class="form-check">
@@ -316,6 +339,7 @@
                     [name]="'view-phone-type'"
                     [(ngModel)]="patientForm.phoneNumberTypeId"
                     [value]="option.value"
+                    [disabled]="!canEdit('phoneNumberType')"
                   />
                   <label class="form-check-label" [for]="'view-phone-type-' + option.key">
                     {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
@@ -329,19 +353,35 @@
             <label class="form-label fw-semibold">
               {{ '::SocialSecurityNumber' | abpLocalization }}
             </label>
-            <input class="form-control" [(ngModel)]="patientForm.socialSecurityNumber" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.socialSecurityNumber"
+              [disabled]="!canEdit('socialSecurityNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.street" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.street"
+              [disabled]="!canEdit('street')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Unit #</label>
-            <input class="form-control" [(ngModel)]="patientForm.address" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.address"
+              [disabled]="!canEdit('apptNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.city" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.city"
+              [disabled]="!canEdit('city')"
+            />
           </div>
 
           <div class="col-md-3 mb-3">
@@ -351,11 +391,16 @@
               [(ngModel)]="patientForm.stateId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getStateLookup"
+              [disabled]="!canEdit('stateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.zipCode" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.zipCode"
+              [disabled]="!canEdit('zipCode')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">
@@ -366,6 +411,7 @@
               [(ngModel)]="patientForm.appointmentLanguageId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getAppointmentLanguageLookup"
+              [disabled]="!canEdit('languageId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -379,6 +425,7 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="true"
+                  [disabled]="!canEdit('isInterpreter')"
                 />
                 <label class="form-check-label" for="view-need-interpreter-yes">Yes</label>
               </div>
@@ -390,17 +437,26 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="false"
+                  [disabled]="!canEdit('isInterpreter')"
                 />
                 <label class="form-check-label" for="view-need-interpreter-no">No</label>
               </div>
             </div>
             @if (patientForm.needsInterpreter) {
-              <input class="form-control mt-2" [(ngModel)]="patientForm.interpreterVendorName" />
+              <input
+                class="form-control mt-2"
+                [(ngModel)]="patientForm.interpreterVendorName"
+                [disabled]="!canEdit('interpreterVendorName')"
+              />
             }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.refferedBy" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.refferedBy"
+              [disabled]="!canEdit('referredBy')"
+            />
           </div>
         </div>
       </div>
@@ -418,6 +474,7 @@
               class="form-control"
               [(ngModel)]="employerForm.employerName"
               placeholder="EMPLOYER NAME"
+              [disabled]="!canEdit('employerName')"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -426,6 +483,7 @@
               class="form-control"
               [(ngModel)]="employerForm.occupation"
               placeholder="OCCUPATION"
+              [disabled]="!canEdit('occupation')"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -434,16 +492,27 @@
               class="form-control"
               [(ngModel)]="employerForm.phoneNumber"
               placeholder="PHONE NUMBER"
+              [disabled]="!canEdit('employerPhoneNumber')"
             />
           </div>
 
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.street" placeholder="STREET" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.street"
+              placeholder="STREET"
+              [disabled]="!canEdit('employerStreet')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.city" placeholder="CITY" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.city"
+              placeholder="CITY"
+              [disabled]="!canEdit('employerCity')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
@@ -451,11 +520,17 @@
               cid="appointment-view-employer-state-id"
               [formControl]="employerStateIdControl"
               [getFn]="getStateLookup"
+              [disabled]="!canEdit('employerStateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.zipCode" placeholder="ZIP" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.zipCode"
+              placeholder="ZIP"
+              [disabled]="!canEdit('employerZip')"
+            />
           </div>
         </div>
       </div>
@@ -470,6 +545,7 @@
             type="checkbox"
             id="view-applicant-attorney-enabled"
             [(ngModel)]="applicantAttorneyEnabled"
+            [disabled]="!canEdit('applicantAttorneyIsActive')"
           />
           <label class="form-check-label" for="view-applicant-attorney-enabled">Include</label>
         </div>
@@ -503,6 +579,7 @@
                   class="form-select"
                   [(ngModel)]="applicantAttorneyForm.identityUserId"
                   (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)"
+                  [disabled]="!canEdit('applicantAttorneyName')"
                 >
                   <option [ngValue]="null">Select Applicant Attorney</option>
                   @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
@@ -531,6 +608,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.firmName"
                 placeholder="FIRM NAME"
+                [disabled]="!canEdit('applicantAttorneyFirmName')"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -539,6 +617,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.webAddress"
                 placeholder="WEB ADDRESS"
+                [disabled]="!canEdit('applicantAttorneyWebAddress')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -547,6 +626,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.phoneNumber"
                 placeholder="PHONE NUMBER"
+                [disabled]="!canEdit('applicantAttorneyPhoneNumber')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -555,6 +635,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.faxNumber"
                 placeholder="FAX"
+                [disabled]="!canEdit('applicantAttorneyFaxNumber')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -563,6 +644,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.street"
                 placeholder="STREET"
+                [disabled]="!canEdit('applicantAttorneyStreet')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -571,6 +653,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.city"
                 placeholder="CITY"
+                [disabled]="!canEdit('applicantAttorneyCity')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -579,6 +662,7 @@
                 cid="appointment-view-applicant-attorney-state-id"
                 [formControl]="applicantAttorneyStateIdControl"
                 [getFn]="getStateLookup"
+                [disabled]="!canEdit('applicantAttorneyStateId')"
               ></abp-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
@@ -587,6 +671,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.zipCode"
                 placeholder="ZIP"
+                [disabled]="!canEdit('applicantAttorneyZip')"
               />
             </div>
           </div>

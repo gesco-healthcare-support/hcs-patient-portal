@@ -87,6 +87,9 @@ export class AppointmentViewComponent implements OnInit {
   sendBackModalVisible = false;
   latestSendBackInfo: AppointmentSendBackInfoDto | null = null;
   private readonly flaggedFieldLookup = buildFlaggedFieldLookup();
+  // W2-9: cache of flaggedFields[] as a Set<string> for O(1) canEdit() lookup.
+  // Reset to null whenever latestSendBackInfo changes (see maybeLoadLatestSendBackInfo).
+  private flaggedFieldsCache: Set<string> | null = null;
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
@@ -262,6 +265,60 @@ export class AppointmentViewComponent implements OnInit {
     return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
   }
 
+  /**
+   * W2-9: returns true if the current user holds any external role
+   * (Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
+   * Used by canEdit() to decide whether the read-only-by-default policy
+   * applies. Internal admins (anyone NOT in this set) bypass the gate
+   * entirely; the server's permission attributes remain authoritative.
+   */
+  get isPatientUser(): boolean {
+    const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
+    const externalUserRoles = new Set([
+      'patient',
+      'applicant attorney',
+      'defense attorney',
+      'claim examiner',
+    ]);
+    return roles.some((role: string) => externalUserRoles.has(role?.toLowerCase() ?? ''));
+  }
+
+  /**
+   * W2-9: cached set of flagged field keys from the latest unresolved
+   * AppointmentSendBackInfo row. O(1) `.has(key)` lookup instead of
+   * O(n) Array.includes(). Cache is reset to null inside
+   * maybeLoadLatestSendBackInfo whenever latestSendBackInfo changes.
+   */
+  private get flaggedFieldsSet(): Set<string> {
+    if (!this.flaggedFieldsCache && this.latestSendBackInfo?.flaggedFields) {
+      this.flaggedFieldsCache = new Set(this.latestSendBackInfo.flaggedFields);
+    }
+    return this.flaggedFieldsCache ?? new Set();
+  }
+
+  /**
+   * W2-9: per-field read-only-edit-mode gate.
+   *  - Internal admin tier (anyone NOT in the 4 external roles): always editable;
+   *    server permission attributes (`Appointments.Edit` etc.) remain authoritative.
+   *  - External roles (Patient / Applicant Attorney / Defense Attorney /
+   *    Claim Examiner): read-only by default. Edit unlocks ONLY when
+   *    appointmentStatus = AwaitingMoreInfo AND `fieldName` is in the
+   *    latest unresolved SendBack info's flaggedFields list.
+   *
+   * Bind in HTML as `[disabled]="!canEdit('fieldKey')"` on every ngModel
+   * input/select/textarea. Field-key vocabulary matches `send-back-fields.ts`.
+   */
+  canEdit(fieldName: string): boolean {
+    const isInternalAdmin = !this.isExternalUserNonPatient && !this.isPatientUser;
+    if (isInternalAdmin) {
+      return true;
+    }
+    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
+      return false;
+    }
+    return this.flaggedFieldsSet.has(fieldName);
+  }
+
   // ----- W1-1 transition state-machine UI helpers -----
 
   get currentStatus(): AppointmentStatusType | undefined {
@@ -412,6 +469,7 @@ export class AppointmentViewComponent implements OnInit {
       const dto = await firstValueFrom(this.appointmentService.saveAndResubmit(id));
       this.toaster.success('::Appointment:Toast:Resubmitted');
       this.latestSendBackInfo = null;
+      this.flaggedFieldsCache = null;
       this.onActionSucceeded(dto);
     } catch {
       this.toaster.error('::Appointment:Toast:ResubmitFailed');
@@ -428,14 +486,17 @@ export class AppointmentViewComponent implements OnInit {
   ): void {
     if (!appointmentId || status !== AppointmentStatusType.AwaitingMoreInfo) {
       this.latestSendBackInfo = null;
+      this.flaggedFieldsCache = null;
       return;
     }
     this.appointmentService.getLatestUnresolvedSendBackInfo(appointmentId).subscribe({
       next: (info) => {
         this.latestSendBackInfo = info;
+        this.flaggedFieldsCache = null;
       },
       error: () => {
         this.latestSendBackInfo = null;
+        this.flaggedFieldsCache = null;
       },
     });
   }
