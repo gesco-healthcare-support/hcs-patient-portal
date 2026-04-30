@@ -12,7 +12,12 @@ using Volo.Abp.ObjectMapping;
 namespace HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 
 [RemoteService(IsEnabled = false)]
-[Authorize(CaseEvaluationPermissions.CustomFields.Default)]
+// Class-level demoted from CustomFields.Default to plain [Authorize] so the
+// booking form's per-AppointmentType field-config read (used to drive
+// hidden/readonly/default-value visibility on form rows) is callable by any
+// authenticated booker. Admin-only list/get/edit endpoints keep their
+// CustomFields.Default per-method gate. (Step 1.4 / W-A-3, 2026-04-30.)
+[Authorize]
 public class AppointmentTypeFieldConfigsAppService :
     CaseEvaluationAppService,
     IAppointmentTypeFieldConfigsAppService
@@ -28,7 +33,10 @@ public class AppointmentTypeFieldConfigsAppService :
         _manager = manager;
     }
 
-    [Authorize(CaseEvaluationPermissions.CustomFields.Default)]
+    // Plain [Authorize]: the booking form reads field configs to determine
+    // hidden/readonly/default-value behavior; any authenticated booker needs
+    // this. (Step 1.4 / W-A-3, 2026-04-30.)
+    [Authorize]
     public virtual async Task<List<AppointmentTypeFieldConfigDto>> GetByAppointmentTypeIdAsync(Guid appointmentTypeId)
     {
         var query = await _repository.GetQueryableAsync();

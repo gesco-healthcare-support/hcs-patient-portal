@@ -9,7 +9,13 @@
   <div
     class="appointment-add__toolbar d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3"
   >
-    <h2 class="mb-0">{{ '::NewAppointment' | abpLocalization }}</h2>
+    <h2 class="mb-0">
+      {{
+        isReevaluation
+          ? ('::ReEvaluationAppointment' | abpLocalization)
+          : ('::NewAppointment' | abpLocalization)
+      }}
+    </h2>
     <div class="appointment-add__actions d-flex align-items-center gap-2">
       <button type="button" class="btn btn-primary btn-sm" (click)="save()">
         Book an appointment
@@ -870,6 +876,7 @@
                         type="radio"
                         class="form-check-input me-1"
                         [(ngModel)]="injuryEditing.isCumulativeInjury"
+                        [ngModelOptions]="{ standalone: true }"
                         [value]="true"
                         name="injuryCumulative"
                       />
@@ -880,6 +887,7 @@
                         type="radio"
                         class="form-check-input me-1"
                         [(ngModel)]="injuryEditing.isCumulativeInjury"
+                        [ngModelOptions]="{ standalone: true }"
                         [value]="false"
                         name="injuryCumulative"
                       />
@@ -895,6 +903,7 @@
                     type="date"
                     class="form-control"
                     [(ngModel)]="injuryEditing.dateOfInjury"
+                    [ngModelOptions]="{ standalone: true }"
                     name="injuryDateOfInjury"
                   />
                 </div>
@@ -905,6 +914,7 @@
                       type="date"
                       class="form-control"
                       [(ngModel)]="injuryEditing.toDateOfInjury"
+                      [ngModelOptions]="{ standalone: true }"
                       name="injuryToDateOfInjury"
                     />
                   </div>
@@ -916,6 +926,7 @@
                     class="form-control"
                     maxlength="50"
                     [(ngModel)]="injuryEditing.claimNumber"
+                    [ngModelOptions]="{ standalone: true }"
                     name="injuryClaimNumber"
                   />
                 </div>
@@ -924,6 +935,7 @@
                   <select
                     class="form-select"
                     [(ngModel)]="injuryEditing.wcabOfficeId"
+                    [ngModelOptions]="{ standalone: true }"
                     name="injuryWcabOfficeId"
                   >
                     <option [ngValue]="null">Select</option>
@@ -939,6 +951,7 @@
                     class="form-control"
                     maxlength="50"
                     [(ngModel)]="injuryEditing.wcabAdj"
+                    [ngModelOptions]="{ standalone: true }"
                     name="injuryWcabAdj"
                   />
                 </div>
@@ -949,6 +962,7 @@
                     rows="2"
                     maxlength="500"
                     [(ngModel)]="injuryEditing.bodyPartsSummary"
+                    [ngModelOptions]="{ standalone: true }"
                     name="injuryBodyPartsSummary"
                     placeholder="e.g. Lower back, right knee, left wrist"
                   ></textarea>
@@ -964,6 +978,7 @@
                       class="form-check-input"
                       id="injury-insurance-enabled"
                       [(ngModel)]="injuryEditing.primaryInsurance.isActive"
+                      [ngModelOptions]="{ standalone: true }"
                       name="injuryInsuranceEnabled"
                     />
                     <label class="form-check-label" for="injury-insurance-enabled">Include</label>
@@ -979,6 +994,7 @@
                           class="form-control"
                           maxlength="50"
                           [(ngModel)]="injuryEditing.primaryInsurance.name"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceName"
                         />
                       </div>
@@ -989,6 +1005,7 @@
                           class="form-control"
                           maxlength="255"
                           [(ngModel)]="injuryEditing.primaryInsurance.attention"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceAttention"
                         />
                       </div>
@@ -999,6 +1016,7 @@
                           class="form-control"
                           maxlength="12"
                           [(ngModel)]="injuryEditing.primaryInsurance.phoneNumber"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsurancePhone"
                         />
                       </div>
@@ -1009,6 +1027,7 @@
                           class="form-control"
                           maxlength="20"
                           [(ngModel)]="injuryEditing.primaryInsurance.faxNumber"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceFax"
                         />
                       </div>
@@ -1019,6 +1038,7 @@
                           class="form-control"
                           maxlength="255"
                           [(ngModel)]="injuryEditing.primaryInsurance.street"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceStreet"
                         />
                       </div>
@@ -1029,6 +1049,7 @@
                           class="form-control"
                           maxlength="255"
                           [(ngModel)]="injuryEditing.primaryInsurance.insuranceNumber"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceSte"
                         />
                       </div>
@@ -1039,6 +1060,7 @@
                           class="form-control"
                           maxlength="50"
                           [(ngModel)]="injuryEditing.primaryInsurance.city"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceCity"
                         />
                       </div>
@@ -1047,6 +1069,7 @@
                         <select
                           class="form-select"
                           [(ngModel)]="injuryEditing.primaryInsurance.stateId"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceStateId"
                         >
                           <option [ngValue]="null">Select</option>
@@ -1062,6 +1085,7 @@
                           class="form-control"
                           maxlength="10"
                           [(ngModel)]="injuryEditing.primaryInsurance.zip"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceZip"
                         />
                       </div>
@@ -1079,6 +1103,7 @@
                       class="form-check-input"
                       id="injury-examiner-enabled"
                       [(ngModel)]="injuryEditing.claimExaminer.isActive"
+                      [ngModelOptions]="{ standalone: true }"
                       name="injuryExaminerEnabled"
                     />
                     <label class="form-check-label" for="injury-examiner-enabled">Include</label>
@@ -1094,6 +1119,7 @@
                           class="form-control"
                           maxlength="50"
                           [(ngModel)]="injuryEditing.claimExaminer.name"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerName"
                         />
                       </div>
@@ -1104,6 +1130,7 @@
                           class="form-control"
                           maxlength="255"
                           [(ngModel)]="injuryEditing.claimExaminer.email"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerEmail"
                         />
                       </div>
@@ -1114,6 +1141,7 @@
                           class="form-control"
                           maxlength="20"
                           [(ngModel)]="injuryEditing.claimExaminer.phoneNumber"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerPhone"
                         />
                       </div>
@@ -1124,6 +1152,7 @@
                           class="form-control"
                           maxlength="15"
                           [(ngModel)]="injuryEditing.claimExaminer.fax"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerFax"
                         />
                       </div>
@@ -1134,6 +1163,7 @@
                           class="form-control"
                           maxlength="100"
                           [(ngModel)]="injuryEditing.claimExaminer.street"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerStreet"
                         />
                       </div>
@@ -1144,6 +1174,7 @@
                           class="form-control"
                           maxlength="255"
                           [(ngModel)]="injuryEditing.claimExaminer.claimExaminerNumber"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerSte"
                         />
                       </div>
@@ -1154,6 +1185,7 @@
                           class="form-control"
                           maxlength="50"
                           [(ngModel)]="injuryEditing.claimExaminer.city"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerCity"
                         />
                       </div>
@@ -1162,6 +1194,7 @@
                         <select
                           class="form-select"
                           [(ngModel)]="injuryEditing.claimExaminer.stateId"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerStateId"
                         >
                           <option [ngValue]="null">Select</option>
@@ -1177,6 +1210,7 @@
                           class="form-control"
                           maxlength="10"
                           [(ngModel)]="injuryEditing.claimExaminer.zip"
+                          [ngModelOptions]="{ standalone: true }"
                           name="injuryExaminerZip"
                         />
                       </div>
@@ -1185,13 +1219,20 @@
                 }
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeInjuryModal()">
-                Close
-              </button>
-              <button type="button" class="btn btn-primary" (click)="saveInjuryModal()">
-                {{ injuryEditingIndex >= 0 ? 'Save' : 'Add' }}
-              </button>
+            <div class="modal-footer flex-column align-items-stretch">
+              @if (injuryModalError) {
+                <div class="alert alert-danger w-100 mb-2 py-2" role="alert">
+                  {{ injuryModalError }}
+                </div>
+              }
+              <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" (click)="closeInjuryModal()">
+                  Close
+                </button>
+                <button type="button" class="btn btn-primary" (click)="saveInjuryModal()">
+                  {{ injuryEditingIndex >= 0 ? 'Save' : 'Add' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>

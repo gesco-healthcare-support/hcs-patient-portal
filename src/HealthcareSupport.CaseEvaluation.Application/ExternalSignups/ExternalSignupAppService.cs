@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -21,6 +22,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly PatientManager _patientManager;
+    private readonly ApplicantAttorneyManager _applicantAttorneyManager;
+    private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IRepository<IdentityRole, Guid> _identityRoleRepository;
 
@@ -29,6 +32,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IdentityRoleManager roleManager,
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
+        ApplicantAttorneyManager applicantAttorneyManager,
+        IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         IRepository<IdentityRole, Guid> identityRoleRepository)
     {
@@ -36,6 +41,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _roleManager = roleManager;
         _tenantRepository = tenantRepository;
         _patientManager = patientManager;
+        _applicantAttorneyManager = applicantAttorneyManager;
+        _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
         _identityRoleRepository = identityRoleRepository;
     }
@@ -59,13 +66,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return new ListResultDto<LookupDto<Guid>>(items);
     }
 
+    [Authorize]
     public virtual async Task<ListResultDto<ExternalUserLookupDto>> GetExternalUserLookupAsync(string? filter = null)
     {
+        // Adrian (2026-04-30): only Patient and Applicant Attorney are exposed via this lookup.
+        // Defense Attorney and Claim Examiner are intentionally excluded -- per D-2 in the
+        // Wave-2 demo-lifecycle report, DA/CE register and login normally but their saved
+        // profiles do not surface in any picker, dropdown, or autocomplete to other tenant users.
         var allowedRoleNames = new[]
         {
             "Patient",
             "Applicant Attorney",
-            "Defense Attorney",
         };
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
@@ -210,18 +221,40 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
             if (input.UserType == ExternalUserType.Patient)
             {
+                // FirstName/LastName are not collected on the minimal register
+                // form (Adrian, 2026-04-30). Normalize null to "" so the Patient
+                // row is created with empty name fields; the booker fills these
+                // in later via the booking form's patient section.
                 await _patientManager.CreateAsync(
                     stateId: null,
                     appointmentLanguageId: null,
                     identityUserId: user.Id,
                     tenantId: CurrentTenant.Id,
-                    firstName: input.FirstName,
-                    lastName: input.LastName,
+                    firstName: input.FirstName ?? string.Empty,
+                    lastName: input.LastName ?? string.Empty,
                     email: input.Email,
                     genderId: Gender.Male,
                     dateOfBirth: DateTime.UtcNow.Date,
                     phoneNumberTypeId: PhoneNumberType.Home
                 );
+            }
+            else if (input.UserType == ExternalUserType.ApplicantAttorney)
+            {
+                // Adrian D-2 (2026-04-30): Applicant Attorney is the only non-Patient external
+                // role that gets a saved profile. Creating an empty AA row here makes the
+                // booker-side pre-fill ("Search by email" + lookup picker) discover this AA
+                // on next booking, the tenant-admin AA management page surfaces them, and the
+                // appointment-AA join can point at a real row.
+                // Defense Attorney + Claim Examiner are intentionally NOT created -- per D-2,
+                // their saved profiles are not exposed in any lookup or pre-fill surface.
+                var existingApplicantAttorney = await _applicantAttorneyRepository
+                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
+                if (existingApplicantAttorney == null)
+                {
+                    await _applicantAttorneyManager.CreateAsync(
+                        stateId: null,
+                        identityUserId: user.Id);
+                }
             }
         }
     }

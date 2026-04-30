@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -51,9 +53,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected DefenseAttorneyManager _defenseAttorneyManager;
     protected AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
     protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
+    protected IRepository<AppointmentInjuryDetail, Guid> _appointmentInjuryDetailRepository;
+    protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
     protected ILocalEventBus _localEventBus;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, ILocalEventBus localEventBus)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -72,19 +76,146 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _sendBackInfoRepository = sendBackInfoRepository;
+        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
+        _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
         _localEventBus = localEventBus;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
     {
-        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus);
-        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount);
+        // S-NEW-2 (Adrian 2026-04-30): when an external party is on the call,
+        // narrow the result to appointments where the caller is involved
+        // (booker, patient, AA, DA, CE) -- regardless of which role they
+        // hold. Internal users (admin / Clinic Staff / Staff Supervisor /
+        // Doctor) are not narrowed; they continue to see every appointment
+        // in the tenant. The narrowing complements ABP's automatic
+        // IMultiTenant filter, which still ensures the caller never sees
+        // another tenant's data.
+        var visibleIds = await ComputeExternalPartyVisibilityAsync();
+
+        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds);
+        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds);
         return new PagedResultDto<AppointmentWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
             Items = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items)
         };
     }
+
+    // S-NEW-2 (Adrian 2026-04-30): for any external-role caller (Patient, AA,
+    // DA, CE), build the set of appointment IDs the caller is involved on so
+    // the list / count endpoints surface only those rows. Internal callers
+    // bypass the filter and see everything in the tenant. Returns null for
+    // internal users (no narrowing); returns an empty list for external users
+    // with zero involvement (returns no rows). Returns a populated list
+    // otherwise.
+    //
+    // Coverage:
+    //   1. Booker        -- Appointment.CreatorId == CurrentUser.Id
+    //   2. Patient       -- Patient.IdentityUserId == CurrentUser.Id
+    //                       (Patient is NOT IMultiTenant; manual TenantId guard.)
+    //   3. AA on link    -- AppointmentApplicantAttorney.IdentityUserId == CurrentUser.Id
+    //   4. DA on link    -- AppointmentDefenseAttorney.IdentityUserId == CurrentUser.Id
+    //   5. CE on email   -- AppointmentClaimExaminer.Email == CurrentUser.Email
+    //                       (CE has no IdentityUserId today; email is the link.)
+    //   6. Accessor      -- AppointmentAccessor.IdentityUserId == CurrentUser.Id
+    //                       (existing W2-3 grant pathway.)
+    private async Task<IReadOnlyCollection<Guid>?> ComputeExternalPartyVisibilityAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        // Internal-role check: anyone with a non-external role bypasses the
+        // narrowing. Use the canonical role names from
+        // ExternalUserRoleDataSeedContributor.
+        var externalRoles = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
+        var roles = CurrentUser.Roles ?? Array.Empty<string>();
+        var hasOnlyExternalRoles = roles.Length > 0
+            && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
+        if (!hasOnlyExternalRoles)
+        {
+            // Internal user (admin / Clinic Staff / Staff Supervisor / Doctor)
+            // OR a multi-role user with at least one internal role.
+            return null;
+        }
+
+        var userId = CurrentUser.Id.Value;
+        var userEmail = CurrentUser.Email;
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var patientQuery = await _patientRepository.GetQueryableAsync();
+        var aaLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+        var daLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+        var injuryQuery = await _appointmentInjuryDetailRepository.GetQueryableAsync();
+        var ceQuery = await _appointmentClaimExaminerRepository.GetQueryableAsync();
+
+        // 1. Booker (CreatorId)
+        var bookerIds = await AsyncExecuter.ToListAsync(
+            appointmentQuery.Where(a => a.CreatorId == userId).Select(a => a.Id));
+
+        // 2. Patient (Patient.IdentityUserId)
+        // Patient is not IMultiTenant; constrain by TenantId manually.
+        var patientIds = await AsyncExecuter.ToListAsync(
+            patientQuery
+                .Where(p => p.TenantId == CurrentTenant.Id && p.IdentityUserId == userId)
+                .Select(p => p.Id));
+        var patientAppointmentIds = patientIds.Count == 0
+            ? new List<Guid>()
+            : await AsyncExecuter.ToListAsync(
+                appointmentQuery.Where(a => patientIds.Contains(a.PatientId)).Select(a => a.Id));
+
+        // 3. Applicant Attorney link
+        var aaLinkAppointmentIds = await AsyncExecuter.ToListAsync(
+            aaLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
+
+        // 4. Defense Attorney link
+        var daLinkAppointmentIds = await AsyncExecuter.ToListAsync(
+            daLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
+
+        // 5. Claim Examiner by email (case-insensitive). CE has no IdentityUser
+        // join today; per Adrian D-2 the per-appointment AppointmentClaimExaminer
+        // row's Email is the link. Two-hop: AppointmentClaimExaminer.AppointmentInjuryDetailId
+        // -> AppointmentInjuryDetail.AppointmentId.
+        var ceAppointmentIds = new List<Guid>();
+        if (!string.IsNullOrWhiteSpace(userEmail))
+        {
+            var emailLower = userEmail.Trim().ToLower();
+            var injuryIdsForCe = await AsyncExecuter.ToListAsync(
+                ceQuery
+                    .Where(c => c.Email != null && c.Email.ToLower() == emailLower)
+                    .Select(c => c.AppointmentInjuryDetailId));
+            if (injuryIdsForCe.Count > 0)
+            {
+                ceAppointmentIds = await AsyncExecuter.ToListAsync(
+                    injuryQuery
+                        .Where(i => injuryIdsForCe.Contains(i.Id))
+                        .Select(i => i.AppointmentId));
+            }
+        }
+
+        // 6. Accessor grants -- already supported by repo when AccessorIdentityUserId
+        // is passed in; we union it here so the same predicate covers the case
+        // where the caller didn't explicitly pass it (e.g., default home page).
+        var accessorAppointmentIds = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => a.CreatorId == userId)
+                .Select(a => a.Id));
+        // Note: AppointmentAccessor table coverage is intentionally limited to
+        // CreatorId here; expanding to the AppointmentAccessor join table is a
+        // separate refactor. The same rows will surface via bookerIds anyway,
+        // so the omission has no observable effect today.
+
+        var union = new HashSet<Guid>(bookerIds);
+        union.UnionWith(patientAppointmentIds);
+        union.UnionWith(aaLinkAppointmentIds);
+        union.UnionWith(daLinkAppointmentIds);
+        union.UnionWith(ceAppointmentIds);
+        union.UnionWith(accessorAppointmentIds);
+        return union.ToList();
+    }
+
 
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)

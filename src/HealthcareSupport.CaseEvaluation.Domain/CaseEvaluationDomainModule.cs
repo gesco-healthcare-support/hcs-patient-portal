@@ -57,8 +57,16 @@ public class CaseEvaluationDomainModule : AbpModule
 
 
 
-#if DEBUG
-        context.Services.Replace(ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
-#endif
+        // Adrian (2026-04-30 / W-A-10): the previous `#if DEBUG` guard never fired in the
+        // Docker dev stack because the API is published Release. Switch to a runtime env-var
+        // check so Development containers swap in the no-op email sender and Hangfire stops
+        // false-reporting Succeeded on auth-failed SMTP sends. Production builds (no
+        // ASPNETCORE_ENVIRONMENT=Development) keep the real SMTP sender wired.
+        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        if (string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Services.Replace(ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
+        }
     }
 }

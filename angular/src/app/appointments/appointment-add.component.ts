@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
   ListService,
@@ -98,6 +98,7 @@ type AppointmentAuthorizedUserDraft = {
 export class AppointmentAddComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
 
@@ -152,10 +153,24 @@ export class AppointmentAddComponent {
   // + claim examiner) to a single appointment via the modal. injuryDrafts holds
   // the in-memory list rendered as a table; injuryEditing holds the row being
   // edited in the modal (or a fresh draft for "Add").
+  // W-H-1 / D-1 (Adrian 2026-04-30): Path B re-evaluation. The route enters
+  // here as either `?type=1` (Initial) or `?type=2` (Re-evaluation). For
+  // MVP we surface the distinction via the page heading + a flag carried
+  // through to the submit payload. Future enhancements (filter
+  // AppointmentType lookup to PQMEREEVAL/AMEREEVAL only, surface a
+  // "prior appointment" picker, send a different email subject) hook off
+  // this same flag.
+  isReevaluation = false;
+
   injuryDrafts: AppointmentInjuryDraft[] = [];
   isInjuryModalOpen = false;
   injuryEditingIndex = -1;
   injuryEditing: AppointmentInjuryDraft = this.makeEmptyInjuryDraft();
+  // W-A-4 (2026-04-30): inline validation error displayed inside the
+  // Claim Information modal when the booker clicks Add/Save with required
+  // fields blank. Previously saveInjuryModal silently returned, leaving the
+  // booker confused why the Add button "did nothing".
+  injuryModalError: string | null = null;
   wcabOfficeOptions: LookupDto<string>[] = [];
   injuryStateOptions: LookupDto<string>[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
@@ -323,6 +338,13 @@ export class AppointmentAddComponent {
   });
 
   constructor() {
+    // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
+    // queryParamMap.subscribe so deep-links + future programmatic switches
+    // both flip the flag.
+    this.route.queryParamMap.subscribe((params) => {
+      this.isReevaluation = params.get('type') === '2';
+    });
+
     this.form
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
@@ -343,6 +365,36 @@ export class AppointmentAddComponent {
     this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
       this.onAuthorizedUserIdentityChanged(value);
     });
+
+    // S-NEW-2 (Adrian 2026-04-30): when the booker enables the AA or DA
+    // section, the corresponding email field becomes required (in addition to
+    // the existing format check). This drives the post-submit fan-out --
+    // each party we name on the appointment must have a deliverable email.
+    this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
+    });
+    this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
+    });
+    // Apply once at construction for the initial enabled state.
+    this.applyConditionalEmailValidator(
+      'applicantAttorneyEmail',
+      !!this.form.get('applicantAttorneyEnabled')?.value,
+    );
+    this.applyConditionalEmailValidator(
+      'defenseAttorneyEmail',
+      !!this.form.get('defenseAttorneyEnabled')?.value,
+    );
+  }
+
+  private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
+    const control = this.form.get(fieldName);
+    if (!control) return;
+    const validators = required
+      ? [Validators.required, Validators.email, Validators.maxLength(50)]
+      : [Validators.email, Validators.maxLength(50)];
+    control.setValidators(validators);
+    control.updateValueAndValidity({ emitEvent: false });
   }
 
   /**
@@ -449,12 +501,26 @@ export class AppointmentAddComponent {
     return this.currentUser?.roles?.[0] || 'Patient';
   }
 
-  /** True when user is Applicant Attorney or Defense Attorney (external user without Patient record). */
+  /**
+   * True when the booker is anyone OTHER than the Patient role. Covers
+   * Applicant Attorney, Defense Attorney, Claim Examiner, and internal
+   * users (admin, Clinic Staff, Staff Supervisor, Doctor) booking on
+   * behalf of a patient. Drives:
+   *   - profile load: Patient -> /patients/me; everyone else -> /external-users/me
+   *     (W-B-2 fix, 2026-04-30: previously CE + internal bookers fell through
+   *     to /patients/me and got 404 because their IdentityUser has no Patient row).
+   *   - patient-section behavior: non-Patient bookers create-on-behalf via
+   *     /patients/for-appointment-booking; Patients self-update their own row.
+   */
   get isExternalUserNonPatient(): boolean {
     const roles = this.currentUser?.roles ?? [];
-    return roles.some(
-      (r) => r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
-    );
+    if (roles.length === 0) {
+      // Unknown role at construction time -- safer to treat as "non-Patient"
+      // so the form does not call /patients/me on a not-yet-loaded user
+      // (the alternative is a guaranteed 404 that breaks the form globally).
+      return true;
+    }
+    return !roles.some((r: string) => r?.toLowerCase() === 'patient');
   }
 
   /** True when current user is Applicant Attorney (hide load/select UI for them). */
@@ -1998,16 +2064,24 @@ export class AppointmentAddComponent {
     this.isInjuryModalOpen = false;
     this.injuryEditingIndex = -1;
     this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.injuryModalError = null;
   }
 
   saveInjuryModal(): void {
-    if (
-      !this.injuryEditing.dateOfInjury ||
-      !this.injuryEditing.claimNumber ||
-      !this.injuryEditing.bodyPartsSummary
-    ) {
+    const missing: string[] = [];
+    if (!this.injuryEditing.dateOfInjury) missing.push('Date of Injury');
+    if (!this.injuryEditing.claimNumber) missing.push('Claim Number');
+    if (!this.injuryEditing.bodyPartsSummary) missing.push('Body Parts');
+    if (missing.length > 0) {
+      this.injuryModalError =
+        'Please fill the required field' +
+        (missing.length > 1 ? 's' : '') +
+        ': ' +
+        missing.join(', ') +
+        '.';
       return;
     }
+    this.injuryModalError = null;
     if (this.injuryEditingIndex >= 0) {
       this.injuryDrafts[this.injuryEditingIndex] = this.injuryEditing;
     } else {

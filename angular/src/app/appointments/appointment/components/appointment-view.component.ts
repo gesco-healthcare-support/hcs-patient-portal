@@ -254,12 +254,20 @@ export class AppointmentViewComponent implements OnInit {
     this.router.navigateByUrl('/');
   }
 
+  /**
+   * True when the booker/viewer is anyone OTHER than the Patient role.
+   * Covers AA, DA, CE, and internal users. Drives:
+   *   - patient-update url: non-Patient -> /patients/for-appointment-booking/<id>;
+   *     Patient -> /patients/me (W-B-2 fix, 2026-04-30: previously CE + internal
+   *     bookers fell through to /patients/me and got 404).
+   *   - canEdit / read-only gate logic.
+   */
   get isExternalUserNonPatient(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
-    return roles.some(
-      (r: string) =>
-        r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
-    );
+    if (!Array.isArray(roles) || roles.length === 0) {
+      return true;
+    }
+    return !roles.some((r: string) => r?.toLowerCase() === 'patient');
   }
 
   get isApplicantAttorney(): boolean {

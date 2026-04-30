@@ -15,7 +15,12 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
 [RemoteService(IsEnabled = false)]
-[Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
+// Class-level authorization demoted from `Default` to plain `[Authorize]` so
+// external roles (Patient + AA, the lookup-eligible bookers per Adrian D-2)
+// can call `GetWcabOfficeLookupAsync`. Per-method `[Authorize(...Default)]`
+// is preserved on the broader read endpoints so admin-side enumeration
+// remains gated. (Step 1.4 / W-A-3, 2026-04-30.)
+[Authorize]
 public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IAppointmentInjuryDetailsAppService
 {
     protected IAppointmentInjuryDetailRepository _repository;
@@ -63,7 +68,9 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
         return ObjectMapper.Map<AppointmentInjuryDetail, AppointmentInjuryDetailDto>(await _repository.GetAsync(id));
     }
 
-    [Authorize(CaseEvaluationPermissions.AppointmentInjuryDetails.Default)]
+    // Plain [Authorize]: any authenticated booker can read the WCAB office
+    // lookup to populate the Claim Information modal (Step 1.4 / W-A-3).
+    [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetWcabOfficeLookupAsync(LookupRequestDto input)
     {
         var query = (await _wcabOfficeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));

@@ -39,23 +39,16 @@ export class HomeComponent implements OnInit {
       return;
     }
 
-    const currentUserId = this.currentUser?.id;
-    if (currentUserId) {
-      if (this.isAttorneyUser) {
-        this.service.filters.accessorIdentityUserId = currentUserId as any;
-      } else {
-        this.service.filters.identityUserId = currentUserId as any;
-      }
-    }
-
+    // S-NEW-2 (Adrian 2026-04-30): the server narrows the appointment list to
+    // appointments where the caller is involved (booker / patient / AA link /
+    // DA link / CE email) when the caller holds an external role. We do NOT
+    // pre-set client-side filters here -- doing so previously restricted
+    // attorneys to "I am the booker" or "I am on the AppointmentAccessor",
+    // which missed the natural cases where a Patient enters their AA's email
+    // on the booking form (link row created without that AA being the
+    // booker). Letting the server's S-NEW-2 visibility filter run unfiltered
+    // returns the union of all involvement modes.
     this.service.hookToQuery();
-  }
-
-  /** Applicant Attorney or Defense Attorney (use AppointmentAccessor filter, not Patient). */
-  private get isAttorneyUser(): boolean {
-    const roles = this.currentUser?.roles ?? [];
-    const attorneyRoles = new Set(['applicant attorney', 'defense attorney']);
-    return roles.some((role) => attorneyRoles.has(role?.toLowerCase() ?? ''));
   }
 
   get hasLoggedIn(): boolean {
