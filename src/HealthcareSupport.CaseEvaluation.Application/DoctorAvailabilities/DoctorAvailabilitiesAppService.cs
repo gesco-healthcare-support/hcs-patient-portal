@@ -258,6 +258,9 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             monthIndex++;
         }
 
+        // Conflicts are scoped to the same Location only. The slot model is per-location:
+        // two locations can independently host overlapping wall-clock slots (different doctors,
+        // different rooms). Cross-location overlap is intentionally NOT a conflict.
         var isAlreadyExist = false;
         var isBookedByUser = false;
         foreach (var date in previewList)
@@ -265,6 +268,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             foreach (var timeSlot in date.DoctorAvailabilities)
             {
                 var overlap = existingAvailabilities.FirstOrDefault(x =>
+                    x.LocationId == timeSlot.LocationId &&
                     x.AvailableDate.Date == timeSlot.AvailableDate.Date &&
                     x.FromTime < timeSlot.ToTime &&
                     x.ToTime > timeSlot.FromTime);
@@ -274,19 +278,16 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
                     continue;
                 }
 
-                var isSameLocation = overlap.LocationId == timeSlot.LocationId;
-
-                if (isSameLocation || overlap.BookingStatusId == BookingStatus.Available)
-                {
-                    timeSlot.IsConflict = true;
-                    isAlreadyExist = true;
-                }
-
                 if (overlap.BookingStatusId == BookingStatus.Booked ||
                     overlap.BookingStatusId == BookingStatus.Reserved)
                 {
                     timeSlot.IsConflict = true;
                     isBookedByUser = true;
+                }
+                else
+                {
+                    timeSlot.IsConflict = true;
+                    isAlreadyExist = true;
                 }
             }
         }
@@ -295,13 +296,13 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         {
             if (isAlreadyExist)
             {
-                previewList[0].SameTimeValidation = "TimeSlot Already Exist in the System for different location";
+                previewList[0].SameTimeValidation = "Time slot already exists at this location.";
             }
 
             if (isBookedByUser)
             {
                 previewList[0].SameTimeValidation =
-                    "The selected time slot is already booked by user for different location";
+                    "Time slot is already booked or reserved at this location.";
             }
         }
 
