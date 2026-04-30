@@ -83,3 +83,24 @@ html.externaluser-role {
     display: none !important;
   }
 }
+
+/*
+ * abp-confirmation overlay fix: the wrapper element renders for both
+ * confirm-modals (delete-confirm, etc.) and unhandled-error toasts. In the
+ * toast case, the wrapper persists with pointer-events: auto and an invisible
+ * full-page footprint, so clicks anywhere on the page hit the wrapper instead
+ * of the underlying form. Letting the wrapper itself be click-through while
+ * its direct children (modal-dialog / toast / message) keep pointer-events: auto
+ * preserves both UXes: modals still trap clicks inside the dialog, toasts no
+ * longer block the page.
+ */
+abp-confirmation {
+  pointer-events: none;
+}
+abp-confirmation > *,
+abp-confirmation .modal-dialog,
+abp-confirmation .modal-content,
+abp-confirmation .toast,
+abp-confirmation .message {
+  pointer-events: auto;
+}
