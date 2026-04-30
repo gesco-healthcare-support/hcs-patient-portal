@@ -156,6 +156,20 @@ public partial class WcabOfficeWithNavigationPropertiesToWcabOfficeWithNavigatio
 }
 
 [Mapper]
+public partial class WcabOfficeToLookupDtoGuidMapper : MapperBase<WcabOffice, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(WcabOffice source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(WcabOffice source, LookupDto<Guid> destination);
+
+    public override void AfterMap(WcabOffice source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
 public partial class DoctorToDoctorDtoMappers : MapperBase<Doctor, DoctorDto>
 {
     public override partial DoctorDto Map(Doctor source);
