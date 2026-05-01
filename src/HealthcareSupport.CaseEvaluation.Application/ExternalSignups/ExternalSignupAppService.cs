@@ -1,17 +1,26 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.Settings;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
@@ -26,6 +35,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IRepository<IdentityRole, Guid> _identityRoleRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
+    private readonly AppointmentApplicantAttorneyManager _appointmentApplicantAttorneyManager;
+    private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
+    private readonly DefenseAttorneyManager _defenseAttorneyManager;
+    private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
+    private readonly AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
+    // D.2 (2026-04-30): wired for the admin invite endpoint.
+    private readonly ISettingProvider _settingProvider;
+    private readonly IBackgroundJobManager _backgroundJobManager;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -35,7 +54,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        IRepository<IdentityRole, Guid> identityRoleRepository)
+        IRepository<IdentityRole, Guid> identityRoleRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
+        AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager,
+        IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
+        DefenseAttorneyManager defenseAttorneyManager,
+        IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
+        AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
+        ISettingProvider settingProvider,
+        IBackgroundJobManager backgroundJobManager)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -45,6 +73,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
         _identityRoleRepository = identityRoleRepository;
+        _appointmentRepository = appointmentRepository;
+        _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
+        _appointmentApplicantAttorneyManager = appointmentApplicantAttorneyManager;
+        _defenseAttorneyRepository = defenseAttorneyRepository;
+        _defenseAttorneyManager = defenseAttorneyManager;
+        _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
+        _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
+        _settingProvider = settingProvider;
+        _backgroundJobManager = backgroundJobManager;
     }
 
     [AllowAnonymous]
@@ -64,6 +101,36 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             .ToList();
 
         return new ListResultDto<LookupDto<Guid>>(items);
+    }
+
+    /// <summary>
+    /// 1.6 (2026-04-30): host-scoped tenant lookup by name. Used by the
+    /// `/Account/Register` JS overlay to resolve `?__tenant=&lt;Name&gt;` invite-link
+    /// query strings to the GUID needed for the registration POST. Unlike
+    /// `GetTenantOptionsAsync`, this method explicitly switches to host
+    /// context so it works regardless of the caller's current tenant
+    /// (the AuthServer cookie may have been set from a prior session). Case-
+    /// insensitive exact-match on the tenant Name. Returns null on miss.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task<LookupDto<Guid>?> ResolveTenantByNameAsync(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+        using (CurrentTenant.Change(null))
+        {
+            var query = await _tenantRepository.GetQueryableAsync();
+            var trimmed = name.Trim();
+            var tenant = await AsyncExecuter.FirstOrDefaultAsync(
+                query.Where(x => x.Name != null && x.Name.ToLower() == trimmed.ToLower()));
+            if (tenant == null)
+            {
+                return null;
+            }
+            return new LookupDto<Guid> { Id = tenant.Id, DisplayName = tenant.Name! };
+        }
     }
 
     [Authorize]
@@ -256,7 +323,280 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         identityUserId: user.Id);
                 }
             }
+
+            // S-5.2: auto-link the new user to any pre-existing appointments where the
+            // booker captured the matching party email at booking time (PatientEmail /
+            // ApplicantAttorneyEmail / DefenseAttorneyEmail / ClaimExaminerEmail on the
+            // Appointment row, populated by S-5.1). This means an AA / DA who was
+            // emailed an "appointment requested -- register here" link can sign up later
+            // and immediately see the appointments that named them, without anyone
+            // having to re-enter their details.
+            await AutoLinkAppointmentsForUserAsync(user, input.UserType);
         }
+    }
+
+    /// <summary>
+    /// Backfills join rows for a freshly-registered external user against
+    /// already-existing appointments where the booker had captured this user's
+    /// email at booking time.
+    ///
+    /// Scope per role:
+    /// - ApplicantAttorney: creates AppointmentApplicantAttorney link rows.
+    /// - DefenseAttorney: creates a DefenseAttorney profile row if one does not
+    ///   yet exist (the registration block does not create one per D-2; the
+    ///   join row needs a DefenseAttorneyId, so we create the entity here. It
+    ///   stays out of all lookup/pre-fill surfaces because GetExternalUserLookupAsync
+    ///   excludes the DA role and there is no DA management UI at MVP).
+    /// - Patient: not handled here -- the registration block already creates a
+    ///   Patient row with the new user's IdentityUserId, but the appointment's
+    ///   PatientId points at a different Patient row created via the booker's
+    ///   get-or-create-by-email flow. Reconciling those two Patient rows is a
+    ///   merge concern outside the scope of this hook; for fan-out (step 6.1)
+    ///   the appointment-level PatientEmail column is sufficient.
+    /// - ClaimExaminer: skipped -- there is no IdentityUser-bound join entity
+    ///   for CE at MVP (AppointmentClaimExaminer hangs off AppointmentInjuryDetail
+    ///   and has no IdentityUserId column). Step 6.1 fan-out reaches the CE via
+    ///   Appointment.ClaimExaminerEmail directly.
+    /// </summary>
+    private async Task AutoLinkAppointmentsForUserAsync(IdentityUser user, ExternalUserType userType)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
+
+        var normalizedEmail = user.Email.Trim().ToLower();
+
+        if (userType == ExternalUserType.ApplicantAttorney)
+        {
+            await AutoLinkApplicantAttorneyAsync(user.Id, normalizedEmail);
+        }
+        else if (userType == ExternalUserType.DefenseAttorney)
+        {
+            await AutoLinkDefenseAttorneyAsync(user.Id, normalizedEmail);
+        }
+        // Patient and ClaimExaminer: see method docstring for rationale.
+    }
+
+    private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
+    {
+        var applicantAttorney = await _applicantAttorneyRepository
+            .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
+        if (applicantAttorney == null)
+        {
+            // Should never happen because the AA registration branch creates
+            // one above, but guard defensively rather than crashing the signup.
+            return;
+        }
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var matchingAppointmentIds = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => a.ApplicantAttorneyEmail != null
+                            && a.ApplicantAttorneyEmail.ToLower() == normalizedEmail)
+                .Select(a => a.Id));
+
+        foreach (var appointmentId in matchingAppointmentIds)
+        {
+            var existingLinkCount = await _appointmentApplicantAttorneyRepository
+                .GetCountAsync(appointmentId: appointmentId);
+            if (existingLinkCount > 0)
+            {
+                continue;
+            }
+
+            await _appointmentApplicantAttorneyManager.CreateAsync(
+                appointmentId,
+                applicantAttorney.Id,
+                identityUserId);
+        }
+    }
+
+    private async Task AutoLinkDefenseAttorneyAsync(Guid identityUserId, string normalizedEmail)
+    {
+        var defenseAttorney = await _defenseAttorneyRepository
+            .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
+        if (defenseAttorney == null)
+        {
+            defenseAttorney = await _defenseAttorneyManager.CreateAsync(
+                stateId: null,
+                identityUserId: identityUserId);
+        }
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var matchingAppointmentIds = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => a.DefenseAttorneyEmail != null
+                            && a.DefenseAttorneyEmail.ToLower() == normalizedEmail)
+                .Select(a => a.Id));
+
+        foreach (var appointmentId in matchingAppointmentIds)
+        {
+            var existingLinkCount = await _appointmentDefenseAttorneyRepository
+                .GetCountAsync(appointmentId: appointmentId);
+            if (existingLinkCount > 0)
+            {
+                continue;
+            }
+
+            await _appointmentDefenseAttorneyManager.CreateAsync(
+                appointmentId,
+                defenseAttorney.Id,
+                identityUserId);
+        }
+    }
+
+    /// <summary>
+    /// D.2 (2026-04-30): admin-side invite for an external user. Restricted
+    /// to internal-tier callers via role-based authorization (admin OR
+    /// Staff Supervisor at tenant scope; IT Admin at host scope). Builds a
+    /// tenant-specific `/Account/Register?__tenant=&lt;Name&gt;&amp;email=&lt;email&gt;&amp;
+    /// role=&lt;roleName&gt;` URL using the `AuthServerBaseUrl` setting (S-6.1)
+    /// and enqueues an invite email via the same Hangfire pipeline as 6.1's
+    /// fan-out. Returns the URL in the response so the admin can copy and
+    /// paste it manually -- the dev-stack swallows email silently when SMTP
+    /// is unconfigured (S-5.7), and a Mailtrap-class sandbox will not
+    /// deliver to real inboxes either, so showing the URL is non-negotiable
+    /// for the demo flow.
+    ///
+    /// Internal roles (admin, Staff Supervisor, Clinic Staff, Doctor, IT
+    /// Admin) are intentionally NOT invitable through this surface -- the
+    /// `UserType` enum constrains the choice to the four external roles, and
+    /// the JS overlay (1.6) further filters the role dropdown so a tampered
+    /// URL with `?role=admin` cannot register as admin.
+    /// </summary>
+    [Authorize(Roles = "admin,Staff Supervisor,IT Admin")]
+    public virtual async Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input)
+    {
+        if (input == null || string.IsNullOrWhiteSpace(input.Email))
+        {
+            throw new UserFriendlyException(L["Email is required."]);
+        }
+
+        if (!IsExternalRoleType(input.UserType))
+        {
+            throw new UserFriendlyException(L["Only external roles can be invited via this surface."]);
+        }
+
+        var roleName = ToRoleName(input.UserType);
+        var tenantId = CurrentTenant.Id;
+        if (!tenantId.HasValue)
+        {
+            throw new UserFriendlyException(L["Tenant context required for invite."]);
+        }
+
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId.Value);
+        if (string.IsNullOrWhiteSpace(tenantName))
+        {
+            throw new UserFriendlyException(L["Could not resolve tenant name for invite."]);
+        }
+
+        var authServerBaseUrl = await _settingProvider.GetOrNullAsync(
+            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
+        if (string.IsNullOrWhiteSpace(authServerBaseUrl))
+        {
+            throw new UserFriendlyException(
+                L["AuthServer base URL is not configured. Set CaseEvaluation.Notifications.AuthServerBaseUrl."]);
+        }
+
+        var inviteUrl = BuildInviteUrl(
+            authServerBaseUrl: authServerBaseUrl.TrimEnd('/'),
+            tenantName: tenantName,
+            email: input.Email.Trim(),
+            roleName: roleName);
+
+        var emailEnqueued = false;
+        try
+        {
+            var subject = $"You have been invited to register at {tenantName}";
+            var body = BuildInviteHtml(tenantName, roleName, inviteUrl);
+            await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
+            {
+                To = input.Email.Trim(),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true,
+                Context = $"Invite/{roleName}/{tenantId.Value}",
+                Role = MapToRecipientRole(input.UserType),
+                IsRegistered = false,
+                TenantName = tenantName,
+            });
+            emailEnqueued = true;
+        }
+        catch (Exception)
+        {
+            // Email enqueue failure does not block the response; the admin
+            // can still copy the URL manually. The Hangfire pipeline logs
+            // the failure separately; we surface it via the bool flag.
+            emailEnqueued = false;
+        }
+
+        return new InviteExternalUserResultDto
+        {
+            InviteUrl = inviteUrl,
+            EmailEnqueued = emailEnqueued,
+            Email = input.Email.Trim(),
+            RoleName = roleName,
+            TenantName = tenantName,
+        };
+    }
+
+    private static bool IsExternalRoleType(ExternalUserType type) => type switch
+    {
+        ExternalUserType.Patient => true,
+        ExternalUserType.ApplicantAttorney => true,
+        ExternalUserType.DefenseAttorney => true,
+        ExternalUserType.ClaimExaminer => true,
+        _ => false,
+    };
+
+    private static RecipientRole MapToRecipientRole(ExternalUserType type) => type switch
+    {
+        ExternalUserType.Patient => RecipientRole.Patient,
+        ExternalUserType.ApplicantAttorney => RecipientRole.ApplicantAttorney,
+        ExternalUserType.DefenseAttorney => RecipientRole.DefenseAttorney,
+        ExternalUserType.ClaimExaminer => RecipientRole.ClaimExaminer,
+        _ => RecipientRole.Patient,
+    };
+
+    private async Task<string?> ResolveCurrentTenantNameAsync(Guid tenantId)
+    {
+        // Tenant rows live in the host scope; switch to host context so the
+        // IMultiTenant filter does not exclude the row.
+        using (CurrentTenant.Change(null))
+        {
+            var tenant = await _tenantRepository.FindAsync(tenantId);
+            return tenant?.Name;
+        }
+    }
+
+    private static string BuildInviteUrl(string authServerBaseUrl, string tenantName, string email, string roleName)
+    {
+        var query = new System.Text.StringBuilder("?");
+        query.Append("__tenant=").Append(WebUtility.UrlEncode(tenantName)).Append('&');
+        query.Append("email=").Append(WebUtility.UrlEncode(email)).Append('&');
+        query.Append("role=").Append(WebUtility.UrlEncode(roleName));
+        return $"{authServerBaseUrl}/Account/Register{query}";
+    }
+
+    private static string BuildInviteHtml(string tenantName, string roleName, string inviteUrl)
+    {
+        var encodedUrl = WebUtility.HtmlEncode(inviteUrl);
+        var encodedTenant = WebUtility.HtmlEncode(tenantName);
+        var encodedRole = WebUtility.HtmlEncode(roleName);
+        return
+            "<html><body style=\"font-family: Arial, sans-serif; color: #333;\">" +
+            "<h2 style=\"color: #0d6efd;\">You have been invited to register</h2>" +
+            $"<p><strong>{encodedTenant}</strong> has invited you to register a portal account as <strong>{encodedRole}</strong>.</p>" +
+            "<p>Use the button below to open the registration page. The tenant and your email are pre-filled; pick a password and submit to finish.</p>" +
+            "<p style=\"margin-top: 20px;\">" +
+            $"<a href=\"{encodedUrl}\" style=\"background:#0d6efd;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;\">" +
+            $"Register at {encodedTenant}" +
+            "</a></p>" +
+            "<p style=\"color:#888;font-size:0.85em;\">If the button does not work, copy and paste this link into your browser:<br>" +
+            $"<a href=\"{encodedUrl}\">{encodedUrl}</a></p>" +
+            "<hr><p style=\"color: #888; font-size: 0.85em;\">If you were not expecting this invitation, you can safely ignore this email.</p>" +
+            "</body></html>";
     }
 
     private Guid? ResolveTenantId(Guid? requestedTenantId)

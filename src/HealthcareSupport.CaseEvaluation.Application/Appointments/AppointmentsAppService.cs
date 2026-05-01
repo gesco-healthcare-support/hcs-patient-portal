@@ -508,6 +508,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // / SendBack endpoints exposed on AppointmentManager.
         var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, AppointmentStatusType.Pending, input.PanelNumber, input.DueDate);
 
+        // S-5.1: snapshot party emails at booking time for async fan-out (step 6.1).
+        // Emails are saved on the appointment regardless of whether a join row exists
+        // for the party, so non-registered parties are captured too.
+        appointment.PatientEmail = input.PatientEmail;
+        appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
+        appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
+        appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+
         // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
         // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
         // funnels it through the SlotCascadeHandler so all slot writes have a
@@ -663,6 +671,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var oldSlotId = existing?.DoctorAvailabilityId;
 
         var appointment = await _appointmentManager.UpdateAsync(id, input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, input.PanelNumber, input.DueDate, input.ConcurrencyStamp);
+
+        // S-5.1: update party emails alongside the core appointment fields.
+        appointment.PatientEmail = input.PatientEmail;
+        appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
+        appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
+        appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+        await _appointmentRepository.UpdateAsync(appointment);
 
         if (oldSlotId.HasValue && oldSlotId.Value != appointment.DoctorAvailabilityId)
         {

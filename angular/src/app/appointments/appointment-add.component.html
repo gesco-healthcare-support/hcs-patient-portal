@@ -627,27 +627,27 @@
           @if (form.get('defenseAttorneyEnabled')?.value) {
             <div class="card-body">
               <div class="row mb-3">
-                <div class="col-md-7">
-                  <label class="form-label fw-semibold">Defense Attorney Email</label>
-                  <div class="d-flex">
-                    <input
-                      type="email"
-                      class="form-control me-2"
-                      placeholder="Enter email to load existing defense attorney"
-                      [value]="defenseAttorneyEmailSearch"
-                      (input)="onDefenseAttorneyEmailSearch($event)"
-                    />
-                    <button
-                      type="button"
-                      class="btn btn-outline-primary"
-                      [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
-                      (click)="loadDefenseAttorneyByEmail()"
-                    >
-                      Load
-                    </button>
-                  </div>
-                </div>
                 <div class="col-md-5">
+                  <label class="form-label fw-semibold">Defense Attorney Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    placeholder="Enter email to load existing defense attorney"
+                    [value]="defenseAttorneyEmailSearch"
+                    (input)="onDefenseAttorneyEmailSearch($event)"
+                  />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary"
+                    [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
+                    (click)="loadDefenseAttorneyByEmail()"
+                  >
+                    Load Defense Attorney
+                  </button>
+                </div>
+                <div class="col-md-3">
                   <label class="form-label fw-semibold">Or select from list</label>
                   <select
                     class="form-select"
@@ -664,7 +664,7 @@
                 </div>
               </div>
               <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">First Name</label>
                   <input
                     class="form-control"
@@ -673,7 +673,7 @@
                     readonly
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Last Name</label>
                   <input
                     class="form-control"
@@ -682,7 +682,7 @@
                     readonly
                   />
                 </div>
-                <div class="col-md-12 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Email</label>
                   <input
                     class="form-control"
@@ -691,7 +691,7 @@
                     readonly
                   />
                 </div>
-                <div class="col-md-12 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Firm Name</label>
                   <input
                     class="form-control"
@@ -700,7 +700,7 @@
                     maxlength="50"
                   />
                 </div>
-                <div class="col-md-12 mb-3">
+                <div class="col-md-6 mb-3">
                   <label class="form-label fw-semibold">Web Address</label>
                   <input
                     class="form-control"
@@ -709,7 +709,7 @@
                     maxlength="100"
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Phone Number</label>
                   <input
                     class="form-control"
@@ -718,7 +718,7 @@
                     maxlength="20"
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Fax</label>
                   <input
                     class="form-control"
@@ -727,7 +727,7 @@
                     maxlength="19"
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Street</label>
                   <input
                     class="form-control"
@@ -736,7 +736,7 @@
                     maxlength="255"
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">City</label>
                   <input
                     class="form-control"
@@ -745,7 +745,7 @@
                     maxlength="50"
                   />
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">State</label>
                   <abp-lookup-select
                     cid="appointment-defense-attorney-state-id"
@@ -753,7 +753,7 @@
                     [getFn]="getStateLookup"
                   ></abp-lookup-select>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label fw-semibold">Zip Code</label>
                   <input
                     class="form-control"
@@ -769,12 +769,67 @@
       </div>
     </div>
 
+    <!-- W2-8 / Step 4.5: Claim Examiner Details card. Extracted from the per-injury
+         modal (where CE was a sub-card) into a top-level appointment-level card.
+         Name + Email only at this stage; remaining CE fields land when the full
+         CE entity is built. Submission integration follows in Step 5.1. -->
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-bold">Claim Examiner Details</h5>
+        <div class="form-check form-switch">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="claim-examiner-enabled"
+            formControlName="claimExaminerEnabled"
+          />
+          <label class="form-check-label" for="claim-examiner-enabled">Include</label>
+        </div>
+      </div>
+      @if (form.get('claimExaminerEnabled')?.value) {
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Name</label>
+              <input
+                class="form-control"
+                formControlName="claimExaminerName"
+                placeholder="CLAIM EXAMINER NAME"
+              />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Email</label>
+              <input
+                type="email"
+                class="form-control"
+                formControlName="claimExaminerEmail"
+                placeholder="CLAIM EXAMINER EMAIL"
+              />
+              @if (
+                form.get('claimExaminerEmail')?.touched &&
+                form.get('claimExaminerEmail')?.hasError('email')
+              ) {
+                <div class="text-danger small mt-1">Enter a valid email address.</div>
+              }
+              @if (
+                form.get('claimExaminerEmail')?.touched &&
+                form.get('claimExaminerEmail')?.hasError('required')
+              ) {
+                <div class="text-danger small mt-1">
+                  Email is required when Claim Examiner is included.
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
     <!-- W2-8: Claim Information card. Mirrors OLD's appointment-add layout
          (lines 285-596): Add button opens a modal with cumulative-injury radio,
          dates, claim number, WCAB office, ADJ#, body parts textarea, plus
-         Insurance and Claim Examiner sub-sections each with their own enable
-         toggle. Submitted injuries appear in a table below; multi-injury per
-         appointment supported. -->
+         Insurance sub-section. Submitted injuries appear in a table below;
+         multi-injury per appointment supported. -->
     <div class="card mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0 fw-bold">Claim Information</h5>
@@ -1087,131 +1142,6 @@
                           [(ngModel)]="injuryEditing.primaryInsurance.zip"
                           [ngModelOptions]="{ standalone: true }"
                           name="injuryInsuranceZip"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                }
-              </div>
-
-              <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0 fw-bold">Claim Examiner</h6>
-                  <div class="form-check form-switch">
-                    <input
-                      type="checkbox"
-                      class="form-check-input"
-                      id="injury-examiner-enabled"
-                      [(ngModel)]="injuryEditing.claimExaminer.isActive"
-                      [ngModelOptions]="{ standalone: true }"
-                      name="injuryExaminerEnabled"
-                    />
-                    <label class="form-check-label" for="injury-examiner-enabled">Include</label>
-                  </div>
-                </div>
-                @if (injuryEditing.claimExaminer.isActive) {
-                  <div class="card-body">
-                    <div class="row">
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Name</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.name"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerName"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Email</label>
-                        <input
-                          type="email"
-                          class="form-control"
-                          maxlength="255"
-                          [(ngModel)]="injuryEditing.claimExaminer.email"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerEmail"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Phone Number</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="20"
-                          [(ngModel)]="injuryEditing.claimExaminer.phoneNumber"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerPhone"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Fax</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="15"
-                          [(ngModel)]="injuryEditing.claimExaminer.fax"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerFax"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Street</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="100"
-                          [(ngModel)]="injuryEditing.claimExaminer.street"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerStreet"
-                        />
-                      </div>
-                      <div class="col-md-1 mb-2">
-                        <label class="form-label">STE</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="255"
-                          [(ngModel)]="injuryEditing.claimExaminer.claimExaminerNumber"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerSte"
-                        />
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">City</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.city"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerCity"
-                        />
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">State</label>
-                        <select
-                          class="form-select"
-                          [(ngModel)]="injuryEditing.claimExaminer.stateId"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerStateId"
-                        >
-                          <option [ngValue]="null">Select</option>
-                          @for (s of injuryStateOptions; track s.id) {
-                            <option [ngValue]="s.id">{{ s.displayName }}</option>
-                          }
-                        </select>
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">Zip</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="10"
-                          [(ngModel)]="injuryEditing.claimExaminer.zip"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryExaminerZip"
                         />
                       </div>
                     </div>

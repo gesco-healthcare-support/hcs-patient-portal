@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications;
@@ -48,6 +49,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
     private readonly IRepository<AppointmentPrimaryInsurance, Guid> _primaryInsuranceRepository;
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
     private readonly ISettingProvider _settingProvider;
+    private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AppointmentRecipientResolver> _logger;
 
     public AppointmentRecipientResolver(
@@ -63,6 +65,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         IRepository<AppointmentPrimaryInsurance, Guid> primaryInsuranceRepository,
         IRepository<AppointmentEmployerDetail, Guid> employerDetailRepository,
         ISettingProvider settingProvider,
+        ICurrentTenant currentTenant,
         ILogger<AppointmentRecipientResolver> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -77,6 +80,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         _primaryInsuranceRepository = primaryInsuranceRepository;
         _employerDetailRepository = employerDetailRepository;
         _settingProvider = settingProvider;
+        _currentTenant = currentTenant;
         _logger = logger;
     }
 
@@ -89,10 +93,15 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             return new List<SendAppointmentEmailArgs>();
         }
 
+        // S-6.1: tenant name carried on every recipient so the
+        // SubmissionEmailHandler can build register-URL links with
+        // `?__tenant=<TenantName>` without a separate per-recipient lookup.
+        var tenantName = _currentTenant.Name;
+
         // Build a (email -> args) dictionary so duplicates collapse to first-wins.
         var byEmail = new Dictionary<string, SendAppointmentEmailArgs>(StringComparer.OrdinalIgnoreCase);
 
-        void AddIfPresent(string? email, RecipientRole role, string contextSuffix)
+        void AddIfPresent(string? email, RecipientRole role, string contextSuffix, bool isRegistered = true)
         {
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -110,6 +119,8 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
                 To = email,
                 Role = role,
                 Context = $"Resolver/{kind}/{role}/{appointmentId}/{contextSuffix}",
+                IsRegistered = isRegistered,
+                TenantName = tenantName,
             };
         }
 
@@ -176,6 +187,51 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         //    self-insured employers WOULD receive notifications. Schema enhancement
         //    pending. Branch reserved for forward-compat.
 
+        // 7. S-6.1: walk the 4 appointment-level party-email columns added by
+        //    Step 5.1 (PatientEmail / ApplicantAttorneyEmail / DefenseAttorneyEmail
+        //    / ClaimExaminerEmail). These capture booker-supplied emails for
+        //    parties that have no JOIN row yet (typically because they have not
+        //    registered). Look up each by email; if an IdentityUser already
+        //    exists in this tenant, mark the recipient as registered (the
+        //    handler will send the "log in to view" template). Otherwise mark
+        //    as not registered (handler will send the "register as [role]"
+        //    template with a tenant-pre-filled register URL). The earlier
+        //    JOIN-based passes already added registered AAs/DAs/CEs by
+        //    IdentityUser email; this loop only fires for emails that did NOT
+        //    surface through a JOIN (i.e., dedup-skipped or never-seen).
+        await AddPartyEmailIfNotKnownAsync(
+            byEmail, AddIfPresent, appointment.PatientEmail, RecipientRole.Patient, "patient-email-col");
+        await AddPartyEmailIfNotKnownAsync(
+            byEmail, AddIfPresent, appointment.ApplicantAttorneyEmail, RecipientRole.ApplicantAttorney, "aa-email-col");
+        await AddPartyEmailIfNotKnownAsync(
+            byEmail, AddIfPresent, appointment.DefenseAttorneyEmail, RecipientRole.DefenseAttorney, "da-email-col");
+        await AddPartyEmailIfNotKnownAsync(
+            byEmail, AddIfPresent, appointment.ClaimExaminerEmail, RecipientRole.ClaimExaminer, "ce-email-col");
+
         return byEmail.Values.ToList();
+    }
+
+    // S-6.1: helper for the email-column walk. Looks up the email against the
+    // current-tenant IdentityUser table to decide IsRegistered, then delegates
+    // to AddIfPresent. Skips silently when the email is empty or already
+    // present in the dict (first-wins dedup matches the rest of the resolver).
+    private async Task AddPartyEmailIfNotKnownAsync(
+        Dictionary<string, SendAppointmentEmailArgs> byEmail,
+        Action<string?, RecipientRole, string, bool> addIfPresent,
+        string? email,
+        RecipientRole role,
+        string contextSuffix)
+    {
+        if (string.IsNullOrWhiteSpace(email) || byEmail.ContainsKey(email))
+        {
+            return;
+        }
+
+        var normalizedEmail = email.Trim().ToLower();
+        var userQuery = await _identityUserRepository.GetQueryableAsync();
+        var hasRegisteredUser = userQuery
+            .Any(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
+
+        addIfPresent(email, role, contextSuffix, hasRegisteredUser);
     }
 }

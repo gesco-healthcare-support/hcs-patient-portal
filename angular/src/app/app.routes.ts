@@ -122,4 +122,16 @@ export const APP_ROUTES: Routes = [
   { path: 'doctor-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
   { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
+  // D.2 (2026-04-30): admin invite UI for external users. Backend role-based
+  // gate (admin / Staff Supervisor / IT Admin) is the authoritative authz; the
+  // route guard here is just authGuard. External users hitting this URL get
+  // a 403 from the backend on submit -- the UI itself is harmless to render.
+  {
+    path: 'users/invite',
+    loadComponent: () =>
+      import('./external-users/components/invite-external-user.component').then(
+        (c) => c.InviteExternalUserComponent,
+      ),
+    canActivate: [authGuard],
+  },
 ];

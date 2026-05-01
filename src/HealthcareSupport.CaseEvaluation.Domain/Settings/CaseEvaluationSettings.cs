@@ -79,6 +79,13 @@ public static class CaseEvaluationSettings
         // /appointments/view/:id). Default http://localhost:4200 for dev; admins
         // override per-tenant in /setting-management for prod / staging URLs.
         public const string PortalBaseUrl = Notifications + ".PortalBaseUrl";
+
+        // S-6.1: public base URL of the AuthServer, used to build pre-filled
+        // /Account/Register?__tenant=&lt;TenantName&gt;&email=&lt;email&gt; links in
+        // the "register as [role]" emails sent to non-registered parties whose
+        // emails were captured at booking time on the appointment row (S-5.1).
+        // Default https://localhost:44368 for dev; admins override per-tenant.
+        public const string AuthServerBaseUrl = Notifications + ".AuthServerBaseUrl";
     }
 
     /// <summary>

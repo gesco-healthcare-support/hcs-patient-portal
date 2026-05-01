@@ -165,6 +165,135 @@
     return value || null;
   }
 
+  // 1.6 / W-REG-4 (2026-04-30): tenant resolution priority on /Account/Register.
+  //   1. ?__tenant=<TenantName> query string (highest -- invite links carry it)
+  //   2. __tenant cookie (next -- set by login or prior tenant-switch)
+  //   3. Nothing -> register is blocked with an inline error.
+  // The query string carries the tenant NAME (per S-6.1 invite-URL shape); the
+  // cookie carries the tenant ID (GUID). We need the GUID for the API call,
+  // so when only the name is in hand we resolve via GetTenantOptionsAsync.
+  function readTenantFromQuery() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var raw = params.get('__tenant');
+      if (raw) {
+        var trimmed = raw.trim();
+        if (trimmed) return trimmed;
+      }
+      return null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function readQueryParam(name) {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var raw = params.get(name);
+      return raw ? raw.trim() : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // Resolves a tenant NAME to its GUID via the dedicated
+  // /api/public/external-signup/resolve-tenant endpoint, which always runs in
+  // host context (unlike GetTenantOptionsAsync which bails when the caller's
+  // tenant cookie is set). Returns null on miss (HTTP 404).
+  async function resolveTenantIdByName(tenantName) {
+    if (!tenantName) return null;
+    var lookupBase = externalSignupApiBaseUrl;
+    var lookupUrl = new URL('/api/public/external-signup/resolve-tenant', lookupBase);
+    lookupUrl.searchParams.set('name', tenantName);
+    try {
+      var response = await fetch(lookupUrl.toString(), {
+        method: 'GET',
+        credentials: 'include',
+        mode: 'cors',
+      });
+      if (response.status === 404) {
+        log('Tenant not found:', tenantName);
+        return null;
+      }
+      if (!response.ok) {
+        log('Tenant lookup failed:', response.status);
+        return null;
+      }
+      var body = await response.json();
+      return body && body.id ? { id: body.id, name: body.displayName } : null;
+    } catch (e) {
+      log('Tenant lookup error:', e);
+      return null;
+    }
+  }
+
+  // Cached tenant context for the page: { id, name }. Resolved once on init
+  // (page load on /Account/Register) and reused on form submit so the Submit
+  // path does not hit the network again.
+  var tenantContextCache = null;
+
+  async function resolveTenantContext() {
+    if (tenantContextCache) return tenantContextCache;
+
+    var tenantNameFromQuery = readTenantFromQuery();
+    if (tenantNameFromQuery) {
+      var resolved = await resolveTenantIdByName(tenantNameFromQuery);
+      if (resolved) {
+        tenantContextCache = resolved;
+        return tenantContextCache;
+      }
+      // Query had a name but no tenant matched -- fall through to "blocked".
+      // We deliberately do NOT fall back to the cookie in this case; the
+      // invite link's intent overrides.
+      tenantContextCache = { id: null, name: tenantNameFromQuery, invalid: true };
+      return tenantContextCache;
+    }
+
+    var cookieValue = readTenantCookie();
+    if (cookieValue) {
+      tenantContextCache = { id: cookieValue, name: null };
+      return tenantContextCache;
+    }
+
+    tenantContextCache = null;
+    return null;
+  }
+
+  function ensureExternalRegisterBanner(form, message, level) {
+    var existing = form.querySelector('#external-register-banner');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'external-register-banner';
+      existing.setAttribute('role', 'note');
+      form.prepend(existing);
+    }
+    var levelClass = level === 'danger' ? 'alert alert-danger' : 'alert alert-info';
+    existing.className = levelClass + ' mt-2';
+    existing.textContent = message;
+    existing.style.display = '';
+  }
+
+  function setRegisterFormDisabled(form, disabled, hideForm) {
+    var inputs = form.querySelectorAll('input, select, button, textarea');
+    inputs.forEach(function (el) {
+      // Leave the banner element alone (it has no name attribute and is at
+      // the top), and the role-select dropdown stays interactive in the
+      // success path; we only disable when blocking.
+      if (disabled) {
+        el.setAttribute('disabled', 'disabled');
+      } else {
+        el.removeAttribute('disabled');
+      }
+    });
+    if (hideForm) {
+      form.style.opacity = '0.4';
+      form.style.pointerEvents = 'none';
+    } else {
+      form.style.opacity = '';
+      form.style.pointerEvents = '';
+    }
+  }
+
   async function submitExternalSignup(form) {
     if (isSubmitting) {
       log('Submit ignored. Request is already in-flight.');
@@ -193,16 +322,19 @@
 
     const selectedRoleValue = Number((select && select.value) || 1);
     const userType = Number.isFinite(selectedRoleValue) && selectedRoleValue > 0 ? selectedRoleValue : 1;
-    const tenantId = readTenantCookie();
 
-    if (!tenantId) {
+    // 1.6 (2026-04-30): tenant resolution priority is query > cookie. Cached
+    // on init() so this is a fast path; null means we never resolved one.
+    const ctx = await resolveTenantContext();
+    if (!ctx || !ctx.id || ctx.invalid) {
       notifyRegisterFailure(
         form,
-        'Please select a tenant before registering. Use the "switch" link at the top of the page.'
+        'Tenant required. Use your practice\'s portal link (the email you received) to register.'
       );
-      log('Tenant cookie missing; user must switch to a tenant first.');
+      log('Tenant context missing or invalid; submit blocked.', ctx);
       return;
     }
+    const tenantId = ctx.id;
 
     // Names are not collected on the register form. They are captured later
     // on the booking form's patient/AA/DA/CE section. Submit null so the
@@ -439,6 +571,81 @@
     }
   }
 
+  // 1.6 (2026-04-30): pre-fill role select from `?role=` query param. Accepts
+  // either the label ("Patient", "Applicant Attorney") or the numeric enum
+  // value ("1".."4"). Idempotent -- if the role-select cannot be located the
+  // call is a no-op.
+  function applyRolePrefill(select) {
+    if (!select) return;
+    var raw = readQueryParam('role');
+    if (!raw) return;
+    var resolvedValue = null;
+    var asNumber = Number(raw);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      var byNumber = externalUserRoles.find(function (r) { return r.value === asNumber; });
+      if (byNumber) resolvedValue = byNumber.value;
+    }
+    if (!resolvedValue) {
+      var byLabel = externalUserRoles.find(function (r) {
+        return r.label.toLowerCase() === raw.toLowerCase();
+      });
+      if (byLabel) resolvedValue = byLabel.value;
+    }
+    if (!resolvedValue) {
+      // Reject internal-role attempts silently. The dropdown only contains
+      // external roles; an attacker pasting `?role=admin` cannot register as
+      // admin because the role-select payload is overwritten on submit.
+      log('applyRolePrefill: role param did not match an external role:', raw);
+      return;
+    }
+    select.value = String(resolvedValue);
+  }
+
+  // 1.6 (2026-04-30): pre-fill email + username from `?email=` query param.
+  // Username and email use the same value (the existing register form treats
+  // username = email per S-1.3). Leaves both fields editable.
+  function applyEmailPrefill(form) {
+    var raw = readQueryParam('email');
+    if (!raw) return;
+    var emailFields = ['#input-email-address', 'input[name="Input.EmailAddress"]', 'input[type="email"]'];
+    var usernameFields = ['#input-user-name', 'input[name="Input.UserName"]', 'input[name="Input.UserNameOrEmailAddress"]'];
+    [emailFields, usernameFields].forEach(function (selectors) {
+      for (var i = 0; i < selectors.length; i++) {
+        var input = form.querySelector(selectors[i]);
+        if (input && !input.value) {
+          input.value = raw;
+          break;
+        }
+      }
+    });
+  }
+
+  async function applyTenantBanner(form) {
+    var ctx = await resolveTenantContext();
+    if (!ctx) {
+      ensureExternalRegisterBanner(
+        form,
+        'Tenant required. To register, use the link from the email or page that brought you here. Each practice has its own portal link.',
+        'danger');
+      setRegisterFormDisabled(form, true, true);
+      return;
+    }
+    if (ctx.invalid) {
+      ensureExternalRegisterBanner(
+        form,
+        'The practice "' + ctx.name + '" was not found. Please use the original portal link from the email you received.',
+        'danger');
+      setRegisterFormDisabled(form, true, true);
+      return;
+    }
+    var practiceLabel = ctx.name ? ('"' + ctx.name + '"') : 'the selected practice';
+    ensureExternalRegisterBanner(
+      form,
+      'Registering for ' + practiceLabel + '. To register at a different practice, use that practice\'s portal link.',
+      'info');
+    setRegisterFormDisabled(form, false, false);
+  }
+
   function init() {
     // Hooks are attached regardless; this only runs when on the register page
     // to inject the role (External User Role) dropdown into the form.
@@ -452,7 +659,15 @@
       return;
     }
 
-    ensureUserTypeSelect(form);
+    var select = ensureUserTypeSelect(form);
+
+    // 1.6 (2026-04-30): tenant banner + email/role pre-fill from query string.
+    // Run after the role dropdown is in the DOM so applyRolePrefill can find
+    // it. Banner application is async (network-bound) so we fire-and-forget;
+    // submit is gated independently via resolveTenantContext().
+    applyTenantBanner(form);
+    applyEmailPrefill(form);
+    applyRolePrefill(select);
   }
 
   attachGlobalHooks();

@@ -20,6 +20,10 @@ export interface AppointmentCreateDto {
   appointmentTypeId: string;
   locationId: string;
   doctorAvailabilityId: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentDto extends FullAuditedEntityDto<string> {
@@ -37,6 +41,10 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   locationId: string;
   doctorAvailabilityId: string;
   concurrencyStamp?: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentUpdateDto {
@@ -54,6 +62,10 @@ export interface AppointmentUpdateDto {
   locationId: string;
   doctorAvailabilityId: string;
   concurrencyStamp?: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentApplicantAttorneyWithNavigationPropertiesDto {

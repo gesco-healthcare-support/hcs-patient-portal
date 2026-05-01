@@ -82,20 +82,157 @@ public class SubmissionEmailHandler :
             return;
         }
 
-        var subject = $"New appointment request {eventData.RequestConfirmationNumber}";
-        var body = BuildHtml(
-            title: "A new appointment request was submitted",
-            intro: $"Confirmation #{eventData.RequestConfirmationNumber} requested for {dateLine}.",
-            details: $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br><strong>Patient:</strong> {WebEncode(patientName)}</p><p>Open the appointments queue in the patient portal to review the request and respond.</p>");
+        // S-6.1 / S-6.2 / S-6.3: per-recipient template branching. Each
+        // recipient's args carries IsRegistered (set by the resolver from a
+        // tenant-scoped IdentityUser email lookup) and TenantName (from
+        // CurrentTenant.Name). Registered users see a "log in to view" body
+        // pointing at the Angular portal. Non-registered users see a
+        // "register as <role>" body pointing at AuthServer's /Account/Register
+        // with `?__tenant=<TenantName>&email=<email>` so the tenant is locked
+        // and the email is pre-filled. Office mailbox + the booker's
+        // confirmation email keep their existing wording (verified
+        // "appointment requested" phrasing per S-6.3).
+        var portalBaseUrl = await _settingProvider.GetOrNullAsync(
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+        var authServerBaseUrl = await _settingProvider.GetOrNullAsync(
+            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
 
         foreach (var args in recipients)
         {
-            args.Subject = subject;
-            args.Body = body;
+            (args.Subject, args.Body) = BuildPerRecipientTemplate(
+                args,
+                eventData,
+                bookerName,
+                patientName,
+                dateLine,
+                portalBaseUrl,
+                authServerBaseUrl);
             args.IsBodyHtml = true;
             args.Context = $"Submission/{args.Role}/{eventData.AppointmentId}";
             await _backgroundJobManager.EnqueueAsync(args);
         }
+    }
+
+    /// <summary>
+    /// S-6.1 / S-6.2 / S-6.3: returns subject + HTML body tailored to a single
+    /// recipient. Branches on (Role, IsRegistered):
+    ///   - OfficeAdmin: "new appointment request" with portal queue link.
+    ///   - Booker / Patient (registered): "we received your appointment request"
+    ///     with confirmation # and login link.
+    ///   - AA / DA / CE registered: "appointment requested -- log in to view"
+    ///     with login link.
+    ///   - AA / DA / CE not registered: "appointment requested -- register as
+    ///     [role] to view" with /Account/Register?__tenant=&email= link.
+    /// All branches embed the RequestConfirmationNumber and the appointment
+    /// date line per S-6.2.
+    /// </summary>
+    private static (string Subject, string Body) BuildPerRecipientTemplate(
+        SendAppointmentEmailArgs args,
+        AppointmentSubmittedEto eventData,
+        string bookerName,
+        string patientName,
+        string dateLine,
+        string? portalBaseUrl,
+        string? authServerBaseUrl)
+    {
+        var confirmationNumber = eventData.RequestConfirmationNumber;
+        var role = args.Role ?? RecipientRole.Patient;
+
+        if (role == RecipientRole.OfficeAdmin)
+        {
+            var subject = $"New appointment request {confirmationNumber}";
+            var body = BuildHtml(
+                title: "A new appointment request was submitted",
+                intro: $"Confirmation #{confirmationNumber} requested for {dateLine}.",
+                details:
+                    $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br>" +
+                    $"<strong>Patient:</strong> {WebEncode(patientName)}</p>" +
+                    "<p>Open the appointments queue in the patient portal to review the request and respond.</p>" +
+                    BuildLoginCta(portalBaseUrl));
+            return (subject, body);
+        }
+
+        if (args.IsRegistered)
+        {
+            var subject = $"Appointment requested - {confirmationNumber}";
+            var body = BuildHtml(
+                title: "An appointment was requested",
+                intro: $"Confirmation #{confirmationNumber} requested for {dateLine}.",
+                details:
+                    $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br>" +
+                    $"<strong>Patient:</strong> {WebEncode(patientName)}</p>" +
+                    $"<p>You are listed as the {WebEncode(RoleDisplayName(role))} on this appointment. Log in to the patient portal to view the request, see updates, and receive scheduling notifications.</p>" +
+                    BuildLoginCta(portalBaseUrl));
+            return (subject, body);
+        }
+
+        // Not registered -- "register as [role]" path.
+        var registerSubject = $"Appointment requested - register to view {confirmationNumber}";
+        var registerCta = BuildRegisterCta(authServerBaseUrl, args.TenantName, args.To, role);
+        var registerBody = BuildHtml(
+            title: "An appointment was requested",
+            intro: $"Confirmation #{confirmationNumber} requested for {dateLine}.",
+            details:
+                $"<p><strong>Booker:</strong> {WebEncode(bookerName)}<br>" +
+                $"<strong>Patient:</strong> {WebEncode(patientName)}</p>" +
+                $"<p>You are listed as the {WebEncode(RoleDisplayName(role))} on this appointment but you do not yet have a portal login for this practice. Register below to view this and future appointments where you are involved.</p>" +
+                registerCta);
+        return (registerSubject, registerBody);
+    }
+
+    private static string RoleDisplayName(RecipientRole role) => role switch
+    {
+        RecipientRole.OfficeAdmin => "office",
+        RecipientRole.Patient => "patient",
+        RecipientRole.ApplicantAttorney => "applicant attorney",
+        RecipientRole.DefenseAttorney => "defense attorney",
+        RecipientRole.ClaimExaminer => "claim examiner",
+        _ => "party",
+    };
+
+    private static string BuildLoginCta(string? portalBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(portalBaseUrl))
+        {
+            return string.Empty;
+        }
+        var url = portalBaseUrl.TrimEnd('/');
+        return
+            "<p style=\"margin-top: 20px;\">" +
+            $"<a href=\"{WebEncode(url)}\" style=\"background:#0d6efd;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;\">" +
+            "Open patient portal" +
+            "</a></p>";
+    }
+
+    private static string BuildRegisterCta(
+        string? authServerBaseUrl,
+        string? tenantName,
+        string email,
+        RecipientRole role)
+    {
+        if (string.IsNullOrWhiteSpace(authServerBaseUrl))
+        {
+            return string.Empty;
+        }
+        var baseUrl = authServerBaseUrl.TrimEnd('/');
+        var query = new System.Text.StringBuilder("?");
+        if (!string.IsNullOrWhiteSpace(tenantName))
+        {
+            query.Append("__tenant=").Append(System.Net.WebUtility.UrlEncode(tenantName)).Append('&');
+        }
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            query.Append("email=").Append(System.Net.WebUtility.UrlEncode(email)).Append('&');
+        }
+        // Trailing separator from the optional appends.
+        var queryString = query.ToString().TrimEnd('?', '&');
+        var url = $"{baseUrl}/Account/Register{queryString}";
+        return
+            "<p style=\"margin-top: 20px;\">" +
+            $"<a href=\"{WebEncode(url)}\" style=\"background:#0d6efd;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;\">" +
+            $"Register as {WebEncode(RoleDisplayName(role))}" +
+            "</a></p>" +
+            "<p style=\"color:#888;font-size:0.85em;\">After registering, log in to view this appointment on the patient portal.</p>";
     }
 
     private async Task SendOfficeEmailAsync(

@@ -302,9 +302,13 @@
             }}
           </ng-template>
         </ngx-datatable-column>
-        <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.email">
+        <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.lastName">
           <ng-template let-row="row" ngx-datatable-cell-template>
-            {{ row.patient?.email }}
+            {{
+              row.patient?.firstName || row.patient?.lastName
+                ? ((row.patient?.firstName || '') + ' ' + (row.patient?.lastName || '')).trim()
+                : row.patient?.email || ''
+            }}
           </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column

@@ -51,6 +51,18 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Guid DoctorAvailabilityId { get; set; }
 
+    [CanBeNull]
+    public virtual string? PatientEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? ClaimExaminerEmail { get; set; }
+
     protected Appointment()
     {
     }

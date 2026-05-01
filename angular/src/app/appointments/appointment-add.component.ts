@@ -335,6 +335,9 @@ export class AppointmentAddComponent {
     defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
     defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    claimExaminerEnabled: [false],
+    claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
+    claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
   });
 
   constructor() {
@@ -376,6 +379,9 @@ export class AppointmentAddComponent {
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
     });
+    this.form.get('claimExaminerEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('claimExaminerEmail', !!enabled);
+    });
     // Apply once at construction for the initial enabled state.
     this.applyConditionalEmailValidator(
       'applicantAttorneyEmail',
@@ -384,6 +390,10 @@ export class AppointmentAddComponent {
     this.applyConditionalEmailValidator(
       'defenseAttorneyEmail',
       !!this.form.get('defenseAttorneyEnabled')?.value,
+    );
+    this.applyConditionalEmailValidator(
+      'claimExaminerEmail',
+      !!this.form.get('claimExaminerEnabled')?.value,
     );
   }
 
@@ -592,6 +602,18 @@ export class AppointmentAddComponent {
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
+        // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
+        // and auto-link on registration (step 5.2) have the addresses immediately.
+        patientEmail: rawAfter.email ?? undefined,
+        applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled
+          ? (rawAfter.applicantAttorneyEmail ?? undefined)
+          : undefined,
+        defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
+          ? (rawAfter.defenseAttorneyEmail ?? undefined)
+          : undefined,
+        claimExaminerEmail: rawAfter.claimExaminerEnabled
+          ? (rawAfter.claimExaminerEmail ?? undefined)
+          : undefined,
       };
 
       const createdAppointment = await firstValueFrom(
@@ -1381,6 +1403,7 @@ export class AppointmentAddComponent {
             this.applicantAttorneyId = data.applicantAttorneyId ?? null;
             this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
             this.form.patchValue({
+              applicantAttorneyEnabled: true,
               applicantAttorneyIdentityUserId: data.identityUserId,
               applicantAttorneyFirstName: data.firstName ?? null,
               applicantAttorneyLastName: data.lastName ?? null,

@@ -6,7 +6,15 @@
   } @else if (appointment) {
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
       <h2 class="mb-0 fw-bold">
-        PQME Appointment
+        <!--
+          S-7.3 (W-A-8): replace the static "PQME" prefix with the actual
+          AppointmentType.Name. Falls back to "Appointment" alone when
+          the navigation property is not yet loaded.
+        -->
+        {{ appointment.appointmentType?.name || 'Appointment' }}
+        @if (appointment.appointmentType?.name) {
+          Appointment
+        }
         <span class="fw-normal">
           >
           {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
@@ -371,7 +379,7 @@
             <label class="form-label fw-semibold">Unit #</label>
             <input
               class="form-control"
-              [(ngModel)]="patientForm.address"
+              [(ngModel)]="patientForm.apptNumber"
               [disabled]="!canEdit('apptNumber')"
             />
           </div>
@@ -677,6 +685,210 @@
           </div>
         </div>
       }
+    </div>
+
+    <!--
+      S-5.4 (W-A-7): Defense Attorney Details card on the view page.
+      Mirrors the Applicant Attorney card above 1:1 -- same structure, same
+      11 fields, same email-search + select-from-list flow, same readonly
+      pre-fill behavior. Only the labels and the form bindings differ. Per
+      Adrian: AA and DA must look identical with only the labels swapped.
+    -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 text-primary fw-bold">Defense Attorney Details</h4>
+        <div class="form-check form-switch">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="view-defense-attorney-enabled"
+            [(ngModel)]="defenseAttorneyEnabled"
+            [disabled]="!canEdit('defenseAttorneyIsActive')"
+          />
+          <label class="form-check-label" for="view-defense-attorney-enabled">Include</label>
+        </div>
+      </div>
+      @if (defenseAttorneyEnabled) {
+        <div class="card-body">
+          @if (!isDefenseAttorney && !defenseAttorneyForm.identityUserId) {
+            <div class="row mb-3">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Defense Attorney Email</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  placeholder="Enter email to load"
+                  [(ngModel)]="defenseAttorneyEmailSearch"
+                />
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button
+                  type="button"
+                  class="btn btn-outline-primary"
+                  [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
+                  (click)="loadDefenseAttorneyByEmail()"
+                >
+                  Load Defense Attorney
+                </button>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Or select</label>
+                <select
+                  class="form-select"
+                  [(ngModel)]="defenseAttorneyForm.identityUserId"
+                  (change)="onDefenseAttorneySelected(defenseAttorneyForm.identityUserId)"
+                  [disabled]="!canEdit('defenseAttorneyName')"
+                >
+                  <option [ngValue]="null">Select Defense Attorney</option>
+                  @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
+                    <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+          <div class="row g-3">
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">First Name</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.firstName" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Last Name</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.lastName" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Email</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.email" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Firm Name</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.firmName"
+                placeholder="FIRM NAME"
+                [disabled]="!canEdit('defenseAttorneyFirmName')"
+              />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Web Address</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.webAddress"
+                placeholder="WEB ADDRESS"
+                [disabled]="!canEdit('defenseAttorneyWebAddress')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Phone Number</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.phoneNumber"
+                placeholder="PHONE NUMBER"
+                [disabled]="!canEdit('defenseAttorneyPhoneNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Fax</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.faxNumber"
+                placeholder="FAX"
+                [disabled]="!canEdit('defenseAttorneyFaxNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Street</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.street"
+                placeholder="STREET"
+                [disabled]="!canEdit('defenseAttorneyStreet')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">City</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.city"
+                placeholder="CITY"
+                [disabled]="!canEdit('defenseAttorneyCity')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">State</label>
+              <abp-lookup-select
+                cid="appointment-view-defense-attorney-state-id"
+                [formControl]="defenseAttorneyStateIdControl"
+                [getFn]="getStateLookup"
+                [disabled]="!canEdit('defenseAttorneyStateId')"
+              ></abp-lookup-select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Zip Code</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.zipCode"
+                placeholder="ZIP"
+                [disabled]="!canEdit('defenseAttorneyZip')"
+              />
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!--
+      S-5.4 (W-A-7): Claim Information card on the view page. Read-only at MVP
+      -- the booking form (appointment-add) remains the canonical create/edit
+      surface for injury rows. Sourced from
+      GET /api/app/appointment-injury-details/by-appointment/<id>.
+    -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
+      </div>
+      <div class="card-body">
+        @if (injuryDetails.length === 0) {
+          <div class="text-secondary">No claim information added yet.</div>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Date Of Injury</th>
+                  <th>Claim Number</th>
+                  <th>WCAB</th>
+                  <th>ADJ #</th>
+                  <th>Body Parts</th>
+                  <th>Insurance Company</th>
+                  <th>Claim Examiner</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (injury of injuryDetails; track injury.id) {
+                  <tr>
+                    <td>
+                      @if (injury.isCumulativeInjury) {
+                        From: {{ injury.dateOfInjury }}
+                        <br />
+                        To: {{ injury.toDateOfInjury }}
+                      } @else {
+                        {{ injury.dateOfInjury }}
+                      }
+                    </td>
+                    <td>{{ injury.claimNumber }}</td>
+                    <td>{{ injury.wcabOfficeName }}</td>
+                    <td>{{ injury.wcabAdj }}</td>
+                    <td>{{ injury.bodyPartsSummary }}</td>
+                    <td>{{ injury.insuranceCompanyName }}</td>
+                    <td>{{ injury.claimExaminerName }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
     </div>
 
     <div class="card border-0 shadow-sm mt-4">

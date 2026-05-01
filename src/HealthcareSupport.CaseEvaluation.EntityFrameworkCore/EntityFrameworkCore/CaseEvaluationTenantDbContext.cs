@@ -139,6 +139,10 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.InternalUserComments).HasColumnName(nameof(Appointment.InternalUserComments)).HasMaxLength(AppointmentConsts.InternalUserCommentsMaxLength);
             b.Property(x => x.AppointmentApproveDate).HasColumnName(nameof(Appointment.AppointmentApproveDate));
             b.Property(x => x.AppointmentStatus).HasColumnName(nameof(Appointment.AppointmentStatus));
+            b.Property(x => x.PatientEmail).HasColumnName(nameof(Appointment.PatientEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.HasOne<Patient>().WithMany().IsRequired().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
