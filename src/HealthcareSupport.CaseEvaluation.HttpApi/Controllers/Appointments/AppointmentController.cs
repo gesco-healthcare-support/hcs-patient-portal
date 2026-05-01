@@ -119,4 +119,60 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     {
         return _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointmentId, input);
     }
+
+    [HttpGet]
+    [Route("defense-attorney-details-for-booking")]
+    public virtual Task<DefenseAttorneyDetailsDto?> GetDefenseAttorneyDetailsForBookingAsync([FromQuery] Guid? identityUserId = null, [FromQuery] string? email = null)
+    {
+        return _appointmentsAppService.GetDefenseAttorneyDetailsForBookingAsync(identityUserId, email);
+    }
+
+    [HttpGet]
+    [Route("{appointmentId}/defense-attorney")]
+    public virtual Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId)
+    {
+        return _appointmentsAppService.GetAppointmentDefenseAttorneyAsync(appointmentId);
+    }
+
+    [HttpPost]
+    [Route("{appointmentId}/defense-attorney")]
+    public virtual Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, [FromBody] DefenseAttorneyDetailsDto input)
+    {
+        return _appointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(appointmentId, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/approve")]
+    public virtual Task<AppointmentDto> ApproveAsync(Guid id)
+    {
+        return _appointmentsAppService.ApproveAsync(id);
+    }
+
+    [HttpPost]
+    [Route("{id}/reject")]
+    public virtual Task<AppointmentDto> RejectAsync(Guid id, [FromBody] RejectAppointmentInput input)
+    {
+        return _appointmentsAppService.RejectAsync(id, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/send-back")]
+    public virtual Task<AppointmentDto> SendBackAsync(Guid id, [FromBody] SendBackAppointmentInput input)
+    {
+        return _appointmentsAppService.SendBackAsync(id, input);
+    }
+
+    [HttpPost]
+    [Route("{id}/save-and-resubmit")]
+    public virtual Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
+    {
+        return _appointmentsAppService.SaveAndResubmitAsync(id);
+    }
+
+    [HttpGet]
+    [Route("{id}/send-back-info/latest")]
+    public virtual Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
+    {
+        return _appointmentsAppService.GetLatestUnresolvedSendBackInfoAsync(id);
+    }
 }

@@ -1,0 +1,90 @@
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)" size="lg">
+  <ng-template #abpHeader>
+    <h3>{{ '::Appointment:Modal:SendBackTitle' | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <p class="text-muted">{{ '::Appointment:Modal:SendBackInstructions' | abpLocalization }}</p>
+
+    <div class="total-counter">
+      {{
+        ('::Appointment:Modal:SendBackSelectedCount' | abpLocalization)
+          .replace('{0}', '' + selectedCount)
+          .replace('{1}', '' + totalFieldCount)
+      }}
+    </div>
+
+    @for (section of sections; track section.id) {
+      <div class="section-panel">
+        <div class="section-header" (click)="toggleSection(section.id)">
+          <span>
+            <i
+              class="fa"
+              [ngClass]="expandedSections[section.id] ? 'fa-chevron-down' : 'fa-chevron-right'"
+            ></i>
+            <strong class="ms-2">
+              {{ '::Appointment:SendBack:Section:' + section.id | abpLocalization }}
+            </strong>
+            @if (isSectionDeferred(section)) {
+              <span class="section-deferred ms-2">
+                {{ '::Appointment:Modal:SectionDeferredHint' | abpLocalization }}
+              </span>
+            }
+          </span>
+          <span class="selected-count">
+            {{ countSelectedInSection(section) }} / {{ section.fields.length }}
+          </span>
+        </div>
+
+        @if (expandedSections[section.id]) {
+          <div class="field-grid">
+            @for (field of section.fields; track field.key) {
+              <div class="field-checkbox form-check">
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  [id]="'send-back-' + field.key"
+                  [(ngModel)]="selectedFields[field.key]"
+                  [name]="'send-back-' + field.key"
+                />
+                <label class="form-check-label" [for]="'send-back-' + field.key">
+                  {{ field.label }}
+                </label>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <div class="mb-3 mt-3">
+      <label class="form-label" for="send-back-note">
+        {{ '::Appointment:Modal:SendBackNoteLabel' | abpLocalization }}
+      </label>
+      <textarea
+        id="send-back-note"
+        class="form-control"
+        rows="4"
+        [maxlength]="maxNoteLength"
+        [(ngModel)]="note"
+        [placeholder]="'::Appointment:Modal:SendBackNotePlaceholder' | abpLocalization"
+      ></textarea>
+      <small class="text-muted">{{ note.length }} / {{ maxNoteLength }}</small>
+    </div>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ '::Appointment:Action:Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button
+      iconClass="fa fa-paper-plane"
+      buttonType="button"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ '::Appointment:Action:SendBack' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

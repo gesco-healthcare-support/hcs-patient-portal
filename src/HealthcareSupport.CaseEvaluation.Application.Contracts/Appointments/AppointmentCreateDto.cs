@@ -25,4 +25,16 @@ public class AppointmentCreateDto
     public Guid LocationId { get; set; }
 
     public Guid DoctorAvailabilityId { get; set; }
+
+    [StringLength(AppointmentConsts.PartyEmailMaxLength)]
+    public string? PatientEmail { get; set; }
+
+    [StringLength(AppointmentConsts.PartyEmailMaxLength)]
+    public string? ApplicantAttorneyEmail { get; set; }
+
+    [StringLength(AppointmentConsts.PartyEmailMaxLength)]
+    public string? DefenseAttorneyEmail { get; set; }
+
+    [StringLength(AppointmentConsts.PartyEmailMaxLength)]
+    public string? ClaimExaminerEmail { get; set; }
 }

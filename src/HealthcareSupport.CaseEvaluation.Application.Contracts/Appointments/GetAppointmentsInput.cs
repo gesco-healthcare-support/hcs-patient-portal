@@ -25,6 +25,12 @@ public class GetAppointmentsInput : PagedAndSortedResultRequestDto
 
     public Guid? LocationId { get; set; }
 
+    /// <summary>
+    /// W2-6: filter by appointment status (1=Pending, 2=Approved, etc.).
+    /// Powers the dashboard-card deep-link to /appointments?appointmentStatus=N.
+    /// </summary>
+    public AppointmentStatusType? AppointmentStatus { get; set; }
+
     public GetAppointmentsInput()
     {
     }

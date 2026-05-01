@@ -18,7 +18,11 @@ using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 namespace HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
 [RemoteService(IsEnabled = false)]
-[Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
+// Class-level demoted from ApplicantAttorneys.Default to plain [Authorize].
+// Booker-side `GetStateLookupAsync` needs to be callable by any authenticated
+// user; admin-side list/get methods keep ApplicantAttorneys.Default at the
+// per-method level so AA enumeration stays gated. (Step 1.4 / W-A-3, 2026-04-30.)
+[Authorize]
 public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicantAttorneysAppService
 {
     protected IApplicantAttorneyRepository _applicantAttorneyRepository;
@@ -34,6 +38,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
         _identityUserRepository = identityUserRepository;
     }
 
+    [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
     public virtual async Task<PagedResultDto<ApplicantAttorneyWithNavigationPropertiesDto>> GetListAsync(GetApplicantAttorneysInput input)
     {
         var totalCount = await _applicantAttorneyRepository.GetCountAsync(input.FilterText, input.FirmName, input.PhoneNumber, input.City, input.StateId, input.IdentityUserId);
@@ -45,16 +50,20 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
         };
     }
 
+    [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
     public virtual async Task<ApplicantAttorneyWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
         return ObjectMapper.Map<ApplicantAttorneyWithNavigationProperties, ApplicantAttorneyWithNavigationPropertiesDto>((await _applicantAttorneyRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
+    [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
     public virtual async Task<ApplicantAttorneyDto> GetAsync(Guid id)
     {
         return ObjectMapper.Map<ApplicantAttorney, ApplicantAttorneyDto>(await _applicantAttorneyRepository.GetAsync(id));
     }
 
+    // Plain [Authorize] (inherited from class): any authenticated booker can
+    // read the State lookup for the AA section of the booking form.
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
         var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
@@ -67,6 +76,7 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
         };
     }
 
+    [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input)
     {
         var query = (await _identityUserRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));

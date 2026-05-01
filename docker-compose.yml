@@ -6,7 +6,10 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
     ports:
-      - "${SQL_HOST_PORT:-1434}:1433"
+      # Bind to 127.0.0.1 explicitly to skip Docker Desktop's IPv6 host listener.
+      # See docs/plans/deferred-from-mvp.md "W1 bugfix sprint" 2026-04-28 for context;
+      # post-W3 HTTPS migration removes the need for this workaround.
+      - "127.0.0.1:${SQL_HOST_PORT:-1434}:1433"
     volumes:
       - sqldata:/var/opt/mssql
     healthcheck:
@@ -19,7 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
 
@@ -66,7 +69,7 @@ services:
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
-      - "${AUTH_PORT:-44368}:8080"
+      - "127.0.0.1:${AUTH_PORT:-44368}:8080"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
@@ -90,7 +93,8 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${API_PORT:-44327}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200}"
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368}"
+      App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__MetaAddress: "http://authserver:8080"
       AuthServer__RequireHttpsMetadata: "false"
@@ -101,7 +105,7 @@ services:
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
-      - "${API_PORT:-44327}:8080"
+      - "127.0.0.1:${API_PORT:-44327}:8080"
     depends_on:
       db-migrator:
         condition: service_completed_successfully
@@ -121,7 +125,7 @@ services:
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
     ports:
-      - "${NG_PORT:-4200}:80"
+      - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
       - ./docker/dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
     depends_on:

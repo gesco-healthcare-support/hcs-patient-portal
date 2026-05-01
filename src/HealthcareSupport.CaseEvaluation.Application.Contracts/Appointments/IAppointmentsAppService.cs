@@ -36,4 +36,35 @@ public interface IAppointmentsAppService : IApplicationService
     /// Creates or updates applicant attorney and links to appointment.
     /// </summary>
     Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input);
+
+    /// <summary>
+    /// W2-7: gets defense attorney details for appointment booking by identity user id or email.
+    /// Mirrors GetApplicantAttorneyDetailsForBookingAsync for the parallel defense-side feature.
+    /// </summary>
+    Task<DefenseAttorneyDetailsDto?> GetDefenseAttorneyDetailsForBookingAsync(Guid? identityUserId = null, string? email = null);
+
+    /// <summary>
+    /// W2-7: gets the defense attorney linked to an appointment, if any.
+    /// </summary>
+    Task<DefenseAttorneyDetailsDto?> GetAppointmentDefenseAttorneyAsync(Guid appointmentId);
+
+    /// <summary>
+    /// W2-7: creates or updates defense attorney and links to appointment.
+    /// </summary>
+    Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input);
+
+    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Approved.</summary>
+    Task<AppointmentDto> ApproveAsync(Guid id);
+
+    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Rejected.</summary>
+    Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input);
+
+    /// <summary>W1-1 transition: Pending -> AwaitingMoreInfo. Captures office flagged fields + note.</summary>
+    Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input);
+
+    /// <summary>W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker re-submits the booking form with edits.</summary>
+    Task<AppointmentDto> SaveAndResubmitAsync(Guid id);
+
+    /// <summary>W1-1 booker banner: returns the latest unresolved AppointmentSendBackInfo row for the appointment, or null if none.</summary>
+    Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id);
 }

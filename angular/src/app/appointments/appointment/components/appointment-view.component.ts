@@ -1,26 +1,39 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   ConfigStateService,
   ListResultDto,
   LocalizationPipe,
   PagedResultDto,
+  PermissionDirective,
   RestService,
 } from '@abp/ng.core';
 import type {
+  AppointmentDto,
+  AppointmentSendBackInfoDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
+import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
+import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
+import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
+import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
+import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
+import { buildFlaggedFieldLookup } from '../send-back-fields';
+
+type TransitionAction = 'approve' | 'reject' | 'sendBack';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -40,6 +53,41 @@ type AppointmentAuthorizedUserRow = {
   accessTypeId: number;
 };
 
+// S-5.4: Single-row read-model for the Claim Information table on the view
+// page. Pre-flattens the WCAB office display name + insurance/CE summary so
+// the template binds via dot-access without nested null guards.
+type AppointmentInjuryDetailRow = {
+  id: string;
+  dateOfInjury: string | null;
+  toDateOfInjury: string | null;
+  isCumulativeInjury: boolean;
+  claimNumber: string;
+  wcabAdj: string;
+  wcabOfficeName: string;
+  bodyPartsSummary: string;
+  insuranceCompanyName: string;
+  claimExaminerName: string;
+};
+
+// S-5.4: shape returned by GET /defense-attorney-details-for-booking and
+// GET /{appointmentId}/defense-attorney. Mirror of ApplicantAttorneyDetailsDto.
+type DefenseAttorneyLookupResult = {
+  defenseAttorneyId?: string;
+  identityUserId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  firmName?: string;
+  webAddress?: string;
+  phoneNumber?: string;
+  faxNumber?: string;
+  street?: string;
+  city?: string;
+  stateId?: string;
+  zipCode?: string;
+  concurrencyStamp?: string;
+};
+
 @Component({
   selector: 'app-appointment-view',
   standalone: true,
@@ -47,9 +95,16 @@ type AppointmentAuthorizedUserRow = {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     LocalizationPipe,
+    PermissionDirective,
     LookupSelectComponent,
     NgbDatepickerModule,
+    ApproveConfirmationModalComponent,
+    RejectAppointmentModalComponent,
+    SendBackAppointmentModalComponent,
+    AppointmentDocumentsComponent,
+    AppointmentPacketComponent,
   ],
   templateUrl: './appointment-view.component.html',
 })
@@ -59,6 +114,19 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
+  private readonly toaster = inject(ToasterService);
+
+  // W1-1: state-machine transition UI
+  readonly AppointmentStatusType = AppointmentStatusType;
+  selectedAction: TransitionAction | '' = '';
+  approveModalVisible = false;
+  rejectModalVisible = false;
+  sendBackModalVisible = false;
+  latestSendBackInfo: AppointmentSendBackInfoDto | null = null;
+  private readonly flaggedFieldLookup = buildFlaggedFieldLookup();
+  // W2-9: cache of flaggedFields[] as a Set<string> for O(1) canEdit() lookup.
+  // Reset to null whenever latestSendBackInfo changes (see maybeLoadLatestSendBackInfo).
+  private flaggedFieldsCache: Set<string> | null = null;
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
@@ -95,13 +163,23 @@ export class AppointmentViewComponent implements OnInit {
     middleName: '',
     email: '',
     genderId: null as number | null,
-    dateOfBirth: '' as string | null,
+    // S-5.5: ngbDatepicker's ControlValueAccessor requires NgbDateStruct
+    // ({ year, month, day }) -- not an ISO string. Storing the raw API string
+    // here was leaving the date input blank on load. We now parse the API
+    // value into NgbDateStruct on load and the existing
+    // `formatDateOfBirthForApi` already handles the reverse direction on save.
+    dateOfBirth: null as { year: number; month: number; day: number } | string | null,
     cellPhoneNumber: '',
     phoneNumber: '',
     phoneNumberTypeId: null as number | null,
     socialSecurityNumber: '',
     street: '',
     address: '',
+    // S-5.5: the booking form persists apartment / unit numbers to
+    // `Patient.apptNumber` (PatientDto.apptNumber), but the view template's
+    // "Unit #" input was bound to `patientForm.address`. Add the field and
+    // wire it through both load and save so saved Unit # values surface.
+    apptNumber: '',
     city: '',
     stateId: null as string | null,
     zipCode: '',
@@ -138,6 +216,38 @@ export class AppointmentViewComponent implements OnInit {
   applicantAttorneyEmailSearch = '';
   isApplicantAttorneyLoading = false;
   applicantAttorneyOptions: ExternalAuthorizedUserOption[] = [];
+
+  // S-5.4 (W-A-7): Defense Attorney section on the view page. Mirrors the AA
+  // section above 1:1 (same fields, same email-search + select-from-list flow,
+  // same state control, same readonly-on-pre-fill behavior). Only the labels and
+  // the API endpoints differ. Per Adrian: AA and DA must look identical on
+  // screen with only the labels changed.
+  defenseAttorneyEnabled = true;
+  defenseAttorneyForm = {
+    defenseAttorneyId: null as string | null,
+    identityUserId: null as string | null,
+    firstName: '',
+    lastName: '',
+    email: '',
+    firmName: '',
+    webAddress: '',
+    phoneNumber: '',
+    faxNumber: '',
+    street: '',
+    city: '',
+    stateId: null as string | null,
+    zipCode: '',
+  };
+  readonly defenseAttorneyStateIdControl = new FormControl<string | null>(null);
+  defenseAttorneyEmailSearch = '';
+  isDefenseAttorneyLoading = false;
+  defenseAttorneyOptions: ExternalAuthorizedUserOption[] = [];
+
+  // S-5.4 (W-A-7): Claim Information section on the view page. Read-only table
+  // sourced from `/api/app/appointment-injury-details/by-appointment/<id>`. The
+  // booking form (appointment-add) supports add/edit/delete on these rows; the
+  // view page surfaces them as a table only at MVP.
+  injuryDetails: AppointmentInjuryDetailRow[] = [];
 
   readonly getStateLookup = (input: LookupRequestDto) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>(
@@ -183,6 +293,12 @@ export class AppointmentViewComponent implements OnInit {
         this.panelNumber = data.appointment?.panelNumber ?? '';
         this.loadEmployerDetails(data.appointment?.id);
         this.bindApplicantAttorneyFromResponse(data);
+        // S-5.4 (W-A-7): the AppointmentWithNavigationPropertiesDto does not
+        // include the DA join (only AA), so DA must be fetched via a dedicated
+        // GET against /{id}/defense-attorney. Same for the Claim Information
+        // injury list -- retrieved per-appointment from a separate endpoint.
+        this.bindDefenseAttorneyForAppointment(data.appointment?.id);
+        this.loadInjuryDetails(data.appointment?.id);
         this.loadAppointmentAccessors(data.appointment?.id);
         const patient = data.patient;
         this.patientForm = {
@@ -191,13 +307,16 @@ export class AppointmentViewComponent implements OnInit {
           middleName: patient?.middleName ?? '',
           email: patient?.email ?? '',
           genderId: (patient?.genderId as number | undefined) ?? null,
-          dateOfBirth: patient?.dateOfBirth ?? null,
+          // S-5.5: parse ISO date string into NgbDateStruct so the datepicker renders.
+          dateOfBirth: this.parseDateOfBirthFromApi(patient?.dateOfBirth),
           cellPhoneNumber: patient?.cellPhoneNumber ?? '',
           phoneNumber: patient?.phoneNumber ?? '',
           phoneNumberTypeId: (patient?.phoneNumberTypeId as number | undefined) ?? null,
           socialSecurityNumber: patient?.socialSecurityNumber ?? '',
           street: patient?.street ?? '',
           address: patient?.address ?? '',
+          // S-5.5: load Unit # from the same field the booking form writes to.
+          apptNumber: patient?.apptNumber ?? '',
           city: patient?.city ?? '',
           stateId: patient?.stateId ?? null,
           zipCode: patient?.zipCode ?? '',
@@ -207,6 +326,7 @@ export class AppointmentViewComponent implements OnInit {
           refferedBy: patient?.refferedBy ?? '',
         };
         this.stateIdControl.setValue(patient?.stateId ?? null, { emitEvent: false });
+        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
         this.isLoading = false;
       },
       error: () => {
@@ -220,12 +340,25 @@ export class AppointmentViewComponent implements OnInit {
     this.router.navigateByUrl('/');
   }
 
+  /**
+   * True when the booker/viewer is anyone OTHER than the Patient role.
+   * Covers AA, DA, CE, AND internal admins/staff. Used SOLELY for the
+   * patient-update URL gate: non-Patient -> /patients/for-appointment-booking/<id>;
+   * Patient -> /patients/me (W-B-2 fix, 2026-04-30: previously CE + internal
+   * bookers fell through to /patients/me and got 404).
+   *
+   * S-5.3b (W-VIEW-10): do NOT use this getter for read-only / canEdit gates.
+   * It returns true for internal admins, which incorrectly classifies them as
+   * external and locks them out of every field outside AwaitingMoreInfo. Use
+   * `isPatientUser` (which actually checks any-of-the-4-external-roles) and
+   * negate it to detect internal admins instead.
+   */
   get isExternalUserNonPatient(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
-    return roles.some(
-      (r: string) =>
-        r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
-    );
+    if (!Array.isArray(roles) || roles.length === 0) {
+      return true;
+    }
+    return !roles.some((r: string) => r?.toLowerCase() === 'patient');
   }
 
   get isApplicantAttorney(): boolean {
@@ -233,119 +366,411 @@ export class AppointmentViewComponent implements OnInit {
     return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
   }
 
-  save(): void {
-    const selected = this.appointment?.appointment;
-    if (
-      !selected?.id ||
-      !selected.patientId ||
-      !selected.identityUserId ||
-      !selected.appointmentTypeId ||
-      !selected.locationId ||
-      !selected.doctorAvailabilityId ||
-      !selected.requestConfirmationNumber
-    ) {
-      this.errorMessage = 'Appointment data is incomplete and cannot be saved.';
+  // S-5.4: mirror of isApplicantAttorney for the DA-self case (used to hide
+  // the email-search row when a DA is viewing their own appointment).
+  get isDefenseAttorney(): boolean {
+    const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'defense attorney');
+  }
+
+  /**
+   * W2-9: returns true if the current user holds any external role
+   * (Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
+   * Used by canEdit() to decide whether the read-only-by-default policy
+   * applies. Internal admins (anyone NOT in this set) bypass the gate
+   * entirely; the server's permission attributes remain authoritative.
+   */
+  get isPatientUser(): boolean {
+    const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
+    const externalUserRoles = new Set([
+      'patient',
+      'applicant attorney',
+      'defense attorney',
+      'claim examiner',
+    ]);
+    return roles.some((role: string) => externalUserRoles.has(role?.toLowerCase() ?? ''));
+  }
+
+  /**
+   * W2-9: cached set of flagged field keys from the latest unresolved
+   * AppointmentSendBackInfo row. O(1) `.has(key)` lookup instead of
+   * O(n) Array.includes(). Cache is reset to null inside
+   * maybeLoadLatestSendBackInfo whenever latestSendBackInfo changes.
+   */
+  private get flaggedFieldsSet(): Set<string> {
+    if (!this.flaggedFieldsCache && this.latestSendBackInfo?.flaggedFields) {
+      this.flaggedFieldsCache = new Set(this.latestSendBackInfo.flaggedFields);
+    }
+    return this.flaggedFieldsCache ?? new Set();
+  }
+
+  /**
+   * W2-9: per-field read-only-edit-mode gate.
+   *  - Internal admin tier (anyone NOT in the 4 external roles): always editable;
+   *    server permission attributes (`Appointments.Edit` etc.) remain authoritative.
+   *  - External roles (Patient / Applicant Attorney / Defense Attorney /
+   *    Claim Examiner): read-only by default. Edit unlocks ONLY when
+   *    appointmentStatus = AwaitingMoreInfo AND `fieldName` is in the
+   *    latest unresolved SendBack info's flaggedFields list.
+   *
+   * Bind in HTML as `[disabled]="!canEdit('fieldKey')"` on every ngModel
+   * input/select/textarea. Field-key vocabulary matches `send-back-fields.ts`.
+   */
+  canEdit(fieldName: string): boolean {
+    // S-5.3b (W-VIEW-10): internal admin = NOT in any of the 4 external roles
+    // (Patient / AA / DA / CE). The previous form combined isExternalUserNonPatient
+    // with !isPatientUser, but isExternalUserNonPatient returns true for admins
+    // (who lack the 'patient' role), so the AND collapsed to false for every admin
+    // and locked them out of every field outside AwaitingMoreInfo.
+    const isInternalAdmin = !this.isPatientUser;
+    if (isInternalAdmin) {
+      return true;
+    }
+    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
+      return false;
+    }
+    return this.flaggedFieldsSet.has(fieldName);
+  }
+
+  // ----- W1-1 transition state-machine UI helpers -----
+
+  get currentStatus(): AppointmentStatusType | undefined {
+    return this.appointment?.appointment?.appointmentStatus as AppointmentStatusType | undefined;
+  }
+
+  /**
+   * Internal user with the right to take office actions on this appointment.
+   * MVP heuristic: any user who is NOT an external booker. Server-side
+   * `[Authorize(CaseEvaluationPermissions.Appointments.Edit)]` is the
+   * authoritative gate; this getter just hides the dropdown for external
+   * users. Tightening to a proper PermissionService check is on the ledger.
+   */
+  get canTakeOfficeAction(): boolean {
+    if (!this.appointment) {
+      return false;
+    }
+    const status = this.currentStatus;
+    const officeStatuses: AppointmentStatusType[] = [
+      AppointmentStatusType.Pending,
+      AppointmentStatusType.AwaitingMoreInfo,
+    ];
+    return (
+      // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
+      !this.isPatientUser && status !== undefined && officeStatuses.includes(status)
+    );
+  }
+
+  /**
+   * Action keys the office can pick at the current status.
+   *  Pending: approve | reject | sendBack
+   *  AwaitingMoreInfo: approve | reject  (sendBack would be redundant)
+   */
+  get availableActions(): TransitionAction[] {
+    const status = this.currentStatus;
+    if (status === AppointmentStatusType.Pending) {
+      return ['approve', 'reject', 'sendBack'];
+    }
+    if (status === AppointmentStatusType.AwaitingMoreInfo) {
+      return ['approve', 'reject'];
+    }
+    return [];
+  }
+
+  /**
+   * Booker mode: the appointment is in AwaitingMoreInfo and the current user
+   * is its creator. Server-side ownership enforcement is deferred (ledger);
+   * MVP relies on this UI gate plus the standard tenant filter.
+   */
+  get isResubmitMode(): boolean {
+    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
+      return false;
+    }
+    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
+    const creatorId = this.appointment?.appointment?.creatorId;
+    return !!currentUserId && !!creatorId && currentUserId === creatorId;
+  }
+
+  /**
+   * Distinct sections containing flagged fields. Used to render the amber
+   * pills on the booker banner.
+   */
+  get flaggedSections(): { sectionId: string; sectionLabel: string }[] {
+    if (!this.latestSendBackInfo?.flaggedFields?.length) {
+      return [];
+    }
+    const seen = new Map<string, { sectionId: string; sectionLabel: string }>();
+    for (const key of this.latestSendBackInfo.flaggedFields) {
+      const meta = this.flaggedFieldLookup.get(key);
+      if (meta && !seen.has(meta.sectionId)) {
+        seen.set(meta.sectionId, { sectionId: meta.sectionId, sectionLabel: meta.sectionLabel });
+      }
+    }
+    return Array.from(seen.values());
+  }
+
+  /**
+   * Field-level labels for the "Specific fields flagged" banner subsection.
+   * Falls back to the raw key if the lookup misses (e.g. office flagged a
+   * field name we no longer recognise after a rename).
+   */
+  get flaggedFieldLabels(): string[] {
+    if (!this.latestSendBackInfo?.flaggedFields?.length) {
+      return [];
+    }
+    return this.latestSendBackInfo.flaggedFields.map((key) => {
+      const meta = this.flaggedFieldLookup.get(key);
+      return meta ? `${meta.sectionLabel}: ${meta.fieldLabel}` : key;
+    });
+  }
+
+  /** Triggered when the office clicks Submit on the action dropdown. */
+  dispatchAction(): void {
+    if (!this.appointment?.appointment?.id || !this.selectedAction) {
       return;
     }
+    switch (this.selectedAction) {
+      case 'approve':
+        this.approveModalVisible = true;
+        break;
+      case 'reject':
+        this.rejectModalVisible = true;
+        break;
+      case 'sendBack':
+        this.sendBackModalVisible = true;
+        break;
+    }
+  }
 
-    this.errorMessage = '';
-    this.successMessage = '';
+  /**
+   * Modal-success callback: refresh nav-properties + reset dropdown.
+   *
+   * S-7.2 (2.11): the modal hands us the post-transition `AppointmentDto`
+   * directly (the server response from Approve / Reject / SendBack /
+   * SaveAndResubmit). Patch `appointment.appointment` from that dto
+   * immediately so the status pill flips on the same change-detection cycle
+   * the modal closed in -- previously the user saw "Pending" for a few
+   * seconds while the follow-up `getWithNavigationProperties` round-trip
+   * resolved. We still re-fetch in the background to refresh nav-property
+   * snapshots (patient first/last name updates, last-modified-by, etc.).
+   */
+  onActionSucceeded(dto: AppointmentDto): void {
+    this.selectedAction = '';
+    if (this.appointment?.appointment && dto) {
+      this.appointment.appointment = { ...this.appointment.appointment, ...dto };
+    }
+    const id = this.appointment?.appointment?.id;
+    if (!id) {
+      return;
+    }
+    this.appointmentService.getWithNavigationProperties(id).subscribe({
+      next: (data) => {
+        this.appointment = data;
+        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
+      },
+    });
+  }
+
+  /**
+   * Booker calls this from the Save & Resubmit button. Awaits the standard
+   * save() chain (patient + appointment + employer + attorney upserts),
+   * then fires the SaveAndResubmit transition which auto-flips status to
+   * Pending and marks the latest send-back row resolved server-side.
+   *
+   * If save() fails the resubmit is skipped and the user sees save's error
+   * message. If save() succeeds but the transition fails, the changes
+   * persist (the booker effectively "saved") but the appointment stays in
+   * AwaitingMoreInfo so they can retry.
+   */
+  async saveAndResubmit(): Promise<void> {
+    const id = this.appointment?.appointment?.id;
+    if (!id || this.isSaving) {
+      return;
+    }
+    try {
+      await this.save();
+    } catch {
+      // save() populated errorMessage; abort the resubmit transition.
+      return;
+    }
     this.isSaving = true;
+    try {
+      const dto = await firstValueFrom(this.appointmentService.saveAndResubmit(id));
+      this.toaster.success('::Appointment:Toast:Resubmitted');
+      this.latestSendBackInfo = null;
+      this.flaggedFieldsCache = null;
+      this.onActionSucceeded(dto);
+    } catch {
+      this.toaster.error('::Appointment:Toast:ResubmitFailed');
+      this.errorMessage =
+        'Saved your changes, but submitting back to the office failed. Please try again.';
+    } finally {
+      this.isSaving = false;
+    }
+  }
 
-    const dateOfBirth = this.formatDateOfBirthForApi(this.patientForm.dateOfBirth);
-    const patientPayload: PatientUpdateDto = {
-      firstName: this.patientForm.firstName,
-      lastName: this.patientForm.lastName,
-      middleName: this.patientForm.middleName || undefined,
-      email: this.patientForm.email,
-      genderId: (this.patientForm.genderId as any) ?? undefined,
-      dateOfBirth: dateOfBirth ?? undefined,
-      phoneNumber: this.patientForm.phoneNumber || undefined,
-      socialSecurityNumber: this.patientForm.socialSecurityNumber || undefined,
-      address: this.patientForm.address || undefined,
-      city: this.patientForm.city || undefined,
-      zipCode: this.patientForm.zipCode || undefined,
-      refferedBy: this.patientForm.refferedBy || undefined,
-      cellPhoneNumber: this.patientForm.cellPhoneNumber || undefined,
-      phoneNumberTypeId: (this.patientForm.phoneNumberTypeId as any) ?? undefined,
-      street: this.patientForm.street || undefined,
-      interpreterVendorName: this.patientForm.needsInterpreter
-        ? this.patientForm.interpreterVendorName || undefined
-        : undefined,
-      apptNumber: this.appointment?.patient?.apptNumber ?? undefined,
-      othersLanguageName: this.appointment?.patient?.othersLanguageName ?? undefined,
-      stateId: this.stateIdControl.value ?? undefined,
-      appointmentLanguageId: this.patientForm.appointmentLanguageId ?? undefined,
-      identityUserId: selected.identityUserId,
-      tenantId: this.appointment?.patient?.tenantId ?? undefined,
-      concurrencyStamp: this.appointment?.patient?.concurrencyStamp,
-    };
+  private maybeLoadLatestSendBackInfo(
+    appointmentId: string | undefined,
+    status: AppointmentStatusType | undefined,
+  ): void {
+    if (!appointmentId || status !== AppointmentStatusType.AwaitingMoreInfo) {
+      this.latestSendBackInfo = null;
+      this.flaggedFieldsCache = null;
+      return;
+    }
+    this.appointmentService.getLatestUnresolvedSendBackInfo(appointmentId).subscribe({
+      next: (info) => {
+        this.latestSendBackInfo = info;
+        this.flaggedFieldsCache = null;
+      },
+      error: () => {
+        this.latestSendBackInfo = null;
+        this.flaggedFieldsCache = null;
+      },
+    });
+  }
 
-    const patientId = this.appointment?.patient?.id;
-    const updateUrl =
-      patientId && this.isExternalUserNonPatient
-        ? `/api/app/patients/for-appointment-booking/${patientId}`
-        : '/api/app/patients/me';
-    this.restService
-      .request<any, any>(
-        {
-          method: 'PUT',
-          url: updateUrl,
-          body: patientPayload,
-        },
-        { apiName: 'Default' },
-      )
-      .subscribe({
-        next: (updatedPatient) => {
-          const payload: AppointmentUpdateDto = {
-            panelNumber: this.panelNumber || undefined,
-            appointmentDate: selected.appointmentDate,
-            isPatientAlreadyExist: selected.isPatientAlreadyExist,
-            requestConfirmationNumber: selected.requestConfirmationNumber,
-            dueDate: selected.dueDate,
-            internalUserComments: selected.internalUserComments,
-            appointmentApproveDate: selected.appointmentApproveDate,
-            appointmentStatus: selected.appointmentStatus,
-            patientId: selected.patientId,
-            identityUserId: selected.identityUserId,
-            appointmentTypeId: selected.appointmentTypeId,
-            locationId: selected.locationId,
-            doctorAvailabilityId: selected.doctorAvailabilityId,
-            concurrencyStamp: selected.concurrencyStamp,
-          };
+  /**
+   * Returns a Promise that resolves after the full chain (patient PUT,
+   * appointment PUT, employer + attorney upserts) completes successfully,
+   * or rejects with the first failure. Returning a Promise (rather than
+   * void) lets saveAndResubmit() await this before firing the transition.
+   * Unawaited callers (the existing Save button) get fire-and-forget
+   * behavior identical to the original signature.
+   */
+  save(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const selected = this.appointment?.appointment;
+      if (
+        !selected?.id ||
+        !selected.patientId ||
+        !selected.identityUserId ||
+        !selected.appointmentTypeId ||
+        !selected.locationId ||
+        !selected.doctorAvailabilityId ||
+        !selected.requestConfirmationNumber
+      ) {
+        this.errorMessage = 'Appointment data is incomplete and cannot be saved.';
+        reject(new Error(this.errorMessage));
+        return;
+      }
 
-          this.appointmentService.update(selected.id, payload).subscribe({
-            next: async (updated) => {
-              try {
-                if (this.appointment?.appointment) {
-                  this.appointment.appointment = { ...this.appointment.appointment, ...updated };
+      this.errorMessage = '';
+      this.successMessage = '';
+      this.isSaving = true;
+
+      const dateOfBirth = this.formatDateOfBirthForApi(this.patientForm.dateOfBirth);
+      const patientPayload: PatientUpdateDto = {
+        firstName: this.patientForm.firstName,
+        lastName: this.patientForm.lastName,
+        middleName: this.patientForm.middleName || undefined,
+        email: this.patientForm.email,
+        genderId: (this.patientForm.genderId as any) ?? undefined,
+        dateOfBirth: dateOfBirth ?? undefined,
+        phoneNumber: this.patientForm.phoneNumber || undefined,
+        socialSecurityNumber: this.patientForm.socialSecurityNumber || undefined,
+        address: this.patientForm.address || undefined,
+        city: this.patientForm.city || undefined,
+        zipCode: this.patientForm.zipCode || undefined,
+        refferedBy: this.patientForm.refferedBy || undefined,
+        cellPhoneNumber: this.patientForm.cellPhoneNumber || undefined,
+        phoneNumberTypeId: (this.patientForm.phoneNumberTypeId as any) ?? undefined,
+        street: this.patientForm.street || undefined,
+        interpreterVendorName: this.patientForm.needsInterpreter
+          ? this.patientForm.interpreterVendorName || undefined
+          : undefined,
+        // S-5.5: send the user-edited Unit # from the form, falling back to the
+        // loaded value if the form was untouched (preserves prior preserve-only
+        // behavior when the new field has no input).
+        apptNumber:
+          this.patientForm.apptNumber || this.appointment?.patient?.apptNumber || undefined,
+        othersLanguageName: this.appointment?.patient?.othersLanguageName ?? undefined,
+        stateId: this.stateIdControl.value ?? undefined,
+        appointmentLanguageId: this.patientForm.appointmentLanguageId ?? undefined,
+        identityUserId: selected.identityUserId,
+        tenantId: this.appointment?.patient?.tenantId ?? undefined,
+        concurrencyStamp: this.appointment?.patient?.concurrencyStamp,
+      };
+
+      const patientId = this.appointment?.patient?.id;
+      const updateUrl =
+        patientId && this.isExternalUserNonPatient
+          ? `/api/app/patients/for-appointment-booking/${patientId}`
+          : '/api/app/patients/me';
+      this.restService
+        .request<any, any>(
+          {
+            method: 'PUT',
+            url: updateUrl,
+            body: patientPayload,
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({
+          next: (updatedPatient) => {
+            const payload: AppointmentUpdateDto = {
+              panelNumber: this.panelNumber || undefined,
+              appointmentDate: selected.appointmentDate,
+              isPatientAlreadyExist: selected.isPatientAlreadyExist,
+              requestConfirmationNumber: selected.requestConfirmationNumber,
+              dueDate: selected.dueDate,
+              internalUserComments: selected.internalUserComments,
+              appointmentApproveDate: selected.appointmentApproveDate,
+              appointmentStatus: selected.appointmentStatus,
+              patientId: selected.patientId,
+              identityUserId: selected.identityUserId,
+              appointmentTypeId: selected.appointmentTypeId,
+              locationId: selected.locationId,
+              doctorAvailabilityId: selected.doctorAvailabilityId,
+              concurrencyStamp: selected.concurrencyStamp,
+            };
+
+            this.appointmentService.update(selected.id, payload).subscribe({
+              next: async (updated) => {
+                let savedClean = true;
+                try {
+                  if (this.appointment?.appointment) {
+                    this.appointment.appointment = { ...this.appointment.appointment, ...updated };
+                  }
+                  if (this.appointment?.patient) {
+                    this.appointment.patient = { ...this.appointment.patient, ...updatedPatient };
+                  }
+                  await this.upsertEmployerDetails(updated.id);
+                  await this.upsertApplicantAttorneyDetails(updated.id);
+                  // S-5.4: persist Defense Attorney edits alongside AA on save.
+                  // Claim Information is read-only on the view page (booking
+                  // form remains the canonical edit surface), so no inline
+                  // upsert call here for injuries.
+                  await this.upsertDefenseAttorneyDetails(updated.id);
+                  this.panelNumber = updated.panelNumber ?? '';
+                  this.successMessage =
+                    'Appointment, patient, employer, applicant attorney, and defense attorney details updated successfully.';
+                } catch {
+                  this.errorMessage =
+                    'Appointment and patient updated, but a downstream save (employer / attorney) failed.';
+                  savedClean = false;
+                } finally {
+                  this.isSaving = false;
                 }
-                if (this.appointment?.patient) {
-                  this.appointment.patient = { ...this.appointment.patient, ...updatedPatient };
+                if (savedClean) {
+                  resolve();
+                } else {
+                  reject(new Error(this.errorMessage));
                 }
-                await this.upsertEmployerDetails(updated.id);
-                await this.upsertApplicantAttorneyDetails(updated.id);
-                this.panelNumber = updated.panelNumber ?? '';
-                this.successMessage =
-                  'Appointment, patient, employer and applicant attorney details updated successfully.';
-              } catch {
-                this.errorMessage =
-                  'Appointment and patient updated, but employer details save failed.';
-              } finally {
+              },
+              error: () => {
+                this.errorMessage = 'Patient updated, but appointment save failed.';
                 this.isSaving = false;
-              }
-            },
-            error: () => {
-              this.errorMessage = 'Patient updated, but appointment save failed.';
-              this.isSaving = false;
-            },
-          });
-        },
-        error: () => {
-          this.errorMessage = 'Failed to save patient details.';
-          this.isSaving = false;
-        },
-      });
+                reject(new Error(this.errorMessage));
+              },
+            });
+          },
+          error: () => {
+            this.errorMessage = 'Failed to save patient details.';
+            this.isSaving = false;
+            reject(new Error(this.errorMessage));
+          },
+        });
+    });
   }
 
   openUploadDocuments(): void {
@@ -487,6 +912,15 @@ export class AppointmentViewComponent implements OnInit {
           this.applicantAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'applicant attorney',
           );
+          // S-5.4: NOTE the lookup endpoint excludes Defense Attorney from
+          // `allowedRoleNames` per D-2 (DA does not surface in any picker), so
+          // this filter will return an empty array even for tenants that have
+          // DAs registered. The view-page DA pre-fill flow relies on the
+          // email-search box, not the dropdown; keeping the dropdown bound for
+          // consistency with the AA layout.
+          this.defenseAttorneyOptions = (result?.items ?? []).filter(
+            (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'defense attorney',
+          );
           this.refreshAuthorizedUserRoles();
         },
       });
@@ -609,6 +1043,81 @@ export class AppointmentViewComponent implements OnInit {
           this.isApplicantAttorneyLoading = false;
         },
       });
+  }
+
+  // S-5.4: load DA details by email (used when the form is empty and the
+  // viewer types an address into the search box). Mirrors AA's equivalent.
+  loadDefenseAttorneyByEmail(): void {
+    const email = this.defenseAttorneyEmailSearch?.trim();
+    if (!email) return;
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<any, DefenseAttorneyLookupResult | null>(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { email },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.applyDefenseAttorneyLookup(data);
+          }
+          this.isDefenseAttorneyLoading = false;
+        },
+        error: () => {
+          this.isDefenseAttorneyLoading = false;
+        },
+      });
+  }
+
+  // S-5.4: load DA details by IdentityUserId (selecting from the dropdown).
+  // The dropdown is currently always empty for DA because the lookup endpoint
+  // excludes the role per D-2; retained for layout parity with AA.
+  onDefenseAttorneySelected(identityUserId: string | null): void {
+    if (!identityUserId) return;
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<any, DefenseAttorneyLookupResult | null>(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { identityUserId },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.applyDefenseAttorneyLookup(data);
+          }
+          this.isDefenseAttorneyLoading = false;
+        },
+        error: () => {
+          this.isDefenseAttorneyLoading = false;
+        },
+      });
+  }
+
+  private applyDefenseAttorneyLookup(data: DefenseAttorneyLookupResult): void {
+    this.defenseAttorneyForm = {
+      defenseAttorneyId: data.defenseAttorneyId ?? null,
+      identityUserId: data.identityUserId,
+      firstName: data.firstName ?? '',
+      lastName: data.lastName ?? '',
+      email: data.email ?? '',
+      firmName: data.firmName ?? '',
+      webAddress: data.webAddress ?? '',
+      phoneNumber: data.phoneNumber ?? '',
+      faxNumber: data.faxNumber ?? '',
+      street: data.street ?? '',
+      city: data.city ?? '',
+      stateId: data.stateId ?? null,
+      zipCode: data.zipCode ?? '',
+    };
+    this.defenseAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
   }
 
   private loadAppointmentAccessors(appointmentId?: string): void {
@@ -817,6 +1326,114 @@ export class AppointmentViewComponent implements OnInit {
       });
   }
 
+  // S-5.4: load the DA already linked to this appointment (if any) and seed
+  // the form. Endpoint returns null when no DA join row exists for the
+  // appointment, in which case the form stays empty and the user can add a DA
+  // via the email-search box (mirror of AA bindFromResponse + AA-pre-fill).
+  private bindDefenseAttorneyForAppointment(appointmentId?: string): void {
+    if (!appointmentId) {
+      return;
+    }
+    this.restService
+      .request<any, DefenseAttorneyLookupResult | null>(
+        {
+          method: 'GET',
+          url: `/api/app/appointments/${appointmentId}/defense-attorney`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.applyDefenseAttorneyLookup(data);
+          }
+        },
+      });
+  }
+
+  // S-5.4: load injury details (Claim Information rows) for the appointment.
+  // Read-only at MVP -- the booking form (appointment-add) is the canonical
+  // create/edit surface for injuries; the view page just lists them.
+  private loadInjuryDetails(appointmentId?: string): void {
+    if (!appointmentId) {
+      return;
+    }
+    this.restService
+      .request<any, any[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointment-injury-details/by-appointment/${appointmentId}`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (items) => {
+          this.injuryDetails = (items ?? []).map((item) => {
+            const detail = item?.appointmentInjuryDetail;
+            const wcabOffice = item?.wcabOffice;
+            const claimExaminer = item?.claimExaminer;
+            const primaryInsurance = item?.primaryInsurance;
+            return {
+              id: detail?.id ?? '',
+              dateOfInjury: detail?.dateOfInjury ?? null,
+              toDateOfInjury: detail?.toDateOfInjury ?? null,
+              isCumulativeInjury: !!detail?.isCumulativeInjury,
+              claimNumber: detail?.claimNumber ?? '',
+              wcabAdj: detail?.wcabAdj ?? '',
+              wcabOfficeName: wcabOffice?.displayName ?? wcabOffice?.name ?? '',
+              bodyPartsSummary: detail?.bodyPartsSummary ?? '',
+              insuranceCompanyName: primaryInsurance?.isActive
+                ? (primaryInsurance?.name ?? '')
+                : '',
+              claimExaminerName: claimExaminer?.isActive ? (claimExaminer?.name ?? '') : '',
+            } as AppointmentInjuryDetailRow;
+          });
+        },
+      });
+  }
+
+  private async upsertDefenseAttorneyDetails(appointmentId?: string): Promise<void> {
+    // S-5.4 mirror of upsertApplicantAttorneyDetails. Bails when no DA is
+    // selected (matches the backend's existing silent-bail guard for missing
+    // IdentityUserId; the appointment-level DefenseAttorneyEmail column from
+    // S-5.1 already captures unregistered DA emails for fan-out independent
+    // of whether a join row exists).
+    if (
+      !appointmentId ||
+      !this.defenseAttorneyEnabled ||
+      !this.defenseAttorneyForm.identityUserId
+    ) {
+      return;
+    }
+
+    const body = {
+      defenseAttorneyId: this.defenseAttorneyForm.defenseAttorneyId ?? undefined,
+      identityUserId: this.defenseAttorneyForm.identityUserId,
+      firstName: this.defenseAttorneyForm.firstName,
+      lastName: this.defenseAttorneyForm.lastName,
+      email: this.defenseAttorneyForm.email,
+      firmName: this.defenseAttorneyForm.firmName || undefined,
+      webAddress: this.defenseAttorneyForm.webAddress || undefined,
+      phoneNumber: this.defenseAttorneyForm.phoneNumber || undefined,
+      faxNumber: this.defenseAttorneyForm.faxNumber || undefined,
+      street: this.defenseAttorneyForm.street || undefined,
+      city: this.defenseAttorneyForm.city || undefined,
+      stateId: this.defenseAttorneyStateIdControl.value ?? undefined,
+      zipCode: this.defenseAttorneyForm.zipCode || undefined,
+    };
+
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${appointmentId}/defense-attorney`,
+          body,
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
   private async upsertApplicantAttorneyDetails(appointmentId?: string): Promise<void> {
     if (
       !appointmentId ||
@@ -965,5 +1582,23 @@ export class AppointmentViewComponent implements OnInit {
       return d.toISOString().split('T')[0];
     }
     return null;
+  }
+
+  // S-5.5: inverse of formatDateOfBirthForApi. The API returns dateOfBirth as
+  // an ISO 8601 string (e.g. "1990-05-15T00:00:00"); ngbDatepicker requires
+  // an NgbDateStruct ({ year, month, day }) and silently shows blank when given
+  // a string. Convert here so the datepicker input populates on appointment load.
+  private parseDateOfBirthFromApi(
+    value: string | null | undefined,
+  ): { year: number; month: number; day: number } | null {
+    if (!value) return null;
+    const datePart = value.split('T')[0];
+    const parts = datePart.split('-');
+    if (parts.length !== 3) return null;
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    const day = Number(parts[2]);
+    if (!year || !month || !day) return null;
+    return { year, month, day };
   }
 }
