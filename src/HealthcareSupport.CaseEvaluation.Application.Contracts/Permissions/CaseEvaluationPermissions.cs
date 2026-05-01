@@ -103,9 +103,15 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".AppointmentDocuments";
         public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";       // W2-11: edit rejection reason / re-action a document.
         public const string Delete = Default + ".Delete";
-        // W1-3 cut: Edit + Approve permissions deferred until the doc-status
-        // workflow ships post-MVP.
+        public const string Approve = Default + ".Approve"; // W2-11: approve / reject uploaded documents.
+    }
+
+    public static class AppointmentPackets
+    {
+        public const string Default = GroupName + ".AppointmentPackets";
+        public const string Regenerate = Default + ".Regenerate";
     }
 
     public static class AppointmentEmployerDetails
@@ -137,6 +143,76 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".AppointmentApplicantAttorneys";
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class DefenseAttorneys
+    {
+        public const string Default = GroupName + ".DefenseAttorneys";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentDefenseAttorneys
+    {
+        public const string Default = GroupName + ".AppointmentDefenseAttorneys";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentInjuryDetails
+    {
+        public const string Default = GroupName + ".AppointmentInjuryDetails";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentBodyParts
+    {
+        public const string Default = GroupName + ".AppointmentBodyParts";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentClaimExaminers
+    {
+        public const string Default = GroupName + ".AppointmentClaimExaminers";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    public static class AppointmentPrimaryInsurances
+    {
+        public const string Default = GroupName + ".AppointmentPrimaryInsurances";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    /// <summary>
+    /// W2-4: read-only access to per-appointment audit history. Audit rows
+    /// themselves are immutable so no Create/Edit/Delete children apply.
+    /// </summary>
+    public static class AppointmentChangeLogs
+    {
+        public const string Default = GroupName + ".AppointmentChangeLogs";
+    }
+
+    /// <summary>
+    /// W2-5: per-AppointmentType field-config admin (Hidden / ReadOnly / DefaultValue).
+    /// Default visibility is read-only for non-admin callers (booker form needs Default
+    /// to fetch the apply-on-change config); Create/Edit/Delete gate admin actions.
+    /// </summary>
+    public static class CustomFields
+    {
+        public const string Default = GroupName + ".CustomFields";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
         public const string Delete = Default + ".Delete";
     }
 

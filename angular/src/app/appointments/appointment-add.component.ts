@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
   ListService,
@@ -34,6 +34,24 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
+import type {
+  AppointmentInjuryDraft,
+  AppointmentInjuryDetailWithNavigationPropertiesDto,
+} from '../proxy/appointment-injury-details/models';
+
+// W2-5: per-AppointmentType field-config row, returned by
+// GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
+// Inlined here until the auto-generated proxy is regenerated via
+// `abp generate-proxy` post-W2-5 ship.
+type AppointmentTypeFieldConfigDto = {
+  id: string;
+  tenantId?: string | null;
+  appointmentTypeId: string;
+  fieldName: string;
+  hidden: boolean;
+  readOnly: boolean;
+  defaultValue?: string | null;
+};
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -80,6 +98,7 @@ type AppointmentAuthorizedUserDraft = {
 export class AppointmentAddComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
 
@@ -91,6 +110,14 @@ export class AppointmentAddComponent {
   isLocationSelected = false;
   checkForAppointmentTypeSelected = false;
   isAvailableDatesLoading = false;
+
+  // W2-5: per-AppointmentType field-config state. The booker form fetches the
+  // matching config set on AppointmentType selection and applies Hidden /
+  // ReadOnly / DefaultValue to the FormControls below. The Set is also
+  // exposed for HTML to drive [hidden] bindings via isFieldHidden().
+  private readonly hiddenFieldNames = new Set<string>();
+  private readonly readOnlyFieldNames = new Set<string>();
+  private fieldConfigsRequestVersion = 0;
   private readonly availableDateKeys = new Set<string>();
   private readonly availableSlotsByDate = new Map<
     string,
@@ -115,6 +142,37 @@ export class AppointmentAddComponent {
   isApplicantAttorneyLoading = false;
   applicantAttorneyId: string | null = null;
   applicantAttorneyConcurrencyStamp: string | null = null;
+  defenseAttorneyEmailSearch = '';
+  defenseAttorneyOptions: ExternalAuthorizedUserOption[] = [];
+  isDefenseAttorneyLoading = false;
+  defenseAttorneyId: string | null = null;
+  defenseAttorneyConcurrencyStamp: string | null = null;
+
+  // W2-8 -- Claim Information (injury workflow). Multi-injury support per OLD:
+  // booker can add multiple AppointmentInjuryDetails (each with its own insurance
+  // + claim examiner) to a single appointment via the modal. injuryDrafts holds
+  // the in-memory list rendered as a table; injuryEditing holds the row being
+  // edited in the modal (or a fresh draft for "Add").
+  // W-H-1 / D-1 (Adrian 2026-04-30): Path B re-evaluation. The route enters
+  // here as either `?type=1` (Initial) or `?type=2` (Re-evaluation). For
+  // MVP we surface the distinction via the page heading + a flag carried
+  // through to the submit payload. Future enhancements (filter
+  // AppointmentType lookup to PQMEREEVAL/AMEREEVAL only, surface a
+  // "prior appointment" picker, send a different email subject) hook off
+  // this same flag.
+  isReevaluation = false;
+
+  injuryDrafts: AppointmentInjuryDraft[] = [];
+  isInjuryModalOpen = false;
+  injuryEditingIndex = -1;
+  injuryEditing: AppointmentInjuryDraft = this.makeEmptyInjuryDraft();
+  // W-A-4 (2026-04-30): inline validation error displayed inside the
+  // Claim Information modal when the booker clicks Add/Save with required
+  // fields blank. Previously saveInjuryModal silently returned, leaving the
+  // booker confused why the Add button "did nothing".
+  injuryModalError: string | null = null;
+  wcabOfficeOptions: LookupDto<string>[] = [];
+  injuryStateOptions: LookupDto<string>[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
@@ -264,16 +322,40 @@ export class AppointmentAddComponent {
     applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
     applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    defenseAttorneyEnabled: [false],
+    defenseAttorneyIdentityUserId: [null as string | null],
+    defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
+    defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
+    defenseAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
+    defenseAttorneyStreet: [null as string | null, [Validators.maxLength(255)]],
+    defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyStateId: [null as string | null],
+    defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    claimExaminerEnabled: [false],
+    claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
+    claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
   });
 
   constructor() {
+    // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
+    // queryParamMap.subscribe so deep-links + future programmatic switches
+    // both flip the flag.
+    this.route.queryParamMap.subscribe((params) => {
+      this.isReevaluation = params.get('type') === '2';
+    });
+
     this.form
       .get('locationId')
       ?.valueChanges.subscribe((locationId) => this.updateLocationSelection(locationId));
     this.form.get('locationId')?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
-    this.form
-      .get('appointmentTypeId')
-      ?.valueChanges.subscribe(() => this.loadAvailableDatesBySelection());
+    this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
+      this.loadAvailableDatesBySelection();
+      this.applyFieldConfigsForAppointmentType(appointmentTypeId);
+    });
     this.form
       .get('appointmentDate')
       ?.valueChanges.subscribe((value) => this.onAppointmentDateChanged(value));
@@ -286,6 +368,131 @@ export class AppointmentAddComponent {
     this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
       this.onAuthorizedUserIdentityChanged(value);
     });
+
+    // S-NEW-2 (Adrian 2026-04-30): when the booker enables the AA or DA
+    // section, the corresponding email field becomes required (in addition to
+    // the existing format check). This drives the post-submit fan-out --
+    // each party we name on the appointment must have a deliverable email.
+    this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
+    });
+    this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
+    });
+    this.form.get('claimExaminerEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalEmailValidator('claimExaminerEmail', !!enabled);
+    });
+    // Apply once at construction for the initial enabled state.
+    this.applyConditionalEmailValidator(
+      'applicantAttorneyEmail',
+      !!this.form.get('applicantAttorneyEnabled')?.value,
+    );
+    this.applyConditionalEmailValidator(
+      'defenseAttorneyEmail',
+      !!this.form.get('defenseAttorneyEnabled')?.value,
+    );
+    this.applyConditionalEmailValidator(
+      'claimExaminerEmail',
+      !!this.form.get('claimExaminerEnabled')?.value,
+    );
+  }
+
+  private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
+    const control = this.form.get(fieldName);
+    if (!control) return;
+    const validators = required
+      ? [Validators.required, Validators.email, Validators.maxLength(50)]
+      : [Validators.email, Validators.maxLength(50)];
+    control.setValidators(validators);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * W2-5: HTML helper -- returns true when the per-AppointmentType config
+   * marks this field key as hidden. Use as `[hidden]="isFieldHidden('claimNumber')"`
+   * on the corresponding form-row container so the input is suppressed
+   * without unmounting the FormControl. Form-rows added in W2-7 / W2-8
+   * wire this binding alongside their introduction.
+   */
+  isFieldHidden(fieldName: string): boolean {
+    return this.hiddenFieldNames.has(fieldName);
+  }
+
+  /**
+   * W2-5: HTML helper -- returns true when the per-AppointmentType config
+   * marks this field key as read-only. Backed by the same fetched config
+   * set; complements the FormControl.disable() call below for sections
+   * that need a separate visual treatment.
+   */
+  isFieldReadOnly(fieldName: string): boolean {
+    return this.readOnlyFieldNames.has(fieldName);
+  }
+
+  /**
+   * W2-5: when AppointmentType changes, reset all prior config + fetch the
+   * new set + apply Hidden (state set + control disable) / ReadOnly (state
+   * set + control disable) / DefaultValue (control setValue). Race-safe via
+   * a request-version counter so a rapid type-change cancels the prior
+   * fetch's apply.
+   */
+  private applyFieldConfigsForAppointmentType(appointmentTypeId: string | null): void {
+    this.resetFieldConfigsState();
+
+    if (!appointmentTypeId) {
+      return;
+    }
+
+    const requestVersion = ++this.fieldConfigsRequestVersion;
+    this.restService
+      .request<null, AppointmentTypeFieldConfigDto[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointment-type-field-configs/by-appointment-type/${appointmentTypeId}`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (rows) => {
+          if (requestVersion !== this.fieldConfigsRequestVersion) {
+            // A newer AppointmentType change cancelled this one.
+            return;
+          }
+          for (const row of rows ?? []) {
+            const control = this.form.get(row.fieldName);
+            if (row.hidden) {
+              this.hiddenFieldNames.add(row.fieldName);
+              control?.disable({ emitEvent: false });
+            }
+            if (row.readOnly) {
+              this.readOnlyFieldNames.add(row.fieldName);
+              control?.disable({ emitEvent: false });
+            }
+            if (
+              row.defaultValue !== null &&
+              row.defaultValue !== undefined &&
+              row.defaultValue !== ''
+            ) {
+              control?.setValue(row.defaultValue, { emitEvent: false });
+            }
+          }
+        },
+      });
+  }
+
+  /**
+   * Resets every field's config-driven state so a subsequent AppointmentType
+   * change starts from a clean baseline. Without this, switching from PQME
+   * to AME would carry over PQME's hidden/disabled fields.
+   */
+  private resetFieldConfigsState(): void {
+    for (const fieldName of this.hiddenFieldNames) {
+      this.form.get(fieldName)?.enable({ emitEvent: false });
+    }
+    for (const fieldName of this.readOnlyFieldNames) {
+      this.form.get(fieldName)?.enable({ emitEvent: false });
+    }
+    this.hiddenFieldNames.clear();
+    this.readOnlyFieldNames.clear();
   }
 
   get displayUserName(): string {
@@ -304,12 +511,26 @@ export class AppointmentAddComponent {
     return this.currentUser?.roles?.[0] || 'Patient';
   }
 
-  /** True when user is Applicant Attorney or Defense Attorney (external user without Patient record). */
+  /**
+   * True when the booker is anyone OTHER than the Patient role. Covers
+   * Applicant Attorney, Defense Attorney, Claim Examiner, and internal
+   * users (admin, Clinic Staff, Staff Supervisor, Doctor) booking on
+   * behalf of a patient. Drives:
+   *   - profile load: Patient -> /patients/me; everyone else -> /external-users/me
+   *     (W-B-2 fix, 2026-04-30: previously CE + internal bookers fell through
+   *     to /patients/me and got 404 because their IdentityUser has no Patient row).
+   *   - patient-section behavior: non-Patient bookers create-on-behalf via
+   *     /patients/for-appointment-booking; Patients self-update their own row.
+   */
   get isExternalUserNonPatient(): boolean {
     const roles = this.currentUser?.roles ?? [];
-    return roles.some(
-      (r) => r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
-    );
+    if (roles.length === 0) {
+      // Unknown role at construction time -- safer to treat as "non-Patient"
+      // so the form does not call /patients/me on a not-yet-loaded user
+      // (the alternative is a guaranteed 404 that breaks the form globally).
+      return true;
+    }
+    return !roles.some((r: string) => r?.toLowerCase() === 'patient');
   }
 
   /** True when current user is Applicant Attorney (hide load/select UI for them). */
@@ -381,6 +602,18 @@ export class AppointmentAddComponent {
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
+        // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
+        // and auto-link on registration (step 5.2) have the addresses immediately.
+        patientEmail: rawAfter.email ?? undefined,
+        applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled
+          ? (rawAfter.applicantAttorneyEmail ?? undefined)
+          : undefined,
+        defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
+          ? (rawAfter.defenseAttorneyEmail ?? undefined)
+          : undefined,
+        claimExaminerEmail: rawAfter.claimExaminerEnabled
+          ? (rawAfter.claimExaminerEmail ?? undefined)
+          : undefined,
       };
 
       const createdAppointment = await firstValueFrom(
@@ -396,6 +629,8 @@ export class AppointmentAddComponent {
 
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
@@ -995,6 +1230,9 @@ export class AppointmentAddComponent {
           this.applicantAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'applicant attorney',
           );
+          this.defenseAttorneyOptions = (result?.items ?? []).filter(
+            (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'defense attorney',
+          );
         },
       });
   }
@@ -1165,6 +1403,7 @@ export class AppointmentAddComponent {
             this.applicantAttorneyId = data.applicantAttorneyId ?? null;
             this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
             this.form.patchValue({
+              applicantAttorneyEnabled: true,
               applicantAttorneyIdentityUserId: data.identityUserId,
               applicantAttorneyFirstName: data.firstName ?? null,
               applicantAttorneyLastName: data.lastName ?? null,
@@ -1211,6 +1450,176 @@ export class AppointmentAddComponent {
         {
           method: 'POST',
           url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
+          body,
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
+  // W2-7: defense-attorney section parallel to applicant-attorney. Booker can
+  // populate Both sections on the same appointment. Each section maintains
+  // its own form-control prefix + cached identity/firm references.
+  onDefenseAttorneyEmailSearch(event: Event): void {
+    this.defenseAttorneyEmailSearch = (event.target as HTMLInputElement)?.value?.trim() ?? '';
+  }
+
+  loadDefenseAttorneyByEmail(): void {
+    const email = this.defenseAttorneyEmailSearch?.trim();
+    if (!email) return;
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { email },
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => (this.isDefenseAttorneyLoading = false)))
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
+  onDefenseAttorneySelected(identityUserId: string | null): void {
+    if (!identityUserId) {
+      this.form.patchValue({
+        defenseAttorneyFirstName: null,
+        defenseAttorneyLastName: null,
+        defenseAttorneyEmail: null,
+        defenseAttorneyFirmName: null,
+        defenseAttorneyWebAddress: null,
+        defenseAttorneyPhoneNumber: null,
+        defenseAttorneyFaxNumber: null,
+        defenseAttorneyStreet: null,
+        defenseAttorneyCity: null,
+        defenseAttorneyStateId: null,
+        defenseAttorneyZipCode: null,
+      });
+      this.defenseAttorneyId = null;
+      this.defenseAttorneyConcurrencyStamp = null;
+      return;
+    }
+    this.isDefenseAttorneyLoading = true;
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { identityUserId },
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(finalize(() => (this.isDefenseAttorneyLoading = false)))
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
+  private async upsertDefenseAttorneyForAppointmentIfProvided(
+    appointmentId?: string,
+  ): Promise<void> {
+    const raw = this.form.getRawValue();
+    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyIdentityUserId) {
+      return;
+    }
+    const body = {
+      defenseAttorneyId: this.defenseAttorneyId ?? undefined,
+      identityUserId: raw.defenseAttorneyIdentityUserId,
+      firstName: raw.defenseAttorneyFirstName ?? '',
+      lastName: raw.defenseAttorneyLastName ?? '',
+      email: raw.defenseAttorneyEmail ?? '',
+      firmName: raw.defenseAttorneyFirmName ?? undefined,
+      webAddress: raw.defenseAttorneyWebAddress ?? undefined,
+      phoneNumber: raw.defenseAttorneyPhoneNumber ?? undefined,
+      faxNumber: raw.defenseAttorneyFaxNumber ?? undefined,
+      street: raw.defenseAttorneyStreet ?? undefined,
+      city: raw.defenseAttorneyCity ?? undefined,
+      stateId: raw.defenseAttorneyStateId ?? undefined,
+      zipCode: raw.defenseAttorneyZipCode ?? undefined,
+      concurrencyStamp: this.defenseAttorneyConcurrencyStamp ?? undefined,
+    };
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${appointmentId}/defense-attorney`,
           body,
         },
         { apiName: 'Default' },
@@ -1590,5 +1999,210 @@ export class AppointmentAddComponent {
     }
 
     return allItems;
+  }
+
+  // -------- W2-8: Claim Information modal + multi-injury workflow --------
+
+  private makeEmptyInjuryDraft(): AppointmentInjuryDraft {
+    return {
+      isCumulativeInjury: false,
+      dateOfInjury: null,
+      toDateOfInjury: null,
+      claimNumber: '',
+      wcabOfficeId: null,
+      wcabAdj: null,
+      bodyPartsSummary: '',
+      primaryInsurance: {
+        isActive: false,
+        name: null,
+        insuranceNumber: null,
+        attention: null,
+        phoneNumber: null,
+        faxNumber: null,
+        street: null,
+        city: null,
+        stateId: null,
+        zip: null,
+      },
+      claimExaminer: {
+        isActive: false,
+        name: null,
+        email: null,
+        phoneNumber: null,
+        fax: null,
+        street: null,
+        claimExaminerNumber: null,
+        city: null,
+        stateId: null,
+        zip: null,
+      },
+    };
+  }
+
+  loadInjuryLookups(): void {
+    if (this.wcabOfficeOptions.length === 0) {
+      this.restService
+        .request<any, PagedResultDto<LookupDto<string>>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-injury-details/wcab-office-lookup',
+            params: { skipCount: 0, maxResultCount: 200 },
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({ next: (r) => (this.wcabOfficeOptions = r?.items ?? []) });
+    }
+    if (this.injuryStateOptions.length === 0) {
+      this.restService
+        .request<any, PagedResultDto<LookupDto<string>>>(
+          {
+            method: 'GET',
+            url: '/api/app/applicant-attorneys/state-lookup',
+            params: { skipCount: 0, maxResultCount: 200 },
+          },
+          { apiName: 'Default' },
+        )
+        .subscribe({ next: (r) => (this.injuryStateOptions = r?.items ?? []) });
+    }
+  }
+
+  openAddInjuryModal(): void {
+    this.injuryEditingIndex = -1;
+    this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.loadInjuryLookups();
+    this.isInjuryModalOpen = true;
+  }
+
+  openEditInjuryModal(index: number): void {
+    const existing = this.injuryDrafts[index];
+    if (!existing) return;
+    // Deep clone so cancel discards in-modal edits.
+    this.injuryEditing = JSON.parse(JSON.stringify(existing));
+    this.injuryEditingIndex = index;
+    this.loadInjuryLookups();
+    this.isInjuryModalOpen = true;
+  }
+
+  closeInjuryModal(): void {
+    this.isInjuryModalOpen = false;
+    this.injuryEditingIndex = -1;
+    this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.injuryModalError = null;
+  }
+
+  saveInjuryModal(): void {
+    const missing: string[] = [];
+    if (!this.injuryEditing.dateOfInjury) missing.push('Date of Injury');
+    if (!this.injuryEditing.claimNumber) missing.push('Claim Number');
+    if (!this.injuryEditing.bodyPartsSummary) missing.push('Body Parts');
+    if (missing.length > 0) {
+      this.injuryModalError =
+        'Please fill the required field' +
+        (missing.length > 1 ? 's' : '') +
+        ': ' +
+        missing.join(', ') +
+        '.';
+      return;
+    }
+    this.injuryModalError = null;
+    if (this.injuryEditingIndex >= 0) {
+      this.injuryDrafts[this.injuryEditingIndex] = this.injuryEditing;
+    } else {
+      this.injuryDrafts.push(this.injuryEditing);
+    }
+    this.closeInjuryModal();
+  }
+
+  removeInjury(index: number): void {
+    if (index >= 0 && index < this.injuryDrafts.length) {
+      this.injuryDrafts.splice(index, 1);
+    }
+  }
+
+  injuryWcabOfficeName(id: string | null | undefined): string {
+    if (!id) return '';
+    const opt = this.wcabOfficeOptions.find((o) => o.id === id);
+    return opt?.displayName ?? '';
+  }
+
+  private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId || this.injuryDrafts.length === 0) {
+      return;
+    }
+    for (const draft of this.injuryDrafts) {
+      const created = await firstValueFrom(
+        this.restService.request<any, { id: string }>(
+          {
+            method: 'POST',
+            url: '/api/app/appointment-injury-details',
+            body: {
+              appointmentId,
+              dateOfInjury: draft.dateOfInjury,
+              toDateOfInjury: draft.toDateOfInjury,
+              claimNumber: draft.claimNumber,
+              isCumulativeInjury: draft.isCumulativeInjury,
+              wcabAdj: draft.wcabAdj,
+              bodyPartsSummary: draft.bodyPartsSummary,
+              wcabOfficeId: draft.wcabOfficeId,
+            },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      const injuryId = created?.id;
+      if (!injuryId) continue;
+
+      // Insurance: only persist if booker enabled the section.
+      if (draft.primaryInsurance.isActive) {
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-primary-insurances',
+              body: {
+                appointmentInjuryDetailId: injuryId,
+                isActive: true,
+                name: draft.primaryInsurance.name,
+                insuranceNumber: draft.primaryInsurance.insuranceNumber,
+                attention: draft.primaryInsurance.attention,
+                phoneNumber: draft.primaryInsurance.phoneNumber,
+                faxNumber: draft.primaryInsurance.faxNumber,
+                street: draft.primaryInsurance.street,
+                city: draft.primaryInsurance.city,
+                zip: draft.primaryInsurance.zip,
+                stateId: draft.primaryInsurance.stateId,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
+      }
+
+      // Claim Examiner: only persist if booker enabled the section.
+      if (draft.claimExaminer.isActive) {
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-claim-examiners',
+              body: {
+                appointmentInjuryDetailId: injuryId,
+                isActive: true,
+                name: draft.claimExaminer.name,
+                claimExaminerNumber: draft.claimExaminer.claimExaminerNumber,
+                email: draft.claimExaminer.email,
+                phoneNumber: draft.claimExaminer.phoneNumber,
+                fax: draft.claimExaminer.fax,
+                street: draft.claimExaminer.street,
+                city: draft.claimExaminer.city,
+                zip: draft.claimExaminer.zip,
+                stateId: draft.claimExaminer.stateId,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
+      }
+    }
   }
 }

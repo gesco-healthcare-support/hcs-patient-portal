@@ -93,7 +93,7 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${API_PORT:-44327}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200}"
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368}"
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__MetaAddress: "http://authserver:8080"

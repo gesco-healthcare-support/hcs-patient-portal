@@ -8,6 +8,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
@@ -16,6 +17,7 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
+[Audited]
 public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }
@@ -48,6 +50,18 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Guid LocationId { get; set; }
 
     public Guid DoctorAvailabilityId { get; set; }
+
+    [CanBeNull]
+    public virtual string? PatientEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? ClaimExaminerEmail { get; set; }
 
     protected Appointment()
     {

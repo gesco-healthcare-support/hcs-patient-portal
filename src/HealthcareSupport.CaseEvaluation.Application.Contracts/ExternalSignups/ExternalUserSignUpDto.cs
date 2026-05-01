@@ -8,13 +8,15 @@ public class ExternalUserSignUpDto
     [Required]
     public ExternalUserType UserType { get; set; }
 
-    [Required]
+    // Adrian (2026-04-30): names are NOT collected on the register page.
+    // They are captured later on the booking form's patient/AA section, so
+    // these are nullable here. The server stores them as-is on IdentityUser
+    // (Name/Surname) when supplied; otherwise leaves them null.
     [StringLength(128)]
-    public string FirstName { get; set; } = null!;
+    public string? FirstName { get; set; }
 
-    [Required]
     [StringLength(128)]
-    public string LastName { get; set; } = null!;
+    public string? LastName { get; set; }
 
     [Required]
     [EmailAddress]

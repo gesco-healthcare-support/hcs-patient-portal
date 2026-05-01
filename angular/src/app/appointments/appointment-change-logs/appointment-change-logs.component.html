@@ -1,0 +1,52 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">{{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}</h2>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="back()">
+      Back to appointment
+    </button>
+  </div>
+
+  @if (isLoading) {
+    <p class="text-muted">Loading change log...</p>
+  } @else if (errorMessage) {
+    <div class="alert alert-warning" role="alert">{{ errorMessage }}</div>
+  } @else if (entries.length === 0) {
+    <p class="text-muted">No changes recorded for this appointment yet.</p>
+  } @else {
+    <table class="table table-sm table-striped change-log-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Who</th>
+          <th>Type</th>
+          <th>Property</th>
+          <th>Old value</th>
+          <th>New value</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of entries; track entry.entityChange?.changeTime) {
+          @if (entry.entityChange?.propertyChanges?.length) {
+            @for (prop of entry.entityChange?.propertyChanges; track prop.id) {
+              <tr>
+                <td>{{ entry.entityChange?.changeTime | date: 'short' }}</td>
+                <td>{{ entry.userName || '-' }}</td>
+                <td>{{ changeTypeLabel(entry.entityChange?.changeType ?? 0) }}</td>
+                <td>{{ prop.propertyName }}</td>
+                <td class="text-break">{{ prop.originalValue || '-' }}</td>
+                <td class="text-break">{{ prop.newValue || '-' }}</td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td>{{ entry.entityChange?.changeTime | date: 'short' }}</td>
+              <td>{{ entry.userName || '-' }}</td>
+              <td>{{ changeTypeLabel(entry.entityChange?.changeType ?? 0) }}</td>
+              <td colspan="3" class="text-muted">No property-level diffs.</td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  }
+</div>

@@ -1,6 +1,7 @@
 using System;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -22,6 +23,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// the existing FK style (NoAction). The blob save and entity insert happen
 /// inside a single AppService UoW so a partial failure rolls back both.
 /// </summary>
+[Audited]
 public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }
@@ -46,6 +48,19 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual long FileSize { get; set; }
 
     public virtual Guid UploadedByUserId { get; set; }
+
+    /// <summary>W2-11: review state. Defaults to Uploaded; flipped by Approve/Reject AppService methods.</summary>
+    public virtual DocumentStatus Status { get; set; } = DocumentStatus.Uploaded;
+
+    /// <summary>W2-11: rejection reason captured when Status flips to Rejected. Max 500 chars.</summary>
+    [CanBeNull]
+    public virtual string? RejectionReason { get; set; }
+
+    /// <summary>W2-11: user who approved or last actioned the document.</summary>
+    public virtual Guid? ResponsibleUserId { get; set; }
+
+    /// <summary>W2-11: user who rejected the document (null until rejected).</summary>
+    public virtual Guid? RejectedByUserId { get; set; }
 
     protected AppointmentDocument()
     {

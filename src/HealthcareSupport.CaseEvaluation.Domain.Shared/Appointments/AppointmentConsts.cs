@@ -12,4 +12,5 @@ public static class AppointmentConsts
     public const int PanelNumberMaxLength = 50;
     public const int RequestConfirmationNumberMaxLength = 50;
     public const int InternalUserCommentsMaxLength = 250;
+    public const int PartyEmailMaxLength = 256;
 }

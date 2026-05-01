@@ -1,5 +1,11 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -150,6 +156,20 @@ public partial class WcabOfficeWithNavigationPropertiesToWcabOfficeWithNavigatio
 }
 
 [Mapper]
+public partial class WcabOfficeToLookupDtoGuidMapper : MapperBase<WcabOffice, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(WcabOffice source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(WcabOffice source, LookupDto<Guid> destination);
+
+    public override void AfterMap(WcabOffice source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.Name;
+    }
+}
+
+[Mapper]
 public partial class DoctorToDoctorDtoMappers : MapperBase<Doctor, DoctorDto>
 {
     public override partial DoctorDto Map(Doctor source);
@@ -259,6 +279,13 @@ public partial class AppointmentDocumentToDtoMapper : MapperBase<HealthcareSuppo
 {
     public override partial HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument source);
     public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto destination);
+}
+
+[Mapper]
+public partial class AppointmentPacketToDtoMapper : MapperBase<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto>
+{
+    public override partial HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source);
+    public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto destination);
 }
 
 [Mapper]
@@ -406,4 +433,88 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
     {
         destination.DisplayName = source.FirmName ?? string.Empty;
     }
+}
+
+[Mapper]
+public partial class DefenseAttorneyToDefenseAttorneyDtoMappers : MapperBase<DefenseAttorney, DefenseAttorneyDto>
+{
+    public override partial DefenseAttorneyDto Map(DefenseAttorney source);
+    public override partial void Map(DefenseAttorney source, DefenseAttorneyDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class DefenseAttorneyWithNavigationPropertiesToDefenseAttorneyWithNavigationPropertiesDtoMapper : MapperBase<DefenseAttorneyWithNavigationProperties, DefenseAttorneyWithNavigationPropertiesDto>
+{
+    public override partial DefenseAttorneyWithNavigationPropertiesDto Map(DefenseAttorneyWithNavigationProperties source);
+    public override partial void Map(DefenseAttorneyWithNavigationProperties source, DefenseAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentDefenseAttorneyToAppointmentDefenseAttorneyDtoMappers : MapperBase<AppointmentDefenseAttorney, AppointmentDefenseAttorneyDto>
+{
+    public override partial AppointmentDefenseAttorneyDto Map(AppointmentDefenseAttorney source);
+    public override partial void Map(AppointmentDefenseAttorney source, AppointmentDefenseAttorneyDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class AppointmentDefenseAttorneyWithNavigationPropertiesToAppointmentDefenseAttorneyWithNavigationPropertiesDtoMapper : MapperBase<AppointmentDefenseAttorneyWithNavigationProperties, AppointmentDefenseAttorneyWithNavigationPropertiesDto>
+{
+    public override partial AppointmentDefenseAttorneyWithNavigationPropertiesDto Map(AppointmentDefenseAttorneyWithNavigationProperties source);
+    public override partial void Map(AppointmentDefenseAttorneyWithNavigationProperties source, AppointmentDefenseAttorneyWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class DefenseAttorneyToLookupDtoGuidMapper : MapperBase<DefenseAttorney, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(DefenseAttorney source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(DefenseAttorney source, LookupDto<Guid> destination);
+
+    public override void AfterMap(DefenseAttorney source, LookupDto<Guid> destination)
+    {
+        destination.DisplayName = source.FirmName ?? string.Empty;
+    }
+}
+
+[Mapper]
+public partial class AppointmentTypeFieldConfigToAppointmentTypeFieldConfigDtoMapper : MapperBase<HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig, HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto>
+{
+    public override partial HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source);
+    public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfig source, HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs.AppointmentTypeFieldConfigDto destination);
+}
+
+[Mapper]
+public partial class AppointmentInjuryDetailToAppointmentInjuryDetailDtoMapper : MapperBase<AppointmentInjuryDetail, AppointmentInjuryDetailDto>
+{
+    public override partial AppointmentInjuryDetailDto Map(AppointmentInjuryDetail source);
+    public override partial void Map(AppointmentInjuryDetail source, AppointmentInjuryDetailDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class AppointmentInjuryDetailWithNavigationPropertiesToAppointmentInjuryDetailWithNavigationPropertiesDtoMapper : MapperBase<AppointmentInjuryDetailWithNavigationProperties, AppointmentInjuryDetailWithNavigationPropertiesDto>
+{
+    public override partial AppointmentInjuryDetailWithNavigationPropertiesDto Map(AppointmentInjuryDetailWithNavigationProperties source);
+    public override partial void Map(AppointmentInjuryDetailWithNavigationProperties source, AppointmentInjuryDetailWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class AppointmentBodyPartToAppointmentBodyPartDtoMapper : MapperBase<AppointmentBodyPart, AppointmentBodyPartDto>
+{
+    public override partial AppointmentBodyPartDto Map(AppointmentBodyPart source);
+    public override partial void Map(AppointmentBodyPart source, AppointmentBodyPartDto destination);
+}
+
+[Mapper]
+public partial class AppointmentClaimExaminerToAppointmentClaimExaminerDtoMapper : MapperBase<AppointmentClaimExaminer, AppointmentClaimExaminerDto>
+{
+    public override partial AppointmentClaimExaminerDto Map(AppointmentClaimExaminer source);
+    public override partial void Map(AppointmentClaimExaminer source, AppointmentClaimExaminerDto destination);
+}
+
+[Mapper]
+public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDtoMapper : MapperBase<AppointmentPrimaryInsurance, AppointmentPrimaryInsuranceDto>
+{
+    public override partial AppointmentPrimaryInsuranceDto Map(AppointmentPrimaryInsurance source);
+    public override partial void Map(AppointmentPrimaryInsurance source, AppointmentPrimaryInsuranceDto destination);
 }

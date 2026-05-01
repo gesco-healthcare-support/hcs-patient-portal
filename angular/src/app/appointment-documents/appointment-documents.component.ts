@@ -1,27 +1,26 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  EventEmitter,
   Input,
   OnChanges,
+  Output,
   SimpleChanges,
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
+import { PermissionService } from '@abp/ng.core';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
-import type { AppointmentDocumentDto } from '../proxy/appointment-documents/models';
+import { AppointmentDocumentDto, DocumentStatus } from '../proxy/appointment-documents/models';
 
 /**
- * W1-3 appointment-documents UI. Embedded inside appointment-view as a
- * standalone child block. Lists existing documents for the appointment and
- * exposes a simple upload form (file input + DocumentName text input).
- *
- * Cuts deferred to ledger:
- *   - Approve / Reject document workflow (no status surface yet).
- *   - Verification-code anonymous download.
- *   - Drag-and-drop upload (basic file input only).
- *   - Multi-file upload (one file at a time at MVP).
+ * W1-3 + W2-11 appointment-documents UI. Embedded inside appointment-view
+ * as a standalone child block. Lists existing documents with status badges,
+ * exposes upload + Approve/Reject for internal users (gated on the
+ * AppointmentDocuments.Approve permission), and emits documentsChanged so
+ * the parent can refresh the packet panel after an approve/reject action.
  */
 @Component({
   selector: 'app-appointment-documents',
@@ -45,6 +44,11 @@ import type { AppointmentDocumentDto } from '../proxy/appointment-documents/mode
         color: #6c757d;
         font-size: 0.85em;
       }
+      .doc-rejection {
+        color: #842029;
+        font-size: 0.85em;
+        margin-top: 2px;
+      }
       .upload-form {
         display: flex;
         gap: 8px;
@@ -54,14 +58,36 @@ import type { AppointmentDocumentDto } from '../proxy/appointment-documents/mode
         background: #f8f9fa;
         border-radius: 4px;
       }
+      .badge-status {
+        font-size: 0.75em;
+        padding: 4px 8px;
+      }
+      .reject-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1050;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .reject-modal {
+        background: #fff;
+        border-radius: 8px;
+        max-width: 480px;
+        width: 90%;
+        padding: 20px;
+      }
     `,
   ],
 })
 export class AppointmentDocumentsComponent implements OnChanges {
   @Input() appointmentId: string | null = null;
+  @Output() documentsChanged = new EventEmitter<void>();
 
   private service = inject(AppointmentDocumentService);
   private toaster = inject(ToasterService);
+  private permission = inject(PermissionService);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;
@@ -69,7 +95,16 @@ export class AppointmentDocumentsComponent implements OnChanges {
   documentName = '';
   selectedFile: File | null = null;
 
+  rejectingDoc: AppointmentDocumentDto | null = null;
+  rejectionReason = '';
+  isSubmittingReject = false;
+
   readonly maxBytes = 25 * 1024 * 1024;
+  readonly DocumentStatus = DocumentStatus;
+
+  get canApprove(): boolean {
+    return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Approve');
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['appointmentId'] && this.appointmentId) {
@@ -124,6 +159,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
           input.value = '';
         }
         this.refresh();
+        this.documentsChanged.emit();
         this.isUploading = false;
       },
       error: () => {
@@ -137,9 +173,6 @@ export class AppointmentDocumentsComponent implements OnChanges {
       return;
     }
     const url = this.service.buildDownloadUrl(this.appointmentId, doc.id);
-    // window.open routes through the browser's session cookies + ABP auth
-    // interceptor on the SPA shell. For SPA-only setups without cookie
-    // auth, we'd need to fetch + Blob URL; deferred to ledger.
     window.open(url, '_blank');
   }
 
@@ -154,8 +187,85 @@ export class AppointmentDocumentsComponent implements OnChanges {
       next: () => {
         this.toaster.success('Document deleted.');
         this.refresh();
+        this.documentsChanged.emit();
       },
     });
+  }
+
+  approve(doc: AppointmentDocumentDto): void {
+    if (!this.appointmentId || !this.canApprove) {
+      return;
+    }
+    this.service.approve(this.appointmentId, doc.id).subscribe({
+      next: () => {
+        this.toaster.success('Document approved.');
+        this.refresh();
+        this.documentsChanged.emit();
+      },
+    });
+  }
+
+  openRejectModal(doc: AppointmentDocumentDto): void {
+    if (!this.canApprove) {
+      return;
+    }
+    this.rejectingDoc = doc;
+    this.rejectionReason = doc.rejectionReason ?? '';
+  }
+
+  closeRejectModal(): void {
+    this.rejectingDoc = null;
+    this.rejectionReason = '';
+    this.isSubmittingReject = false;
+  }
+
+  submitReject(): void {
+    if (!this.appointmentId || !this.rejectingDoc) {
+      return;
+    }
+    const reason = this.rejectionReason.trim();
+    if (!reason) {
+      this.toaster.error('Rejection reason is required.');
+      return;
+    }
+    if (reason.length > 500) {
+      this.toaster.error('Rejection reason exceeds 500 characters.');
+      return;
+    }
+    this.isSubmittingReject = true;
+    this.service.reject(this.appointmentId, this.rejectingDoc.id, { reason }).subscribe({
+      next: () => {
+        this.toaster.success('Document rejected.');
+        this.closeRejectModal();
+        this.refresh();
+        this.documentsChanged.emit();
+      },
+      error: () => {
+        this.isSubmittingReject = false;
+      },
+    });
+  }
+
+  statusLabel(status: DocumentStatus): string {
+    switch (status) {
+      case DocumentStatus.Approved:
+        return 'Approved';
+      case DocumentStatus.Rejected:
+        return 'Rejected';
+      default:
+        return 'Uploaded';
+    }
+  }
+
+  statusBadgeClass(status: DocumentStatus): string {
+    switch (status) {
+      case DocumentStatus.Approved:
+        return 'bg-success';
+      case DocumentStatus.Rejected:
+        return 'bg-danger';
+      default:
+        return 'bg-secondary';
+    }
   }
 
   formatBytes(bytes: number): string {

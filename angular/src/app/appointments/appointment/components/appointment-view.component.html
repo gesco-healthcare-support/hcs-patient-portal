@@ -6,7 +6,15 @@
   } @else if (appointment) {
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
       <h2 class="mb-0 fw-bold">
-        PQME Appointment
+        <!--
+          S-7.3 (W-A-8): replace the static "PQME" prefix with the actual
+          AppointmentType.Name. Falls back to "Appointment" alone when
+          the navigation property is not yet loaded.
+        -->
+        {{ appointment.appointmentType?.name || 'Appointment' }}
+        @if (appointment.appointmentType?.name) {
+          Appointment
+        }
         <span class="fw-normal">
           >
           {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
@@ -73,6 +81,13 @@
         >
           Upload Documents
         </button>
+        <a
+          *abpPermission="'CaseEvaluation.AppointmentChangeLogs'"
+          class="btn btn-outline-secondary btn-sm"
+          [routerLink]="['/appointments/view', appointment.appointment?.id, 'change-log']"
+        >
+          {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
+        </a>
         <button type="button" class="btn btn-primary btn-sm" (click)="openHelp()">Help</button>
         <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
           {{ 'AbpUi::Back' | abpLocalization }}
@@ -194,6 +209,7 @@
               class="form-control form-control-sm"
               [(ngModel)]="panelNumber"
               maxlength="50"
+              [disabled]="!canEdit('panelNumber')"
             />
           </div>
           <div class="col-md-2 col-sm-6">
@@ -224,15 +240,27 @@
         <div class="row g-3">
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.lastName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.lastName"
+              [disabled]="!canEdit('lastName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.firstName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.firstName"
+              [disabled]="!canEdit('firstName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.middleName" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.middleName"
+              [disabled]="!canEdit('middleName')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
@@ -246,6 +274,7 @@
                     [name]="'view-gender'"
                     [(ngModel)]="patientForm.genderId"
                     [value]="option.value"
+                    [disabled]="!canEdit('genderId')"
                   />
                   <label class="form-check-label" [for]="'view-gender-' + option.key">
                     {{ '::Enum:Gender.' + option.value | abpLocalization }}
@@ -268,6 +297,7 @@
                 #dateOfBirthDatepicker="ngbDatepicker"
                 (click)="dateOfBirthDatepicker.open()"
                 (keyup.space)="dateOfBirthDatepicker.open()"
+                [disabled]="!canEdit('dateOfBirth')"
               />
               @if (dateOfBirthInput.value) {
                 <div class="input-group-append">
@@ -294,11 +324,19 @@
             <label class="form-label fw-semibold">
               {{ '::CellPhoneNumber' | abpLocalization }}
             </label>
-            <input class="form-control" [(ngModel)]="patientForm.cellPhoneNumber" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.cellPhoneNumber"
+              [disabled]="!canEdit('cellPhoneNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input class="form-control mb-2" [(ngModel)]="patientForm.phoneNumber" />
+            <input
+              class="form-control mb-2"
+              [(ngModel)]="patientForm.phoneNumber"
+              [disabled]="!canEdit('phoneNumber')"
+            />
             <div class="d-flex gap-3">
               @for (option of phoneNumberTypeOptions; track option.key) {
                 <div class="form-check">
@@ -309,6 +347,7 @@
                     [name]="'view-phone-type'"
                     [(ngModel)]="patientForm.phoneNumberTypeId"
                     [value]="option.value"
+                    [disabled]="!canEdit('phoneNumberType')"
                   />
                   <label class="form-check-label" [for]="'view-phone-type-' + option.key">
                     {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
@@ -322,19 +361,35 @@
             <label class="form-label fw-semibold">
               {{ '::SocialSecurityNumber' | abpLocalization }}
             </label>
-            <input class="form-control" [(ngModel)]="patientForm.socialSecurityNumber" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.socialSecurityNumber"
+              [disabled]="!canEdit('socialSecurityNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.street" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.street"
+              [disabled]="!canEdit('street')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Unit #</label>
-            <input class="form-control" [(ngModel)]="patientForm.address" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.apptNumber"
+              [disabled]="!canEdit('apptNumber')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.city" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.city"
+              [disabled]="!canEdit('city')"
+            />
           </div>
 
           <div class="col-md-3 mb-3">
@@ -344,11 +399,16 @@
               [(ngModel)]="patientForm.stateId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getStateLookup"
+              [disabled]="!canEdit('stateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.zipCode" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.zipCode"
+              [disabled]="!canEdit('zipCode')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">
@@ -359,6 +419,7 @@
               [(ngModel)]="patientForm.appointmentLanguageId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getAppointmentLanguageLookup"
+              [disabled]="!canEdit('languageId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -372,6 +433,7 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="true"
+                  [disabled]="!canEdit('isInterpreter')"
                 />
                 <label class="form-check-label" for="view-need-interpreter-yes">Yes</label>
               </div>
@@ -383,17 +445,26 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="false"
+                  [disabled]="!canEdit('isInterpreter')"
                 />
                 <label class="form-check-label" for="view-need-interpreter-no">No</label>
               </div>
             </div>
             @if (patientForm.needsInterpreter) {
-              <input class="form-control mt-2" [(ngModel)]="patientForm.interpreterVendorName" />
+              <input
+                class="form-control mt-2"
+                [(ngModel)]="patientForm.interpreterVendorName"
+                [disabled]="!canEdit('interpreterVendorName')"
+              />
             }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.refferedBy" />
+            <input
+              class="form-control"
+              [(ngModel)]="patientForm.refferedBy"
+              [disabled]="!canEdit('referredBy')"
+            />
           </div>
         </div>
       </div>
@@ -411,6 +482,7 @@
               class="form-control"
               [(ngModel)]="employerForm.employerName"
               placeholder="EMPLOYER NAME"
+              [disabled]="!canEdit('employerName')"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -419,6 +491,7 @@
               class="form-control"
               [(ngModel)]="employerForm.occupation"
               placeholder="OCCUPATION"
+              [disabled]="!canEdit('occupation')"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -427,16 +500,27 @@
               class="form-control"
               [(ngModel)]="employerForm.phoneNumber"
               placeholder="PHONE NUMBER"
+              [disabled]="!canEdit('employerPhoneNumber')"
             />
           </div>
 
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.street" placeholder="STREET" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.street"
+              placeholder="STREET"
+              [disabled]="!canEdit('employerStreet')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.city" placeholder="CITY" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.city"
+              placeholder="CITY"
+              [disabled]="!canEdit('employerCity')"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
@@ -444,11 +528,17 @@
               cid="appointment-view-employer-state-id"
               [formControl]="employerStateIdControl"
               [getFn]="getStateLookup"
+              [disabled]="!canEdit('employerStateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="employerForm.zipCode" placeholder="ZIP" />
+            <input
+              class="form-control"
+              [(ngModel)]="employerForm.zipCode"
+              placeholder="ZIP"
+              [disabled]="!canEdit('employerZip')"
+            />
           </div>
         </div>
       </div>
@@ -463,6 +553,7 @@
             type="checkbox"
             id="view-applicant-attorney-enabled"
             [(ngModel)]="applicantAttorneyEnabled"
+            [disabled]="!canEdit('applicantAttorneyIsActive')"
           />
           <label class="form-check-label" for="view-applicant-attorney-enabled">Include</label>
         </div>
@@ -496,6 +587,7 @@
                   class="form-select"
                   [(ngModel)]="applicantAttorneyForm.identityUserId"
                   (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)"
+                  [disabled]="!canEdit('applicantAttorneyName')"
                 >
                   <option [ngValue]="null">Select Applicant Attorney</option>
                   @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
@@ -524,6 +616,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.firmName"
                 placeholder="FIRM NAME"
+                [disabled]="!canEdit('applicantAttorneyFirmName')"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -532,6 +625,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.webAddress"
                 placeholder="WEB ADDRESS"
+                [disabled]="!canEdit('applicantAttorneyWebAddress')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -540,6 +634,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.phoneNumber"
                 placeholder="PHONE NUMBER"
+                [disabled]="!canEdit('applicantAttorneyPhoneNumber')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -548,6 +643,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.faxNumber"
                 placeholder="FAX"
+                [disabled]="!canEdit('applicantAttorneyFaxNumber')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -556,6 +652,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.street"
                 placeholder="STREET"
+                [disabled]="!canEdit('applicantAttorneyStreet')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -564,6 +661,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.city"
                 placeholder="CITY"
+                [disabled]="!canEdit('applicantAttorneyCity')"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -572,6 +670,7 @@
                 cid="appointment-view-applicant-attorney-state-id"
                 [formControl]="applicantAttorneyStateIdControl"
                 [getFn]="getStateLookup"
+                [disabled]="!canEdit('applicantAttorneyStateId')"
               ></abp-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
@@ -580,11 +679,216 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.zipCode"
                 placeholder="ZIP"
+                [disabled]="!canEdit('applicantAttorneyZip')"
               />
             </div>
           </div>
         </div>
       }
+    </div>
+
+    <!--
+      S-5.4 (W-A-7): Defense Attorney Details card on the view page.
+      Mirrors the Applicant Attorney card above 1:1 -- same structure, same
+      11 fields, same email-search + select-from-list flow, same readonly
+      pre-fill behavior. Only the labels and the form bindings differ. Per
+      Adrian: AA and DA must look identical with only the labels swapped.
+    -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 text-primary fw-bold">Defense Attorney Details</h4>
+        <div class="form-check form-switch">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="view-defense-attorney-enabled"
+            [(ngModel)]="defenseAttorneyEnabled"
+            [disabled]="!canEdit('defenseAttorneyIsActive')"
+          />
+          <label class="form-check-label" for="view-defense-attorney-enabled">Include</label>
+        </div>
+      </div>
+      @if (defenseAttorneyEnabled) {
+        <div class="card-body">
+          @if (!isDefenseAttorney && !defenseAttorneyForm.identityUserId) {
+            <div class="row mb-3">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Defense Attorney Email</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  placeholder="Enter email to load"
+                  [(ngModel)]="defenseAttorneyEmailSearch"
+                />
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button
+                  type="button"
+                  class="btn btn-outline-primary"
+                  [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
+                  (click)="loadDefenseAttorneyByEmail()"
+                >
+                  Load Defense Attorney
+                </button>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Or select</label>
+                <select
+                  class="form-select"
+                  [(ngModel)]="defenseAttorneyForm.identityUserId"
+                  (change)="onDefenseAttorneySelected(defenseAttorneyForm.identityUserId)"
+                  [disabled]="!canEdit('defenseAttorneyName')"
+                >
+                  <option [ngValue]="null">Select Defense Attorney</option>
+                  @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
+                    <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          }
+          <div class="row g-3">
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">First Name</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.firstName" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Last Name</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.lastName" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Email</label>
+              <input class="form-control" [(ngModel)]="defenseAttorneyForm.email" readonly />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Firm Name</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.firmName"
+                placeholder="FIRM NAME"
+                [disabled]="!canEdit('defenseAttorneyFirmName')"
+              />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Web Address</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.webAddress"
+                placeholder="WEB ADDRESS"
+                [disabled]="!canEdit('defenseAttorneyWebAddress')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Phone Number</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.phoneNumber"
+                placeholder="PHONE NUMBER"
+                [disabled]="!canEdit('defenseAttorneyPhoneNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Fax</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.faxNumber"
+                placeholder="FAX"
+                [disabled]="!canEdit('defenseAttorneyFaxNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Street</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.street"
+                placeholder="STREET"
+                [disabled]="!canEdit('defenseAttorneyStreet')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">City</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.city"
+                placeholder="CITY"
+                [disabled]="!canEdit('defenseAttorneyCity')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">State</label>
+              <abp-lookup-select
+                cid="appointment-view-defense-attorney-state-id"
+                [formControl]="defenseAttorneyStateIdControl"
+                [getFn]="getStateLookup"
+                [disabled]="!canEdit('defenseAttorneyStateId')"
+              ></abp-lookup-select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Zip Code</label>
+              <input
+                class="form-control"
+                [(ngModel)]="defenseAttorneyForm.zipCode"
+                placeholder="ZIP"
+                [disabled]="!canEdit('defenseAttorneyZip')"
+              />
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!--
+      S-5.4 (W-A-7): Claim Information card on the view page. Read-only at MVP
+      -- the booking form (appointment-add) remains the canonical create/edit
+      surface for injury rows. Sourced from
+      GET /api/app/appointment-injury-details/by-appointment/<id>.
+    -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
+      </div>
+      <div class="card-body">
+        @if (injuryDetails.length === 0) {
+          <div class="text-secondary">No claim information added yet.</div>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Date Of Injury</th>
+                  <th>Claim Number</th>
+                  <th>WCAB</th>
+                  <th>ADJ #</th>
+                  <th>Body Parts</th>
+                  <th>Insurance Company</th>
+                  <th>Claim Examiner</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (injury of injuryDetails; track injury.id) {
+                  <tr>
+                    <td>
+                      @if (injury.isCumulativeInjury) {
+                        From: {{ injury.dateOfInjury }}
+                        <br />
+                        To: {{ injury.toDateOfInjury }}
+                      } @else {
+                        {{ injury.dateOfInjury }}
+                      }
+                    </td>
+                    <td>{{ injury.claimNumber }}</td>
+                    <td>{{ injury.wcabOfficeName }}</td>
+                    <td>{{ injury.wcabAdj }}</td>
+                    <td>{{ injury.bodyPartsSummary }}</td>
+                    <td>{{ injury.insuranceCompanyName }}</td>
+                    <td>{{ injury.claimExaminerName }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
     </div>
 
     <div class="card border-0 shadow-sm mt-4">
@@ -648,7 +952,13 @@
 
     <app-appointment-documents
       [appointmentId]="appointment.appointment?.id ?? null"
+      (documentsChanged)="packetPanel.refresh()"
     ></app-appointment-documents>
+
+    <app-appointment-packet
+      #packetPanel
+      [appointmentId]="appointment.appointment?.id ?? null"
+    ></app-appointment-packet>
   }
 
   @if (isAuthorizedUserModalOpen) {

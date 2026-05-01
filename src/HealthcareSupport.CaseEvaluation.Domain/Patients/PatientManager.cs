@@ -23,9 +23,14 @@ public class PatientManager : DomainService
     public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         Check.NotNull(identityUserId, nameof(identityUserId));
-        Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
+        // firstName / lastName accept empty string at create-time. The minimal
+        // register form does not collect names; the booker fills them later
+        // through the booking form's patient section. Keep length validation
+        // so admin-CRUD callers still get a 50-char ceiling.
+        // Adrian (2026-04-30, register-form simplification).
+        firstName ??= string.Empty;
+        lastName ??= string.Empty;
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
-        Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
         Check.NotNullOrWhiteSpace(email, nameof(email));
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);

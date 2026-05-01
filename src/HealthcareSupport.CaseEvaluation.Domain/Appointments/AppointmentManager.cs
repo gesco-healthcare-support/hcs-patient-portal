@@ -150,6 +150,8 @@ public class AppointmentManager : DomainService
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
+        // W2-3: snapshot the slot ID on the ETO so SlotCascadeHandler doesn't
+        // re-fetch the appointment for the common single-slot transition path.
         await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
             appointment.Id,
             appointment.TenantId,
@@ -157,7 +159,8 @@ public class AppointmentManager : DomainService
             appointment.AppointmentStatus,
             actingUserId,
             reason,
-            DateTime.UtcNow));
+            DateTime.UtcNow,
+            doctorAvailabilityId: appointment.DoctorAvailabilityId));
 
         return appointment;
     }

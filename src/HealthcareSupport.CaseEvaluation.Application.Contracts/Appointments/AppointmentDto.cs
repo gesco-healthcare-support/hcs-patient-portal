@@ -34,4 +34,9 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
     public Guid DoctorAvailabilityId { get; set; }
 
     public string ConcurrencyStamp { get; set; } = null!;
+
+    public string? PatientEmail { get; set; }
+    public string? ApplicantAttorneyEmail { get; set; }
+    public string? DefenseAttorneyEmail { get; set; }
+    public string? ClaimExaminerEmail { get; set; }
 }

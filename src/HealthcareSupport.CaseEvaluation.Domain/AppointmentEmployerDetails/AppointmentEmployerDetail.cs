@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
@@ -12,6 +13,7 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 
+[Audited]
 public class AppointmentEmployerDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }

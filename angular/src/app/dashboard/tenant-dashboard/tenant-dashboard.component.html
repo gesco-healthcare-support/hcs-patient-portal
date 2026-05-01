@@ -1,7 +1,137 @@
-<div class="row entry-row">
-  <div class="col">
-    <div class="card">
-      <div class="card-body">Add your Tenant related charts/widgets to this page !</div>
-    </div>
-  </div>
+<div class="container-fluid py-3">
+  <h3 class="mb-3">{{ '::Dashboard:Title' | abpLocalization }}</h3>
+
+  @if (isLoading()) {
+    <p class="text-muted">Loading counters...</p>
+  } @else if (errorMessage()) {
+    <div class="alert alert-warning" role="alert">{{ errorMessage() }}</div>
+  } @else {
+    @if (counters(); as c) {
+      <div class="row g-3">
+        <!-- 5 real cards (MVP) -->
+        <div class="col-md-3 col-sm-6">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            (click)="openByStatus(1)"
+          >
+            <div class="card-body">
+              <div class="text-muted small">Pending Requests</div>
+              <div class="display-6 fw-bold">{{ c.pendingRequests }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            (click)="openByStatus(2)"
+          >
+            <div class="card-body">
+              <div class="text-muted small">Approved This Week</div>
+              <div class="display-6 fw-bold">{{ c.approvedThisWeek }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            (click)="openByStatus(3)"
+          >
+            <div class="card-body">
+              <div class="text-muted small">Rejected This Week</div>
+              <div class="display-6 fw-bold">{{ c.rejectedThisWeek }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card">
+            <div class="card-body">
+              <div class="text-muted small">Pending Change Requests</div>
+              <div class="display-6 fw-bold">{{ c.pendingChangeRequests }}</div>
+              <div class="text-muted small">(populated when W3 ships)</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card">
+            <div class="card-body">
+              <div class="text-muted small">Approaching Legal Deadline</div>
+              <div class="display-6 fw-bold">{{ c.requestsApproachingLegalDeadline }}</div>
+              <div class="text-muted small">CCR Sec. 31.5 / 60 days</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8 placeholders (return 0 until day-of-exam states ship) -->
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Billed This Month</div>
+              <div class="display-6 fw-bold">{{ c.billedThisMonth }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">No-Show This Month</div>
+              <div class="display-6 fw-bold">{{ c.noShowThisMonth }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Rescheduled This Month</div>
+              <div class="display-6 fw-bold">{{ c.rescheduledThisMonth }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Cancelled This Week</div>
+              <div class="display-6 fw-bold">{{ c.cancelledThisWeek }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Checked In Today</div>
+              <div class="display-6 fw-bold">{{ c.checkedInToday }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Checked Out Today</div>
+              <div class="display-6 fw-bold">{{ c.checkedOutToday }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Total Doctors</div>
+              <div class="display-6 fw-bold">{{ c.totalDoctors }}</div>
+              <div class="text-muted small">(host view only)</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="card h-100 dashboard-card placeholder-card">
+            <div class="card-body">
+              <div class="text-muted small">Total Tenants</div>
+              <div class="display-6 fw-bold">{{ c.totalTenants }}</div>
+              <div class="text-muted small">(host view only)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  }
 </div>

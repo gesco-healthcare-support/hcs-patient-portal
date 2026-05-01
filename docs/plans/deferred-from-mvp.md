@@ -198,11 +198,109 @@ Adrian smoke-tested the post-W1 docker stack 2026-04-28 and reported slow loads 
   generate the back-fill `Added_AppointmentSendBackInfo` tenant migration so
   per-tenant-database deployments work. Audit other tenant-side entities
   added since 2026-01-31 for missing migrations at the same time.
+  **[PARTIALLY LANDED IN W2-T0]** (2026-04-29): connection-string fall-back
+  to `Default` lands in `CaseEvaluationDbContextFactoryBase.CreateDbContext`
+  -- the original null-connection-string symptom is gone. `AppointmentDocument`
+  DbSet + entity config also added to `CaseEvaluationTenantDbContext` to
+  match the host context. **Tenant migration generation still blocked** by a
+  separate ABP wiring issue: `ConfigureIdentityPro()` and similar host-only
+  module configurations skip Identity table registration on
+  `MultiTenancySides.Tenant`, so `HasOne<IdentityUser>()` navigation refs in
+  tenant-side entity configs leave `IdentityUser`'s `ExtraPropertyDictionary`
+  unmapped, which EF Core treats as an orphan keyless type. New cleanup
+  entry below tracks the remaining work.
+
+- **Tenant DbContext migration generation -- ABP Identity wiring follow-up**
+  (added 2026-04-29 during W2-T0). After T0's connection-string fix landed,
+  `dotnet ef migrations add ... --context CaseEvaluationTenantDbContext` still
+  fails with the same `ExtraPropertyDictionary requires a primary key` error.
+  Root cause confirmed via the ABP issue tracker: `IdentityUser` carries an
+  `IHasExtraProperties` shape; when tenant-side `ConfigureIdentityPro()`
+  skips the Identity table registration (correct for split-DB deployments),
+  the navigation refs from tenant entities still pull `IdentityUser` into
+  the model graph, and EF treats `ExtraPropertyDictionary` as a keyless
+  orphan. Two paths forward (pick at follow-up time):
+  (a) Refactor every `HasOne<IdentityUser>()` in `CaseEvaluationTenantDbContext`
+  to a bare `Property(x => x.IdentityUserId)` (drop the navigation; FK
+  enforcement moves to host-side migration). Verify no tenant-side EF
+  query traverses the User navigation before deciding -- ~1-2h refactor.
+  (b) Configure `IdentityUser` (and similar host types) as keyless / owned /
+  excluded explicitly in tenant context's `OnModelCreating`. Smaller code
+  change but riskier per ABP issue tracker discussion.
+  *MVP impact:* none. Single-DB MVP runs on host migrations
+  (`MultiTenancySides.Both`), and the Wave 2 host migrations cover all the
+  new tenant-eligible entities. Tenant migration regen lands when split-DB
+  deployment is actually scheduled (post-MVP). References:
+  <https://github.com/abpframework/abp/issues/14498>,
+  <https://abp.io/support/questions/7025>.
 
 ## From Wave 2
 
 - **F4-mini -- queue-grid Review link** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). Tenant admin / office staff currently cannot drill from `/appointments` (the queue grid) into `/appointments/view/:id` to use the W1-1 Approve / Reject / SendBack dropdown. Add a "Review" `<a routerLink>` item to the actions dropdown in `angular/src/app/appointments/appointment/components/appointment.component.html` (next to Edit + Delete). Permission gate: visible to anyone with `CaseEvaluation.Appointments.Default`. ~XS effort (~0.5d).
 - **F4-mini -- read-only edit-mode gate on appointment-view** (added 2026-04-28 W1 bugfix sprint, deferred to Wave 2). External users currently get a fully-editable view page or a 403; should see read-only fields by default, with edit unlocked ONLY when status = `AwaitingMoreInfo` AND the field appears in `latestSendBackInfo.flaggedFields`. Tenant admin / office staff stay editable subject to existing permission gates. Pairs with F3-full / F4-full in Wave 3 but lands first as a small targeted change so the demo path improves before W3 ships. ~S effort (~1d).
+- **Post-login redirect guard for role-aware landing** (added 2026-04-29 during W2-2). Today every user lands on `/` (the home component). Admins (Office Admin / Practice Admin / Supervisor / Host) would benefit from auto-routing to `/dashboard` so they hit the queue counters first; external users should keep landing on `/`. Implementation candidate: a lightweight Angular `CanActivate` guard on `/` that checks roles and `router.navigateByUrl('/dashboard')` for matching admins, otherwise lets the route render. Not demo-blocking -- admin can navigate to `/dashboard` manually -- so deferred to post-MVP UX polish. ~XS (~0.5d).
+- **W2-5 admin Angular CRUD module for AppointmentTypeFieldConfig** (added 2026-04-29 during W2-5). The W2-5 deep-dive called for a dedicated Angular admin module under `appointment-type-field-configs/` (list / create / edit / delete pages, mirroring the AppointmentType admin pattern). Backend ships fully (CRUD AppService, controller, permissions, EF migration), and admins can seed configs at MVP via Swagger / curl. Custom Angular admin UI is a polish iteration -- no demo-flow blocker. Pick up when /setting-management or another admin shell needs a tile entry for it. ~S (~0.5-1d).
+- **W2-5 per-field `[hidden]` HTML bindings on appointment-add form** (added 2026-04-29 during W2-5). The component framework is in place: `applyFieldConfigsForAppointmentType()` populates `hiddenFieldNames` / `readOnlyFieldNames` Sets and disables the FormControls. The HTML side requires `[hidden]="isFieldHidden('fieldName')"` on each form-row container that should respect the config. ReadOnly + DefaultValue work today via FormControl APIs; the visual-vanish for Hidden is an HTML decoration that gets wired naturally as W2-7 (defense attorney) and W2-8 (injury / claim / insurance / examiner) introduce their respective form sections. Per-field bindings on existing W1 sections can be added in a small follow-up sweep when admin demand surfaces. ~XS (~0.5d).
+
+### Cuts logged during W2-7 execution (2026-04-29)
+
+- **W2-7 Q2 cross-side firm reuse not supported** (added 2026-04-29 during W2-7). Option B (parallel `DefenseAttorney` aggregate) means the same firm acting on both the applicant and defense side of unrelated cases is represented by two firm rows -- one in `ApplicantAttorneys`, one in `DefenseAttorneys`. Per the W2-7 deep-dive: post-MVP `AttorneyFirm` shared aggregate refactor unifies the two halves. Lands when a real customer requires it. Not demo-blocking.
+- **W2-7 Q2 rename `ApplicantAttorney` -> `PatientAttorney`** (added 2026-04-29 during W2-7). Adrian rejected the rename at the 2026-04-28 planning session to avoid mechanical churn across `ApplicantAttorney` + `AppointmentApplicantAttorney` + their AppService / Mapperly / Angular feature folder / proxy. Stays as `ApplicantAttorney` per scope-lock. Pick up only if a stakeholder explicitly asks for the rename.
+- **W2-7 defense-attorney-specific `AccessType`** (added 2026-04-29 during W2-7). Defense and applicant attorneys share the same `AccessType` enum (View / Edit) on `AppointmentAccessor`. A future read-only-discovery scope (e.g. defense attorney sees redacted patient fields the applicant attorney doesn't) is a W3+ permission-redesign concern. Not in MVP scope.
+- **W2-7 external signup gap parity** (added 2026-04-29 during W2-7). `ExternalSignupAppService.RegisterAsync` creates the IdentityUser + assigns the role for `ExternalUserType.DefenseAttorney = 4` but does NOT auto-create a `DefenseAttorney` entity row -- same gap that exists for `ApplicantAttorney`. Admin admits the firm row later via `/defense-attorneys` admin module. Subdomain pivot deletes `ExternalSignupAppService` entirely so this gap closes naturally.
+- **W2-7 role-name consts `"Defense Attorney"`** (added 2026-04-29 during W2-7). Inlined the literal `"Defense Attorney"` in `IsDefenseAttorneyAsync()` to mirror W1-bugfix-T3's inlined `"Applicant Attorney"`. Both consolidate into a `CaseEvaluationRoleNames` static class as part of the W3 F3-full role-scope audit.
+- **W2-7 booker form: defense attorney section disabled by default** (added 2026-04-29 during W2-7). The `defenseAttorneyEnabled` toggle defaults to `false` (versus applicant-attorney's `true`). Workers'-comp cases do not always have a defense attorney at booking time; the booker opts in. Compare to applicant-side which is essentially always present. Document as intentional.
+- **W2-7 appointment-view defense-attorney section** (added 2026-04-29 during W2-7). The booker-side `appointment-add` page renders the defense-attorney section side-by-side with the applicant section (mirroring OLD's layout). The read/edit-back-fill section on `appointment-view.component.html` was not extended in this cap; the existing applicant-attorney view flow + the W1-1 send-back banner already drive booker resubmission. Defense view-side surfacing rolls into W2-9 (read-only-edit-mode gate) which has to render BOTH attorney sections in the view template anyway.
+
+### Cuts logged during W2-8 execution (2026-04-29)
+
+- **W2-8 BodyPartsSummary stays text-only at MVP** (added 2026-04-29). OLD's UI never wrote to its `AppointmentInjuryBodyPartDetail` collection table -- the textarea on the parent (`AppointmentInjuryDetail.BodyParts`) is the canonical body-parts UX. NEW ships the same UX: textarea writes to `BodyPartsSummary` (Required, max 500). The `AppointmentBodyPart` child table + DbContext registration + AppService + controller are all shipped, but the booker form does NOT split the textarea into structured rows. Server-side parsing-on-save (sort + split + write child rows) is post-MVP enhancement when structured analytics need it.
+- **W2-8 ClaimExaminer self-readonly email** (added 2026-04-29). OLD's UI marked the examiner-email input `[readonly]` when the current user IS the claim examiner and not IT Admin -- "self can't edit their own email" guard. Defer to W3 F4-full row-level access predicate; not an MVP demo blocker.
+- **W2-8 InjuryDetail one-modal-at-a-time UX** (added 2026-04-29). OLD's modal was full-screen with Bootstrap-jQuery integration. NEW's modal uses a custom `*ngIf`-controlled overlay div with Bootstrap classes -- functionally equivalent without the jQuery dependency. Cosmetic difference; revisit only if Adrian wants the OLD-style fullscreen scroll experience.
+- **W2-8 multi-injury validation: claim-number duplicate guard client-side** (added 2026-04-29). The Domain manager rejects the `(AppointmentId, ClaimNumber, DateOfInjury)` tuple already existing per OLD's `AddValidation`. Booker form does NOT pre-check this client-side; relies on server's `UserFriendlyException` to surface the error. Add client-side dedupe in the modal as polish if office staff hit it often.
+- **W2-8 PrimaryInsurance + ClaimExaminer cross-tenant master records** (added 2026-04-29). OLD embeds them per-injury-detail (every booking duplicates carrier name + adjuster name + addresses). NEW preserves the same shape per the W2-8 brief Open Sub-question. Promoting to tenant-level reusable master records (one `PrimaryInsuranceCarrier` row per carrier, one `ClaimExaminer` row per examiner) is post-MVP per the brief; lands when a customer asks.
+- **W2-8 unique-on-AppointmentId index NOT added** (added 2026-04-29). Plan suggested it as a data-quality safety net. Adrian's directive matches OLD: workers'-comp cases sometimes carry separate claims (e.g. cumulative + acute on same case). Index dropped to allow multi-injury per appointment.
+- **W2-8 WcabAdj as free text** (added 2026-04-29). Plan flagged this as an open semantics question. Shipped as free-text WCAB adjuster identifier matching OLD. Lookup-list version is post-MVP if Adrian decides ADJ codes should be curated.
+- **W2-8 admin Angular CRUD module** (added 2026-04-29). Plan called for `appointment-injury-details/` Angular feature folder mirroring `appointment-employer-details/`. Skipped because (a) `appointment-employer-details/` itself has no standalone admin Angular module and (b) injury data is exclusively per-appointment booker-form-managed (no tenant-level admin grid use case). The 4 controllers + AppServices ship for direct API access; no admin grid landed.
+- **W2-8 Angular proxy regeneration** (added 2026-04-29). Per session pacing rule, the auto-generated Angular proxy was NOT regenerated via `abp generate-proxy`. Booker form uses inlined types in `proxy/appointment-injury-details/models.ts` + raw `restService.request<>(...)` calls. Standard proxy regen lands when Adrian next runs `abp generate-proxy` post-W2.
+- **W2-8 appointment-view rendering of injury sections** (added 2026-04-29). The Claim Information section was added to the booker-form `appointment-add` page only. Read-back rendering on `appointment-view` rolls into W2-9 (read-only-edit-mode gate) which has to render the same 3 sections (Patient Injury / Insurance / Claim Examiner) in view mode anyway.
+- **W2-8 update-existing-injury orchestration** (added 2026-04-29). The booker form's `persistInjuryDraftsIfProvided` is currently CREATE-only on appointment submit (every draft becomes a new row). Editing an injury within the modal updates the in-memory draft only; the `injuryDetailId` field on the draft is reserved for a future flow where the booker resubmits an existing appointment with edits to existing injury rows (rolls into W2-9 / W3 F4-full edit-mode work).
+
+### Cuts logged during W2-9 execution (2026-04-29)
+
+- **W2-9 view-side rendering of W2-7 / W2-8 sections** (added 2026-04-29). Plan called for `appointment-view.component.html` to render Defense Attorney + Patient Injury / Insurance / Claim Examiner sections as read-only-with-flagged-edit. The component currently has no markup for those sections (booker form `appointment-add` is the only place those entities appear in the UI). W2-9 landed the `canEdit` gate on the existing W1 sections (Patient Demographics + Employer + Applicant Attorney + the panel-number snippet) so the read-only behavior is verified end-to-end for the W1 surface; the W2-7/W2-8 view-side rendering is a follow-up ~1d that mirrors the booker-form layouts into read-mode templates with `[disabled]="!canEdit('<key>')"`.
+- **W2-9 visual styling polish for disabled inputs** (added 2026-04-29). MVP relies on the browser's native `disabled` styling. Custom CSS (e.g. light blue tint matching the AwaitingMoreInfo banner) is post-MVP polish.
+- **W2-9 "Request edit" button** (added 2026-04-29). Lets external users request the office unlock fields beyond the office-flagged set. Defer post-MVP; office can use the existing send-back flow with a wider field set if needed.
+
+### Cuts logged during W2-10 execution (2026-04-29)
+
+- **W2-10 Nager.Date NuGet + holiday-aware T-1 skip** (added 2026-04-29). Plan called for `Nager.Date` to skip the appointment-day reminder when T-1 falls on a US federal or California state holiday. Calendar-day windows from CCR don't need it; only the appointment-day-T-1 reminder benefits. Skipped at MVP to avoid the dependency churn; lands when clinic feedback says "we got reminded the day before Christmas".
+- **W2-10 cron expressions read from settings at startup** (added 2026-04-29). The 3 jobs ship with hard-coded cron const strings (`"0 8 * * *"` / `"0 7 * * *"`); per-tenant `Sec31_5Cron` / `Sec34eCron` / `AppointmentDayCron` settings exist (registered in `CaseEvaluationSettingDefinitionProvider`) but are NOT yet wired to the `RecurringJob.AddOrUpdate` site. To pick up tenant-overridden crons, restart the API or add an admin-triggered "re-register" endpoint. Post-MVP: read settings at startup or wire a setting-changed event handler.
+- **W2-10 elapsed-day anchors read from settings** (added 2026-04-29). Same shape: jobs hard-code `{30,60,75,85,90}` / `{45,55}` / `{7,1}` arrays. The per-tenant CSV settings exist but the jobs read the const arrays. Post-MVP: parse settings on each tick.
+- **W2-10 RemindersEnabled master switch** (added 2026-04-29). Setting registered with default `true`, but the 3 jobs do NOT check it. Adding a `RemindersPolicy.RemindersEnabled` short-circuit at the top of each job's `ExecuteAsync` is a 5-line follow-up.
+- **W2-10 `HangfireBackgroundWorkerBase` vs direct `RecurringJob.AddOrUpdate`** (added 2026-04-29). Plan called for `HangfireBackgroundWorkerBase` + `IBackgroundWorkerManager.AddAsync`. NEW uses `Hangfire.RecurringJob.AddOrUpdate<TJob>(...)` directly with explicit `RecurringJobOptions { TimeZone = ... }`. Functionally equivalent; the wrapper class avoids adding the `Volo.Abp.BackgroundWorkers.Hangfire` package. Worker classes are plain `ITransientDependency` services.
+- **W2-10 InsuranceCarrier + Employer email columns** (added 2026-04-29). Schema does NOT carry an Email column today (OLD didn't either). Resolver has the `InsuranceCarrierContact` and `Employer` `RecipientRole` enum values reserved + branches reserved, but they currently no-op. Post-MVP schema enhancement adds the Email columns + a `notify-employer` flag.
+- **W2-10 Cancel/Reschedule clock anchor is `LastModificationTime`** (added 2026-04-29). Plan implies the clock starts when the cancel/reschedule REQUEST was filed by an attorney (W3 `appointment-change-requests` cap will introduce a proper request entity). MVP approximates with `Appointment.LastModificationTime`. Swap the anchor when the change-request entity ships.
+- **W2-10 Per-recipient template differentiation** (added 2026-04-29). Body content is the same for every recipient regardless of `RecipientRole`. Resolver tags each arg with the role; future template-layer change branches on it. Post-MVP scope.
+- **W2-10 Idempotency / dedup table** (added 2026-04-29). A reminder firing twice (job retry, manual dashboard trigger) sends two emails. MVP accepts duplicates. Post-MVP: add a `(AppointmentId, NotificationKind, Date)` dedup table.
+- **W2-10 Anonymous Hangfire dashboard auth in prod** (added 2026-04-29). W0-5 wired the dashboard at `/hangfire` with `AnonymousHangfireDashboardAuthorizationFilter` for dev convenience. Production needs a permission-based filter. Tracked here; do NOT ship anonymous to prod.
+
+### W1-1 polish carry-overs deferred (added 2026-04-29 Wave 2 Phase A prep)
+
+The Phase-A read of `appointment-view.component.ts:391-427` and
+`StatusChangeEmailHandler.cs:62-189` produced a 12-item polish list (full table in
+the canonical Wave 2 plan at
+`C:\Users\RajeevG\.claude\plans\we-are-implementing-this-eager-reddy.md`,
+section "W1-1 polish carry-overs"). Items 1-5 land inside Wave 2 (pre-T0 sweep
+and W2-1). Items 6-12 are out-of-W2 scope and deferred here:
+
+- **Approved transition email content review** (item 6). `StatusChangeEmailHandler.cs:135-141` produces an inline-HTML body with no doctor name, no clinic address, no time-zone-aware date display. Bundle the rewrite with the existing W1-2 ABP TextTemplating port (already on this ledger above).
+- **Rejected transition email content review** (item 7). `StatusChangeEmailHandler.cs:142-151` body is "Reason from the office: X" with no rebooking guidance and no link to start a new request. Bundle with #6.
+- **SendBack transition email content review** (item 8). `StatusChangeEmailHandler.cs:152-165` adequate but reuses generic phrasing; clinic-customizable copy needs ABP TextTemplating. Bundle with #6.
+- **Tenant-customized email From-name** (item 9). `StatusChangeEmailHandler.cs` uses ABP default sender; no per-tenant clinic-name override site exists. W2-10 carries tenant context via the recipient resolver, but per-tenant From-name lookup is post-MVP.
+- **TimeZone-aware email date display** (item 10). `StatusChangeEmailHandler.cs:131` uses `appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt")` rendered in server local TZ. Bundle with localization (i18n + TZ together) post-MVP.
+- **`flaggedFieldLabels` raw-key fallback** (item 11). `appointment-view.component.ts:342-350` falls back to the raw key when the office flagged a field key not in `send-back-fields.ts` (e.g. after a future W2-5 custom-fields rename). Low impact; office workflow won't rename fields mid-flight. Pin if W2-5 changes the registry shape.
+- **Multi-send-back UI surfacing** (item 12). `appointment-view.component.ts:411-427` only drives the banner from the latest unresolved send-back. Multiple successive send-backs (office sends back twice without booker resubmitting between) work correctly server-side but the UI doesn't surface "this is your 2nd send-back". Product decision; capture Adrian's call before adding any visual treatment.
 
 (append as Wave 2 ships further)
 

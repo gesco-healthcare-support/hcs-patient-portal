@@ -138,11 +138,14 @@ icon `fas fa-calendar-check`, order 3.
 4. **`AppointmentDurationMinutes` defaults to 15** in `DoctorAvailabilityGenerateInputDto`. Slots
    are generated as consecutive non-overlapping blocks of that duration starting from `FromTime`,
    stopping when `currentTime + duration > ToTime`.
-5. **Conflict classification.** Within `GeneratePreviewAsync`, overlap with an existing slot
-   that is either same-location OR `BookingStatus.Available` sets `IsConflict=true` and a
-   "TimeSlot Already Exist in the System for different location" message; overlap with a
-   `Booked` or `Reserved` slot sets a separate "already booked by user for different location"
-   message. Both messages are written onto `previewList[0].SameTimeValidation`.
+5. **Conflict classification (same-location only).** Within `GeneratePreviewAsync`, the overlap
+   query is scoped by `LocationId`, so cross-location overlaps are not conflicts. Same-location
+   overlap with a `Booked` or `Reserved` slot sets `IsConflict=true` and the
+   `"Time slot is already booked or reserved at this location."` message; same-location overlap
+   with any other status (typically `Available`) sets `IsConflict=true` and the
+   `"Time slot already exists at this location."` message. Both messages are written onto
+   `previewList[0].SameTimeValidation`. Different locations may host independently overlapping
+   wall-clock slots.
 6. **Three delete modes, all `Delete` permission**: `DeleteAsync` (single id), `DeleteBySlotAsync`
    (location + date + exact time range), `DeleteByDateAsync` (location + date, all slots that day).
 7. **`BookingStatusId` is mutable on update.** `UpdateAsync` accepts `BookingStatusId` and overwrites

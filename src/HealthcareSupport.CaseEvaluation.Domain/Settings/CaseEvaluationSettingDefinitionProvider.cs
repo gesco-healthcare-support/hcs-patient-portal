@@ -34,6 +34,22 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // Notifications policy
         Define(context, CaseEvaluationSettings.NotificationsPolicy.CcEmailAddresses, defaultValue: "");
         Define(context, CaseEvaluationSettings.NotificationsPolicy.OfficeEmail,      defaultValue: "");
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,    defaultValue: "http://localhost:4200");
+        // S-6.1: AuthServer base URL for tenant-pre-filled register links in
+        // "register as [role]" emails sent to non-registered parties.
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: "https://localhost:44368");
+
+        // W2-10: 10 reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e) + appointment-day).
+        Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors,    defaultValue: "30,60,75,85,90");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors,     defaultValue: "45,55");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.AppointmentDayTMinusAnchors, defaultValue: "7,1");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5Cron,                 defaultValue: "0 8 * * *");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.Sec34eCron,                  defaultValue: "0 8 * * *");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.AppointmentDayCron,          defaultValue: "0 7 * * *");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderTimezoneId,          defaultValue: "America/Los_Angeles");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.RemindersEnabled,            defaultValue: "true");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail,             defaultValue: "");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff,             defaultValue: "");
     }
 
     private static void Define(ISettingDefinitionContext context, string name, string defaultValue)
