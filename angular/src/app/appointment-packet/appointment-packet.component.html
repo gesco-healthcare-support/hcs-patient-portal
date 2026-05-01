@@ -1,0 +1,100 @@
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <h4 class="mb-0 text-primary fw-bold">Doctor Packet</h4>
+    <button
+      type="button"
+      class="btn btn-outline-secondary btn-sm"
+      (click)="refresh()"
+      [disabled]="isLoading"
+      title="Refresh"
+    >
+      <i class="fa fa-rotate"></i>
+    </button>
+  </div>
+
+  <div class="card-body">
+    @if (isLoading && !packet) {
+      <div class="text-muted small">Loading packet status...</div>
+    } @else if (!packet) {
+      <div class="text-muted small">
+        No packet has been generated yet. The packet is generated automatically when the appointment
+        is approved.
+        @if (canRegenerate) {
+          You can also trigger generation manually below.
+        }
+      </div>
+      @if (canRegenerate) {
+        <div class="mt-3">
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            (click)="regenerate()"
+            [disabled]="isRegenerating || !appointmentId"
+          >
+            <i class="fa fa-bolt me-1"></i>
+            {{ isRegenerating ? 'Queuing...' : 'Generate Packet' }}
+          </button>
+        </div>
+      }
+    } @else {
+      <div class="packet-row">
+        <i class="fa fa-file-pdf fa-2x text-danger"></i>
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-semibold">Appointment Packet</span>
+            <span class="badge badge-status {{ statusBadgeClass(packet.status) }}">
+              {{ statusLabel(packet.status) }}
+            </span>
+          </div>
+          <div class="packet-meta">
+            @if (packet.status === PacketGenerationStatus.Generated && packet.generatedAt) {
+              Generated {{ packet.generatedAt | date: 'MMM d, yyyy h:mm a' }}
+            } @else if (packet.status === PacketGenerationStatus.Generating) {
+              Generation in progress. This page will refresh automatically.
+            } @else if (packet.status === PacketGenerationStatus.Failed) {
+              Generation failed. Re-upload corrupt source documents and click Regenerate.
+            }
+            @if (packet.regeneratedAt) {
+              &middot; Last regenerated {{ packet.regeneratedAt | date: 'MMM d, yyyy h:mm a' }}
+            }
+          </div>
+          @if (packet.status === PacketGenerationStatus.Failed && packet.errorMessage) {
+            <div class="packet-error">
+              <i class="fa fa-triangle-exclamation me-1"></i>
+              {{ packet.errorMessage }}
+            </div>
+          }
+        </div>
+
+        @if (packet.status === PacketGenerationStatus.Generated) {
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            (click)="download()"
+            title="Download packet PDF"
+          >
+            <i class="fa fa-download me-1"></i>
+            Download
+          </button>
+        }
+        @if (packet.status === PacketGenerationStatus.Generating) {
+          <div class="spinner-border spinner-border-sm text-info" role="status">
+            <span class="visually-hidden">Generating</span>
+          </div>
+        }
+        @if (canRegenerate && packet.status !== PacketGenerationStatus.Generating) {
+          <button
+            type="button"
+            class="btn btn-outline-primary btn-sm"
+            (click)="regenerate()"
+            [disabled]="isRegenerating"
+            title="Regenerate packet"
+          >
+            <i class="fa fa-rotate-right me-1"></i>
+            {{ isRegenerating ? 'Queuing...' : 'Regenerate' }}
+          </button>
+        }
+      </div>
+    }
+  </div>
+</div>

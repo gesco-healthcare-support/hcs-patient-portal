@@ -145,29 +145,33 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             await _userManager.AddToRoleAsync(identityUser, "Patient");
         }
 
-        var patient = await _patientManager.CreateAsync(
-            input.StateId,
-            input.AppointmentLanguageId,
-            identityUser.Id,
-            CurrentTenant.Id,
-            input.FirstName,
-            input.LastName,
-            input.Email.Trim(),
-            input.GenderId,
-            input.DateOfBirth,
-            input.PhoneNumberTypeId,
-            input.MiddleName,
-            input.PhoneNumber,
-            input.SocialSecurityNumber,
-            input.Address,
-            input.City,
-            input.ZipCode,
-            input.RefferedBy,
-            input.CellPhoneNumber,
-            input.Street,
-            input.InterpreterVendorName,
-            input.ApptNumber,
-            input.OthersLanguageName);
+        // W1-0 (W0-8 carry-over): delegate to PatientManager.FindOrCreateAsync so the
+        // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
+        // re-registration under a different email. Email pre-check above stays as the
+        // fast-path; FindOrCreateAsync is the safety net.
+        var (patient, _) = await _patientManager.FindOrCreateAsync(
+            tenantId: CurrentTenant.Id,
+            identityUserId: identityUser.Id,
+            firstName: input.FirstName,
+            lastName: input.LastName,
+            email: input.Email.Trim(),
+            genderId: input.GenderId,
+            dateOfBirth: input.DateOfBirth,
+            phoneNumberTypeId: input.PhoneNumberTypeId,
+            stateId: input.StateId,
+            appointmentLanguageId: input.AppointmentLanguageId,
+            phoneNumber: input.PhoneNumber,
+            socialSecurityNumber: input.SocialSecurityNumber,
+            zipCode: input.ZipCode,
+            middleName: input.MiddleName,
+            address: input.Address,
+            city: input.City,
+            refferedBy: input.RefferedBy,
+            cellPhoneNumber: input.CellPhoneNumber,
+            street: input.Street,
+            interpreterVendorName: input.InterpreterVendorName,
+            apptNumber: input.ApptNumber,
+            othersLanguageName: input.OthersLanguageName);
 
         if (CurrentUnitOfWork != null)
         {

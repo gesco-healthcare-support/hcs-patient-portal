@@ -17,6 +17,36 @@
     @if (service.filters; as filters) {
       <abp-advanced-entity-filters-form>
         <form #filterForm (keyup.enter)="list.get()">
+          <div class="row mb-2">
+            <div class="col-12">
+              <label class="form-label fw-semibold" for="filterTextFilter">
+                {{ '::Appointment:Search:FilterTextLabel' | abpLocalization }}
+              </label>
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="fa fa-search" aria-hidden="true"></i>
+                </span>
+                <input
+                  id="filterTextFilter"
+                  class="form-control"
+                  type="search"
+                  [placeholder]="'::Appointment:Search:FilterTextPlaceholder' | abpLocalization"
+                  [(ngModel)]="filters.filterText"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+                @if (filters.filterText) {
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    [title]="'AbpUi::Clear' | abpLocalization"
+                    (click)="filters.filterText = ''"
+                  >
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
           <div class="row">
             <div class="col-12 col-sm-auto">
               <div class="mb-3">
@@ -202,6 +232,14 @@
                 </button>
 
                 <div ngbDropdownMenu>
+                  <a
+                    ngbDropdownItem
+                    *abpPermission="'CaseEvaluation.Appointments'"
+                    [routerLink]="['/appointments/view', row.appointment.id]"
+                  >
+                    {{ '::Appointment:Action:Review' | abpLocalization }}
+                  </a>
+
                   <button
                     ngbDropdownItem
                     *abpPermission="'CaseEvaluation.Appointments.Edit'"
@@ -264,9 +302,13 @@
             }}
           </ng-template>
         </ngx-datatable-column>
-        <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.email">
+        <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.lastName">
           <ng-template let-row="row" ngx-datatable-cell-template>
-            {{ row.patient?.email }}
+            {{
+              row.patient?.firstName || row.patient?.lastName
+                ? ((row.patient?.firstName || '') + ' ' + (row.patient?.lastName || '')).trim()
+                : row.patient?.email || ''
+            }}
           </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column

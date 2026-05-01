@@ -72,6 +72,53 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Delete, L("Permission:Delete"));
+        var defenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.DefenseAttorneys.Default, L("Permission:DefenseAttorneys"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Create, L("Permission:Create"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Edit, L("Permission:Edit"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Delete, L("Permission:Delete"));
+        var appointmentDefenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default, L("Permission:AppointmentDefenseAttorneys"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Create, L("Permission:Create"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Edit, L("Permission:Edit"));
+        appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete, L("Permission:Delete"));
+        var appointmentInjuryDetailPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentInjuryDetails.Default, L("Permission:AppointmentInjuryDetails"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Create, L("Permission:Create"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Edit, L("Permission:Edit"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete, L("Permission:Delete"));
+        var appointmentBodyPartPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentBodyParts.Default, L("Permission:AppointmentBodyParts"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Create, L("Permission:Create"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Edit, L("Permission:Edit"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Delete, L("Permission:Delete"));
+        var appointmentClaimExaminerPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentClaimExaminers.Default, L("Permission:AppointmentClaimExaminers"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Create, L("Permission:Create"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Edit, L("Permission:Edit"));
+        appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Delete, L("Permission:Delete"));
+        var appointmentPrimaryInsurancePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default, L("Permission:AppointmentPrimaryInsurances"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Create, L("Permission:Create"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Edit, L("Permission:Edit"));
+        appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Delete, L("Permission:Delete"));
+
+        // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
+        myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
+
+        // W2-5: per-AppointmentType field-config admin. Default lets the booker
+        // form read the apply-on-change config; Create/Edit/Delete gate admin
+        // mutation paths.
+        var customFieldsPermission = myGroup.AddPermission(CaseEvaluationPermissions.CustomFields.Default, L("Permission:CustomFields"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Create, L("Permission:Create"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Edit, L("Permission:Edit"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Delete, L("Permission:Delete"));
+
+        var systemParametersPermission = myGroup.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
+        systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
+
+        var appointmentDocumentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocuments.Default, L("Permission:AppointmentDocuments"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Create, L("Permission:Create"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Edit, L("Permission:Edit"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Delete, L("Permission:Delete"));
+        appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Approve, L("Permission:Approve"));
+
+        var appointmentPacketsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
+        appointmentPacketsPermission.AddChild(CaseEvaluationPermissions.AppointmentPackets.Regenerate, L("Permission:Regenerate"));
     }
 
     private static LocalizableString L(string name)

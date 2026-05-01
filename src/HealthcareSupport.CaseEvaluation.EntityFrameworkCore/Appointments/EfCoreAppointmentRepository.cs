@@ -56,11 +56,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         return result!;
     }
 
-    public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId);
+        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -89,11 +89,30 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                };
     }
 
-    protected virtual IQueryable<AppointmentWithNavigationProperties> ApplyFilter(CaseEvaluationDbContext dbContext, IQueryable<AppointmentWithNavigationProperties> query, string? filterText, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null)
+    protected virtual IQueryable<AppointmentWithNavigationProperties> ApplyFilter(CaseEvaluationDbContext dbContext, IQueryable<AppointmentWithNavigationProperties> query, string? filterText, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null)
     {
         var accessorUserId = accessorIdentityUserId; // Capture for closure
+        var ft = filterText;
+        // S-NEW-2 (2026-04-30): when caller computed a visibility list (Patient,
+        // AA, DA, CE involved-on-appointment), narrow the result. Empty list
+        // means "user matches no appointment" -> return zero rows.
+        if (visibleAppointmentIds != null)
+        {
+            var idsCopy = visibleAppointmentIds; // captured for closure
+            query = query.Where(e => idsCopy.Contains(e.Appointment.Id));
+        }
         return query
-            .WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Appointment.PanelNumber!.Contains(filterText!))
+            // W1-4: extend FilterText to span PanelNumber + RequestConfirmationNumber
+            // + Patient first/last name + booker IdentityUser name/surname so a single
+            // free-text input on the office's queue page finds appointments by any
+            // common identifier the office staff might recall.
+            .WhereIf(!string.IsNullOrWhiteSpace(ft), e =>
+                (e.Appointment.PanelNumber != null && e.Appointment.PanelNumber.Contains(ft!)) ||
+                (e.Appointment.RequestConfirmationNumber != null && e.Appointment.RequestConfirmationNumber.Contains(ft!)) ||
+                (e.Patient != null && e.Patient.FirstName != null && e.Patient.FirstName.Contains(ft!)) ||
+                (e.Patient != null && e.Patient.LastName != null && e.Patient.LastName.Contains(ft!)) ||
+                (e.IdentityUser != null && e.IdentityUser.Name != null && e.IdentityUser.Name.Contains(ft!)) ||
+                (e.IdentityUser != null && e.IdentityUser.Surname != null && e.IdentityUser.Surname.Contains(ft!)))
             .WhereIf(!string.IsNullOrWhiteSpace(panelNumber), e => e.Appointment.PanelNumber!.Contains(panelNumber!))
             .WhereIf(appointmentDateMin.HasValue, e => e.Appointment.AppointmentDate >= appointmentDateMin!.Value)
             .WhereIf(appointmentDateMax.HasValue, e => e.Appointment.AppointmentDate <= appointmentDateMax!.Value)
@@ -104,7 +123,9 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                 (e.Appointment.CreatorId != null && e.Appointment.CreatorId == accessorUserId) ||
                 dbContext.Set<AppointmentAccessor>().Any(aa => aa.AppointmentId == e.Appointment.Id && aa.IdentityUserId == accessorUserId))
             .WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.AppointmentType != null && e.AppointmentType.Id == appointmentTypeId)
-            .WhereIf(locationId != null && locationId != Guid.Empty, e => e.Location != null && e.Location.Id == locationId);
+            .WhereIf(locationId != null && locationId != Guid.Empty, e => e.Location != null && e.Location.Id == locationId)
+            // W2-6: dashboard cards deep-link to /appointments?appointmentStatus=N.
+            .WhereIf(appointmentStatus.HasValue, e => e.Appointment.AppointmentStatus == appointmentStatus!.Value);
     }
 
     protected virtual IQueryable<Appointment> ApplyFilter(IQueryable<Appointment> query, string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null)
@@ -119,11 +140,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId);
+        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

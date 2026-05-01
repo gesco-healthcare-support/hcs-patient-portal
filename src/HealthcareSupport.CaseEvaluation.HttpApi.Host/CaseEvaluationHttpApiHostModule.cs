@@ -22,6 +22,10 @@ using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using HealthcareSupport.CaseEvaluation.HealthChecks;
+using Hangfire;
+using Hangfire.SqlServer;
+using HealthcareSupport.CaseEvaluation.BackgroundJobs;
+using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp;
@@ -29,6 +33,7 @@ using Volo.Abp.Studio;
 using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
+using Volo.Abp.Auditing;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
 using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Serilog;
@@ -56,6 +61,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(CaseEvaluationApplicationModule),
     typeof(CaseEvaluationEntityFrameworkCoreModule),
     typeof(AbpSwashbuckleModule),
+    typeof(AbpBackgroundJobsHangfireModule),
     typeof(AbpAspNetCoreSerilogModule)
     )]
 public class CaseEvaluationHttpApiHostModule : AbpModule
@@ -83,10 +89,20 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureCors(context, configuration);
         ConfigureExternalProviders(context);
         ConfigureHealthChecks(context);
+        ConfigureHangfire(context, configuration);
 
         Configure<PermissionManagementOptions>(options =>
         {
             options.IsDynamicPermissionStoreEnabled = true;
+        });
+
+        // W2-4: stamp the audit-row ApplicationName so /audit-logs distinguishes
+        // API-side activity from AuthServer activity. Without this, HttpApi.Host
+        // entity-change rows ship with an empty ApplicationName, making the
+        // audit grid harder to filter. Cosmetic but improves the audit UX.
+        Configure<AbpAuditingOptions>(options =>
+        {
+            options.ApplicationName = "API";
         });
 
         Configure<AbpSecurityHeadersOptions>(options =>
@@ -233,6 +249,36 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         });
     }
 
+    /// <summary>
+    /// Wires Hangfire with SQL Server storage to back ABP's background-jobs runtime.
+    /// Wave 0 lays the runtime; Wave 1 capabilities (scheduler-notifications) add the
+    /// recurring-job classes. Schema is auto-created on first connection via
+    /// <c>PrepareSchemaIfNecessary = true</c> (Hangfire default). Dashboard is mounted
+    /// at <c>/hangfire</c> in <c>OnApplicationInitialization</c> below; auth-filter
+    /// hardening is deferred to the post-MVP "Wave 0 hardening" tail.
+    /// </summary>
+    private static void ConfigureHangfire(ServiceConfigurationContext context, IConfiguration configuration)
+    {
+        if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)
+        {
+            return;
+        }
+
+        context.Services.AddHangfire(config =>
+        {
+            config.UseSqlServerStorage(
+                configuration.GetConnectionString("Default"),
+                new SqlServerStorageOptions
+                {
+                    CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+                    SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+                    QueuePollInterval = TimeSpan.Zero,
+                    UseRecommendedIsolationLevel = true,
+                    DisableGlobalLocks = true,
+                });
+        });
+    }
+
     private static void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
     {
         context.Services.AddCors(options =>
@@ -320,8 +366,78 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             var configuration = context.GetConfiguration();
             options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
         });
+
+        // Hangfire dashboard at /hangfire. Wave 0 ships dev-anonymous access (per the
+        // approved plan -- auth filter is policy hardening, deferred to post-MVP tail).
+        // Hangfire server starts automatically via AbpBackgroundJobsHangFireModule.
+        if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
+        {
+            app.UseHangfireDashboard("/hangfire", new DashboardOptions
+            {
+                Authorization = new[] { new AnonymousHangfireDashboardAuthorizationFilter() },
+                IgnoreAntiforgeryToken = true,
+            });
+
+            // W2-10: register the 3 CCR-driven recurring jobs. Cron timezone is
+            // explicit America/Los_Angeles per the deep-dive (08:00 PT for CCR
+            // jobs, 07:00 PT for the appointment-day job). Job classes are
+            // resolved through ABP DI inside an AbpBackgroundJobExecutionWrapper
+            // shape that the lambda invokes via the IServiceProvider.
+            ConfigureHangfireRecurringJobs();
+        }
+
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    /// <summary>
+    /// W2-10: register the 3 CCR-driven Hangfire recurring jobs.
+    /// Each cron runs in America/Los_Angeles timezone (per CCR text + OLD's
+    /// scheduler convention).
+    /// </summary>
+    private static void ConfigureHangfireRecurringJobs()
+    {
+        var pacificTime = TryGetPacificTimeZone();
+        var options = new RecurringJobOptions { TimeZone = pacificTime };
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.RequestSchedulingReminderJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.CancellationRescheduleReminderJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob>(
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.CronExpression,
+            options);
+    }
+
+    private static TimeZoneInfo TryGetPacificTimeZone()
+    {
+        // .NET 6+ supports IANA timezone IDs cross-platform; fall back to the
+        // Windows ID if the IANA lookup fails (older runtime / missing tzdata).
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        }
+        catch
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
+        }
     }
 }

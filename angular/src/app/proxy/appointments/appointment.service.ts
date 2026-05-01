@@ -1,9 +1,12 @@
 import type {
   AppointmentCreateDto,
   AppointmentDto,
+  AppointmentSendBackInfoDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
   GetAppointmentsInput,
+  RejectAppointmentInput,
+  SendBackAppointmentInput,
 } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
@@ -198,6 +201,53 @@ export class AppointmentService {
         method: 'POST',
         url: '/api/app/appointments/upload-file',
         body: input,
+      },
+      { apiName: this.apiName, ...config },
+    );
+
+  approve = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>(
+      {
+        method: 'POST',
+        url: `/api/app/appointments/${id}/approve`,
+      },
+      { apiName: this.apiName, ...config },
+    );
+
+  reject = (id: string, input: RejectAppointmentInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>(
+      {
+        method: 'POST',
+        url: `/api/app/appointments/${id}/reject`,
+        body: input,
+      },
+      { apiName: this.apiName, ...config },
+    );
+
+  sendBack = (id: string, input: SendBackAppointmentInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>(
+      {
+        method: 'POST',
+        url: `/api/app/appointments/${id}/send-back`,
+        body: input,
+      },
+      { apiName: this.apiName, ...config },
+    );
+
+  saveAndResubmit = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>(
+      {
+        method: 'POST',
+        url: `/api/app/appointments/${id}/save-and-resubmit`,
+      },
+      { apiName: this.apiName, ...config },
+    );
+
+  getLatestUnresolvedSendBackInfo = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentSendBackInfoDto | null>(
+      {
+        method: 'GET',
+        url: `/api/app/appointments/${id}/send-back-info/latest`,
       },
       { apiName: this.apiName, ...config },
     );
