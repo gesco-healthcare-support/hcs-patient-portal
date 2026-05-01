@@ -46,4 +46,23 @@ public class ExternalSignupController : AbpController
     {
         return _externalSignupAppService.RegisterAsync(input);
     }
+
+    /// <summary>
+    /// 1.6 (2026-04-30): anonymous tenant-name resolver used by the AuthServer
+    /// JS overlay to translate invite-link `?__tenant=&lt;Name&gt;` query strings
+    /// into the GUID needed for the registration POST. Always runs in host
+    /// context regardless of caller's tenant cookie. Returns 404 on miss.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet]
+    [Route("resolve-tenant")]
+    public virtual async Task<IActionResult> ResolveTenantByNameAsync([FromQuery] string name)
+    {
+        var result = await _externalSignupAppService.ResolveTenantByNameAsync(name);
+        if (result == null)
+        {
+            return NotFound();
+        }
+        return Ok(result);
+    }
 }

@@ -2,7 +2,11 @@
 
 # Confirmed Bugs
 
-Twelve confirmed bugs were identified across the codebase audit, E2E functional testing, and the Docker cold-start onboarding test. These are not missing features or design concerns -- they are cases where the code produces incorrect results relative to either its own documented intent, the existing business-domain documentation, or basic expected behaviour.
+<!-- Last reorganized 2026-04-24 against docs/product/ + docs/gap-analysis/ -->
+
+Twelve confirmed bugs were identified across the codebase audit, E2E functional testing, and the Docker cold-start onboarding test. These are not missing features or design concerns -- they are cases where the code produces incorrect results relative to either its own documented intent, confirmed product intent in `docs/product/`, or basic expected behaviour.
+
+Live test inventory as of 2026-04-24: 113 [Fact] + 2 [Theory] = 115 test methods across 17 files; entities with tests are Appointments, DoctorAvailabilities, Doctors, Patients, Books, AppointmentAccessors, ApplicantAttorneys, Locations.
 
 > **Test Status (2026-04-02)**: BUG-02 confirmed via B11.1.1, BUG-09 confirmed via exploratory test E1, BUG-10 confirmed via B7.4.2 and E7. See [TEST-EVIDENCE.md](TEST-EVIDENCE.md).
 >
@@ -32,9 +36,12 @@ if (isSameLocation || overlap.BookingStatusId == BookingStatus.Available)
 }
 ```
 
-The intent, based on the [Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md) documentation, is:
+The intent, inferred from confirmed product behaviour in [docs/product/doctor-availabilities.md](../product/doctor-availabilities.md) (multi-location practices supported at MVP; office picks the location for each bulk run), is:
 - Flag a conflict if an overlapping slot at the **same location** already exists (regardless of its booking status).
 - Flag a conflict if any overlapping slot is already **booked** (regardless of location, since the doctor cannot be in two places).
+
+<!-- Note: the older `docs/business-domain/DOCTOR-AVAILABILITY.md` is classified observation-only per docs/product/README.md and `docs/product/doctor-availabilities.md` Known Discrepancies; product/ is the authoritative intent source. -->
+<!-- TODO: product-intent input needed -- product/doctor-availabilities.md "Open" rules still flag overlap behaviour as unresolved. -->
 
 The `||` with `BookingStatus.Available` means: "flag as conflict if same location, OR if the overlap happens to be available." An available slot at a *different* location is not a conflict. The condition should instead be:
 
@@ -82,6 +89,8 @@ if (isSameLocation || overlap.BookingStatusId != BookingStatus.Available)
 ### Impact
 
 The status field is frozen at the value set during creation. No status changes made through the UI are ever saved. This renders the status field effectively read-only after creation, even though the UI presents it as editable.
+
+Per [docs/product/appointments.md](../product/appointments.md) Known Discrepancies, MVP intent requires server-side-enforced, per-role, audit-trailed transitions (Pending -> Approved | Rejected | AwaitingMoreInfo). The current frozen-status behaviour blocks the MVP request/review flow entirely.
 
 ### Recommended Fix
 
@@ -342,6 +351,8 @@ The existing `LOCAL_DEV_SETUP.md` already documents the correct steps and should
 ### Description
 
 `AppointmentsAppService.CreateAsync` performs no validation on whether `appointmentDate` is in the past. A user can create an appointment for a date that has already passed, which has no business meaning in a scheduling system.
+
+<!-- TODO: product-intent input needed -- docs/product/appointments.md Edge Cases lists "Booker tries to book a past date. Hard block or warn-and-allow?" as [UNKNOWN]. The bug remains because a past-date appointment has no business meaning, but the exact server-side enforcement (hard block vs warn-and-allow vs lead-time minimum) is unconfirmed. -->
 
 ### Test Evidence
 

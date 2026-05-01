@@ -46,6 +46,7 @@ import { DOCTOR_AVAILABILITIES_DOCTOR_AVAILABILITY_ROUTE_PROVIDER } from './doct
 import { PATIENTS_PATIENT_ROUTE_PROVIDER } from './patients/patient/providers/patient-route.provider';
 import { APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER } from './appointments/appointment/providers/appointment-route.provider';
 import { APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER } from './applicant-attorneys/applicant-attorney/providers/applicant-attorney-route.provider';
+import { DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER } from './defense-attorneys/defense-attorney/providers/defense-attorney-route.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -117,5 +118,6 @@ export const appConfig: ApplicationConfig = {
     PATIENTS_PATIENT_ROUTE_PROVIDER,
     APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER,
     APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER,
+    DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER,
   ],
 };

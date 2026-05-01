@@ -53,19 +53,27 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             Check.NotNullOrWhiteSpace(input.AdminPassword, nameof(input.AdminPassword));
             Check.NotNullOrWhiteSpace(input.AdminEmailAddress, nameof(input.AdminEmailAddress));
 
+            // W0-1 (NEW-SEC-03): single transactional UoW wraps SaasTenant + IdentityUser
+            // + Doctor + Role creation. Failure anywhere rolls back the SaasTenant insert
+            // and suppresses the TenantCreatedEto distributed event (ABP outbox defers to
+            // UoW commit), so the tenant DB never gets provisioned on failure either.
+            // Reference precedent: CaseEvaluationTenantDatabaseMigrationHandler.cs:113.
+            //
+            // DEFERRED (Wave 1): collect real FirstName / LastName / Gender via a derived
+            // SaasTenantCreateDto + Angular form widening. Until then the Doctor row
+            // continues to receive `LastName = ""` and `Gender = Male` placeholders --
+            // a data-quality issue, but no longer a tenant-orphan-on-failure issue.
             SaasTenantDto tenant;
-            using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false))
+            using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
             {
                 tenant = await base.CreateAsync(input);
+                using (CurrentTenant.Change(tenant.Id))
+                {
+                    var adminUser = await CreateDoctorUserAsync(input);
+                    await CreateDoctorProfileAsync(adminUser, input);
+                    await EnsureRoleAsync("Doctor");
+                }
                 await uow.CompleteAsync();
-            }
-            using (CurrentTenant.Change(tenant.Id))
-            {
-                var adminUser = await CreateDoctorUserAsync(input);
-                //Create Doctor record
-                await CreateDoctorProfileAsync(adminUser, input);
-                //Create doctor role
-                await EnsureRoleAsync("Doctor");
             }
             return tenant;
         }

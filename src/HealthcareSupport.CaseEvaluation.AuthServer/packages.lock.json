@@ -911,6 +911,23 @@
         "resolved": "9.0.0",
         "contentHash": "p+6JFPcOKaPUwLiAA8cYRhTOPtcV25Km3gC2RYKcpCIvKSwdm8FSJrkFbmmc4RiEMcdRtX3rmRqKiCtTce0GCw=="
       },
+      "PDFsharp": {
+        "type": "Transitive",
+        "resolved": "6.2.4",
+        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "dependencies": {
+          "System.Security.Cryptography.Pkcs": "8.0.1"
+        }
+      },
+      "PDFsharp-MigraDoc": {
+        "type": "Transitive",
+        "resolved": "6.2.4",
+        "contentHash": "ZlRUJaAAo4K2oMt1v02GTeGOHIOoOvcH1e1WYMpunCG1MK8jd4EBrbzSHoYSN7yOfKWFtOIUfzvmKhRGPsyWQQ==",
+        "dependencies": {
+          "PDFsharp": "6.2.4",
+          "System.Security.Cryptography.Pkcs": "8.0.1"
+        }
+      },
       "Pipelines.Sockets.Unofficial": {
         "type": "Transitive",
         "resolved": "2.2.8",
@@ -1009,6 +1026,11 @@
         "dependencies": {
           "Pipelines.Sockets.Unofficial": "2.2.8"
         }
+      },
+      "Stateless": {
+        "type": "Transitive",
+        "resolved": "5.20.1",
+        "contentHash": "jQeuXgIeXEjFAImajavoxvJNcevO+zyK+9ICGzy0LRe/e1tP4vJUnO4Yrg6rP601wYRnulQs59mQH73TbIZzNg=="
       },
       "System.ClientModel": {
         "type": "Transitive",
@@ -2682,7 +2704,10 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
+          "PDFsharp-MigraDoc": "[6.2.4, )",
+          "PdfSharp": "[6.2.4, )",
           "Scriban": "[7.1.0, )",
+          "Stateless": "[5.20.1, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",

@@ -1,187 +1,271 @@
 # Appointments
 
-The core scheduling feature. Links patients to doctors via time-slotted availability at specific locations for workers' comp IME evaluations. Used by healthcare staff (admin CRUD), patients (self-service booking), and applicant attorneys (booking on behalf of clients).
+The core scheduling feature. Links a patient to a doctor via a time-slotted DoctorAvailability at a specific Location for a workers'-compensation IME evaluation. Used by tenant-level admin staff (CRUD via the list page), bookers (full-page booking flow including patient/applicant-attorney upsert), and accessor-scoped attorneys (filtered list via the `AccessorIdentityUserId` query).
 
 ## File Map
 
 | Layer | File | Purpose |
 |---|---|---|
-| Domain.Shared | `src/.../Domain.Shared/Appointments/AppointmentConsts.cs` | Max lengths (PanelNumber=50, RequestConfirmationNumber=50, InternalUserComments=250), default sort |
-| Domain.Shared | `src/.../Domain.Shared/Enums/AppointmentStatusType.cs` | 13-state lifecycle enum (Pending through Billed) |
-| Domain | `src/.../Domain/Appointments/Appointment.cs` | Aggregate root entity — 5 FKs, status field, multi-tenant |
-| Domain | `src/.../Domain/Appointments/AppointmentManager.cs` | DomainService — create/update with validation (does NOT set status, comments, or approve date) |
-| Domain | `src/.../Domain/Appointments/AppointmentWithNavigationProperties.cs` | Projection wrapper for eager-loaded queries |
-| Domain | `src/.../Domain/Appointments/IAppointmentRepository.cs` | Custom repo interface — nav-prop queries, accessor-based filtering |
-| Contracts | `src/.../Application.Contracts/Appointments/AppointmentCreateDto.cs` | Creation input — client sends RequestConfirmationNumber but AppService overrides it |
-| Contracts | `src/.../Application.Contracts/Appointments/AppointmentUpdateDto.cs` | Update input — no status, no comments, no approve date (those fields locked from update) |
-| Contracts | `src/.../Application.Contracts/Appointments/AppointmentDto.cs` | Full output DTO with concurrency stamp |
-| Contracts | `src/.../Application.Contracts/Appointments/AppointmentWithNavigationPropertiesDto.cs` | Rich output with Patient, User, Type, Location, Availability, Attorney nav props |
-| Contracts | `src/.../Application.Contracts/Appointments/GetAppointmentsInput.cs` | Filter input — includes AccessorIdentityUserId for attorney-scoped queries |
-| Contracts | `src/.../Application.Contracts/Appointments/ApplicantAttorneyDetailsDto.cs` | Attorney details used in booking upsert flow |
-| Contracts | `src/.../Application.Contracts/Appointments/IAppointmentsAppService.cs` | Service interface — 12 methods including attorney upsert and lookup delegation |
-| Application | `src/.../Application/Appointments/AppointmentsAppService.cs` | Business logic hub — slot validation, auto-generated "A#####" confirmation numbers, marks slots Booked, attorney upsert, permission-gated CRUD |
-| EF Core | `src/.../EntityFrameworkCore/Appointments/EfCoreAppointmentRepository.cs` | 5-way LEFT JOIN query with AppointmentAccessor subquery for accessor filtering |
-| HttpApi | `src/.../HttpApi/Controllers/Appointments/AppointmentController.cs` | Manual controller (14 endpoints) at `api/app/appointments` — delegates to AppService |
-| Angular | `angular/src/app/appointments/appointment-add.component.ts` | Full-page booking form — patient demographics, employer, attorney, authorized users, slot picker with 3-day minimum |
-| Angular | `angular/src/app/appointments/appointment/components/appointment.component.ts` | List page — extends AbstractAppointmentComponent, ngx-datatable grid with advanced filters |
-| Angular | `angular/src/app/appointments/appointment/components/appointment.abstract.component.ts` | Shared list logic — CRUD delegation, permission checking for Edit/Delete action visibility |
-| Angular | `angular/src/app/appointments/appointment/components/appointment-detail.component.ts` | Admin modal — quick create/edit from list page (separate from full-page booking form) |
-| Angular | `angular/src/app/appointments/appointment/components/appointment-view.component.ts` | Single appointment view/edit — patient, employer, attorney, authorized users with ngModel forms |
-| Angular | `angular/src/app/appointments/appointment/services/appointment.abstract.service.ts` | List data service — hookToQuery, delete with confirmation, filter management |
-| Angular | `angular/src/app/appointments/appointment/services/appointment-detail.abstract.service.ts` | Modal form service — FormBuilder, lookup delegates, create/update submission |
-| Angular | `angular/src/app/appointments/appointment/providers/appointment-base.routes.ts` | Menu config — icon, required policy `CaseEvaluation.Appointments` |
-| Angular | `angular/src/app/appointments/appointment/providers/appointment-route.provider.ts` | Registers routes via ABP RoutesService at app init |
-| Angular | `angular/src/app/appointments/appointment/appointment-routes.ts` | Lazy routes: `''` (list, permissionGuard) and `'view/:id'` (detail, authGuard only) |
-| Proxy | `angular/src/app/proxy/appointments/appointment.service.ts` | Auto-generated REST client — 14 methods including file upload/download |
-| Proxy | `angular/src/app/proxy/appointments/models.ts` | Auto-generated TypeScript interfaces mirroring backend DTOs |
+| Domain.Shared | `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Appointments/AppointmentConsts.cs` | Max lengths (PanelNumber=50, RequestConfirmationNumber=50, InternalUserComments=250) and default sort builder |
+| Domain.Shared | `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AppointmentStatusType.cs` | 13-value lifecycle enum (Pending=1 ... CancellationRequested=13) |
+| Domain | `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Appointment.cs` | Aggregate root: 5 required FKs, status, multi-tenant |
+| Domain | `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs` | DomainService -- Create/Update; does NOT touch AppointmentStatus, InternalUserComments, AppointmentApproveDate, IsPatientAlreadyExist on the Update path |
+| Domain | `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentWithNavigationProperties.cs` | POCO projection wrapper for eager-loaded queries (adds AppointmentApplicantAttorney) |
+| Domain | `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/IAppointmentRepository.cs` | Custom repo interface: 4 methods, includes accessor-scoped filtering |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentCreateDto.cs` | Create input -- accepts RequestConfirmationNumber but AppService overrides it |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentUpdateDto.cs` | Update input -- no AppointmentStatus, no InternalUserComments, no AppointmentApproveDate, no IsPatientAlreadyExist |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentDto.cs` | Full output DTO (FullAuditedEntityDto + concurrency stamp) |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/AppointmentWithNavigationPropertiesDto.cs` | Rich output: Patient, IdentityUser, AppointmentType, Location, DoctorAvailability, AppointmentApplicantAttorney nav props |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/GetAppointmentsInput.cs` | List filter input -- `AccessorIdentityUserId` enables attorney-scoped queries |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/ApplicantAttorneyDetailsDto.cs` | Attorney details flat DTO used by the booking upsert flow |
+| Contracts | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/IAppointmentsAppService.cs` | Service interface -- 14 methods including 3 attorney upsert/lookup helpers |
+| Application | `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs` | Business logic: GUID-empty guards, FK existence checks, slot validation (5 checks), `A#####` confirmation-number generation, slot Booked transition, attorney upsert; `[RemoteService(IsEnabled = false)]` -- exposed only via the manual controller |
+| EF Core | `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/Appointments/EfCoreAppointmentRepository.cs` | 5-way LEFT JOIN over Patient/IdentityUser/AppointmentType/Location/DoctorAvailability + AppointmentAccessor subquery for accessor filter; loads AppointmentApplicantAttorney separately |
+| HttpApi | `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/Appointments/AppointmentController.cs` | Manual controller at `api/app/appointments` -- 14 HTTP endpoints delegating to the AppService |
+| Mappers | `src/HealthcareSupport.CaseEvaluation.Application/CaseEvaluationApplicationMappers.cs` | 3 Riok.Mapperly partial classes for this feature (see Mapper Configuration) |
+| Permissions | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissions.cs` | Nested `Appointments` static class with Default/Create/Edit/Delete constants |
+| Permissions | `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissionDefinitionProvider.cs` | Registers the 4 permission entries with localized labels |
+| DbContext | `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/EntityFrameworkCore/CaseEvaluationDbContext.cs` | Inline `builder.Entity<Appointment>` config (outside `IsHostDatabase()` guard) |
+| DbContext | `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/EntityFrameworkCore/CaseEvaluationTenantDbContext.cs` | Same inline config -- duplicated for the tenant context |
+| Tests | `test/HealthcareSupport.CaseEvaluation.Application.Tests/Appointments/AppointmentsAppServiceTests.cs` | xUnit + Shouldly; 11 active facts (5 Create + 5 Update GUID-empty guards + 1 list empty-state + 1 patient-not-found) plus 4 `[Fact(Skip=...)]` gap-encoding tests |
+| Angular | `angular/src/app/appointments/appointment-add.component.ts` | Standalone full-page booking form (~1,594 lines) -- patient demographics, employer, attorney, authorized users, slot picker with `minimumBookingDays = 3` |
+| Angular | `angular/src/app/appointments/appointment/components/appointment.component.ts` | Concrete list page (extends abstract) -- ngx-datatable + advanced filters; template at `appointment.component.html` |
+| Angular | `angular/src/app/appointments/appointment/components/appointment.abstract.component.ts` | Shared list directive: hookToQuery, action-button visibility from `Appointments.Edit` and `Appointments.Delete` policy checks |
+| Angular | `angular/src/app/appointments/appointment/components/appointment-detail.component.ts` | Modal scaffold (template + styles in adjacent `.html`); pure shell that injects `AppointmentDetailViewService` |
+| Angular | `angular/src/app/appointments/appointment/components/appointment-view.component.ts` | Standalone view/edit page (~969 lines) -- ngModel-driven form for status/dates/attorney/employer/authorized users |
+| Angular | `angular/src/app/appointments/appointment/services/appointment.abstract.service.ts` | List data service (abstract base) -- hookToQuery, delete-with-confirm, filter management |
+| Angular | `angular/src/app/appointments/appointment/services/appointment.service.ts` | Concrete `AppointmentViewService` extending the abstract list service |
+| Angular | `angular/src/app/appointments/appointment/services/appointment-detail.abstract.service.ts` | Modal-form abstract service: FormBuilder, lookup delegates, create/update submission |
+| Angular | `angular/src/app/appointments/appointment/services/appointment-detail.service.ts` | Concrete `AppointmentDetailViewService` |
+| Angular | `angular/src/app/appointments/appointment/providers/appointment-base.routes.ts` | Menu config -- `requiredPolicy: 'CaseEvaluation.Appointments'`, icon `fas fa-file-alt` |
+| Angular | `angular/src/app/appointments/appointment/providers/appointment-route.provider.ts` | App-init RoutesService registration |
+| Angular | `angular/src/app/appointments/appointment/appointment-routes.ts` | Lazy `Routes`: `''` (list, `[authGuard, permissionGuard]`) and `'view/:id'` (view, `[authGuard]` only) |
+| Proxy | `angular/src/app/proxy/appointments/appointment.service.ts` | Auto-generated REST client -- 14 methods including `getDownloadToken`, `getFile`, `uploadFile` |
+| Proxy | `angular/src/app/proxy/appointments/models.ts` | Auto-generated TypeScript interfaces |
 
 ## Entity Shape
 
 ```
 Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
-├── TenantId          : Guid?              (tenant isolation)
-├── PanelNumber       : string? [max 50]   (case panel reference)
-├── AppointmentDate   : DateTime           (scheduled date)
-├── RequestConfirmationNumber : string [max 50, required]  (auto-generated "A00001" format)
-├── DueDate           : DateTime?          (report due date)
-├── InternalUserComments : string? [max 250] (staff-only notes)
-├── AppointmentApproveDate : DateTime?     (when approved)
-├── IsPatientAlreadyExist  : bool          (patient pre-existed at booking time)
-├── AppointmentStatus : AppointmentStatusType  (13-state lifecycle)
-├── PatientId         : Guid               (FK → Patient)
-├── IdentityUserId    : Guid               (FK → IdentityUser, the booking user)
-├── AppointmentTypeId : Guid               (FK → AppointmentType)
-├── LocationId        : Guid               (FK → Location)
-└── DoctorAvailabilityId : Guid            (FK → DoctorAvailability slot)
+  TenantId                   : Guid?              tenant isolation
+  PanelNumber                : string? [max 50]   case panel reference
+  AppointmentDate            : DateTime           scheduled date/time
+  IsPatientAlreadyExist      : bool               patient pre-existed at booking time
+  RequestConfirmationNumber  : string [max 50, required]   auto-generated "A#####"
+  DueDate                    : DateTime?          report due date
+  InternalUserComments       : string? [max 250]  staff-only notes
+  AppointmentApproveDate     : DateTime?          approval timestamp
+  AppointmentStatus          : AppointmentStatusType   13-value enum
+  PatientId                  : Guid               FK -> Patient (required)
+  IdentityUserId             : Guid               FK -> IdentityUser (required)
+  AppointmentTypeId          : Guid               FK -> AppointmentType (required)
+  LocationId                 : Guid               FK -> Location (required)
+  DoctorAvailabilityId       : Guid               FK -> DoctorAvailability (required)
 ```
 
-**State Machine** (13 states, no enforced transitions in domain — status set directly):
+State diagram (no enforced transitions in domain -- the entity setter is public):
+
 ```
-Pending(1) → Approved(2) → CheckedIn(9) → CheckedOut(10) → Billed(11)
-                ↘ Rejected(3)
-                ↘ NoShow(4)
-Pending → RescheduleRequested(12) → RescheduledNoBill(7) / RescheduledLate(8)
-Pending → CancellationRequested(13) → CancelledNoBill(5) / CancelledLate(6)
+Pending(1) -> Approved(2) -> CheckedIn(9) -> CheckedOut(10) -> Billed(11)
+                          -> Rejected(3)
+                          -> NoShow(4)
+Pending -> RescheduleRequested(12) -> RescheduledNoBill(7) | RescheduledLate(8)
+Pending -> CancellationRequested(13) -> CancelledNoBill(5) | CancelledLate(6)
 ```
 
-**Warning:** No domain methods enforce valid transitions. Any code can set any status directly on the entity. The enum defines states but there is no state machine guard.
+WARNING: There is no domain-level state-machine guard. Any caller that holds the entity can set any status directly; the public setter does not validate the source state.
 
 ## Relationships
 
-| FK Property | Target Entity | Delete Behavior | Notes |
-|---|---|---|---|
-| `PatientId` | Patient | NoAction | Required. Patient may or may not pre-exist |
-| `IdentityUserId` | IdentityUser | NoAction | Required. The user who booked |
-| `AppointmentTypeId` | AppointmentType | NoAction | Required. Host-scoped lookup |
-| `LocationId` | Location | NoAction | Required. Host-scoped lookup |
-| `DoctorAvailabilityId` | DoctorAvailability | NoAction | Required. Slot marked Booked on create |
+| FK Property | Target Entity | Required | OnDelete | Notes |
+|---|---|---|---|---|
+| `PatientId` | Patient | Yes | NoAction | Verified to exist in AppService.CreateAsync |
+| `IdentityUserId` | IdentityUser | Yes | NoAction | The booking user |
+| `AppointmentTypeId` | AppointmentType | Yes | NoAction | Host-scoped lookup |
+| `LocationId` | Location | Yes | NoAction | Host-scoped lookup |
+| `DoctorAvailabilityId` | DoctorAvailability | Yes | NoAction | Slot is set to `BookingStatus.Booked` on create |
 
-**Related entities** (not FKs on Appointment, but linked to it):
-- `AppointmentEmployerDetail` → has `AppointmentId` FK back to Appointment
-- `AppointmentApplicantAttorney` → links Appointment to ApplicantAttorney
-- `AppointmentAccessor` → grants View/Edit access to specific users (used for attorney-scoped filtering)
+Related entities (FK lives on the other entity):
+- `AppointmentEmployerDetail.AppointmentId` -- employer info per appointment
+- `AppointmentAccessor.AppointmentId` -- View/Edit grants for additional users (used by the AccessorIdentityUserId filter)
+- `AppointmentApplicantAttorney.AppointmentId` -- attorney link
 
 ## Multi-tenancy
 
-**IMultiTenant: Yes.** Appointment data is tenant-scoped — each tenant sees only its own appointments.
+IMultiTenant: yes. Appointment data is tenant-scoped.
 
-- DbContext config is **outside** `IsHostDatabase()` block — exists in both `CaseEvaluationDbContext` and `CaseEvaluationTenantDbContext`
-- Reference data FKs (AppointmentType, Location) point to **host-scoped** entities
-- `EfCoreAppointmentRepository` relies on ABP's automatic tenant filter — no manual `WHERE TenantId = X`
-- `AccessorIdentityUserId` filter in the repository queries the `AppointmentAccessor` table (also tenant-scoped)
+- `builder.Entity<Appointment>` configuration is OUTSIDE the `IsHostDatabase()` block in BOTH `CaseEvaluationDbContext.cs` (line 192) and `CaseEvaluationTenantDbContext.cs` (line 113) -- the entity exists in both contexts.
+- Reference data FKs (`AppointmentTypeId`, `LocationId`) point to host-scoped entities.
+- Tenant isolation is enforced by ABP's automatic `IMultiTenant` data filter; the repository contains no manual `WHERE TenantId = ...` clauses.
+- The accessor-scope subquery (`AppointmentAccessor`) is also tenant-scoped, so attorney-filtering observes the same boundary.
 
 ## Mapper Configuration
 
-In `src/.../Application/CaseEvaluationApplicationMappers.cs` (Riok.Mapperly):
+Riok.Mapperly partial classes in `src/HealthcareSupport.CaseEvaluation.Application/CaseEvaluationApplicationMappers.cs`:
 
-| Mapper Class | Source → Destination | AfterMap? |
+| Mapper class | Source -> Destination | AfterMap |
 |---|---|---|
-| `AppointmentToAppointmentDtoMappers` | `Appointment` → `AppointmentDto` | No |
-| `AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper` | `AppointmentWithNavigationProperties` → `AppointmentWithNavigationPropertiesDto` | No |
-| `AppointmentToLookupDtoGuidMapper` | `Appointment` → `LookupDto<Guid>` | Yes — sets `DisplayName = source.RequestConfirmationNumber` |
+| `AppointmentToAppointmentDtoMappers` (line 251) | `Appointment` -> `AppointmentDto` | No AfterMap |
+| `AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper` (line 258) | `AppointmentWithNavigationProperties` -> `AppointmentWithNavigationPropertiesDto` | No AfterMap |
+| `AppointmentToLookupDtoGuidMapper` (line 321) | `Appointment` -> `LookupDto<Guid>` | `destination.DisplayName = source.RequestConfirmationNumber` |
 
-All use `[Mapper]` attribute with `MapperBase<TSource, TDest>` inheritance.
+All three use `[Mapper]` attribute and inherit `MapperBase<TSource, TDest>`. The lookup mapper applies `[MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]` to both `Map` overloads since the field is filled in `AfterMap`.
 
 ## Permissions
 
-Defined in `CaseEvaluationPermissions.cs`:
+Defined in `CaseEvaluationPermissions.cs` (line 94):
+
 ```
-CaseEvaluation.Appointments          (Default — menu visibility + GetAsync)
-CaseEvaluation.Appointments.Create   (New Appointment button on list page)
-CaseEvaluation.Appointments.Edit     (Edit action on list page — but NOT checked in AppService.UpdateAsync)
-CaseEvaluation.Appointments.Delete   (Delete action on list page + AppService.DeleteAsync)
+CaseEvaluation.Appointments          (Default)
+CaseEvaluation.Appointments.Create
+CaseEvaluation.Appointments.Edit
+CaseEvaluation.Appointments.Delete
 ```
 
-Registered in `CaseEvaluationPermissionDefinitionProvider.cs` as parent + 3 children.
+Registered in `CaseEvaluationPermissionDefinitionProvider.cs` (line 55) as a parent permission with three children, with localized labels `Permission:Appointments`, `Permission:Create`, `Permission:Edit`, `Permission:Delete`.
 
-**Angular usage:**
-- List page: `*abpPermission="'CaseEvaluation.Appointments.Create'"` on button, `.Edit` and `.Delete` on row actions
-- Menu: `requiredPolicy: 'CaseEvaluation.Appointments'` in base routes
-- `appointment-add` and `appointment-view` pages: **no client-side permission checks** — relies on route-level `authGuard` only
+Localization keys (in `Domain.Shared/Localization/CaseEvaluation/en.json`):
+- `Permission:Appointments` -> "Appointments"
+- `Appointments` -> "Appointments"
+- `Menu:Appointments` -> "Appointments"
 
-**Gap:** The `Appointments.Edit` permission is checked on the Angular list UI but **never checked in the AppService** — `UpdateAsync` only requires `[Authorize]` (any authenticated user). Same for `CreateAsync`.
+Angular usage:
+- List page button (`appointment.component.html`): `*abpPermission="'CaseEvaluation.Appointments.Create'"`
+- Row Edit action: `*abpPermission="'CaseEvaluation.Appointments.Edit'"`
+- Row Delete action: `*abpPermission="'CaseEvaluation.Appointments.Delete'"`
+- Menu / list route: `requiredPolicy: 'CaseEvaluation.Appointments'`
+- View route (`/appointments/view/:id`): only `authGuard` -- NO permissionGuard
+- `appointment-add` standalone page: no client-side permission check (relies on its containing route's auth)
+
+AppService authorization annotations (only `Default` and `Delete` are checked at the API):
+
+| Method | Attribute | Effective requirement |
+|---|---|---|
+| `GetListAsync` | `[Authorize]` | any authenticated user |
+| `GetWithNavigationPropertiesAsync` | `[Authorize]` | any authenticated user |
+| `GetAsync` | `[Authorize(...Appointments.Default)]` | `Appointments` permission |
+| `GetIdentityUserLookupAsync` | `[Authorize(...Appointments.Default)]` | `Appointments` permission |
+| `GetPatientLookupAsync` / `GetAppointmentTypeLookupAsync` / `GetLocationLookupAsync` / `GetDoctorAvailabilityLookupAsync` | `[Authorize]` | any authenticated user |
+| `CreateAsync` | `[Authorize]` | any authenticated user (NOT Create) |
+| `UpdateAsync` | `[Authorize]` | any authenticated user (NOT Edit) |
+| `DeleteAsync` | `[Authorize(...Appointments.Delete)]` | `Appointments.Delete` |
+| `GetApplicantAttorneyDetailsForBookingAsync` / `GetAppointmentApplicantAttorneyAsync` / `UpsertApplicantAttorneyForAppointmentAsync` | `[Authorize]` | any authenticated user |
 
 ## Business Rules
 
-1. **RequestConfirmationNumber is auto-generated** — `CreateAsync` generates "A" + 5 digits (e.g., "A00001") by querying the max existing number. The DTO accepts a client-supplied value but the AppService silently overrides it. Format caps at A99999 with no overflow handling.
+1. **RequestConfirmationNumber is auto-generated, client value ignored.** `CreateAsync` calls `GenerateNextRequestConfirmationNumberAsync()` which queries the max existing `A#####` row and produces the next value as `"A" + 5 zero-padded digits` (`{A}{n:D5}`). The DTO accepts `RequestConfirmationNumber` for binding compatibility but the AppService silently overrides whatever the client sent.
 
-2. **Slot booking is one-way** — `CreateAsync` marks `DoctorAvailability.BookingStatusId = Booked`. `DeleteAsync` does NOT release the slot back to `Available`. No cancellation or reschedule flow releases slots automatically.
+2. **Hardcoded format constants.** `RequestConfirmationPrefix = "A"`, `RequestConfirmationDigits = 5`. Numeric overflow is checked: if `nextValue > 99999` the AppService throws `UserFriendlyException(L["Request confirmation number limit reached."])`.
 
-3. **Lookup endpoints filter through Doctor relations** — `GetAppointmentTypeLookupAsync` returns only types assigned to doctors (via `DoctorAppointmentType` join), not all AppointmentTypes. Same for locations via `DoctorLocation`. Intentional — ensures only doctor-relevant options are offered at booking time.
+3. **Five-step slot validation gate (CreateAsync).** Before booking, `ValidateDoctorAvailabilityForBooking` enforces:
+   - Slot's `BookingStatusId` must equal `BookingStatus.Available`
+   - Slot's `LocationId` must equal `input.LocationId`
+   - If slot has an `AppointmentTypeId`, it must equal `input.AppointmentTypeId`
+   - Slot's `AvailableDate.Date` must equal `input.AppointmentDate.Date`
+   - Time component of `input.AppointmentDate` must satisfy `FromTime <= time < ToTime`
 
-4. **Update freezes key fields** — `AppointmentManager.UpdateAsync` does not accept `AppointmentStatus`, `InternalUserComments`, `AppointmentApproveDate`, or `IsPatientAlreadyExist`. These fields can only be set at creation or via a dedicated status-transition path (not yet implemented).
+4. **Slot booking is one-way.** `CreateAsync` sets `doctorAvailability.BookingStatusId = BookingStatus.Booked` and saves the DoctorAvailability. `DeleteAsync` does NOT release the slot back to `Available`. There is no cancel/reschedule flow that frees a slot today.
 
-5. **Permission gap** — `Appointments.Edit` and `Appointments.Create` permissions are checked in the Angular UI but NOT enforced in `AppService.UpdateAsync` / `CreateAsync`. Any authenticated user can create or update appointments if they call the API directly.
+5. **Five GUID-empty guard checks fire before FK lookups.** Both `CreateAsync` and `UpdateAsync` reject `Guid.Empty` for Patient, IdentityUser, AppointmentType, Location, DoctorAvailability with localized `UserFriendlyException` messages naming the field.
+
+6. **Lookup endpoints filter through Doctor relations.**
+   - `GetAppointmentTypeLookupAsync` returns only `AppointmentType`s assigned to a Doctor (via `Doctor.AppointmentTypes` join).
+   - `GetLocationLookupAsync` returns only `Location`s assigned to a Doctor (via `Doctor.Locations` join).
+   - `GetPatientLookupAsync` and `GetIdentityUserLookupAsync` filter by `Email` substring only.
+   - `GetDoctorAvailabilityLookupAsync` returns ALL availabilities unfiltered.
+
+7. **Update freezes status, comments, approve date, and patient-existence flag.** `AppointmentManager.UpdateAsync` does not accept `AppointmentStatus`, `InternalUserComments`, `AppointmentApproveDate`, or `IsPatientAlreadyExist` parameters; the `AppointmentUpdateDto` does not surface these fields. They can only be set via direct entity mutation or at create time.
+
+8. **Permission gap on Create/Update at the API.** Both methods carry only `[Authorize]` -- any authenticated user can create or update appointments via the API. The Angular UI checks the `Create`/`Edit` permissions but the server does not enforce them. The test file encodes this gap as two `[Fact(Skip="KNOWN GAP: ...")]` tests waiting for the permission attributes to be applied.
+
+9. **List filter has dual semantics around `IdentityUserId`.** When `AccessorIdentityUserId` is set, the `IdentityUserId` clause is suppressed and the query instead matches rows where `Appointment.CreatorId == accessorUserId` OR an `AppointmentAccessor` row exists for that user; this is the attorney-scoped path.
+
+10. **Attorney upsert lives in this AppService.** `UpsertApplicantAttorneyForAppointmentAsync` either creates an `ApplicantAttorney` (if `ApplicantAttorneyId` is null/empty) or updates the existing record, then upserts the single `AppointmentApplicantAttorney` link row -- one-attorney-per-appointment by construction (uses the first row from a `maxResultCount: 10` fetch).
 
 ## Inbound FKs
 
 | Source Entity.Property | Delete Behavior | Host-only? | Notes |
 |---|---|---|---|
-| `AppointmentEmployerDetail.AppointmentId` | NoAction | No | One employer detail per appointment |
-| `AppointmentAccessor.AppointmentId` | NoAction | No | Access grants for this appointment |
-| `AppointmentApplicantAttorney.AppointmentId` | NoAction | No | Attorney associations for this appointment |
+| `AppointmentEmployerDetail.AppointmentId` | NoAction | No (tenant-scoped) | One-to-one employer detail per appointment |
+| `AppointmentAccessor.AppointmentId` | NoAction | No (tenant-scoped) | View/Edit grants powering the accessor filter |
+| `AppointmentApplicantAttorney.AppointmentId` | NoAction | No (tenant-scoped) | Attorney link |
+
+All three are configured in BOTH `CaseEvaluationDbContext.cs` and `CaseEvaluationTenantDbContext.cs`, outside any `IsHostDatabase()` guard.
 
 ## Angular UI Surface
 
 | Component | File | Route | Purpose |
 |---|---|---|---|
-| AppointmentComponent | `angular/src/app/appointments/appointment/components/appointment.component.ts` | `/appointments` | List view with status badges |
-| AbstractAppointmentComponent | `angular/src/app/appointments/appointment/components/appointment.abstract.component.ts` | — | Base directive with CRUD wiring |
-| AppointmentDetailModalComponent | `angular/src/app/appointments/appointment/components/appointment-detail.component.ts` | — | Quick-edit modal from list page |
-| AppointmentAddComponent | `angular/src/app/appointments/appointment-add.component.ts` | `/appointments/add` | Full booking page (~30 form fields) |
-| AppointmentViewComponent | `angular/src/app/appointments/appointment/components/appointment-view.component.ts` | `/appointments/view/:id` | View/edit page for existing appointment |
+| `AppointmentComponent` | `angular/src/app/appointments/appointment/components/appointment.component.ts` | `/appointments` | List page (extends abstract directive) |
+| `AbstractAppointmentComponent` | `.../appointment/components/appointment.abstract.component.ts` | -- | Shared list logic + Edit/Delete visibility check |
+| `AppointmentDetailModalComponent` | `.../appointment/components/appointment-detail.component.ts` | -- | Quick create/edit modal launched from the list |
+| `AppointmentAddComponent` | `angular/src/app/appointments/appointment-add.component.ts` | `/appointments/add` (registered elsewhere) | Standalone full-page booking flow with ~30 form controls + employer + attorney + authorized-users sub-flows |
+| `AppointmentViewComponent` | `.../appointment/components/appointment-view.component.ts` | `/appointments/view/:id` | Standalone view/edit page (ngModel) |
 
-**Pattern:** Mixed — abstract/concrete for list, standalone pages for add and view. Three different form approaches (FormBuilder modal, FormBuilder full-page, ngModel view page).
+**Pattern:** Mixed.
+- The list flow is an ABP Suite scaffold (abstract + concrete pair, no `standalone: true`).
+- The Add page (`AppointmentAddComponent`) is a standalone Angular component (`standalone: true`).
+- The View page (`AppointmentViewComponent`) is a standalone Angular component (`standalone: true`).
+- The detail modal is a non-standalone scaffold component used only inside the list-page imports.
 
-**Forms:**
-- Add page: patientId, doctorAvailabilityId, appointmentTypeId, locationId, appointmentDate, panelNumber, dueDate, internalUserComments + employer detail + attorney fields
-- View page: status, appointmentDate, requestConfirmationNumber, all fields from add (via ngModel)
+### Sub-path A -- ABP Suite scaffold (list flow)
+
+**Forms (modal):** the modal shell injects `AppointmentDetailViewService`; FormBuilder controls live in `appointment-detail.abstract.service.ts` -- patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, panelNumber, dueDate, plus appointment-status select.
 
 **Permission guards:**
-- List route: `authGuard`, `permissionGuard` (requires `CaseEvaluation.Appointments`)
-- View route: `authGuard` only (NO `permissionGuard` — any authenticated user can view)
-- `*abpPermission="'CaseEvaluation.Appointments.Edit'"` — edit action in list
-- `*abpPermission="'CaseEvaluation.Appointments.Delete'"` — delete action in list
+- List route (`appointment-routes.ts` `path: ''`): `[authGuard, permissionGuard]` (route-level policy `CaseEvaluation.Appointments`)
+- Menu (`appointment-base.routes.ts`): `requiredPolicy: 'CaseEvaluation.Appointments'`
+- Template directives: `*abpPermission="'CaseEvaluation.Appointments.Create'"` (button), `*abpPermission="'CaseEvaluation.Appointments.Edit'"` and `*abpPermission="'CaseEvaluation.Appointments.Delete'"` (row actions)
 
 **Services injected:**
-- `ListService`, `AppointmentViewService`, `AppointmentDetailViewService`, `PermissionService`, `AppointmentService` (proxy)
+- Abstract list directive: `ListService`, `AppointmentViewService`, `AppointmentDetailViewService`, `PermissionService`
+- Concrete list component: same set, providers add `ListService`, `AppointmentViewService`, `AppointmentDetailViewService`, `NgbDateAdapter`, `NgbTimeAdapter`
+- Modal shell: only `AppointmentDetailViewService`
+
+### Sub-path B -- Standalone components (Add and View)
+
+**Imports (Add page):** `CommonModule`, `FormsModule`, `ReactiveFormsModule`, `NgxDatatableModule`, `LocalizationPipe`, `TopHeaderNavbarComponent`, `LookupSelectComponent`, `NgxValidateCoreModule`, `NgbDatepickerModule`, `NgbNavModule`. Providers: `ListService`, `AppointmentViewService`, `NgbDateAdapter` -> `DateAdapter`, `NgbTimeAdapter` -> `TimeAdapter`.
+
+**Imports (View page):** `CommonModule`, `FormsModule`, `ReactiveFormsModule`, `LocalizationPipe`, `LookupSelectComponent`, `NgbDatepickerModule`.
+
+**Forms (Add page, FormBuilder):** patient demographics block, employer detail block, applicant-attorney block, authorized-users sub-table; slot picker constrained by `minimumBookingDays = 3` (client-side rule); access types `[ { value: 23, label: 'View' }, { value: 24, label: 'Edit' } ]`.
+
+**Forms (View page, ngModel):** appointment, patient, employer, applicant-attorney, authorized-users -- mutated via plain object bindings rather than reactive forms. Inconsistent with the modal and Add page.
+
+**Permission guards (Add and View):**
+- Add page: no `*abpPermission` directives on the route or template; relies on whichever feature route registers it.
+- View route (`'view/:id'` in `appointment-routes.ts`): `[authGuard]` only -- intentional or otherwise, ANY authenticated user can navigate to `/appointments/view/<id>`.
+
+**Services injected (Add):** `FormBuilder`, `Router`, `ConfigStateService`, `RestService`, `AppointmentViewService` (via providers).
+
+**Services injected (View):** `ActivatedRoute`, `Router`, `ConfigStateService`, `AppointmentService` (proxy), `RestService`.
 
 ## Known Gotchas
 
-1. **Two parallel UI flows exist and do NOT share form logic:**
-   - Admin modal (`appointment-detail.component`) uses reactive `FormBuilder` for quick list-page CRUD
-   - Full-page booking (`appointment-add.component`) uses reactive `FormBuilder` with ~30 controls
-   - View/edit page (`appointment-view.component`) uses plain objects + `ngModel` — **inconsistent** with the other two
+1. **Three parallel form approaches.** Modal (FormBuilder reactive), Add page (FormBuilder reactive, ~1,594 lines), View page (plain ngModel). The View-page divergence is the one likely to drift; reactive validation and async slot lookup do not apply to the ngModel form.
 
-2. **`view/:id` route has no `permissionGuard`** — any authenticated user can view any appointment by navigating to `/appointments/view/{id}`. The list route has `permissionGuard`; the view route only has `authGuard`.
+2. **`view/:id` route has no `permissionGuard`.** Only `authGuard`. Any authenticated user can deep-link to any appointment they know the id of. Server lookup is via `GetWithNavigationPropertiesAsync` which is `[Authorize]` only. ABP's automatic tenant filter still scopes the data to the user's tenant, but cross-role read access inside the same tenant is not gated.
 
-3. **`console.log` debug statement** left in `appointment-add.component.ts` (line ~1413) — date check logging in production code.
+3. **`console.log('Date check:', ...)` left in `appointment-add.component.ts` line 1546.** Production-bound debug log inside the date-validation path.
+
+4. **Constructor sets all 11 settable fields it accepts; the remaining 3 (`InternalUserComments`, `AppointmentApproveDate`, `IsPatientAlreadyExist`) are intentionally not constructor params.** They are also absent from `AppointmentUpdateDto` and from `AppointmentManager.UpdateAsync`. There is currently no code path that writes them after creation -- they are schema fields without producers.
+
+5. **Race on confirmation-number generation.** `GenerateNextRequestConfirmationNumberAsync` does `MAX + 1` over an unindexed-for-uniqueness column under the default Read Committed isolation; there is no unique constraint on `(TenantId, RequestConfirmationNumber)`. Two concurrent creates can produce duplicates.
+
+6. **Server does not reject past-date bookings.** The 3-day minimum lead time exists only on the Angular datepicker side (`minimumBookingDays = 3`). Direct API calls can create appointments with arbitrary `AppointmentDate`.
+
+7. **Proxy `getList` accepts more filter parameters than the input DTO defines.** `GetAppointmentsInput.cs` exposes 7 filters (`FilterText`, `PanelNumber`, `AppointmentDateMin/Max`, `IdentityUserId`, `AccessorIdentityUserId`, `AppointmentTypeId`, `LocationId`), but `appointment.service.ts` `getList` sends 18 query params (e.g., `isPatientAlreadyExist`, `requestConfirmationNumber`, `dueDateMin/Max`, `appointmentApproveDateMin/Max`, `appointmentStatus`, `patientId`, `doctorAvailabilityId`). The server simply ignores the extras; the proxy was generated against a richer expected shape and is now out of sync with the trimmed-down `GetAppointmentsInput`.
+
+8. **`AppointmentsAppService` carries `[RemoteService(IsEnabled = false)]`.** ABP's auto-API conventions are disabled; HTTP exposure is provided exclusively through the manual `AppointmentController` -- there is no auto-generated REST surface that can drift behind the controller.
+
+9. **Test coverage is intentionally narrow.** `AppointmentsAppServiceTests` ships 11 active facts (Guid-empty guards + one happy-path-empty-state) and 4 `[Fact(Skip="KNOWN GAP: ...")]` placeholders that explicitly cite this CLAUDE.md (slot-release on delete, status state-machine, Create/Update permission gaps). The Skip messages are how the gaps stay visible in CI output.
 
 ## Links
 
 - Root architecture: [CLAUDE.md](/CLAUDE.md)
 - Reference pattern: [CLAUDE.md#reference-pattern--appointments](/CLAUDE.md#reference-pattern--appointments)
-- Docs: [docs/features/appointments/overview.md](/docs/features/appointments/overview.md) (if exists)
+- Product intent: [docs/product/appointments.md](/docs/product/appointments.md)
+- Feature docs: [docs/features/appointments/overview.md](/docs/features/appointments/overview.md) (if present)
 
 <!-- MANUAL:START -->
 <!-- MANUAL:END -->

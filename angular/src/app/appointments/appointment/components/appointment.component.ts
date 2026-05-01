@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   NgbDateAdapter,
   NgbTimeAdapter,
@@ -46,6 +47,7 @@ import {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     NgxDatatableModule,
     NgxDatatableDefaultDirective,
     NgxDatatableListDirective,

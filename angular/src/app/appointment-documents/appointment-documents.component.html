@@ -1,0 +1,163 @@
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <h4 class="mb-0 text-primary fw-bold">Documents</h4>
+    <button
+      type="button"
+      class="btn btn-outline-secondary btn-sm"
+      (click)="refresh()"
+      [disabled]="isLoading"
+    >
+      <i class="fa fa-rotate"></i>
+    </button>
+  </div>
+
+  <div class="card-body">
+    <div class="upload-form mb-3">
+      <div class="flex-grow-1">
+        <label class="form-label small text-muted" for="document-name-input">Document Name</label>
+        <input
+          id="document-name-input"
+          type="text"
+          class="form-control form-control-sm"
+          [(ngModel)]="documentName"
+          placeholder="e.g. Medical records 2026-Q1"
+          [name]="'document-name-input'"
+          maxlength="200"
+        />
+      </div>
+      <div>
+        <label class="form-label small text-muted" for="document-file-input">File</label>
+        <input
+          id="document-file-input"
+          type="file"
+          class="form-control form-control-sm"
+          (change)="onFileSelected($event)"
+        />
+      </div>
+      <button
+        type="button"
+        class="btn btn-success btn-sm"
+        (click)="upload()"
+        [disabled]="!selectedFile || isUploading"
+      >
+        <i class="fa fa-upload me-1"></i>
+        {{ isUploading ? 'Uploading...' : 'Upload' }}
+      </button>
+    </div>
+
+    @if (isLoading) {
+      <div class="text-muted small">Loading documents...</div>
+    } @else if (documents.length === 0) {
+      <div class="text-muted small">No documents uploaded yet.</div>
+    } @else {
+      <div class="border rounded">
+        @for (doc of documents; track doc.id) {
+          <div class="doc-row">
+            <i class="fa fa-file fa-lg text-primary"></i>
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">{{ doc.documentName }}</span>
+                <span class="badge badge-status {{ statusBadgeClass(doc.status) }}">
+                  {{ statusLabel(doc.status) }}
+                </span>
+              </div>
+              <div class="doc-meta">
+                {{ doc.fileName }} &middot; {{ formatBytes(doc.fileSize) }}
+                @if (doc.contentType) {
+                  &middot; {{ doc.contentType }}
+                }
+                @if (doc.creationTime) {
+                  &middot; {{ doc.creationTime | date: 'MMM d, yyyy h:mm a' }}
+                }
+              </div>
+              @if (doc.status === DocumentStatus.Rejected && doc.rejectionReason) {
+                <div class="doc-rejection">
+                  <i class="fa fa-triangle-exclamation me-1"></i>
+                  <strong>Reason:</strong>
+                  {{ doc.rejectionReason }}
+                </div>
+              }
+            </div>
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              (click)="download(doc)"
+              title="Download"
+            >
+              <i class="fa fa-download"></i>
+            </button>
+            @if (canApprove && doc.status !== DocumentStatus.Approved) {
+              <button
+                type="button"
+                class="btn btn-outline-success btn-sm"
+                (click)="approve(doc)"
+                title="Approve"
+              >
+                <i class="fa fa-check"></i>
+              </button>
+            }
+            @if (canApprove && doc.status !== DocumentStatus.Rejected) {
+              <button
+                type="button"
+                class="btn btn-outline-warning btn-sm"
+                (click)="openRejectModal(doc)"
+                title="Reject"
+              >
+                <i class="fa fa-xmark"></i>
+              </button>
+            }
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm"
+              (click)="delete(doc)"
+              title="Delete"
+            >
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+@if (rejectingDoc) {
+  <div class="reject-modal-backdrop" (click)="closeRejectModal()">
+    <div class="reject-modal" (click)="$event.stopPropagation()">
+      <h5 class="mb-3">Reject "{{ rejectingDoc.documentName }}"</h5>
+      <div class="mb-3">
+        <label for="reject-reason" class="form-label small text-muted">
+          Rejection Reason (required, max 500 chars)
+        </label>
+        <textarea
+          id="reject-reason"
+          class="form-control"
+          rows="4"
+          [(ngModel)]="rejectionReason"
+          name="reject-reason"
+          maxlength="500"
+          placeholder="Explain why this document is being rejected so the booker can correct and re-upload."
+        ></textarea>
+        <div class="small text-muted text-end mt-1">{{ rejectionReason.length }} / 500</div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          (click)="closeRejectModal()"
+          [disabled]="isSubmittingReject"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-warning btn-sm"
+          (click)="submitReject()"
+          [disabled]="isSubmittingReject || !rejectionReason.trim()"
+        >
+          {{ isSubmittingReject ? 'Submitting...' : 'Reject Document' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

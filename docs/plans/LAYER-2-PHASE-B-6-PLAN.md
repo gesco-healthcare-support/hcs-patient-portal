@@ -1,31 +1,30 @@
 # Layer 2 Phase B-6 -- Test Coverage
 
 **Parent:** [LAYER-2-PHASE-B-PLAN.md](./LAYER-2-PHASE-B-PLAN.md)
-**Active child:** TBD -- draft Tier 2 plan at `docs/plans/YYYY-MM-DD-phase-b6-tier2.md` in the next plan-mode session (Tier 2 scope summary below; do NOT pre-create the file).
+**Active child:** TBD -- draft Wave-2 follow-up plan at `docs/plans/YYYY-MM-DD-phase-b6-wave2.md` in the next plan-mode session (DoctorAvailability + Appointment full CRUD + IdentityUser flows; scope summary below).
 
 ## Status summary
 
-Expand SonarCloud overall coverage from ~7% baseline to >= 60%, new-code coverage >= 80%, Quality Gate green on new code. Three tiers organised by entity priority. **Tier 1 COMPLETE 2026-04-24** -- all 6 PRs MERGED (PR-0 #99, PR-1A #101, PR-1B #102, PR-1C #104, PR-1D #129, PR-1E #135, plus sub-PRs #103 identity-seed and #115 tenant cleanup). Tier 2 and Tier 3 not yet started.
+Expand SonarCloud overall coverage from ~7% baseline to >= 60%, new-code coverage >= 80%, Quality Gate green on new code. Three tiers organised by entity priority. **Tier 1 COMPLETE 2026-04-24** (PR-0 #99, PR-1A #101, PR-1B #102, PR-1C #104, PR-1D #129, PR-1E #135 plus sub-PRs #103, #115). **Tier 2 COMPLETE 2026-04-24** -- all 4 PRs MERGED (PR-2A #141, PR-2B #142, PR-2C #143, PR-2D #144). **Tier 3 COMPLETE 2026-04-27** -- all 5 PRs MERGED (PR-3A #146, PR-3B #147, PR-3C #149, PR-3D #152, PR-3E #154). Per-tier entity coverage is now done; B-6 closure (60% overall) needs Wave-2 follow-up.
 
-Coverage trajectory: 7.3% baseline (verified `main@ab7461ad2c` on 2026-04-20) -> 19.6% after PR-1D (#129, measured 2026-04-24 pre-PR-1E). Post-PR-1E measurement pending SonarCloud refresh on `main@ca8af28`; expected 22-30%+ range. Tier-1 target was 25-30%. Full B-6 target: >= 60% overall, >= 80% new-code, Quality Gate green on new code.
+Coverage trajectory: 7.3% baseline (verified `main@ab7461ad2c` on 2026-04-20) -> 19.6% after PR-1D (#129, measured 2026-04-24 pre-PR-1E) -> 22.3% after PR-1E (#135, measured 2026-04-24 pre-Tier-2) -> 27.2% after PR-2D (#144, measured 2026-04-24 post-Tier-2) -> **35.2% after PR-3E (#154, measured 2026-04-27 post-Tier-3 via SonarCloud API on `main`); new-code coverage 42.13%**. Tier-3 target was 30-37%; landed at 35.2%, squarely in band (+8.0 pts from Tier-2 exit). Full B-6 target: >= 60% overall, >= 80% new-code, Quality Gate green on new code -- Wave-2 follow-up (DoctorAvailability + Appointment full CRUD + IdentityUser flows + AppointmentManager rules) is the next atomic unit.
 
 ## Sub-items
 
 | Tier | Scope | Plan | Status |
 |---|---|---|---|
 | 1 | 5 critical entities (Appointments, Patients, DoctorAvailabilities, Locations, ApplicantAttorneys) + PR-0 shared test infra | [2026-04-20-phase-b6-tier1.md](./2026-04-20-phase-b6-tier1.md) | **MERGED 2026-04-24** (PR-0 #99, PR-1A #101, PR-1B #102, PR-1C #104, PR-1D #129, PR-1E #135 + sub-PRs #103, #115) |
-| 2 | 3 secondary entities (AppointmentAccessors, AppointmentApplicantAttorneys, AppointmentEmployerDetails) | drafted after Tier 1 merges + coverage delta measured | NOT STARTED |
-| 3 | 5 host-only lookup entities (States, AppointmentTypes, AppointmentStatuses, AppointmentLanguages, WcabOffices) | drafted after Tier 2 merges | NOT STARTED |
+| 2 | 3 secondary entities (AppointmentAccessors, AppointmentApplicantAttorneys, AppointmentEmployerDetails) + Wave-2 seed infra | [2026-04-24-phase-b6-tier2.md](./2026-04-24-phase-b6-tier2.md) | **MERGED 2026-04-24** (PR-2A #141, PR-2B #142, PR-2C #143, PR-2D #144) |
+| 3 | 5 host-only lookup entities (States, AppointmentTypes, AppointmentStatuses, AppointmentLanguages, WcabOffices) | [2026-04-25-phase-b6-tier3.md](./2026-04-25-phase-b6-tier3.md) | **MERGED 2026-04-27** (PR-3A #146, PR-3B #147, PR-3C #149, PR-3D #152, PR-3E #154) |
 
 ## Currently active
 
-None -- Tier 1 just closed. The next atomic unit is **drafting the Tier 2 plan** (`docs/plans/YYYY-MM-DD-phase-b6-tier2.md`) in a fresh plan-mode session, using the Tier 2 scope summary below plus [PHASE-B6-TEST-COVERAGE-KICKOFF.md](./PHASE-B6-TEST-COVERAGE-KICKOFF.md) sections 11 and 12 for context.
+None -- Tier 3 just closed. The next atomic unit is **drafting the Wave-2 follow-up plan** (`docs/plans/YYYY-MM-DD-phase-b6-wave2.md`) in a fresh plan-mode session. Tier 3 lifted overall coverage to 35.2% which is below the 60% B-6 target; Wave-2 closes the gap by adding full CRUD coverage for the two highest-LOC entities (DoctorAvailability, Appointment) plus the IdentityUser-dependent flows that were called out as a stretch tier in the kickoff.
 
 ## Upcoming queue
 
-1. **Tier 2 planning** -- next atomic unit. Prerequisite: SonarCloud coverage delta from Tier 1 should be verified (expected 25-30%+; readable on the SonarCloud project dashboard once the post-PR-1E analysis on `main` finishes). Tier 2 seed infrastructure open question: its 3 entities FK into `Appointment`, which is NOT yet seeded in the orchestrator -- Tier 2 drafting must decide between adding Appointment + DoctorAvailability Wave-2 seeds to the orchestrator vs. inline-seeding minimal Appointments in each test body. This decision shapes the PR count (1 big seed-infra PR + 3 entity PRs vs. 3 entity PRs with denser setup in each).
-2. Tier 3 -- draft after Tier 2 merges.
-3. B-6 closure -- verify coverage targets (>= 60% overall, >= 80% new-code, Quality Gate green on new code); flip Quality Gate from informational to required.
+1. **Wave-2 follow-up planning** -- next atomic unit. Scope: DoctorAvailability full CRUD + Appointment full CRUD (both Wave-2 seeded since Tier-2 PR-2A; their AppService coverage is the remaining ncloc-heavy gap) + Patient.GetOrCreatePatientForAppointmentBookingAsync + AppointmentManager rules + ExternalSignup flow. Stretch-tier scope from `PHASE-B6-TEST-COVERAGE-KICKOFF.md` section 12.4. Decision points include: split-by-entity-PR vs single Wave-2 PR; production-code constraint (likely same test-data-only as Tier-2/3); IdentityUser-flow infra (ABP test-Identity infrastructure may need extension).
+2. B-6 closure -- verify coverage targets (>= 60% overall, >= 80% new-code, Quality Gate green on new code); flip Quality Gate from informational to required.
 
 ## Scope summary for un-drafted sub-items
 
@@ -66,4 +65,4 @@ Pop up to [LAYER-2-PHASE-B-PLAN.md](./LAYER-2-PHASE-B-PLAN.md); mark B-6 MERGED 
 
 ## Last updated
 
-2026-04-24 -- Tier 1 MERGED (PR-1E #135 closed the set); active-child pointer advanced to Tier 2 planning.
+2026-04-27 -- Tier 3 MERGED (PR-3E #154 closed the set); active-child pointer advanced to Wave-2 follow-up planning. Tier-3 added ~43 new live Facts + 2 Skip Facts across 5 host-only lookup entities; SonarCloud overall coverage 27.2% -> 35.2% (+8.0 pts), new-code coverage 42.13%.

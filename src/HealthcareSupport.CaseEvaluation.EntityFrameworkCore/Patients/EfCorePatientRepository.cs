@@ -80,4 +80,47 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         query = ApplyFilter(query, filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, stateId, appointmentLanguageId, identityUserId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
+
+    public virtual async Task<PatientMatchCandidate?> FindBestMatchAsync(
+        Guid? tenantId,
+        string firstName,
+        string lastName,
+        DateTime dateOfBirthDate,
+        string? ssn,
+        string? phone,
+        string? zip,
+        CancellationToken cancellationToken = default)
+    {
+        // Patient is NOT IMultiTenant; manual TenantId filter is mandatory to avoid
+        // cross-tenant PHI leak (see EntityFrameworkCore/CLAUDE.md "Multi-tenancy").
+        // OLD reference: AppointmentDomain.IsPatientRegistered (3-of-6 LINQ match).
+        var dob = dateOfBirthDate.Date;
+        var fn = firstName;
+        var ln = lastName;
+
+        var query = (await GetQueryableAsync())
+            .Where(x => x.TenantId == tenantId)
+            .Select(x => new
+            {
+                x.Id,
+                x.CreationTime,
+                MatchCount =
+                    (x.FirstName.ToLower() == fn ? 1 : 0) +
+                    (x.LastName.ToLower()  == ln ? 1 : 0) +
+                    (x.DateOfBirth == dob               ? 1 : 0) +
+                    (ssn   != null && x.SocialSecurityNumber == ssn   ? 1 : 0) +
+                    (phone != null && x.PhoneNumber          == phone ? 1 : 0) +
+                    (zip   != null && x.ZipCode              == zip   ? 1 : 0)
+            });
+
+        var best = await query
+            .Where(c => c.MatchCount >= PatientMatching.MinMatchCount)
+            .OrderByDescending(c => c.MatchCount)
+            .ThenBy(c => c.CreationTime)
+            .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
+
+        return best is null
+            ? null
+            : new PatientMatchCandidate(best.Id, best.MatchCount, best.CreationTime);
+    }
 }
