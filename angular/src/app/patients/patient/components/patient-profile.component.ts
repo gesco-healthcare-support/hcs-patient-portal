@@ -111,11 +111,19 @@ export class PatientProfileComponent implements OnInit {
     return this.currentUser?.roles?.[0] || 'Patient';
   }
 
+  /**
+   * True when the user is anyone OTHER than the Patient role. The patient
+   * profile page only loads /patients/me for Patient-role users; everyone
+   * else gets a read-only view sourced from /external-users/me. (W-B-2 fix,
+   * 2026-04-30: previously CE + internal users fell through to /patients/me
+   * and got 404.)
+   */
   get isExternalUserNonPatient(): boolean {
     const roles = this.currentUser?.roles ?? [];
-    return roles.some(
-      (r) => r?.toLowerCase() === 'applicant attorney' || r?.toLowerCase() === 'defense attorney',
-    );
+    if (!Array.isArray(roles) || roles.length === 0) {
+      return true;
+    }
+    return !roles.some((r: string) => r?.toLowerCase() === 'patient');
   }
 
   ngOnInit(): void {

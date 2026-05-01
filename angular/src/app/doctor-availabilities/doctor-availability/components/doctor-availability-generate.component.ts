@@ -295,9 +295,19 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     const allSlots = this.preview.reduce((acc, day) => acc.concat(this.getSlots(day)), []);
     const anyConflict = allSlots.some((slot) => !!slot.isConflict);
     this.hasConflicts = anyConflict;
-    this.validationMessage = anyConflict
-      ? 'Some generated slots already exist. Please remove them before submitting.'
-      : null;
+    if (anyConflict) {
+      this.validationMessage =
+        'Some generated slots already exist. Please remove them before submitting.';
+    } else if (allSlots.length === 0 && this.form.valid && !this.isGenerating) {
+      // S-7.4 (W-UI-11): backend returns an empty array for inverted FromDate>ToDate,
+      // inverted FromTime>ToTime, or zero-duration FromTime==ToTime inputs. The form
+      // is otherwise "valid" so the framework does not flag the field; surface an
+      // inline message instead of leaving Submit silently disabled.
+      this.validationMessage =
+        'No slots were generated. Check that your start date is before your end date and your start time is before your end time.';
+    } else {
+      this.validationMessage = null;
+    }
     this.canSubmit = allSlots.length > 0 && !anyConflict;
   }
 

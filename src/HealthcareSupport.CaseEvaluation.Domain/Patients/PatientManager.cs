@@ -23,9 +23,14 @@ public class PatientManager : DomainService
     public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         Check.NotNull(identityUserId, nameof(identityUserId));
-        Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
+        // firstName / lastName accept empty string at create-time. The minimal
+        // register form does not collect names; the booker fills them later
+        // through the booking form's patient section. Keep length validation
+        // so admin-CRUD callers still get a 50-char ceiling.
+        // Adrian (2026-04-30, register-form simplification).
+        firstName ??= string.Empty;
+        lastName ??= string.Empty;
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
-        Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
         Check.Length(lastName, nameof(lastName), PatientConsts.LastNameMaxLength);
         Check.NotNullOrWhiteSpace(email, nameof(email));
         Check.Length(email, nameof(email), PatientConsts.EmailMaxLength);
@@ -97,5 +102,95 @@ public class PatientManager : DomainService
         patient.OthersLanguageName = othersLanguageName;
         patient.SetConcurrencyStampIfNotNull(concurrencyStamp);
         return await _patientRepository.UpdateAsync(patient);
+    }
+
+    /// <summary>
+    /// Single entry point for "turn incoming Patient-shaped input into a Patient row".
+    /// Runs the 3-of-6 fuzzy match against the calling tenant's existing rows; returns
+    /// the existing match if found, otherwise delegates to <see cref="CreateAsync"/>.
+    ///
+    /// Patient is NOT IMultiTenant -- the repository applies a manual <c>TenantId</c>
+    /// filter to avoid cross-tenant PHI leak (FEAT-09 context).
+    ///
+    /// Match keys (any 3 of 6 must equal): FirstName (lowercased), LastName (lowercased),
+    /// DateOfBirth (date-only), SocialSecurityNumber (digits-only), PhoneNumber
+    /// (digits-only), ZipCode (lowercased trim). OLD reference: <c>IsPatientRegistered</c>
+    /// in <c>AppointmentDomain.cs:732-780</c>; ZipCode substitutes for OLD's ClaimNumber
+    /// because <c>AppointmentInjuryDetail</c> is a Wave 1 capability.
+    ///
+    /// Concurrency note: Wave 0 ships without an <c>IDistributedLockProvider</c> guard.
+    /// A first-write-wins race between two concurrent matching submissions is rare and
+    /// acceptable in dev; the post-MVP "Wave 0 hardening" tail adds the lock.
+    /// </summary>
+    public virtual async Task<(Patient Patient, bool WasExisting)> FindOrCreateAsync(
+        Guid? tenantId,
+        Guid identityUserId,
+        string firstName,
+        string lastName,
+        string email,
+        Gender genderId,
+        DateTime dateOfBirth,
+        PhoneNumberType phoneNumberTypeId,
+        Guid? stateId = null,
+        Guid? appointmentLanguageId = null,
+        string? phoneNumber = null,
+        string? socialSecurityNumber = null,
+        string? zipCode = null,
+        string? middleName = null,
+        string? address = null,
+        string? city = null,
+        string? refferedBy = null,
+        string? cellPhoneNumber = null,
+        string? street = null,
+        string? interpreterVendorName = null,
+        string? apptNumber = null,
+        string? othersLanguageName = null)
+    {
+        var fn = PatientMatching.Normalise(firstName) ?? string.Empty;
+        var ln = PatientMatching.Normalise(lastName) ?? string.Empty;
+        var ssn = PatientMatching.NormaliseSsn(socialSecurityNumber);
+        var phone = PatientMatching.NormalisePhone(phoneNumber);
+        var zip = PatientMatching.Normalise(zipCode);
+
+        var match = await _patientRepository.FindBestMatchAsync(
+            tenantId,
+            fn,
+            ln,
+            dateOfBirth.Date,
+            ssn,
+            phone,
+            zip);
+
+        if (match != null)
+        {
+            var existing = await _patientRepository.GetAsync(match.Id);
+            return (existing, true);
+        }
+
+        var created = await CreateAsync(
+            stateId,
+            appointmentLanguageId,
+            identityUserId,
+            tenantId,
+            firstName,
+            lastName,
+            email,
+            genderId,
+            dateOfBirth,
+            phoneNumberTypeId,
+            middleName,
+            phoneNumber,
+            socialSecurityNumber,
+            address,
+            city,
+            zipCode,
+            refferedBy,
+            cellPhoneNumber,
+            street,
+            interpreterVendorName,
+            apptNumber,
+            othersLanguageName);
+
+        return (created, false);
     }
 }

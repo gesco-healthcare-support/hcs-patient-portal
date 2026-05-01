@@ -20,6 +20,10 @@ export interface AppointmentCreateDto {
   appointmentTypeId: string;
   locationId: string;
   doctorAvailabilityId: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentDto extends FullAuditedEntityDto<string> {
@@ -37,6 +41,10 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   locationId: string;
   doctorAvailabilityId: string;
   concurrencyStamp?: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentUpdateDto {
@@ -54,6 +62,10 @@ export interface AppointmentUpdateDto {
   locationId: string;
   doctorAvailabilityId: string;
   concurrencyStamp?: string;
+  patientEmail?: string;
+  applicantAttorneyEmail?: string;
+  defenseAttorneyEmail?: string;
+  claimExaminerEmail?: string;
 }
 
 export interface AppointmentApplicantAttorneyWithNavigationPropertiesDto {
@@ -70,6 +82,27 @@ export interface AppointmentWithNavigationPropertiesDto {
   location: LocationDto;
   doctorAvailability: DoctorAvailabilityDto;
   appointmentApplicantAttorney?: AppointmentApplicantAttorneyWithNavigationPropertiesDto;
+}
+
+export interface RejectAppointmentInput {
+  reason?: string;
+}
+
+export interface SendBackAppointmentInput {
+  flaggedFields: string[];
+  note?: string;
+}
+
+export interface AppointmentSendBackInfoDto {
+  id: string;
+  tenantId?: string;
+  appointmentId: string;
+  flaggedFields: string[];
+  note?: string;
+  sentBackAt: string;
+  sentBackByUserId?: string;
+  isResolved: boolean;
+  resolvedAt?: string;
 }
 
 export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {

@@ -1,0 +1,19 @@
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
+  <ng-template #abpHeader>
+    <h3>{{ '::Appointment:Modal:ApproveTitle' | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <p>{{ '::Appointment:Modal:ApproveBody' | abpLocalization }}</p>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ '::Appointment:Action:Cancel' | abpLocalization }}
+    </button>
+
+    <abp-button iconClass="fa fa-check" buttonType="button" (click)="confirm()">
+      {{ '::Appointment:Action:Approve' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

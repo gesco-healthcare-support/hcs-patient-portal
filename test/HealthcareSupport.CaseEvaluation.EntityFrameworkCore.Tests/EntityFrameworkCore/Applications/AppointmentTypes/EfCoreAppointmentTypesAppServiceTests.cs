@@ -1,0 +1,9 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using Xunit;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
+
+[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+public class EfCoreAppointmentTypesAppServiceTests : AppointmentTypesAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

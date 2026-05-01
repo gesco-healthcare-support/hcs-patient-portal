@@ -6,7 +6,9 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Data;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Validation;
 using Xunit;
 
@@ -18,25 +20,31 @@ namespace HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 /// under EntityFrameworkCore.Tests and supplies the TStartupModule that
 /// wires in SQLite + full ABP module graph.
 ///
-/// Phase B-6 Tier-1 PR-1B scope (Wave 1): validation-layer guards +
-/// GeneratePreviewAsync slot-math coverage only. Seeded CRUD happy-path,
-/// conflict-detection tests (require seeded existing slots), and
-/// repository nav-property joins are deferred to Wave 2 once the
-/// SQLite FK-enforcement posture for Location + AppointmentType seeds
-/// is resolved.
+/// Phase B-6 Tier-1 PR-1B (Wave 1): validation-layer guards +
+/// GeneratePreviewAsync slot-math coverage only. The slot-math tests
+/// pin the behavioural contract the planned P-11 refactor of the
+/// 41-cognitive-complexity GeneratePreviewAsync must preserve.
 ///
-/// This PR directly targets the 41-cognitive-complexity GeneratePreviewAsync
-/// method that the P-11 refactor will later split. The slot-math tests
-/// pin the behavioural contract the refactor must preserve.
+/// Phase B-6 Wave-2 PR-W2B: happy-path CRUD using seeded Slot1/2/3 +
+/// nav-prop hydration + BookingStatus + LocationId filter coverage.
+/// Tests that need a fresh Available slot create a scratch row via the
+/// repository so the seeded baseline (Slot1 Booked, Slot2 Available,
+/// Slot3 Booked) stays intact across test order.
 /// </summary>
 public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : CaseEvaluationApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
     private readonly IDoctorAvailabilitiesAppService _appService;
+    private readonly IDoctorAvailabilityRepository _slotRepository;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly IDataFilter _dataFilter;
 
     protected DoctorAvailabilitiesAppServiceTests()
     {
         _appService = GetRequiredService<IDoctorAvailabilitiesAppService>();
+        _slotRepository = GetRequiredService<IDoctorAvailabilityRepository>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
+        _dataFilter = GetRequiredService<IDataFilter>();
     }
 
     // =====================================================================
@@ -313,6 +321,225 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         result.ShouldNotBeNull();
         result.TotalCount.ShouldBe(0);
         result.Items.ShouldBeEmpty();
+    }
+
+    // =====================================================================
+    // Wave-2 PR-W2B: happy-path CRUD using seeded Slot1/2/3 + nav-prop
+    // hydration + filter coverage. Read tests use seeded rows directly.
+    // Mutation tests insert their own scratch rows so seeded baselines
+    // stay intact across test order.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetListAsync_FromHostContextWithFilterDisabled_ReturnsAllThreeSeededSlots()
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput { MaxResultCount = 100 });
+
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot1Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot2Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot3Id).ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_FromTenantAContext_ReturnsSlot1AndSlot2()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput { MaxResultCount = 100 });
+
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot1Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot2Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot3Id).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_FromTenantBContext_ReturnsOnlySlot3()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput { MaxResultCount = 100 });
+
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot3Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot1Id).ShouldBeFalse();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot2Id).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_FilterByBookingStatusAvailable_ReturnsSlot2Only()
+    {
+        // Slot2 is the only seeded slot with BookingStatus.Available.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appService.GetListAsync(new GetDoctorAvailabilitiesInput
+            {
+                BookingStatusId = BookingStatus.Available,
+                MaxResultCount = 100,
+            });
+
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot2Id).ShouldBeTrue();
+            result.Items.Any(x => x.DoctorAvailability.Id == DoctorAvailabilitiesTestData.Slot1Id).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task GetWithNavigationPropertiesAsync_ResolvesLocationAndAppointmentType()
+    {
+        // Slot1 has both LocationId (Location1) and AppointmentTypeId
+        // (AppointmentType1) populated, exercising the nav-prop join.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot1Id);
+
+            result.ShouldNotBeNull();
+            result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
+            result.Location.ShouldNotBeNull();
+            result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
+            result.AppointmentType.ShouldNotBeNull();
+            result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
+        }
+    }
+
+    [Fact]
+    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypeIdNull_ReturnsNullNavBranch()
+    {
+        // Slot2 has AppointmentTypeId = null, exercising the LEFT-JOIN's
+        // null-nav branch.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot2Id);
+
+            result.ShouldNotBeNull();
+            result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot2Id);
+            result.AppointmentType.ShouldBeNull();
+            result.Location.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenInputValid_PersistsScratchSlot()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = new DoctorAvailabilityCreateDto
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+                AvailableDate = new DateTime(2027, 8, 15, 0, 0, 0, DateTimeKind.Utc),
+                FromTime = new TimeOnly(11, 0),
+                ToTime = new TimeOnly(12, 0),
+                BookingStatusId = BookingStatus.Available,
+            };
+
+            var created = await _appService.CreateAsync(input);
+
+            created.ShouldNotBeNull();
+            created.LocationId.ShouldBe(input.LocationId);
+            created.BookingStatusId.ShouldBe(BookingStatus.Available);
+
+            var persisted = await _slotRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_FlipsAvailableScratchToReserved_Persists()
+    {
+        // Pin thin-AppService intent: UpdateAsync accepts BookingStatusId
+        // and overwrites it directly (Business Rule #7). Use a scratch
+        // slot so seeded data isn't mutated.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var scratch = new DoctorAvailability(
+                id: Guid.NewGuid(),
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: new DateTime(2027, 9, 1, 0, 0, 0, DateTimeKind.Utc),
+                fromTime: new TimeOnly(13, 0),
+                toTime: new TimeOnly(14, 0),
+                bookingStatusId: BookingStatus.Available);
+            var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
+
+            var existing = await _slotRepository.GetAsync(inserted.Id);
+            var update = new DoctorAvailabilityUpdateDto
+            {
+                LocationId = existing.LocationId,
+                AppointmentTypeId = existing.AppointmentTypeId,
+                AvailableDate = existing.AvailableDate,
+                FromTime = existing.FromTime,
+                ToTime = existing.ToTime,
+                BookingStatusId = BookingStatus.Reserved,
+                ConcurrencyStamp = existing.ConcurrencyStamp,
+            };
+
+            var result = await _appService.UpdateAsync(inserted.Id, update);
+            result.BookingStatusId.ShouldBe(BookingStatus.Reserved);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesScratchSlot()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var scratch = new DoctorAvailability(
+                id: Guid.NewGuid(),
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: new DateTime(2027, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+                fromTime: new TimeOnly(8, 0),
+                toTime: new TimeOnly(9, 0),
+                bookingStatusId: BookingStatus.Available);
+            var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
+
+            await _appService.DeleteAsync(inserted.Id);
+
+            (await _slotRepository.FindAsync(inserted.Id)).ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DeleteByDateAsync_RemovesAllSlotsForLocationAndDate_PreservesSeed()
+    {
+        // Use a scratch date distinct from Slot1 (2026-06-01) / Slot2
+        // (2026-06-02) / Slot3 (2026-06-03) so seeded baselines survive.
+        var scratchDate = new DateTime(2027, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var scratchA = new DoctorAvailability(
+                id: Guid.NewGuid(),
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: scratchDate,
+                fromTime: new TimeOnly(8, 0),
+                toTime: new TimeOnly(9, 0),
+                bookingStatusId: BookingStatus.Available);
+            var scratchB = new DoctorAvailability(
+                id: Guid.NewGuid(),
+                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                availableDate: scratchDate,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available);
+            var insertedA = await _slotRepository.InsertAsync(scratchA, autoSave: true);
+            var insertedB = await _slotRepository.InsertAsync(scratchB, autoSave: true);
+
+            await _appService.DeleteByDateAsync(new DoctorAvailabilityDeleteByDateInputDto
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AvailableDate = scratchDate,
+            });
+
+            (await _slotRepository.FindAsync(insertedA.Id)).ShouldBeNull();
+            (await _slotRepository.FindAsync(insertedB.Id)).ShouldBeNull();
+            // Seed Slot1 (different date) untouched.
+            (await _slotRepository.FindAsync(DoctorAvailabilitiesTestData.Slot1Id)).ShouldNotBeNull();
+        }
     }
 
     // =====================================================================

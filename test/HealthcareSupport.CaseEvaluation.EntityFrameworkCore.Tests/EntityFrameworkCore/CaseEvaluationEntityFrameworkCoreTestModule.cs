@@ -95,8 +95,23 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
 
     private static SqliteConnection CreateDatabaseAndGetConnection()
     {
-        var connection = new SqliteConnection("Data Source=:memory:");
+        // Microsoft.Data.Sqlite defaults FK enforcement OFF and EF Core's
+        // per-connection PRAGMA only fires when EF Core itself opens the
+        // connection. We open manually here to keep the in-memory DB alive
+        // across the test run, so we enable FK enforcement explicitly:
+        //   - "Foreign Keys=True" handles the fresh-open path.
+        //   - The explicit PRAGMA below is belt-and-suspenders in case ABP /
+        //     EF pool a wrapper that bypasses the connection-string opt-in.
+        // Without these, NoAction delete constraints exercised in Locations
+        // delete-constraint tests are silently skipped by the test DB.
+        var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
         connection.Open();
+
+        using (var pragmaCommand = connection.CreateCommand())
+        {
+            pragmaCommand.CommandText = "PRAGMA foreign_keys = ON;";
+            pragmaCommand.ExecuteNonQuery();
+        }
 
         var options = new DbContextOptionsBuilder<CaseEvaluationDbContext>()
             .UseSqlite(connection)

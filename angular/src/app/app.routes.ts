@@ -13,6 +13,7 @@ import { PATIENT_ROUTES } from './patients/patient/patient-routes';
 import { APPOINTMENT_ROUTES } from './appointments/appointment/appointment-routes';
 import { AppointmentAddComponent } from './appointments/appointment-add.component';
 import { APPLICANT_ATTORNEY_ROUTES } from './applicant-attorneys/applicant-attorney/applicant-attorney-routes';
+import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/defense-attorney-routes';
 
 export const APP_ROUTES: Routes = [
   {
@@ -101,6 +102,15 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'appointments/view/:id/change-log',
+    loadComponent: () =>
+      import('./appointments/appointment-change-logs/appointment-change-logs.component').then(
+        (c) => c.AppointmentChangeLogsComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
+  },
+  {
     path: 'doctor-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(
@@ -111,4 +121,17 @@ export const APP_ROUTES: Routes = [
   { path: 'doctor-management/doctor-availabilities', children: DOCTOR_AVAILABILITY_ROUTES },
   { path: 'doctor-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
+  { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
+  // D.2 (2026-04-30): admin invite UI for external users. Backend role-based
+  // gate (admin / Staff Supervisor / IT Admin) is the authoritative authz; the
+  // route guard here is just authGuard. External users hitting this URL get
+  // a 403 from the backend on submit -- the UI itself is harmless to render.
+  {
+    path: 'users/invite',
+    loadComponent: () =>
+      import('./external-users/components/invite-external-user.component').then(
+        (c) => c.InviteExternalUserComponent,
+      ),
+    canActivate: [authGuard],
+  },
 ];

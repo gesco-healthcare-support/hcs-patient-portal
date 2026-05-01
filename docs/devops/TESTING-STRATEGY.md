@@ -2,6 +2,8 @@
 
 [Home](../INDEX.md) > [DevOps](./) > Testing Strategy
 
+> Backend test coverage (live counts + per-entity rollup): see [docs/testing/coverage-status.md](../testing/coverage-status.md). Last verified 2026-04-24.
+
 ---
 
 ## Test Projects

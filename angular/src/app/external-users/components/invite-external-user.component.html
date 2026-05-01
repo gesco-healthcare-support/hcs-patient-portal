@@ -1,0 +1,154 @@
+<div class="container-fluid py-4 px-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="mb-0 fw-bold">Invite External User</h2>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="goBack()">
+      Back to home
+    </button>
+  </div>
+
+  <!--
+    D.2 (2026-04-30): explicit DEV-ONLY banner so the mechanism is never
+    confused with production-grade tokenised invites. The link works
+    indefinitely because there is no expiry; reissue is just resending the
+    same URL. This banner stays until SMTP-against-real-inboxes is wired
+    AND token-based invites are added (out of MVP scope).
+  -->
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+    <i class="fa fa-exclamation-triangle mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Development-only feature.</strong>
+      Invites are tenant-specific register links with no token, no expiry, and no acceptance state
+      machine. The link is shown below after submission so you can copy + paste it manually -- a
+      Mailtrap-style sandbox catches the email but does not deliver to real inboxes, and the
+      production ACS pipeline is not wired yet. When real SMTP lands, the recipient will receive the
+      same URL via email automatically.
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="invite-email" class="form-label fw-semibold">
+              Email
+              <span class="text-danger">*</span>
+            </label>
+            <input
+              id="invite-email"
+              type="email"
+              class="form-control"
+              formControlName="email"
+              placeholder="user@example.com"
+              autocomplete="off"
+            />
+            @if (form.get('email')?.touched && form.get('email')?.hasError('required')) {
+              <div class="text-danger small mt-1">Email is required.</div>
+            }
+            @if (form.get('email')?.touched && form.get('email')?.hasError('email')) {
+              <div class="text-danger small mt-1">Enter a valid email address.</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="invite-role" class="form-label fw-semibold">
+              Role
+              <span class="text-danger">*</span>
+            </label>
+            <select id="invite-role" class="form-select" formControlName="userType">
+              @for (option of roleOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <div class="form-text">
+              Internal roles (admin, Staff Supervisor, Clinic Staff, Doctor) are created via
+              Identity > Users; they are not invitable here.
+            </div>
+          </div>
+        </div>
+
+        @if (errorMessage()) {
+          <div class="alert alert-danger mt-3" role="alert">
+            {{ errorMessage() }}
+          </div>
+        }
+
+        <div class="mt-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary" [disabled]="isSubmitting()">
+            @if (isSubmitting()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+              Creating invite...
+            } @else {
+              Create invite
+            }
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            (click)="resetForm()"
+            [disabled]="isSubmitting()"
+          >
+            Reset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  @if (result(); as r) {
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-success text-white">
+        <h4 class="mb-0 fw-bold">Invite created</h4>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="text-muted small">Tenant</div>
+            <div class="fw-semibold">{{ r.tenantName }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Email</div>
+            <div class="fw-semibold">{{ r.email }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Role</div>
+            <div class="fw-semibold">{{ r.roleName }}</div>
+          </div>
+        </div>
+
+        <div class="text-muted small">Invite link</div>
+        <div class="input-group">
+          <input
+            type="text"
+            class="form-control"
+            [value]="r.inviteUrl"
+            readonly
+            (click)="$any($event.target).select()"
+          />
+          <button type="button" class="btn btn-outline-primary" (click)="copyInviteUrl()">
+            <i class="fa fa-copy me-1" aria-hidden="true"></i>
+            Copy link
+          </button>
+        </div>
+        @if (copyConfirmation()) {
+          <div class="text-success small mt-1">{{ copyConfirmation() }}</div>
+        }
+
+        <div class="mt-3 small">
+          @if (r.emailEnqueued) {
+            <span class="text-success">
+              <i class="fa fa-check-circle me-1" aria-hidden="true"></i>
+              Email enqueued for delivery via Hangfire. If SMTP is wired, the recipient will receive
+              this link automatically.
+            </span>
+          } @else {
+            <span class="text-warning">
+              <i class="fa fa-exclamation-triangle me-1" aria-hidden="true"></i>
+              Email enqueue failed. The link above is still valid -- copy and share it manually.
+            </span>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>
