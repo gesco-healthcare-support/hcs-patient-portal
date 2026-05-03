@@ -47,4 +47,39 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string CustomFieldDuplicateLabelAndType =
         "CaseEvaluation:CustomField.DuplicateLabelAndType";
+
+    /// <summary>
+    /// Phase 7 (2026-05-03) -- raised by
+    /// <c>DoctorAvailabilitiesAppService.UpdateAsync</c> when the slot
+    /// being updated is currently <c>Reserved</c> or <c>Booked</c>.
+    /// Mirrors OLD <c>DoctorsAvailabilityDomain.cs:126-130</c> -- protects
+    /// in-flight appointments from having their underlying slot mutated.
+    /// Localization key <c>DoctorAvailability:CannotUpdateBookedOrReserved</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotUpdateBookedOrReserved =
+        "CaseEvaluation:DoctorAvailability.CannotUpdateBookedOrReserved";
+
+    /// <summary>
+    /// Phase 7 (2026-05-03) -- raised by
+    /// <c>DoctorAvailabilitiesAppService.DeleteByDateAsync</c> when ANY
+    /// slot at the given date + location is <c>Reserved</c> or <c>Booked</c>.
+    /// Mirrors OLD <c>DoctorsAvailabilityDomain.cs:143-150</c>. Bulk-delete
+    /// must NOT silently drop slots that have appointments tied to them.
+    /// Localization key <c>DoctorAvailability:CannotBulkDeleteWithBookedSlots</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotBulkDeleteWithBookedSlots =
+        "CaseEvaluation:DoctorAvailability.CannotBulkDeleteWithBookedSlots";
+
+    /// <summary>
+    /// Phase 7 (2026-05-03) -- raised by
+    /// <c>DoctorAvailabilitiesAppService.DeleteAsync</c> when the slot is
+    /// referenced by an existing <c>Appointment</c> or
+    /// <c>AppointmentChangeRequest</c>. Mirrors OLD
+    /// <c>DoctorsAvailabilityDomain.cs:151-154</c>. Prevents historic-data
+    /// FK orphans even if the slot's <c>BookingStatus</c> was somehow
+    /// reset to <c>Available</c> by a manual data fix.
+    /// Localization key <c>DoctorAvailability:CannotDeleteReferenced</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotDeleteReferenced =
+        "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
 }

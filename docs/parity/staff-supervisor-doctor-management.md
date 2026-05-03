@@ -12,7 +12,8 @@ old-docs:
   - socal-project-overview.md (lines 529-539)
   - data-dictionary-table.md (Doctors, DoctorsAvailabilities, DoctorPreferredLocations, DoctorsAppointmentTypes, Locations, AppointmentTypes)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: in-progress
 priority: 2
 strict-parity: true
 internal-user-role: StaffSupervisor (also ITAdmin per permission matrix)
@@ -124,19 +125,32 @@ Staff Supervisor toggles which `AppointmentType` rows the doctor accepts. Bookin
 
 ## Gap analysis (strict parity)
 
-| Aspect | OLD | NEW | Action | Sev |
-|--------|-----|-----|--------|-----|
-| Slot bulk generation | OLD: `Add(DoctorsAvailability[])` with `GenerateDoctorsAvailabilityByDays` | NEW: TO VERIFY | **Add `IDoctorAvailabilityManagement.GenerateSlotsAsync(GenerateSlotsDto { DateRange, FromTime, ToTime, SlotDurationMinutes, LocationId, AppointmentTypeId? })`** | B |
-| Slot overlap validation | OLD has 4 checks | NEW: TO VERIFY | **Add overlap + duplicate + booked-conflict checks** | B |
-| Slot update guard | OLD: only Available is mutable | NEW: TO VERIFY | **Add status check** in update path | I |
-| Bulk delete by date+location | OLD: id=0 + dates + locationId | NEW: TO VERIFY | **Add `BulkDeleteByDateAsync(date, locationId)`** with booked/reserved guard | I |
-| `BookingStatusId` enum: Available / Reserved / Booked | OLD has all 3 | NEW: ?  Per booking audit, "Reserved" is missing | **Add Reserved value** | B |
-| `AppointmentTypeId` nullable on slot (any-type slot) | OLD field | NEW: TO VERIFY | **Add nullable `AppointmentTypeId Guid?`** | I |
-| Doctor preferred locations table + toggle UI | OLD entity + UI | NEW: TO VERIFY full CRUD | **Verify; add if missing** | I |
-| Doctor appointment-types table + toggle UI | OLD entity + UI | NEW: TO VERIFY | **Verify; add if missing** | I |
-| Slot picker filter: by location + type + Available | OLD applied | NEW: known gap (`GetDoctorAvailabilityLookupAsync` returns all) | **Add filter** | B |
-| Permissions | -- | NEW: TO VERIFY | **Add `CaseEvaluation.DoctorManagement.{Default, ManageAvailability, ManageLocations, ManageAppointmentTypes}` permissions; gate to Staff Supervisor + IT Admin** | I |
-| Soft delete via `StatusId` | OLD | NEW: ABP `ISoftDelete` | None -- use ABP's | -- |
+> **Phase 7 re-verification (2026-05-03):** The earlier draft assumed
+> several gaps existed that turn out to already be implemented. Notably,
+> NEW's `GeneratePreviewAsync` already covers OLD's 4 conflict checks
+> with a cleaner single-predicate overlap query, and `BookingStatus`
+> already has all three values. The actual gaps (booking-flow lookup,
+> validation guards on update / bulk-delete / single-delete, missing
+> `DoctorPreferredLocation` entity) are tracked below with implementation
+> annotations. See `_slot-generation-deep-dive.md` for the verbatim OLD
+> behavior reverse-engineered from `DoctorsAvailabilityDomain.cs`.
+
+| Aspect | OLD | NEW | Action | Sev | Status |
+|--------|-----|-----|--------|-----|--------|
+| Slot bulk generation | OLD: `Add(DoctorsAvailability[])` with `GenerateDoctorsAvailabilityByDays` | NEW: `GeneratePreviewAsync` (line 159 of AppService) | -- | B | [IMPLEMENTED 2026-04-29 - via prior W2 work] -- preview-then-confirm UX matches OLD; per-day Math.Floor slot subdivision matches OLD line 310. |
+| Slot overlap validation | OLD has 4 checks (DoctorsAvailabilityDomain.cs:46-99) | NEW: single predicate (`x.FromTime < new.ToTime && x.ToTime > new.FromTime`) | -- | B | [IMPLEMENTED 2026-04-29 - via prior W2 work; OLD-BUG-FIX] -- Cleaner functionally-equivalent overlap detection. NEW also fixes OLD's cross-location-vs-same-location inconsistency (audit deep-dive lines 408 vs 59); NEW always scopes by Location. |
+| Slot update guard | OLD: only Available is mutable (DoctorsAvailabilityDomain.cs:126-130) | NEW: ADDED 2026-05-03 | **Add status check** in update path | I | [IMPLEMENTED 2026-05-03 - pending testing] -- `DoctorAvailabilitiesAppService.UpdateAsync` reads existing entity; throws `DoctorAvailabilityCannotUpdateBookedOrReserved` if Reserved/Booked. |
+| Bulk delete by date+location | OLD: id=0 + dates + locationId (DoctorsAvailabilityDomain.cs:143-150) | NEW: ADDED 2026-05-03 | **Add booked/reserved guard** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- `DeleteByDateAsync` queries the date+location set; throws `DoctorAvailabilityCannotBulkDeleteWithBookedSlots` if any slot has in-flight status. |
+| Single delete reference guard | OLD: rejects if vAppointment / vAppointmentChangeRequestRecord references it (DoctorsAvailabilityDomain.cs:151-154) | NEW: ADDED 2026-05-03 | **Add reference check** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- `DeleteAsync` checks both `IRepository<Appointment>.AnyAsync(DoctorAvailabilityId)` and `IRepository<AppointmentChangeRequest>.AnyAsync(NewDoctorAvailabilityId)`; throws `DoctorAvailabilityCannotDeleteReferenced` if either matches. |
+| `BookingStatusId` enum: Available / Reserved / Booked | OLD has all 3 | NEW: present (Available=8, Booked=9, Reserved=10) | -- | B | [IMPLEMENTED prior - via Phase 1.7] -- enum values match OLD verbatim. |
+| `AppointmentTypeId` nullable on slot (any-type slot) | OLD field | NEW: present (`Guid?`) | -- | I | [IMPLEMENTED prior - via Phase 1.7] |
+| Doctor preferred locations table + toggle UI | OLD entity + UI | NEW: missing | **Add `DoctorPreferredLocation` entity + AppService Toggle** | I | [DESCOPED 2026-05-03 - Phase 7b follow-up] -- entity not yet present. Booking-form Location filter via existing `GetLocationLookupAsync`; per-doctor scoping deferred. |
+| Doctor appointment-types table + toggle UI | OLD entity + UI | NEW: entity exists (`DoctorAppointmentType`) but no service surface | **Add AppService Toggle endpoints** | I | [DESCOPED 2026-05-03 - Phase 7b follow-up] -- entity present at `Domain/Doctors/DoctorAppointmentType.cs`. Service-side toggle endpoint deferred. |
+| Slot picker filter: by location + type + Available | OLD: stored proc `spm.spDoctorsAvailabilitiesLookups` | NEW: ADDED 2026-05-03 | **Add `GetDoctorAvailabilityLookupAsync`** | B | [IMPLEMENTED 2026-05-03 - pending testing] -- new method on `IDoctorAvailabilitiesAppService`; filter: LocationId required, AppointmentTypeId optional (loose-or-strict per OLD), `BookingStatus.Available`, AvailableDate >= today + `SystemParameter.AppointmentLeadTime`. Open to any authenticated user (booking form needs read access). |
+| Read endpoint authorization | -- | NEW: `GetListAsync` had only `[Authorize]` (any authenticated) | **Tighten to `.Default`** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- now `[Authorize(DoctorAvailabilities.Default)]` matching all other read endpoints. |
+| Permissions: ManageAvailability / BulkGenerate / BulkDelete | -- | NEW: standard CRUD only | **Add fine-grained gates** | I | [DESCOPED 2026-05-03 - Phase 7b follow-up] -- existing Edit / Delete keys cover all current use cases. Splitting into bulk-specific gates is incremental and not blocking. |
+| Soft delete via `StatusId` | OLD | NEW: ABP `ISoftDelete` | None -- use ABP's | -- | [IMPLEMENTED prior] |
+| Pure helpers extracted for unit testing | -- | -- | **Extract `HasInFlightStatus`, `ComputeNumberOfSlotsPerDay`, `IsValidSlotTimeRange`, `IsValidSlotDateRange`** | C | [IMPLEMENTED 2026-05-03 - pending testing] -- internal-static helpers added; 16 pure unit tests cover boundary cases (zero / negative / inverted / boundary times). |
 
 ## Internal dependencies surfaced
 

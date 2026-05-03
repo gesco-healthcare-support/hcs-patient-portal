@@ -98,4 +98,11 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
     {
         return _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
     }
+
+    [HttpGet]
+    [Route("lookup")]
+    public virtual Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync([FromQuery] GetDoctorAvailabilityLookupInput input)
+    {
+        return _doctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(input);
+    }
 }
