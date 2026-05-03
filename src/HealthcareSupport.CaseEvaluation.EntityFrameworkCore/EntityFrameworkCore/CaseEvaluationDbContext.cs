@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
@@ -52,6 +53,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
     public DbSet<SystemParameter> SystemParameters { get; set; } = null!;
     public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<CustomField> CustomFields { get; set; } = null!;
+    public DbSet<CustomFieldValue> CustomFieldValues { get; set; } = null!;
     public DbSet<PackageDetail> PackageDetails { get; set; } = null!;
     public DbSet<DocumentPackage> DocumentPackages { get; set; } = null!;
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
@@ -310,6 +313,42 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.DocumentId).HasColumnName(nameof(DocumentPackage.DocumentId));
             b.Property(x => x.IsActive).HasColumnName(nameof(DocumentPackage.IsActive));
             b.HasOne<Document>().WithMany().HasForeignKey(x => x.DocumentId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // CustomField (Phase 6) -- IT-Admin-defined intake field. Mirrors
+        // OLD spm.CustomFields. Composite index on (TenantId, AppointmentTypeId,
+        // IsActive) supports the per-tenant max-10-active query path used by
+        // CustomFieldsAppService.EnsureUnderActiveCapAsync.
+        builder.Entity<CustomField>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "CustomFields", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.FieldLabel).HasColumnName(nameof(CustomField.FieldLabel)).IsRequired().HasMaxLength(CustomFieldConsts.FieldLabelMaxLength);
+            b.Property(x => x.DisplayOrder).HasColumnName(nameof(CustomField.DisplayOrder));
+            b.Property(x => x.FieldType).HasColumnName(nameof(CustomField.FieldType)).HasConversion<int>();
+            b.Property(x => x.FieldLength).HasColumnName(nameof(CustomField.FieldLength));
+            b.Property(x => x.MultipleValues).HasColumnName(nameof(CustomField.MultipleValues)).HasMaxLength(CustomFieldConsts.MultipleValuesMaxLength);
+            b.Property(x => x.DefaultValue).HasColumnName(nameof(CustomField.DefaultValue)).HasMaxLength(CustomFieldConsts.DefaultValueMaxLength);
+            b.Property(x => x.IsMandatory).HasColumnName(nameof(CustomField.IsMandatory));
+            b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(CustomField.AppointmentTypeId));
+            b.Property(x => x.IsActive).HasColumnName(nameof(CustomField.IsActive));
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.IsActive });
+        });
+
+        // CustomFieldValue (Phase 6) -- per-appointment captured value.
+        builder.Entity<CustomFieldValue>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "CustomFieldValues", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.CustomFieldId).HasColumnName(nameof(CustomFieldValue.CustomFieldId));
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(CustomFieldValue.AppointmentId));
+            b.Property(x => x.Value).HasColumnName(nameof(CustomFieldValue.Value)).IsRequired().HasMaxLength(CustomFieldConsts.ValueMaxLength);
+            b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => x.CustomFieldId);
+            b.HasOne<CustomField>().WithMany().HasForeignKey(x => x.CustomFieldId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Appointment>().WithMany().HasForeignKey(x => x.AppointmentId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
         // AppointmentChangeRequest -- user cancel / reschedule request lifecycle.

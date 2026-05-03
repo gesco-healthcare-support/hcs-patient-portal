@@ -1,4 +1,4 @@
-﻿namespace HealthcareSupport.CaseEvaluation;
+namespace HealthcareSupport.CaseEvaluation;
 
 public static class CaseEvaluationDomainErrorCodes
 {
@@ -27,4 +27,24 @@ public static class CaseEvaluationDomainErrorCodes
     /// row would orphan a package row).
     /// </summary>
     public const string DocumentInUse = "CaseEvaluation:Document.InUse";
+
+    /// <summary>
+    /// Raised by <c>CustomFieldsAppService.CreateAsync</c> when the IT Admin
+    /// tries to create an 11th active row for the same <c>AppointmentTypeId</c>.
+    /// Mirrors OLD spec line 543 ("Up to 10 fields per appointment type"),
+    /// corrected from OLD's buggy global <c>== 10</c> check
+    /// (CustomFieldDomain.cs:38-42) to a per-AppointmentTypeId
+    /// <c>&gt;= 10</c> check. Localization key
+    /// <c>CustomField:Max10ActivePerAppointmentType</c>.
+    /// </summary>
+    public const string CustomFieldMax10ActivePerAppointmentType =
+        "CaseEvaluation:CustomField.Max10ActivePerAppointmentType";
+
+    /// <summary>
+    /// Raised by <c>CustomFieldsAppService.CreateAsync / UpdateAsync</c> when
+    /// another active row with the same (FieldLabel, FieldType) already
+    /// exists. Mirrors OLD <c>CustomFieldDomain.cs:39 / 69</c>.
+    /// </summary>
+    public const string CustomFieldDuplicateLabelAndType =
+        "CaseEvaluation:CustomField.DuplicateLabelAndType";
 }
