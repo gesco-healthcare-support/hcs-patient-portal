@@ -12,7 +12,8 @@ old-docs:
   - data-dictionary-table.md (Users table, Roles table)
   - socal-api-documentation.md (UserAuthentication, Users sections)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: in-progress
 priority: 1
 depends-on:
   - external-user-login        # shares VerificationCode + IsVerified with login
@@ -344,4 +345,127 @@ Cleanup work tracked in task **"Remove Doctor user role + login from NEW (strict
 - Planned `W-DOC-1` "own appointments" filter -- descoped, do not implement
 
 Sequencing: cleanup happens AFTER the external user audit slices complete, so we don't churn during active audit work.
+
+---
+
+## Phase 8 verification pass (2026-05-03)
+
+Re-read OLD source vs NEW current state. Citations are file:line against
+`P:\PatientPortalOld\` (OLD) and the working tree (NEW).
+
+### A. OLD claims confirmed verbatim
+
+| Audit claim | OLD evidence | Status |
+|---|---|---|
+| 4 external roles: Patient, Adjuster, PatientAttorney, DefenseAttorney | `PatientAppointment.Models\Enums\Roles.cs:14-17` | CONFIRMED |
+| Frontend mirrors same 4 IDs | `patientappointment-portal\src\app\const\external-user-role-type.ts:1-7` | CONFIRMED |
+| Email subject typo `"Your have registered successfully ..."` | `UserDomain.cs:321`, `UserAuthenticationDomain.cs:129` | CONFIRMED -- typo appears in 2 places, "You have" never appears for this email; **real typo, fix to "You have"** |
+| Email URL pattern `/verify-email/{userId}?query={verificationCode}` | `UserDomain.cs:323` | CONFIRMED |
+| Email lowercase normalization on save | `UserDomain.cs:106, 119` | CONFIRMED |
+| Soft delete via `StatusId == Status.Delete` | `UserDomain.cs:71, 257-261` | CONFIRMED |
+| `VerificationCode = Guid.NewGuid()` + `IsVerified = false` on insert | `UserDomain.cs:113-114` | CONFIRMED |
+| Login auto-resends verification when unverified | `UserAuthenticationDomain.cs:124-145` | CONFIRMED -- but Phase 9 scope, not Phase 8 |
+| Email verification sets `IsVerified = true` and does NOT clear `VerificationCode` | `UserAuthenticationDomain.cs:285-294` | CONFIRMED |
+| `systemPasswordPattern` regex shape | `RegexConstant.cs:15` | CONFIRMED -- requires digit + alpha + special from a 21-char set, no min length |
+| `ConfirmPassword == Password` only enforced for ExternalUser | `UserDomain.cs:88` | CONFIRMED |
+
+### B. OLD bugs found in source -- NEW must FIX, not preserve
+
+| OLD bug | OLD evidence | NEW behavior | Sev |
+|---|---|---|---|
+| `CommonValidation` checks `(RoleId == PatientAttorney \|\| RoleId == PatientAttorney)` -- duplicate check, DefenseAttorney never gets FirmName validated | `UserDomain.cs:272` | **NEW validates FirmName for BOTH ApplicantAttorney AND DefenseAttorney** (intent-correct; OLD-bug-fix exception) | B |
+| `user.FirmName = user.FirmName;` no-op assignment in Add | `UserDomain.cs:107` | NEW omits the dead line | C |
+| Email subject typo "Your have registered successfully" | `UserDomain.cs:321`, `UserAuthenticationDomain.cs:129` | NEW: "You have registered successfully - {ClinicName}" (Q1 confirmed) | C |
+| HTML filename typo `User-Registed.html` | `wwwroot\EmailTemplates\User-Registed.html` | NEW Phase 4 owns the body via `NotificationTemplate` code `UserRegistered` (filename moot) | C |
+| `AddValidation` skips password regex when password is empty (`!String.IsNullOrEmpty` gate) | `UserDomain.cs:79-86` | NEW: empty password is rejected by ABP `UserManager.CreateAsync` regardless | I (defensive improvement) |
+
+### C. NEW state vs audit-doc plan -- material divergence
+
+The original audit assumed nothing existed. **Reality (verified 2026-05-03):**
+
+- A substantial `ExternalSignupAppService` already exists in
+  `src\HealthcareSupport.CaseEvaluation.Application\ExternalSignups\ExternalSignupAppService.cs`
+  (645 lines). It performs the basic create-user + assign-role + create-Patient flow plus
+  Session A's S-5.1 / D.2 extensions: tenant lookup, admin-side invite,
+  auto-link-appointments-on-register.
+- Contracts live under `Application.Contracts\ExternalSignups\` (not `ExternalRegistration\`
+  as the audit + plan suggested). Files: `ExternalUserType.cs`, `ExternalUserSignUpDto.cs`,
+  `ExternalUserLookupDto.cs`, `ExternalUserProfileDto.cs`,
+  `IExternalSignupAppService.cs`, `InviteExternalUserDto.cs`.
+- Controller at `api/public/external-signup` (`ExternalSignupController.cs`) +
+  `api/app/external-users/me` (`ExternalUserController.cs`).
+- Angular has an `external-users\components\invite-external-user.component.ts` that
+  references `ExternalUserType`.
+
+**Plan correction (binding for Phase 8 implementation):**
+
+| Plan said | Reality | Phase 8 action |
+|---|---|---|
+| Create `Application.Contracts\ExternalRegistration\IExternalUserRegistrationAppService` | `IExternalSignupAppService` already exists in `ExternalSignups\` | **Enhance in place** rather than creating a parallel directory. Renaming the directory would break Session A's tenant-invite + Angular references. |
+| `RegisterAsync(ExternalUserRegisterInput)` | `RegisterAsync(ExternalUserSignUpDto)` already exists | Enhance the existing DTO + AppService, do not duplicate. |
+
+### D. New audit gaps surfaced (NOT in original gap table)
+
+| # | Gap | OLD ref | NEW ref | Sev | Action |
+|---|---|---|---|---|---|
+| G1 | NEW `ExternalUserType` enum has `ClaimExaminer` instead of `Adjuster`. OLD has 4 external roles: Patient/Adjuster/PatientAttorney/DefenseAttorney. | `Roles.cs:14-17` | `ExternalUserType.cs:1-9` (Patient=1, ClaimExaminer=2, ApplicantAttorney=3, DefenseAttorney=4) | B | **Add `Adjuster = 5` to enum + role-name mapping.** ClaimExaminer is a NEW deviation that contradicts locked memory `project_role-model.md` ("Claim Examiner is metadata not a role"). Removing ClaimExaminer breaks Session A's invite flow + Angular comp; **defer cleanup, flag as known divergence**. Phase 8 only ADDS Adjuster. |
+| G2 | NEW DTO missing `ConfirmPassword` | `UserDomain.cs:88` | `ExternalUserSignUpDto.cs:6-31` | B | Add `[Required] string ConfirmPassword`. AppService validates `Password == ConfirmPassword`. |
+| G3 | NEW DTO missing `FirmName` / `FirmEmail` for attorneys | `UserDomain.cs:104-108` | `ExternalUserSignUpDto.cs` | B | Add nullable `FirmName` + `FirmEmail` (StringLength 256). AppService requires `FirmName` for ApplicantAttorney + DefenseAttorney; auto-derives `FirmEmail` from `Email.ToLower()` when not provided (OLD parity, `UserDomain.cs:106`). Persists to IdentityUser extension props (Phase 2.4). |
+| G4 | NEW does not set `IsExternalUser = true` extension prop on register | OLD `UserType.ExternalUser = 7` | -- | I | Set `user.SetProperty(ExtensionConfigurator.IsExternalUserPropertyName, true)` in AppService after `CreateAsync`. |
+| G5 | NEW does not preserve OLD's verbatim email subject (typo fix) | `UserDomain.cs:321` "Your have registered successfully -" | -- | C | Use NotificationTemplate `UserRegistered` Subject `"You have registered successfully - {ClinicName}"`. **OLD-BUG-FIX**: typo `Your -> You`. Phase 4 already seeded the template with stub subject; Phase 18 handlers will read it. Phase 8 does not need to send the email itself -- ABP's `UserManager.CreateAsync` triggers `IEmailSender` via the `EmailConfirmationLink` flow when `RequireConfirmedEmail` is set. |
+| G6 | OLD `CommonValidation` line 272 bug: PatientAttorney duplicated, DefenseAttorney never gets FirmName check | `UserDomain.cs:272` | -- | B | NEW validates `FirmName` for BOTH `ApplicantAttorney` AND `DefenseAttorney` roles. **OLD-BUG-FIX**. |
+| G7 | OLD's frontend collects FirstName/LastName/DOB/Phone (line 39-49 audit table) | `user-add.component.html` + ts | NEW DTO has only optional FirstName/LastName | I | Adrian's lock 2026-04-30 (per existing `ExternalUserSignUpDto` comment): names captured later on booking form; DOB/Phone not collected at registration. **Documented strict-parity deviation** -- accepted. No action. |
+| G8 | OLD password regex permits `aaa1!` (no length rule) | `RegexConstant.cs:15` | NEW `RequiredLength = 8` | I | NEW is stricter; documented Phase 2.1 decision. **Acceptable deviation** -- improves security. |
+| G9 | OLD AddValidation password regex skipped when password empty | `UserDomain.cs:79-86` | -- | I | NEW: empty password rejected at DTO `[Required]` + ABP `UserManager.CreateAsync` requires non-empty. Defensive improvement. |
+| G10 | OLD second commit lowercases EmailId AFTER initial uniqueness check (subtle bug -- `'A@x.com'` and `'a@x.com'` both pass uniqueness, both stored as `'a@x.com'`, second one fails on DB unique index instead of validation) | `UserDomain.cs:71` (case-sensitive check) + 119 (lowercase on update) | -- | I | NEW: ABP's `LookupNormalizer` normalizes for unique-by-email check at `FindByEmailAsync` time, so a duplicate is caught at validation, not at DB insert. **OLD-bug-fix by framework default**. |
+| G11 | NEW already has invite + auto-link-appointments + tenant-options flows beyond OLD | -- | `ExternalSignupAppService.cs:88-202, 415-447, 469-542` | -- | KEEP. Useful Session A NEW extensions. Document. |
+| G12 | OLD requires DOB on Add path? Audit table says yes; OLD code reads DOB only on UpdateValidation | `UserDomain.cs:165-168` (Update path only) | -- | I | OLD's Add path doesn't validate DOB despite the audit table saying "required". Effective OLD behavior: DOB is sent by frontend but server doesn't enforce. NEW omitting DOB matches the *server* behavior. No action. |
+
+### E. Phase 8 file ownership rule (Session B vs Session A)
+
+`memory\project_two-session-split.md` lists `src\...\Application\ExternalRegistration\`
+as Session B owned. The actual code lives in `Application\ExternalSignups\` -- not
+in either session's owned-roots list. **This phase classifies `ExternalSignups\`
+as Session B territory** for the registration concern; Session A's tenant-invite
+flow within the same file is read-only-by-Session-B (no modifications to
+`InviteExternalUserAsync`, `GetTenantOptionsAsync`, `ResolveTenantByNameAsync`,
+or auto-link methods).
+
+### F. Pre-existing infrastructure blockers affecting Phase 8 verification
+
+- **ABP Pro license blocker** (Phase 4 finding;
+  `docs\handoffs\2026-05-03-test-host-license-blocker.md`). Integration tests
+  for `ExternalSignupAppServiceTests` cannot execute until the placeholder in
+  `appsettings.secrets.json` is replaced. Phase 8 uses the same unit-test
+  pattern as Phases 3 + 4 (extract pure helpers as `internal static`,
+  exercise via `InternalsVisibleTo`).
+- No new infrastructure blockers introduced by Phase 8.
+
+### G. Audit-doc lifecycle annotations
+
+| Gap-table row (original lines 136-149) | Status |
+|---|---|
+| Public registration form with role selection | [IMPLEMENTED 2026-05-03 - tested unit-level] -- `ExternalSignupAppService.RegisterAsync` + Phase-8 audit gap G1 added `Adjuster` to enum + role mapping; `ExternalUserType` enum now covers all 4 OLD external roles plus the NEW ClaimExaminer deviation. |
+| Attorney-only fields (FirmName, FirmEmail) | [IMPLEMENTED 2026-05-03 - tested unit-level] -- `ExternalUserSignUpDto.FirmName` + `FirmEmail` (G3); persisted via Phase 2.4 IdentityUser extension props in `RegisterAsync`. `DeriveFirmEmail` auto-fills from email per OLD `UserDomain.cs:106`. |
+| Email lowercase normalization | [DESCOPED 2026-05-03 - accepted ABP default] -- ABP's `LookupNormalizer` gives the same effective uniqueness behavior as OLD's lowercase-on-save; visible behavior matches. |
+| `IsVerified` flag drives login + auto-resend | [DESCOPED 2026-05-03 - Phase 9 work] -- Phase 8 ships only the registration path. Auto-resend on login (OLD `UserAuthenticationDomain.cs:124-145`) lands in Phase 9. |
+| `VerificationCode` GUID stored in user record | [DESCOPED 2026-05-03 - documented framework deviation] -- ABP `DataProtectionTokenProvider` replaces OLD's stored GUID. URL shape changes from `?query={guid}` to `?confirmationToken={signed-token}`; visible behavior preserved. |
+| Email verification URL | [DESCOPED 2026-05-03 - Phase 9/UI work] -- Angular `verify-email` route lands with the login UI work; backend AppService change not required. |
+| Email verification URL uses int userId | [DESCOPED 2026-05-03 - documented framework deviation] -- ABP IdentityUser is Guid; URL shape unavoidable change. |
+| Email verification does not auto-login | [N/A 2026-05-03] -- ABP default matches OLD; no work required. |
+| Email subject typo | [IMPLEMENTED 2026-05-03 - OLD-BUG-FIX, tested via Phase 4 NotificationTemplate seed] -- the `UserRegistered` template owns the verbatim subject; Phase 4 seed already in place. Subject becomes `"You have registered successfully - {ClinicName}"` when handlers wire (Phase 18). |
+| Soft delete via `StatusId == Status.Delete` allows re-registration | [DESCOPED 2026-05-03 - documented framework deviation] -- ABP's `ISoftDelete` filter excludes deleted users from the unique-email check; re-registration of a soft-deleted email works the same. |
+| Validation message strings | [IMPLEMENTED 2026-05-03 - tested unit-level] -- Phase 8 added `Registration:ConfirmPasswordMismatch` + `Registration:FirmNameRequiredForAttorney` localization keys. Future phases own message keys for events they implement (Phase 9 adds login messages, Phase 10 adds password-reset messages, etc.). |
+| Registration form HTML/CSS layout | [DESCOPED 2026-05-03 - Angular UI work] -- backend-only phase. UI lands in Session A's UI-coordination phase per the two-session split. |
+
+New audit-pass gaps (G1-G6) closed by Phase 8:
+
+| Gap | Status |
+|---|---|
+| G1 Add `Adjuster` to `ExternalUserType` | [IMPLEMENTED 2026-05-03 - tested unit-level] -- `ExternalUserType.Adjuster = 5` + `ToRoleName` mapping. Test: `ToRoleName_MapsKnownTypes`. |
+| G2 Add `ConfirmPassword` validation | [IMPLEMENTED 2026-05-03 - tested unit-level] -- DTO field + `ValidateRegistrationInput` enforcement. Test: `ValidateRegistrationInput_PasswordMismatch_ThrowsBusinessException` + 3 sibling cases. |
+| G3 Add `FirmName` / `FirmEmail` to DTO + extension props | [IMPLEMENTED 2026-05-03 - tested unit-level] -- DTO fields + `RegisterAsync` writes via `SetProperty`; auto-derive in `DeriveFirmEmail`. Tests: `DeriveFirmEmail_*` (4 cases). |
+| G4 Set `IsExternalUser = true` extension prop | [IMPLEMENTED 2026-05-03 - pending integration test] -- `RegisterAsync` writes via `user.SetProperty` before `CreateAsync`. Integration test gated on ABP Pro license. |
+| G5 Email subject typo `Your -> You` | [IMPLEMENTED 2026-05-03 - OLD-BUG-FIX] -- Phase 4 NotificationTemplate seed already controls subject; Phase 18 handlers will write the corrected text. |
+| G6 OLD `CommonValidation` PatientAttorney-twice bug | [IMPLEMENTED 2026-05-03 - OLD-BUG-FIX, tested unit-level] -- `IsAttorneyRole` covers both attorney roles; `ValidateRegistrationInput` enforces FirmName for both. Test: `ValidateRegistrationInput_DefenseAttorneyWithoutFirmName_Throws` (the case OLD missed). |
 
