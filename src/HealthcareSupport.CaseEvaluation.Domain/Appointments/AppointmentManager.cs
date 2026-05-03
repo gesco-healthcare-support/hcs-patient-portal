@@ -1,8 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using Stateless;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using Volo.Abp;
@@ -16,16 +14,13 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class AppointmentManager : DomainService
 {
     protected IAppointmentRepository _appointmentRepository;
-    protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     protected ILocalEventBus _localEventBus;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
-        IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
         ILocalEventBus localEventBus)
     {
         _appointmentRepository = appointmentRepository;
-        _sendBackInfoRepository = sendBackInfoRepository;
         _localEventBus = localEventBus;
     }
 
@@ -68,60 +63,15 @@ public class AppointmentManager : DomainService
     }
 
     /// <summary>
-    /// W1-1 transition: Pending|AwaitingMoreInfo -> Approved.
-    /// Stamps <c>AppointmentApproveDate</c> on entry; publishes
+    /// Pending -> Approved. Stamps <c>AppointmentApproveDate</c> on entry; publishes
     /// <see cref="AppointmentStatusChangedEto"/> for slot-cascade + email subscribers.
     /// </summary>
     public virtual Task<Appointment> ApproveAsync(Guid id, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.Approve, reason: null, actingUserId);
 
-    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Rejected.</summary>
+    /// <summary>Pending -> Rejected.</summary>
     public virtual Task<Appointment> RejectAsync(Guid id, string? reason, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.Reject, reason, actingUserId);
-
-    /// <summary>
-    /// W1-1 transition: Pending -> AwaitingMoreInfo. Persists an
-    /// <see cref="AppointmentSendBackInfo"/> row capturing the office's flagged
-    /// fields + freeform note before firing the trigger.
-    /// </summary>
-    public virtual async Task<Appointment> SendBackAsync(Guid id, IEnumerable<string> flaggedFields, string? note, Guid? actingUserId)
-    {
-        var appointment = await _appointmentRepository.GetAsync(id);
-
-        var sendBackRow = new AppointmentSendBackInfo(
-            GuidGenerator.Create(),
-            appointment.TenantId,
-            appointment.Id,
-            flaggedFields ?? Enumerable.Empty<string>(),
-            note,
-            actingUserId);
-        await _sendBackInfoRepository.InsertAsync(sendBackRow, autoSave: true);
-
-        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.SendBack, note, actingUserId);
-    }
-
-    /// <summary>
-    /// W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker
-    /// re-submits the booking form. Marks the latest unresolved
-    /// <see cref="AppointmentSendBackInfo"/> row as resolved.
-    /// </summary>
-    public virtual async Task<Appointment> SaveAndResubmitAsync(Guid id, Guid? actingUserId)
-    {
-        var appointment = await _appointmentRepository.GetAsync(id);
-
-        var sendBackQueryable = await _sendBackInfoRepository.GetQueryableAsync();
-        var latestUnresolved = sendBackQueryable
-            .Where(x => x.AppointmentId == id && !x.IsResolved)
-            .OrderByDescending(x => x.SentBackAt)
-            .FirstOrDefault();
-        if (latestUnresolved != null)
-        {
-            latestUnresolved.MarkResolved();
-            await _sendBackInfoRepository.UpdateAsync(latestUnresolved, autoSave: true);
-        }
-
-        return await ApplyTransitionAsync(appointment, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
-    }
 
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
@@ -150,8 +100,6 @@ public class AppointmentManager : DomainService
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
-        // W2-3: snapshot the slot ID on the ETO so SlotCascadeHandler doesn't
-        // re-fetch the appointment for the common single-slot transition path.
         await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
             appointment.Id,
             appointment.TenantId,
@@ -166,11 +114,12 @@ public class AppointmentManager : DomainService
     }
 
     /// <summary>
-    /// Builds the appointment status state machine. All 14 transitions are
-    /// configured declaratively; W1-1 only exposes endpoints for Approve /
-    /// Reject / SendBack / SaveAndResubmit. Cancel / Reschedule / day-of-exam triggers
-    /// are reachable in the graph but unreachable through the API surface
-    /// until Wave 3 (appointment-change-requests).
+    /// Builds the appointment status state machine. Per OLD spec
+    /// (Phase 0.2, 2026-05-01) Pending transitions only to Approved or Rejected;
+    /// there is no SendBack / AwaitingMoreInfo / SaveAndResubmit path. Cancel /
+    /// Reschedule / day-of-exam triggers are reachable in the graph but
+    /// unreachable through the API surface until Wave 3
+    /// (appointment-change-requests).
     /// </summary>
     private static StateMachine<AppointmentStatusType, AppointmentTransitionTrigger> BuildMachine(Appointment appointment)
     {
@@ -179,12 +128,6 @@ public class AppointmentManager : DomainService
             s => appointment.AppointmentStatus = s);
 
         machine.Configure(AppointmentStatusType.Pending)
-            .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
-            .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected)
-            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.AwaitingMoreInfo);
-
-        machine.Configure(AppointmentStatusType.AwaitingMoreInfo)
-            .Permit(AppointmentTransitionTrigger.SaveAndResubmit, AppointmentStatusType.Pending)
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected);
 

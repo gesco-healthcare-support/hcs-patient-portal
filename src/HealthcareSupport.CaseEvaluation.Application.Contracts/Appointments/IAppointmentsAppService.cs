@@ -53,18 +53,9 @@ public interface IAppointmentsAppService : IApplicationService
     /// </summary>
     Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input);
 
-    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Approved.</summary>
+    /// <summary>Transition: Pending -> Approved.</summary>
     Task<AppointmentDto> ApproveAsync(Guid id);
 
-    /// <summary>W1-1 transition: Pending|AwaitingMoreInfo -> Rejected.</summary>
+    /// <summary>Transition: Pending -> Rejected.</summary>
     Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input);
-
-    /// <summary>W1-1 transition: Pending -> AwaitingMoreInfo. Captures office flagged fields + note.</summary>
-    Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input);
-
-    /// <summary>W1-1 auto-transition: AwaitingMoreInfo -> Pending. Fires when the booker re-submits the booking form with edits.</summary>
-    Task<AppointmentDto> SaveAndResubmitAsync(Guid id);
-
-    /// <summary>W1-1 booker banner: returns the latest unresolved AppointmentSendBackInfo row for the appointment, or null if none.</summary>
-    Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id);
 }

@@ -1,5 +1,4 @@
 using HealthcareSupport.CaseEvaluation.Enums;
-using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
@@ -27,7 +26,6 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
         return await (await GetDbSetAsync()).Where(b => b.Id == id).Include(x => x.AppointmentTypes).Include(x => x.Locations).Select(doctor => new DoctorWithNavigationProperties
         {
             Doctor = doctor,
-            IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == doctor.IdentityUserId),
             AppointmentTypes = (
             from doctorAppointmentTypes in doctor.AppointmentTypes
             join _appointmentType in dbContext.Set<AppointmentType>() on doctorAppointmentTypes.AppointmentTypeId equals _appointmentType.Id
@@ -39,10 +37,10 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
         }).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<DoctorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, Guid? identityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<DoctorWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, Guid? appointmentTypeId = null, Guid? locationId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, firstName, lastName, email, identityUserId, appointmentTypeId, locationId);
+        query = ApplyFilter(query, filterText, firstName, lastName, email, appointmentTypeId, locationId);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? DoctorConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -50,20 +48,17 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
     protected virtual async Task<IQueryable<DoctorWithNavigationProperties>> GetQueryForNavigationPropertiesAsync()
     {
         return from doctor in (await GetDbSetAsync())
-               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on doctor.IdentityUserId equals identityUser.Id into identityUsers
-               from identityUser in identityUsers.DefaultIfEmpty()
                select new DoctorWithNavigationProperties
                {
                    Doctor = doctor,
-                   IdentityUser = identityUser,
                    AppointmentTypes = new List<AppointmentType>(),
                    Locations = new List<Location>()
                };
     }
 
-    protected virtual IQueryable<DoctorWithNavigationProperties> ApplyFilter(IQueryable<DoctorWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? email = null, Guid? identityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null)
+    protected virtual IQueryable<DoctorWithNavigationProperties> ApplyFilter(IQueryable<DoctorWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? email = null, Guid? appointmentTypeId = null, Guid? locationId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName!.Contains(filterText!) || e.Doctor.LastName!.Contains(filterText!) || e.Doctor.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email!.Contains(email!)).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Doctor.FirstName!.Contains(filterText!) || e.Doctor.LastName!.Contains(filterText!) || e.Doctor.Email!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Doctor.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Doctor.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Doctor.Email!.Contains(email!)).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.Doctor.AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId)).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Doctor.Locations.Any(x => x.LocationId == locationId));
     }
 
     protected virtual IQueryable<Doctor> ApplyFilter(IQueryable<Doctor> query, string? filterText = null, string? firstName = null, string? lastName = null, string? email = null)
@@ -78,10 +73,10 @@ public class EfCoreDoctorRepository : EfCoreRepository<CaseEvaluationDbContext, 
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, Guid? identityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? email = null, Guid? appointmentTypeId = null, Guid? locationId = null, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, firstName, lastName, email, identityUserId, appointmentTypeId, locationId);
+        query = ApplyFilter(query, filterText, firstName, lastName, email, appointmentTypeId, locationId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

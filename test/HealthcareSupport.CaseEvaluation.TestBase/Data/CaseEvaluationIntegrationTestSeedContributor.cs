@@ -230,16 +230,14 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 firstName: DoctorsTestData.Doctor1FirstName,
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor1UserId));
+                gender: default));
 
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,
                 lastName: DoctorsTestData.Doctor2LastName,
                 email: DoctorsTestData.Doctor2Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor2UserId));
+                gender: default));
         }
     }
 

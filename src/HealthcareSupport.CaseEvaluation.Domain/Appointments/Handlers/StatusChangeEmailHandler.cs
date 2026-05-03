@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
@@ -19,21 +18,13 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Appointments.Handlers;
 
 /// <summary>
-/// W1-2 transition email handler. Subscribes to
+/// Transition email handler. Subscribes to
 /// <see cref="AppointmentStatusChangedEto"/> and dispatches a status-specific
 /// email to the appointment's IdentityUser (the booker) via ABP's
-/// <see cref="IEmailSender"/>. Inline body strings at MVP -- defer ABP
-/// TextTemplating to post-MVP cleanup so we get localizable, admin-editable
-/// templates with Razor partials. Logged in
-/// docs/plans/deferred-from-mvp.md.
-///
-/// Recipients at MVP: just the booker's IdentityUser email. The all-parties
-/// fan-out (patient cc, attorney cc, doctor's office, claim examiner, etc.)
-/// is also deferred (already on ledger from W1 plan).
-///
-/// Only fires for the 3 transitions that change the booker's status visibly:
-/// Approved, Rejected, AwaitingMoreInfo. Pending-from-AwaitingMoreInfo (the
-/// booker's resubmit) does NOT email -- the office sees the queue update.
+/// <see cref="IEmailSender"/>. Per OLD spec (Phase 0.2, 2026-05-01) only the
+/// Approved and Rejected transitions email here; the AwaitingMoreInfo /
+/// SendBack flow has been removed -- corrections happen via reject + re-request.
+/// Inline body strings at MVP -- defer ABP TextTemplating to post-MVP cleanup.
 /// </summary>
 public class StatusChangeEmailHandler :
     ILocalEventHandler<AppointmentStatusChangedEto>,
@@ -42,7 +33,6 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
-    private readonly IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
     private readonly IAppointmentRecipientResolver _recipientResolver;
@@ -52,7 +42,6 @@ public class StatusChangeEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
         IAppointmentRecipientResolver recipientResolver,
@@ -61,7 +50,6 @@ public class StatusChangeEmailHandler :
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _identityUserRepository = identityUserRepository;
-        _sendBackInfoRepository = sendBackInfoRepository;
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
         _recipientResolver = recipientResolver;
@@ -83,11 +71,8 @@ public class StatusChangeEmailHandler :
             return;
         }
 
-        var (subject, body) = await BuildEmailAsync(template.Value, appointment, eventData);
+        var (subject, body) = BuildEmail(template.Value, appointment, eventData);
 
-        // W2-10: fan out to all parties via the shared recipient resolver.
-        // MVP renders one body per NotificationKind regardless of role; the
-        // resolver tags each arg with a RecipientRole for forward-compat.
         var kind = MapTemplateToKind(template.Value);
         var recipients = await _recipientResolver.ResolveAsync(appointment.Id, kind);
         if (recipients.Count == 0)
@@ -113,16 +98,11 @@ public class StatusChangeEmailHandler :
     {
         EmailTemplate.Approved => NotificationKind.Approved,
         EmailTemplate.Rejected => NotificationKind.Rejected,
-        EmailTemplate.SendBack => NotificationKind.AwaitingMoreInfo,
         _ => NotificationKind.Approved,
     };
 
-    private enum EmailTemplate { Approved, Rejected, SendBack }
+    private enum EmailTemplate { Approved, Rejected }
 
-    // W2-3: from/to are now nullable on the ETO so initial-create + delete
-    // events flow through the same handler chain. Non-transition events
-    // (no ToStatus, or a ToStatus not in the transition templates) just
-    // return null which short-circuits the email send.
     private static EmailTemplate? ResolveTemplate(AppointmentStatusType? from, AppointmentStatusType? to)
     {
         if (!to.HasValue)
@@ -133,25 +113,11 @@ public class StatusChangeEmailHandler :
         {
             AppointmentStatusType.Approved => EmailTemplate.Approved,
             AppointmentStatusType.Rejected => EmailTemplate.Rejected,
-            AppointmentStatusType.AwaitingMoreInfo => EmailTemplate.SendBack,
             _ => null,
         };
     }
 
-    private async Task<string?> ResolveRecipientEmailAsync(Appointment appointment)
-    {
-        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
-        if (bookerUser != null && !string.IsNullOrWhiteSpace(bookerUser.Email))
-        {
-            return bookerUser.Email;
-        }
-
-        // Fallback: try the patient's email if the booker user has none on file.
-        var patient = await _patientRepository.FindAsync(appointment.PatientId);
-        return patient?.Email;
-    }
-
-    private async Task<(string Subject, string Body)> BuildEmailAsync(
+    private static (string Subject, string Body) BuildEmail(
         EmailTemplate template,
         Appointment appointment,
         AppointmentStatusChangedEto eventData)
@@ -178,46 +144,9 @@ public class StatusChangeEmailHandler :
                         title: "Your appointment has been rejected",
                         intro: $"Confirmation #{confirmation} (requested for {date}) was rejected by the office.",
                         details: $"Reason from the office: {WebEncode(reason)}"));
-            case EmailTemplate.SendBack:
-                var sendBack = await GetLatestSendBackInfoAsync(appointment.Id);
-                var note = string.IsNullOrWhiteSpace(sendBack?.Note)
-                    ? "No note attached."
-                    : sendBack!.Note!;
-                var fieldsLine = sendBack?.GetFlaggedFields().Count > 0
-                    ? $"Please revisit the flagged fields highlighted on your appointment page: {string.Join(", ", sendBack.GetFlaggedFields())}."
-                    : "Please review and resubmit your request.";
-                var deepLink = await BuildAppointmentViewLinkAsync(appointment.Id);
-                return (
-                    $"Appointment {confirmation} needs more information",
-                    BuildHtml(
-                        title: "The office requested changes",
-                        intro: $"Confirmation #{confirmation} (requested for {date}) was sent back for more info.",
-                        details: $"<p><strong>Office's note:</strong> {WebEncode(note)}</p><p>{fieldsLine}</p><p><a href=\"{deepLink}\">Open the appointment in the patient portal</a> to make changes and resubmit.</p>"));
             default:
                 throw new ArgumentOutOfRangeException(nameof(template), template, null);
         }
-    }
-
-    private async Task<AppointmentSendBackInfo?> GetLatestSendBackInfoAsync(Guid appointmentId)
-    {
-        var queryable = await _sendBackInfoRepository.GetQueryableAsync();
-        return queryable
-            .Where(x => x.AppointmentId == appointmentId)
-            .OrderByDescending(x => x.SentBackAt)
-            .FirstOrDefault();
-    }
-
-    /// <summary>
-    /// Builds an absolute deep-link to the appointment view page, sourcing the
-    /// portal base URL from the per-tenant <c>CaseEvaluation.Notifications.PortalBaseUrl</c>
-    /// setting (defaults to <c>http://localhost:4200</c> for dev). Trailing
-    /// slashes on the base URL are stripped so the joined path stays clean.
-    /// </summary>
-    private async Task<string> BuildAppointmentViewLinkAsync(Guid appointmentId)
-    {
-        var configured = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
-        var baseUrl = string.IsNullOrWhiteSpace(configured) ? "http://localhost:4200" : configured!.TrimEnd('/');
-        return $"{baseUrl}/appointments/view/{appointmentId}";
     }
 
     private static string BuildHtml(string title, string intro, string details)

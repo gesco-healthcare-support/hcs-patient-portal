@@ -278,6 +278,10 @@ tempkey.jwk
 
 # Claude Code context cache
 .claude/context/
+.claude/settings.local.json
+
+# OLD app document extractions (pandoc + mammoth output, npm node_modules)
+.claude/old-extracted/
 
 # Environment files
 .env

@@ -52,12 +52,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     protected DefenseAttorneyManager _defenseAttorneyManager;
     protected AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
-    protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     protected IRepository<AppointmentInjuryDetail, Guid> _appointmentInjuryDetailRepository;
     protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
     protected ILocalEventBus _localEventBus;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -75,7 +74,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
-        _sendBackInfoRepository = sendBackInfoRepository;
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
         _localEventBus = localEventBus;
@@ -989,33 +987,5 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var appointment = await _appointmentManager.RejectAsync(id, input?.Reason, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
-    }
-
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
-    public virtual async Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input)
-    {
-        var fields = input?.FlaggedFields ?? new List<string>();
-        var appointment = await _appointmentManager.SendBackAsync(id, fields, input?.Note, CurrentUser.Id);
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
-    }
-
-    [Authorize]
-    public virtual async Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
-    {
-        var appointment = await _appointmentManager.SaveAndResubmitAsync(id, CurrentUser.Id);
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
-    }
-
-    [Authorize]
-    public virtual async Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
-    {
-        var queryable = await _sendBackInfoRepository.GetQueryableAsync();
-        var latest = queryable
-            .Where(x => x.AppointmentId == id && !x.IsResolved)
-            .OrderByDescending(x => x.SentBackAt)
-            .FirstOrDefault();
-        return latest == null
-            ? null
-            : ObjectMapper.Map<AppointmentSendBackInfo, AppointmentSendBackInfoDto>(latest);
     }
 }

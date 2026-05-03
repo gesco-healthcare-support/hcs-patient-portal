@@ -155,24 +155,4 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.RejectAsync(id, input);
     }
 
-    [HttpPost]
-    [Route("{id}/send-back")]
-    public virtual Task<AppointmentDto> SendBackAsync(Guid id, [FromBody] SendBackAppointmentInput input)
-    {
-        return _appointmentsAppService.SendBackAsync(id, input);
-    }
-
-    [HttpPost]
-    [Route("{id}/save-and-resubmit")]
-    public virtual Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
-    {
-        return _appointmentsAppService.SaveAndResubmitAsync(id);
-    }
-
-    [HttpGet]
-    [Route("{id}/send-back-info/latest")]
-    public virtual Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
-    {
-        return _appointmentsAppService.GetLatestUnresolvedSendBackInfoAsync(id);
-    }
 }
