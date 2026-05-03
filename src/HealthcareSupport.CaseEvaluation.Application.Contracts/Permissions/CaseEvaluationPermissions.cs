@@ -97,6 +97,13 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
+        // Phase 2.5 (2026-05-01) -- per-action gates for clinic-staff approval
+        // and external-user change-request submission. The booking + view
+        // flows live under Default / Create / Edit / Delete.
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+        public const string RequestCancellation = Default + ".RequestCancellation";
+        public const string RequestReschedule = Default + ".RequestReschedule";
     }
 
     public static class AppointmentDocuments
@@ -219,6 +226,30 @@ public static class CaseEvaluationPermissions
     public static class SystemParameters
     {
         public const string Default = GroupName + ".SystemParameters";
+        public const string Edit = Default + ".Edit";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
+    /// user-submitted cancel / reschedule lifecycle. External roles never
+    /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
+    /// Clinic Staff gets Default (read-only inbox view).
+    /// </summary>
+    public static class AppointmentChangeRequests
+    {
+        public const string Default = GroupName + ".AppointmentChangeRequests";
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- IT Admin manages tenant-scoped notification
+    /// templates. Read access is gated to Default; the editor button gates on
+    /// Edit. No Create / Delete -- templates are seeded.
+    /// </summary>
+    public static class NotificationTemplates
+    {
+        public const string Default = GroupName + ".NotificationTemplates";
         public const string Edit = Default + ".Edit";
     }
 }
