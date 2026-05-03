@@ -424,6 +424,12 @@
     "Setting:CaseEvaluation.Notifications.OfficeEmail": "Office notification email",
     "Setting:CaseEvaluation.Notifications.OfficeEmail:Description": "Email address that receives 'new appointment request' notifications when a booker submits an appointment. Leave empty to disable office notifications -- bookers will still see new requests in the office's queue.",
     "Appointment:Search:FilterTextLabel": "Search appointments",
-    "Appointment:Search:FilterTextPlaceholder": "Patient name, attorney, or confirmation #"
+    "Appointment:Search:FilterTextPlaceholder": "Patient name, attorney, or confirmation #",
+    "Login:UserNotExist": "User not exist",
+    "Login:InvalidUsernameOrPassword": "Invalid username or password",
+    "Login:AccountNotActivated": "Your account is not activated",
+    "Login:VerificationLinkSent": "We have sent a verification link to your registered email id, please verify your email address to login.",
+    "Login:ResendConfirmationEmail": "Resend confirmation email",
+    "Login:ResendConfirmationEmailSent": "Confirmation email re-sent. Please check your inbox."
   }
 }

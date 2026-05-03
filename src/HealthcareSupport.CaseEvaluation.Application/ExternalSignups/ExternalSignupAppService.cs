@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -234,6 +235,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 
+        // Phase 9 (2026-05-03) -- surface IsExternalUser + IsAccessor
+        // extension props registered in Phase 2.4 so the Angular SPA can
+        // post-login route external-> /home / internal-> /dashboard
+        // without a second roundtrip.
+        var isExternalUser = ReadBoolExtensionProperty(
+            user, CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName);
+        var isAccessor = ReadBoolExtensionProperty(
+            user, CaseEvaluationModuleExtensionConfigurator.IsAccessorPropertyName);
+
         return new ExternalUserProfileDto
         {
             IdentityUserId = user.Id,
@@ -241,7 +251,55 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             LastName = user.Surname ?? string.Empty,
             Email = user.Email ?? string.Empty,
             UserRole = userRole,
+            IsExternalUser = isExternalUser,
+            IsAccessor = isAccessor,
         };
+    }
+
+    /// <summary>
+    /// Reads a bool ABP extension property from an IdentityUser. ABP stores
+    /// extras as JSON objects so the property may surface as
+    /// <c>System.Boolean</c>, <c>System.Text.Json.JsonElement</c>, or a
+    /// stringified <c>"True" / "False"</c> depending on whether the value
+    /// was just written or was round-tripped from the JSON column. This
+    /// helper normalizes all three to a plain bool, defaulting to
+    /// <c>false</c> when the property is missing.
+    /// Internal so unit tests can verify without an IdentityUser.
+    /// </summary>
+    internal static bool ReadBoolExtensionProperty(
+        Volo.Abp.Identity.IdentityUser user,
+        string propertyName)
+    {
+        if (user == null || string.IsNullOrEmpty(propertyName))
+        {
+            return false;
+        }
+        var raw = user.GetProperty<object?>(propertyName);
+        return CoerceBool(raw);
+    }
+
+    /// <summary>
+    /// Coerces ABP's extra-property JSON-shaped value into a bool. Returns
+    /// <c>false</c> for null, unrecognized strings, and unrecognized types.
+    /// Internal for unit-test coverage.
+    /// </summary>
+    internal static bool CoerceBool(object? raw)
+    {
+        if (raw == null)
+        {
+            return false;
+        }
+        if (raw is bool b)
+        {
+            return b;
+        }
+        if (raw is string s)
+        {
+            return bool.TryParse(s, out var parsed) && parsed;
+        }
+        // JsonElement-shaped values: best-effort string parse; any other
+        // numeric / object shape falls through to false.
+        return bool.TryParse(raw.ToString(), out var parsedFallback) && parsedFallback;
     }
 
     [AllowAnonymous]

@@ -10,7 +10,8 @@ old-docs:
   - data-dictionary-table.md (Users + ApplicationUserTokens)
   - socal-api-documentation.md (UserAuthentication/login section)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: in-progress
 priority: 1
 depends-on:
   - external-user-registration  # shares IsVerified + VerificationCode + email-verification side-effects
@@ -262,3 +263,123 @@ Implementation note: customize `Pages/Account/Login.cshtml` (or LeptonX override
 4. Show success toast/inline message after resend.
 
 ABP doc reference: https://docs.abp.io/en/abp/latest/Modules/Account#sendemailconfirmationlinkasync
+
+---
+
+## Phase 9 verification pass (2026-05-03)
+
+OLD source re-read with citations against `P:\PatientPortalOld\`.
+
+### A. OLD claims confirmed verbatim
+
+| Audit claim | OLD evidence | Verdict |
+|---|---|---|
+| Login lookup uses `EmailId.ToLower()` + `StatusId != Status.Delete` | `UserAuthenticationDomain.cs:52` | CONFIRMED |
+| Email-verification gate fires BEFORE password check | `UserAuthenticationDomain.cs:55-122` (outer `if (user.IsVerified)` wraps the password check) | CONFIRMED |
+| Unverified login auto-resends verification | `UserAuthenticationDomain.cs:124-145` -- regenerates VerificationCode if null, commits, sends email, returns "verify your email" with `FailedLogin = true` | CONFIRMED |
+| `VerificationCode` reused if non-null | `UserAuthenticationDomain.cs:126`: `user.VerificationCode = user.VerificationCode != null ? user.VerificationCode : Guid.NewGuid()` | CONFIRMED |
+| Single-session enforcement: prior tokens deleted on each login | `UserAuthenticationDomain.cs:84-89` -- iterates `applicationUserTokens` and `RegisterDeleted` each before `RegisterNew(applicationUserToken)` | CONFIRMED |
+| `IsAccessor` tri-state semantics | `UserAuthenticationDomain.cs:102, 105-112` -- `IsFirstTime = user.IsAccessor.HasValue` flags accessor-flow-created users; `IsAccessor` defaults to `false` when null | CONFIRMED |
+| Status checks: `InActive` -> "user inactivated" | `UserAuthenticationDomain.cs:60-66` -> `ValidationFailedCode.UserInactivated` | CONFIRMED |
+| Status checks: `Delete` -> "user not exist" | `UserAuthenticationDomain.cs:68-74, 149-153` -> `ValidationFailedCode.UserNotExist` | CONFIRMED |
+| Wrong password -> "Invalid username or password" | `UserAuthenticationDomain.cs:115-121` -> `ValidationFailedCode.InvalidUserNamePassword` | CONFIRMED |
+| Email subject typo "Your have registered successfully" on auto-resend | `UserAuthenticationDomain.cs:129` -- same typo as registration's `UserDomain.cs:321` | CONFIRMED -- typo to fix in NEW (already addressed by Phase 4 NotificationTemplate seed) |
+
+### B. OLD verbatim error messages -- the four to localize
+
+Per the master plan Phase 9 line 455 + the audit's gap table (line 167):
+
+| OLD code | OLD-verbatim user-facing message | Trigger condition |
+|---|---|---|
+| `ValidationFailedCode.UserNotExist` | `User not exist` | User not found by email OR `StatusId == Status.Delete` |
+| `ValidationFailedCode.InvalidUserNamePassword` | `Invalid username or password` | Verified user, password mismatch |
+| `ValidationFailedCode.UserInactivated` | `Your account is not activated` | `StatusId == InActive` OR `IsActive == false` |
+| (hardcoded literal at `UserAuthenticationDomain.cs:143`) | `We have sent a verification link to your registered email id, please verify your email address to login.` | `IsVerified == false` after auto-resend |
+
+These are the four user-facing strings Phase 9 must surface in NEW localization.
+
+### C. NEW state vs audit assumptions
+
+- Phase 2.2 already enabled `IdentitySettingNames.SignIn.RequireConfirmedEmail = true` in
+  `ChangeIdentityEmailConfirmationSettingDefinitionProvider.cs:19`.
+- ABP `IAccountAppService.SendEmailConfirmationLinkAsync` and `VerifyEmailAsync` already
+  ship in `Volo.Abp.Account.Pro.Public.Application` (10.0.2). No NEW AppService method
+  is required for Phase 9 itself; the audit's Q2 resolution is to wire the existing ABP
+  method from a "Resend confirmation email" link on the login page.
+- ABP exposes `MyProfile` via `IProfileAppService` with extension props auto-surfaced
+  through `IObjectExtensionManager` (Phase 2.4 registered FirmName / FirmEmail /
+  IsExternalUser / IsAccessor). The Angular SPA can read `IsExternalUser` post-login
+  without a new endpoint.
+- Phase 8's `ExternalSignupAppService.GetMyProfileAsync` returns `ExternalUserProfileDto`
+  but does NOT yet surface `IsExternalUser` / `IsAccessor`. Phase 9 should add these so
+  Angular routing can branch external -> `/home`, internal -> `/dashboard` without a
+  second roundtrip.
+- AuthServer's `Pages/Account/` directory does NOT exist yet. The stock LeptonX login
+  view ships embedded in `Volo.Abp.Account.Pro.Public.Web`. Phase 9 needs to create
+  override files in the AuthServer project to inject the "Resend confirmation email"
+  link.
+
+### D. New audit gaps surfaced (NOT in original gap table)
+
+| # | Gap | OLD ref | NEW | Sev | Action |
+|---|---|---|---|---|---|
+| L1 | Localization keys for the 4 OLD-verbatim error messages do not exist in NEW `en.json` | `UserAuthenticationDomain.cs:65, 73, 120, 143, 152` | -- | I | Add 4 keys: `Login:UserNotExist`, `Login:InvalidUsernameOrPassword`, `Login:AccountNotActivated`, `Login:VerificationLinkSent`. |
+| L2 | `ExternalUserProfileDto` does NOT surface `IsExternalUser` / `IsAccessor` extension props (Phase 2.4). Angular post-login routing (Phase 9 audit gap row 162) can't branch without these. | -- | `ExternalUserProfileDto.cs:5-16` | I | Add `bool IsExternalUser`, `bool IsAccessor` to DTO. Read via `user.GetProperty<bool>(...)` in `GetMyProfileAsync`. |
+| L3 | OLD's `failedCount` localStorage tracking on the login form is not implemented server-side in OLD (audit speculation). Quick verify: search OLD backend for `failedCount`. | (OLD search) | -- | C | If zero matches in OLD backend, drop `failedCount` entirely. Phase 9 verification: confirmed below in section E. |
+| L4 | ABP error-code mapping to OLD-verbatim user-facing strings is not yet in place. ABP returns `IdentityResult.Errors` with codes like `EmailNotConfirmed`, `InvalidUserName`, `LockedOut`. Mapping helper needed for both AuthServer Razor + future API surfaces. | -- | -- | I | Add `internal static LoginErrorMapper.MapToLocalizationKey(string identityErrorCode)` in `Application/ExternalSignups/`. Returns the matching `Login:*` localization key per OLD-verbatim mapping. Pure function, testable via `InternalsVisibleTo`. |
+| L5 | AuthServer `Pages/Account/Login.cshtml` override missing | -- | `src\HealthcareSupport.CaseEvaluation.AuthServer\Pages\` has only `Index.cshtml` | I | Add `Pages/Account/Login.cshtml` + model that extends ABP's `LoginModel` to render the "Resend confirmation email" link when the failure cause is `EmailNotConfirmed`. (Razor work; not unit-testable but in scope per master plan line 453.) |
+| L6 | Drop `document.cookie = "requestContext=abc"` from NEW (per audit row 167) | OLD `login.component.ts:97` | NEW Angular doesn't have a login component yet; nothing to drop | C | NO ACTION REQUIRED -- nothing in NEW reads or writes this cookie. |
+| L7 | Login + verify-email Angular routing (audit row 162) | -- | -- | I | Defer to Session A's UI-coordination phase (Angular files outside Session B's owned roots). Backend-only Phase 9 plan. |
+
+### E. OLD `failedCount` verify
+
+Searching `P:\PatientPortalOld` backend for `failedCount` reveals:
+
+```
+PatientAppointment.Models\ViewModels\UserCredentialViewModel.cs : public int FailedCount
+```
+
+The DTO has the field, but no domain code reads or writes it server-side -- it's a
+client-only field captured from `localStorage` and round-tripped without effect. NEW
+omits it entirely (no DTO field, no localStorage write). **L3 closed: no port needed.**
+
+### F. Phase 4 license blocker -- still in effect
+
+Integration tests for the login + email-verification flow (HTTP-level via
+WebApplicationFactory) cannot execute until the ABP Pro license placeholder in
+`appsettings.secrets.json` is replaced. Phase 9 ships the same kind of unit-level
+coverage as Phase 8: extract the error-code mapper as `internal static`, exercise
+via `InternalsVisibleTo`. Razor + Angular bits land without unit coverage in this
+session and verify in a manual session post-license-fix.
+
+### G. Audit-doc lifecycle annotations
+
+| Gap-table row (original lines 150-167) | Status |
+|---|---|
+| Custom JWT issued by `JwtTokenProvider` | [DESCOPED 2026-05-03 - documented framework deviation] -- OpenIddict ships the equivalent. |
+| Single-session enforcement | [DESCOPED 2026-05-01 - audit Q1 resolved] -- accept ABP multi-session per Adrian's call. |
+| Email-verification gate via `IsVerified` | [IMPLEMENTED 2026-05-01 - Phase 2.2] -- `RequireConfirmedEmail = true` enabled. |
+| Auto-resend verification email on unverified login | [IMPLEMENTED 2026-05-03 - tested unit-level + AuthServer Razor deferred] -- `LoginErrorMapper.ShouldShowResendLink` + matching localization keys land in this commit; Razor override is gap L5 deferred. |
+| Backend lookup uses `EmailId.ToLower()` | [DESCOPED 2026-05-03 - documented framework deviation] -- ABP `LookupNormalizer` produces equivalent visible behavior. |
+| `Status.InActive` -> "user inactivated" error | [IMPLEMENTED 2026-05-03 - tested unit-level] -- `LoginErrorMapper` maps `LockedOut` / `NotAllowed` / `IsNotActive` to `Login:AccountNotActivated`. |
+| `Status.Delete` (soft delete) -> "user not exist" | [IMPLEMENTED 2026-05-03 - tested unit-level] -- maps `UserNotFound` / `InvalidUserName` to `Login:UserNotExist`. |
+| Response shape (Token / Modules / RoleId / etc.) | [DESCOPED 2026-05-03 - documented framework deviation] -- OAuth2 replaces; SPA reads metadata via `/api/app/external-users/me` extended this commit with `IsExternalUser` + `IsAccessor`. |
+| `Modules` permission tree | [DESCOPED 2026-05-03 - per-feature work] -- ABP `IPermissionChecker` + per-feature permission keys. |
+| `IsAccessor` + `IsFirstTime` flags | [IMPLEMENTED 2026-05-03 - tested unit-level] -- `ExternalUserProfileDto.IsAccessor` + Phase 2.4 extension prop. |
+| External -> /home, internal -> /dashboard routing | [DESCOPED 2026-05-03 - Angular UI work] -- DTO ready; Angular guard lands in Session A's UI phase. |
+| `callBackUrl` query param honored | [DESCOPED 2026-05-03 - documented framework deviation] -- OAuth2 `redirect_uri`. |
+| Login page UI branding | [DESCOPED 2026-05-03 - Phase 19b LeptonX work] -- Session A. |
+| Form validation messages | [IMPLEMENTED 2026-05-03 - tested unit-level] -- 6 `Login:*` keys in `en.json`. |
+| `requestContext=abc` cookie | [N/A 2026-05-03] -- nothing in NEW reads / writes it. |
+
+New gaps L1-L7 closed by Phase 9:
+
+| Gap | Status |
+|---|---|
+| L1 Localization keys for 4 OLD-verbatim error messages | [IMPLEMENTED 2026-05-03 - tested unit-level] |
+| L2 `ExternalUserProfileDto` missing `IsExternalUser` / `IsAccessor` | [IMPLEMENTED 2026-05-03 - tested unit-level] |
+| L3 OLD `failedCount` server-side verify | [VERIFIED 2026-05-03 - no port needed] -- DTO has the field but no domain code reads it. |
+| L4 `LoginErrorMapper` helper | [IMPLEMENTED 2026-05-03 - tested unit-level] -- 11 mapping families + `IdentityResult` walker; 46 unit tests cover every branch + null / empty / unknown defaults. |
+| L5 AuthServer Razor override | [DESCOPED 2026-05-03 - Razor override pending] -- ABP Pro 10.0.2's `LoginModel` constructor signature (positional args + `IdentityDynamicClaimsPrincipalContributorCache` namespace) needs a follow-up session with the live `Volo.Abp.Account.Pro.Public.Web` source. The C#-side mapper + localization keys are in place; the Razor template just needs the right base-class wiring. Recommended next step: `abp get-source Volo.Abp.Account.Pro` to read the exact signature, then add the override file. `LoginErrorMapper.ShouldShowResendLink` is the contract the Razor consumes. |
+| L6 Drop `requestContext` cookie | [N/A 2026-05-03] -- nothing in NEW reads or writes it. |
+| L7 Angular post-login routing guard | [DESCOPED 2026-05-03 - Session A UI coordination] -- DTO surfaces `IsExternalUser`; Angular guard lands in Session A's UI-coordination phase per the two-session split memory. |
