@@ -10,7 +10,7 @@ old-docs:
   - data-dictionary-table.md (Templates, TemplateTypes, SMTPConfigurations)
 audited: 2026-05-01
 re-verified: 2026-05-03
-status: audit-only
+status: in-progress
 priority: 2
 strict-parity: true
 internal-user-role: ITAdmin
@@ -114,17 +114,17 @@ OLD also has `EmailTemplate` enum (`EmailTemplate.UserRegistered`, etc.) and tem
 
 ## Gap analysis (strict parity)
 
-| Aspect | OLD | NEW | Action | Sev |
-|--------|-----|-----|--------|-----|
-| `Template` entity (DB-managed) | OLD | NEW: TO VERIFY | **Add `NotificationTemplate` entity** with TemplateCode, TemplateTypeId, Subject, BodyEmail, BodySms, IsActive | B |
-| `TemplateType` lookup | OLD | NEW: TO VERIFY | **Add `NotificationTemplateType` entity** + seed | I |
-| `SMTPConfiguration` (DB-managed credentials) | OLD | NEW: ABP uses `appsettings.json` for SMTP | **Decision: keep ABP's appsettings approach** -- editing SMTP via UI is a security concern; IT can edit appsettings. Strict parity exception: NEW's approach is better. Document as "framework deviation: secrets stay out of DB". | I |
-| Variable substitution | OLD: `##Var##` | NEW: ABP `ITemplateRenderer` uses Razor `@Model.Var` syntax OR Liquid (configurable) | **Use ABP's renderer**; map OLD's `##Var##` placeholders to Razor at port time. Each notification handler builds its model and renders. | I |
-| `TemplateCode` -> event mapping | OLD: `TemplateCode` int enum (16) + `EmailTemplate` static class of HTML filenames (43) -- two parallel systems | -- | **Add `TemplateCode` string enum unifying both OLD systems** (verbatim list under "Template code matrix" below). Phase 1 wires 33; remaining 26 seeded but unwired until their feature phase lands. | B |
-| User-side multi-step reminders | OLD | -- | **Use Hangfire recurring jobs**; each job loads its template by code and sends | I |
-| Template editor UI | OLD | -- | **Add `NotificationTemplatesController` + edit UI** -- subject + email body (rich-text or plain) + sms body | I |
-| Permissions | -- | -- | **`CaseEvaluation.NotificationTemplates.{Default, Edit}`** -- IT Admin only | I |
-| Audit on template changes | OLD: implicit `AuditRecords` | NEW: `[Audited]` attribute | **Add `[Audited]`** | C |
+| Aspect | OLD | NEW | Action | Sev | Status |
+|--------|-----|-----|--------|-----|--------|
+| `Template` entity (DB-managed) | OLD | NEW: TO VERIFY | **Add `NotificationTemplate` entity** with TemplateCode, TemplateTypeId, Subject, BodyEmail, BodySms, IsActive | B | [IMPLEMENTED 2026-05-01 - tested unit-level] -- entity at `Domain/NotificationTemplates/NotificationTemplate.cs` (`FullAuditedAggregateRoot<Guid>, IMultiTenant`, `[Audited]`); Phase 1 migration created the table; Phase 4 (2026-05-03) re-verified field set verbatim against OLD `Templates` schema. |
+| `TemplateType` lookup | OLD | NEW: TO VERIFY | **Add `NotificationTemplateType` entity** + seed | I | [IMPLEMENTED 2026-05-01 - tested unit-level] -- host-scoped `NotificationTemplateType` entity + seed of two rows (Email = `c0000001-...0001`, SMS = `c0000001-...0002`) verbatim with OLD's `TemplateTypeEnums` (Email=1, SMS=2). |
+| `SMTPConfiguration` (DB-managed credentials) | OLD | NEW: ABP uses `appsettings.json` for SMTP | **Decision: keep ABP's appsettings approach** -- editing SMTP via UI is a security concern; IT can edit appsettings. Strict parity exception: NEW's approach is better. Document as "framework deviation: secrets stay out of DB". | I | [DESCOPED 2026-05-03 - documented framework deviation] -- SMTP credentials stay in `appsettings.json`/Key Vault, not surfaced via the AppService. Visible behavior unchanged. |
+| Variable substitution | OLD: `##Var##` | NEW: ABP `ITemplateRenderer` uses Razor `@Model.Var` syntax OR Liquid (configurable) | **Use ABP's renderer**; map OLD's `##Var##` placeholders to Razor at port time. Each notification handler builds its model and renders. | I | [DESCOPED 2026-05-03 - Phase 18 work] -- Phase 4 stores body content as-is; the per-handler conversion from `##Var##` to `@Model.Var` runs when each handler is wired in Phase 18. |
+| `TemplateCode` -> event mapping | OLD: `TemplateCode` int enum (16) + `EmailTemplate` static class of HTML filenames (43) -- two parallel systems | -- | **Add `TemplateCode` string enum unifying both OLD systems** (verbatim list under "Template code matrix" below). Phase 1 wires 33; remaining 26 seeded but unwired until their feature phase lands. | B | [IMPLEMENTED 2026-05-03 - tested unit-level] -- 59 codes verbatim (16 + 43, with 4 typo fixes documented in `NotificationTemplateConsts.Codes`). Unit test `Codes_All_Has59Codes` verifies count; `Codes_All_FixesOldTypos` verifies the 4 typo fixes; `Codes_All_AreUnique` verifies dedup. Phase 1.3 invented-name list is fully replaced. |
+| User-side multi-step reminders | OLD | -- | **Use Hangfire recurring jobs**; each job loads its template by code and sends | I | [DESCOPED 2026-05-03 - Phase 18 work] -- Hangfire recurring jobs land in Phase 18; Phase 4 ships the storage + editor surface only. |
+| Template editor UI | OLD | -- | **Add `NotificationTemplatesController` + edit UI** -- subject + email body (rich-text or plain) + sms body | I | [IMPLEMENTED 2026-05-03 - backend complete; UI deferred] -- `INotificationTemplatesAppService` (Get list / GetAsync / GetByCodeAsync / GetTypeLookupAsync / UpdateAsync), `NotificationTemplatesController` at `api/app/notification-templates`. Angular editor component is Session-A coordinated UI work (deferred). |
+| Permissions | -- | -- | **`CaseEvaluation.NotificationTemplates.{Default, Edit}`** -- IT Admin only | I | [IMPLEMENTED 2026-05-02 - pending integration test] -- both keys registered in Phase 2.5; granted to IT Admin (Default + Edit) and Staff Supervisor (Default + Edit). Clinic Staff has no grant. |
+| Audit on template changes | OLD: implicit `AuditRecords` | NEW: `[Audited]` attribute | **Add `[Audited]`** | C | [IMPLEMENTED 2026-05-01 - pending integration test] -- `[Audited]` on entity. |
 
 ## Internal dependencies surfaced
 

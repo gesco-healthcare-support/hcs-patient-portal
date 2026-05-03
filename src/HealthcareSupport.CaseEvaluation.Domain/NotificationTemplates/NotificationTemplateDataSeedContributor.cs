@@ -76,37 +76,16 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
 
     private async Task SeedTemplatesAsync(Guid? tenantId)
     {
-        var codes = new[]
-        {
-            NotificationTemplateConsts.Codes.UserRegistered,
-            NotificationTemplateConsts.Codes.ResetPassword,
-            NotificationTemplateConsts.Codes.PasswordChange,
-            NotificationTemplateConsts.Codes.AddInternalUser,
-            NotificationTemplateConsts.Codes.AppointmentRequest,
-            NotificationTemplateConsts.Codes.AppointmentApproved,
-            NotificationTemplateConsts.Codes.AppointmentApprovedStakeholder,
-            NotificationTemplateConsts.Codes.AppointmentRejected,
-            NotificationTemplateConsts.Codes.ResponsibleUserAssigned,
-            NotificationTemplateConsts.Codes.PatientDocumentUploaded,
-            NotificationTemplateConsts.Codes.PatientDocumentAccepted,
-            NotificationTemplateConsts.Codes.PatientDocumentRejected,
-            NotificationTemplateConsts.Codes.PackageDocumentsReminder,
-            NotificationTemplateConsts.Codes.JDFReminder,
-            NotificationTemplateConsts.Codes.JDFAutoCancelled,
-            NotificationTemplateConsts.Codes.DueDateApproachingReminder,
-            NotificationTemplateConsts.Codes.CancellationRequestSubmitted,
-            NotificationTemplateConsts.Codes.CancellationRequestAccepted,
-            NotificationTemplateConsts.Codes.CancellationRequestRejected,
-            NotificationTemplateConsts.Codes.RescheduleRequested,
-            NotificationTemplateConsts.Codes.RescheduleApproved,
-            NotificationTemplateConsts.Codes.RescheduleRejected,
-            NotificationTemplateConsts.Codes.AccessorInvited,
-        };
-
+        // All 59 codes verified against OLD source 2026-05-03 (Phase 4):
+        //   - 16 from OLD's `TemplateCode` int enum (DB-managed in OLD)
+        //   - 43 from OLD's `EmailTemplate` static class (on-disk HTML in OLD)
+        // NEW unifies both into this single table; all become IT-Admin
+        // editable. Per-feature phases replace stub bodies as their
+        // notification handlers wire variable substitution.
         var queryable = await _templateRepository.GetQueryableAsync();
         var existingCodes = queryable.Select(x => x.TemplateCode).ToList();
 
-        foreach (var code in codes.Where(c => !existingCodes.Contains(c)))
+        foreach (var code in NotificationTemplateConsts.Codes.All.Where(c => !existingCodes.Contains(c)))
         {
             var entity = new NotificationTemplate(
                 id: _guidGenerator.Create(),

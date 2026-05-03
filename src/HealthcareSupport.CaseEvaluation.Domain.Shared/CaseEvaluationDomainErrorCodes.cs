@@ -1,4 +1,4 @@
-﻿namespace HealthcareSupport.CaseEvaluation;
+namespace HealthcareSupport.CaseEvaluation;
 
 public static class CaseEvaluationDomainErrorCodes
 {
@@ -9,4 +9,13 @@ public static class CaseEvaluationDomainErrorCodes
     /// key <c>SystemParameter:NotSeeded</c>.
     /// </summary>
     public const string SystemParameterNotSeeded = "CaseEvaluation:SystemParameter.NotSeeded";
+
+    /// <summary>
+    /// Raised by <c>NotificationTemplatesAppService.GetAsync</c> /
+    /// <c>GetByCodeAsync</c> when the template id or code does not resolve
+    /// to an active row in the current tenant scope. Localization key
+    /// <c>NotificationTemplate:NotFound</c>.
+    /// </summary>
+    public const string NotificationTemplateNotFound =
+        "CaseEvaluation:NotificationTemplate.NotFound";
 }
