@@ -7,7 +7,8 @@ old-docs:
   - socal-project-overview.md (lines 541-549)
   - data-dictionary-table.md (CustomFields, CustomFieldsValues)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: in-progress
 priority: 2
 strict-parity: true
 internal-user-role: ITAdmin
@@ -16,6 +17,34 @@ depends-on:
 required-by:
   - external-user-appointment-request   # form renders custom fields if IsCustomField is on
 ---
+
+> **CORRECTION 2026-05-03 [VERIFIED against OLD source + NEW source].**
+>
+> The earlier draft of this audit (line 78 below) claimed NEW had renamed
+> `CustomField` to `AppointmentTypeFieldConfig`. **That assumption was
+> wrong.** NEW's existing `AppointmentTypeFieldConfig` (entity created
+> 2026-04-29 as W2-5) is a **completely different feature** -- it stores
+> per-AppointmentType form-field overrides (`Hidden`, `ReadOnly`,
+> `DefaultValue`) keyed by an existing form-control name. OLD's
+> `CustomField` is the user-defined additional intake field
+> (`FieldLabel`, `DisplayOrder`, `FieldType` enum, `IsMandatory`, etc.).
+> Neither entity matches the other.
+>
+> **Phase 6 implementation decision:** Add OLD's `CustomField` as a NEW
+> entity at `Domain/CustomFields/CustomField.cs` (verbatim OLD field set).
+> Leave the existing W2-5 `AppointmentTypeFieldConfig` in place -- it's a
+> NEW improvement that an admin may keep or descope post-parity. Both
+> entities share the existing `CaseEvaluationPermissions.CustomFields.*`
+> permission group because both are IT-Admin CRUD; future work may rename
+> the W2-5 group to `AppointmentTypeFieldOverrides` for clarity (deferred).
+>
+> **Source-of-truth for OLD behavior:** `CustomFieldDomain.cs:38-42` does
+> a GLOBAL count check (`Repository<CustomField>().All().Where(...).Count()`)
+> that ignores `AppointmentTypeId`. Spec says "10 per type"; OLD code
+> enforces "10 globally". OLD also uses `== 10` instead of `>= 10`,
+> which means an admin who hits 11 rows by other paths can keep adding.
+> Both are OLD-bug-fix exceptions: NEW enforces `>= 10 active per
+> AppointmentTypeId` to honor spec intent.
 
 # IT Admin -- Custom intake fields
 
@@ -93,19 +122,20 @@ Per booking audit + `appointment-add.component.ts` line 105 + 127-131:
 
 ## Gap analysis (strict parity)
 
-| Aspect | OLD | NEW | Action | Sev |
-|--------|-----|-----|--------|-----|
-| Entity exists | `CustomField` | `AppointmentTypeFieldConfig` (renamed) | None -- naming differs but semantics match | -- |
-| Max 10 per type | OLD spec | NEW: TO VERIFY | **Add count check** in `CreateAsync` -- reject if >= 10 active configs for that AppointmentTypeId | I |
-| `FieldType` enum: Date / Text / Number | OLD `CustomFieldTypeEnum` | NEW: TO VERIFY | **Match enum values** | I |
-| `IsMandatory` flag | OLD bool | TO VERIFY | **Verify** | I |
-| `AppointmentTypeId` scoping (null = all types) | OLD | TO VERIFY | **Verify nullable FK** | I |
-| `MultipleValues` (dropdown options) | OLD | TO VERIFY | **Verify** | I |
-| `DefaultValue` | OLD | TO VERIFY | **Verify** | I |
-| `DisplayOrder` | OLD | TO VERIFY | **Verify** | I |
-| `IsCustomField` system flag gates rendering | OLD | TO VERIFY | **Verify booking form respects flag** | I |
-| Per-appointment values entity | `CustomFieldsValues` polymorphic via `ReferenceId` | NEW: TO VERIFY (likely renamed `AppointmentTypeFieldConfigValue` or similar) | **Verify** | I |
-| Permissions | -- | -- | **`CaseEvaluation.AppointmentTypeFieldConfigs.{Default, Create, Edit, Delete}`** -- IT Admin | I |
+| Aspect | OLD | NEW | Action | Sev | Status |
+|--------|-----|-----|--------|-----|--------|
+| Entity exists | `CustomField` | NEW had no equivalent; W2-5 `AppointmentTypeFieldConfig` is a different feature | **Add `CustomField` entity** (Domain/CustomFields/) verbatim with OLD's full field set | B | [IMPLEMENTED 2026-05-03 - pending testing] -- Domain/CustomFields/CustomField.cs as `FullAuditedAggregateRoot<Guid>, IMultiTenant, [Audited]`. Composite index on (TenantId, AppointmentTypeId, IsActive) supports the per-tenant cap query. |
+| Max 10 per type | OLD spec line 543; OLD code GLOBAL count + `== 10` (bug) | -- | **Add per-AppointmentTypeId active-count check** with `>= 10` (OLD-bug-fix) | I | [IMPLEMENTED 2026-05-03 - pending testing OLD-BUG-FIX] -- `CustomFieldsAppService.EnsureUnderActiveCapAsync` filters by AppointmentTypeId; helper `IsAtOrOverCap` uses `>= MaxActiveCountPerAppointmentType` (10). Unit tests verify boundaries 9/10/11. |
+| `FieldType` enum: Date / Text / Number | OLD `CustomFieldTypeEnum` | -- | **Match enum values** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- Domain.Shared/Enums/CustomFieldType.cs (Date=1, Text=2, Number=3). Matches OLD verbatim. |
+| `IsMandatory` flag | OLD bool | -- | **Add bool field** | I | [IMPLEMENTED 2026-05-03 - pending testing] |
+| `AppointmentTypeId` scoping (null = all types) | OLD | -- | **Add nullable Guid FK** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- nullable on entity, but the AppService Create/Update DTOs require it (matches OLD UI contract). |
+| `MultipleValues` (dropdown options) | OLD | -- | **Add string column** | I | [IMPLEMENTED 2026-05-03 - pending testing] |
+| `DefaultValue` | OLD | -- | **Add string column** | I | [IMPLEMENTED 2026-05-03 - pending testing] |
+| `DisplayOrder` | OLD auto-assigned `max + 1` | -- | **Auto-assign on create; editable on update** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- `ComputeNextDisplayOrder` helper extracted internal-static; unit-tested with empty / non-empty / boundary inputs. |
+| `IsCustomField` system flag gates rendering | OLD `SystemParameter.IsCustomField` | -- | **Booking form reads the flag (Phase 11)** | I | [DEFERRED 2026-05-03 - Phase 11] -- Phase 6 ships the catalog. Phase 11 (Booking) will gate the booking-form render behind `SystemParameter.IsCustomField`. |
+| Per-appointment values entity | `CustomFieldsValues` polymorphic via `ReferenceId` | -- | **Add `CustomFieldValue` with explicit AppointmentId FK** (replaces OLD's polymorphic `ReferenceId`) | I | [IMPLEMENTED 2026-05-03 - pending testing] -- Domain/CustomFields/CustomFieldValue.cs. Explicit FK, not polymorphic; OLD's `ReferenceId` only ever pointed at appointments. |
+| Permissions | -- | -- | **Reuse existing `CaseEvaluation.CustomFields.{Default, Create, Edit, Delete}`** -- shared with W2-5 since both are IT-Admin CRUD | I | [IMPLEMENTED 2026-05-03 - pending testing] -- existing perm group reused; granted to IT Admin in InternalUserRoleDataSeedContributor (Session B's Phase 1.4 pre-existing setup). |
+| Migration | -- | -- | **Generate EF migration for the two new tables** | -- | [IMPLEMENTED 2026-05-03 - pending testing] -- migration `20260503230345_Phase6_Add_CustomFields` creates `AppCustomFields` + `AppCustomFieldValues` tables with three indexes and two FKs. |
 
 ## Internal dependencies surfaced
 
