@@ -1,5 +1,9 @@
 /* You can add global styles to this file, and also import other style files */
 
+// Brand tokens (OLD parity palette + typography). Phase 19a; Phase 19b will
+// add LeptonX --lpx-* overrides that consume these.
+@use 'styles/brand';
+
 :root .lpx-theme-dark {
   .abp-support {
     background-image: url('assets/images/getting-started/abp-support-white.svg');
