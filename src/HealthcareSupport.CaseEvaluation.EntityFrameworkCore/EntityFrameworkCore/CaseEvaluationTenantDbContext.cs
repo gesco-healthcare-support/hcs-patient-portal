@@ -211,7 +211,11 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.PackageName).HasColumnName(nameof(PackageDetail.PackageName)).IsRequired().HasMaxLength(PackageDetailConsts.PackageNameMaxLength);
             b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(PackageDetail.AppointmentTypeId));
             b.Property(x => x.IsActive).HasColumnName(nameof(PackageDetail.IsActive));
-            b.HasMany(x => x.DocumentPackages).WithOne().HasForeignKey(x => x.PackageDetailId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+            // Match host context (line 300): cascade on parent hard-delete so
+            // SQLite-backed test DB and SQL Server prod DB agree on FK
+            // semantics. ABP's ISoftDelete short-circuits hard deletes for
+            // normal flows; this only governs the rare hard-delete path.
+            b.HasMany(x => x.DocumentPackages).WithOne().HasForeignKey(x => x.PackageDetailId).IsRequired().OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<DocumentPackage>(b =>
         {

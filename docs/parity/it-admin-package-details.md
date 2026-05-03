@@ -2,11 +2,14 @@
 feature: it-admin-package-details
 old-source:
   - P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\PackageDetailDomain.cs
+  - P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\DocumentPackageDomain.cs
+  - P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\DocumentDomain.cs
   - P:\PatientPortalOld\patientappointment-portal\src\app\components\document-management\
 old-docs:
   - data-dictionary-table.md (PackageDetails, DocumentPackages, Documents, AppointmentDocumentTypes)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: IMPLEMENTED 2026-05-03 - pending testing
 priority: 2
 strict-parity: true
 internal-user-role: ITAdmin (and possibly StaffSupervisor for package mgmt)
@@ -27,6 +30,25 @@ The "package" is a structured set of documents that must be filled out and uploa
 - `DocumentPackages` rows -- many-to-many linking `Documents` to `PackageDetails` -- defining what's in each package.
 
 When an appointment is approved, the system reads `PackageDetails` for the appointment's type, finds linked `Documents`, inserts an `AppointmentDocument` row per document.
+
+> **CORRECTION 2026-05-03 [VERIFIED against OLD source].** OLD's auto-queue
+> on approval does NOT read `PackageDetail`. The method
+> `AppointmentDocumentDomain.AddAppointmentDocumentsAndSendDocumentToEmail`
+> (P:\PatientPortalOld\PatientAppointment.Domain\DocumentModule\AppointmentDocumentDomain.cs:394+)
+> downloads from hardcoded AWS S3 buckets (`aws.patientPacket`,
+> `aws.doctorPacket`, `aws.attorneyClaimExaminer`) and creates
+> `AppointmentNewDocument` rows with `DocumentStatusId = Accepted`. The
+> `PackageDetail` / `DocumentPackage` tables are master-data CRUD only --
+> they exist for IT Admin to maintain the catalog but are NOT wired into
+> the approval workflow.
+>
+> **Implication:** Phase 5 implements the master-data CRUD only. The
+> NEW `PackageDocumentQueueHandler` design (read PackageDetail on approve
+> -> queue AppointmentDocument rows) is a deliberate IMPROVEMENT over OLD's
+> hardcoded bucket reads, scheduled for Phase 12. This is treated as a
+> framework-level deviation per strict-parity rules, not a behavior
+> deviation -- end-user behavior is the same (package docs queued on
+> approval) only the source of "which docs" changes.
 
 **Strict parity with OLD.**
 
@@ -99,14 +121,15 @@ For `Documents` (master):
 
 | Aspect | OLD | NEW | Action | Sev |
 |--------|-----|-----|--------|-----|
-| `Document` entity (master template catalog) | OLD | NEW: TO VERIFY | **Add `Document` entity** with Name + FilePath (blob URL) + IsActive | B |
-| `PackageDetail` entity (named package per appointment type) | OLD | NEW: presence implied by `AppointmentPacketsAppService` -- TO VERIFY entity name | **Add/verify `AppointmentPacket` entity** with AppointmentTypeId FK + Name + IsActive | B |
-| `DocumentPackage` link entity (many-to-many) | OLD | NEW: TO VERIFY | **Add `AppointmentPacketDocument` linking entity** with PacketId + DocumentId | B |
-| AppointmentType <-> Package association | OLD | NEW: TO VERIFY | **Verify FK on AppointmentPacket** | I |
-| Soft delete | OLD `StatusId` | ABP `ISoftDelete` | None -- use ABP's | -- |
-| Document template files | OLD: local path | NEW: `IBlobStorage` blob | **Use IBlobStorage**; container `master-documents` | -- |
-| Permissions | -- | -- | **Add `CaseEvaluation.AppointmentPackets.{Default, Create, Edit, Delete}`** -- IT Admin (and Staff Supervisor) | I |
-| Auto-queue on appointment approval reads from this | -- | -- | **Verify Approval handler queries AppointmentPacket where AppointmentTypeId matches + IsActive = true** | B |
+| `Document` entity (master template catalog) | OLD | NEW: PRESENT (Domain/Documents/Document.cs) | **DONE** -- Phase 1.2 entity has Name + BlobName + ContentType + IsActive. [IMPLEMENTED 2026-05-03 - pending testing] | B |
+| `PackageDetail` entity (named package per appointment type) | OLD | NEW: PRESENT (Domain/PackageDetails/PackageDetail.cs) | **DONE** -- Phase 1.2 entity has PackageName + AppointmentTypeId + IsActive. Note: NEW also has a separate `AppointmentPacket` entity (per-appointment merged-PDF feature; orthogonal to Phase 5's per-AppointmentType template). [IMPLEMENTED 2026-05-03 - pending testing] | B |
+| `DocumentPackage` link entity (many-to-many) | OLD | NEW: PRESENT (Domain/PackageDetails/DocumentPackage.cs) | **DONE** -- composite key (PackageDetailId, DocumentId), IsActive flag. [IMPLEMENTED 2026-05-03 - pending testing] | B |
+| AppointmentType <-> Package association | OLD | NEW: PRESENT (PackageDetail.AppointmentTypeId FK) | **DONE** [IMPLEMENTED 2026-05-03 - pending testing] | I |
+| Soft delete | OLD `StatusId` | ABP `ISoftDelete` | **DONE** -- ABP's `FullAuditedAggregateRoot` provides ISoftDelete out of the box. [IMPLEMENTED 2026-05-03 - pending testing] | -- |
+| Document template files | OLD: local path | NEW: `IBlobStorage` blob | **DONE** -- `MasterDocumentsContainer` blob marker added (Domain/BlobContainers/MasterDocumentsContainer.cs). DocumentsAppService.CreateAsync / ReplaceFileAsync route uploads through it. [IMPLEMENTED 2026-05-03 - pending testing] | -- |
+| Permissions | -- | -- | **DONE** -- `Documents.{Default,Create,Edit,Delete}` + `PackageDetails.{Default,Create,Edit,Delete,ManageDocuments}` registered in CaseEvaluationPermissions.cs + provider; granted to IT Admin in InternalUserRoleDataSeedContributor. [IMPLEMENTED 2026-05-03 - pending testing] | I |
+| One active package per AppointmentType (OLD invariant) | OLD enforced at PackageDetailDomain.cs:48-53 | NEW: PackageDetailsAppService.EnsureNoActiveDuplicateAsync | **DONE** -- error code `OneActivePackageDetailPerAppointmentType` mirrors OLD validation message. [IMPLEMENTED 2026-05-03 - pending testing] | B |
+| Auto-queue on appointment approval reads from this | OLD does NOT use PackageDetail (correction above) | -- | **DEFERRED** to Phase 12 -- queue handler will read PackageDetail (NEW improvement). Phase 5 master-data CRUD landing first is sufficient for Phase 12 to consume. | B |
 
 ## Internal dependencies surfaced
 

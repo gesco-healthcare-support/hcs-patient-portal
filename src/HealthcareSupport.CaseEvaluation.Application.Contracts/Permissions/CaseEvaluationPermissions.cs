@@ -252,4 +252,36 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".NotificationTemplates";
         public const string Edit = Default + ".Edit";
     }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin maintains the master template catalog.
+    /// Each Document is a blank PDF/DOCX form that is later linked to one or
+    /// more PackageDetails for use in appointment-specific document packets.
+    /// Mirrors OLD's <c>spm.Documents</c> CRUD surface.
+    /// </summary>
+    public static class Documents
+    {
+        public const string Default = GroupName + ".Documents";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+    }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin manages per-AppointmentType package
+    /// templates and the Documents linked into each. Mirrors OLD's
+    /// <c>spm.PackageDetails</c> + <c>spm.DocumentPackages</c> CRUD. The
+    /// "one active package per AppointmentType" rule lives in the AppService;
+    /// see <c>P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\PackageDetailDomain.cs</c>:48-53.
+    /// <c>ManageDocuments</c> gates Link / Unlink endpoints because those are
+    /// distinct user actions (separate from Create/Edit on the package itself).
+    /// </summary>
+    public static class PackageDetails
+    {
+        public const string Default = GroupName + ".PackageDetails";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+        public const string ManageDocuments = Default + ".ManageDocuments";
+    }
 }

@@ -154,6 +154,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // also yielded explicitly per role.
         "AppointmentDocuments",
         "CustomFields",
+        // Phase 5 (2026-05-03): IT Admin master Document catalog + per-
+        // AppointmentType package templates. PackageDetails has an extra
+        // ManageDocuments action yielded explicitly below.
+        "Documents",
+        "PackageDetails",
     };
 
     private static readonly string[] OperationalEntities =
@@ -222,6 +227,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
         yield return Edit("SystemParameters");
+
+        // Phase 5 (2026-05-03) -- PackageDetails has a custom ManageDocuments
+        // action that gates Link / Unlink endpoints. AllEntities yields the
+        // standard CRUD; this yields the extra action explicitly.
+        yield return $"{Group}.PackageDetails.ManageDocuments";
     }
 
     /// <summary>

@@ -135,6 +135,19 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         // Phase 2.5 (2026-05-01) -- IT Admin notification template editor.
         var notificationTemplatesPermission = myGroup.AddPermission(CaseEvaluationPermissions.NotificationTemplates.Default, L("Permission:NotificationTemplates"));
         notificationTemplatesPermission.AddChild(CaseEvaluationPermissions.NotificationTemplates.Edit, L("Permission:Edit"));
+
+        // Phase 5 (2026-05-03) -- IT Admin master Document catalog.
+        var documentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Documents.Default, L("Permission:Documents"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Create, L("Permission:Create"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Edit, L("Permission:Edit"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Delete, L("Permission:Delete"));
+
+        // Phase 5 (2026-05-03) -- IT Admin per-AppointmentType package templates.
+        var packageDetailsPermission = myGroup.AddPermission(CaseEvaluationPermissions.PackageDetails.Default, L("Permission:PackageDetails"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Create, L("Permission:Create"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Edit, L("Permission:Edit"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Delete, L("Permission:Delete"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.ManageDocuments, L("Permission:PackageDetails.ManageDocuments"));
     }
 
     private static LocalizableString L(string name)
