@@ -10,6 +10,11 @@ using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
+using HealthcareSupport.CaseEvaluation.Documents;
+using HealthcareSupport.CaseEvaluation.PackageDetails;
+using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
@@ -42,10 +47,17 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentAccessor> AppointmentAccessors { get; set; } = null!;
     public DbSet<AppointmentEmployerDetail> AppointmentEmployerDetails { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
-    public DbSet<AppointmentSendBackInfo> AppointmentSendBackInfos { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
+    public DbSet<SystemParameter> SystemParameters { get; set; } = null!;
+    public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<PackageDetail> PackageDetails { get; set; } = null!;
+    public DbSet<DocumentPackage> DocumentPackages { get; set; } = null!;
+    public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
+    public DbSet<NotificationTemplateType> NotificationTemplateTypes { get; set; } = null!;
+    public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
+    public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<WcabOffice> WcabOffices { get; set; } = null!;
@@ -109,7 +121,6 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.LastName).HasColumnName(nameof(Doctor.LastName)).IsRequired().HasMaxLength(DoctorConsts.LastNameMaxLength);
                 b.Property(x => x.Email).HasColumnName(nameof(Doctor.Email)).IsRequired().HasMaxLength(DoctorConsts.EmailMaxLength);
                 b.Property(x => x.Gender).HasColumnName(nameof(Doctor.Gender));
-                b.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
             });
             builder.Entity<DoctorAppointmentType>(b =>
@@ -223,27 +234,20 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
+            b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
+            b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));
+            b.Property(x => x.CancellationReason).HasColumnName(nameof(Appointment.CancellationReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
+            b.Property(x => x.CancelledById).HasColumnName(nameof(Appointment.CancelledById));
+            b.Property(x => x.RejectionNotes).HasColumnName(nameof(Appointment.RejectionNotes)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
+            b.Property(x => x.RejectedById).HasColumnName(nameof(Appointment.RejectedById));
+            b.Property(x => x.PrimaryResponsibleUserId).HasColumnName(nameof(Appointment.PrimaryResponsibleUserId));
+            b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(Appointment.IsBeyondLimit));
             b.HasOne<Patient>().WithMany().IsRequired().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
-        });
-
-        builder.Entity<AppointmentSendBackInfo>(b =>
-        {
-            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentSendBackInfos", CaseEvaluationConsts.DbSchema);
-            b.ConfigureByConvention();
-            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentSendBackInfo.TenantId));
-            b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentSendBackInfo.AppointmentId)).IsRequired();
-            b.Property(x => x.FlaggedFieldsJson).HasColumnName(nameof(AppointmentSendBackInfo.FlaggedFieldsJson)).IsRequired();
-            b.Property(x => x.Note).HasColumnName(nameof(AppointmentSendBackInfo.Note)).HasMaxLength(2000);
-            b.Property(x => x.SentBackAt).HasColumnName(nameof(AppointmentSendBackInfo.SentBackAt)).IsRequired();
-            b.Property(x => x.SentBackByUserId).HasColumnName(nameof(AppointmentSendBackInfo.SentBackByUserId));
-            b.Property(x => x.IsResolved).HasColumnName(nameof(AppointmentSendBackInfo.IsResolved));
-            b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentSendBackInfo.ResolvedAt));
-            b.HasIndex(x => x.AppointmentId);
-            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
         builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(b =>
@@ -263,9 +267,140 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.RejectionReason).HasColumnName("RejectionReason").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.RejectionReasonMaxLength);
             b.Property(x => x.ResponsibleUserId).HasColumnName("ResponsibleUserId");
             b.Property(x => x.RejectedByUserId).HasColumnName("RejectedByUserId");
+            b.Property(x => x.IsAdHoc).HasColumnName("IsAdHoc");
+            b.Property(x => x.IsJointDeclaration).HasColumnName("IsJointDeclaration");
+            b.Property(x => x.VerificationCode).HasColumnName("VerificationCode");
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.Status });
+            b.HasIndex(x => x.VerificationCode);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Document master template catalog (IT Admin uploads blank PDF templates).
+        builder.Entity<Document>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Documents", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(Document.Name)).IsRequired().HasMaxLength(DocumentConsts.NameMaxLength);
+            b.Property(x => x.BlobName).HasColumnName(nameof(Document.BlobName)).IsRequired().HasMaxLength(DocumentConsts.BlobNameMaxLength);
+            b.Property(x => x.ContentType).HasColumnName(nameof(Document.ContentType)).HasMaxLength(DocumentConsts.ContentTypeMaxLength);
+            b.Property(x => x.IsActive).HasColumnName(nameof(Document.IsActive));
+        });
+
+        // PackageDetail -- per-AppointmentType template.
+        builder.Entity<PackageDetail>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "PackageDetails", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.PackageName).HasColumnName(nameof(PackageDetail.PackageName)).IsRequired().HasMaxLength(PackageDetailConsts.PackageNameMaxLength);
+            b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(PackageDetail.AppointmentTypeId));
+            b.Property(x => x.IsActive).HasColumnName(nameof(PackageDetail.IsActive));
+            b.HasMany(x => x.DocumentPackages).WithOne().HasForeignKey(x => x.PackageDetailId).IsRequired().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentPackage -- M:N link between PackageDetail and Document.
+        builder.Entity<DocumentPackage>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DocumentPackages", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.PackageDetailId, x.DocumentId });
+            b.Property(x => x.PackageDetailId).HasColumnName(nameof(DocumentPackage.PackageDetailId));
+            b.Property(x => x.DocumentId).HasColumnName(nameof(DocumentPackage.DocumentId));
+            b.Property(x => x.IsActive).HasColumnName(nameof(DocumentPackage.IsActive));
+            b.HasOne<Document>().WithMany().HasForeignKey(x => x.DocumentId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // AppointmentChangeRequest -- user cancel / reschedule request lifecycle.
+        builder.Entity<AppointmentChangeRequest>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentChangeRequests", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentChangeRequest.AppointmentId)).IsRequired();
+            b.Property(x => x.ChangeRequestType).HasColumnName(nameof(AppointmentChangeRequest.ChangeRequestType));
+            b.Property(x => x.CancellationReason).HasColumnName(nameof(AppointmentChangeRequest.CancellationReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
+            b.Property(x => x.ReScheduleReason).HasColumnName(nameof(AppointmentChangeRequest.ReScheduleReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
+            b.Property(x => x.NewDoctorAvailabilityId).HasColumnName(nameof(AppointmentChangeRequest.NewDoctorAvailabilityId));
+            b.Property(x => x.RequestStatus).HasColumnName(nameof(AppointmentChangeRequest.RequestStatus));
+            b.Property(x => x.RejectionNotes).HasColumnName(nameof(AppointmentChangeRequest.RejectionNotes)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
+            b.Property(x => x.RejectedById).HasColumnName(nameof(AppointmentChangeRequest.RejectedById));
+            b.Property(x => x.ApprovedById).HasColumnName(nameof(AppointmentChangeRequest.ApprovedById));
+            b.Property(x => x.AdminReScheduleReason).HasColumnName(nameof(AppointmentChangeRequest.AdminReScheduleReason)).HasMaxLength(AppointmentChangeRequestConsts.ReasonMaxLength);
+            b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
+            b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
+            b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
+            b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<AppointmentChangeRequestDocument>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentChangeRequestDocuments", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentChangeRequestId).HasColumnName(nameof(AppointmentChangeRequestDocument.AppointmentChangeRequestId)).IsRequired();
+            b.Property(x => x.DocumentName).HasColumnName(nameof(AppointmentChangeRequestDocument.DocumentName)).IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.DocumentNameMaxLength);
+            b.Property(x => x.FileName).HasColumnName(nameof(AppointmentChangeRequestDocument.FileName)).IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.FileNameMaxLength);
+            b.Property(x => x.BlobName).HasColumnName(nameof(AppointmentChangeRequestDocument.BlobName)).IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.BlobNameMaxLength);
+            b.Property(x => x.ContentType).HasColumnName(nameof(AppointmentChangeRequestDocument.ContentType)).HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.ContentTypeMaxLength);
+            b.Property(x => x.FileSize).HasColumnName(nameof(AppointmentChangeRequestDocument.FileSize));
+            b.Property(x => x.UploadedByUserId).HasColumnName(nameof(AppointmentChangeRequestDocument.UploadedByUserId));
+            b.HasIndex(x => x.AppointmentChangeRequestId);
+            b.HasOne<AppointmentChangeRequest>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentChangeRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // NotificationTemplate -- per-tenant code-keyed email + SMS template.
+        builder.Entity<NotificationTemplate>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplates", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.TemplateCode).HasColumnName(nameof(NotificationTemplate.TemplateCode)).IsRequired().HasMaxLength(NotificationTemplateConsts.TemplateCodeMaxLength);
+            b.Property(x => x.TemplateTypeId).HasColumnName(nameof(NotificationTemplate.TemplateTypeId)).IsRequired();
+            b.Property(x => x.Subject).HasColumnName(nameof(NotificationTemplate.Subject)).HasMaxLength(NotificationTemplateConsts.SubjectMaxLength);
+            b.Property(x => x.BodyEmail).HasColumnName(nameof(NotificationTemplate.BodyEmail)).IsRequired();
+            b.Property(x => x.BodySms).HasColumnName(nameof(NotificationTemplate.BodySms)).IsRequired();
+            b.Property(x => x.Description).HasColumnName(nameof(NotificationTemplate.Description)).HasMaxLength(NotificationTemplateConsts.DescriptionMaxLength);
+            b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplate.IsActive));
+            b.HasIndex(x => new { x.TenantId, x.TemplateCode }).IsUnique();
+            b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // NotificationTemplateType -- host-scoped lookup (Email / SMS).
+        if (builder.IsHostDatabase())
+        {
+            builder.Entity<NotificationTemplateType>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
+                b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
+            });
+        }
+
+        // Per-tenant SystemParameter singleton -- booking / cancel / reschedule / JDF gates.
+        builder.Entity<SystemParameter>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "SystemParameters", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentLeadTime).HasColumnName(nameof(SystemParameter.AppointmentLeadTime));
+            b.Property(x => x.AppointmentMaxTimePQME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimePQME));
+            b.Property(x => x.AppointmentMaxTimeAME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeAME));
+            b.Property(x => x.AppointmentMaxTimeOTHER).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeOTHER));
+            b.Property(x => x.AppointmentCancelTime).HasColumnName(nameof(SystemParameter.AppointmentCancelTime));
+            b.Property(x => x.AppointmentDueDays).HasColumnName(nameof(SystemParameter.AppointmentDueDays));
+            b.Property(x => x.AppointmentDurationTime).HasColumnName(nameof(SystemParameter.AppointmentDurationTime));
+            b.Property(x => x.AutoCancelCutoffTime).HasColumnName(nameof(SystemParameter.AutoCancelCutoffTime));
+            b.Property(x => x.JointDeclarationUploadCutoffDays).HasColumnName(nameof(SystemParameter.JointDeclarationUploadCutoffDays));
+            b.Property(x => x.PendingAppointmentOverDueNotificationDays).HasColumnName(nameof(SystemParameter.PendingAppointmentOverDueNotificationDays));
+            b.Property(x => x.ReminderCutoffTime).HasColumnName(nameof(SystemParameter.ReminderCutoffTime));
+            b.Property(x => x.IsCustomField).HasColumnName(nameof(SystemParameter.IsCustomField));
+            b.Property(x => x.CcEmailIds).HasColumnName(nameof(SystemParameter.CcEmailIds)).HasMaxLength(SystemParameterConsts.CcEmailIdsMaxLength);
+            b.HasIndex(x => x.TenantId).IsUnique();
         });
 
         // W2-11: AppointmentPacket -- per-appointment merged-PDF metadata row.

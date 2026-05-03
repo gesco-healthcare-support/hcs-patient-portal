@@ -4,7 +4,7 @@ namespace HealthcareSupport.CaseEvaluation.Emailing;
 
 /// <summary>
 /// Placeholder for ABP-managed text templates. Stays empty at MVP -- the
-/// W1-2 transition emails (Approved / Rejected / AwaitingMoreInfo) build
+/// Transition emails (Approved / Rejected) build
 /// their HTML body inline in
 /// <see cref="HealthcareSupport.CaseEvaluation.Appointments.Handlers.StatusChangeEmailHandler"/>
 /// rather than going through ABP's <c>TextTemplateManagement</c> machinery.

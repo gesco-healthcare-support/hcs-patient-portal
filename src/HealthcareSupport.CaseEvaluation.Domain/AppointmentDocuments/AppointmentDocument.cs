@@ -62,6 +62,29 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>W2-11: user who rejected the document (null until rejected).</summary>
     public virtual Guid? RejectedByUserId { get; set; }
 
+    /// <summary>
+    /// True when this row was uploaded as an ad-hoc / general document
+    /// (no status gate, no due-date gate, not part of a package). Mirrors
+    /// OLD's <c>AppointmentNewDocument</c> sibling table; NEW unifies via
+    /// this flag (Phase 1.6, 2026-05-01).
+    /// </summary>
+    public virtual bool IsAdHoc { get; set; }
+
+    /// <summary>
+    /// True when this row is the AME Joint Declaration Form. Mirrors OLD's
+    /// <c>AppointmentJointDeclaration</c> sibling table; NEW unifies via
+    /// this flag (Phase 1.6, 2026-05-01).
+    /// </summary>
+    public virtual bool IsJointDeclaration { get; set; }
+
+    /// <summary>
+    /// Per-document GUID emailed to the patient as part of the package-doc
+    /// upload link, allowing unauthenticated upload of THIS document only.
+    /// Null for internal-user uploads and ad-hoc rows where no email link
+    /// is sent.
+    /// </summary>
+    public virtual Guid? VerificationCode { get; set; }
+
     protected AppointmentDocument()
     {
     }

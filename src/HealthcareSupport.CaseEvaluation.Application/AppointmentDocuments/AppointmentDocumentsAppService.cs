@@ -103,7 +103,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // OLD's vInternalUser pre-set behaviour); external user uploads land
         // as Uploaded pending office review.
         var initialStatus = await IsInternalActorAsync()
-            ? DocumentStatus.Approved
+            ? DocumentStatus.Accepted
             : DocumentStatus.Uploaded;
 
         var entity = await _documentManager.CreateAsync(
@@ -117,7 +117,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             uploadedByUserId: CurrentUser.Id ?? Guid.Empty);
 
         entity.Status = initialStatus;
-        if (initialStatus == DocumentStatus.Approved)
+        if (initialStatus == DocumentStatus.Accepted)
         {
             entity.ResponsibleUserId = CurrentUser.Id;
         }
@@ -172,7 +172,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     public virtual async Task<AppointmentDocumentDto> ApproveAsync(Guid id)
     {
         var entity = await _documentRepository.GetAsync(id);
-        entity.Status = DocumentStatus.Approved;
+        entity.Status = DocumentStatus.Accepted;
         entity.RejectionReason = null;
         entity.RejectedByUserId = null;
         entity.ResponsibleUserId = CurrentUser.Id;

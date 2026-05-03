@@ -26,7 +26,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Handlers;
 ///   Pending                 : Reserved   (booker submitted; held)
 ///   Approved                : Booked     (confirmed)
 ///   Rejected                : Available  (freed)
-///   AwaitingMoreInfo        : Reserved   (held during send-back)
 ///   NoShow                  : Booked     (terminal; keep booked for billing)
 ///   CheckedIn / CheckedOut  : Booked     (in-flight)
 ///   Billed                  : Booked     (terminal)
@@ -144,7 +143,6 @@ public class SlotCascadeHandler :
             AppointmentStatusType.Pending => BookingStatus.Reserved,
             AppointmentStatusType.Approved => BookingStatus.Booked,
             AppointmentStatusType.Rejected => BookingStatus.Available,
-            AppointmentStatusType.AwaitingMoreInfo => BookingStatus.Reserved,
             AppointmentStatusType.NoShow => BookingStatus.Booked,
             AppointmentStatusType.CheckedIn => BookingStatus.Booked,
             AppointmentStatusType.CheckedOut => BookingStatus.Booked,

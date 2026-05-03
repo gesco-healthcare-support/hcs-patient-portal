@@ -123,7 +123,7 @@ public class GenerateAppointmentPacketJob :
             // Pull approved documents in CreationTime order.
             var docQueryable = await _documentRepository.GetQueryableAsync();
             var approvedDocs = docQueryable
-                .Where(d => d.AppointmentId == args.AppointmentId && d.Status == DocumentStatus.Approved)
+                .Where(d => d.AppointmentId == args.AppointmentId && d.Status == DocumentStatus.Accepted)
                 .OrderBy(d => d.CreationTime)
                 .ToList();
 

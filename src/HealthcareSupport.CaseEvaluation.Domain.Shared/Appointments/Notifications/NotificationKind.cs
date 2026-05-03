@@ -11,7 +11,6 @@ public enum NotificationKind
     Submitted = 1,
     Approved = 2,
     Rejected = 3,
-    AwaitingMoreInfo = 4,
     RequestSchedulingReminder = 5,
     CancellationRescheduleReminder = 6,
     AppointmentDayReminder = 7,

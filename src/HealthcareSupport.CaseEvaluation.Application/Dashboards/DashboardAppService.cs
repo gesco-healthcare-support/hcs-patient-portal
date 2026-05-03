@@ -93,8 +93,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                  && a.LastModificationTime >= lastMondayUtc);
 
         var requestsApproachingLegalDeadline = await _appointmentRepository.CountAsync(
-            a => (a.AppointmentStatus == AppointmentStatusType.Pending
-                  || a.AppointmentStatus == AppointmentStatusType.AwaitingMoreInfo)
+            a => a.AppointmentStatus == AppointmentStatusType.Pending
                  && a.CreationTime <= legalDeadlineThresholdUtc);
 
         var totalDoctors = scopedToTenant
