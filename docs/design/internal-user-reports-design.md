@@ -113,7 +113,7 @@ OLD source: `search/appointment-request-report-search.component.ts:97-136`
 | Date Of Birth | `dateOfBirth` | PHI |
 | Email | `email` | PHI |
 | Phone Number | `phoneNumber` | PHI |
-| Social Security Number | `socialSecurityNumber` | PHI; no masking applied in OLD (raw SSN shown) |
+| Social Security Number | `socialSecurityNumber` | PHI; no masking in OLD (raw SSN shown); NEW: masked by default (`***-**-NNNN`) with a "reveal" toggle button per Adrian |
 | Action | -- | "Patient Demographics Report" PDF icon (see Section 6) |
 
 - Default sort: `requestConfirmationNumber` descending.
@@ -128,14 +128,18 @@ OLD source: `search/appointment-request-report-search.component.html:110-141`
 
 ### 6a. Bulk table export
 
+The "Export to PDF" and "Export to Excel" buttons let users download the current filtered
+appointment report as a file for printing or offline use.
+
 | Button | OLD behavior | NEW behavior |
 |---|---|---|
-| Export to PDF | `tableEvent.exportToCsv('Appointment Request Report', 1)` -- rx-table client-side export | Server-side: `GET /api/app/reports/export?format=pdf` with current filter state |
-| Export to Excel | `tableEvent.exportToCsv('Appointment Request Report', 2)` -- rx-table client-side export | Server-side: `GET /api/app/reports/export?format=excel` with current filter state |
+| Export to PDF | `tableEvent.exportToCsv('Appointment Request Report', 1)` -- rx-table built-in client-side export of the visible page | Server-side: `GET /api/app/reports/export?format=pdf` with current filter params; exports ALL matching records |
+| Export to Excel | `tableEvent.exportToCsv('Appointment Request Report', 2)` -- rx-table built-in client-side export of the visible page | Server-side: `GET /api/app/reports/export?format=excel` with current filter params; exports ALL matching records |
 
-OLD exports current filtered/sorted data from the `rx-table` in-memory state (client-side).
-NEW must generate server-side because the Angular Material table is not `rx-table` and has no
-built-in export capability. See Exception 1.
+OLD: `rx-table` had built-in export that serialized the currently loaded page (client-side only).
+NEW must generate server-side because Angular Material table has no built-in export. This is
+actually an improvement over OLD: server-side export includes ALL filtered records, not just
+the current page. See Exception 1.
 
 ### 6b. Per-row Patient Demographics Report
 
@@ -188,9 +192,8 @@ restricted to internal roles. OLD applied `MODULES.Reports` access check on comp
 
 NEW must gate this route behind `permissionGuard` with `CaseEvaluation.Reports.Default`.
 
-**SSN masking: note that the OLD table shows raw SSN (no masking).** This is a parity flag.
-All other appointment-list surfaces mask SSN. The report page does not. Replicate OLD
-behavior (show raw SSN) but flag for future PHI policy review. See Exception 3.
+**SSN:** NEW masks SSN by default (`***-**-NNNN`) with a "reveal" toggle that unmasks the
+full value on demand. OLD showed raw SSN with no masking. See Exception 3.
 
 ---
 
@@ -241,8 +244,8 @@ Role-scoped filtering (Clinic Staff vs Supervisor/Admin) applies the same
 | # | Element | OLD behavior | NEW behavior | Reason |
 |---|---|---|---|---|
 | 1 | Bulk PDF/Excel export | Client-side via `rx-table.exportToCsv()` -- exports current in-memory page | Server-side export endpoint receives current filter params and generates file | `rx-table` not available in NEW; server-side export is more reliable for large datasets |
-| 2 | Patient Demographics Report | `api/CsvExport/{id}/1` returns HTML; opened in new browser window | Dedicated PDF endpoint returns file stream; downloaded to disk | Framework change; DOCX/HTML reports replaced with PDF per CLAUDE.md primary mission |
-| 3 | Raw SSN in table | SSN column shows unmasked value (no `***-**-NNNN` mask) | Replicate OLD verbatim but flag for PHI review | Parity: reports page historically showed full SSN to authorized internal users; masking policy to be confirmed with Adrian before Phase 19b sign-off |
+| 2 | Patient Demographics Report | `api/CsvExport/{id}/1` returns HTML string; opened in a new browser window | Dedicated PDF endpoint returns file stream; browser downloads PDF | HTML → PDF download for consistent rendering and printability. NOT related to the doctor/patient DOCX → PDF packet change (that is covered in `external-user-appointment-package-documents-design.md`). |
+| 3 | SSN masking | SSN column shows raw unmasked value | NEW masks by default (`***-**-NNNN`) with a per-row reveal toggle | Adrian confirmed: mask by default with reveal action. Improves PHI protection for screen-share / shoulder-surf scenarios. |
 | 4 | Global search on keystroke | Enter key triggers `bindReport()`; no debounce | Add 300ms debounce on Enter to prevent excessive API calls | UX improvement; functionally equivalent |
 | 5 | Filter validation requires at least one filter | `filterReport()` blocks if all 6 filters empty | Replicate: show error toast if Search clicked with all filters empty | Same validation gate; ensures non-empty queries |
 
@@ -284,4 +287,4 @@ Role-scoped filtering (Clinic Staff vs Supervisor/Admin) applies the same
 - [ ] Action column PDF icon generates Patient Demographics Report PDF download for that row
 - [ ] Clinic Staff sees only appointments where they are the Responsible User
 - [ ] Staff Supervisor / IT Admin see all appointments (no role filter)
-- [ ] SSN column shows unmasked value (parity) -- Exception 3 confirmed with Adrian
+- [ ] SSN column shows masked value (`***-**-NNNN`) by default with reveal toggle (Exception 3)

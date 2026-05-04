@@ -23,7 +23,10 @@ ever added. The modal has a single "Close" button; there is no accept/reject act
 In NEW, **this feature is not yet implemented**. The modal must be wired to the
 registration form and populated with real T&C text before going live.
 
-**Action required before Phase 19b:** Adrian (or Gesco legal) must supply the actual
+**Priority: lowest.** Adrian confirmed: T&C modal will be implemented only after the
+primary appointment booking lifecycle is complete and verified.
+
+**Blocker before implementation:** Adrian (or Gesco legal) must supply the actual
 T&C text to replace the Lorem Ipsum placeholder.
 
 ---

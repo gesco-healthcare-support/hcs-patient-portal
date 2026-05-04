@@ -139,7 +139,9 @@ Status enum values (from `appointment-status-type.ts`):
 `Approved=2, NoShow=4, CheckedIn=9, CheckedOut=10, Billed=11`
 
 **Notes icon** (`fa-info` / `AppointmentInfoComponent`): present in OLD template but commented
-out. Not to be implemented in NEW for Phase 1. See Exception 2.
+out. In NEW, this icon WILL be implemented. Clicking it opens
+`MatDialog.open(AppointmentNotesDialogComponent, { data: { appointmentId } })`.
+Adrian confirmed this entry point for Phase 19b. See Exception 2.
 
 OLD source: `appointment-list.component.html:82-128`
 
@@ -189,11 +191,18 @@ OLD source: `appointment-list.component.ts:113-240`
 | Load appointments for date | `GET api/appointments` with params `[orderByColumn, sortOrder, pageIndex, rowCount, appointmentStatusId, date, searchQuery]` | `GET /api/app/appointments?date={date}&...` |
 | Status transition | `PATCH api/appointments/{id}` with status payload | `POST /api/app/appointments/{id}/check-in`, `POST /api/app/appointments/{id}/check-out`, `POST /api/app/appointments/{id}/bill`, `POST /api/app/appointments/{id}/no-show` |
 
-**OLD status filter note:** The component initializes `appointmentStatusId = Approved (2)` and
-passes it to the query, but the presence of Check Out and Billed icons in the template
-suggests the API shows appointments at ALL day-of statuses regardless of this parameter
-(otherwise CheckedIn/CheckedOut rows would never appear). This is a parity flag -- verify
-in OLD whether the filter is actually applied server-side. See Section 11.
+**OLD status filter -- RESOLVED:** The component hardcodes `appointmentStatusId = Approved (2)`
+and passes it to `spm.spAppointmentRequestList`. However, the template shows Check Out and
+Billed icons for `CheckedIn` and `CheckedOut` rows -- which is only possible if the stored
+procedure IGNORES the `@AppointmentStatusId` parameter and returns all appointments for the
+selected date regardless of status.
+
+Verification: the stub SP in `_local/stub-procs.sql` takes the parameter but does not use
+it in any WHERE clause. The real production SP almost certainly returns all actionable
+statuses for the date (Approved, CheckedIn, CheckedOut, Billed, NoShow).
+
+**NEW behavior:** Query by date only; return all appointments for that date regardless of
+status. No status filter. Staff see the full day's picture in one view. See Exception 4.
 
 ---
 
@@ -244,9 +253,9 @@ maps to the `CaseEvaluation.Appointments.CheckIn` permission in NEW.
 | # | Element | OLD behavior | NEW behavior | Reason |
 |---|---|---|---|---|
 | 1 | Search clear sets space not empty | `searchAppointmentClear()` sets `searchQuery = " "` (single space) then queries | NEW sets empty string `""` | Bug in OLD: trailing space forces a non-empty query that may differ from an empty query server-side. NEW corrects this. |
-| 2 | Notes popup (AppointmentInfoComponent) | `fa-info` icon triggers `AppointmentInfoComponent` popup -- COMMENTED OUT in OLD template | Not implemented in Phase 1 | Notes feature is commented out in OLD and not part of Phase 1 scope; appointment notes handled via the notes tab on the appointment-view page instead |
+| 2 | Notes popup (AppointmentInfoComponent) | `fa-info` icon triggers `AppointmentInfoComponent` popup -- COMMENTED OUT in OLD template | NEW implements it: `fa-info` icon opens `MatDialog.open(AppointmentNotesDialogComponent, { data: { appointmentId } })` | Entry point confirmed by Adrian; OLD had the backend fully implemented but commented out the frontend icon; NEW wires the icon to the MatDialog |
 | 3 | Route name `/appointment-approve-request` | Misleading legacy route name | NEW uses `/check-in` (descriptive) | Route name correction; functionality identical |
-| 4 | Status filter in query | `appointmentStatusId = Approved (2)` passed to API (may be ignored server-side) | NEW shows all appointments for selected date regardless of status filter | Verify OLD server-side behavior; NEW should show all day-of statuses so staff can see the full day's picture |
+| 4 | Status filter in query | `appointmentStatusId = Approved (2)` hardcoded in component and passed to SP, but SP ignores it (deduced from template showing CheckedIn/CheckedOut rows) | NEW queries by date only; returns ALL appointments for the date across all statuses | Resolved 2026-05-04: SP cannot be filtering to Approved-only since CheckedIn/CheckedOut actions appear in template; day-of view must show full status spectrum |
 | 5 | PATCH for status updates | Single PATCH endpoint with generic payload + flags | Dedicated POST endpoints per action | Explicit action endpoints are clearer, easier to audit, and map to domain events |
 
 ---
@@ -292,3 +301,5 @@ maps to the `CaseEvaluation.Appointments.CheckIn` permission in NEW.
 - [ ] Staff Supervisor sees all appointments (no user filter)
 - [ ] Text search filters table by search query; Enter key triggers search
 - [ ] Search clear resets to full list for selected date
+- [ ] Notes icon (`fa-info`) visible for every row; click opens `AppointmentNotesDialogComponent` MatDialog
+- [ ] Notes dialog pre-populated with correct appointmentId for that row

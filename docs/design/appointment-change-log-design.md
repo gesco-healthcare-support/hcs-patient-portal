@@ -138,16 +138,12 @@ No Confirmation # column (already in context).
 OLD's standalone search page at `/appointment-change-logs` shows changes across ALL
 appointments with rich filtering (by field, value, date). NEW has no equivalent.
 
-**Options for NEW:**
-- **Option A (Parity):** Implement a standalone change log search page using ABP audit
-  log API with appointment entity type filter. Route: `/change-logs`. Permission:
-  `CaseEvaluation.AppointmentChangeLogs`.
-- **Option B (Partial parity):** Keep per-appointment view only; add the standalone
-  search only if auditors or supervisors request it.
+**Decision (Adrian, 2026-05-04):** Option A (parity) is the target -- implement the
+standalone search page to replicate OLD behavior. However, this is **lowest-priority** work:
+build it AFTER the primary appointment booking lifecycle is complete and verified.
 
-Per strict-parity directive, Option A is the target. But this requires ABP audit log
-API to support field-level filtering (filter by `propertyName`, `originalValue`,
-`newValue`) -- verify whether ABP's `AuditLogsService` exposes these query parameters.
+Before implementing: verify whether ABP's `AuditLogsService` exposes field-level query
+parameters (`propertyName`, `originalValue`, `newValue`) needed for the 5-filter search.
 
 ---
 
@@ -191,7 +187,7 @@ API to support field-level filtering (filter by `propertyName`, `originalValue`,
 
 | # | Element | OLD behavior | NEW behavior | Reason |
 |---|---|---|---|---|
-| 1 | Standalone search page | `/appointment-change-logs` with cross-appointment search + 5 filters | Not implemented; per-appointment view only | NEW uses ABP audit logging which has a different API; standalone search needs ABP audit log query with appointment entity filter -- verify API support before implementing |
+| 1 | Standalone search page | `/appointment-change-logs` with cross-appointment search + 5 filters | Deferred -- per-appointment view only until after main booking lifecycle is verified | Adrian confirmed parity target (Option A) but deferred to lowest priority; verify ABP audit API field-level filter support before building |
 | 2 | `AppointmentChangeLogs` table | Dedicated audit table with `requestConfirmationNumber`, `fieldName`, `oldValue`, `newValue`, `changedDate`, `modifiedBy` | ABP EntityChanges + EntityPropertyChanges tables (accessed via audit logging service) | Framework change; ABP audit logging is the standard mechanism and is already wired |
 | 3 | Status column in change log | Shows current appointment status as color-coded badge in each change log row | Not needed in per-appointment view (status is in appointment-view header context) | Per-appointment view has context already |
 

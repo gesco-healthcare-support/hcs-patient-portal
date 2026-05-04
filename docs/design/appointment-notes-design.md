@@ -26,13 +26,13 @@ and data model are fully implemented.
 In NEW, **this feature is not yet implemented**. The Notes entity, AppService, and
 Angular component do not exist.
 
-**Decision required before Phase 19b:** Adrian must confirm:
-1. Where notes should be accessible -- embedded in the appointment-view page (as a tab
-   or collapsible section), or as a standalone popup from the all-appointments list?
-2. Whether all internal users can see all notes, or only the note author can see their
-   own notes (OLD shows all notes but only allows editing own).
-3. Whether note history is tracked (OLD creates a new record per edit rather than
-   updating in place, using `editNoteId` field).
+**Decisions confirmed by Adrian (2026-05-04):**
+1. Notes surfaced as a `MatDialog` popup (NOT embedded tab/section). Same intent as OLD.
+2. All internal users can see all notes on any appointment they can access; only the note
+   author can edit or delete their own notes.
+3. Note edit DOES create a new record (POST with `editNoteId`). This is intentional for
+   compliance / audit trail.
+4. Notes accessible from two entry points: appointment-view page AND check-in/check-out list.
 
 ---
 
@@ -41,14 +41,19 @@ Angular component do not exist.
 No dedicated route. Notes are displayed in a modal popup in OLD.
 
 OLD: `RxPopup.show(AppointmentInfoComponent, { appointmentId, patientDetail })`
-NEW (recommended): `MatDialog.open(AppointmentNotesDialogComponent, { data: { appointmentId } })`
-  OR: embedded notes tab/section on the appointment-view page (preferred for UX)
+NEW: `MatDialog.open(AppointmentNotesDialogComponent, { data: { appointmentId } })`
+
+Entry points (two):
+1. Appointment-view page -- a "Notes" button/icon opens the dialog.
+2. Check-in/check-out list -- the `fa-info` Notes icon (currently commented out in OLD template)
+   will be uncommented and wired to `MatDialog.open(AppointmentNotesDialogComponent)`.
 
 ---
 
 ## 2. Shell
 
-Modal overlay from the internal-user authenticated shell.
+Modal overlay (`MatDialog`) from the internal-user authenticated shell.
+Launched from two entry points: appointment-view page and check-in/check-out list.
 
 ---
 
@@ -146,8 +151,9 @@ Edit loads the comment into the textarea. Save triggers `editNote()`:
 This pattern tracks note history -- each edit creates a new record referencing the
 original via `editNoteId`. The `isLatest` flag marks the current version.
 
-In NEW, Adrian should decide whether to replicate this pattern or use a simpler
-single-record update. The edit-history pattern has audit value but adds complexity.
+**Adrian confirmed (2026-05-04): this is intentional for compliance.** Replicate exactly
+in NEW: edit POST creates a new record with `editNoteId` set, `isLatest=true`, and original
+`createdById`/`createdDate` preserved. The previous version's `isLatest` is set to `false`.
 See Exception 1.
 
 OLD source: `appointments/info/appointment-info.component.ts:146-180`
@@ -240,10 +246,10 @@ See Exception 3.
 
 | Aspect | OLD | NEW |
 |---|---|---|
-| Entry point | Check-in page Notes icon (commented out in OLD) | Embedded tab on appointment-view page (recommended) or popup from all-appointments list |
+| Entry point | Check-in page Notes icon (COMMENTED OUT in OLD -- never shipped) | `MatDialog.open(AppointmentNotesDialogComponent)` from two entry points: appointment-view page + check-in list |
 | Notes fetch | Client-side filter of all notes | Server-side `GET /api/app/notes?appointmentId={id}` |
-| Popup | `RxPopup.show(AppointmentInfoComponent)` | `MatDialog.open(AppointmentNotesDialogComponent)` or embedded section |
-| Edit pattern | POST creates new record (history audit trail) | Confirm with Adrian: history vs simple PUT |
+| Popup | `RxPopup.show(AppointmentInfoComponent)` | `MatDialog.open(AppointmentNotesDialogComponent)` using latest Angular 20 + Material packages |
+| Edit pattern | POST creates new record (history audit trail) | POST creates new record (compliance requirement; confirmed by Adrian) |
 
 ---
 
@@ -251,10 +257,10 @@ See Exception 3.
 
 | # | Element | OLD behavior | NEW behavior | Reason |
 |---|---|---|---|---|
-| 1 | Edit creates new record | `POST api/Notes` with `editNoteId` -- edit history audit trail | Confirm with Adrian before implementing: keep history (same pattern) OR simplify to `PUT api/app/notes/{id}` | Both are valid; history adds auditing value but adds query complexity |
+| 1 | Edit creates new record | `POST api/Notes` with `editNoteId` -- edit history audit trail | NEW replicates: POST creates new record with `editNoteId`, prior version `isLatest=false` | Intentional for compliance (Adrian confirmed 2026-05-04); preserves full audit trail |
 | 2 | `parentNoteId` = userId | Field name misleads; stores note owner's userId | NEW renames to `ownerUserId` or drops in favor of `createdById` for ownership check | Naming correction; functionally equivalent |
 | 3 | Client-side filter | Loads ALL notes for ALL appointments, filters in browser | Server-side filter by `appointmentId` | Security: prevents PHI notes from leaking to browser for all appointments |
-| 4 | Notes popup from check-in page | AppointmentInfoComponent was commented out | Notes accessible from appointment-view page tab/section instead | UX improvement; notes belong next to the appointment detail, not only during check-in |
+| 4 | Notes popup from check-in page | AppointmentInfoComponent -- COMMENTED OUT in OLD template | `MatDialog.open(AppointmentNotesDialogComponent)` from two entry points: appointment-view page AND check-in/check-out list (fa-info icon wired in NEW) | Entry points confirmed by Adrian; fa-info icon deliberately commented out in OLD but the backend is fully implemented |
 
 ---
 
@@ -273,7 +279,8 @@ See Exception 3.
 
 *(Pending implementation)*
 
-- [ ] Notes section accessible from appointment-view page for all internal users
+- [ ] Notes dialog (`MatDialog`) accessible from appointment-view page (Notes button)
+- [ ] Notes dialog accessible from check-in/check-out list (fa-info icon in Action column)
 - [ ] Notes list shows for correct appointment only (server-side filter)
 - [ ] Each note shows: author name, author role, date, comment text
 - [ ] Notes sorted by date descending (most recent first)
@@ -281,7 +288,7 @@ See Exception 3.
 - [ ] Comment textarea required; Save disabled when empty
 - [ ] Add note: POST creates record; success toast shown; list reloads
 - [ ] Edit icon visible only for notes created by current user
-- [ ] Edit loads comment into textarea; Save updates (PUT) or creates audit record (POST + editNoteId)
+- [ ] Edit loads comment into textarea; Save creates new audit record (POST with `editNoteId`); prior version `isLatest=false`
 - [ ] Delete icon visible only for notes created by current user
 - [ ] Delete shows confirmation dialog; DELETE removes record; success toast; list reloads
 - [ ] External users cannot access notes
