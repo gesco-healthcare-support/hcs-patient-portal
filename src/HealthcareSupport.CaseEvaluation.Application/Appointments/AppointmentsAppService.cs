@@ -557,6 +557,29 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with localized error code on failure.
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
 
+        // Phase 11h (2026-05-04) -- internal-user fast-path. OLD
+        // AppointmentDomain.cs:221-240 sets status=Approved + slot=Booked
+        // directly when UserType is InternalUser (admin / Clinic Staff /
+        // Staff Supervisor / IT Admin / Doctor). External users (Patient,
+        // AA, DA, CE, Adjuster) land at Pending + Reserved as the office
+        // approves the request. The slot transition cascades through
+        // SlotCascadeHandler from the AppointmentStatusChangedEto we
+        // publish below: Pending -> Reserved, Approved -> Booked.
+        var callerRoles = CurrentUser.Roles ?? System.Array.Empty<string>();
+        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(callerRoles);
+        var initialStatus = isInternalCaller
+            ? AppointmentStatusType.Approved
+            : AppointmentStatusType.Pending;
+
+        // Phase 11h (2026-05-04) -- Adjuster auto-fill of ClaimExaminerEmail.
+        // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
+        // own email when the booker is an Adjuster, regardless of what the
+        // form posted. Strict parity preserves that override.
+        var resolvedClaimExaminerEmail = BookingFlowRoles.ResolveClaimExaminerEmail(
+            callerRoles,
+            currentUserEmail: CurrentUser.Email,
+            dtoClaimExaminerEmail: input.ClaimExaminerEmail);
+
         // W1-1: per T11 lifecycle, every booker submission lands at Pending. The
         // client-supplied AppointmentStatus on AppointmentCreateDto used to be
         // honored as-is (a known gap from the gap-analysis -- track 02). Force
@@ -604,7 +627,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.DoctorAvailabilityId,
                 input.AppointmentDate,
                 requestConfirmationNumber,
-                AppointmentStatusType.Pending,
+                initialStatus,
                 input.PanelNumber,
                 input.DueDate);
         });
@@ -615,7 +638,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.PatientEmail = input.PatientEmail;
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
-        appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+        appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
 
         // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
         // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
