@@ -40,7 +40,7 @@ prompt.
 |---|---------|----------------|--------|-----------------|-----------------|-------|
 | 1 | external-user-registration | `external-user-registration-design.md` | draft | pending | n/a (no NEW UI) | Phase 8 UI dependency |
 | 2 | external-user-forgot-password | `external-user-forgot-password-design.md` | draft | pending | n/a | Phase 10 UI dependency; backend already shipped 2026-05-03 |
-| 3 | external-user-appointment-cancellation | `external-user-appointment-cancellation-design.md` | not-started | pending | n/a | Phase 15 UI (Session A) |
+| 3 | external-user-appointment-cancellation | `external-user-appointment-cancellation-design.md` | draft | pending | n/a | Phase 15 UI (Session A); backend already shipped 2026-05-04 |
 | 4 | external-user-appointment-rescheduling | `external-user-appointment-rescheduling-design.md` | not-started | pending | n/a | Phase 16 UI (Session A) |
 | 5 | staff-supervisor-change-request-approval | `staff-supervisor-change-request-approval-design.md` | not-started | pending | n/a | Phase 17 UI |
 | 6 | it-admin-system-parameters | `it-admin-system-parameters-design.md` | not-started | pending | n/a | Standalone admin page |
