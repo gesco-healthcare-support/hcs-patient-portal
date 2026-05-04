@@ -1,4 +1,8 @@
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -19,4 +23,16 @@ public class AppointmentWithNavigationPropertiesDto
     public LocationDto? Location { get; set; }
     public DoctorAvailabilityDto? DoctorAvailability { get; set; }
     public AppointmentApplicantAttorneyWithNavigationPropertiesDto? AppointmentApplicantAttorney { get; set; }
+
+    /// <summary>Phase 13b (2026-05-04).</summary>
+    public AppointmentDefenseAttorneyWithNavigationPropertiesDto? AppointmentDefenseAttorney { get; set; }
+
+    /// <summary>Phase 13b (2026-05-04).</summary>
+    public AppointmentEmployerDetailWithNavigationPropertiesDto? AppointmentEmployerDetail { get; set; }
+
+    /// <summary>Phase 13b (2026-05-04).</summary>
+    public List<AppointmentInjuryDetailWithNavigationPropertiesDto> AppointmentInjuryDetails { get; set; } = new();
+
+    /// <summary>Phase 13b (2026-05-04).</summary>
+    public List<AppointmentAccessorDto> AppointmentAccessors { get; set; } = new();
 }

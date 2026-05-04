@@ -229,14 +229,19 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // users (admin / Clinic Staff / etc.) bypass; external users
         // must be the creator OR have an AppointmentAccessor row.
         await EnsureCanReadAsync(id);
-        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>((await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
+        var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
+            (await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
+        // Phase 13b (2026-05-04) -- mask InternalUserComments for external
+        // users so the field is not exposed via the API JSON payload.
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<AppointmentDto> GetAsync(Guid id)
     {
         await EnsureCanReadAsync(id);
-        return ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
+        var dto = ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
     }
 
     /// <summary>
@@ -256,8 +261,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return null;
         }
         await EnsureCanReadAppointmentAsync(appointment);
-        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
+        var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
             (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+    }
+
+    /// <summary>
+    /// Phase 13b (2026-05-04) -- thin wrapper around
+    /// <see cref="BookingFlowRoles.IsInternalUserCaller"/> with the
+    /// inverse semantics. Returns true when the caller is NOT in any
+    /// internal role; that's the trigger for the
+    /// <see cref="ExternalUserDtoFilter"/> mask.
+    /// </summary>
+    private bool IsExternalCaller()
+    {
+        var roles = CurrentUser.Roles ?? Array.Empty<string>();
+        return !BookingFlowRoles.IsInternalUserCaller(roles);
     }
 
     /// <summary>
