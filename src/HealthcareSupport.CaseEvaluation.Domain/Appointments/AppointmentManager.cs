@@ -4,6 +4,7 @@ using System;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using Volo.Abp;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.EventBus.Local;
@@ -38,6 +39,77 @@ public class AppointmentManager : DomainService
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
         return await _appointmentRepository.InsertAsync(appointment);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>) gate.
+    /// Looks up the source by confirmation number, validates it is in
+    /// status <see cref="AppointmentStatusType.Rejected"/>, and returns
+    /// the source for the caller to thread through the standard create
+    /// pipeline. The new appointment must reuse the source's confirmation
+    /// number (per OLD <c>AppointmentDomain.cs:262-266</c>); the caller
+    /// is responsible for that copy because the conf# is part of the
+    /// <see cref="Appointment"/> ctor signature.
+    /// </summary>
+    /// <exception cref="EntityNotFoundException">When no source row matches.</exception>
+    /// <exception cref="BusinessException">
+    /// With code <c>AppointmentReSubmitSourceNotRejected</c> when the
+    /// source is in any status other than <c>Rejected</c>. Carries the
+    /// source <c>RequestConfirmationNumber</c> + <c>AppointmentStatus</c>
+    /// as <c>WithData</c>.
+    /// </exception>
+    public virtual async Task<Appointment> LoadResubmitSourceAsync(string sourceConfirmationNumber)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        if (!AppointmentLifecycleValidators.CanResubmit(source.AppointmentStatus))
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentReSubmitSourceNotRejected)
+                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+
+        return source;
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>) gate.
+    /// Looks up the source by confirmation number; validates it is in
+    /// status <see cref="AppointmentStatusType.Approved"/>; surfaces a
+    /// distinct error code when the caller is IT Admin (verbatim OLD
+    /// hint message) versus a non-admin caller (verbatim OLD
+    /// patient-facing message). Per OLD <c>AppointmentDomain.cs:171-173</c>
+    /// the admin override is hint-only -- it does NOT bypass the
+    /// "must be Approved" gate. Returns the source for the caller to
+    /// thread through the standard create pipeline; the new appointment
+    /// gets a freshly generated confirmation number (OLD line 268).
+    /// </summary>
+    public virtual async Task<Appointment> LoadRevalSourceAsync(string sourceConfirmationNumber, bool callerIsItAdmin)
+    {
+        Check.NotNullOrWhiteSpace(sourceConfirmationNumber, nameof(sourceConfirmationNumber));
+
+        var source = await _appointmentRepository.FindByConfirmationNumberAsync(sourceConfirmationNumber);
+        if (source == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        }
+
+        if (!AppointmentLifecycleValidators.CanCreateReval(source.AppointmentStatus, callerIsItAdmin))
+        {
+            var errorCode = AppointmentLifecycleValidators.ResolveRevalRejectionCode(callerIsItAdmin);
+            throw new BusinessException(errorCode)
+                .WithData("confirmationNumber", sourceConfirmationNumber)
+                .WithData("status", source.AppointmentStatus);
+        }
+
+        return source;
     }
 
     public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)

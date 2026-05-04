@@ -147,4 +147,24 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
+
+    public virtual async Task<Appointment?> FindByConfirmationNumberAsync(
+        string requestConfirmationNumber,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestConfirmationNumber))
+        {
+            return null;
+        }
+
+        var dbSet = await GetDbSetAsync();
+        // ABP's IMultiTenant data filter scopes this to the calling
+        // tenant automatically. Order by CreationTime descending so a
+        // future ReSubmit-of-a-ReSubmit chain returns the most recent
+        // entry rather than the original.
+        return await dbSet
+            .Where(a => a.RequestConfirmationNumber == requestConfirmationNumber)
+            .OrderByDescending(a => a.CreationTime)
+            .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
+    }
 }

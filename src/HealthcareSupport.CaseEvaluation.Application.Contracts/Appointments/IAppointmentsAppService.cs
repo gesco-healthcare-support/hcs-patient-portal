@@ -58,4 +58,36 @@ public interface IAppointmentsAppService : IApplicationService
 
     /// <summary>Transition: Pending -> Rejected.</summary>
     Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input);
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>).
+    /// Looks up the source appointment by <paramref name="sourceConfirmationNumber"/>,
+    /// validates it is in status <c>Rejected</c>, then creates a new
+    /// appointment from <paramref name="input"/> reusing the source
+    /// confirmation number. The new appointment lands at status
+    /// <c>Pending</c> for external bookers (slot Available -> Reserved)
+    /// or <c>Approved</c> for internal bookers (slot Available -> Booked)
+    /// per the Phase 11h fast-path.
+    /// </summary>
+    /// <exception cref="Volo.Abp.BusinessException">
+    /// With code <c>AppointmentReSubmitSourceNotRejected</c> when the
+    /// source is in any status other than <c>Rejected</c>.
+    /// </exception>
+    Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>).
+    /// Looks up the source appointment by <paramref name="sourceConfirmationNumber"/>,
+    /// validates it is in status <c>Approved</c> (admin override surfaces
+    /// the OLD-verbatim hint message but does NOT bypass the gate, per
+    /// strict-parity directive), then creates a new appointment with a
+    /// freshly generated confirmation number. Used for follow-up
+    /// evaluations on a previously approved IME.
+    /// </summary>
+    /// <exception cref="Volo.Abp.BusinessException">
+    /// With code <c>AppointmentRevalSourceNotApproved</c> for non-admin
+    /// callers, <c>AppointmentRevalSourceNotApprovedAdminHint</c> for IT
+    /// Admin callers, when the source is not in status <c>Approved</c>.
+    /// </exception>
+    Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
 }

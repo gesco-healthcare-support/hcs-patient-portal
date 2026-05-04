@@ -464,7 +464,59 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     [Authorize]
     [Authorize(CaseEvaluationPermissions.Appointments.Create)]
-    public virtual async Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
+    public virtual Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
+    {
+        return CreateAppointmentInternalAsync(input, lifecycleFlow: null, sourceConfirmationNumber: null);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit endpoint.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        // Validate the source via the Manager so the BusinessException
+        // gate runs against the live entity (in case the source's status
+        // mutated between the UI's lookup and this call).
+        var source = await _appointmentManager.LoadResubmitSourceAsync(sourceConfirmationNumber);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.ReSubmit,
+            sourceConfirmationNumber: source.RequestConfirmationNumber);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval endpoint.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        // OLD AppointmentDomain.cs:163-174 reads the IT Admin role at gate
+        // time, NOT at request time. Mirror that: pass CurrentUser's role
+        // membership through the validator so admin / non-admin callers
+        // see distinct error messages.
+        var callerIsItAdmin = CurrentUser.IsInRole("IT Admin");
+        var source = await _appointmentManager.LoadRevalSourceAsync(sourceConfirmationNumber, callerIsItAdmin);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.Reval,
+            sourceConfirmationNumber: source.RequestConfirmationNumber);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- shared booking pipeline used by
+    /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
+    /// <see cref="CreateRevalAsync"/>. All three flows perform identical
+    /// existence + slot + lead-time + max-time validation; they differ
+    /// only in confirmation-number resolution (per OLD's branching at
+    /// <c>AppointmentDomain.cs:262-271</c>).
+    /// </summary>
+    private async Task<AppointmentDto> CreateAppointmentInternalAsync(
+        AppointmentCreateDto input,
+        AppointmentLifecycleFlow? lifecycleFlow,
+        string? sourceConfirmationNumber)
     {
         ValidateCreateGuids(input);
 
@@ -521,9 +573,29 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // SaveChanges leaves the EF change-tracker in a state ABP rolls back at
         // the outer transaction boundary. Re-throwing surfaces the policy's
         // budget-exhausted message (rare in practice; race window is microseconds).
+        //
+        // Phase 11g (2026-05-04) -- when called from Re-Submit, the source's
+        // confirmation number is reused (OLD line 263-266). Reval generates
+        // a fresh number (OLD line 268). The standard CreateAsync flow has
+        // no source number; the helper still demands a non-null
+        // newlyGeneratedConfirmationNumber so we always pass both and let
+        // ResolveConfirmationNumber pick the right one.
         var appointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
         {
-            var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            var freshConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            string requestConfirmationNumber;
+            if (lifecycleFlow.HasValue)
+            {
+                requestConfirmationNumber = AppointmentLifecycleValidators.ResolveConfirmationNumber(
+                    lifecycleFlow.Value,
+                    sourceConfirmationNumber: sourceConfirmationNumber!,
+                    newlyGeneratedConfirmationNumber: freshConfirmationNumber);
+            }
+            else
+            {
+                requestConfirmationNumber = freshConfirmationNumber;
+            }
+
             return await _appointmentManager.CreateAsync(
                 input.PatientId,
                 input.IdentityUserId,

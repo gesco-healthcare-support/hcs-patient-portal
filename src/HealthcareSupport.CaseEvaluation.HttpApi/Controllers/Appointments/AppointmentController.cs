@@ -155,4 +155,26 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.RejectAsync(id, input);
     }
 
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>).
+    /// Source confirmation number flows in the route (uppercase A##### is
+    /// always URL-safe). Body carries the new appointment's intake DTO.
+    /// </summary>
+    [HttpPost]
+    [Route("re-submit/{sourceConfirmationNumber}")]
+    public virtual Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, [FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.ReSubmitAsync(sourceConfirmationNumber, input);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>).
+    /// </summary>
+    [HttpPost]
+    [Route("create-reval/{sourceConfirmationNumber}")]
+    public virtual Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, [FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.CreateRevalAsync(sourceConfirmationNumber, input);
+    }
+
 }

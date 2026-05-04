@@ -8,15 +8,14 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>
 /// lines 162-184 (validation block) and 240-275 (Add path branching).
 ///
-/// Extracted as <c>internal static</c> for unit-testability via the existing
-/// <c>InternalsVisibleTo</c> wiring (matches the Phase 3 / 5 / 6 / 11a / 11b
-/// pattern). The full Manager wiring is a follow-on commit; these helpers
-/// sit alongside <see cref="AppointmentBookingValidators"/> and
-/// <see cref="AppointmentRescheduleCloner"/> so the orchestrator code in
-/// <c>AppointmentManager</c> can compose pure predicates instead of inlining
-/// state-machine checks.
+/// Phase 11g (2026-05-04) -- promoted from <c>internal</c> (Application
+/// project) to <c>public</c> (Domain project) so
+/// <see cref="AppointmentManager"/> can compose the predicates without an
+/// architectural inversion. The helpers remain pure and free of
+/// repository / DI concerns; the Manager orchestrates repository
+/// lookups around them.
 /// </summary>
-internal static class AppointmentLifecycleValidators
+public static class AppointmentLifecycleValidators
 {
     /// <summary>
     /// Re-Submit (OLD <c>IsReRequestForm</c>) is allowed only when the
@@ -24,7 +23,7 @@ internal static class AppointmentLifecycleValidators
     /// OLD validation message (verbatim, line 181):
     /// "You not allowed to re apply appointment".
     /// </summary>
-    internal static bool CanResubmit(AppointmentStatusType sourceStatus)
+    public static bool CanResubmit(AppointmentStatusType sourceStatus)
     {
         return sourceStatus == AppointmentStatusType.Rejected;
     }
@@ -48,7 +47,7 @@ internal static class AppointmentLifecycleValidators
     /// non-Approved + admin alike, and let the caller pick the right error
     /// code (<see cref="ResolveRevalRejectionCode"/>).
     /// </remarks>
-    internal static bool CanCreateReval(AppointmentStatusType sourceStatus, bool callerIsItAdmin)
+    public static bool CanCreateReval(AppointmentStatusType sourceStatus, bool callerIsItAdmin)
     {
         // Strict OLD parity: admin override surfaces a different message but
         // does NOT bypass the gate. See remarks.
@@ -59,7 +58,7 @@ internal static class AppointmentLifecycleValidators
     /// Returns the OLD-parity error code for a Reval rejection. The two
     /// branches map to OLD's two distinct messages (line 168 vs line 172).
     /// </summary>
-    internal static string ResolveRevalRejectionCode(bool callerIsItAdmin)
+    public static string ResolveRevalRejectionCode(bool callerIsItAdmin)
     {
         return callerIsItAdmin
             ? CaseEvaluationDomainErrorCodes.AppointmentRevalSourceNotApprovedAdminHint
@@ -77,7 +76,7 @@ internal static class AppointmentLifecycleValidators
     ///
     /// Reval generates a fresh confirmation number (OLD line 268).
     /// </summary>
-    internal static string ResolveConfirmationNumber(
+    public static string ResolveConfirmationNumber(
         AppointmentLifecycleFlow flow,
         string sourceConfirmationNumber,
         string newlyGeneratedConfirmationNumber)
@@ -112,7 +111,7 @@ internal static class AppointmentLifecycleValidators
 /// forward (<see cref="ReSubmit"/>) or replaced with a freshly generated
 /// one (<see cref="Reval"/>).
 /// </summary>
-internal enum AppointmentLifecycleFlow
+public enum AppointmentLifecycleFlow
 {
     ReSubmit = 1,
     Reval = 2,
