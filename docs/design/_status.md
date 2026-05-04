@@ -42,7 +42,7 @@ prompt.
 | 2 | external-user-forgot-password | `external-user-forgot-password-design.md` | draft | pending | n/a | Phase 10 UI dependency; backend already shipped 2026-05-03 |
 | 3 | external-user-appointment-cancellation | `external-user-appointment-cancellation-design.md` | draft | pending | n/a | Phase 15 UI (Session A); backend already shipped 2026-05-04 |
 | 4 | external-user-appointment-rescheduling | `external-user-appointment-rescheduling-design.md` | draft | pending | n/a | Phase 16 UI (Session A); backend phases 11c/11j done |
-| 5 | staff-supervisor-change-request-approval | `staff-supervisor-change-request-approval-design.md` | not-started | pending | n/a | Phase 17 UI |
+| 5 | staff-supervisor-change-request-approval | `staff-supervisor-change-request-approval-design.md` | draft | pending | n/a | Phase 17 UI; covers 4 OLD components (list, detail, edit, view) |
 | 6 | it-admin-system-parameters | `it-admin-system-parameters-design.md` | not-started | pending | n/a | Standalone admin page |
 | 7 | it-admin-notification-templates | `it-admin-notification-templates-design.md` | not-started | pending | n/a | Standalone admin page |
 | 8 | it-admin-custom-fields | `it-admin-custom-fields-design.md` | not-started | pending | n/a | Standalone admin page |
