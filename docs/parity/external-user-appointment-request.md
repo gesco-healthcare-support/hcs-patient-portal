@@ -9,7 +9,8 @@ old-docs:
   - socal-project-overview.md (lines 257-385)
   - data-dictionary-table.md (Appointments + 13 related tables)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 1
 strict-parity: true
 depends-on:
@@ -280,3 +281,26 @@ Tests:
 - `AppointmentAccessorTests.CreateAsync_ExistingEmail_DifferentRole_Rejects`
 - `Appointment.SetStatus_InvalidTransition_Throws`
 - Synthetic data only.
+
+## Phase 11a annotations [2026-05-04]
+
+> **Phase 11a slice -- pure validators extracted, manager rewrite is
+> Phase 11b/11c.** The full <c>AppointmentManager.CreateAsync</c>
+> rewrite (10-step orchestration with Patient dedup repository method,
+> Confirmation # generator, sub-entity wiring, Accessor manager, event
+> raise) is large enough to warrant its own commit. Phase 11a lands the
+> pure helpers it will consume, plus 16 unit tests, so 11b can focus on
+> orchestration with confidence in the rule logic.
+
+| Aspect | OLD source | NEW Phase 11a status |
+|--------|-----------|----------------------|
+| Confirmation-number format `A` + 5-digit zero pad | `ApplicationUtility.GenerateConfirmationNumber` | [IMPLEMENTED 2026-05-04 - pending testing] -- `AppointmentBookingValidators.FormatConfirmationNumber(int)` extracted as `internal static`. Tenant-scoped int sequence is Phase 11b. |
+| Lead-time gate (slot >= today + leadTime) | `AppointmentDomain.cs` Add path | [IMPLEMENTED 2026-05-04 - pending testing] -- `IsSlotWithinLeadTime` helper. |
+| Per-type max-time gate (slot <= today + maxTime) | `AppointmentDomain.cs` Add path | [IMPLEMENTED 2026-05-04 - pending testing] -- `IsSlotWithinMaxTime` + `ResolveMaxTimeDaysForType` helpers; routes PQME / PQME-REVAL / AME / AME-REVAL / OTHER per name pattern. |
+| Patient dedup 3-of-6 rule (LastName / DOB / Phone / Email / SSN / ClaimNumber) | `AppointmentDomain.cs:736-776` `IsPatientRegistered` | [IMPLEMENTED 2026-05-04 - pending testing] -- `CountMatchingDeduplicationFields` + `IsPatientDuplicate(threshold = 3)`. Case-insensitive trim; nulls do not match nulls. Dedup repo method (`IPatientRepository.FindMatchByDeduplicationRule`) is Phase 11b. |
+| AppointmentManager.CreateAsync rewrite (10 steps) | `AppointmentDomain.cs` Add | [DESCOPED 2026-05-04 - Phase 11b] -- consumes the Phase 11a helpers; orchestrates Patient creation, sub-entity wiring, status transitions, slot Available -> Reserved/Booked, accessor management, event raise. |
+| `ReSubmitAppointmentAsync` Re-Request flow | `AppointmentDomain.cs` | [DESCOPED 2026-05-04 - Phase 11b] |
+| `CreateRevalAppointmentAsync` REVAL flow | `AppointmentDomain.cs` | [DESCOPED 2026-05-04 - Phase 11b] |
+| `IAppointmentAccessorManager.CreateOrLinkAsync` | `AppointmentAccessorDomain.cs` | [DESCOPED 2026-05-04 - Phase 11b] -- creates AbpUser, sends invitation email, links accessor row. |
+| `CloneForRescheduleAsync` cascade-copy (11.2) | `AppointmentChangeRequestDomain.cs` | [DESCOPED 2026-05-04 - Phase 11c] -- depends on Phase 12 approval flow first. |
+| Angular `appointment-add.component.ts` cleanup (`console.log` removal, max-time UI gate, multi-injury / multi-employer) | UI-only | [DESCOPED 2026-05-04 - Phase 11d] -- requires Angular work; out of scope for the Application-layer commits. |
