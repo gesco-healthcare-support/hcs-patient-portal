@@ -26,6 +26,17 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             await EnsureRoleAsync("Claim Examiner");
             await EnsureRoleAsync("Applicant Attorney");
             await EnsureRoleAsync("Defense Attorney");
+            // Role-naming reconciliation 2026-05-04 -- OLD has 4 external
+            // roles total (verified at
+            // P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs):
+            //   OLD Patient         = 4  -> NEW Patient
+            //   OLD Adjuster        = 5  -> NEW Claim Examiner
+            //   OLD PatientAttorney = 6  -> NEW Applicant Attorney
+            //   OLD DefenseAttorney = 7  -> NEW Defense Attorney
+            // "Adjuster" and "Claim Examiner" are the SAME role (NEW
+            // renamed for clarity to align with the
+            // AppointmentClaimExaminer entity name). Earlier audit
+            // mistakenly listed "Adjuster" as a fifth role; reconciled.
         }
     }
 

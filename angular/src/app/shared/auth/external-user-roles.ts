@@ -3,20 +3,25 @@
 //
 // Mirrors the canonical external-role names from
 // src/.../Domain/Identity/ExternalUserRoleDataSeedContributor.cs and the
-// memory note project_role-model.md. Plus "Adjuster" because OLD's domain
-// code treats adjusters as external (they self-register via the same
-// signup flow).
+// memory note project_role-model.md.
 //
-// If a role is renamed in the seed contributor, this list and the mirror
-// in app.component.ts both have to be updated. Long term these should
-// share one source of truth; the duplication is acknowledged tech debt.
+// OLD has 4 external roles total (verified at
+// P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs):
+//   Patient = 4, Adjuster = 5, PatientAttorney = 6, DefenseAttorney = 7.
+// NEW renamed two for clarity:
+//   OLD Adjuster        -> NEW "Claim Examiner"
+//   OLD PatientAttorney -> NEW "Applicant Attorney"
+// "Adjuster" and "Claim Examiner" are the SAME role under different
+// labels (NEW chose "Claim Examiner" to match the AppointmentClaimExaminer
+// entity name). An earlier draft mistakenly listed both as separate
+// roles -- reconciled to the four canonical names the seed contributor
+// actually creates.
 
 const EXTERNAL_USER_ROLES = [
   'patient',
   'applicant attorney',
   'defense attorney',
   'claim examiner',
-  'adjuster',
 ] as const;
 
 /**

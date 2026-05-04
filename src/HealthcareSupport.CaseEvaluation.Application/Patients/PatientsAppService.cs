@@ -107,6 +107,66 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
         }
 
+        // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
+        // (Phase 11k repo method `GetDeduplicationCandidatesAsync`
+        // wired here per the Phase 11k audit-doc commitment).
+        // Mirrors OLD `AppointmentDomain.cs:732-780` IsPatientRegistered:
+        // pull rows matching ANY of LastName / DOB / Phone / Email /
+        // SSN, then count 3-of-6 matches via the pure helper. Email
+        // match alone hit the fast path above; here we catch the
+        // re-registration-under-different-email case the email
+        // pre-check missed. NEW's PatientManager.FindOrCreateAsync
+        // below remains as a safety net using its own (different)
+        // 3-of-6 field set.
+        var dedupCandidates = await _patientRepository.GetDeduplicationCandidatesAsync(
+            tenantId: CurrentTenant.Id,
+            lastName: input.LastName,
+            dateOfBirth: input.DateOfBirth,
+            phone: input.PhoneNumber,
+            email: input.Email,
+            ssn: input.SocialSecurityNumber,
+            // Patient does not carry ClaimNumber in NEW (per Phase 11k
+            // audit doc) -- the column lives on AppointmentInjuryDetail
+            // and is unavailable at Patient creation time. Pass null;
+            // the predicate counts the remaining 5 fields.
+            claimNumbers: null);
+
+        if (dedupCandidates.Count > 0)
+        {
+            var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+            {
+                LastName = input.LastName,
+                DateOfBirth = input.DateOfBirth,
+                PhoneNumber = input.PhoneNumber,
+                Email = input.Email,
+                SocialSecurityNumber = input.SocialSecurityNumber,
+                ClaimNumber = null,
+            };
+
+            foreach (var candidate in dedupCandidates)
+            {
+                var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+                {
+                    LastName = candidate.LastName,
+                    DateOfBirth = candidate.DateOfBirth,
+                    PhoneNumber = candidate.PhoneNumber,
+                    Email = candidate.Email,
+                    SocialSecurityNumber = candidate.SocialSecurityNumber,
+                    ClaimNumber = null,
+                };
+
+                if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
+                    .IsPatientDuplicate(incoming, candidateBag))
+                {
+                    var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
+                    if (matchedWithNav != null)
+                    {
+                        return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                    }
+                }
+            }
+        }
+
         var identityUser = await _userManager.FindByEmailAsync(input.Email.Trim());
         if (identityUser == null)
         {

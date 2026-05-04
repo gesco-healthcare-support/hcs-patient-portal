@@ -61,17 +61,27 @@ internal static class BookingFlowRoles
     }
 
     /// <summary>
-    /// OLD's Adjuster auto-fill at <c>AppointmentDomain.cs:358-380</c>:
-    /// when the booker is in the Adjuster role, the claim-examiner
-    /// email field is forced to the booker's own email regardless of
-    /// what the DTO carried. Strict parity preserves the override
-    /// (the UI rendered the field readonly for adjusters; if a hand-
-    /// crafted API call sneaks a different value through, we still
-    /// snap it back).
+    /// Claim-examiner auto-fill: when the booker is the claim-examiner
+    /// (OLD's <c>Adjuster</c> role, NEW's <c>Claim Examiner</c> role --
+    /// same role under different names per OLD
+    /// <c>P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs</c>:15
+    /// (<c>Adjuster = 5</c>) renamed to "Claim Examiner" in NEW),
+    /// the claim-examiner email field is forced to the booker's own
+    /// email regardless of what the DTO carried. The UI rendered this
+    /// field readonly for the role; the server-side override is the
+    /// belt-and-suspenders so a hand-crafted API call cannot bypass.
     ///
     /// Returns the DTO value untouched when the caller is NOT in the
-    /// Adjuster role, so non-adjuster callers keep authority over the
+    /// Claim Examiner role, so non-CE callers keep authority over the
     /// field.
+    ///
+    /// Note: OLD's <c>AppointmentDomain.cs</c> does not have an active
+    /// auto-fill block today (the relevant <c>AdjusterEmail</c> handler
+    /// is commented out at lines 706-708). The audit-doc's claim that
+    /// OLD ran this rule live was based on the readonly UI behaviour;
+    /// NEW preserves the UI's intent at the API layer rather than
+    /// faithfully porting OLD's commented-out C#. Documented as a
+    /// defensive NEW-side override consistent with OLD's UI contract.
     /// </summary>
     internal static string? ResolveClaimExaminerEmail(
         System.Collections.Generic.IEnumerable<string?>? callerRoles,
@@ -88,7 +98,7 @@ internal static class BookingFlowRoles
             {
                 continue;
             }
-            if (string.Equals(role.Trim(), "Adjuster", System.StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(role.Trim(), "Claim Examiner", System.StringComparison.OrdinalIgnoreCase))
             {
                 return currentUserEmail;
             }

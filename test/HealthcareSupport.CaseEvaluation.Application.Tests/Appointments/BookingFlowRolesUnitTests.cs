@@ -22,7 +22,6 @@ public class BookingFlowRolesUnitTests
     [InlineData("Applicant Attorney", false)]
     [InlineData("Defense Attorney", false)]
     [InlineData("Claim Examiner", false)]
-    [InlineData("Adjuster", false)]
     public void IsInternalUserCaller_ReturnsExpectedForSingleRole(string role, bool expected)
     {
         BookingFlowRoles.IsInternalUserCaller(new[] { role }).ShouldBe(expected);
@@ -57,29 +56,29 @@ public class BookingFlowRolesUnitTests
     }
 
     [Fact]
-    public void ResolveClaimExaminerEmail_AdjusterCaller_OverridesWithCurrentEmail()
+    public void ResolveClaimExaminerEmail_ClaimExaminerCaller_OverridesWithCurrentEmail()
     {
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Adjuster" },
-            currentUserEmail: "adjuster@example.com",
+            new[] { "Claim Examiner" },
+            currentUserEmail: "ce@example.com",
             dtoClaimExaminerEmail: "someone-else@example.com");
 
-        result.ShouldBe("adjuster@example.com");
+        result.ShouldBe("ce@example.com");
     }
 
     [Fact]
-    public void ResolveClaimExaminerEmail_AdjusterCaller_CaseInsensitiveRoleMatch()
+    public void ResolveClaimExaminerEmail_ClaimExaminerCaller_CaseInsensitiveRoleMatch()
     {
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "adjuster" },
-            currentUserEmail: "adjuster@example.com",
+            new[] { "claim examiner" },
+            currentUserEmail: "ce@example.com",
             dtoClaimExaminerEmail: null);
 
-        result.ShouldBe("adjuster@example.com");
+        result.ShouldBe("ce@example.com");
     }
 
     [Fact]
-    public void ResolveClaimExaminerEmail_NonAdjusterCaller_KeepsDtoValue()
+    public void ResolveClaimExaminerEmail_NonClaimExaminerCaller_KeepsDtoValue()
     {
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
             new[] { "Applicant Attorney" },
@@ -90,17 +89,33 @@ public class BookingFlowRolesUnitTests
     }
 
     [Fact]
-    public void ResolveClaimExaminerEmail_AdjusterCallerButNoCurrentEmail_KeepsDtoValue()
+    public void ResolveClaimExaminerEmail_ClaimExaminerCallerButNoCurrentEmail_KeepsDtoValue()
     {
         // Defensive: if CurrentUser.Email is somehow null (impersonation
         // edge cases), fall back to the DTO value rather than blowing
         // away a meaningful user choice with null.
         var result = BookingFlowRoles.ResolveClaimExaminerEmail(
-            new[] { "Adjuster" },
+            new[] { "Claim Examiner" },
             currentUserEmail: null,
             dtoClaimExaminerEmail: "ce@example.com");
 
         result.ShouldBe("ce@example.com");
+    }
+
+    [Fact]
+    public void ResolveClaimExaminerEmail_OldAdjusterRoleName_DoesNotMatch()
+    {
+        // Pin: "Adjuster" is OLD's role-name for the same role NEW
+        // calls "Claim Examiner". NEW's seed contributor seeds
+        // "Claim Examiner" only; if a tenant DB happens to carry an
+        // "Adjuster" role from a manual data load, this code path
+        // does NOT auto-fill against it. Use NEW's canonical name.
+        var result = BookingFlowRoles.ResolveClaimExaminerEmail(
+            new[] { "Adjuster" },
+            currentUserEmail: "x@example.com",
+            dtoClaimExaminerEmail: "dto@example.com");
+
+        result.ShouldBe("dto@example.com");
     }
 
     [Fact]
