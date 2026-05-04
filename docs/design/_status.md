@@ -60,7 +60,7 @@ deviation.
 | 12 | external-user-view-appointment | `external-user-view-appointment-design.md` | draft | pending | n/a | View page, ~1600 LOC NEW |
 | 13 | staff-supervisor-doctor-management | `staff-supervisor-doctor-management-design.md` | draft | pending | n/a | Doctor list + availability + locations |
 | 14 | clinic-staff-appointment-approval | `clinic-staff-appointment-approval-design.md` | draft | pending | n/a | Pending approval flow |
-| 15 | clinic-staff-document-review | `clinic-staff-document-review-design.md` | not-started | pending | n/a | Document accept/reject UI |
+| 15 | clinic-staff-document-review | `clinic-staff-document-review-design.md` | draft | pending | n/a | Document accept/reject UI |
 | 16 | external-user-appointment-package-documents | `external-user-appointment-package-documents-design.md` | not-started | pending | n/a | External-user package upload |
 | 17 | external-user-appointment-ad-hoc-documents | `external-user-appointment-ad-hoc-documents-design.md` | not-started | pending | n/a | Ad-hoc upload (shares chrome) |
 | 18 | external-user-appointment-joint-declaration | `external-user-appointment-joint-declaration-design.md` | not-started | pending | n/a | JDF upload (AME only) |
