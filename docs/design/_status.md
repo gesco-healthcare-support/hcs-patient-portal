@@ -64,7 +64,7 @@ deviation.
 | 16 | external-user-appointment-package-documents | `external-user-appointment-package-documents-design.md` | draft | pending | n/a | External-user package upload |
 | 17 | external-user-appointment-ad-hoc-documents | `external-user-appointment-ad-hoc-documents-design.md` | draft | pending | n/a | Ad-hoc upload (shares chrome) |
 | 18 | external-user-appointment-joint-declaration | `external-user-appointment-joint-declaration-design.md` | draft | pending | n/a | JDF upload (AME only) |
-| 19 | internal-user-dashboard | `internal-user-dashboard-design.md` | not-started | partial (`old/admin/01-dashboard.png`, `old/staff/01-dashboard.png`, `old/supervisor/01-dashboard.png`) | partial (`new/admin/02-dashboard.png`, `new/t1-doctor/02-tenant-dashboard-placeholder.png`) | Counter cards + widgets |
+| 19 | internal-user-dashboard | `internal-user-dashboard-design.md` | draft | partial (`old/admin/01-dashboard.png`, `old/staff/01-dashboard.png`, `old/supervisor/01-dashboard.png`) | partial (`new/admin/02-dashboard.png`, `new/t1-doctor/02-tenant-dashboard-placeholder.png`) | Counter cards + widgets |
 
 ## Tier 3 -- smaller surfaces
 
