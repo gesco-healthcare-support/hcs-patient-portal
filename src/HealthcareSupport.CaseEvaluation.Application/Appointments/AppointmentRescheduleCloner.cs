@@ -1,4 +1,12 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
+using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -114,6 +122,238 @@ internal static class AppointmentRescheduleCloner
         // resulting appointment. Phase 17 sets them on the source row when
         // it stamps the original as Rescheduled* and creates this clone.
 
+        return clone;
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 11j (2026-05-04) -- per-child-entity deep-clone helpers.
+    //
+    // Each helper builds a fresh entity using the same constructor the
+    // booking flow uses, then back-fills any fields the constructor
+    // does not surface. The pattern mirrors BuildScalarClone above:
+    // pure, side-effect-free, idiomatic ABP-with-private-setters
+    // friendly. Phase 17 (change-request approval) reads the source's
+    // child rows from their respective repositories and feeds each
+    // through these helpers; persistence stays in the orchestrator.
+    //
+    // Strict OLD parity: every field that survives the OLD-to-NEW
+    // schema mapping is carried forward. Audit / lifecycle fields
+    // (CreatorId, CreationTime, etc.) are NOT copied -- ABP regenerates
+    // those at insert time so the new row has its own audit trail.
+    // -----------------------------------------------------------------
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentInjuryDetail"/> for a new
+    /// appointment. The new row gets a fresh Id and points at
+    /// <paramref name="newAppointmentId"/>; every scalar field is
+    /// copied verbatim.
+    /// </summary>
+    internal static AppointmentInjuryDetail CloneInjuryDetailFor(
+        AppointmentInjuryDetail source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentInjuryDetail(
+            id: newId,
+            appointmentId: newAppointmentId,
+            dateOfInjury: source.DateOfInjury,
+            claimNumber: source.ClaimNumber,
+            isCumulativeInjury: source.IsCumulativeInjury,
+            bodyPartsSummary: source.BodyPartsSummary,
+            toDateOfInjury: source.ToDateOfInjury,
+            wcabAdj: source.WcabAdj,
+            wcabOfficeId: source.WcabOfficeId);
+
+        clone.TenantId = newTenantId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentBodyPart"/> under a new
+    /// injury-detail row. Children of the cascade follow their parent
+    /// entity, not the appointment directly.
+    /// </summary>
+    internal static AppointmentBodyPart CloneBodyPartFor(
+        AppointmentBodyPart source,
+        Guid newId,
+        Guid newInjuryDetailId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentBodyPart(
+            id: newId,
+            appointmentInjuryDetailId: newInjuryDetailId,
+            bodyPartDescription: source.BodyPartDescription);
+
+        clone.TenantId = newTenantId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentClaimExaminer"/> under a new
+    /// injury-detail row. The constructor only takes the IsActive
+    /// flag, so all the contact-info scalars are back-filled.
+    /// </summary>
+    internal static AppointmentClaimExaminer CloneClaimExaminerFor(
+        AppointmentClaimExaminer source,
+        Guid newId,
+        Guid newInjuryDetailId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentClaimExaminer(
+            id: newId,
+            appointmentInjuryDetailId: newInjuryDetailId,
+            isActive: source.IsActive);
+
+        clone.TenantId = newTenantId;
+        clone.Name = source.Name;
+        clone.ClaimExaminerNumber = source.ClaimExaminerNumber;
+        clone.Email = source.Email;
+        clone.PhoneNumber = source.PhoneNumber;
+        clone.Fax = source.Fax;
+        clone.Street = source.Street;
+        clone.City = source.City;
+        clone.Zip = source.Zip;
+        clone.StateId = source.StateId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentPrimaryInsurance"/> under a new
+    /// injury-detail row. Same back-fill shape as
+    /// <see cref="CloneClaimExaminerFor"/> -- the constructor takes
+    /// only IsActive; everything else is post-construction.
+    /// </summary>
+    internal static AppointmentPrimaryInsurance ClonePrimaryInsuranceFor(
+        AppointmentPrimaryInsurance source,
+        Guid newId,
+        Guid newInjuryDetailId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentPrimaryInsurance(
+            id: newId,
+            appointmentInjuryDetailId: newInjuryDetailId,
+            isActive: source.IsActive);
+
+        clone.TenantId = newTenantId;
+        clone.Name = source.Name;
+        clone.InsuranceNumber = source.InsuranceNumber;
+        clone.Attention = source.Attention;
+        clone.PhoneNumber = source.PhoneNumber;
+        clone.FaxNumber = source.FaxNumber;
+        clone.Street = source.Street;
+        clone.City = source.City;
+        clone.Zip = source.Zip;
+        clone.StateId = source.StateId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentEmployerDetail"/>. NEW models
+    /// employer 1:1 with appointment today; the audit doc flags 1:N
+    /// as the OLD-parity intent. Once the schema lifts the implicit
+    /// 1:1 constraint the same helper handles the 1:N case.
+    /// </summary>
+    internal static AppointmentEmployerDetail CloneEmployerDetailFor(
+        AppointmentEmployerDetail source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentEmployerDetail(
+            id: newId,
+            appointmentId: newAppointmentId,
+            stateId: source.StateId,
+            employerName: source.EmployerName,
+            occupation: source.Occupation);
+
+        clone.TenantId = newTenantId;
+        clone.PhoneNumber = source.PhoneNumber;
+        clone.Street = source.Street;
+        clone.City = source.City;
+        clone.ZipCode = source.ZipCode;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentApplicantAttorney"/> link row.
+    /// Per-link scalars are just the three FKs; the new row points at
+    /// the new appointment but keeps the same ApplicantAttorney +
+    /// IdentityUser refs (the legal-party did not change just because
+    /// the appointment was rescheduled).
+    /// </summary>
+    internal static AppointmentApplicantAttorney CloneApplicantAttorneyFor(
+        AppointmentApplicantAttorney source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentApplicantAttorney(
+            id: newId,
+            appointmentId: newAppointmentId,
+            applicantAttorneyId: source.ApplicantAttorneyId,
+            identityUserId: source.IdentityUserId);
+
+        clone.TenantId = newTenantId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentDefenseAttorney"/> link row.
+    /// Mirror of <see cref="CloneApplicantAttorneyFor"/> for the
+    /// defense-side join.
+    /// </summary>
+    internal static AppointmentDefenseAttorney CloneDefenseAttorneyFor(
+        AppointmentDefenseAttorney source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentDefenseAttorney(
+            id: newId,
+            appointmentId: newAppointmentId,
+            defenseAttorneyId: source.DefenseAttorneyId,
+            identityUserId: source.IdentityUserId);
+
+        clone.TenantId = newTenantId;
+        return clone;
+    }
+
+    /// <summary>
+    /// Clone an <see cref="AppointmentAccessor"/> grant. Re-reading
+    /// the existing grant (same identity + same access type) and
+    /// pointing it at the new appointment carries the legal-record
+    /// fan-out forward without re-issuing invitation emails.
+    /// </summary>
+    internal static AppointmentAccessor CloneAccessorFor(
+        AppointmentAccessor source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentAccessor(
+            id: newId,
+            identityUserId: source.IdentityUserId,
+            appointmentId: newAppointmentId,
+            accessTypeId: source.AccessTypeId);
+
+        clone.TenantId = newTenantId;
         return clone;
     }
 }
