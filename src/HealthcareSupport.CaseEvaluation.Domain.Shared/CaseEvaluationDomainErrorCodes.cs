@@ -333,4 +333,37 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string DocumentUnauthorizedVerificationCode =
         "CaseEvaluation:Document.UnauthorizedVerificationCode";
+
+    /// <summary>
+    /// Phase 15 (2026-05-04) -- raised by
+    /// <c>AppointmentChangeRequestManager.SubmitCancellationAsync</c>
+    /// (and Phase 16's <c>SubmitRescheduleAsync</c>) when the source
+    /// appointment is not in status <c>Approved</c>. Mirrors OLD
+    /// <c>AppointmentChangeRequestDomain.cs:73-75</c>'s
+    /// <c>NoChangeAllowedinAppointment</c>. Localization key
+    /// <c>AppointmentChangeRequest:AppointmentNotApproved</c>.
+    /// </summary>
+    public const string ChangeRequestAppointmentNotApproved =
+        "CaseEvaluation:AppointmentChangeRequest.AppointmentNotApproved";
+
+    /// <summary>
+    /// Phase 15 (2026-05-04) -- raised when the cancel request is
+    /// submitted INSIDE the per-tenant <c>AppointmentCancelTime</c>
+    /// window (slot date is closer than the threshold). Mirrors OLD
+    /// <c>AppointmentChangeRequestDomain.cs:87-90</c>'s
+    /// <c>CannotCancelOrRescheduleAppointment</c>. Localization key
+    /// <c>AppointmentChangeRequest:CancelTimeWindow</c>.
+    /// </summary>
+    public const string ChangeRequestCancelTimeWindow =
+        "CaseEvaluation:AppointmentChangeRequest.CancelTimeWindow";
+
+    /// <summary>
+    /// Phase 15 (2026-05-04) -- raised when the caller is neither the
+    /// appointment creator nor an Edit accessor. Mirrors OLD's intent
+    /// per spec line 431; OLD's owner-only check is commented out at
+    /// <c>AppointmentChangeRequestDomain.cs:78-81</c>. Localization
+    /// key <c>AppointmentChangeRequest:EditAccessRequired</c>.
+    /// </summary>
+    public const string ChangeRequestEditAccessRequired =
+        "CaseEvaluation:AppointmentChangeRequest.EditAccessRequired";
 }
