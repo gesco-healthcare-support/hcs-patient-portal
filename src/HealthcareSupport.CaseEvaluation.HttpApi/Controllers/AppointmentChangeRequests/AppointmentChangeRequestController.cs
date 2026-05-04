@@ -39,4 +39,18 @@ public class AppointmentChangeRequestController : AbpController, IAppointmentCha
     {
         return _appointmentChangeRequestsAppService.RequestCancellationAsync(appointmentId, input);
     }
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- external user submits a reschedule
+    /// request on an Approved appointment. Body carries the new slot
+    /// id, reschedule reason, and optional admin-override flag.
+    /// </summary>
+    [HttpPost]
+    [Route("reschedule/{appointmentId}")]
+    public virtual Task<AppointmentChangeRequestDto> RequestRescheduleAsync(
+        Guid appointmentId,
+        [FromBody] RequestRescheduleDto input)
+    {
+        return _appointmentChangeRequestsAppService.RequestRescheduleAsync(appointmentId, input);
+    }
 }

@@ -145,6 +145,17 @@ public class AppointmentManager : DomainService
     public virtual Task<Appointment> RejectAsync(Guid id, string? reason, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.Reject, reason, actingUserId);
 
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- Approved -> RescheduleRequested. Used
+    /// when an external user submits a reschedule request through
+    /// <see cref="AppointmentChangeRequests.AppointmentChangeRequestManager.SubmitRescheduleAsync"/>.
+    /// The state machine permits the trigger from Approved only (per
+    /// <see cref="BuildMachine"/>); other source states surface the
+    /// generic invalid-transition error.
+    /// </summary>
+    public virtual Task<Appointment> RequestRescheduleAsync(Guid id, string? reason, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.RequestReschedule, reason, actingUserId);
+
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);

@@ -23,13 +23,18 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 public class AppointmentChangeRequestManager : DomainService
 {
     private readonly IAppointmentChangeRequestRepository _repository;
-    // Phase 15 (2026-05-04) -- additional collaborators wired in for
-    // the SubmitCancellationAsync flow. The thinner ctor stays for any
-    // existing consumer that only calls GetAsync.
+    // Phase 15 / 16 (2026-05-04) -- additional collaborators wired in
+    // for the SubmitCancellationAsync + SubmitRescheduleAsync flows.
+    // The thinner ctor stays for any existing consumer that only calls
+    // GetAsync.
     private readonly IAppointmentRepository? _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid>? _doctorAvailabilityRepository;
     private readonly ISystemParameterRepository? _systemParameterRepository;
     private readonly ILocalEventBus? _localEventBus;
+    // Phase 16 (2026-05-04) -- transition the parent appointment via
+    // the existing state machine. Optional (only the reschedule path
+    // touches it) but resolves cleanly via DI when the full ctor is used.
+    private readonly AppointmentManager? _appointmentManager;
 
     public AppointmentChangeRequestManager(IAppointmentChangeRequestRepository repository)
     {
@@ -41,13 +46,15 @@ public class AppointmentChangeRequestManager : DomainService
         IAppointmentRepository appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ISystemParameterRepository systemParameterRepository,
-        ILocalEventBus localEventBus)
+        ILocalEventBus localEventBus,
+        AppointmentManager appointmentManager)
         : this(repository)
     {
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _systemParameterRepository = systemParameterRepository;
         _localEventBus = localEventBus;
+        _appointmentManager = appointmentManager;
     }
 
     /// <summary>
@@ -146,6 +153,122 @@ public class AppointmentChangeRequestManager : DomainService
             ChangeRequestId = changeRequest.Id,
             TenantId = appointment.TenantId,
             ChangeRequestType = ChangeRequestType.Cancel,
+            SubmittedByUserId = actingUserId ?? Guid.Empty,
+            OccurredAt = DateTime.UtcNow,
+        });
+
+        return changeRequest;
+    }
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- OLD-parity reschedule submit. Loads the
+    /// source appointment and the user-picked new slot, validates
+    /// status (Approved) + slot availability, inserts a Pending
+    /// <see cref="AppointmentChangeRequest"/> with
+    /// <see cref="ChangeRequestType.Reschedule"/>, transitions the
+    /// new slot Available -> Reserved (interim hold pending supervisor
+    /// approval), and transitions the parent appointment Approved ->
+    /// RescheduleRequested via the state machine. Mirrors OLD
+    /// <c>AppointmentChangeRequestDomain.cs:197-223</c>.
+    ///
+    /// Lead-time + per-AppointmentType max-time gates run UPSTREAM of
+    /// this method via the Application-layer
+    /// <c>BookingPolicyValidator</c> -- same gates as the booking
+    /// flow per OLD parity.
+    /// </summary>
+    /// <param name="appointmentId">Source appointment to reschedule.</param>
+    /// <param name="newDoctorAvailabilityId">User-picked new slot.</param>
+    /// <param name="reScheduleReason">Verbatim reason supplied by the user.</param>
+    /// <param name="isBeyondLimit">
+    /// Admin override flag. External-user submits always pass false;
+    /// the field is preserved on the entity so a future admin-side
+    /// path can set it.
+    /// </param>
+    /// <param name="actingUserId">Caller, threaded through to the ETO.</param>
+    public virtual async Task<AppointmentChangeRequest> SubmitRescheduleAsync(
+        Guid appointmentId,
+        Guid newDoctorAvailabilityId,
+        string reScheduleReason,
+        bool isBeyondLimit,
+        Guid? actingUserId)
+    {
+        if (_appointmentRepository == null
+            || _doctorAvailabilityRepository == null
+            || _localEventBus == null
+            || _appointmentManager == null)
+        {
+            throw new InvalidOperationException(
+                "AppointmentChangeRequestManager.SubmitRescheduleAsync requires the full DI ctor; resolve via the container or pass the additional collaborators.");
+        }
+
+        Check.NotDefaultOrNull<Guid>(appointmentId, nameof(appointmentId));
+        if (newDoctorAvailabilityId == Guid.Empty)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotRequired);
+        }
+        if (string.IsNullOrWhiteSpace(reScheduleReason))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestRescheduleReasonRequired);
+        }
+
+        var appointment = await _appointmentRepository.FindAsync(appointmentId);
+        if (appointment == null)
+        {
+            throw new EntityNotFoundException(typeof(Appointments.Appointment), appointmentId);
+        }
+
+        if (!RescheduleRequestValidators.CanRequestReschedule(appointment.AppointmentStatus))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved)
+                .WithData("appointmentId", appointmentId)
+                .WithData("status", appointment.AppointmentStatus);
+        }
+
+        var newSlot = await _doctorAvailabilityRepository.FindAsync(newDoctorAvailabilityId);
+        if (newSlot == null)
+        {
+            throw new EntityNotFoundException(typeof(DoctorAvailability), newDoctorAvailabilityId);
+        }
+
+        if (!RescheduleRequestValidators.IsSlotAvailable(newSlot.BookingStatusId))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable)
+                .WithData("newSlotId", newDoctorAvailabilityId)
+                .WithData("currentStatus", newSlot.BookingStatusId);
+        }
+
+        var changeRequest = new AppointmentChangeRequest(
+            id: GuidGenerator.Create(),
+            tenantId: appointment.TenantId,
+            appointmentId: appointmentId,
+            changeRequestType: ChangeRequestType.Reschedule,
+            cancellationReason: null,
+            reScheduleReason: reScheduleReason,
+            newDoctorAvailabilityId: newDoctorAvailabilityId,
+            isBeyondLimit: isBeyondLimit);
+
+        await _repository.InsertAsync(changeRequest);
+
+        // Transition the NEW slot Available -> Reserved. The OLD slot
+        // (appointment.DoctorAvailabilityId) stays Booked while the
+        // change request is Pending -- the supervisor's approve flow
+        // (Phase 17) releases it.
+        newSlot.BookingStatusId = HealthcareSupport.CaseEvaluation.Enums.BookingStatus.Reserved;
+        await _doctorAvailabilityRepository.UpdateAsync(newSlot);
+
+        // Transition the parent appointment Approved -> RescheduleRequested
+        // via the state machine. Publishes its own AppointmentStatusChangedEto
+        // for any downstream subscribers; we additionally publish the
+        // change-request-submitted event below for the per-event email
+        // template fan-out.
+        await _appointmentManager.RequestRescheduleAsync(appointmentId, reScheduleReason, actingUserId);
+
+        await _localEventBus.PublishAsync(new AppointmentChangeRequestSubmittedEto
+        {
+            AppointmentId = appointmentId,
+            ChangeRequestId = changeRequest.Id,
+            TenantId = appointment.TenantId,
+            ChangeRequestType = ChangeRequestType.Reschedule,
             SubmittedByUserId = actingUserId ?? Guid.Empty,
             OccurredAt = DateTime.UtcNow,
         });

@@ -23,4 +23,17 @@ public interface IAppointmentChangeRequestsAppService : IApplicationService
     /// path (lines 73-95 + 197-224).
     /// </summary>
     Task<AppointmentChangeRequestDto> RequestCancellationAsync(Guid appointmentId, RequestCancellationDto input);
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- external user submits a reschedule
+    /// request on an Approved appointment. Caller must be the creator
+    /// OR an accessor with <c>AccessType.Edit</c>. The new slot must
+    /// be currently <c>Available</c>; lead-time + per-AppointmentType
+    /// max-time gates run upstream of the manager. On success the
+    /// parent appointment transitions <c>Approved -&gt; RescheduleRequested</c>
+    /// and the new slot transitions <c>Available -&gt; Reserved</c>.
+    /// Mirrors OLD's <c>AppointmentChangeRequestDomain.Add</c>
+    /// reschedule path (lines 96-122 validation + 197-223 action).
+    /// </summary>
+    Task<AppointmentChangeRequestDto> RequestRescheduleAsync(Guid appointmentId, RequestRescheduleDto input);
 }

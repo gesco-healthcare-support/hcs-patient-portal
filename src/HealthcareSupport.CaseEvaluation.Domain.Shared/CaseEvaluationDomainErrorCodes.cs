@@ -366,4 +366,36 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ChangeRequestEditAccessRequired =
         "CaseEvaluation:AppointmentChangeRequest.EditAccessRequired";
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- raised by
+    /// <c>AppointmentChangeRequestManager.SubmitRescheduleAsync</c>
+    /// when the user-picked new slot is not currently in status
+    /// <see cref="HealthcareSupport.CaseEvaluation.Enums.BookingStatus.Available"/>.
+    /// Mirrors OLD <c>AppointmentChangeRequestDomain.cs:107-110</c>
+    /// (<c>AppointmentBookingDateNotAvailable</c>). Localization key
+    /// <c>AppointmentChangeRequest:NewSlotNotAvailable</c>.
+    /// </summary>
+    public const string ChangeRequestNewSlotNotAvailable =
+        "CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable";
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- raised when a reschedule request is
+    /// submitted without a new slot id (NewDoctorAvailabilityId is
+    /// empty). Mirrors OLD <c>AppointmentChangeRequestDomain.cs:103-106</c>
+    /// (<c>ProvideNewAppointmentDateTime</c>). Localization key
+    /// <c>AppointmentChangeRequest:NewSlotRequired</c>.
+    /// </summary>
+    public const string ChangeRequestNewSlotRequired =
+        "CaseEvaluation:AppointmentChangeRequest.NewSlotRequired";
+
+    /// <summary>
+    /// Phase 16 (2026-05-04) -- raised when a reschedule request is
+    /// submitted without a reschedule reason. Mirrors OLD
+    /// <c>AppointmentChangeRequestDomain.cs:99-102</c>
+    /// (<c>ProvideRescheduleReason</c>). Localization key
+    /// <c>AppointmentChangeRequest:RescheduleReasonRequired</c>.
+    /// </summary>
+    public const string ChangeRequestRescheduleReasonRequired =
+        "CaseEvaluation:AppointmentChangeRequest.RescheduleReasonRequired";
 }
