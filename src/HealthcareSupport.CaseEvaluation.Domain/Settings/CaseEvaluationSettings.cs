@@ -60,6 +60,11 @@ public static class CaseEvaluationSettings
         // Days before the appointment by which joint declarations must be uploaded.
         // Default 7 days.
         public const string JointDeclarationUploadCutoffDays = Documents + ".JointDeclarationUploadCutoffDays";
+
+        // Phase 14b (2026-05-04) -- days before the appointment due-date at
+        // which the PackageDocumentReminderJob fires for any document still
+        // in (Pending, Rejected) status. Default 7 days.
+        public const string PackageDocumentReminderDays = Documents + ".PackageDocumentReminderDays";
     }
 
     public static class NotificationsPolicy

@@ -30,6 +30,7 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
 
         // Documents policy
         Define(context, CaseEvaluationSettings.DocumentsPolicy.JointDeclarationUploadCutoffDays, defaultValue: "7");
+        Define(context, CaseEvaluationSettings.DocumentsPolicy.PackageDocumentReminderDays,      defaultValue: "7");
 
         // Notifications policy
         Define(context, CaseEvaluationSettings.NotificationsPolicy.CcEmailAddresses, defaultValue: "");

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.AspNetCore.Authentication.Twitter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Volo.Abp.PermissionManagement;
@@ -209,21 +210,41 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
                 httpContext =>
                 {
-                    if (!IsPasswordResetPath(httpContext))
+                    if (IsPasswordResetPath(httpContext))
                     {
-                        return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-password-reset");
+                        var key = ResolvePasswordResetPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"pwd-reset:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
                     }
-                    var key = ResolvePasswordResetPartitionKey(httpContext);
-                    return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                        partitionKey: key,
-                        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-                        {
-                            PermitLimit = 5,
-                            Window = TimeSpan.FromHours(1),
-                            QueueLimit = 0,
-                            QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
-                            AutoReplenishment = true,
-                        });
+                    if (IsDocumentUploadByCodePath(httpContext))
+                    {
+                        // Phase 14b (2026-05-04) -- per-verification-code
+                        // rate limit on the anonymous document-upload
+                        // endpoint at /api/public/appointment-documents/{id}/upload-by-code/{code}.
+                        // Partition by the code segment so brute-force
+                        // attempts against ANY document share the same
+                        // bucket per IP / per code.
+                        var key = ResolveDocumentUploadPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"doc-upload:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
                 });
         });
     }
@@ -234,6 +255,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// <summary>Path prefix matched by the password-reset rate limiter.</summary>
     public const string PasswordResetPathPrefix = "/api/public/external-account";
 
+    /// <summary>Phase 14b: path prefix matched by the document-upload-by-code limiter.</summary>
+    public const string DocumentUploadByCodePathPrefix = "/api/public/appointment-documents";
+
     /// <summary>
     /// True when the request targets one of the password-reset endpoints
     /// (<c>send-password-reset-code</c> or <c>reset-password</c>) under
@@ -243,6 +267,58 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     internal static bool IsPasswordResetPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
         return httpContext.Request.Path.StartsWithSegments(PasswordResetPathPrefix);
+    }
+
+    /// <summary>
+    /// Phase 14b -- true when the request targets the anonymous
+    /// document-upload-by-code endpoint under
+    /// <see cref="DocumentUploadByCodePathPrefix"/>. Internal-static so
+    /// unit tests can pin path-matching edge cases.
+    /// </summary>
+    internal static bool IsDocumentUploadByCodePath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (!httpContext.Request.Path.StartsWithSegments(DocumentUploadByCodePathPrefix))
+        {
+            return false;
+        }
+        // Only POSTs to .../{id}/upload-by-code/{code} are rate limited;
+        // a future GET on the same prefix should not be throttled.
+        if (!HttpMethods.IsPost(httpContext.Request.Method))
+        {
+            return false;
+        }
+        return httpContext.Request.Path.Value?.Contains("/upload-by-code/", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// Phase 14b -- partition key for the document-upload-by-code
+    /// limiter. Precedence: verification-code path segment (so brute
+    /// force against ONE code is throttled) -> client IP (so brute
+    /// force across many codes is also throttled). Internal-static for
+    /// unit-test reach.
+    /// </summary>
+    internal static string ResolveDocumentUploadPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        const string Marker = "/upload-by-code/";
+        var idx = path.IndexOf(Marker, StringComparison.Ordinal);
+        if (idx >= 0)
+        {
+            var afterMarker = path.Substring(idx + Marker.Length);
+            // Trim any trailing slash / query.
+            var slash = afterMarker.IndexOf('/');
+            var code = slash >= 0 ? afterMarker.Substring(0, slash) : afterMarker;
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                return $"code:{code}";
+            }
+        }
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
     }
 
     /// <summary>
@@ -537,6 +613,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.CronExpression,
+            options);
+
+        // Phase 14b (2026-05-04) -- package-document reminder daily
+        // 08:30 PT. Fires after the JDF auto-cancel + appointment-day
+        // reminder + CCR jobs so reminders go out in a deterministic
+        // order.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.CronExpression,
             options);
     }
 
