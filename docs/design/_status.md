@@ -76,7 +76,7 @@ deviation.
 | 23 | internal-user-reports | `internal-user-reports-design.md` | draft | pending | n/a | Reports landing + Excel/PDF export |
 | 24 | clinic-staff-check-in-check-out | `clinic-staff-check-in-check-out-design.md` | draft | partial (`old/admin/03-checkin-checkout.png`) | n/a | Day-of check-in/out view |
 | 25 | master-data-crud | `master-data-crud-design.md` | draft | pending | n/a | States, locations, WCAB offices, types, statuses, languages |
-| 26 | application-configurations | `application-configurations-design.md` | not-started | pending | n/a | App config screen |
+| 26 | application-configurations | `application-configurations-design.md` | cross-reference | pending | n/a | Same entity as system-parameters; cross-reference stub only |
 | 27 | appointment-notes | `appointment-notes-design.md` | not-started | pending | n/a | Per-appointment notes UI |
 | 28 | appointment-change-log | `appointment-change-log-design.md` | not-started | pending | n/a | Per-appointment audit log view |
 | 29 | record-locking | `record-locking-design.md` | not-started | pending | n/a | Record-lock indicator/UI element |
