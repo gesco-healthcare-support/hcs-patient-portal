@@ -161,7 +161,7 @@ OLD also has `EmailTemplate` enum (`EmailTemplate.UserRegistered`, etc.) and tem
 ### Things NOT to port
 
 - `SMTPConfigurations` table -- use appsettings + Azure Key Vault / AWS Secrets Manager for credentials.
-- `##Var##` placeholder syntax -- replace with Razor `@Model.Var`.
+- ~~`##Var##` placeholder syntax -- replace with Razor `@Model.Var`.~~ **CORRECTED 2026-05-04 (Phase 18)**: Keep OLD's `##Var##` placeholder syntax verbatim. Verified against OLD `ApplicationUtility.GetEmailTemplateFromHTML` (`P:\PatientPortalOld\PatientAppointment.Infrastructure\Utilities\ApplicationUtility.cs`:212-251) -- OLD does flat `body.Replace("##Key##", value)` against a reflection-walked model + 7 standard footer keys. Switching to Razor would require Roslyn dynamic compilation for DB-stored templates and force a one-time rewrite of every seeded template body (the seed copies OLD's HTML bodies verbatim per Phase 1.3). `##Var##` substitution is simpler, OLD-faithful, and one-line in NEW. Implemented as `TemplateVariableSubstitutor` (Phase 18). `[OLD-BUG-FIX]` exception against OLD's null-handling: NEW skips null values explicitly (OLD's line 247 `item.Value.ToString()` would NRE on a null value despite the line 222-234 null-guard).
 - Direct Twilio SDK calls -- use ABP abstraction.
 
 ### Verification (manual test plan)
@@ -349,3 +349,66 @@ until their feature phase lands post-parity.
 **Deferred (NOT in Phase 1 -- seeded but not wired):** AddInternalUser, UserQuery,
 PatientAppointmentCheckedIn, PatientAppointmentCheckedOut, PatientAppointmentNoShow,
 SubmitQuery, AppointmentChangeLogs, AppointmentDocumentAddWithAttachment.
+
+## Phase 18 implementation (2026-05-04)
+
+Phase 18 ("Notifications + reminder jobs" in
+`docs/plans/2026-05-01-old-app-parity-implementation.md` lines 1090+) lands at
+Sync 1: Session A is still on Phase 11 (Booking) so the per-feature handler
+list (RegisteredEmailHandler, ApprovalEmailHandler, etc. -- master plan
+section 18.1) cannot be wired against real Etos yet. Per the two-session-split
+sync protocol, Session B picks up the **infrastructure scaffolding** so
+per-phase handler implementations can land as one-line subscribers in their
+respective feature commits.
+
+### Scope shipped 2026-05-04
+
+1. `TemplateVariableSubstitutor` (`internal static`) -- mirrors OLD's
+   `ApplicationUtility.GetEmailTemplateFromHTML` line 245-248 substitution
+   loop. Pure helper, exposed via `InternalsVisibleTo` for unit tests.
+   `##Var##` syntax preserved verbatim.
+2. `INotificationTemplateRenderer` + impl -- loads template by
+   `TemplateCode` via `INotificationTemplateRepository.FindByCodeAsync`,
+   substitutes variables, returns `RenderedNotification`
+   `{ Subject, BodyEmail, BodySms }`. Throws
+   `BusinessException(NotificationTemplateNotFound)` when missing.
+3. `INotificationDispatcher` + impl -- top-level facade. Resolves recipients
+   to `SendAppointmentEmailArgs` jobs and enqueues via the existing
+   `IBackgroundJobManager` + `SendAppointmentEmailJob` pipeline. SMS path
+   uses `ISmsSender.SendAsync` synchronously when `BodySms` is populated.
+4. Forward-declared Etos in `Domain.Shared/Notifications/Events/`:
+   `AppointmentDocumentUploadedEto`, `AppointmentDocumentAcceptedEto`,
+   `AppointmentDocumentRejectedEto`, `AppointmentAccessorInvitedEto`,
+   `AppointmentChangeRequestSubmittedEto`,
+   `AppointmentChangeRequestApprovedEto`,
+   `AppointmentChangeRequestRejectedEto`,
+   `AppointmentAutoCancelledEto`,
+   `ExternalUserRegisteredEto`. Each is a record with the minimum field
+   set the master-plan handlers need; Session A (Phase 11) and Session B
+   (Phase 8/12/14/17) emit them at their feature phase.
+5. Unit tests for `TemplateVariableSubstitutor` (substitution, missing
+   keys, null values, idempotency, prefix patterns from OLD's
+   `##Patient.FirstName##` style) and `RenderedNotification` /
+   `NotificationRecipient` shapes.
+
+### Deferred from Phase 18 (per Sync 1 split)
+
+The per-feature handlers + reminder jobs the master-plan §18.1/18.2 lists
+(RegisteredEmailHandler, ApprovalEmailHandler, JDFAutoCancelJob,
+PackageDocumentReminderJob, etc.) land in their feature-phase commits:
+
+- Registration / login / forgot-password handlers -- already inline in
+  Phases 8-10 commits (`fd16723`, `64b6ba8`).
+- AppointmentApproved / Rejected handlers -- come with Phase 12 (Approval).
+- Document upload / accept / reject handlers -- Phase 14 (Document review).
+- ChangeRequest submitted / approved / rejected handlers -- Phases 15-17.
+- JDF auto-cancel + package-doc reminder Hangfire jobs -- Phase 14
+  (entity prerequisites: `AppointmentDocument.IsJointDeclaration`,
+  `Appointment.DueDate`, are still being added by Session A).
+
+This split keeps Phase 18 atomic + Sync-1-safe. Each downstream feature
+commit gets a 30-line handler that calls `INotificationDispatcher.DispatchAsync`,
+not 30 lines of inline HTML.
+
+`[IMPLEMENTED 2026-05-04 - tested unit-level]` -- renderer infrastructure +
+forward Etos. Per-feature handlers continue to ship in their feature commits.

@@ -140,4 +140,17 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentBookingDatePastMaxHorizon =
         "CaseEvaluation:Appointment.BookingDatePastMaxHorizon";
+
+    /// <summary>
+    /// Phase 18 (2026-05-04) -- raised by
+    /// <c>NotificationTemplateRenderer.RenderAsync</c> when the
+    /// requested <c>TemplateCode</c> resolves to no row OR the row's
+    /// <c>IsActive</c> is false. Treated as a seeding bug rather than
+    /// a runtime fallback (per Phase 18 audit decision -- missing
+    /// templates should surface loudly so the gap is fixed in seed,
+    /// not papered over with hardcoded strings). Localization key
+    /// <c>NotificationTemplate:NotFound</c>.
+    /// </summary>
+    public const string NotificationTemplateNotFound =
+        "CaseEvaluation:NotificationTemplate.NotFound";
 }
