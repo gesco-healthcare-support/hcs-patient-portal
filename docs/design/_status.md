@@ -57,7 +57,7 @@ deviation.
 | # | Feature | design.md path | Status | OLD screenshots | NEW screenshots | Notes |
 |---|---------|----------------|--------|-----------------|-----------------|-------|
 | 11 | external-user-appointment-request | `external-user-appointment-request-design.md` | draft | partial (`old/patient/02-book-appointment.png`, `old/admin/02-book-appointment.png`) | n/a (NEW running stack down) | Booking form, ~2200 LOC NEW |
-| 12 | external-user-view-appointment | `external-user-view-appointment-design.md` | not-started | pending | n/a | View page, ~1600 LOC NEW |
+| 12 | external-user-view-appointment | `external-user-view-appointment-design.md` | draft | pending | n/a | View page, ~1600 LOC NEW |
 | 13 | staff-supervisor-doctor-management | `staff-supervisor-doctor-management-design.md` | not-started | pending | n/a | Doctor list + availability + locations |
 | 14 | clinic-staff-appointment-approval | `clinic-staff-appointment-approval-design.md` | not-started | pending | n/a | Pending approval flow |
 | 15 | clinic-staff-document-review | `clinic-staff-document-review-design.md` | not-started | pending | n/a | Document accept/reject UI |
