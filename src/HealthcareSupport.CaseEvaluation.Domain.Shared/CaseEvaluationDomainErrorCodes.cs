@@ -250,4 +250,19 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentAccessorRoleMismatch =
         "CaseEvaluation:Appointment.AccessorRoleMismatch";
+
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- raised by
+    /// <c>AppointmentsAppService.GetAsync / GetWithNavigationPropertiesAsync /
+    /// GetByConfirmationNumberAsync</c> when the caller is an external
+    /// user who is neither the creator nor an accessor on the target
+    /// appointment. Mirrors OLD's behavior of filtering out non-accessible
+    /// rows in the stored proc <c>spm.spAppointmentRequestList</c>; per-
+    /// appointment lookups land here as the equivalent gate. Internal
+    /// users (admin / Clinic Staff / etc.) bypass this check; ABP's
+    /// IMultiTenant filter still scopes them to their own tenant.
+    /// Localization key <c>Appointment:AccessDenied</c>.
+    /// </summary>
+    public const string AppointmentAccessDenied =
+        "CaseEvaluation:Appointment.AccessDenied";
 }

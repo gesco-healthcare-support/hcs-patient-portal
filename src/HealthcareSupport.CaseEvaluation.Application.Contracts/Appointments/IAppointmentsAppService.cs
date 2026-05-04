@@ -76,6 +76,20 @@ public interface IAppointmentsAppService : IApplicationService
     Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
 
     /// <summary>
+    /// Phase 13 (2026-05-04) -- look up an appointment by its
+    /// user-facing <c>RequestConfirmationNumber</c>. Mirrors OLD's
+    /// "enter confirmation # to view the request" UX path. Same
+    /// access policy as <see cref="GetWithNavigationPropertiesAsync"/>:
+    /// internal users see anything in their tenant; external users
+    /// see only appointments where they are the creator or an
+    /// accessor. Returns <c>null</c> when no row matches the given
+    /// number; throws <c>BusinessException(AppointmentAccessDenied)</c>
+    /// when a row exists but the caller cannot read it (so the
+    /// existence of a confirmation # is not leaked to strangers).
+    /// </summary>
+    Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber);
+
+    /// <summary>
     /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>).
     /// Looks up the source appointment by <paramref name="sourceConfirmationNumber"/>,
     /// validates it is in status <c>Approved</c> (admin override surfaces

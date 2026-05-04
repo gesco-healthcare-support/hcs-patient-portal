@@ -176,6 +176,7 @@
     "Appointment:RevalSourceNotApproved": "You can not Re-eval this appointment request because it's not yet approved. Once it gets approved, You will be able to Re-eval this appointment request.",
     "Appointment:RevalSourceNotApprovedAdminHint": "You can not Re-eval this appointment request because it's not yet approved. Please approve an appointment and try again.",
     "Appointment:AccessorRoleMismatch": "Your added accessor '{0}' is already registered in our system with different user type. Please select proper Accessor user's type and try again",
+    "Appointment:AccessDenied": "You do not have permission to access this appointment.",
     "DoctorAvailabilities": "Availability & Time Slots",
     "NewDoctorAvailability": "New Doctor Availability",
     "DoctorAvailability": "Availability & Time Slots",

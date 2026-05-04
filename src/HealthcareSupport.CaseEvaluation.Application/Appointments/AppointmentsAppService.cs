@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -57,8 +58,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected ILocalEventBus _localEventBus;
     // Phase 11b (2026-05-04) -- lead-time + per-type max-time gates.
     protected BookingPolicyValidator _bookingPolicyValidator;
+    // Phase 13 (2026-05-04) -- accessor-row lookup for read/edit access policy.
+    protected IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -80,6 +83,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
         _localEventBus = localEventBus;
         _bookingPolicyValidator = bookingPolicyValidator;
+        _appointmentAccessorRepository = appointmentAccessorRepository;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -221,13 +225,80 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
+        // Phase 13 (2026-05-04) -- creator-or-accessor gate. Internal
+        // users (admin / Clinic Staff / etc.) bypass; external users
+        // must be the creator OR have an AppointmentAccessor row.
+        await EnsureCanReadAsync(id);
         return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>((await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<AppointmentDto> GetAsync(Guid id)
     {
+        await EnsureCanReadAsync(id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
+    }
+
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- look up by confirmation number. Same
+    /// access policy as GetWithNavigationPropertiesAsync. Returns null
+    /// when no row matches; throws BusinessException(AccessDenied)
+    /// when a row exists but the caller cannot read it (so callers
+    /// cannot probe the confirmation-number space to discover that
+    /// other tenants' rows exist).
+    /// </summary>
+    [Authorize]
+    public virtual async Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber)
+    {
+        var appointment = await _appointmentRepository.FindByConfirmationNumberAsync(requestConfirmationNumber);
+        if (appointment == null)
+        {
+            return null;
+        }
+        await EnsureCanReadAppointmentAsync(appointment);
+        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
+            (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
+    }
+
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- composes <see cref="AppointmentAccessRules.CanRead"/>
+    /// with live state: looks up the appointment + its accessor rows,
+    /// computes whether the current user holds an internal role, and
+    /// throws <c>BusinessException(AppointmentAccessDenied)</c> on
+    /// failure. Internal users always pass.
+    /// </summary>
+    private async Task EnsureCanReadAsync(Guid appointmentId)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await EnsureCanReadAppointmentAsync(appointment);
+    }
+
+    private async Task EnsureCanReadAppointmentAsync(Appointment appointment)
+    {
+        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
+        var isInternal = BookingFlowRoles.IsInternalUserCaller(callerRoles);
+        if (isInternal)
+        {
+            return;
+        }
+
+        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
+        var entries = await AsyncExecuter.ToListAsync(
+            accessorQuery
+                .Where(a => a.AppointmentId == appointment.Id)
+                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
+
+        var canRead = AppointmentAccessRules.CanRead(
+            callerUserId: CurrentUser.Id,
+            callerIsInternalUser: false,
+            appointmentCreatorId: appointment.CreatorId,
+            accessorEntries: entries);
+
+        if (!canRead)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied)
+                .WithData("appointmentId", appointment.Id);
+        }
     }
 
     // T3 minimum-bar lookup scope: Patient is not IMultiTenant per CLAUDE.md, so

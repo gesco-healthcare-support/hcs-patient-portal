@@ -156,6 +156,17 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     }
 
     /// <summary>
+    /// Phase 13 (2026-05-04) -- look up an appointment by user-facing
+    /// confirmation number. Same access policy as the by-Id variant.
+    /// </summary>
+    [HttpGet]
+    [Route("by-confirmation-number/{requestConfirmationNumber}")]
+    public virtual Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber)
+    {
+        return _appointmentsAppService.GetByConfirmationNumberAsync(requestConfirmationNumber);
+    }
+
+    /// <summary>
     /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>).
     /// Source confirmation number flows in the route (uppercase A##### is
     /// always URL-safe). Body carries the new appointment's intake DTO.
