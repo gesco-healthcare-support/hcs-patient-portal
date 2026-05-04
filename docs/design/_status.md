@@ -47,7 +47,7 @@ prompt.
 | 7 | it-admin-notification-templates | `it-admin-notification-templates-design.md` | draft | pending | n/a | Phase 18 renderer done 2026-05-04; Angular UI pending |
 | 8 | it-admin-custom-fields | `it-admin-custom-fields-design.md` | draft | pending | n/a | Standalone admin page |
 | 9 | it-admin-package-details | `it-admin-package-details-design.md` | draft | pending | n/a | Documents + Packets CRUD |
-| 10 | it-admin-user-management | `it-admin-user-management-design.md` | not-started | pending | partial (host admin /identity/users captured 2026-04-24) | ABP-Identity-delegated; capture branding overrides only |
+| 10 | it-admin-user-management | `it-admin-user-management-design.md` | draft | pending | partial (host admin /identity/users captured 2026-04-24) | ABP-Identity-delegated; capture branding overrides only |
 
 ## Tier 2 -- features with NEW Angular UI but no spec
 
