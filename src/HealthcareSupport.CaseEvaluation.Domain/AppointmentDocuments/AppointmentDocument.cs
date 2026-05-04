@@ -118,4 +118,57 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.Length(BlobName, nameof(blobName), AppointmentDocumentConsts.BlobNameMaxLength);
         Check.Length(ContentType, nameof(contentType), AppointmentDocumentConsts.ContentTypeMaxLength);
     }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- queued-state factory for the package-doc
+    /// auto-queue path
+    /// (<c>PackageDocumentQueueHandler</c> on
+    /// <c>AppointmentApprovedEto</c>). Creates a row in
+    /// <see cref="DocumentStatus.Pending"/> with no file metadata yet
+    /// (placeholders satisfy the constructor's
+    /// <c>Check.NotNullOrWhiteSpace</c> guards). The
+    /// <see cref="VerificationCode"/> lets the patient upload via the
+    /// emailed link without an authenticated session. When the user
+    /// uploads, <c>UploadPackageDocumentAsync</c> overwrites
+    /// <see cref="BlobName"/>, <see cref="FileName"/>,
+    /// <see cref="FileSize"/>, <see cref="ContentType"/>,
+    /// <see cref="UploadedByUserId"/> and flips
+    /// <see cref="Status"/> to <see cref="DocumentStatus.Uploaded"/>.
+    ///
+    /// <para>Mirrors OLD's <c>AppointmentDocumentDomain</c> queue path
+    /// at <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:1102-1123
+    /// where the row is inserted with <c>DocumentStatusId = Pending</c>
+    /// + <c>VerificationCode = guid</c> and the file metadata
+    /// (<c>DocumentFilePath</c>, <c>FileType</c>) is populated only on
+    /// upload. NEW collapses OLD's separate <c>FileType</c> +
+    /// <c>DocumentFilePath</c> into <see cref="ContentType"/> +
+    /// <see cref="BlobName"/>.</para>
+    /// </summary>
+    public static AppointmentDocument CreateQueued(
+        Guid id,
+        Guid? tenantId,
+        Guid appointmentId,
+        string documentName,
+        Guid verificationCode)
+    {
+        Check.NotNullOrWhiteSpace(documentName, nameof(documentName));
+        Check.Length(documentName, nameof(documentName), AppointmentDocumentConsts.DocumentNameMaxLength);
+
+        // Placeholder file metadata satisfies the public constructor's
+        // non-null guards; real values are written by the upload path.
+        const string PendingPlaceholder = "(pending-upload)";
+        var entity = new AppointmentDocument(
+            id: id,
+            tenantId: tenantId,
+            appointmentId: appointmentId,
+            documentName: documentName,
+            fileName: PendingPlaceholder,
+            blobName: PendingPlaceholder,
+            contentType: null,
+            fileSize: 0,
+            uploadedByUserId: Guid.Empty);
+        entity.Status = DocumentStatus.Pending;
+        entity.VerificationCode = verificationCode;
+        return entity;
+    }
 }

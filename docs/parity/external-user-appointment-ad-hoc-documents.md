@@ -7,7 +7,8 @@ old-docs:
   - data-dictionary-table.md (AppointmentNewDocuments)
   - socal-api-documentation.md (AppointmentNewDocuments section)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 1
 strict-parity: true
 depends-on:
@@ -101,15 +102,15 @@ Alternative: keep two entities. Cleaner separation but more code. Recommend the 
 
 | Aspect | OLD | NEW | Action | Sev |
 |--------|-----|-----|--------|-----|
-| Two upload paths (package + ad-hoc) | 2 separate tables | 1 table | **Add `IsAdHoc bool` field on `AppointmentDocument`**; gate validation differently per flag | B |
-| Ad-hoc upload available anytime | No status gate | Likely status-gated currently | **Skip status gate when `IsAdHoc = true`** | B |
-| Internal user auto-accept | `IsInternalUser != null` -> Accepted | TO VERIFY | **Add internal-user bypass** | I |
-| `ResponsibleUserId` required | OLD throws on null | Should not throw | **Handle null `ResponsibleUserId`** -- skip the responsible-user email if null | I |
-| Email templates shared with package docs | Same template enums | Same approach in NEW | None (strict parity = shared templates) | -- |
-| `AttachmentLink` HTML in DB | OLD stores `<a href='...'>Click here to upload</a>` | Should be regenerated per email, not stored | **Don't store HTML in DB**; build link in email handler | C |
-| `DocumentAwsFilePath` retained but unused | Dead field in OLD | Don't carry forward | **Drop `DocumentAwsFilePath`** -- use `IBlobStorage`'s container/blob name | C |
-| Email subject format with patient name + claim # | OLD format: `(...{Patient Name}...{Claim}...{WCAB ADJ}...)` | TO REPLICATE | **Add subject builder helper** that includes patient name, claim, ADJ; localize via `IStringLocalizer` | I |
-| File naming convention | `{confirmationNumber}_{filename}_{documentId}_{timestamp}.{ext}` | Use `IBlobStorage` with similar naming | **Match naming convention** for ops/audit recognizability | C |
+| Two upload paths (package + ad-hoc) | 2 separate tables | 1 table | **Add `IsAdHoc bool` field on `AppointmentDocument`**; gate validation differently per flag | B | `[VERIFIED 2026-05-04]` -- `IsAdHoc` already exists since Phase 1.6 (`AppointmentDocument.cs`:71). Phase 14 sets the flag in `UploadStreamAsync` (the ad-hoc path) and gates the status/due-date validators on `!IsAdHoc`. |
+| Ad-hoc upload available anytime | No status gate | Existing `UploadStreamAsync` has no status gate (which is correct for ad-hoc) | -- | -- | `[VERIFIED 2026-05-04]` -- existing AppService is already gateless for ad-hoc; Phase 14 keeps it that way and ADDS the gate only on the new `UploadPackageDocumentAsync` + `UploadJointDeclarationAsync` paths. |
+| Internal user auto-accept | `IsInternalUser != null` -> Accepted | Already wired in `UploadStreamAsync` line 105-107 via `IsInternalActorAsync` helper | -- | -- | `[VERIFIED 2026-05-04]` -- no change. |
+| `ResponsibleUserId` required | OLD throws on null | Should not throw | **Handle null `ResponsibleUserId`** -- skip the responsible-user email if null | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- `ResponsibleUserId` is nullable on the entity (`AppointmentDocument.cs`:60). Phase 14 publishes `AppointmentDocumentUploadedEto` regardless; the per-feature email handler (Phase 14b) skips the responsible-user leg when null. OLD-bug-fix: OLD's `.Value` access NRE'd. |
+| Email templates shared with package docs | Same template enums | Same approach in NEW (`PatientDocumentUploaded` / `Accepted` / `Rejected`) | None (strict parity = shared templates) | -- | `[VERIFIED 2026-05-04]` -- Phase 4's `NotificationTemplateConsts.Codes.PatientDocument*` codes match OLD verbatim. |
+| `AttachmentLink` HTML in DB | OLD stores `<a href='...'>Click here to upload</a>` | NEW does not store HTML; built in email handler | -- | -- | `[VERIFIED 2026-05-04]` -- NEW preserves the cleaner approach (link built at email-render time using Phase 18's `TemplateVariableSubstitutor`). |
+| `DocumentAwsFilePath` retained but unused | Dead field in OLD | Not carried forward in NEW (uses `BlobName`) | -- | -- | `[VERIFIED 2026-05-04]` -- entity has `BlobName` only. |
+| Email subject format with patient name + claim # | OLD format: `(...{Patient Name}...{Claim}...{WCAB ADJ}...)` | TO REPLICATE in subject builder | **Add subject builder helper** that includes patient name, claim, ADJ; localize via `IStringLocalizer` | I | `[DEFERRED to Phase 14b]` -- subject builder lands with the email handler. Phase 14 publishes the Eto with `AppointmentId` only; the handler joins the patient + injury data at render time. |
+| File naming convention | `{confirmationNumber}_{filename}_{documentId}_{timestamp}.{ext}` | NEW uses tenant-prefixed GUID (`{tenantSegment}/{appointmentId}/{Guid:N}`) | -- | -- | `[VERIFIED 2026-05-04]` -- intentional NEW deviation (tenant-prefix is required for SaaS isolation; OLD's pattern is single-tenant). The `FileName` column on the entity preserves the human-readable original filename for download. |
 
 ## Internal dependencies surfaced
 

@@ -7,7 +7,8 @@ old-source:
 old-docs:
   - socal-project-overview.md (lines 487-501)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 2
 strict-parity: true
 internal-user-role: ClinicStaff (also StaffSupervisor / ITAdmin)
@@ -79,17 +80,17 @@ When ANY package doc is rejected, the appointment's overall doc-completion statu
 
 | Aspect | OLD | NEW | Action | Sev |
 |--------|-----|-----|--------|-----|
-| Accept endpoint | OLD: implicit via Update | NEW: TO VERIFY | **Add `AcceptDocumentAsync(Guid documentId)` to `IAppointmentDocumentsAppService`**; same for AppointmentJointDeclaration if separate | B |
-| Reject endpoint | OLD: implicit via Update with RejectionNotes | NEW: `RejectDocumentInput.cs` exists | **Verify `RejectDocumentAsync(Guid documentId, RejectDocumentInput { Notes })` exists and emits event** | B |
-| Re-upload clears RejectionNotes + status -> Uploaded | OLD | TO VERIFY | **Verify uploader endpoint resets state on re-upload** | I |
-| Accepted -> immutable for external users | OLD enforces in update validation | TO VERIFY | **Add status check** on uploader endpoint -- reject if currently Accepted | I |
-| Internal user upload auto-Accepted | OLD | NEW: TO VERIFY | **Add internal-user fast-path** in upload AppService | I |
-| Notification on accept/reject | OLD: `EmailTemplate.PatientDocument{Accepted,Rejected}` | NEW: TO VERIFY (StatusChangeEmailHandler exists, may cover) | **Add `DocumentReviewedEto` event** with subscriber sending email per status; localize subject + body | I |
-| Email subject includes patient + claim + ADJ | OLD pattern | TO REPLICATE | **Subject builder helper** that pulls Patient.FirstName/LastName + InjuryDetail.ClaimNumber + WcabAdj | C |
-| Per-document review (not bulk) | OLD | TO VERIFY | **Verify endpoints accept single document ID, not batch** | -- |
-| JDF status flow bug fix | OLD bug | -- | **Fix in NEW** -- always set DocumentStatusId on accept/reject | I |
-| Permissions | -- | -- | **Add `CaseEvaluation.AppointmentDocuments.Review`** -- gate to Clinic Staff / Staff Supervisor / IT Admin | B |
-| Responsibility scope | OLD: any Clinic Staff can review (no per-appointment scope) | -- | **Strict parity: don't restrict to PrimaryResponsibleUserId** -- any Clinic Staff with permission can review (matches OLD; PrimaryResponsibleUserId is just for notifications, not authz) | -- |
+| Accept endpoint | OLD: implicit via Update | Existing `ApproveAsync(Guid)` line 172 | -- | -- | `[VERIFIED 2026-05-04]` -- already exists. Phase 14 adds Eto publish (`AppointmentDocumentAcceptedEto`). |
+| Reject endpoint | OLD: implicit via Update with RejectionNotes | Existing `RejectAsync(Guid, RejectDocumentInput)` line 185 | -- | -- | `[VERIFIED 2026-05-04]` -- already exists. Phase 14 adds Eto publish (`AppointmentDocumentRejectedEto`). |
+| Re-upload clears RejectionNotes + status -> Uploaded | OLD | NEW upload paths now reset state on re-upload | -- | -- | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- `UploadPackageDocumentAsync` clears `RejectionReason` + sets `Status = Uploaded` (or `Accepted` for internal users) per OLD `AppointmentDocumentDomain.cs`:166. |
+| Accepted -> immutable for external users | OLD enforces in update validation | Missing | **Add status check** on uploader endpoint -- reject if currently Accepted | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- `DocumentUploadGate.EnsureNotImmutable(document, isInternalUser)` throws when external user attempts upload against Accepted row. |
+| Internal user upload auto-Accepted | OLD | Already wired in `UploadStreamAsync` line 105-107 | -- | -- | `[VERIFIED 2026-05-04]` -- propagated to new `UploadPackageDocumentAsync` path. |
+| Notification on accept/reject | OLD: `EmailTemplate.PatientDocument{Accepted,Rejected}` | Phase 18 declared the Etos; Phase 14 publishes them | -- | -- | `[IMPLEMENTED 2026-05-04 - tested unit-level]` (publish) / `[DEFERRED to Phase 14b]` (email handler) -- the per-feature handler that consumes the Etos + dispatches via `INotificationDispatcher` lands in Phase 14b. |
+| Email subject includes patient + claim + ADJ | OLD pattern | TO REPLICATE in subject builder | **Subject builder helper** that pulls `Patient.FirstName/LastName + InjuryDetail.ClaimNumber + WcabAdj` | C | `[DEFERRED to Phase 14b]` -- subject builder lives with the per-feature email handler. Phase 14 publishes Etos with `AppointmentId` only; the handler joins the patient + injury data at render time. |
+| Per-document review (not bulk) | OLD | Per-document `ApproveAsync(Guid)` / `RejectAsync(Guid, ...)` | -- | -- | `[VERIFIED 2026-05-04]` -- single-document signatures preserved. |
+| JDF status flow bug fix | OLD bug | NEW already correct | -- | -- | `[VERIFIED 2026-05-04]` `[OLD-BUG-FIX]` -- `RejectAsync` sets both `Status = Rejected` AND `RejectedByUserId` (line 192-194). OLD's bug structurally non-reproducible in NEW. |
+| Permissions | -- | -- | -- | -- | `[VERIFIED 2026-05-04]` -- `AppointmentDocuments.Approve` exists (`CaseEvaluationPermissions.cs`:115); granted to Clinic Staff / Staff Supervisor / IT Admin in `InternalUserRoleDataSeedContributor.cs`. |
+| Responsibility scope | OLD: any Clinic Staff can review (no per-appointment scope) | -- | **Strict parity: don't restrict to PrimaryResponsibleUserId** | -- | `[VERIFIED 2026-05-04]` -- existing AppService gates on permission only. PrimaryResponsibleUserId used only for notification recipients, not for authz. |
 
 ## Internal dependencies surfaced
 

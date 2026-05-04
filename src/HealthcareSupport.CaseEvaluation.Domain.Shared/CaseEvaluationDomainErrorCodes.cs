@@ -265,4 +265,72 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentAccessDenied =
         "CaseEvaluation:Appointment.AccessDenied";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate</c>
+    /// when the appointment status is not Approved or
+    /// RescheduleRequested. Mirrors OLD verbatim "Please upload
+    /// documents after appointment is approved."
+    /// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:104).
+    /// Localization key <c>Document:UploadAfterApproval</c>.
+    /// </summary>
+    public const string DocumentUploadAfterApproval =
+        "CaseEvaluation:Document.UploadAfterApproval";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate</c>
+    /// when the appointment is past its <c>DueDate</c>. Mirrors OLD
+    /// verbatim "You can not upload document after specified due
+    /// date." (<c>AppointmentDocumentDomain.cs</c>:99). Localization
+    /// key <c>Document:UploadAfterDueDate</c>.
+    /// </summary>
+    public const string DocumentUploadAfterDueDate =
+        "CaseEvaluation:Document.UploadAfterDueDate";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureAme</c> when a JDF upload is
+    /// attempted against a non-AME appointment. Mirrors OLD verbatim
+    /// "Appointment type is not valid. Please upload appropriate
+    /// document." Localization key
+    /// <c>Document:JdfRequiresAmeAppointment</c>.
+    /// </summary>
+    public const string JdfRequiresAmeAppointment =
+        "CaseEvaluation:Document.JdfRequiresAmeAppointment";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureCreatorIsAttorney</c> when a JDF
+    /// upload is attempted by anyone other than the booking attorney
+    /// (or when that user is not in an Applicant/Defense Attorney
+    /// role). Localization key
+    /// <c>Document:JdfUploaderMustBeBookingAttorney</c>.
+    /// </summary>
+    public const string JdfUploaderMustBeBookingAttorney =
+        "CaseEvaluation:Document.JdfUploaderMustBeBookingAttorney";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureNotImmutable</c> when an external
+    /// user attempts to mutate an Accepted document. Mirrors OLD's
+    /// "approved docs are read-only for external users" rule.
+    /// Localization key <c>Document:ImmutableForExternalUser</c>.
+    /// </summary>
+    public const string DocumentImmutableForExternalUser =
+        "CaseEvaluation:Document.ImmutableForExternalUser";
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- raised by
+    /// <c>DocumentUploadGate.EnsureVerificationCodeMatches</c> when
+    /// the supplied verification code does not match the document's
+    /// stored code, OR the document is missing. Mirrors OLD verbatim
+    /// "Un unauthorized user"
+    /// (<c>AppointmentDocumentDomain.cs</c>:71). NEW preserves the
+    /// OLD wording. Localization key
+    /// <c>Document:UnauthorizedVerificationCode</c>.
+    /// </summary>
+    public const string DocumentUnauthorizedVerificationCode =
+        "CaseEvaluation:Document.UnauthorizedVerificationCode";
 }

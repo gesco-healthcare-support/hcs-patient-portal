@@ -7,7 +7,8 @@ old-docs:
   - socal-project-overview.md (lines 415-419)
   - data-dictionary-table.md (AppointmentJointDeclarations)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 1
 strict-parity: true
 depends-on:
@@ -85,14 +86,14 @@ Cutoff: `SystemParameters.JointDeclarationUploadCutoffDays`. Background job chec
 
 | Aspect | OLD | NEW | Action | Sev |
 |--------|-----|-----|--------|-----|
-| AME-only enforcement | OLD code checks AppointmentTypeId | NEW: TO VERIFY | **Add `[CanUploadJDF]` guard** -- Appointment.AppointmentType.Code == "AME" or "AME-REVAL" | B |
-| Approved-only + before DueDate | OLD code enforces | TO VERIFY | **Add validation guard** in upload AppService | B |
-| Booking-attorney-only upload | OLD: TO VERIFY explicit check (the code shows CurrentUser-based saves, but no explicit "are you the creator?" check) | NEW: TO VERIFY | **Add explicit check** that `Appointment.CreatedById == CurrentUser.Id` AND user is in attorney role | I |
-| Per-document accept/reject by staff | Bug in OLD (only sets RejectedById, not Status) | -- | **FIX in NEW** -- set `DocumentStatusId = Accepted/Rejected` along with `RejectedById` | I |
-| Auto-cancel on missing JDF near due date | Background job; cutoff `JointDeclarationUploadCutoffDays` | Verify if NEW's reminder jobs include this | **Add `JointDeclarationAutoCancelJob`** Hangfire recurring job; on trigger, set Appointment.AppointmentStatus = CancelledNoBill (or new "AutoCancelled" status?) + send notification | B |
-| Email on auto-cancel | OLD sends to all stakeholders | -- | **Emit `AppointmentAutoCancelledEto` event** + notification handler | I |
-| File storage | Local fs in OLD | `IBlobStorage` in NEW | **Use IBlobStorage**; container `appointment-{id}` | -- |
-| Filename: `{guid}_{confirmationNumber}{timestamp}.{ext}` | OLD pattern | -- | **Match naming convention** for ops recognizability | C |
+| AME-only enforcement | OLD code checks AppointmentTypeId | NEW: missing | **Add `DocumentUploadGate.EnsureAme(appointment, appointmentType)` guard** -- `AppointmentType.Code == "AME"` or `"AME-REVAL"` | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- gate throws `BusinessException(JdfRequiresAmeAppointment)` localized to OLD verbatim "Appointment type is not valid. Please upload appropriate document." Implemented as `internal static` for unit-test coverage. |
+| Approved-only + before DueDate | OLD code enforces | NEW: missing | **Add `DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate` guard** in upload AppService | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- shared with package-doc gate. JDF path runs both `EnsureAppointmentApprovedAndNotPastDueDate` AND `EnsureAme` AND `EnsureCreator`. |
+| Booking-attorney-only upload | OLD: implicit via UserClaim writes | NEW: missing | **Add explicit check** that `Appointment.CreatedById == CurrentUser.Id` | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- `DocumentUploadGate.EnsureCreatorIsAttorney(appointment, currentUserId, currentUserRoles)` checks (a) creator match, (b) role in `{ApplicantAttorney, DefenseAttorney}`. Throws `BusinessException(JdfUploaderMustBeBookingAttorney)`. |
+| Per-document accept/reject by staff | Bug in OLD (only sets RejectedById, not Status) | -- | **FIX in NEW** -- set `DocumentStatusId = Accepted/Rejected` along with `RejectedById` | I | `[IMPLEMENTED 2026-05-04 - pending testing]` `[OLD-BUG-FIX]` -- existing `RejectAsync` (`AppointmentDocumentsAppService.cs`:185) already sets both `Status = Rejected` AND `RejectedByUserId`. No additional change needed in Phase 14; OLD bug is structurally non-reproducible. |
+| Auto-cancel on missing JDF near due date | Background job; cutoff `JointDeclarationUploadCutoffDays` | Missing | **Add `JointDeclarationAutoCancelJob`** Hangfire recurring job; on trigger, transition appointment to `CancelledNoBill` + publish `AppointmentAutoCancelledEto` | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` (cutoff predicate) / `[IMPLEMENTED 2026-05-04 - pending integration testing]` (job class) -- `JointDeclarationAutoCancelJob` registered in `CaseEvaluationHttpApiHostModule` recurring jobs. Cutoff predicate `JointDeclarationCutoff.IsAtOrPastCutoff` extracted as `internal static` for unit testing. Job uses Session A's `AppointmentManager.TransitionAsync` for the state flip; publishes `AppointmentAutoCancelledEto` (Phase 18 forward-declared) for stakeholder notification. |
+| Email on auto-cancel | OLD sends to all stakeholders | -- | **Emit `AppointmentAutoCancelledEto` event** + notification handler | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` (publish only) / `[DEFERRED to Phase 14b]` (handler) -- Eto publishes from the auto-cancel job; per-feature handler dispatching the stakeholder email lands in Phase 14b. |
+| File storage | Local fs in OLD | `IBlobStorage` in NEW | **Use IBlobStorage** | -- | `[VERIFIED 2026-05-04]` -- already wired in existing `UploadStreamAsync`. Phase 14 reuses the same blob-name convention. |
+| Filename: `{guid}_{confirmationNumber}{timestamp}.{ext}` | OLD pattern | NEW uses `{tenantSegment}/{appointmentId}/{Guid:N}` | -- | -- | `[VERIFIED 2026-05-04]` -- intentional deviation (tenant prefix needed for multi-tenant). Original human-readable filename preserved on entity. |
 
 ## Internal dependencies surfaced
 

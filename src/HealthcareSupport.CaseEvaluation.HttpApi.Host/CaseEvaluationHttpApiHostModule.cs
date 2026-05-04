@@ -528,6 +528,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.CronExpression,
             options);
+
+        // Phase 14 (2026-05-04) -- JDF auto-cancel daily 06:00 PT.
+        // Earlier than the AppointmentDayReminderJob (07:00) so an
+        // auto-cancelled appointment does not also trigger a T-1
+        // appointment-day reminder for a visit that won't happen.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()
