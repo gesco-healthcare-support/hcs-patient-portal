@@ -114,4 +114,30 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ResetPasswordTokenInvalid =
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
+
+    /// <summary>
+    /// Phase 11b (2026-05-04) -- raised by
+    /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
+    /// <c>AvailableDate</c> falls inside the per-tenant
+    /// <c>SystemParameter.AppointmentLeadTime</c> window. Mirrors OLD
+    /// <c>AppointmentDomain.cs</c> Add path's lead-time gate
+    /// (<c>ValidationFailedCode.AppointmentBookingDateNotAvailable</c>).
+    /// Localization key
+    /// <c>Appointment:BookingDateInsideLeadTime</c>.
+    /// </summary>
+    public const string AppointmentBookingDateInsideLeadTime =
+        "CaseEvaluation:Appointment.BookingDateInsideLeadTime";
+
+    /// <summary>
+    /// Phase 11b (2026-05-04) -- raised by
+    /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
+    /// <c>AvailableDate</c> is past the per-AppointmentType max horizon
+    /// (<c>SystemParameter.AppointmentMaxTimePQME / AppointmentMaxTimeAME /
+    /// AppointmentMaxTimeOTHER</c>). Mirrors OLD <c>AppointmentDomain.cs</c>
+    /// Add path's max-time gate.
+    /// Localization key
+    /// <c>Appointment:BookingDatePastMaxHorizon</c>.
+    /// </summary>
+    public const string AppointmentBookingDatePastMaxHorizon =
+        "CaseEvaluation:Appointment.BookingDatePastMaxHorizon";
 }

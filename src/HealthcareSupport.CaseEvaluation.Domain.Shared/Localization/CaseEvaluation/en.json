@@ -170,6 +170,8 @@
     "DoctorAvailability:CannotUpdateBookedOrReserved": "This slot cannot be modified because it has been reserved or booked. Cancel or reschedule the linked appointment first.",
     "DoctorAvailability:CannotBulkDeleteWithBookedSlots": "Cannot delete all slots for this date and location because one or more slots are reserved or booked.",
     "DoctorAvailability:CannotDeleteReferenced": "This slot cannot be deleted because it is referenced by an existing appointment or change request.",
+    "Appointment:BookingDateInsideLeadTime": "The selected appointment date is too soon. Choose a date at least {0} day(s) from today.",
+    "Appointment:BookingDatePastMaxHorizon": "The selected appointment date is too far in the future for this appointment type. Choose a date no more than {0} day(s) from today.",
     "DoctorAvailabilities": "Availability & Time Slots",
     "NewDoctorAvailability": "New Doctor Availability",
     "DoctorAvailability": "Availability & Time Slots",

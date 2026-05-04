@@ -55,8 +55,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IRepository<AppointmentInjuryDetail, Guid> _appointmentInjuryDetailRepository;
     protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
     protected ILocalEventBus _localEventBus;
+    // Phase 11b (2026-05-04) -- lead-time + per-type max-time gates.
+    protected BookingPolicyValidator _bookingPolicyValidator;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -77,6 +79,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
         _localEventBus = localEventBus;
+        _bookingPolicyValidator = bookingPolicyValidator;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -460,6 +463,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
     public virtual async Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
     {
         ValidateCreateGuids(input);
@@ -495,6 +499,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         }
 
         ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
+
+        // Phase 11b (2026-05-04) -- lead-time + per-AppointmentType max-time
+        // gates per OLD AppointmentDomain.cs Add path. Throws BusinessException
+        // with localized error code on failure.
+        await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
 
         var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
 
