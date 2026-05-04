@@ -70,8 +70,8 @@ deviation.
 
 | # | Feature | design.md path | Status | OLD screenshots | NEW screenshots | Notes |
 |---|---------|----------------|--------|-----------------|-----------------|-------|
-| 20 | external-user-login | `external-user-login-design.md` | not-started | pending (auth-shell variant 1; same chrome as register/forgot) | partial (`new/_non-role/01-login-page.png`) | Login (auth-shell variant 1) |
-| 21 | external-user-submit-query | `external-user-submit-query-design.md` | not-started | pending | n/a | Help/Query form modal |
+| 20 | external-user-login | `external-user-login-design.md` | draft | pending (auth-shell variant 1; same chrome as register/forgot) | partial (`new/_non-role/01-login-page.png`) | Login (auth-shell variant 1) |
+| 21 | external-user-submit-query | `external-user-submit-query-design.md` | draft | pending | n/a | Help/Query form modal |
 | 22 | internal-user-view-all-appointments | `internal-user-view-all-appointments-design.md` | not-started | pending | partial (`new/admin/03-appointments-list-host-context.png`, `new/t1-doctor/03-appointments-list-13-rows.png`) | All-appointments list + filters |
 | 23 | internal-user-reports | `internal-user-reports-design.md` | not-started | pending | n/a | Reports landing + Excel/PDF export |
 | 24 | clinic-staff-check-in-check-out | `clinic-staff-check-in-check-out-design.md` | not-started | partial (`old/admin/03-checkin-checkout.png`) | n/a | Day-of check-in/out view |
