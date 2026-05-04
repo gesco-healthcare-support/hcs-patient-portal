@@ -1952,12 +1952,10 @@ export class AppointmentAddComponent {
     const threshold = new Date(today);
     threshold.setDate(threshold.getDate() + this.minimumBookingDays);
 
-    console.log('Date check:', {
-      selected: selected.toISOString(),
-      threshold: threshold.toISOString(),
-      isBefore: selected < threshold,
-    });
-
+    // Phase 11d (2026-05-04): client-side guard is informational only.
+    // The server-side BookingPolicyValidator (Phase 11b) is authoritative
+    // and reads SystemParameter.AppointmentLeadTime per-tenant. UI used
+    // to log a debug `console.log('Date check:', ...)` here; removed.
     return selected < threshold;
   }
 
