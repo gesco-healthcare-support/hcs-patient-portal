@@ -435,6 +435,15 @@
     "Login:AccountNotActivated": "Your account is not activated",
     "Login:VerificationLinkSent": "We have sent a verification link to your registered email id, please verify your email address to login.",
     "Login:ResendConfirmationEmail": "Resend confirmation email",
-    "Login:ResendConfirmationEmailSent": "Confirmation email re-sent. Please check your inbox."
+    "Login:ResendConfirmationEmailSent": "Confirmation email re-sent. Please check your inbox.",
+    "Account:EmailNotConfirmedForPasswordReset": "Please verify your email address before resetting your password.",
+    "Account:UserInactiveForPasswordReset": "Your account is not activated.",
+    "Account:ResetPasswordTokenInvalid": "The password reset link is invalid or has expired. Please request a new one.",
+    "Account:PasswordResetCodeSent": "If the email is registered and verified, you will receive a password reset link shortly.",
+    "Account:PasswordResetSuccess": "Your password has been reset. You can now log in with the new password.",
+    "Account:PasswordResetEmailSubject": "Reset your password - {0}",
+    "Account:PasswordChangedEmailSubject": "Your password has been successfully changed - {0}",
+    "Account:PasswordResetEmailBody": "<p>Hello {0},</p><p>You requested a password reset. Click the link below to set a new password:</p><p><a href=\"{1}\">Reset your password</a></p><p>If you did not request this, you can safely ignore this email.</p>",
+    "Account:PasswordChangedEmailBody": "<p>Hello {0},</p><p>Your password has been successfully changed. If you did not make this change, please contact support immediately.</p>"
   }
 }

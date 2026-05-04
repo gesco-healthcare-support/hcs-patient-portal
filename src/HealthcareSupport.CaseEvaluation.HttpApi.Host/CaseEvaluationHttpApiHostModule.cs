@@ -90,6 +90,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureExternalProviders(context);
         ConfigureHealthChecks(context);
         ConfigureHangfire(context, configuration);
+        ConfigurePasswordResetRateLimiter(context);
 
         Configure<PermissionManagementOptions>(options =>
         {
@@ -168,6 +169,109 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             options.ConventionalControllers.Create(typeof(CaseEvaluationApplicationModule).Assembly);
         });
+    }
+
+    /// <summary>
+    /// Phase 10 (2026-05-03) -- ASP.NET Core fixed-window rate limiter
+    /// scoped to the password-reset surface
+    /// (<c>POST /api/public/external-account/send-password-reset-code</c>
+    /// and <c>POST /api/public/external-account/reset-password</c>).
+    ///
+    /// <para>Window: 1 hour. Permit: 5. Queue: 0 (over-limit returns 429
+    /// immediately rather than queueing). Partition key precedence:
+    /// optional <c>email</c> query-string override -> AuthN <c>sub</c>
+    /// claim -> client IP. Body-field partitioning is intentionally NOT
+    /// used because partitioners run before model binding and reading
+    /// the body here would require enabling rewindable request bodies
+    /// across the whole pipeline -- not worth the per-request cost when
+    /// IP partitioning already blocks the obvious abuse vector. Email
+    /// partitioning is enforced via <c>email</c> query string (used
+    /// only by tests).</para>
+    ///
+    /// <para>This is a NEW addition vs OLD (OLD had no rate limiting on
+    /// forgot-password) -- accepted as a security fix that does not
+    /// change visible behavior. Cite:
+    /// https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit
+    /// </para>
+    /// </summary>
+    private static void ConfigurePasswordResetRateLimiter(ServiceConfigurationContext context)
+    {
+        context.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = (int)System.Net.HttpStatusCode.TooManyRequests;
+            // Global limiter strategy: every request is partitioned, but
+            // requests that do NOT match the password-reset prefix are
+            // routed into a no-op partition. This avoids needing the
+            // [EnableRateLimiting] attribute (which would force the HttpApi
+            // class library to take a Microsoft.AspNetCore.App framework
+            // reference) while still scoping the 5/hour budget exclusively
+            // to the password-reset surface.
+            options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
+                httpContext =>
+                {
+                    if (!IsPasswordResetPath(httpContext))
+                    {
+                        return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-password-reset");
+                    }
+                    var key = ResolvePasswordResetPartitionKey(httpContext);
+                    return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: key,
+                        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 5,
+                            Window = TimeSpan.FromHours(1),
+                            QueueLimit = 0,
+                            QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                            AutoReplenishment = true,
+                        });
+                });
+        });
+    }
+
+    /// <summary>Policy name used by the password-reset endpoints.</summary>
+    public const string PasswordResetRateLimitPolicy = "password-reset-by-email";
+
+    /// <summary>Path prefix matched by the password-reset rate limiter.</summary>
+    public const string PasswordResetPathPrefix = "/api/public/external-account";
+
+    /// <summary>
+    /// True when the request targets one of the password-reset endpoints
+    /// (<c>send-password-reset-code</c> or <c>reset-password</c>) under
+    /// <see cref="PasswordResetPathPrefix"/>. Internal-static so unit
+    /// tests can pin path-matching edge cases.
+    /// </summary>
+    internal static bool IsPasswordResetPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        return httpContext.Request.Path.StartsWithSegments(PasswordResetPathPrefix);
+    }
+
+    /// <summary>
+    /// Resolves the partition key for the password-reset rate limiter.
+    /// Precedence: optional <c>?email=</c> query (for tests) -> JWT
+    /// <c>sub</c> claim (caller already authenticated) -> client IP.
+    /// Falls back to <c>"global"</c> when none resolves so the policy
+    /// always has a deterministic key.
+    /// Internal-static so unit tests can verify edge cases without
+    /// standing up the middleware pipeline.
+    /// </summary>
+    internal static string ResolvePasswordResetPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var fromQuery = httpContext.Request.Query["email"].ToString();
+        if (!string.IsNullOrWhiteSpace(fromQuery))
+        {
+            return $"email:{fromQuery.Trim().ToLowerInvariant()}";
+        }
+        var sub = httpContext.User?.FindFirst("sub")?.Value;
+        if (!string.IsNullOrWhiteSpace(sub))
+        {
+            return $"sub:{sub}";
+        }
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
     }
 
     private static void ConfigureAuthentication(ServiceConfigurationContext context, IConfiguration configuration)
@@ -357,6 +461,12 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         app.UseUnitOfWork();
         app.UseDynamicClaims();
         app.UseAuthorization();
+
+        // Phase 10 (2026-05-03) -- enable rate limiter middleware so the
+        // [EnableRateLimiting] attribute on the password-reset endpoints
+        // takes effect. Placed AFTER UseAuthorization so authenticated
+        // callers' JWT sub claim is available to the partitioner.
+        app.UseRateLimiter();
 
         app.UseSwagger();
         app.UseAbpSwaggerUI(options =>

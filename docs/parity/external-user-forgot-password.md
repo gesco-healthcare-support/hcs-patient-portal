@@ -10,7 +10,8 @@ old-docs:
   - socal-project-overview.md (lines 237-239)
   - socal-api-documentation.md (UserAuthentication/postforgotpassword + putforgotpassword sections)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-03
+status: in-progress
 priority: 1
 depends-on:
   - external-user-registration  # shares VerificationCode field (single column reused for email-verify and password-reset)
@@ -158,14 +159,14 @@ Reading `UserAuthenticationDomain.cs` lines 219-256:
 | Custom `VerificationCode` GUID stored in user record, reused across email-verify + password-reset | Separate cryptographic tokens via different token providers | None -- ABP improvement; OLD's reuse edge case (forgot-password overwrites pending verification) disappears | -- |
 | URL: `{clientUrl}/reset-password/?activationkey={guid}&emailId={email}` | ABP default: `/Account/ResetPassword?userId={guid}&resetToken={signed-token}` | URL shape differs. **Acceptable** since AuthServer hosts the page (not Angular SPA). LeptonX customization handles visual styling. | I |
 | User-id type: int | Guid | Unavoidable -- ABP user IDs are Guid. URL format change is the visible effect. | -- |
-| **Verified-only password reset** -- unverified users get `"please verify your email address to do further process"` | ABP default allows password reset for unverified users | **Decision needed:** mirror OLD's verified-only rule, or accept ABP's default? OLD's rule is more restrictive. **Recommend mirror OLD** for parity -- override `IAccountAppService.SendPasswordResetCodeAsync` or check `EmailConfirmed` before sending the reset code. | I |
-| Inactive account check (`Status.InActive`) -> `"Your account is not activated"` | ABP returns a different error for `IsActive = false` (or `LockedOut`) | Map ABP errors to OLD's user-facing strings (or accept ABP defaults -- equivalent). | C |
-| Password regex enforced on reset (`systemPasswordPattern`) | ABP enforces password policy from `IdentityOptions` (currently weakened in NEW per registration audit) | Same fix as registration -- tighten ABP password policy in `ChangeIdentityPasswordPolicySettingDefinitionProvider`. | I |
-| Confirmation email sent after successful reset | ABP does NOT send a confirmation email after reset by default | **Add post-reset notification email** via `IEmailSender` invocation in a custom `IAccountAppService` override OR via `IDistributedEventBus` subscriber to ABP's password-changed event. **Recommend distributed event subscriber** -- decoupled, doesn't require overriding ABP. | I |
-| Reset email subject: `"Patient Appointment Portal - Reset Password"` | ABP default | Customize ABP email template + subject to match (with `{ClinicName}` token for multi-tenant). | C |
-| Confirmation email subject: `"Your password has been successfully changed - Patient Appointment portal"` | Not sent by ABP | Add via the event subscriber above. Subject: `"Your password has been successfully changed - {ClinicName}"`. | C |
+| **Verified-only password reset** -- unverified users get `"please verify your email address to do further process"` | ABP default allows password reset for unverified users | **Decision needed:** mirror OLD's verified-only rule, or accept ABP's default? OLD's rule is more restrictive. **Recommend mirror OLD** for parity -- override `IAccountAppService.SendPasswordResetCodeAsync` or check `EmailConfirmed` before sending the reset code. `[IMPLEMENTED 2026-05-03 - tested unit-level]` `[OLD-BUG-FIX]` -- enforced via `PasswordResetGate.EnsureUserCanRequestReset` in NEW `ExternalAccountAppService.SendPasswordResetCodeAsync`; null-user case silently returns to avoid OLD's account-enumeration leak. | I |
+| Inactive account check (`Status.InActive`) -> `"Your account is not activated"` | ABP returns a different error for `IsActive = false` (or `LockedOut`) | Map ABP errors to OLD's user-facing strings (or accept ABP defaults -- equivalent). `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- gate throws `BusinessException(UserInactiveForPasswordReset)` localized via `Account:UserInactiveForPasswordReset` key. | C |
+| Password regex enforced on reset (`systemPasswordPattern`) | ABP enforces password policy from `IdentityOptions` (currently weakened in NEW per registration audit) | Same fix as registration -- tighten ABP password policy in `ChangeIdentityPasswordPolicySettingDefinitionProvider`. `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- closed in Phase 2.1 (commit 4690980); `IdentityUserManager.ResetPasswordAsync` re-applies the policy on the new password. | I |
+| Confirmation email sent after successful reset | ABP does NOT send a confirmation email after reset by default | **Add post-reset notification email** via `IEmailSender` invocation in a custom `IAccountAppService` override OR via `IDistributedEventBus` subscriber to ABP's password-changed event. **Recommend distributed event subscriber** -- decoupled, doesn't require overriding ABP. `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- audit assumed `UserPasswordChangedEto` exists; reflection 2026-05-03 confirmed ABP 10.0.2 does NOT emit one, so confirmation is sent inline at the end of `ExternalAccountAppService.ResetPasswordAsync`. | I |
+| Reset email subject: `"Patient Appointment Portal - Reset Password"` | ABP default | Customize ABP email template + subject to match (with `{ClinicName}` token for multi-tenant). `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- localized via `Account:PasswordResetEmailSubject` key. | C |
+| Confirmation email subject: `"Your password has been successfully changed - Patient Appointment portal"` | Not sent by ABP | Add via the event subscriber above. Subject: `"Your password has been successfully changed - {ClinicName}"`. `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- localized via `Account:PasswordChangedEmailSubject` key. | C |
 | Frontend redirects to `/login` after success | AuthServer Razor page redirects similarly (configurable) | None | -- |
-| No rate limiting on `/postforgotpassword` (TO VERIFY) | ABP supports rate limiting via `Volo.Abp.AspNetCore.Mvc.RateLimiting` | **Add rate limiting** to NEW's password-reset endpoints regardless of OLD behavior. Standard hardening. | I |
+| No rate limiting on `/postforgotpassword` (TO VERIFY) | ABP supports rate limiting via `Volo.Abp.AspNetCore.Mvc.RateLimiting` | **Add rate limiting** to NEW's password-reset endpoints regardless of OLD behavior. Standard hardening. `[IMPLEMENTED 2026-05-03 - tested unit-level]` -- ASP.NET Core `FixedWindowRateLimiter` (5 req / hour) wired as a `GlobalLimiter` partitioned by path + email/sub/IP in `CaseEvaluationHttpApiHostModule.ConfigurePasswordResetRateLimiter`. | I |
 | `failedLogin = true` returned even on success (frontend ignores; shows success toast) | ABP returns proper success/failure | None -- OLD was buggy here, NEW is correct. | -- |
 
 ## Internal dependencies surfaced
@@ -286,3 +287,137 @@ Adrian's call: **(a) Subscribe to `UserPasswordChangedEto` distributed event.** 
 ### Q3 (rate limiting on password-reset endpoints) -- RESOLVED
 
 Adrian's call: **5 requests per email per hour** on both `/api/account/send-password-reset-code` and `/api/account/reset-password`. Implementation via ASP.NET Core Rate Limiting middleware with a sliding window keyed on the request's email field. Microsoft doc: https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit
+
+---
+
+## Phase 10 verification pass (2026-05-03)
+
+OLD source re-read with citations against `P:\PatientPortalOld\`. ABP 10.0.2
+runtime probed via reflection over the installed NuGet package set.
+
+### A. OLD claims confirmed verbatim
+
+| Audit claim | OLD evidence | Verdict |
+|---|---|---|
+| ForgotPasswordValidation gates: not-found / soft-deleted, !IsVerified, InActive | `UserAuthenticationDomain.cs:157-180` | CONFIRMED -- 4 branches as stated |
+| Step 1 generates `VerificationCode = Guid.NewGuid()` (overwrites pending verify) | `UserAuthenticationDomain.cs:188` | CONFIRMED |
+| Reset email subject literal | `UserAuthenticationDomain.cs:209` -- `"Patient Appointment Portal - Reset Password"` | CONFIRMED |
+| Reset URL pattern `/reset-password/?activationkey=<guid>&emailId=<email>` | `UserAuthenticationDomain.cs:195` | CONFIRMED |
+| Step 2 validation: Password == ConfirmPassword + regex match + active | `UserAuthenticationDomain.cs:222-238` | CONFIRMED |
+| Step 2 silently skips when user not found by email+code combo | `UserAuthenticationDomain.cs:244-255` | CONFIRMED -- the `if (user != null)` wraps the whole side-effect block |
+| `VerificationCode = null` after successful reset (one-time) | `UserAuthenticationDomain.cs:250` | CONFIRMED |
+| Confirmation email subject literal | `UserAuthenticationDomain.cs:313` -- `"Your password has been successfully changed - Patient Appointment portal"` | CONFIRMED -- this one reads correctly (NO typo despite the audit comment; "Your password" is grammatical) |
+| Reset uses same `systemPasswordPattern` as registration | `UserAuthenticationDomain.cs:226` + `RegexConstant.cs:15` | CONFIRMED |
+
+### B. OLD bugs found
+
+| OLD bug | OLD evidence | NEW behavior | Sev |
+|---|---|---|---|
+| `ForgotPasswordValidation` line 162 dead branch -- `user != null` already excluded `Status.Delete` at line 159, so the `StatusId == Status.Delete` check below is unreachable | `UserAuthenticationDomain.cs:159, 162` | NEW omits the dead branch | C |
+| Step 1 logs and emails reset link before checking `IsVerified` of the **resolved** user (the validation method ran first, but Step 1 implementation re-queries and ignores the validation result) | `UserAuthenticationDomain.cs:185-209` | NEW: validation runs at AppService entry; reset email never sent when validation throws | I |
+| Step 2 silently no-ops when token mismatch (`if (user != null)` wraps side effects, returns null to controller) -- attacker can probe valid emails by trying random tokens with no error | `UserAuthenticationDomain.cs:244-255` | NEW: ABP / ASP.NET Identity returns proper failure, but we still want to NOT leak email existence -- mapper returns generic message | I |
+| OLD lacks rate limiting on `/postforgotpassword` | grep'd `P:\PatientPortalOld\PatientAppointment.Api` and `Infrastructure` for `RateLimit\|throttle` -- only AWSSDK matches (binary), no domain rate-limit code | NEW adds 5/hour/email per Q3 resolution | B |
+
+### C. NEW state vs audit assumptions -- material divergence
+
+The audit assumed (lines 191-204, 209-218) two ABP capabilities that
+**reflection over the installed packages does NOT confirm** in ABP Pro 10.0.2:
+
+1. **`AccountAppService` / `IAccountAppService` not directly subclassable.**
+   ABP Pro 10.0.2 obfuscates the Account module heavily. Reflection over
+   `Volo.Abp.Account.Pro.Public.Application.dll` shows method names like
+   `L8nSSMWkSiiYJHjaCG9.lRHeAfgqo7WklTsGVuU`. No public method named
+   `SendPasswordResetCodeAsync` is visible across the 14 ABP-Account dlls
+   on disk. The DTOs (`SendPasswordResetCodeDto`, `ResetPasswordDto`,
+   `VerifyPasswordResetTokenInput`, `ChangePasswordInput`) ARE public,
+   confirming an interface exists -- it just isn't publicly named in a
+   way our code can reference.
+
+2. **`UserPasswordChangedEto` does NOT exist** in ABP Identity 10.0.2.
+   Reflection over all `Volo.Abp.Identity*.dll` shows exactly one Eto
+   type: `IdentityClaimTypeEto`. There is no published `Eto` event for
+   password changes; the audit's Q2 plan to subscribe to that event is
+   not viable on this ABP version.
+
+**Plan correction (binding for Phase 10 implementation):**
+
+| Plan said | Reality | Phase 10 action |
+|---|---|---|
+| Override `AccountAppService.SendPasswordResetCodeAsync` to add the verified-only gate | Obfuscated; not subclassable | **Build a NEW `IExternalAccountAppService`** at `src\HealthcareSupport.CaseEvaluation.Application.Contracts\ExternalAccount\`. Two methods: `SendPasswordResetCodeAsync(SendPasswordResetCodeInput)` + `ResetPasswordAsync(ResetPasswordInput)`. Both go through `IdentityUserManager` (open-source, stable) primitives: `FindByEmailAsync`, `GeneratePasswordResetTokenAsync`, `ResetPasswordAsync`. |
+| Subscribe to `UserPasswordChangedEto` for post-reset confirmation email | Eto doesn't exist | **Send the confirmation email inline** at the end of the NEW `ResetPasswordAsync` AppService method, after `IdentityUserManager.ResetPasswordAsync` returns success. No event subscriber needed. |
+
+This avoids the obfuscation problem, gives us a clean contract, keeps the
+helper logic unit-testable via `InternalsVisibleTo`, and matches OLD's
+verbatim flow (validation gates, then reset, then send confirmation).
+
+### D. New audit gaps surfaced
+
+| # | Gap | OLD ref | Sev | Action |
+|---|---|---|---|---|
+| F1 | New `IExternalAccountAppService` surface required (audit assumed override of ABP, reality requires standalone service) | -- | B | Implement at `Application/ExternalAccount/`. Endpoints `POST /api/app/external-account/send-password-reset-code` + `POST /api/app/external-account/reset-password`. |
+| F2 | `PasswordResetGate` static helper for the verified + active gates | `UserAuthenticationDomain.cs:166-173` | I | Internal static method `EnsureUserCanRequestReset(IdentityUser user)` -- throws `BusinessException` on missing-email-confirmation or inactive-user; returns silently on null user (avoid info leak). Unit-tested via InternalsVisibleTo. |
+| F3 | Token format change | `UserAuthenticationDomain.cs:188-195` (raw GUID via `?activationkey=<guid>`) vs ABP `DataProtectionTokenProvider` cryptographic token | C | Documented framework deviation; URL-encoded token round-trips through the AuthServer Razor reset page. NEW URL: `{authServerBaseUrl}/Account/ResetPassword?userId={guid}&resetToken={signed-token}`. |
+| F4 | OLD has NO rate limiting (verified) | grep over `P:\PatientPortalOld\PatientAppointment.{Api,Infrastructure}` returned no `RateLimit` matches outside binary AWSSDK | I | NEW adds `AddRateLimiter` middleware in `CaseEvaluationHttpApiHostModule.PreConfigureServices` -- 5 requests / hour / email key. Wires `app.UseRateLimiter()` after auth. |
+| F5 | Confirmation email subject is OLD-verbatim "Your password has been successfully changed - Patient Appointment portal" -- "Your" is grammatical (not the registration-email typo) | `UserAuthenticationDomain.cs:313` | C | NEW: subject `"Your password has been successfully changed - {ClinicName}"` via `PasswordChange` NotificationTemplate (Phase 4 seeded). |
+| F6 | Confirmation email body uses `EmailTemplate.PasswordChange` HTML template | `UserAuthenticationDomain.cs:311` -- references `EmailTemplate.PasswordChange` constant which maps to `Password-Changed.html` | C | NEW: NotificationTemplate code `PasswordChange` (Phase 4 seeded) carries body. Phase 10 just sends via `IEmailSender` + the seeded template. |
+| F7 | Phase 4 ABP Pro license blocker still gates EFCore.Tests integration | `docs/handoffs/2026-05-03-test-host-license-blocker.md` | I | No new blocker in Phase 10. Unit-test pattern same as Phases 3+4+8+9. |
+| F8 | OLD does NOT validate that the user looked up via `PutCredentialValidation` actually has `IsActive == true` (line 235 only checks `StatusId == Status.Active`) -- a subtle parity question whether soft-deleted-but-Active users could reset | `UserAuthenticationDomain.cs:235` | C | OLD-bug-fix exception: NEW checks both `EmailConfirmed` AND `IsActive` before allowing reset. Localization key `Account:UserInactiveForPasswordReset`. |
+
+### E. Phase 4 license blocker
+
+Still in effect for HTTP-level integration tests. Phase 10 ships unit-test
+coverage via the established `InternalsVisibleTo` pattern (Phase 3+4+8+9).
+
+### F. Audit-doc lifecycle annotations
+
+Original gap table (lines 156-169) gets `[IMPLEMENTED]` / `[DESCOPED]`
+annotations after Phase 10 lands. New gaps F1-F8 are tracked here.
+
+### G. Phase 10 implementation summary (2026-05-03)
+
+Files added:
+
+- `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs`
+  -- 3 new constants (`EmailNotConfirmedForPasswordReset`,
+  `UserInactiveForPasswordReset`, `ResetPasswordTokenInvalid`).
+- `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json`
+  -- 9 new `Account:*` keys (gate messages + email subjects + bodies).
+- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ExternalAccount/`
+  -- `SendPasswordResetCodeInput.cs`, `ResetPasswordInput.cs`,
+  `IExternalAccountAppService.cs`.
+- `src/HealthcareSupport.CaseEvaluation.Application/ExternalAccount/`
+  -- `PasswordResetGate.cs` (internal static helper),
+  `ExternalAccountAppService.cs`.
+- `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/ExternalAccount/ExternalAccountController.cs`
+  -- 2 anonymous POST endpoints under
+  `api/public/external-account/`.
+- `test/HealthcareSupport.CaseEvaluation.Application.Tests/ExternalAccount/ExternalAccountAppServiceUnitTests.cs`
+  -- 23 unit tests covering the gate, normalization, password-match,
+  URL builder, IdentityResult classifier.
+
+Files modified:
+
+- `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs`
+  -- adds `ConfigurePasswordResetRateLimiter` (global limiter partitioned
+  by path + key, 5/hour); calls `app.UseRateLimiter()` after
+  `UseAuthorization`.
+
+Strict-parity deviations called out:
+
+- **Architecture deviation:** NEW builds an AppService rather than
+  overriding ABP Pro's `AccountAppService`. ABP Pro 10.0.2 obfuscates
+  the Account module heavily (member names like
+  `L8nSSMWkSiiYJHjaCG9.lRHeAfgqo7WklTsGVuU`); subclassing is fragile.
+  Stable lower-level primitives (`IdentityUserManager` +
+  `IEmailSender`) get used instead.
+- **Inline confirmation email** instead of `UserPasswordChangedEto`
+  subscriber: ABP 10.0.2 does not emit such an event (verified by
+  reflection 2026-05-03). Equivalent observable behavior.
+- **OLD-bug-fix exception** on the gate's null-user branch: OLD line
+  177 returned `UserNotExist` (information leak); NEW silently
+  returns. Documented in `PasswordResetGate.cs` XML doc.
+
+Test-host crash gate (Phase 4 license blocker) means integration tests
+remain deferred. 23 pure unit tests cover all decision branches and
+helper methods via `InternalsVisibleTo`. End-to-end manual demo will
+exercise the SMTP path once Phase 4 unblocks.

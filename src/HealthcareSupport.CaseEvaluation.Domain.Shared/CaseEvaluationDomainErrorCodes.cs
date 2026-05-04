@@ -82,4 +82,36 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string DoctorAvailabilityCannotDeleteReferenced =
         "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced";
+
+    /// <summary>
+    /// Phase 10 (2026-05-03) -- raised by
+    /// <c>ExternalAccountAppService.SendPasswordResetCodeAsync</c> when
+    /// the target user has not yet confirmed their email address. Mirrors
+    /// OLD <c>UserAuthenticationDomain.cs:166-169</c>'s "verified-only
+    /// password reset" rule (Adrian's Q1 lock 2026-05-01: strict OLD parity).
+    /// Localization key <c>Account:EmailNotConfirmedForPasswordReset</c>.
+    /// </summary>
+    public const string EmailNotConfirmedForPasswordReset =
+        "CaseEvaluation:Account.EmailNotConfirmedForPasswordReset";
+
+    /// <summary>
+    /// Phase 10 (2026-05-03) -- raised by
+    /// <c>ExternalAccountAppService.SendPasswordResetCodeAsync</c> when
+    /// the target user is inactive (<c>IsActive == false</c>). Mirrors OLD
+    /// <c>UserAuthenticationDomain.cs:170-173</c>. Localization key
+    /// <c>Account:UserInactiveForPasswordReset</c>.
+    /// </summary>
+    public const string UserInactiveForPasswordReset =
+        "CaseEvaluation:Account.UserInactiveForPasswordReset";
+
+    /// <summary>
+    /// Phase 10 (2026-05-03) -- raised by
+    /// <c>ExternalAccountAppService.ResetPasswordAsync</c> when the reset
+    /// token is invalid or already-consumed (mirrors OLD's silent no-op
+    /// at <c>UserAuthenticationDomain.cs:244-255</c>; NEW returns a
+    /// generic error to avoid info leak). Localization key
+    /// <c>Account:ResetPasswordTokenInvalid</c>.
+    /// </summary>
+    public const string ResetPasswordTokenInvalid =
+        "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 }
