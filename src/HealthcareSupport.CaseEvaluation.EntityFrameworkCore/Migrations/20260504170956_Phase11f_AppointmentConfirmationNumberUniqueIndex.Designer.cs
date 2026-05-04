@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.MultiTenancy;
@@ -13,9 +14,11 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Migrations
 {
     [DbContext(typeof(CaseEvaluationDbContext))]
-    partial class CaseEvaluationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260504170956_Phase11f_AppointmentConfirmationNumberUniqueIndex")]
+    partial class Phase11f_AppointmentConfirmationNumberUniqueIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -269,6 +269,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
+            // Phase 11f (2026-05-04) -- per-tenant uniqueness on the
+            // confirmation number. Backs the
+            // ConfirmationNumberRetryPolicy retry loop in
+            // AppointmentsAppService: two concurrent bookers can no
+            // longer slip past the MAX(...) read because the unique
+            // index forces SaveChangesAsync to fail on the loser, who
+            // then re-reads MAX and retries.
+            b.HasIndex(x => new { x.TenantId, x.RequestConfirmationNumber })
+                .IsUnique()
+                .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber");
         });
 
         builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(b =>

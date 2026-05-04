@@ -505,15 +505,37 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with localized error code on failure.
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
 
-        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
-
         // W1-1: per T11 lifecycle, every booker submission lands at Pending. The
         // client-supplied AppointmentStatus on AppointmentCreateDto used to be
         // honored as-is (a known gap from the gap-analysis -- track 02). Force
         // Pending so external bookers cannot self-approve. The state machine
         // still allows the office to transition forward via the Approve / Reject
         // / SendBack endpoints exposed on AppointmentManager.
-        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, AppointmentStatusType.Pending, input.PanelNumber, input.DueDate);
+        //
+        // Phase 11f (2026-05-04) -- wrap the conf# generation + Manager.CreateAsync
+        // call in ConfirmationNumberRetryPolicy. The unique index on
+        // (TenantId, RequestConfirmationNumber) means two concurrent bookers can
+        // collide; the loser's SaveChangesAsync throws and we retry up to 5 times,
+        // re-generating MAX(...) + 1 each iteration. ABP wraps this method in a
+        // unit-of-work; any retry happens within the same UoW, and the failed
+        // SaveChanges leaves the EF change-tracker in a state ABP rolls back at
+        // the outer transaction boundary. Re-throwing surfaces the policy's
+        // budget-exhausted message (rare in practice; race window is microseconds).
+        var appointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
+        {
+            var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            return await _appointmentManager.CreateAsync(
+                input.PatientId,
+                input.IdentityUserId,
+                input.AppointmentTypeId,
+                input.LocationId,
+                input.DoctorAvailabilityId,
+                input.AppointmentDate,
+                requestConfirmationNumber,
+                AppointmentStatusType.Pending,
+                input.PanelNumber,
+                input.DueDate);
+        });
 
         // S-5.1: snapshot party emails at booking time for async fan-out (step 6.1).
         // Emails are saved on the appointment regardless of whether a join row exists

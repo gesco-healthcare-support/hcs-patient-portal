@@ -189,6 +189,14 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
+            // Phase 11f (2026-05-04) -- duplicate of the host-side
+            // unique index. The Appointment entity is registered in
+            // BOTH contexts (per existing pattern), so the constraint
+            // must be declared in both to keep the model snapshot
+            // consistent across host vs tenant migrations.
+            b.HasIndex(x => new { x.TenantId, x.RequestConfirmationNumber })
+                .IsUnique()
+                .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber");
         });
         builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(b =>
         {
