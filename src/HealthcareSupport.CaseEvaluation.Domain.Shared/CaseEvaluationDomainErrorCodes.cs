@@ -398,4 +398,50 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ChangeRequestRescheduleReasonRequired =
         "CaseEvaluation:AppointmentChangeRequest.RescheduleReasonRequired";
+
+    /// <summary>
+    /// Phase 17 (2026-05-04) -- raised by the change-request approval
+    /// AppService when the request is no longer Pending OR when the
+    /// optimistic-concurrency gate fires (two supervisors handling the
+    /// same row simultaneously). OLD-verbatim wording: "This change
+    /// request has already been processed". Localization key
+    /// <c>ChangeRequest:AlreadyHandled</c>.
+    /// </summary>
+    public const string ChangeRequestAlreadyHandled =
+        "CaseEvaluation:ChangeRequest.AlreadyHandled";
+
+    /// <summary>
+    /// Phase 17 (2026-05-04) -- raised when the cancellation-approval
+    /// outcome is not <c>CancelledNoBill</c> or <c>CancelledLate</c>.
+    /// Localization key <c>ChangeRequest:InvalidCancellationOutcome</c>.
+    /// </summary>
+    public const string ChangeRequestInvalidCancellationOutcome =
+        "CaseEvaluation:ChangeRequest.InvalidCancellationOutcome";
+
+    /// <summary>
+    /// Phase 17 (2026-05-04) -- raised when the reschedule-approval
+    /// outcome is not <c>RescheduledNoBill</c> or <c>RescheduledLate</c>.
+    /// Localization key <c>ChangeRequest:InvalidRescheduleOutcome</c>.
+    /// </summary>
+    public const string ChangeRequestInvalidRescheduleOutcome =
+        "CaseEvaluation:ChangeRequest.InvalidRescheduleOutcome";
+
+    /// <summary>
+    /// Phase 17 (2026-05-04) -- raised when the supervisor overrides
+    /// the user-picked slot during reschedule approval but does not
+    /// supply <c>AdminReScheduleReason</c>. Mirrors OLD's UI gate.
+    /// Localization key <c>ChangeRequest:AdminReasonRequired</c>.
+    /// </summary>
+    public const string ChangeRequestAdminReasonRequired =
+        "CaseEvaluation:ChangeRequest.AdminReasonRequired";
+
+    /// <summary>
+    /// Phase 17 (2026-05-04) -- raised when supervisor rejects a
+    /// change request without rejection notes. Mirrors OLD's
+    /// <c>CancellationRejectionReason</c> /
+    /// <c>ReScheduleRejectionReason</c> required-field gates.
+    /// Localization key <c>ChangeRequest:RejectionRequiresNotes</c>.
+    /// </summary>
+    public const string ChangeRequestRejectionRequiresNotes =
+        "CaseEvaluation:ChangeRequest.RejectionRequiresNotes";
 }
