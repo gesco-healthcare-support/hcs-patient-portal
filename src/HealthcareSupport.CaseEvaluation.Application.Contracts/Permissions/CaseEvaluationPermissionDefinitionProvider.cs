@@ -148,6 +148,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Edit, L("Permission:Edit"));
         packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Delete, L("Permission:Delete"));
         packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.ManageDocuments, L("Permission:PackageDetails.ManageDocuments"));
+
+        // Phase 7b (2026-05-03) -- Doctor-Location preference toggle.
+        var doctorPreferredLocationsPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.DoctorPreferredLocations.Default,
+            L("Permission:DoctorPreferredLocations"));
+        doctorPreferredLocationsPermission.AddChild(
+            CaseEvaluationPermissions.DoctorPreferredLocations.Toggle,
+            L("Permission:DoctorPreferredLocations.Toggle"));
     }
 
     private static LocalizableString L(string name)

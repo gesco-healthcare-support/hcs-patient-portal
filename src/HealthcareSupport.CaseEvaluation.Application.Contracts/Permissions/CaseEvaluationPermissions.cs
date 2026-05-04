@@ -284,4 +284,17 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
         public const string ManageDocuments = Default + ".ManageDocuments";
     }
+
+    /// <summary>
+    /// Phase 7b (2026-05-03) -- IT Admin / Staff Supervisor toggles which
+    /// Locations a Doctor accepts appointments at. Mirrors OLD
+    /// <c>DoctorPreferredLocationDomain</c>. <c>Default</c> gates the read
+    /// path (consumed by the booking-form Location dropdown);
+    /// <c>Toggle</c> gates the upsert / on-off flip.
+    /// </summary>
+    public static class DoctorPreferredLocations
+    {
+        public const string Default = GroupName + ".DoctorPreferredLocations";
+        public const string Toggle = Default + ".Toggle";
+    }
 }

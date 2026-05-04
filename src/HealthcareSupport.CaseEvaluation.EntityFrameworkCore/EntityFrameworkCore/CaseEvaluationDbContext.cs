@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Documents;
+using HealthcareSupport.CaseEvaluation.DoctorPreferredLocations;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -63,6 +64,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
+    public DbSet<DoctorPreferredLocation> DoctorPreferredLocations { get; set; } = null!;
     public DbSet<WcabOffice> WcabOffices { get; set; } = null!;
     public DbSet<Doctor> Doctors { get; set; } = null!;
     public DbSet<Location> Locations { get; set; } = null!;
@@ -189,6 +191,22 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.SetNull);
         });
+
+        // Phase 7b (2026-05-03) -- Doctor-Location preference toggle.
+        builder.Entity<DoctorPreferredLocation>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorPreferredLocations", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.DoctorId, x.LocationId });
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.DoctorId).HasColumnName(nameof(DoctorPreferredLocation.DoctorId));
+            b.Property(x => x.LocationId).HasColumnName(nameof(DoctorPreferredLocation.LocationId));
+            b.Property(x => x.IsActive).HasColumnName(nameof(DoctorPreferredLocation.IsActive));
+            b.HasIndex(x => new { x.DoctorId, x.IsActive });
+            b.HasOne<Location>().WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Doctor>().WithMany().HasForeignKey(x => x.DoctorId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         if (builder.IsHostDatabase())
         {
             builder.Entity<Patient>(b =>

@@ -165,6 +165,8 @@
     "Enum:BookingStatus.9": "Booked",
     "Enum:BookingStatus.10": "Reserved",
     "Permission:DoctorAvailabilities": "Doctor Availabilities",
+    "Permission:DoctorPreferredLocations": "Doctor Preferred Locations",
+    "Permission:DoctorPreferredLocations.Toggle": "Toggle Doctor Preferred Location",
     "DoctorAvailability:CannotUpdateBookedOrReserved": "This slot cannot be modified because it has been reserved or booked. Cancel or reschedule the linked appointment first.",
     "DoctorAvailability:CannotBulkDeleteWithBookedSlots": "Cannot delete all slots for this date and location because one or more slots are reserved or booked.",
     "DoctorAvailability:CannotDeleteReferenced": "This slot cannot be deleted because it is referenced by an existing appointment or change request.",
