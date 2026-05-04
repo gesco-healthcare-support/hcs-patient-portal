@@ -7,7 +7,8 @@ old-docs:
   - socal-project-overview.md (lines 421-427, 503-513)
   - data-dictionary-table.md (AppointmentChangeRequests, Appointments.OriginalAppointmentId)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 1
 strict-parity: true
 depends-on:
@@ -187,3 +188,19 @@ Tests:
 - `RescheduleApprove_OldSlotReleased_NewSlotBooked`
 - `Reschedule_StateMachine_RejectsInvalidTransition`
 - Synthetic data only.
+
+## Phase 11c annotations [2026-05-04]
+
+> **Phase 11c slice -- scalar clone helper extracted; child-entity
+> cascade is Phase 11c-extended.** Phase 17 (change-request approval)
+> consumes this helper; the helper is in place so 17 can focus on the
+> orchestration (status transitions on source row, slot transitions,
+> AppointmentChangeRequest row updates) instead of inlining the entity
+> copy.
+
+| Aspect | OLD source | NEW Phase 11c status |
+|--------|-----------|----------------------|
+| Scalar field copy on reschedule approve | `AppointmentChangeRequestDomain.cs` Update reschedule path | [IMPLEMENTED 2026-05-04 - pending testing] -- `AppointmentRescheduleCloner.BuildScalarClone` (Application/Appointments/) builds a fresh Appointment with: copied scalars (Patient/IdentityUser/AppointmentType/Location FKs, PanelNumber, DueDate, IsPatientAlreadyExist, InternalUserComments, party emails, PrimaryResponsibleUserId), new DoctorAvailabilityId + AppointmentDate, status forced to Approved, AppointmentApproveDate recomputed, OriginalAppointmentId pointing at source. Excludes ReScheduleReason / ReScheduledById -- those describe the change request, not the result. 12 boundary-case unit tests. |
+| Same-confirmation-# reuse | OLD reuses confirmation # so end user sees one identifier across the lifecycle | [IMPLEMENTED 2026-05-04 - pending testing] -- `sameConfirmationNumber` flag on `BuildScalarClone`; defaults to reuse, override path requires explicit value. |
+| Child-entity cascade (InjuryDetails / BodyParts / ClaimExaminers / PrimaryInsurances, EmployerDetails, ApplicantAttorney, DefenseAttorney, Accessors, CustomFieldValues, Documents) | OLD `AppointmentChangeRequestDomain.cs` lines 800+ | [DESCOPED 2026-05-04 - Phase 11c-extended] -- the per-entity copy logic is mechanical but touches 7+ child entities; Phase 17 will land this when it consumes the cloner. |
+| AppointmentManager.CreateRescheduleCloneAsync orchestration (load source, build clone, persist, status transitions on source) | -- | [DESCOPED 2026-05-04 - Phase 17] -- this is the supervisor-side orchestration; Phase 17 owns the state-machine transitions on the source row + slot status updates. |
