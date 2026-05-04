@@ -5,6 +5,7 @@ import { GdprCookieConsentComponent } from '@volo/abp.ng.gdpr/config';
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { hasAnyExternalRole } from './shared/auth/external-user-roles';
 
 @Component({
   selector: 'app-root',
@@ -38,12 +39,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private updatePatientRoleClass(): void {
+    // Phase 9 L7 (2026-05-04) -- shared canonical role list lives in
+    // shared/auth/external-user-roles.ts so the post-login redirect
+    // guard and this CSS-toggle stay aligned.
     const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
-    const roles = new Set(
-      (currentUser?.roles ?? []).map((role) => (role ?? '').toLowerCase().trim()),
-    );
-    const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-    const isExternalUser = externalUserRoles.some((role) => roles.has(role));
+    const isExternalUser = hasAnyExternalRole(currentUser?.roles ?? []);
 
     document.body.classList.toggle('externaluser-role', isExternalUser);
     document.documentElement.classList.toggle('externaluser-role', isExternalUser);
