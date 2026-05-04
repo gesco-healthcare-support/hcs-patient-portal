@@ -1,7 +1,8 @@
 {
   "Culture": "en",
   "Texts": {
-    "AppName": "CaseEvaluation",
+    "AppName": "Patient Appointment Portal",
+    "Brand:ProductName": "Patient Appointment Portal",
     "Home": "Home",
     "Date": "Date",
     "Permission:Dashboard": "Dashboard",
@@ -470,6 +471,11 @@
     "Document:JdfRequiresAmeAppointment": "Appointment type is not valid. Please upload appropriate document.",
     "Document:JdfUploaderMustBeBookingAttorney": "Only the booking attorney can upload the joint declaration form.",
     "Document:ImmutableForExternalUser": "This document has already been accepted and cannot be modified.",
-    "Document:UnauthorizedVerificationCode": "Un unauthorized user"
+    "Document:UnauthorizedVerificationCode": "Un unauthorized user",
+    "ChangeRequest:AlreadyHandled": "This change request has already been processed.",
+    "ChangeRequest:InvalidCancellationOutcome": "Cancellation outcome must be CancelledNoBill or CancelledLate.",
+    "ChangeRequest:InvalidRescheduleOutcome": "Reschedule outcome must be RescheduledNoBill or RescheduledLate.",
+    "ChangeRequest:AdminReasonRequired": "Please provide an admin reason when overriding the user-selected reschedule slot.",
+    "ChangeRequest:RejectionRequiresNotes": "Please provide rejection notes before rejecting the change request."
   }
 }

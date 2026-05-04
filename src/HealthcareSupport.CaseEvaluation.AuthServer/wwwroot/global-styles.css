@@ -1,7 +1,117 @@
+/*
+ * AuthServer LeptonX brand override -- Phase 19b (2026-05-04).
+ *
+ * Maps the canonical OLD-parity palette + assets onto LeptonX's
+ * --lpx-* CSS custom properties so the AuthServer login / register /
+ * forgot-password / reset-password pages render with the OLD clinic's
+ * visual identity. Companion to the Angular Phase 19a tokens at
+ * angular/src/styles/_brand.scss; values match exactly.
+ *
+ * Ground truth (verified 2026-05-04):
+ *   P:\PatientPortalOld\patientappointment-portal\src\assets\theme\css\demo.css
+ *     -> primary #055495, accent #9dc13b, error #fe5a5b, link #00a2dc
+ *   P:\PatientPortalOld\patientappointment-portal\src\index.html
+ *     -> Roboto 300/400/500/700/900 from Google Fonts
+ *   P:\PatientPortalOld\patientappointment-portal\src\app\components\login\login\login.component.html
+ *     -> background image login-bg.jpg, centered Doctor.png logo
+ *
+ * Phase 1 (single demo tenant) ships these as the static defaults.
+ * Phase 2 (multi-tenant) replaces this file with a runtime-generated
+ * stylesheet served from BrandingAppService per the master plan
+ * (docs/parity/_branding.md sections "Brand-token surface model" + 8.7).
+ *
+ * LeptonX customization seams cited from Volo docs:
+ *   https://abp.io/docs/latest/ui-themes/lepton-x/customizing-styles
+ *   https://abp.io/docs/latest/ui-themes/lepton-x/account-module-design-system
+ */
+
+/* ---------------------------------------------------------------------------
+ * Roboto font -- mirror OLD's Google Fonts <link> from index.html.
+ * Done via @import here rather than a <link> in the layout so the bundle is
+ * self-contained; AuthServer pages do not need a separate <link> edit.
+ * ------------------------------------------------------------------------ */
+@import url('https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,500,500i,700,700i,900&display=swap');
+
 :root {
-    --lpx-theme-light-bg: url('/LeptonX/images/login-pages/login-bg-img-light.svg');
-    --lpx-theme-dim-bg: url('/LeptonX/images/login-pages/login-bg-img-dim.svg');
-    --lpx-theme-dark-bg: url('/LeptonX/images/login-pages/login-bg-img-dark.svg');
-    --lpx-logo: url('/images/logo/leptonx/icon.svg');
-    --lpx-logo-icon: url('/images/logo/leptonx/icon.svg');
+    /* -----------------------------------------------------------------------
+     * Login-page background. OLD ships a single login-bg.jpg; we point all
+     * three LeptonX theme modes (light / dim / dark) at the same asset so
+     * the brand is identical regardless of which palette the user picked.
+     * --------------------------------------------------------------------- */
+    --lpx-theme-light-bg: url('/images/brand/login-bg.jpg');
+    --lpx-theme-dim-bg: url('/images/brand/login-bg.jpg');
+    --lpx-theme-dark-bg: url('/images/brand/login-bg.jpg');
+
+    /* -----------------------------------------------------------------------
+     * Brand logos.
+     *   --lpx-logo: full wordmark used in the page header.
+     *   --lpx-logo-icon: square icon used by collapsed header / favicon.
+     * Map to OLD's header-logo.png + fav-logo.png respectively (copied to
+     * /wwwroot/images/brand/ in this commit so the URLs resolve at runtime).
+     * --------------------------------------------------------------------- */
+    --lpx-logo: url('/images/brand/header-logo.png');
+    --lpx-logo-icon: url('/images/brand/fav-logo.png');
+
+    /* -----------------------------------------------------------------------
+     * Color palette -- OLD-parity hex values verbatim from demo.css.
+     * Naming mirrors the Angular --brand-* tokens (Phase 19a) so anyone
+     * editing one stylesheet knows exactly which value to change in the other.
+     * --------------------------------------------------------------------- */
+    --lpx-color-primary: #055495;
+    --lpx-color-primary-rgb: 5, 84, 149;
+    --lpx-color-primary-hover: #005494;
+    --lpx-color-primary-active: #006ffc;
+
+    --lpx-color-secondary: #9dc13b;
+    --lpx-color-secondary-rgb: 157, 193, 59;
+
+    --lpx-color-link: #00a2dc;
+    --lpx-color-error: #fe5a5b;
+    --lpx-color-error-rgb: 254, 90, 91;
+
+    /* -----------------------------------------------------------------------
+     * Typography. Roboto is loaded via the @import above; LeptonX picks up
+     * the font-family override from --lpx-font-family. Sizes match OLD's
+     * login form (lg input, 22px primary button) so the page reads at the
+     * same scale.
+     * --------------------------------------------------------------------- */
+    --lpx-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    --lpx-font-family-base: var(--lpx-font-family);
+}
+
+/* ---------------------------------------------------------------------------
+ * Body fallback -- some LeptonX skin variants do not consume --lpx-font-family
+ * on the bare <body>; explicit font-family ensures the override sticks even
+ * when the theme stylesheet hasn't loaded yet.
+ * ------------------------------------------------------------------------ */
+body {
+    font-family: var(--lpx-font-family);
+}
+
+/* ---------------------------------------------------------------------------
+ * Account module branded surfaces. The LeptonX Account module renders the
+ * sign-in card with .account-card / .lpx-login-card depending on layout
+ * variant; both selectors are intentionally targeted so the brand applies
+ * regardless of which Account layout LeptonX picks (Login1 / Login2 / etc.).
+ * The Phase 19a Angular --brand-input-* tokens map onto these inputs so the
+ * SPA and the AuthServer feel like the same product.
+ * ------------------------------------------------------------------------ */
+.account-card .form-control,
+.lpx-login-card .form-control {
+    background-color: #f4f4f4;
+    border-color: #cccccc;
+    font-size: 18px; /* OLD login form input size, verified in demo.css */
+}
+
+.account-card .btn-primary,
+.lpx-login-card .btn-primary {
+    background-color: var(--lpx-color-primary);
+    border-color: var(--lpx-color-primary);
+    font-size: 22px; /* OLD primary button size */
+}
+
+.account-card .btn-primary:hover,
+.lpx-login-card .btn-primary:hover {
+    background-color: var(--lpx-color-primary-hover);
+    border-color: var(--lpx-color-primary-hover);
 }

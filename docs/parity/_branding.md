@@ -1,9 +1,21 @@
 ---
 type: cross-cutting-aggregation
 audited: 2026-05-01
-status: investigation-complete
+re-verified: 2026-05-04
+status: in-progress (Phase 19a + 19b shipped; full BrandingAppService Phase 2)
 phase: 1 (parameterize from day one)
 ---
+
+## Phase 19a + 19b status [2026-05-04]
+
+| Slice | Phase | Status | Notes |
+|-------|-------|--------|-------|
+| Angular `--brand-*` CSS custom properties (full palette + typography + asset URLs) | 19a | [IMPLEMENTED 2026-05-03] -- verified at `angular/src/styles/_brand.scss` | OLD-parity hex values + Roboto stack + asset paths. |
+| AuthServer LeptonX `--lpx-*` overrides (palette + login background + logo wordmark + favicon) | 19b | [IMPLEMENTED 2026-05-04 - pending testing] | `wwwroot/global-styles.css` rewritten with the full mapping. OLD's 5 brand assets (`header-logo.png`, `Doctor-logo.png`, `Doctor.png`, `fav-logo.png`, `login-bg.jpg`) copied to `wwwroot/images/brand/`. OLD's `favicon.ico` copied to `wwwroot/favicon.ico`. AppName localization flipped from `"CaseEvaluation"` to `"Patient Appointment Portal"` so `CaseEvaluationBrandingProvider.AppName` surfaces the OLD brand. New localization key `Brand:ProductName` for explicit token usage in templates. |
+| `IBrandingAppService` config endpoint + per-tenant settings storage + `BrandingService` Angular singleton | Phase 2 | [DESCOPED - Phase 2 multi-tenant adaptation] | Phase 1 ships static defaults wired to OLD's clinic identity per the `_branding.md` "Phase 1 implementation order" -- multi-tenant runtime swap is Phase 2 (multi-tenant adaptation) per the master CLAUDE.md scope rule. |
+| Email template renderer (`{ClinicName}`, `{LogoUrl}`, etc. tokens) | 18 | [IMPLEMENTED PRIOR - Phase 18 Session B] | Renderer / dispatcher / Eto stubs landed at commit `ce5d656` (Phase 18). Per-feature template seeding follows phases 4 / 14. |
+| Asset endpoint (`/api/branding/asset/{key}`) | Phase 2 | [DESCOPED - Phase 2 multi-tenant adaptation] | Phase 1 serves static `wwwroot/images/brand/*` directly; multi-tenant CDN routing is Phase 2. |
+| Per-tenant default seed (5 OLD PNGs + clinic strings) | Phase 2 | [DESCOPED - Phase 2 multi-tenant adaptation] | Phase 1 hard-codes the default tenant's identity in source. The OLD PNG copies + AppName change in this commit ARE that default seed for Phase 1. |
 
 # Branding -- aggregation + parameterization plan
 
