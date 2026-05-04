@@ -80,8 +80,8 @@ deviation.
 | 27 | appointment-notes | `appointment-notes-design.md` | draft | pending | n/a | Per-appointment notes UI |
 | 28 | appointment-change-log | `appointment-change-log-design.md` | draft | pending | n/a | Per-appointment audit log view |
 | 29 | record-locking | `record-locking-design.md` | draft | pending | n/a | Record-lock indicator/UI element |
-| 30 | document-upload-download | `document-upload-download-design.md` | not-started | pending | n/a | Cross-cutting upload primitive |
-| 31 | terms-and-conditions | `terms-and-conditions-design.md` | not-started | pending | n/a | T&C modal/page |
+| 30 | document-upload-download | `document-upload-download-design.md` | cross-reference | n/a | n/a | Covered per-context in package/ad-hoc/JDF/review design docs |
+| 31 | terms-and-conditions | `terms-and-conditions-design.md` | draft | pending | n/a | T&C modal/page; Lorem Ipsum MUST be replaced with real legal text before go-live |
 
 ## Cross-cutting docs (already in `docs/design/`, do not need design.md)
 
