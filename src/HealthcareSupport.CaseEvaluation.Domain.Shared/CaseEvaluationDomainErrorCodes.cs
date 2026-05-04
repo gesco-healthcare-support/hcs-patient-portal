@@ -153,4 +153,40 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string NotificationTemplateNotFound =
         "CaseEvaluation:NotificationTemplate.NotFound";
+
+    /// <summary>
+    /// Phase 11e (2026-05-04) -- raised by the Re-Submit path when the
+    /// source appointment is not in status <c>Rejected</c>. Mirrors OLD
+    /// <c>AppointmentDomain.cs:181</c> ("You not allowed to re apply
+    /// appointment"). Localization key
+    /// <c>Appointment:ReSubmitSourceNotRejected</c>.
+    /// </summary>
+    public const string AppointmentReSubmitSourceNotRejected =
+        "CaseEvaluation:Appointment.ReSubmitSourceNotRejected";
+
+    /// <summary>
+    /// Phase 11e (2026-05-04) -- raised by the Reval path when the source
+    /// appointment is not in status <c>Approved</c> AND the caller is NOT
+    /// an IT Admin. Mirrors OLD <c>AppointmentDomain.cs:168</c>
+    /// ("You can not Re-eval this appointment request because it's not
+    /// yet approved. Once it gets approved, You will be able to Re-eval
+    /// this appointment request.").
+    /// Localization key <c>Appointment:RevalSourceNotApproved</c>.
+    /// </summary>
+    public const string AppointmentRevalSourceNotApproved =
+        "CaseEvaluation:Appointment.RevalSourceNotApproved";
+
+    /// <summary>
+    /// Phase 11e (2026-05-04) -- raised by the Reval path when the source
+    /// appointment is not in status <c>Approved</c> AND the caller IS an
+    /// IT Admin. Mirrors OLD <c>AppointmentDomain.cs:172</c>
+    /// ("You can not Re-eval this appointment request because it's not
+    /// yet approved. Please approve an appointment and try again."). The
+    /// hint to "approve an appointment and try again" is verbatim OLD;
+    /// admin-only because non-admin callers see the patient-facing
+    /// variant.
+    /// Localization key <c>Appointment:RevalSourceNotApprovedAdminHint</c>.
+    /// </summary>
+    public const string AppointmentRevalSourceNotApprovedAdminHint =
+        "CaseEvaluation:Appointment.RevalSourceNotApprovedAdminHint";
 }
