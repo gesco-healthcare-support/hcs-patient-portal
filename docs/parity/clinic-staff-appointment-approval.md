@@ -6,7 +6,8 @@ old-source:
 old-docs:
   - socal-project-overview.md (lines 471-485)
 audited: 2026-05-01
-status: audit-only
+re-verified: 2026-05-04
+status: in-progress
 priority: 2
 strict-parity: true
 internal-user-role: ClinicStaff (also StaffSupervisor and ITAdmin per permission matrix)
@@ -98,20 +99,20 @@ Per `Appointments/CLAUDE.md`:
 
 | Aspect | OLD | NEW | Action | Sev |
 |--------|-----|-----|--------|-----|
-| Approve endpoint | Implicit via Update with status change | NEW: Update doesn't accept status | **Add `ApproveAppointmentAsync(Guid appointmentId, ApproveDto { ResponsibleUserId, PatientMatchOverride? })`** | B |
-| Reject endpoint | Implicit | -- | **Add `RejectAppointmentAsync(Guid appointmentId, RejectDto { RejectionNotes })`** | B |
-| Patient match check + override UI | OLD: shown on edit page | NEW: TO VERIFY | **Add `IsPatientAlreadyExist + matched PatientId` to GetWithNavigationPropertiesAsync response**; UI surfaces match details + override option | I |
-| `PrimaryResponsibleUserId` set on approval | OLD field | NEW: missing | **Add `PrimaryResponsibleUserId Guid?` to Appointment**; require non-null on approve | B |
-| `AppointmentApproveDate` written on approval | OLD field | NEW field exists; not written by Update | **Set `AppointmentApproveDate = DateTime.UtcNow`** in approve method | I |
-| Rejection notes written | OLD: `RejectionNotes` + `RejectedById` | NEW: missing | **Add `RejectionNotes string?` and `RejectedById Guid?` fields** | B |
-| Slot transition Reserved -> Booked on approve | OLD | NEW: no Reserved value in current enum (gap from booking audit) | **Add Reserved + transition** | B |
-| Slot transition Reserved -> Available on reject | OLD | NEW: gap | **Add transition** | B |
-| Auto-queue package docs on approve | OLD: `AddAppointmentDocumentsAndSendDocumentToEmail` | NEW: TO VERIFY | **Subscribe to `AppointmentApprovedEto` event in `PackageDocumentQueueHandler`** -- reads PackageDetail for AppointmentType, inserts AppointmentDocument rows | B |
-| Two-package emails (patient-side + staff-side) | OLD | NEW: TO VERIFY | **Add 2 separate email templates + 2 separate sends** in approval handler | I |
-| SMS to all stakeholders on approve / reject | OLD | NEW: TO VERIFY (SubmissionEmailHandler is email-only) | **Add SMS handler** subscribing to ApprovedEto + RejectedEto | I |
-| Idempotency check (already Approved -> reject the call) | OLD validation | NEW: no state-machine guard | **State machine on `Appointment.SetStatus`** + idempotency at AppService level | I |
-| Permissions | -- | -- | **Add `CaseEvaluation.Appointments.Approve` + `.Reject`**, gate to Clinic Staff / Staff Supervisor / IT Admin | B |
-| Audit trail | OLD writes to `AppointmentChangeLogs` | NEW: ABP `[Audited]` on entity covers this | None | -- |
+| Approve endpoint | Implicit via Update with status change | NEW: Update doesn't accept status | **Add `ApproveAppointmentAsync(Guid appointmentId, ApproveDto { ResponsibleUserId, PatientMatchOverride? })`** | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- Phase 12 ships richer `ApproveAppointmentAsync(id, ApproveAppointmentInput)` on a NEW `IAppointmentApprovalAppService` (sibling to Session A's existing thin `AppointmentsAppService.ApproveAsync(id)`). Sibling pattern was forced because the user's Phase 12 directive says "DO NOT edit the main `AppointmentsAppService.cs`" (Session A is rewriting it concurrently); a `partial class` would have required adding the `partial` keyword to that file. Strict reading wins. |
+| Reject endpoint | Implicit | -- | **Add `RejectAppointmentAsync(Guid appointmentId, RejectDto { RejectionNotes })`** | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- shipped on the new `IAppointmentApprovalAppService` alongside the approve endpoint. |
+| Patient match check + override UI | OLD: shown on edit page | NEW: TO VERIFY | **Add `IsPatientAlreadyExist + matched PatientId` to GetWithNavigationPropertiesAsync response**; UI surfaces match details + override option | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` (backend) / `[DESCOPED 2026-05-04 - frontend]` (UI) -- backend Approve endpoint accepts `OverridePatientMatch` flag in `ApproveAppointmentInput`. The actual patient-row split (creating a NEW Patient when override=true) is wired only when the matched patient/dedup logic from Session A's manager rewrite lands -- Phase 12 just records the staff's decision on the DTO and persists `IsPatientAlreadyExist` as the source of truth. UI work for the surface is Session A's frontend track. |
+| `PrimaryResponsibleUserId` set on approval | OLD field | NEW: missing | **Add `PrimaryResponsibleUserId Guid?` to Appointment**; require non-null on approve | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- field exists since Phase 1.6 (`Appointment.cs`:90). Phase 12's `ApproveAppointmentInput` requires `PrimaryResponsibleUserId Guid` (non-nullable in DTO) -- validator throws `BusinessException(AppointmentApprovalRequiresResponsibleUser)` when default Guid is supplied. |
+| `AppointmentApproveDate` written on approval | OLD field | NEW field exists; not written by Update | **Set `AppointmentApproveDate = DateTime.UtcNow`** in approve method | I | `[IMPLEMENTED 2026-05-04 - pending testing]` -- Session A's `AppointmentManager.TransitionAsync` (line 168-171) already stamps `AppointmentApproveDate = DateTime.UtcNow` on Approve transitions. Phase 12 reuses it via `AppointmentManager.ApproveAsync` delegation; no duplication. |
+| Rejection notes written | OLD: `RejectionNotes` + `RejectedById` | NEW: missing | **Add `RejectionNotes string?` and `RejectedById Guid?` fields** | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- entity fields exist since Phase 1.6 (`Appointment.cs`:85, 87). Phase 12 sets `RejectionNotes` (from DTO) + `RejectedById = CurrentUser.Id` after Session A's manager flips the status. |
+| Slot transition Reserved -> Booked on approve | OLD | NEW: no Reserved value in current enum (gap from booking audit) | **Add Reserved + transition** | B | `[IMPLEMENTED 2026-05-04 - pending testing]` -- enum already has `Reserved = 10`. Session A's `SlotCascadeHandler` subscribes to `AppointmentStatusChangedEto` and flips the slot per the T11 sync table (Reserved -> Booked on Approved transition). Verified at `SlotCascadeHandler.cs`:50 (Phase 18 audit). |
+| Slot transition Reserved -> Available on reject | OLD | NEW: gap | **Add transition** | B | `[IMPLEMENTED 2026-05-04 - pending testing]` -- same handler; Reserved -> Available on Rejected transition. OLD parity verified at `P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs`:600. |
+| Auto-queue package docs on approve | OLD: `AddAppointmentDocumentsAndSendDocumentToEmail` | NEW: TO VERIFY | **Subscribe to `AppointmentApprovedEto` event in `PackageDocumentQueueHandler`** -- reads PackageDetail for AppointmentType, inserts AppointmentDocument rows | B | `[IMPLEMENTED 2026-05-04 - pending testing]` (handler skeleton) / `[DEFERRED to Phase 14 - row insert]` -- Phase 12 ships `PackageDocumentQueueHandler` subscribed to `AppointmentApprovedEto`; it reads `PackageDetail` linked Documents for the AppointmentTypeId and logs the queue intent. The actual `AppointmentDocument` row insert is gated on the entity contract supporting a "queued, pre-upload" shape (constructor demands `BlobName`/`FileName`/`FileSize` -- not available pre-upload). Phase 14 (Document review) closes the gap when the entity gains a queued-state factory. |
+| Two-package emails (patient-side + staff-side) | OLD | NEW: TO VERIFY | **Add 2 separate email templates + 2 separate sends** in approval handler | I | `[DEFERRED to Phase 14 - email content]` -- the existing `StatusChangeEmailHandler.cs` (Session A territory, `Domain/Appointments/Handlers/`) handles transition emails today via inline HTML. Phase 18's `INotificationDispatcher` + per-feature handlers replace that with template-driven emails; Phase 14 will land the patient-side and responsible-user-side template-keyed sends as part of the document-review work (handler subscribes to AppointmentApprovedEto + uses `INotificationDispatcher.DispatchAsync(NotificationTemplateConsts.Codes.AppointmentApproved, ...)`). |
+| SMS to all stakeholders on approve / reject | OLD | NEW: TO VERIFY (SubmissionEmailHandler is email-only) | **Add SMS handler** subscribing to ApprovedEto + RejectedEto | I | `[DEFERRED - blocked on ISmsSender wiring]` -- Phase 18 documented that `Volo.Abp.Sms` is not yet referenced by any project. SMS leg activates with the Twilio creds rollout per master-plan section 18.3. Etos are publish-shaped to support SMS subscribers when the package lands. |
+| Idempotency check (already Approved -> reject the call) | OLD validation | NEW: no state-machine guard | **State machine on `Appointment.SetStatus`** + idempotency at AppService level | I | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- Session A's `AppointmentManager` uses Stateless state machine (line 196-227); illegal transitions throw `BusinessException("CaseEvaluation:AppointmentInvalidTransition")`. Phase 12's `AppointmentApprovalValidator.EnsurePending(appointment)` adds a friendlier idempotency check at the AppService boundary that throws `AppointmentNotPendingForApproval` / `...ForRejection` with OLD's "Appointment Already Approved" / "Appointment Already Rejected" verbiage -- this surfaces a cleaner error to the user before the manager's state machine fires. |
+| Permissions | -- | -- | **Add `CaseEvaluation.Appointments.Approve` + `.Reject`**, gate to Clinic Staff / Staff Supervisor / IT Admin | B | `[IMPLEMENTED 2026-05-04 - tested unit-level]` -- keys already declared (`CaseEvaluationPermissions.cs`:103-104) and registered (`CaseEvaluationPermissionDefinitionProvider.cs`:61-62) in earlier phase. Phase 12 grants them to Clinic Staff + Staff Supervisor + IT Admin in `InternalUserRoleDataSeedContributor.cs` and gates the new richer endpoints with `[Authorize(...)]`. Session A's existing thin `ApproveAsync(id)` still gates on `Appointments.Edit` -- a one-line attribute fix Session A owns. |
+| Audit trail | OLD writes to `AppointmentChangeLogs` | NEW: ABP `[Audited]` on entity covers this | None | -- | (no change) |
 
 ## Internal dependencies surfaced
 
@@ -153,3 +154,56 @@ Per `Appointments/CLAUDE.md`:
 5. Try approve already-Approved -> idempotency: rejected
 6. Approve without selecting responsible user -> rejected
 7. Try approve without permission -> 403
+
+## Phase 12 verification pass (2026-05-04)
+
+### A. OLD claims confirmed verbatim
+
+- **Slot transitions** (`P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs`:586-611) -- switch on `AppointmentStatusId` flips slot to Reserved (Pending) / Booked (Approved) / Available (Rejected | CancelledNoBill). Confirms the audit's slot transition gap rows.
+- **AppointmentApproveDate stamp** (line 453-456) -- written when `IsStatusUpdate && IsInternalUserUpdateStatus && AppointmentStatusId == Approved`. Confirms the audit row.
+- **Package-doc queue trigger** (line 560-564) -- only fires for `Approved + IsInternalUserUpdateStatus`; Rejected does not queue docs.
+- **`AddAppointmentDocumentsAndSendDocumentToEmail`** (`AppointmentDocumentDomain.cs`:394-...) -- reads patient packet from AWS, replaces tokens, sends as email attachment. NEW does NOT port the AWS / DOCX / inline-attachment path; the equivalent is row creation + email with verification-code link (Phase 14 / Phase 18).
+- **UpdateValidation idempotency** (line 312-344) -- exact verbatim error strings: "Appointment Already Approved", "Appointment Already Rejected", "Appointment Already checked in", "Appointment Already checked out", "Appointment Already billed". Phase 12 adopts these for the localization-key values.
+
+### B. OLD bugs / divergences
+
+- OLD's `UpdateValidation` runs idempotency only when `IsStatusUpdate && IsInternalUserUpdateStatus`. External users hitting the Update path via the Re-Request flow (booking re-submit on a Rejected appointment) bypass the check. NEW's state-machine + idempotency-at-AppService runs unconditionally.
+- OLD line 458 stamps `appointment.ModifiedById = UserClaim.UserId` directly in domain code. NEW relies on ABP's `[Audited]` + `FullAuditedAggregateRoot` -- equivalent observable behavior, more idiomatic.
+
+### C. NEW state vs audit assumptions -- material divergence
+
+- **`Appointments.Approve` / `.Reject` permission keys ALREADY EXIST** (`CaseEvaluationPermissions.cs`:103-104, registered at `CaseEvaluationPermissionDefinitionProvider.cs`:61-62). Phase 12's "Permissions" gap row was misleadingly worded -- the keys are declared; only the seed grants and the actual `[Authorize]` attribute use are open. Phase 12 closes the seed grants. The attribute use on Session A's existing `ApproveAsync(id)` / `RejectAsync(id, RejectAppointmentInput)` (currently `[Authorize(Appointments.Edit)]`) is a one-line Session-A-territory fix.
+- **`AppointmentManager.ApproveAsync` / `RejectAsync` ALREADY EXIST** (`AppointmentManager.cs`:141, 145) and stamp `AppointmentApproveDate` + publish `AppointmentStatusChangedEto`. Session A built the core flow earlier; Phase 12 adds the audit's missing surface (`PrimaryResponsibleUserId` write, `RejectionNotes` write, idempotency UX, Etos for Phase 14, package-doc-queue handler) on top. Phase 12 does NOT duplicate the state-machine logic or the slot-cascade handler.
+- **`PrimaryResponsibleUserId` field exists** (`Appointment.cs`:90) since Phase 1.6 -- only the write-on-approve is missing, which Phase 12 adds.
+- **`AppointmentDocument` entity constructor demands file metadata** (`AppointmentDocument.cs`:92-120) -- pre-upload "queued" rows are not constructible today. Phase 12's `PackageDocumentQueueHandler` ships as a logging stub; Phase 14 closes when the entity adds a queued-state factory.
+- **No `AppointmentApprovedEto` / `AppointmentRejectedEto` exist** -- Phase 18 added forward-declared Etos under `Domain.Shared/Notifications/Events/` BUT the user's Phase 12 directive locked these specific Etos under `Application.Contracts/Appointments/Events/`. Phase 12 honors the user's path even though it deviates from the Phase 18 Eto convention; both locations are valid ABP placements.
+
+### D. Audit-doc lifecycle annotations
+
+The original gap table (lines 99-114) gets per-row `[IMPLEMENTED]` / `[DEFERRED]` / `[DESCOPED]` tags inline (see updated table). Two rows split into "implemented for backend / deferred for UI" because the backend writes the decision but UI surface lives in Session A's frontend track.
+
+### E. Phase 12 implementation summary
+
+Files added:
+
+- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/Events/AppointmentApprovedEto.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/Events/AppointmentRejectedEto.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/ApproveAppointmentInput.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/IAppointmentApprovalAppService.cs`
+- `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.Approval.cs` (sibling `AppointmentApprovalAppService` class -- naming deviation explained in commit body and §C above)
+- `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentApprovalValidator.cs` (internal static helpers)
+- `src/HealthcareSupport.CaseEvaluation.Application/Notifications/Handlers/PackageDocumentQueueHandler.cs` (logging stub; Phase 14 wires row insert)
+- `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/Appointments/AppointmentApprovalController.cs`
+- `test/HealthcareSupport.CaseEvaluation.Application.Tests/Appointments/AppointmentApprovalValidatorUnitTests.cs`
+
+Files modified (additive):
+
+- `src/HealthcareSupport.CaseEvaluation.Domain/Identity/InternalUserRoleDataSeedContributor.cs` -- grants `Appointments.Approve` / `.Reject` to Clinic Staff + Staff Supervisor + IT Admin (Track Identity block).
+- `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs` -- adds `AppointmentApprovalRequiresResponsibleUser`, `AppointmentNotPendingForApproval`, `AppointmentNotPendingForRejection`.
+- `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json` -- localization keys for the three new error codes (verbatim OLD strings: "Appointment Already Approved", "Appointment Already Rejected", "Please select a responsible user before approving the appointment").
+
+Strict-parity deviations called out:
+
+- **Class-naming deviation:** user directive specified `partial class AppointmentsAppService` in `AppointmentsAppService.Approval.cs` plus "DO NOT edit the main `AppointmentsAppService.cs`". Partial classes need the `partial` keyword on every fragment, including the main-file declaration. Resolution: ship a sibling class `AppointmentApprovalAppService` in the user's requested file path. Functional outcome is identical (Approve/Reject endpoints under `api/app/appointment-approvals`); only class layout differs.
+- **PackageDocumentQueueHandler is a logging stub:** the `AppointmentDocument` entity's constructor demands file metadata. Pre-upload row creation needs an entity-side queued-state factory that lives in Session B's Phase 14 territory. Phase 12 ships the subscriber wiring + log; Phase 14 lands the row insert.
+- **Email + SMS handlers stay deferred:** Phase 18's `INotificationDispatcher` + per-feature handlers replace the existing inline-HTML `StatusChangeEmailHandler` (Session A territory) over time. Phase 14 (document review) lands the approve/reject template-keyed sends. Phase 12 publishes the Etos so the future handlers have something to subscribe to.

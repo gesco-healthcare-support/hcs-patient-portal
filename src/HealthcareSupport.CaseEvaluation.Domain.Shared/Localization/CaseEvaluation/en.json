@@ -175,6 +175,7 @@
     "Appointment:ReSubmitSourceNotRejected": "You not allowed to re apply appointment",
     "Appointment:RevalSourceNotApproved": "You can not Re-eval this appointment request because it's not yet approved. Once it gets approved, You will be able to Re-eval this appointment request.",
     "Appointment:RevalSourceNotApprovedAdminHint": "You can not Re-eval this appointment request because it's not yet approved. Please approve an appointment and try again.",
+    "Appointment:AccessorRoleMismatch": "Your added accessor '{0}' is already registered in our system with different user type. Please select proper Accessor user's type and try again",
     "DoctorAvailabilities": "Availability & Time Slots",
     "NewDoctorAvailability": "New Doctor Availability",
     "DoctorAvailability": "Availability & Time Slots",
@@ -450,6 +451,10 @@
     "Account:PasswordChangedEmailSubject": "Your password has been successfully changed - {0}",
     "Account:PasswordResetEmailBody": "<p>Hello {0},</p><p>You requested a password reset. Click the link below to set a new password:</p><p><a href=\"{1}\">Reset your password</a></p><p>If you did not request this, you can safely ignore this email.</p>",
     "Account:PasswordChangedEmailBody": "<p>Hello {0},</p><p>Your password has been successfully changed. If you did not make this change, please contact support immediately.</p>",
-    "NotificationTemplate:NotFound": "Notification template '{0}' is not seeded or is inactive in this tenant. Run the data-seed contributor or activate the template before retrying."
+    "NotificationTemplate:NotFound": "Notification template '{0}' is not seeded or is inactive in this tenant. Run the data-seed contributor or activate the template before retrying.",
+    "Appointment:ApprovalRequiresResponsibleUser": "Please select a responsible user before approving the appointment.",
+    "Appointment:NotPendingForApproval": "Appointment Already Approved",
+    "Appointment:NotPendingForRejection": "Appointment Already Rejected",
+    "Appointment:RejectionRequiresNotes": "Please provide rejection notes before rejecting the appointment."
   }
 }

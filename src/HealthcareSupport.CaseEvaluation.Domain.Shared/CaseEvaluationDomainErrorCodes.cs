@@ -189,4 +189,65 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentRevalSourceNotApprovedAdminHint =
         "CaseEvaluation:Appointment.RevalSourceNotApprovedAdminHint";
+
+    /// <summary>
+    /// Phase 12 (2026-05-04) -- raised by
+    /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
+    /// when <c>ApproveAppointmentInput.PrimaryResponsibleUserId</c>
+    /// is <see cref="System.Guid.Empty"/>. Mirrors OLD's UI gate that
+    /// disabled the Approve button until a responsible user was
+    /// selected (no equivalent inline error message in OLD source --
+    /// the gate was UI-only). Localization key
+    /// <c>Appointment:ApprovalRequiresResponsibleUser</c>.
+    /// </summary>
+    public const string AppointmentApprovalRequiresResponsibleUser =
+        "CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser";
+
+    /// <summary>
+    /// Phase 12 (2026-05-04) -- raised by
+    /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
+    /// when the appointment is not in status <c>Pending</c>. Mirrors
+    /// OLD's idempotency string at
+    /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:319-325
+    /// -- "Appointment Already Approved" / "Appointment Already
+    /// Rejected" surface verbatim through this code's localization
+    /// value. Localization key <c>Appointment:NotPendingForApproval</c>.
+    /// </summary>
+    public const string AppointmentNotPendingForApproval =
+        "CaseEvaluation:Appointment.NotPendingForApproval";
+
+    /// <summary>
+    /// Phase 12 (2026-05-04) -- raised by
+    /// <c>AppointmentApprovalAppService.RejectAppointmentAsync</c>
+    /// when the appointment is not in status <c>Pending</c>.
+    /// Localization key <c>Appointment:NotPendingForRejection</c>.
+    /// </summary>
+    public const string AppointmentNotPendingForRejection =
+        "CaseEvaluation:Appointment.NotPendingForRejection";
+
+    /// <summary>
+    /// Phase 12 (2026-05-04) -- raised by
+    /// <c>AppointmentApprovalAppService.RejectAppointmentAsync</c>
+    /// when <c>RejectAppointmentInput.Reason</c> is null or
+    /// whitespace. OLD UI required the rejection-notes textarea before
+    /// enabling the Reject button. Localization key
+    /// <c>Appointment:RejectionRequiresNotes</c>.
+    /// </summary>
+    public const string AppointmentRejectionRequiresNotes =
+        "CaseEvaluation:Appointment.RejectionRequiresNotes";
+
+    /// <summary>
+    /// Phase 11i (2026-05-04) -- raised by
+    /// <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when an
+    /// existing IdentityUser is found by email but already holds a role
+    /// different from the role the booking flow is trying to assign as
+    /// accessor. Mirrors OLD <c>AppointmentDomain.cs:188-194</c>:
+    /// "Your added accessor '&lt;email&gt;' is already registered in our
+    /// system with different user type. Please select proper Accessor
+    /// user's type and try again". Localization key
+    /// <c>Appointment:AccessorRoleMismatch</c> (with <c>{0}</c> replaced
+    /// at render time by the offending email).
+    /// </summary>
+    public const string AppointmentAccessorRoleMismatch =
+        "CaseEvaluation:Appointment.AccessorRoleMismatch";
 }
