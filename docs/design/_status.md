@@ -38,7 +38,7 @@ prompt.
 
 | # | Feature | design.md path | Status | OLD screenshots | NEW screenshots | Notes |
 |---|---------|----------------|--------|-----------------|-----------------|-------|
-| 1 | external-user-registration | `external-user-registration-design.md` | not-started | pending | n/a (no NEW UI) | Phase 8 UI dependency |
+| 1 | external-user-registration | `external-user-registration-design.md` | draft | pending | n/a (no NEW UI) | Phase 8 UI dependency |
 | 2 | external-user-forgot-password | `external-user-forgot-password-design.md` | not-started | pending | n/a | Phase 10 UI dependency |
 | 3 | external-user-appointment-cancellation | `external-user-appointment-cancellation-design.md` | not-started | pending | n/a | Phase 15 UI (Session A) |
 | 4 | external-user-appointment-rescheduling | `external-user-appointment-rescheduling-design.md` | not-started | pending | n/a | Phase 16 UI (Session A) |
