@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
@@ -49,4 +50,14 @@ public class AppointmentCreateDto
     /// been updated yet.
     /// </summary>
     public bool IsPatientAlreadyExist { get; set; }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- IT-Admin-defined per-AppointmentType custom fields
+    /// answered by the booker. Each entry is (CustomFieldId, Value); the
+    /// AppService persists one <c>CustomFieldValue</c> row per non-empty entry.
+    /// Mirrors OLD's <c>spm.CustomFieldsValues</c> write that happens alongside
+    /// the appointment insert in
+    /// <c>PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>.
+    /// </summary>
+    public List<CustomFieldValueInputDto> CustomFieldValues { get; set; } = new();
 }

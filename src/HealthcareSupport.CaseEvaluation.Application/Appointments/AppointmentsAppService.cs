@@ -3,6 +3,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -60,8 +61,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected BookingPolicyValidator _bookingPolicyValidator;
     // Phase 13 (2026-05-04) -- accessor-row lookup for read/edit access policy.
     protected IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
+    // B1 (2026-05-05) -- per-appointment custom-field answer rows.
+    protected IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -84,6 +87,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _localEventBus = localEventBus;
         _bookingPolicyValidator = bookingPolicyValidator;
         _appointmentAccessorRepository = appointmentAccessorRepository;
+        _customFieldValueRepository = customFieldValueRepository;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -741,6 +745,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // initial-create event sees the final state.
         appointment.IsPatientAlreadyExist = input.IsPatientAlreadyExist;
 
+        // B1 (2026-05-05) -- persist per-AppointmentType custom-field answers
+        // alongside the appointment row. Mirrors OLD's combined write in
+        // AppointmentDomain.cs (custom-field rows inserted with the same UoW).
+        await PersistCustomFieldValuesAsync(appointment.Id, appointment.TenantId, input.CustomFieldValues);
+
         // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
         // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
         // funnels it through the SlotCascadeHandler so all slot writes have a
@@ -903,6 +912,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
         await _appointmentRepository.UpdateAsync(appointment);
+
+        // B1 (2026-05-05) -- replace-all custom-field answers. OLD's edit path
+        // overwrites the prior CustomFieldsValues for this appointment.
+        await ReplaceCustomFieldValuesAsync(appointment.Id, appointment.TenantId, input.CustomFieldValues);
 
         if (oldSlotId.HasValue && oldSlotId.Value != appointment.DoctorAvailabilityId)
         {
@@ -1220,5 +1233,63 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var appointment = await _appointmentManager.RejectAsync(id, input?.Reason, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+    }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- inserts <see cref="CustomFieldValue"/> rows for
+    /// every non-empty entry in <paramref name="values"/>. Empty / whitespace
+    /// values are skipped to match OLD's "no answer" semantics. The caller
+    /// supplies the parent appointment's <see cref="Appointment.Id"/> +
+    /// <see cref="Appointment.TenantId"/> so the value rows inherit the same
+    /// tenant scope as their parent.
+    /// </summary>
+    private async Task PersistCustomFieldValuesAsync(
+        Guid appointmentId,
+        Guid? tenantId,
+        IReadOnlyList<CustomFieldValueInputDto>? values)
+    {
+        if (values == null || values.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var v in values)
+        {
+            if (v == null || v.CustomFieldId == Guid.Empty || string.IsNullOrWhiteSpace(v.Value))
+            {
+                continue;
+            }
+
+            var entity = new CustomFieldValue(
+                id: GuidGenerator.Create(),
+                tenantId: tenantId,
+                customFieldId: v.CustomFieldId,
+                appointmentId: appointmentId,
+                value: v.Value);
+
+            await _customFieldValueRepository.InsertAsync(entity, autoSave: false);
+        }
+    }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- replace-all variant for the update path. Deletes
+    /// every <see cref="CustomFieldValue"/> row currently attached to the
+    /// appointment, then inserts the supplied set. Mirrors OLD's edit-mode
+    /// write where the booker-form re-submission overwrites the prior
+    /// CustomFieldsValues rather than merging by CustomFieldId.
+    /// </summary>
+    private async Task ReplaceCustomFieldValuesAsync(
+        Guid appointmentId,
+        Guid? tenantId,
+        IReadOnlyList<CustomFieldValueInputDto>? values)
+    {
+        var existing = await _customFieldValueRepository.GetListAsync(
+            x => x.AppointmentId == appointmentId);
+        foreach (var row in existing)
+        {
+            await _customFieldValueRepository.DeleteAsync(row, autoSave: false);
+        }
+
+        await PersistCustomFieldValuesAsync(appointmentId, tenantId, values);
     }
 }
