@@ -104,6 +104,7 @@ export interface AppointmentWithNavigationPropertiesDto {
 export interface ApproveAppointmentInput {
   primaryResponsibleUserId: string;
   overridePatientMatch?: boolean;
+  internalUserComments?: string | null;
 }
 
 export interface DefenseAttorneyDetailsDto {

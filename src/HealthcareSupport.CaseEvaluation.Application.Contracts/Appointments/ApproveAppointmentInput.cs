@@ -38,4 +38,17 @@ public class ApproveAppointmentInput
     /// because a false-negative match leaks PHI across patients).
     /// </summary>
     public bool OverridePatientMatch { get; set; }
+
+    /// <summary>
+    /// A1 (2026-05-05) -- optional free-text comment captured on approve.
+    /// Mirrors OLD's "Any comments?" textarea on the approve modal
+    /// (`P:\PatientPortalOld\patientappointment-portal\src\app\components\
+    /// appointment-request\appointments\view\appointment-view.component.html`:141-144).
+    /// OLD persisted this to <c>Appointment.InternalUserComments</c> in the
+    /// same PATCH that flipped the status; NEW preserves the same end state.
+    /// No required-validator or max-length per OLD; the entity column caps
+    /// at <see cref="AppointmentConsts.InternalUserCommentsMaxLength"/>.
+    /// </summary>
+    [StringLength(AppointmentConsts.InternalUserCommentsMaxLength)]
+    public string? InternalUserComments { get; set; }
 }

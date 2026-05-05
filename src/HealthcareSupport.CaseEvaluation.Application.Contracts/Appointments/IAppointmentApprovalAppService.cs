@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Shared;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -54,4 +56,16 @@ public interface IAppointmentApprovalAppService : IApplicationService
     /// when the appointment is not in <c>Pending</c> status.
     /// </summary>
     Task<AppointmentDto> RejectAppointmentAsync(Guid id, RejectAppointmentInput input);
+
+    /// <summary>
+    /// A1 (2026-05-05) -- lookup feeding the Approve modal's "Responsible
+    /// User" dropdown. Returns identity users in the current tenant whose
+    /// role is one of the canonical internal roles (admin / Clinic Staff
+    /// / Staff Supervisor / IT Admin / Doctor per
+    /// <c>BookingFlowRoles.InternalUserRoles</c>). Mirrors OLD's
+    /// <c>internalUserNameLookUps</c> source on the approval popup
+    /// (<c>P:\PatientPortalOld\patientappointment-portal\src\app\components\
+    /// appointment-request\appointments\view\appointment-view.component.html</c>:128).
+    /// </summary>
+    Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(LookupRequestDto input);
 }

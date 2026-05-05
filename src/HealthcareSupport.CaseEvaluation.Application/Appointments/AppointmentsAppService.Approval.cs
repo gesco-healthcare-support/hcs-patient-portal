@@ -1,12 +1,17 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Events;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
+using Volo.Abp.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -62,17 +67,21 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
     private readonly AppointmentManager _appointmentManager;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentApprovalAppService> _logger;
+    // A1 (2026-05-05) -- internal-user dropdown source for the Approve modal.
+    private readonly IdentityUserManager _identityUserManager;
 
     public AppointmentApprovalAppService(
         IAppointmentRepository appointmentRepository,
         AppointmentManager appointmentManager,
         ILocalEventBus localEventBus,
-        ILogger<AppointmentApprovalAppService> logger)
+        ILogger<AppointmentApprovalAppService> logger,
+        IdentityUserManager identityUserManager)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _localEventBus = localEventBus;
         _logger = logger;
+        _identityUserManager = identityUserManager;
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
@@ -84,6 +93,16 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         AppointmentApprovalValidator.EnsureApprovable(appointment, input);
 
         appointment.PrimaryResponsibleUserId = input.PrimaryResponsibleUserId;
+        // A1 (2026-05-05) -- OLD-parity: persist optional approver comments
+        // alongside the responsible-user write so the same UoW commits both.
+        // OLD batched this in a single PATCH (`view/appointment-view.component
+        // .html`:141-144 + `updateAppointmentRequest`); NEW splits the
+        // status transition out via the manager but keeps the supplemental
+        // writes co-located.
+        if (input.InternalUserComments != null)
+        {
+            appointment.InternalUserComments = input.InternalUserComments;
+        }
         var overridden = AppointmentApprovalValidator.ShouldOverridePatientMatch(appointment, input);
         if (overridden)
         {
@@ -155,5 +174,56 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             CurrentUser.Id);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(rejected);
+    }
+
+    /// <summary>
+    /// A1 (2026-05-05) -- backs the Responsible-User dropdown on the Approve
+    /// modal. Returns identity users in the current tenant whose role is one
+    /// of <see cref="BookingFlowRoles.InternalUserRoles"/>. Mirrors OLD's
+    /// <c>internalUserNameLookUps</c> source. Tenant scoping is enforced
+    /// transparently by ABP's IMultiTenant filter on IdentityUser; no manual
+    /// where-clause needed.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Appointments.Default)]
+    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(
+        LookupRequestDto input)
+    {
+        // Aggregate users across the 5 internal roles. UserManager's
+        // GetUsersInRoleAsync uses ABP's identity stack (tenant-scoped + role-
+        // scoped). Dedupe on Id because admin-tier users may hold multiple
+        // internal roles.
+        var byId = new Dictionary<Guid, IdentityUser>();
+        foreach (var roleName in BookingFlowRoles.InternalUserRoles)
+        {
+            var roleUsers = await _identityUserManager.GetUsersInRoleAsync(roleName);
+            foreach (var user in roleUsers)
+            {
+                byId[user.Id] = user;
+            }
+        }
+
+        IEnumerable<IdentityUser> filtered = byId.Values;
+        if (!string.IsNullOrWhiteSpace(input.Filter))
+        {
+            var needle = input.Filter.Trim();
+            filtered = filtered.Where(u =>
+                (u.Email != null && u.Email.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                || (u.UserName != null && u.UserName.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                || (u.Name != null && u.Name.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                || (u.Surname != null && u.Surname.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        var ordered = filtered
+            .OrderBy(u => u.Surname ?? string.Empty)
+            .ThenBy(u => u.Name ?? string.Empty)
+            .ThenBy(u => u.Email ?? string.Empty)
+            .ToList();
+
+        var page = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).ToList();
+        return new PagedResultDto<LookupDto<Guid>>
+        {
+            TotalCount = ordered.Count,
+            Items = ObjectMapper.Map<List<IdentityUser>, List<LookupDto<Guid>>>(page),
+        };
     }
 }

@@ -2,8 +2,10 @@ using Asp.Versioning;
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.AspNetCore.Mvc;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.Appointments;
@@ -41,5 +43,13 @@ public class AppointmentApprovalController : AbpController
     public virtual Task<AppointmentDto> RejectAppointmentAsync(Guid id, [FromBody] RejectAppointmentInput input)
     {
         return _appointmentApprovalAppService.RejectAppointmentAsync(id, input);
+    }
+
+    [HttpGet]
+    [Route("internal-user-lookup")]
+    public virtual Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(
+        [FromQuery] LookupRequestDto input)
+    {
+        return _appointmentApprovalAppService.GetInternalUserLookupAsync(input);
     }
 }
