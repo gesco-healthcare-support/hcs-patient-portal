@@ -43,12 +43,24 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             _doctorRepository = doctorRepository;
             _unitOfWorkManager = unitOfWorkManager;
         }
+        // ADR-006 (2026-05-05) -- "admin" is reserved for the host-context
+        // surface (admin.localhost). A tenant by that name would conflict
+        // with the SPA's no-subdomain redirect target and break the URL =
+        // tenant invariant. Match is case-insensitive on the trimmed name.
+        public const string ReservedTenantNameAdmin = "admin";
+
         public override async Task<SaasTenantDto> CreateAsync(SaasTenantCreateDto input)
         {
             Check.NotNull(input, nameof(input));
             Check.NotNullOrWhiteSpace(input.Name, nameof(input.Name));
             Check.NotNullOrWhiteSpace(input.AdminPassword, nameof(input.AdminPassword));
             Check.NotNullOrWhiteSpace(input.AdminEmailAddress, nameof(input.AdminEmailAddress));
+
+            if (string.Equals(input.Name?.Trim(), ReservedTenantNameAdmin, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UserFriendlyException(
+                    $"Tenant name '{ReservedTenantNameAdmin}' is reserved for the host-context surface and cannot be used.");
+            }
 
             // Single transactional UoW wraps SaasTenant + IdentityUser + Doctor.
             // Failure anywhere rolls back the SaasTenant insert and suppresses the
