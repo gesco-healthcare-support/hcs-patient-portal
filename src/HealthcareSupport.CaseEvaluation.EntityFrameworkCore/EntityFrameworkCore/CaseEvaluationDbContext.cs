@@ -92,7 +92,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.Address).HasColumnName(nameof(Location.Address)).HasMaxLength(LocationConsts.AddressMaxLength);
                 b.Property(x => x.City).HasColumnName(nameof(Location.City)).HasMaxLength(LocationConsts.CityMaxLength);
                 b.Property(x => x.ZipCode).HasColumnName(nameof(Location.ZipCode)).HasMaxLength(LocationConsts.ZipCodeMaxLength);
-                b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee));
+                b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee)).HasPrecision(18, 2);
                 b.Property(x => x.IsActive).HasColumnName(nameof(Location.IsActive));
                 b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.SetNull);
@@ -136,6 +136,10 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.HasOne(x => x.Doctor).WithMany(x => x.AppointmentTypes).HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.Cascade);
                 b.HasOne(x => x.AppointmentType).WithMany(x => x.DoctorAppointmentTypes).HasForeignKey(x => x.AppointmentTypeId).IsRequired().OnDelete(DeleteBehavior.Cascade);
                 b.HasIndex(x => new { x.DoctorId, x.AppointmentTypeId });
+                // G6/H2.1: mirror principal soft-delete filters on the join so EF
+                // does not warn about navigation-vs-dependent inconsistency.
+                // Doctor's IMultiTenant filter follows through the join automatically.
+                b.HasQueryFilter(x => !x.Doctor.IsDeleted && !x.AppointmentType.IsDeleted);
             });
             builder.Entity<DoctorLocation>(b =>
             {
@@ -145,6 +149,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.HasOne(x => x.Doctor).WithMany(x => x.Locations).HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.Cascade);
                 b.HasOne(x => x.Location).WithMany(x => x.DoctorLocations).HasForeignKey(x => x.LocationId).IsRequired().OnDelete(DeleteBehavior.Cascade);
                 b.HasIndex(x => new { x.DoctorId, x.LocationId });
+                b.HasQueryFilter(x => !x.Doctor.IsDeleted && !x.Location.IsDeleted);
             });
         }
 
@@ -293,8 +298,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ContentType).HasColumnName("ContentType").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.ContentTypeMaxLength);
             b.Property(x => x.FileSize).HasColumnName("FileSize");
             b.Property(x => x.UploadedByUserId).HasColumnName("UploadedByUserId");
-            // W2-11: review-state columns.
-            b.Property(x => x.Status).HasColumnName("Status").HasDefaultValue(HealthcareSupport.CaseEvaluation.AppointmentDocuments.DocumentStatus.Uploaded);
+            // W2-11: review-state columns. G6/H2.2: no DB default -- the entity
+            // property initialiser sets Status = Uploaded; OLD has no DB default.
+            b.Property(x => x.Status).HasColumnName("Status");
             b.Property(x => x.RejectionReason).HasColumnName("RejectionReason").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.RejectionReasonMaxLength);
             b.Property(x => x.ResponsibleUserId).HasColumnName("ResponsibleUserId");
             b.Property(x => x.RejectedByUserId).HasColumnName("RejectedByUserId");
