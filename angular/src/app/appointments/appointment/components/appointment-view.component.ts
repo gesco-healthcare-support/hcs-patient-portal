@@ -22,7 +22,6 @@ import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
-import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
@@ -110,7 +109,6 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
-  private readonly toaster = inject(ToasterService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;

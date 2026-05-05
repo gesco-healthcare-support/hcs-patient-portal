@@ -34,7 +34,6 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
-import type { AppointmentInjuryDetailWithNavigationPropertiesDto } from '../proxy/appointment-injury-details/models';
 
 // W2-8 -- transient front-end shape for the "add injury" booking-form
 // modal. Bundles the AppointmentInjuryDetail core fields with the
@@ -1812,7 +1811,7 @@ export class AppointmentAddComponent {
     const requestVersion = ++this.availableSlotsRequestVersion;
     this.isAvailableDatesLoading = true;
 
-    this.fetchAllAvailableSlots(locationId, appointmentTypeId)
+    this.fetchAllAvailableSlots(locationId as string, appointmentTypeId as string)
       .then((items) => {
         if (requestVersion !== this.availableSlotsRequestVersion) {
           return;
@@ -2020,6 +2019,7 @@ export class AppointmentAddComponent {
             url: '/api/app/doctor-availabilities',
             params: {
               locationId,
+              appointmentTypeId,
               bookingStatusId: BookingStatus.Available,
               skipCount,
               maxResultCount: pageSize,
