@@ -444,4 +444,27 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ChangeRequestRejectionRequiresNotes =
         "CaseEvaluation:ChangeRequest.RejectionRequiresNotes";
+
+    /// <summary>
+    /// Phase 8 (2026-05-03) -- raised by
+    /// <c>ExternalSignupAppService.RegisterAsync</c> when
+    /// <c>ConfirmPassword</c> does not equal <c>Password</c>. Mirrors OLD
+    /// <c>UserDomain.cs:88</c> (<c>ValidationFailedCode.ConfirmPasswordValidation</c>).
+    /// Localization key <c>Registration:ConfirmPasswordMismatch</c>.
+    /// </summary>
+    public const string RegistrationConfirmPasswordMismatch =
+        "CaseEvaluation:Registration.ConfirmPasswordMismatch";
+
+    /// <summary>
+    /// Phase 8 (2026-05-03) -- raised by
+    /// <c>ExternalSignupAppService.RegisterAsync</c> when
+    /// <c>FirmName</c> is missing for an attorney role
+    /// (<c>ApplicantAttorney</c> or <c>DefenseAttorney</c>). Mirrors OLD
+    /// <c>UserDomain.cs:272</c> (<c>FirmNameValidation</c>) -- with the
+    /// OLD-bug-fix that the check now covers BOTH attorney roles, not
+    /// just <c>PatientAttorney</c> twice as in the OLD source.
+    /// Localization key <c>Registration:FirmNameRequiredForAttorney</c>.
+    /// </summary>
+    public const string RegistrationFirmNameRequired =
+        "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
 }

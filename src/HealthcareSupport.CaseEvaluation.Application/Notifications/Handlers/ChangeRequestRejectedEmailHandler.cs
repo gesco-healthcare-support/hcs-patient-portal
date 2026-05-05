@@ -87,11 +87,13 @@ public class ChangeRequestRejectedEmailHandler :
                 return;
             }
 
+            // OLD-verbatim template codes per docs/parity/it-admin-notification-templates.md
+            // Phase 1 scope: TemplateCode 6 / 9 (DB-managed in OLD).
             var templateCode = eventData.ChangeRequestType switch
             {
-                ChangeRequestType.Cancel => NotificationTemplateConsts.Codes.CancellationRequestRejected,
-                ChangeRequestType.Reschedule => NotificationTemplateConsts.Codes.RescheduleRejected,
-                _ => NotificationTemplateConsts.Codes.CancellationRequestRejected,
+                ChangeRequestType.Cancel => NotificationTemplateConsts.Codes.AppointmentCancelledRequestRejected,
+                ChangeRequestType.Reschedule => NotificationTemplateConsts.Codes.AppointmentRescheduleRequestRejected,
+                _ => NotificationTemplateConsts.Codes.AppointmentCancelledRequestRejected,
             };
 
             var variables = DocumentNotificationContext.BuildVariables(

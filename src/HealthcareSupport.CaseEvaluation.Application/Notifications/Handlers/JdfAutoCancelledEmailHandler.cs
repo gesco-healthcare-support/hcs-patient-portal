@@ -110,8 +110,11 @@ public class JdfAutoCancelledEmailHandler :
                 clinicName: _currentTenant.Name,
                 portalUrl: ctx.PortalBaseUrl);
 
+            // OLD-verbatim per docs/parity/it-admin-notification-templates.md
+            // Phase 1 scope: "JDF auto-cancel" -> AppointmentCancelledDueDate
+            // (EmailTemplate disk HTML).
             await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.JDFAutoCancelled,
+                templateCode: NotificationTemplateConsts.Codes.AppointmentCancelledDueDate,
                 recipients: recipients,
                 variables: variables,
                 contextTag: $"JdfAutoCancelled/{eventData.AppointmentId}");

@@ -97,9 +97,15 @@ public class PackageDocumentReminderEmailHandler :
                 clinicName: _currentTenant.Name,
                 portalUrl: ctx.PortalBaseUrl);
 
+            // OLD-verbatim template codes per docs/parity/it-admin-notification-templates.md.
+            // PackageDoc reminder = AppointmentDocumentIncomplete (EmailTemplate disk
+            // HTML, "Pending-docs reminder" row in Phase 1 scope).
+            // PARITY-FLAG (PF-001, docs/parity/_parity-flags.md): OLD has no
+            // dedicated JDF reminder template; AppointmentDueDateUploadDocumentLeft
+            // is the closest semantic match. Revisit during Stage 7 N1.
             var templateCode = eventData.IsJointDeclaration
-                ? NotificationTemplateConsts.Codes.JDFReminder
-                : NotificationTemplateConsts.Codes.PackageDocumentsReminder;
+                ? NotificationTemplateConsts.Codes.AppointmentDueDateUploadDocumentLeft
+                : NotificationTemplateConsts.Codes.AppointmentDocumentIncomplete;
 
             await _dispatcher.DispatchAsync(
                 templateCode: templateCode,

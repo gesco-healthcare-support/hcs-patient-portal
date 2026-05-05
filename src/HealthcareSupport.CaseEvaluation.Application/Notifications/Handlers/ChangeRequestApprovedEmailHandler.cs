@@ -103,11 +103,13 @@ public class ChangeRequestApprovedEmailHandler :
             //      collapses into the same template with a populated
             //      ##AdminReScheduleReason## variable per the audit
             //      "Reschedule by admin (override)" gap row).
+            // OLD-verbatim template codes per docs/parity/it-admin-notification-templates.md
+            // Phase 1 scope: TemplateCode 5 / 8 (DB-managed in OLD).
             var templateCode = eventData.ChangeRequestType switch
             {
-                ChangeRequestType.Cancel => NotificationTemplateConsts.Codes.CancellationRequestAccepted,
-                ChangeRequestType.Reschedule => NotificationTemplateConsts.Codes.RescheduleApproved,
-                _ => NotificationTemplateConsts.Codes.CancellationRequestAccepted,
+                ChangeRequestType.Cancel => NotificationTemplateConsts.Codes.AppointmentCancelledRequestApproved,
+                ChangeRequestType.Reschedule => NotificationTemplateConsts.Codes.AppointmentRescheduleRequestApproved,
+                _ => NotificationTemplateConsts.Codes.AppointmentCancelledRequestApproved,
             };
 
             var variables = DocumentNotificationContext.BuildVariables(

@@ -25,13 +25,14 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 ///
 /// Plus one host-side user: `it.admin@hcs.test` with the IT Admin role.
 ///
-/// Default password for every seeded account: `1q2w3E*` (matches ABP's stock
-/// password policy: upper / lower / digit / special). The seeder is idempotent
-/// -- if a user with the email already exists, it is left alone.
+/// Default password for every seeded account: `1q2w3E*r` (8 chars; satisfies
+/// the Phase 2 policy of digit + non-alphanumeric + RequiredLength=8).
+/// The seeder is idempotent -- if a user with the email already exists, it
+/// is left alone.
 /// </summary>
 public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
-    public const string DefaultPassword = "1q2w3E*";
+    public const string DefaultPassword = "1q2w3E*r";
     public const string ItAdminEmail = "it.admin@hcs.test";
 
     private readonly IdentityUserManager _userManager;

@@ -305,6 +305,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [AllowAnonymous]
     public virtual async Task RegisterAsync(ExternalUserSignUpDto input)
     {
+        // Phase 8 (2026-05-03) -- OLD-parity validation:
+        //   - ConfirmPassword must equal Password (UserDomain.cs:88)
+        //   - FirmName required for ApplicantAttorney AND DefenseAttorney
+        //     (OLD-bug-fix on UserDomain.cs:272 which checked PatientAttorney
+        //     twice; intent was both attorney roles)
+        ValidateRegistrationInput(input);
+
         var tenantId = ResolveTenantId(input.TenantId);
         var roleName = ToRoleName(input.UserType);
 
@@ -328,6 +335,29 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 Name = input.FirstName,
                 Surname = input.LastName,
             };
+
+            // Phase 8 (2026-05-03) -- mark this row as an external user
+            // (replaces OLD's UserType.ExternalUser=7 column). Extension
+            // properties registered in Phase 2.4 via
+            // CaseEvaluationModuleExtensionConfigurator. Persist BEFORE
+            // CreateAsync so the property write is part of the same
+            // INSERT (extra-properties are part of the entity row).
+            user.SetProperty(
+                CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName, true);
+
+            // Phase 8 (2026-05-03) -- OLD UserDomain.cs:104-108 persists
+            // FirmName + auto-derives FirmEmail from EmailId.ToLower() for
+            // attorneys. NEW respects an explicit FirmEmail when supplied;
+            // otherwise auto-derives, matching OLD behavior.
+            if (IsAttorneyRole(input.UserType))
+            {
+                user.SetProperty(
+                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName,
+                    input.FirmName!.Trim());
+                user.SetProperty(
+                    CaseEvaluationModuleExtensionConfigurator.FirmEmailPropertyName,
+                    DeriveFirmEmail(input));
+            }
 
             var createResult = await _userManager.CreateAsync(user, input.Password);
             if (!createResult.Succeeded)
@@ -672,16 +702,83 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return requestedTenantId.Value;
     }
 
-    private static string ToRoleName(ExternalUserType userType)
+    /// <summary>
+    /// Maps the external-user-type enum to the role-name string seeded by
+    /// <c>ExternalUserRoleDataSeedContributor</c>. Phase 8 (2026-05-03)
+    /// added <c>Adjuster</c> per OLD parity (<c>Roles.cs:14-17</c>).
+    /// <c>ClaimExaminer</c> is a NEW deviation flagged in audit gap G1
+    /// and retained for Session A's tenant-invite flow compatibility.
+    /// Internal so unit tests can verify without ABP infra.
+    /// </summary>
+    internal static string ToRoleName(ExternalUserType userType)
     {
         return userType switch
         {
             ExternalUserType.Patient => "Patient",
+            ExternalUserType.Adjuster => "Adjuster",
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",
             _ => throw new UserFriendlyException("Invalid user type."),
         };
+    }
+
+    /// <summary>
+    /// True for the two attorney roles. <c>FirmName</c> + <c>FirmEmail</c>
+    /// extension props are persisted only for attorneys, mirroring OLD
+    /// <c>UserDomain.cs:104-108</c>. OLD's source had a copy-paste bug
+    /// at line 272 that checked <c>PatientAttorney</c> twice; NEW
+    /// validates both attorney roles correctly (audit gap G6 / OLD-bug-fix).
+    /// </summary>
+    internal static bool IsAttorneyRole(ExternalUserType userType) =>
+        userType == ExternalUserType.ApplicantAttorney
+        || userType == ExternalUserType.DefenseAttorney;
+
+    /// <summary>
+    /// OLD-parity validation invoked at the top of <c>RegisterAsync</c>:
+    /// <list type="bullet">
+    ///   <item>Confirm-password match (OLD <c>UserDomain.cs:88</c>).</item>
+    ///   <item>FirmName required for both attorney roles (OLD-bug-fix on
+    ///         <c>UserDomain.cs:272</c> which checked PatientAttorney
+    ///         twice).</item>
+    /// </list>
+    /// Internal so unit tests can verify without standing up ABP.
+    /// </summary>
+    internal static void ValidateRegistrationInput(ExternalUserSignUpDto input)
+    {
+        Check.NotNull(input, nameof(input));
+        Check.NotNullOrWhiteSpace(input.Email, nameof(input.Email));
+        Check.NotNullOrWhiteSpace(input.Password, nameof(input.Password));
+        Check.NotNullOrWhiteSpace(input.ConfirmPassword, nameof(input.ConfirmPassword));
+
+        if (!string.Equals(input.Password, input.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
+        }
+
+        if (IsAttorneyRole(input.UserType) && string.IsNullOrWhiteSpace(input.FirmName))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
+                .WithData("UserType", input.UserType.ToString());
+        }
+    }
+
+    /// <summary>
+    /// Returns the explicit <c>FirmEmail</c> when supplied (lowercased +
+    /// trimmed), otherwise auto-derives from <c>Email</c> verbatim with
+    /// OLD <c>UserDomain.cs:106</c>:
+    ///   <c>user.FirmEmail = user.EmailId.ToLower().ToString().Trim()</c>.
+    /// Caller guarantees <c>Email</c> is non-empty (validated upstream).
+    /// Internal so unit tests can verify without ABP infra.
+    /// </summary>
+    internal static string DeriveFirmEmail(ExternalUserSignUpDto input)
+    {
+        var explicitEmail = input.FirmEmail?.Trim();
+        if (!string.IsNullOrEmpty(explicitEmail))
+        {
+            return explicitEmail.ToLowerInvariant();
+        }
+        return input.Email.Trim().ToLowerInvariant();
     }
 
     private async Task EnsureRoleAsync(string roleName)

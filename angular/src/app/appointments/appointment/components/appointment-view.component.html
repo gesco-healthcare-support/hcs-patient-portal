@@ -38,9 +38,6 @@
                   @case ('reject') {
                     {{ '::Appointment:Action:Reject' | abpLocalization }}
                   }
-                  @case ('sendBack') {
-                    {{ '::Appointment:Action:SendBack' | abpLocalization }}
-                  }
                 }
               </option>
             }
@@ -54,26 +51,14 @@
             {{ '::Appointment:Action:Submit' | abpLocalization }}
           </button>
         }
-        @if (isResubmitMode) {
-          <button
-            type="button"
-            class="btn btn-warning btn-sm fw-semibold"
-            (click)="saveAndResubmit()"
-            [disabled]="isSaving"
-          >
-            <i class="fa fa-paper-plane me-1"></i>
-            {{ '::Appointment:Action:SaveAndResubmit' | abpLocalization }}
-          </button>
-        } @else {
-          <button
-            type="button"
-            class="btn btn-primary btn-sm"
-            (click)="save()"
-            [disabled]="isSaving"
-          >
-            {{ isSaving ? 'Saving...' : 'Save' }}
-          </button>
-        }
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          (click)="save()"
+          [disabled]="isSaving"
+        >
+          {{ isSaving ? 'Saving...' : 'Save' }}
+        </button>
         <button
           type="button"
           class="btn btn-info text-white btn-sm"
@@ -95,59 +80,6 @@
       </div>
     </div>
 
-    @if (isResubmitMode && latestSendBackInfo) {
-      <div class="alert alert-warning border-warning border-2 p-3 mb-3" role="alert">
-        <div class="d-flex align-items-start gap-3">
-          <i class="fa fa-exclamation-triangle fa-2x text-warning"></i>
-          <div class="flex-grow-1">
-            <h4 class="alert-heading mb-2">
-              {{ '::Appointment:Banner:Title' | abpLocalization }}
-            </h4>
-            @if (latestSendBackInfo.note) {
-              <div class="mb-3">
-                <div class="fw-semibold small text-muted">
-                  {{ '::Appointment:Banner:NoteHeader' | abpLocalization }}
-                </div>
-                <blockquote class="mb-0 ps-3 border-start border-warning border-3 fst-italic">
-                  {{ latestSendBackInfo.note }}
-                </blockquote>
-              </div>
-            }
-            @if (flaggedSections.length > 0) {
-              <div class="mb-2">
-                <div class="fw-semibold small text-muted mb-1">
-                  {{ '::Appointment:Banner:SectionsHeader' | abpLocalization }}
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  @for (s of flaggedSections; track s.sectionId) {
-                    <span class="badge bg-warning text-dark border border-warning">
-                      {{ s.sectionLabel }}
-                      <span class="ms-1 fw-bold">
-                        {{ '::Appointment:Banner:NeedsReviewPill' | abpLocalization }}
-                      </span>
-                    </span>
-                  }
-                </div>
-              </div>
-            }
-            @if (flaggedFieldLabels.length > 0) {
-              <details class="mt-2">
-                <summary class="small fw-semibold">
-                  {{ '::Appointment:Banner:FieldsHeader' | abpLocalization }}
-                  ({{ flaggedFieldLabels.length }})
-                </summary>
-                <ul class="mt-2 mb-0 small">
-                  @for (label of flaggedFieldLabels; track label) {
-                    <li>{{ label }}</li>
-                  }
-                </ul>
-              </details>
-            }
-          </div>
-        </div>
-      </div>
-    }
-
     @if (successMessage) {
       <div class="alert alert-success py-2">{{ successMessage }}</div>
     }
@@ -163,12 +95,6 @@
       [(visible)]="rejectModalVisible"
       (succeeded)="onActionSucceeded($event)"
     ></app-reject-appointment-modal>
-
-    <app-send-back-appointment-modal
-      [appointmentId]="appointment.appointment?.id ?? null"
-      [(visible)]="sendBackModalVisible"
-      (succeeded)="onActionSucceeded($event)"
-    ></app-send-back-appointment-modal>
 
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -209,7 +135,7 @@
               class="form-control form-control-sm"
               [(ngModel)]="panelNumber"
               maxlength="50"
-              [disabled]="!canEdit('panelNumber')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-2 col-sm-6">
@@ -243,7 +169,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.lastName"
-              [disabled]="!canEdit('lastName')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -251,7 +177,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.firstName"
-              [disabled]="!canEdit('firstName')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -259,7 +185,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.middleName"
-              [disabled]="!canEdit('middleName')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -274,7 +200,7 @@
                     [name]="'view-gender'"
                     [(ngModel)]="patientForm.genderId"
                     [value]="option.value"
-                    [disabled]="!canEdit('genderId')"
+                    [disabled]="isReadOnly"
                   />
                   <label class="form-check-label" [for]="'view-gender-' + option.key">
                     {{ '::Enum:Gender.' + option.value | abpLocalization }}
@@ -297,7 +223,7 @@
                 #dateOfBirthDatepicker="ngbDatepicker"
                 (click)="dateOfBirthDatepicker.open()"
                 (keyup.space)="dateOfBirthDatepicker.open()"
-                [disabled]="!canEdit('dateOfBirth')"
+                [disabled]="isReadOnly"
               />
               @if (dateOfBirthInput.value) {
                 <div class="input-group-append">
@@ -327,7 +253,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.cellPhoneNumber"
-              [disabled]="!canEdit('cellPhoneNumber')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -335,7 +261,7 @@
             <input
               class="form-control mb-2"
               [(ngModel)]="patientForm.phoneNumber"
-              [disabled]="!canEdit('phoneNumber')"
+              [disabled]="isReadOnly"
             />
             <div class="d-flex gap-3">
               @for (option of phoneNumberTypeOptions; track option.key) {
@@ -347,7 +273,7 @@
                     [name]="'view-phone-type'"
                     [(ngModel)]="patientForm.phoneNumberTypeId"
                     [value]="option.value"
-                    [disabled]="!canEdit('phoneNumberType')"
+                    [disabled]="isReadOnly"
                   />
                   <label class="form-check-label" [for]="'view-phone-type-' + option.key">
                     {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
@@ -364,7 +290,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.socialSecurityNumber"
-              [disabled]="!canEdit('socialSecurityNumber')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -372,7 +298,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.street"
-              [disabled]="!canEdit('street')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -380,7 +306,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.apptNumber"
-              [disabled]="!canEdit('apptNumber')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -388,7 +314,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.city"
-              [disabled]="!canEdit('city')"
+              [disabled]="isReadOnly"
             />
           </div>
 
@@ -399,7 +325,7 @@
               [(ngModel)]="patientForm.stateId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getStateLookup"
-              [disabled]="!canEdit('stateId')"
+              [disabled]="isReadOnly"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -407,7 +333,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.zipCode"
-              [disabled]="!canEdit('zipCode')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -419,7 +345,7 @@
               [(ngModel)]="patientForm.appointmentLanguageId"
               [ngModelOptions]="{ standalone: true }"
               [getFn]="getAppointmentLanguageLookup"
-              [disabled]="!canEdit('languageId')"
+              [disabled]="isReadOnly"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -433,7 +359,7 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="true"
-                  [disabled]="!canEdit('isInterpreter')"
+                  [disabled]="isReadOnly"
                 />
                 <label class="form-check-label" for="view-need-interpreter-yes">Yes</label>
               </div>
@@ -445,7 +371,7 @@
                   name="view-need-interpreter"
                   [(ngModel)]="patientForm.needsInterpreter"
                   [value]="false"
-                  [disabled]="!canEdit('isInterpreter')"
+                  [disabled]="isReadOnly"
                 />
                 <label class="form-check-label" for="view-need-interpreter-no">No</label>
               </div>
@@ -454,7 +380,7 @@
               <input
                 class="form-control mt-2"
                 [(ngModel)]="patientForm.interpreterVendorName"
-                [disabled]="!canEdit('interpreterVendorName')"
+                [disabled]="isReadOnly"
               />
             }
           </div>
@@ -463,7 +389,7 @@
             <input
               class="form-control"
               [(ngModel)]="patientForm.refferedBy"
-              [disabled]="!canEdit('referredBy')"
+              [disabled]="isReadOnly"
             />
           </div>
         </div>
@@ -482,7 +408,7 @@
               class="form-control"
               [(ngModel)]="employerForm.employerName"
               placeholder="EMPLOYER NAME"
-              [disabled]="!canEdit('employerName')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -491,7 +417,7 @@
               class="form-control"
               [(ngModel)]="employerForm.occupation"
               placeholder="OCCUPATION"
-              [disabled]="!canEdit('occupation')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-4 mb-3">
@@ -500,7 +426,7 @@
               class="form-control"
               [(ngModel)]="employerForm.phoneNumber"
               placeholder="PHONE NUMBER"
-              [disabled]="!canEdit('employerPhoneNumber')"
+              [disabled]="isReadOnly"
             />
           </div>
 
@@ -510,7 +436,7 @@
               class="form-control"
               [(ngModel)]="employerForm.street"
               placeholder="STREET"
-              [disabled]="!canEdit('employerStreet')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -519,7 +445,7 @@
               class="form-control"
               [(ngModel)]="employerForm.city"
               placeholder="CITY"
-              [disabled]="!canEdit('employerCity')"
+              [disabled]="isReadOnly"
             />
           </div>
           <div class="col-md-3 mb-3">
@@ -528,7 +454,7 @@
               cid="appointment-view-employer-state-id"
               [formControl]="employerStateIdControl"
               [getFn]="getStateLookup"
-              [disabled]="!canEdit('employerStateId')"
+              [disabled]="isReadOnly"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -537,7 +463,7 @@
               class="form-control"
               [(ngModel)]="employerForm.zipCode"
               placeholder="ZIP"
-              [disabled]="!canEdit('employerZip')"
+              [disabled]="isReadOnly"
             />
           </div>
         </div>
@@ -553,7 +479,7 @@
             type="checkbox"
             id="view-applicant-attorney-enabled"
             [(ngModel)]="applicantAttorneyEnabled"
-            [disabled]="!canEdit('applicantAttorneyIsActive')"
+            [disabled]="isReadOnly"
           />
           <label class="form-check-label" for="view-applicant-attorney-enabled">Include</label>
         </div>
@@ -587,7 +513,7 @@
                   class="form-select"
                   [(ngModel)]="applicantAttorneyForm.identityUserId"
                   (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)"
-                  [disabled]="!canEdit('applicantAttorneyName')"
+                  [disabled]="isReadOnly"
                 >
                   <option [ngValue]="null">Select Applicant Attorney</option>
                   @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
@@ -616,7 +542,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.firmName"
                 placeholder="FIRM NAME"
-                [disabled]="!canEdit('applicantAttorneyFirmName')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -625,7 +551,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.webAddress"
                 placeholder="WEB ADDRESS"
-                [disabled]="!canEdit('applicantAttorneyWebAddress')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -634,7 +560,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.phoneNumber"
                 placeholder="PHONE NUMBER"
-                [disabled]="!canEdit('applicantAttorneyPhoneNumber')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -643,7 +569,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.faxNumber"
                 placeholder="FAX"
-                [disabled]="!canEdit('applicantAttorneyFaxNumber')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -652,7 +578,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.street"
                 placeholder="STREET"
-                [disabled]="!canEdit('applicantAttorneyStreet')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -661,7 +587,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.city"
                 placeholder="CITY"
-                [disabled]="!canEdit('applicantAttorneyCity')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -670,7 +596,7 @@
                 cid="appointment-view-applicant-attorney-state-id"
                 [formControl]="applicantAttorneyStateIdControl"
                 [getFn]="getStateLookup"
-                [disabled]="!canEdit('applicantAttorneyStateId')"
+                [disabled]="isReadOnly"
               ></abp-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
@@ -679,7 +605,7 @@
                 class="form-control"
                 [(ngModel)]="applicantAttorneyForm.zipCode"
                 placeholder="ZIP"
-                [disabled]="!canEdit('applicantAttorneyZip')"
+                [disabled]="isReadOnly"
               />
             </div>
           </div>
@@ -703,7 +629,7 @@
             type="checkbox"
             id="view-defense-attorney-enabled"
             [(ngModel)]="defenseAttorneyEnabled"
-            [disabled]="!canEdit('defenseAttorneyIsActive')"
+            [disabled]="isReadOnly"
           />
           <label class="form-check-label" for="view-defense-attorney-enabled">Include</label>
         </div>
@@ -737,7 +663,7 @@
                   class="form-select"
                   [(ngModel)]="defenseAttorneyForm.identityUserId"
                   (change)="onDefenseAttorneySelected(defenseAttorneyForm.identityUserId)"
-                  [disabled]="!canEdit('defenseAttorneyName')"
+                  [disabled]="isReadOnly"
                 >
                   <option [ngValue]="null">Select Defense Attorney</option>
                   @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
@@ -766,7 +692,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.firmName"
                 placeholder="FIRM NAME"
-                [disabled]="!canEdit('defenseAttorneyFirmName')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -775,7 +701,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.webAddress"
                 placeholder="WEB ADDRESS"
-                [disabled]="!canEdit('defenseAttorneyWebAddress')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -784,7 +710,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.phoneNumber"
                 placeholder="PHONE NUMBER"
-                [disabled]="!canEdit('defenseAttorneyPhoneNumber')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -793,7 +719,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.faxNumber"
                 placeholder="FAX"
-                [disabled]="!canEdit('defenseAttorneyFaxNumber')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -802,7 +728,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.street"
                 placeholder="STREET"
-                [disabled]="!canEdit('defenseAttorneyStreet')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -811,7 +737,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.city"
                 placeholder="CITY"
-                [disabled]="!canEdit('defenseAttorneyCity')"
+                [disabled]="isReadOnly"
               />
             </div>
             <div class="col-md-3 mb-3">
@@ -820,7 +746,7 @@
                 cid="appointment-view-defense-attorney-state-id"
                 [formControl]="defenseAttorneyStateIdControl"
                 [getFn]="getStateLookup"
-                [disabled]="!canEdit('defenseAttorneyStateId')"
+                [disabled]="isReadOnly"
               ></abp-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
@@ -829,7 +755,7 @@
                 class="form-control"
                 [(ngModel)]="defenseAttorneyForm.zipCode"
                 placeholder="ZIP"
-                [disabled]="!canEdit('defenseAttorneyZip')"
+                [disabled]="isReadOnly"
               />
             </div>
           </div>
