@@ -1,4 +1,4 @@
----
+﻿---
 type: index
 audited: 2026-05-01
 purpose: Pointer + summary index for OLD app source documentation; starting point for per-feature parity audits.
@@ -39,53 +39,55 @@ OLD-doc text below continues to use "Patient Attorney" verbatim -- we don't rewr
 
 ## Source documents
 
-OLD source docs live at `P:\PatientPortalOld\Documents_and_Diagrams\`. DOCX/XLSX have been converted for Claude readability and live at `W:\patient-portal\replicate-old-app\.claude\old-extracted\` (gitignored).
+OLD source docs live at `P:\PatientPortalOld\Documents_and_Diagrams\`. Read them
+directly -- the old-extracted copies that previously lived at
+`.claude/old-extracted/` have been removed. All originals are readable via Claude
+because `P:\PatientPortalOld` is registered as an additional directory in
+`.claude/settings.local.json`.
 
 ### Architecture
 
-| File | Original | Extracted | Purpose |
-|------|----------|-----------|---------|
-| Project overview | `Architecture\SoCal Project Overview Document.docx` | `pandoc/socal-project-overview.md` | **Master business spec.** All features, roles, business rules, intake form, statuses, notification matrix, multi-tenant plan. **Start here for any feature audit.** |
-| Technical architecture | `Architecture\Project Technical Architecture.docx` | `pandoc/project-technical-architecture.md` | Layered architecture (Angular client + .NET REST + DDD + Repository + UoW), tech stack, security, OWASP standards |
+| File | Path under `Documents_and_Diagrams\` | Purpose |
+| --- | --- | --- |
+| Project overview | `Architecture\SoCal Project Overview Document.docx` | **Master business spec.** All features, roles, business rules, intake form, statuses, notification matrix, multi-tenant plan. **Start here for any feature audit.** |
+| Technical architecture | `Architecture\Project Technical Architecture.docx` | Layered architecture (Angular + .NET REST + DDD + Repository + UoW), tech stack, security, OWASP standards. |
 
 ### Schema
 
-| File | Original | Extracted | Purpose |
-|------|----------|-----------|---------|
-| Data dictionary (tables) | `ER Digram\Data Dictionary (Table).docx` | `pandoc/data-dictionary-table.md` | Full field-level schema for 65 tables. Entities, FKs, constraints, defaults |
-| Data dictionary (views) | `ER Digram\Data Dictionary (Views).docx` | `pandoc/data-dictionary-views.md` | DB views (read-only query patterns, used by reports). Read on-demand. |
-| Data dictionary (CSV) | `ER Digram\DataDictionary.xlsx` | `xlsx/data-dictionary--sheet1.csv` | Same content as table.md but in CSV form. Easier for grep. |
-| ER diagram | `ER Digram\ER-Diagram.png` | (read directly) | Visual schema. **Note:** PNG resolution too low to read entity/field labels; use data-dictionary-table.md instead. |
+| File | Path under `Documents_and_Diagrams\` | Purpose |
+| --- | --- | --- |
+| Data dictionary (tables) | `ER Digram\Data Dictionary (Table).docx` | Full field-level schema for 65 tables. Entities, FKs, constraints, defaults. |
+| Data dictionary (views) | `ER Digram\Data Dictionary (Views).docx` | DB views (read-only query patterns, used by reports). Read on-demand. |
+| Data dictionary (CSV) | `ER Digram\DataDictionary.xlsx` | Same content as table doc but tabular. Easier to grep. |
+| ER diagram | `ER Digram\ER-Diagram.png` | Visual schema. **Note:** PNG resolution too low to read labels; use data dictionary instead. |
 
 ### API surface
 
-| File | Original | Extracted | Purpose |
-|------|----------|-----------|---------|
-| API documentation | `Swagger\SoCal API Documentation.docx` | `pandoc/socal-api-documentation.md` | 49 controllers, 233 endpoints. Per-endpoint request/response schemas. TOC read; body on-demand. |
-| API matrix | `Swagger\Socal-API-Matrix.xlsx` | `xlsx/socal-api-matrix--api-matrix.csv` | Tabular endpoint inventory (URL, method, description). Quick reference. Total: 233 endpoints (101 GET, 31 POST, 44 PATCH, 28 DELETE, 29 PUT). |
-| Postman collection | `Postman Collection\Patient Appointment API.postman_collection.json` | (read directly) | Concrete request/response examples. 37K-line file; grep for specific endpoints. |
+| File | Path under `Documents_and_Diagrams\` | Purpose |
+| --- | --- | --- |
+| API documentation | `Swagger\SoCal API Documentation.docx` | 49 controllers, 233 endpoints. Per-endpoint request/response schemas. |
+| API matrix | `Swagger\Socal-API-Matrix.xlsx` | Tabular endpoint inventory (URL, method, description). 233 endpoints: 101 GET, 31 POST, 44 PATCH, 28 DELETE, 29 PUT. |
+| Postman collection | `Postman Collection\Patient Appointment API.postman_collection.json` | Concrete request/response examples. 37K-line file; grep for specific endpoints. Read directly. |
 
 ### Workflow
 
-| File | Original | Purpose |
-|------|----------|---------|
-| Process flow PNG | `Workflow\Socal Process Flow Diagram.png` | **End-to-end user journey.** Start -> Login/Register -> User Type fork -> External (book PQME/AME/REVAL) or Internal (admin/supervisor flows) -> Submit -> Validate -> Notify -> Upload Documents -> Approve Docs -> Confirm -> Check-In/Out -> Reports |
+| File | Path under `Documents_and_Diagrams\` | Purpose |
+| --- | --- | --- |
+| Process flow PNG | `Workflow\Socal Process Flow Diagram.png` | **End-to-end user journey.** Login/Register -> User Type fork -> External (book PQME/AME/REVAL) or Internal (admin/supervisor flows) -> Submit -> Validate -> Notify -> Upload Documents -> Approve Docs -> Confirm -> Check-In/Out -> Reports. |
 | Process flow drawio | `Workflow\Socal Process Flow Diagram.drawio` | Editable source for the PNG. Same content. |
-| Project solution PNG | `Workflow\Socal Project Solution.png` | 7 backend modules + 1 frontend module |
-| Project solution drawio | `Workflow\Socal Project Solution.drawio` | Editable source for the PNG. |
+| Project solution PNG | `Workflow\Socal Project Solution.png` | 7 backend modules + 1 frontend module. |
 
 ### Misc
 
-| File | Original | Purpose |
-|------|----------|---------|
-| Readme | `Readme.txt` | Index of the 5 categories above. Nothing else. |
-| Pandoc media | `pandoc/media/media/image{3,4,5,6,7}.{jpeg,png}` | 5 architecture/workflow diagrams extracted from DOCX. image3 = client architecture (Angular DDD diagram), image4 = server architecture (REST + DDD + UoW), image5 = security diagram, image6 = project solution (same as Workflow PNG), image7 = process flow (same as Workflow PNG). |
+| File | Path under `Documents_and_Diagrams\` | Purpose |
+| --- | --- | --- |
+| Readme | `Readme.txt` | Index of the 5 categories above. |
 
 ---
 
 ## Multi-tenant plan -- found
 
-**Location: `pandoc/socal-project-overview.md`.**
+**Location: `P:\PatientPortalOld\Documents_and_Diagrams\Architecture\SoCal Project Overview Document.docx`.**
 
 Line 113 (Project Brief):
 
@@ -302,12 +304,11 @@ These came out of the thorough read; flagging now to avoid blocking the audit.
 
 ## Outstanding reads (deferred, on-demand)
 
-These large files were not fully read in this pass -- content is reachable via grep / chunked reads on demand during the audit:
+These large files were not fully read during the initial audit pass -- read them directly from `P:\PatientPortalOld\Documents_and_Diagrams\` via grep / chunked reads on demand:
 
-- `pandoc/data-dictionary-views.md` (2,591 lines) -- DB views, read-only query patterns
-- `pandoc/socal-api-documentation.md` (8,967 lines) -- full body of API doc with schemas (TOC read; bodies on-demand)
-- Postman collection (37,543 lines) -- concrete payload examples
-- `pandoc/media/media/image5.jpeg` -- security diagram (low priority)
+- `ER Digram\Data Dictionary (Views).docx` -- DB views, read-only query patterns
+- `Swagger\SoCal API Documentation.docx` -- full API body with schemas (TOC read; bodies on-demand)
+- `Postman Collection\Patient Appointment API.postman_collection.json` (37,543 lines) -- concrete payload examples
 
 ---
 

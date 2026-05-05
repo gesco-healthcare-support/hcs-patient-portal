@@ -14,9 +14,17 @@ NEW stack (.NET 10 / ABP Commercial 10.0.2 / Angular 20). Goal:
 **logical and visual parity** with the OLD app on a modern stack.
 
 - **Match:** entities, names, labels, schema shape, business rules,
-  frontend logic, UI layout, role + permission model, document content.
+  frontend logic, UI layout, role + permission model, document content,
+  colors, fonts, spacing, and every small UI detail.
 - **Do NOT match:** framework choice, library set, framework versions,
-  AWS hosting, Word DOCX output, in-house custom packages.
+  AWS hosting, in-house custom packages. Use NEW framework components
+  (LeptonX, Angular 20 Material) natively -- but apply OLD colors and
+  fonts from `docs/design/_design-tokens.md` so the result is
+  visually close to the OLD app without recreating its HTML/CSS structure.
+- **Reports -- PDF replaces DOCX:** OLD generated `.docx` reports;
+  NEW generates PDF. Reason: PDFs are immutable so recipients cannot
+  edit them. All report business logic (data shown, role access,
+  filters, column layout) must still match OLD exactly.
 - **Out of scope until parity:** multi-tenancy. The OLD app is
   single-tenant; the NEW app's multi-tenant scaffolding stays wired up
   but the target through Phase 1 is one demo tenant = one doctor's
@@ -40,8 +48,11 @@ NEW stack (.NET 10 / ABP Commercial 10.0.2 / Angular 20). Goal:
   `Workflow/`, `Readme.txt`. Built 2017-2023 with formal SDE practice;
   more accurate than any doc currently in this codebase.
 - **Find first, ask second:** before porting a feature, read the OLD
-  code AND its `Documents_and_Diagrams/` entry. Ignore anything DOCX
-  or AWS; copy anything that is business logic.
+  code AND its `Documents_and_Diagrams/` entry. Read originals directly
+  from `P:\PatientPortalOld\Documents_and_Diagrams\` -- the
+  old-extracted copies have been removed from this repo. Ignore AWS
+  infrastructure; copy all business logic. OLD DOCX report output ->
+  NEW PDF output (see Primary Mission above).
 
 ---
 
@@ -59,14 +70,60 @@ NEW stack (.NET 10 / ABP Commercial 10.0.2 / Angular 20). Goal:
 
 ## Descriptive vs prescriptive
 
-Everything under `docs/features/`, `docs/product/`, `docs/issues/`,
-`docs/reports/`, `docs/research/`, `docs/plans/`, `docs/handoffs/`,
-`docs/repo-map/`, `docs/decisions/`, `.claude/discovery/`, every
-per-feature and layer-level `CLAUDE.md` under `src/.../<layer>/` and
-`angular/src/app/` describes the **current crude state** of the new
-app. Read them for context only; do NOT preserve their logic, naming,
-or UI choices when replicating the OLD app. Binding sources are: the
-OLD app, this file, `.claude/rules/*.md`, and Adrian's user-level rules.
+`docs/gap-analysis/`, `docs/implementation-research/`,
+`docs/architecture/`, `docs/api/`, `docs/backend/`, `docs/frontend/`,
+`docs/database/`, and the layer-level `CLAUDE.md` files under
+`src/.../<layer>/` and `angular/src/app/` describe the **current crude
+state** of the new app. Use them as a navigation aid to understand what
+already exists -- do NOT preserve their logic, naming, or UI choices
+when replicating the OLD app. Binding sources are: the OLD app code and
+docs at `P:\PatientPortalOld`, this file, `.claude/rules/*.md`, and
+Adrian's user-level rules.
+
+---
+
+## Bug and deviation policy
+
+When OLD code contains something that looks wrong, apply this rule:
+
+- **Clear bug -- fix it.** Wrong data that cannot be intentional (e.g.
+  hardcoded `UserId=1` in scheduler jobs, Twilio country code `+91`
+  for a US app, a null-ref that always throws). Fix silently; the NEW
+  app must not inherit broken behavior.
+- **Ambiguous -- replicate and flag it.** When it is genuinely unclear
+  whether a pattern is a bug or an intentional design choice, replicate
+  the OLD behavior verbatim AND mark it for explicit testing:
+  1. Add a `// PARITY-FLAG: <description> (OLD source: <file>:<line>)`
+     comment on the relevant C# or TypeScript line.
+  2. Add a row to `docs/parity/_parity-flags.md` (create if absent)
+     with: feature, OLD source citation, description, status `needs-test`.
+  3. Adrian manually tests every flagged behavior after implementation
+     to determine bug vs. design. Once resolved, remove the flag and
+     update the row to `resolved`.
+
+Specific decisions already made (do not re-litigate):
+
+- Template code name typos: see
+  `docs/parity/it-admin-notification-templates.md` section
+  "Notification template codes" for which are fixed vs. kept.
+
+---
+
+## Unaudited features protocol
+
+Every feature must have a parity audit doc in `docs/parity/` before
+implementation starts. The 18 existing audit docs cover the priority
+flows. For any feature not yet audited:
+
+1. Read the OLD code (`P:\PatientPortalOld\<project>\`).
+2. Read the OLD docs (`P:\PatientPortalOld\Documents_and_Diagrams\`).
+3. Write a parity audit doc to `docs/parity/<feature-slug>.md`
+   following the structure of existing audit docs (gap table, OLD code
+   map, UI field inventory, business rules, role matrix).
+4. Present the doc to Adrian for review before writing any code.
+
+Do NOT implement from OLD code alone without a parity doc. The parity
+doc is the contract; the implementation satisfies it.
 
 ---
 
