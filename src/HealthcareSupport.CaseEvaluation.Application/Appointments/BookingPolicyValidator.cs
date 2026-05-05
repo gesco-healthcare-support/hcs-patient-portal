@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Volo.Abp;
+using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -23,7 +24,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// when a check fails. The number-of-days threshold is round-tripped on
 /// the exception data so localization can render a useful message.
 /// </summary>
-public class BookingPolicyValidator
+public class BookingPolicyValidator : ITransientDependency
 {
     private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
