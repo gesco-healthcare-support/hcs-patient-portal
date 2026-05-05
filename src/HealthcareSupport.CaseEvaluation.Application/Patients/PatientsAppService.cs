@@ -104,7 +104,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var existing = existingPatients.FirstOrDefault();
         if (existing?.Patient != null)
         {
-            return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
+            // R2 (2026-05-04): email-fast-path resolved an existing patient.
+            var dtoExisting = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
+            dtoExisting.IsExisting = true;
+            return dtoExisting;
         }
 
         // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
@@ -161,7 +164,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                     var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
                     if (matchedWithNav != null)
                     {
-                        return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                        // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
+                        var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                        dtoMatched.IsExisting = true;
+                        return dtoMatched;
                     }
                 }
             }
@@ -209,7 +215,12 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
         // re-registration under a different email. Email pre-check above stays as the
         // fast-path; FindOrCreateAsync is the safety net.
-        var (patient, _) = await _patientManager.FindOrCreateAsync(
+        // R2 (2026-05-04): capture wasFound from PatientManager.FindOrCreateAsync
+        // so we can echo the existence signal to the caller. wasFound=true means
+        // FindOrCreate's own 3-of-6 (different field set than the dedup repo
+        // method above) hit an existing row; wasFound=false means a brand-new
+        // patient was inserted by FindOrCreate.
+        var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
             tenantId: CurrentTenant.Id,
             identityUserId: identityUser.Id,
             firstName: input.FirstName,
@@ -247,7 +258,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             };
         }
 
-        return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(createdWithNav);
+        var dtoFinal = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(createdWithNav);
+        dtoFinal.IsExisting = wasFound;
+        return dtoFinal;
     }
 
     [Authorize]

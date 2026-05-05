@@ -372,6 +372,54 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         }
     }
 
+    // R2 (Phase 9, 2026-05-04): pin that AppointmentCreateDto.IsPatientAlreadyExist
+    // round-trips to the persisted Appointment row. Mirrors OLD
+    // AppointmentDomain.cs:210, 217 where the dedup outcome lands on the entity
+    // at booking time. The Angular booking form populates this from the
+    // PatientWithNavigationPropertiesDto.IsExisting flag.
+
+    [Fact]
+    public async Task CreateAsync_WhenInputHasIsPatientAlreadyExistTrue_PersistsTrue()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 4, 1, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            input.IsPatientAlreadyExist = true;
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenInputOmitsIsPatientAlreadyExist_DefaultsToFalseOnEntity()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: new DateTime(2027, 4, 2, 0, 0, 0, DateTimeKind.Utc),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            // input.IsPatientAlreadyExist intentionally left at default (false)
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeFalse();
+        }
+    }
+
     [Fact]
     public async Task CreateAsync_GeneratesConfirmationNumberInAFormat()
     {

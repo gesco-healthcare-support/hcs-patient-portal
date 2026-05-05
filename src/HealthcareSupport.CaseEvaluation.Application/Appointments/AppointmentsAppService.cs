@@ -730,6 +730,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
 
+        // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
+        // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
+        // IsPatientAlreadyExist tracks whether the booking resolved to an
+        // existing Patient (true) or created a new one (false). The Angular
+        // booking form populates input.IsPatientAlreadyExist from the
+        // PatientWithNavigationPropertiesDto.IsExisting flag returned by the
+        // prior GetOrCreatePatientForAppointmentBookingAsync call. Set BEFORE
+        // the AppointmentStatusChangedEto publish so any handler observing the
+        // initial-create event sees the final state.
+        appointment.IsPatientAlreadyExist = input.IsPatientAlreadyExist;
+
         // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
         // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
         // funnels it through the SlotCascadeHandler so all slot writes have a

@@ -376,6 +376,31 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
     }
 
+    // R2 (Phase 9, 2026-05-04): IsExisting=true on the email-fast-path branch.
+    // Mirrors OLD AppointmentDomain.cs:210 -- when booking resolves to an
+    // already-existing Patient, the Appointment must record IsPatientAlreadyExist=true.
+    // Coverage for the dedup-match branch + FindOrCreate.wasFound branches needs
+    // the runtime-creation harness work flagged in the existing skipped tests
+    // (NEW-SEC-04 in docs/gap-analysis); deferred to the same Wave-2 follow-up.
+    [Fact]
+    public async Task GetOrCreatePatient_WhenEmailMatchesPatient1_SetsIsExistingTrue()
+    {
+        var input = new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = PatientsTestData.Patient1FirstName,
+            LastName = PatientsTestData.Patient1LastName,
+            Email = PatientsTestData.Patient1Email,
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = PatientsTestData.FixedDateOfBirth,
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+        };
+
+        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+
+        result.ShouldNotBeNull();
+        result.IsExisting.ShouldBeTrue();
+    }
+
     [Fact(Skip = "KNOWN GAP: GetOrCreatePatientForAppointmentBookingAsync uses CaseEvaluationConsts.AdminPasswordDefaultValue for runtime-created IdentityUser. Tracked: src/.../Domain/Patients/CLAUDE.md Known Gotchas (hardcoded admin password) AND docs/gap-analysis NEW-SEC-04. When an invite-token / temp-password flow replaces the hardcoded password, this Fact flips live.")]
     public Task GetOrCreatePatient_DoesNotUseHardcodedAdminPassword()
     {
