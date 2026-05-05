@@ -80,24 +80,48 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         //   - 16 from OLD's `TemplateCode` int enum (DB-managed in OLD)
         //   - 43 from OLD's `EmailTemplate` static class (on-disk HTML in OLD)
         // NEW unifies both into this single table; all become IT-Admin
-        // editable. Per-feature phases replace stub bodies as their
-        // notification handlers wire variable substitution.
+        // editable. Demo-critical codes (registration + booking + approval
+        // cascade) use OLD-verbatim subject + body via EmailBodyTemplates;
+        // remaining codes keep stub strings until their per-feature phase
+        // wires real content. See docs/parity/email-coverage-audit.md.
         var queryable = await _templateRepository.GetQueryableAsync();
         var existingCodes = queryable.Select(x => x.TemplateCode).ToList();
 
         foreach (var code in NotificationTemplateConsts.Codes.All.Where(c => !existingCodes.Contains(c)))
         {
+            var (subject, body) = GetSubjectAndBody(code);
             var entity = new NotificationTemplate(
                 id: _guidGenerator.Create(),
                 tenantId: tenantId,
                 templateCode: code,
                 templateTypeId: EmailTypeId,
-                subject: $"[{code}] -- TODO: parity-correct subject",
-                bodyEmail: $"<p>Stub body for {code}. Per-feature phases will replace with parity-correct content.</p>",
+                subject: subject,
+                bodyEmail: body,
                 bodySms: $"Stub SMS for {code}.",
                 description: null,
                 isActive: true);
             await _templateRepository.InsertAsync(entity, autoSave: false);
         }
+    }
+
+    /// <summary>
+    /// Returns the OLD-verbatim subject + body for <paramref name="code"/>.
+    /// Looks up the subject in <see cref="EmailSubjects.ByCode"/> and the body
+    /// in <see cref="EmailBodyResources"/> (embedded
+    /// <c>NotificationTemplates\EmailBodies\*.html</c> files). Falls back to a
+    /// stub when either is missing -- this is the demo-critical-only adoption
+    /// pattern; per-feature phases add more subject entries + .html files
+    /// over time without changing the seeder structure.
+    /// </summary>
+    private static (string Subject, string Body) GetSubjectAndBody(string code)
+    {
+        var subject = EmailSubjects.ByCode.TryGetValue(code, out var s)
+            ? s
+            : $"[{code}] -- TODO: parity-correct subject";
+
+        var body = EmailBodyResources.TryLoadBody(code)
+            ?? $"<p>Stub body for {code}. Per-feature phases will replace with parity-correct content.</p>";
+
+        return (subject, body);
     }
 }
