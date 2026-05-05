@@ -239,15 +239,15 @@ Task IDs prefix the lifecycle stage: `G0` = smoke defects, `G` = gates,
   - Acceptance: enum mirrors OLD; migration applies clean; tests green.
   - Closes: F2 (with parity-flag).
 
-- **G4** `code` — AuthServer Razor login + email-verify gate + remaining localization key.
+- **G4** `code` — Email-verify gate + LoginErrorMapper visibility + localization keys (PARTIAL — Razor override deferred).
   - Research: `docs/research/stage-0-gates.md` section "G4".
-  - `abp get-source Volo.Abp.Account.Pro.Public.Web` locally (do NOT commit unzipped tree).
-  - Add `Pages/Account/Login.cshtml` + `Login.cshtml.cs` calling `LoginErrorMapper.MapAbpErrorToLocalizationKey` + `ShouldShowResendLink`. Promote mapper visibility from `internal static` (or add `InternalsVisibleTo` to AuthServer assembly).
-  - Add `Pages/Account/ResendEmailConfirmation.cshtml` (minimal email-input form -> `IAccountAppService.SendEmailConfirmationLinkAsync`).
-  - Set `IsEmailConfirmationRequiredForLogin = true` in `CaseEvaluationSettingDefinitionProvider`.
-  - Add the 1 missing `Login:*` key (6 of 7 already present per research).
-  - Acceptance: unverified login shows OLD-verbatim message + working resend link; verified login redirects to SPA.
-  - Closes: F7, F8, F9.
+  - **Done in G4:**
+    - F8: override `IdentitySettingNames.SignIn.RequireConfirmedEmail` default from `false` to `true` in `CaseEvaluationSettingDefinitionProvider`. Applies to all hosts (AuthServer, API, DbMigrator) at module-load time. Setting key: `Abp.Identity.SignIn.RequireConfirmedEmail` (verified by reflecting on `Volo.Abp.Identity.Domain.Shared.dll`; the spelling `IdentitySettingNames.User.IsEmailConfirmationRequiredForLogin` from research was wrong).
+    - F9: 6 of 6 `Login:*` keys verified present in `Domain.Shared/Localization/CaseEvaluation/en.json:449-454`. Research's "1 missing" claim was off-by-one.
+    - LoginErrorMapper: promoted from `internal static` to `public static` so AuthServer assembly can import it for the deferred F7 work. `InternalsVisibleTo` line in `AssemblyInfo.cs` still serves other internal classes; left alone.
+  - **Deferred to G4-followup (new task G4F):** Razor override of `Pages/Account/Login.cshtml` for OLD-verbatim error wording + a "Resend confirmation email" link. Reason: `abp get-source Volo.Abp.Account.Pro` is unsupported; only `Volo.Account` (FREE version, 10.3.0) downloads, which is structurally different from the Pro 10.0.2 obfuscated DLL we ship. Two viable paths: (a) add a localization-resource contributor that overrides ABP's built-in error keys to OLD-verbatim wording (no Razor needed; loses the explicit resend link); (b) decompile the Pro DLL with `dotnet-decompile` to extract the Login page, license-permitting. Pick (a) by default for OLD-parity wording, (b) only if the resend link is required.
+  - Acceptance (partial): with this change, an unverified user logging in is correctly blocked by the gate; the on-screen error is ABP's default text rather than OLD-verbatim until G4F lands.
+  - Closes: F8, F9. Partial on F7 (gate works, wording deferred).
 
 ### Stage 0c — Non-blocking hygiene (parallel with lifecycle work)
 

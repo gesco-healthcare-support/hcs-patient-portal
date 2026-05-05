@@ -37,12 +37,12 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// "Resend confirmation email" link when
 /// <see cref="ShouldShowResendLink"/> returns <c>true</c>.</para>
 ///
-/// <para>This class is a pure function with no DI dependencies, surfaced as
-/// <c>internal static</c> so the test project can exercise it via the
-/// <c>InternalsVisibleTo</c> hook in <c>AssemblyInfo.cs</c> (Phase 3
-/// pattern).</para>
+/// <para>This class is a pure function with no DI dependencies. Promoted
+/// to <c>public</c> in G4 (2026-05-04) so the AuthServer assembly can
+/// import it directly for the Login.cshtml override; previously
+/// <c>internal static</c> with InternalsVisibleTo for the test project.</para>
 /// </summary>
-internal static class LoginErrorMapper
+public static class LoginErrorMapper
 {
     public const string UserNotExist = "Login:UserNotExist";
     public const string InvalidUsernameOrPassword = "Login:InvalidUsernameOrPassword";

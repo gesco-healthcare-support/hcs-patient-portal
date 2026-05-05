@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Localization;
+using Volo.Abp.Identity.Settings;
 using Volo.Abp.Localization;
 using Volo.Abp.Settings;
 
@@ -51,6 +52,20 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         Define(context, CaseEvaluationSettings.RemindersPolicy.RemindersEnabled,            defaultValue: "true");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail,             defaultValue: "");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff,             defaultValue: "");
+
+        // G4 / F8 (Phase 9, 2026-05-04): force email-verification before
+        // login on all hosts, matching OLD's IsVerified gate at
+        // P:\PatientPortalOld\PatientAppointment.Domain\Core\UserAuthenticationDomain.cs:143.
+        // Overrides ABP Identity's default of "false". Applied module-load
+        // time so every host (AuthServer, API, DbMigrator) sees the same
+        // default before any tenant-level override is consulted.
+        // ABP setting key: "Abp.Identity.SignIn.RequireConfirmedEmail".
+        var emailConfirmRequired = context.GetOrNull(
+            IdentitySettingNames.SignIn.RequireConfirmedEmail);
+        if (emailConfirmRequired != null)
+        {
+            emailConfirmRequired.DefaultValue = "true";
+        }
     }
 
     private static void Define(ISettingDefinitionContext context, string name, string defaultValue)
