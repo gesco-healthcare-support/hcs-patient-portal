@@ -543,24 +543,32 @@ export class AppointmentViewComponent implements OnInit {
         )
         .subscribe({
           next: (updatedPatient) => {
+            // R2 (2026-05-04): the backend AppointmentManager.UpdateAsync
+            // accepts ONLY the 14 fields below. isPatientAlreadyExist,
+            // internalUserComments, appointmentApproveDate, appointmentStatus
+            // are intentionally NOT on AppointmentUpdateDto -- they are set
+            // via dedicated transitions (Approve / Reject / SendBack-removed)
+            // and the EF entity preserves prior values across this update.
+            // Earlier the view sent those fields and TypeScript silently
+            // dropped them; the proxy regen now enforces strict shape.
             const payload: AppointmentUpdateDto = {
               panelNumber: this.panelNumber || undefined,
               appointmentDate: selected.appointmentDate,
-              isPatientAlreadyExist: selected.isPatientAlreadyExist,
-              requestConfirmationNumber: selected.requestConfirmationNumber,
+              requestConfirmationNumber: selected.requestConfirmationNumber!,
               dueDate: selected.dueDate,
-              internalUserComments: selected.internalUserComments,
-              appointmentApproveDate: selected.appointmentApproveDate,
-              appointmentStatus: selected.appointmentStatus,
-              patientId: selected.patientId,
-              identityUserId: selected.identityUserId,
-              appointmentTypeId: selected.appointmentTypeId,
-              locationId: selected.locationId,
-              doctorAvailabilityId: selected.doctorAvailabilityId,
-              concurrencyStamp: selected.concurrencyStamp,
+              patientId: selected.patientId!,
+              identityUserId: selected.identityUserId!,
+              appointmentTypeId: selected.appointmentTypeId!,
+              locationId: selected.locationId!,
+              doctorAvailabilityId: selected.doctorAvailabilityId!,
+              concurrencyStamp: selected.concurrencyStamp ?? '',
+              patientEmail: selected.patientEmail,
+              applicantAttorneyEmail: selected.applicantAttorneyEmail,
+              defenseAttorneyEmail: selected.defenseAttorneyEmail,
+              claimExaminerEmail: selected.claimExaminerEmail,
             };
 
-            this.appointmentService.update(selected.id, payload).subscribe({
+            this.appointmentService.update(selected.id!, payload).subscribe({
               next: async (updated) => {
                 let savedClean = true;
                 try {

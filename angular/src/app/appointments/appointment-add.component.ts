@@ -34,10 +34,54 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
-import type {
-  AppointmentInjuryDraft,
-  AppointmentInjuryDetailWithNavigationPropertiesDto,
-} from '../proxy/appointment-injury-details/models';
+import type { AppointmentInjuryDetailWithNavigationPropertiesDto } from '../proxy/appointment-injury-details/models';
+
+// W2-8 -- transient front-end shape for the "add injury" booking-form
+// modal. Bundles the AppointmentInjuryDetail core fields with the
+// linked PrimaryInsurance + ClaimExaminer rows so the user can enter
+// all three in one modal step; on submit the booking flow splits them
+// across the dedicated endpoints (appointment-injury-details +
+// appointment-primary-insurances + appointment-claim-examiners).
+//
+// Pre-regen this shape lived in
+// `proxy/appointment-injury-details/models.ts` as `AppointmentInjuryDraft`.
+// The post-merge backend dropped the C# class, so the proxy regen
+// removed it. This is a frontend-only transient type, not an API DTO --
+// declared locally to keep the modal logic intact without a
+// non-functional proxy round-trip.
+interface AppointmentInjuryDraft {
+  isCumulativeInjury: boolean;
+  dateOfInjury: string | null;
+  toDateOfInjury: string | null;
+  claimNumber: string;
+  wcabOfficeId: string | null;
+  wcabAdj: string | null;
+  bodyPartsSummary: string;
+  primaryInsurance: {
+    isActive: boolean;
+    name: string | null;
+    insuranceNumber: string | null;
+    attention: string | null;
+    phoneNumber: string | null;
+    faxNumber: string | null;
+    street: string | null;
+    city: string | null;
+    stateId: string | null;
+    zip: string | null;
+  };
+  claimExaminer: {
+    isActive: boolean;
+    name: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    fax: string | null;
+    street: string | null;
+    claimExaminerNumber: string | null;
+    city: string | null;
+    stateId: string | null;
+    zip: string | null;
+  };
+}
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
