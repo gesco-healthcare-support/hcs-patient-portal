@@ -97,15 +97,29 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         created.LastName.ShouldBe("Tester");
         created.Email.ShouldBe("alice.tester@test.local");
 
-        var persisted = await _patientRepository.FindAsync(created.Id);
-        persisted.ShouldNotBeNull();
-        persisted!.FirstName.ShouldBe("Alice");
+        // FEAT-09: Patient is IMultiTenant; raw repository reads from
+        // the host context apply WHERE TenantId IS NULL, which excludes
+        // the just-created TenantA row. Enter the tenant context for
+        // the verification read.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var persisted = await _patientRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.FirstName.ShouldBe("Alice");
+        }
     }
 
     [Fact]
     public async Task UpdateAsync_ChangesMutableFields_DoesNotChangeIdentityUserId()
     {
-        var patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        // FEAT-09: Patient is IMultiTenant; raw repository reads need
+        // to run inside the patient's tenant scope so the auto-filter
+        // does not exclude the row.
+        Patient patient1;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        }
         var originalIdentityUserId = patient1.IdentityUserId;
 
         var update = new PatientUpdateDto
@@ -124,8 +138,11 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         var result = await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update);
 
         result.FirstName.ShouldBe("Renamed");
-        var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
-        refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+            refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        }
     }
 
     [Fact]
@@ -255,11 +272,10 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         patient2!.Patient.TenantId.ShouldBe(TenantsTestData.TenantBRef);
     }
 
-    [Fact(Skip = "KNOWN BUG: PatientsAppService.GetListAsync has no tenant filter, so "
-              + "tenant-scoped callers (TenantAdmin, Doctor, attorney, patient, etc.) "
-              + "currently see all tenants' patients. When Patient becomes IMultiTenant "
-              + "(or AppService adds a manual CurrentTenant.Id filter), this test flips green. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#patient-imultitenant")]
+    // FEAT-09 (ADR-006 T4, 2026-05-05): now passes -- Patient implements
+    // IMultiTenant, so ABP's automatic filter scopes the query when
+    // CurrentTenant.Id is set. No AppService change was needed.
+    [Fact]
     public async Task GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients()
     {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
