@@ -1202,14 +1202,20 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         }
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    // B2 (Phase 9, 2026-05-04): legacy thin entry points -- gated on the
+    // dedicated approve/reject permissions, not the catch-all Edit. Mirrors
+    // OLD's intent: a clinic-staff role granted only "approve appointments"
+    // (without full edit rights) must still be able to call this endpoint.
+    // The richer AppointmentApprovalAppService.ApproveAppointmentAsync
+    // already uses these constants -- this aligns the legacy surface.
+    [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
     public virtual async Task<AppointmentDto> ApproveAsync(Guid id)
     {
         var appointment = await _appointmentManager.ApproveAsync(id, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    [Authorize(CaseEvaluationPermissions.Appointments.Reject)]
     public virtual async Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input)
     {
         var appointment = await _appointmentManager.RejectAsync(id, input?.Reason, CurrentUser.Id);
