@@ -1,6 +1,11 @@
 import type { CustomFieldType } from '../enums/custom-field-type.enum';
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
+export interface CustomFieldValueInputDto {
+  customFieldId?: string;
+  value?: string;
+}
+
 export interface CustomFieldCreateDto {
   fieldLabel: string;
   fieldType: CustomFieldType;

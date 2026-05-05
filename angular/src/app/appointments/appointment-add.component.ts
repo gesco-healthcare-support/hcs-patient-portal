@@ -1,6 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
@@ -34,6 +41,9 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
+import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
+import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
+import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
 
 // W2-8 -- transient front-end shape for the "add injury" booking-form
 // modal. Bundles the AppointmentInjuryDetail core fields with the
@@ -144,6 +154,11 @@ export class AppointmentAddComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
+  // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
+  private readonly customFieldsService = inject(CustomFieldsService);
+
+  // B1: expose enum to template for *ngIf branches.
+  readonly CustomFieldType = CustomFieldType;
 
   activeTabId = 'appointment';
   isSaving = false;
@@ -381,7 +396,22 @@ export class AppointmentAddComponent {
     claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
+    // OLD's `appointment.customFieldsValues` FormArray rebuilt on
+    // appointmentTypeId change. Each child FormGroup carries the static
+    // CustomField metadata (id / label / type / options / mandatory)
+    // alongside the booker-supplied `customFieldValue` control.
+    customFieldsValues: this.fb.array([] as FormGroup[]),
   });
+
+  // B1: monotonically-incrementing version so that an older slow lookup
+  // response cannot overwrite the FormArray after the user has switched
+  // AppointmentType (mirrors the same pattern at fieldConfigsRequestVersion).
+  private customFieldsRequestVersion = 0;
+
+  get customFieldsArray(): FormArray<FormGroup> {
+    return this.form.get('customFieldsValues') as FormArray<FormGroup>;
+  }
 
   constructor() {
     // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
@@ -398,6 +428,10 @@ export class AppointmentAddComponent {
     this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
       this.loadAvailableDatesBySelection();
       this.applyFieldConfigsForAppointmentType(appointmentTypeId);
+      // B1 (2026-05-05): rebuild the custom-field FormArray for the newly
+      // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
+      // which re-binds `customFieldsValues` on AppointmentType change.
+      this.loadCustomFieldsForAppointmentType(appointmentTypeId);
     });
     this.form
       .get('appointmentDate')
@@ -538,6 +572,149 @@ export class AppointmentAddComponent {
     this.readOnlyFieldNames.clear();
   }
 
+  /**
+   * B1 (2026-05-05) -- when AppointmentType changes, fetch the active
+   * <see cref="CustomFieldDto"/> rows for that type and rebuild the
+   * `customFieldsValues` FormArray. Mirrors OLD's
+   * `clearFormDataAsPerAppointmentType` (P:\PatientPortalOld\
+   * patientappointment-portal\src\app\components\appointment-request\
+   * appointments\add\appointment-add.component.ts:281-297) which resets
+   * `appointment.customFieldsValues` on AppointmentType change.
+   *
+   * Race-safety pattern matches `applyFieldConfigsForAppointmentType` --
+   * a `customFieldsRequestVersion` counter discards stale responses.
+   *
+   * Validators per type follow the renderer matrix in
+   * `docs/research/stage-2-3-booking-and-view.md` section B1.4.
+   */
+  private loadCustomFieldsForAppointmentType(appointmentTypeId: string | null): void {
+    this.customFieldsArray.clear();
+
+    if (!appointmentTypeId) {
+      return;
+    }
+
+    const requestVersion = ++this.customFieldsRequestVersion;
+
+    this.customFieldsService.getActiveForAppointmentType(appointmentTypeId).subscribe({
+      next: (rows) => {
+        if (requestVersion !== this.customFieldsRequestVersion) {
+          // Newer AppointmentType change cancelled this fetch.
+          return;
+        }
+        // Rebuild from scratch -- order by DisplayOrder ascending so the
+        // booker sees fields in the order IT Admin configured.
+        const ordered = (rows ?? [])
+          .filter((r) => r.isActive !== false)
+          .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        for (const row of ordered) {
+          this.customFieldsArray.push(this.buildCustomFieldGroup(row));
+        }
+      },
+      error: () => {
+        // Same race protection as success: only reset state on the
+        // currently-pending request.
+        if (requestVersion === this.customFieldsRequestVersion) {
+          this.customFieldsArray.clear();
+        }
+      },
+    });
+  }
+
+  /**
+   * B1 -- construct one FormGroup per CustomField. Carries the static
+   * metadata (id / label / type / options / mandatory / length) alongside
+   * the booker-supplied `customFieldValue` control.
+   */
+  private buildCustomFieldGroup(row: CustomFieldDto): FormGroup {
+    const validators = [];
+    if (row.isMandatory) {
+      validators.push(Validators.required);
+    }
+    if (row.fieldType === CustomFieldType.Alphanumeric && row.fieldLength) {
+      validators.push(Validators.maxLength(row.fieldLength));
+    }
+    if (row.fieldType === CustomFieldType.Numeric) {
+      // OLD's column is plain string; allow integers + decimals + leading minus.
+      validators.push(Validators.pattern(/^-?\d+(\.\d+)?$/));
+    }
+
+    return this.fb.group({
+      customFieldId: [row.id ?? ''],
+      fieldType: [row.fieldType ?? CustomFieldType.Alphanumeric],
+      fieldLabel: [row.fieldLabel ?? ''],
+      fieldLength: [row.fieldLength ?? null],
+      multipleValues: [row.multipleValues ?? null],
+      isMandatory: [!!row.isMandatory],
+      customFieldValue: [row.defaultValue ?? null, validators],
+    });
+  }
+
+  /**
+   * B1 -- helper consumed by the template to render Picklist / Tickbox /
+   * Radio option lists. OLD stores options as a comma-separated string in
+   * `MultipleValues` (no separate option entity); split + trim + drop empty.
+   */
+  optionsFromMultipleValues(multipleValues: string | null | undefined): string[] {
+    if (!multipleValues) return [];
+    return multipleValues
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
+  /**
+   * B1 -- map the customFieldsValues FormArray into CustomFieldValueInputDto[]
+   * for the booking POST. Each child FormGroup carries the static
+   * CustomField metadata + the booker-supplied `customFieldValue` control;
+   * here we serialize per-type and drop empties:
+   *   - Date    : ISO yyyy-MM-dd from the NgbDateStruct (the form binds a
+   *               yyyy-MM-dd string when the picker fires; OLD persisted MM/DD/YYYY
+   *               but server stores it as a string column either way, so the
+   *               wire format only matters for reciprocal display).
+   *   - Time    : HH:mm string from the timepicker.
+   *   - Tickbox : the form binds an array of selected option labels for
+   *               multi-option tickboxes; we comma-join. Single-option
+   *               tickboxes bind a boolean which we serialise as "true"/"false".
+   *   - Other   : raw string from the control.
+   */
+  private serializeCustomFieldValues(): CustomFieldValueInputDto[] {
+    const out: CustomFieldValueInputDto[] = [];
+    for (const group of this.customFieldsArray.controls) {
+      const v = group.value as {
+        customFieldId?: string;
+        fieldType?: CustomFieldType;
+        multipleValues?: string | null;
+        customFieldValue?: unknown;
+      };
+      if (!v.customFieldId) continue;
+      const serialized = this.serializeOneCustomFieldValue(v);
+      if (serialized === null || serialized === '') continue;
+      out.push({ customFieldId: v.customFieldId, value: serialized });
+    }
+    return out;
+  }
+
+  private serializeOneCustomFieldValue(v: {
+    fieldType?: CustomFieldType;
+    multipleValues?: string | null;
+    customFieldValue?: unknown;
+  }): string | null {
+    const raw = v.customFieldValue;
+    if (raw === null || raw === undefined) return null;
+
+    if (v.fieldType === CustomFieldType.Tickbox) {
+      // Multi-option: array of selected option strings. Single-option:
+      // boolean. Serialize uniformly to a string.
+      if (Array.isArray(raw)) return raw.filter((x) => !!x).join(',');
+      if (typeof raw === 'boolean') return raw ? 'true' : 'false';
+      return String(raw);
+    }
+
+    if (typeof raw === 'string') return raw.trim();
+    return String(raw);
+  }
+
   get displayUserName(): string {
     const user = this.currentUser;
     if (!user) return '';
@@ -657,6 +834,10 @@ export class AppointmentAddComponent {
         claimExaminerEmail: rawAfter.claimExaminerEnabled
           ? (rawAfter.claimExaminerEmail ?? undefined)
           : undefined,
+        // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
+        // Empty / whitespace values are dropped to match OLD's "no answer"
+        // semantics; the backend AppService also drops them defensively.
+        customFieldValues: this.serializeCustomFieldValues(),
       };
 
       const createdAppointment = await firstValueFrom(

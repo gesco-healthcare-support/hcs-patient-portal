@@ -43446,6 +43446,19 @@
           "maximum": null,
           "regex": null,
           "isNullable": false
+        },
+        {
+          "name": "CustomFieldValues",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -43880,6 +43893,19 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        },
+        {
+          "name": "CustomFieldValues",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -45450,6 +45476,41 @@
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValueInputDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "CustomFieldId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Value",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 4000,
           "minimum": null,
           "maximum": null,
           "regex": null,

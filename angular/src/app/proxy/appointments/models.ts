@@ -1,4 +1,5 @@
 import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
+import type { CustomFieldValueInputDto } from '../custom-fields/models';
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { PatientDto } from '../patients/models';
 import type { IdentityUserDto } from '../volo/abp/identity/models';
@@ -44,6 +45,7 @@ export interface AppointmentCreateDto {
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
   isPatientAlreadyExist?: boolean;
+  customFieldValues?: CustomFieldValueInputDto[];
 }
 
 export interface AppointmentDto extends FullAuditedEntityDto<string> {
@@ -82,6 +84,7 @@ export interface AppointmentUpdateDto {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  customFieldValues?: CustomFieldValueInputDto[];
 }
 
 export interface AppointmentWithNavigationPropertiesDto {
