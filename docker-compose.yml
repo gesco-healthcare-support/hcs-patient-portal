@@ -38,6 +38,13 @@ services:
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:${API_PORT:-44327}"
+      # T4-WIP gate: the FalkinsteinTenantDataSeedContributor triggers a
+      # tenant-DB migration that requires the tenant DbContext (Patient +
+      # Location move-to-tenant per ADR-006 T4) to be fully wired. Until T4
+      # lands, skip the seed so DbMigrator finishes cleanly and the
+      # host-DB-only demo paths (login, registration, slot/booking against
+      # host context) stay runnable. Remove this var when T4 ships.
+      SKIP_FALKINSTEIN_SEED: "true"
     volumes:
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
