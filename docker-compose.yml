@@ -60,6 +60,12 @@ services:
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${AUTH_PORT:-44368}"
       App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327}"
+      # G5 (2026-05-04): the in-process HealthChecks UI probe constructs an
+      # absolute URL from this env var. Without it, ABP falls back to the
+      # listener bind address ([::]:8080 -> 0.0.0.0:8080), which curl
+      # rejects as a non-target. Mirrors the API container's existing
+      # setting. Closes F16.
+      App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__RequireHttpsMetadata: "false"
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
