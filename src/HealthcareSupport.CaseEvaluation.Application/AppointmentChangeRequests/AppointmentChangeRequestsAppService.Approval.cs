@@ -7,10 +7,12 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
@@ -63,6 +65,11 @@ public class AppointmentChangeRequestsApprovalAppService :
     private readonly IRepository<AppointmentApplicantAttorney, Guid> _applicantAttorneyLinkRepository;
     private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseAttorneyLinkRepository;
     private readonly IRepository<AppointmentAccessor, Guid> _accessorRepository;
+    // C6 (2026-05-04) -- Phase 17 cascade-clone gap fill. OLD also clones
+    // CustomFieldsValues (line 435-450) and AppointmentNewDocument
+    // (line 523-549) on reschedule approval.
+    private readonly IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
+    private readonly IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentChangeRequestsApprovalAppService> _logger;
 
@@ -78,6 +85,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         IRepository<AppointmentApplicantAttorney, Guid> applicantAttorneyLinkRepository,
         IRepository<AppointmentDefenseAttorney, Guid> defenseAttorneyLinkRepository,
         IRepository<AppointmentAccessor, Guid> accessorRepository,
+        IRepository<CustomFieldValue, Guid> customFieldValueRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
         ILocalEventBus localEventBus,
         ILogger<AppointmentChangeRequestsApprovalAppService> logger)
     {
@@ -92,6 +101,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         _applicantAttorneyLinkRepository = applicantAttorneyLinkRepository;
         _defenseAttorneyLinkRepository = defenseAttorneyLinkRepository;
         _accessorRepository = accessorRepository;
+        _customFieldValueRepository = customFieldValueRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
         _localEventBus = localEventBus;
         _logger = logger;
     }
@@ -548,6 +559,39 @@ public class AppointmentChangeRequestsApprovalAppService :
             var clonedAc = AppointmentRescheduleCloner.CloneAccessorFor(
                 ac, GuidGenerator.Create(), newAppointmentId, newTenantId);
             await _accessorRepository.InsertAsync(clonedAc);
+        }
+
+        // C6 (2026-05-04) -- CustomFieldValues. Mirrors OLD
+        // AppointmentChangeRequestDomain.cs:435-450: every CustomFieldsValues
+        // row pointing at the source appointment is duplicated to the new
+        // appointment with the same CustomFieldId + Value so the IT-Admin-
+        // defined intake answers carry forward verbatim.
+        var customFieldValueQueryable = await _customFieldValueRepository.GetQueryableAsync();
+        var sourceCustomFieldValues = customFieldValueQueryable
+            .Where(cfv => cfv.AppointmentId == sourceAppointmentId).ToList();
+        foreach (var cfv in sourceCustomFieldValues)
+        {
+            var clonedCfv = AppointmentRescheduleCloner.CloneCustomFieldValueFor(
+                cfv, GuidGenerator.Create(), newAppointmentId, newTenantId);
+            await _customFieldValueRepository.InsertAsync(clonedCfv);
+        }
+
+        // C6 (2026-05-04) -- ad-hoc AppointmentDocument rows. Mirrors OLD
+        // AppointmentChangeRequestDomain.cs:523-549 (AppointmentNewDocument).
+        // OLD did not clone its package-document or joint-declaration tables
+        // -- only the ad-hoc patient uploads. NEW unified all three into
+        // AppointmentDocument; we filter to IsAdHoc=true to match OLD
+        // semantics. The blob storage pointer (BlobName) is reused so the
+        // file is shared between source + new rows -- saves storage and
+        // matches the content-addressed model.
+        var documentQueryable = await _appointmentDocumentRepository.GetQueryableAsync();
+        var sourceAdHocDocuments = documentQueryable
+            .Where(d => d.AppointmentId == sourceAppointmentId && d.IsAdHoc).ToList();
+        foreach (var doc in sourceAdHocDocuments)
+        {
+            var clonedDoc = AppointmentRescheduleCloner.CloneAdHocDocumentFor(
+                doc, GuidGenerator.Create(), newAppointmentId, newTenantId);
+            await _appointmentDocumentRepository.InsertAsync(clonedDoc);
         }
     }
 }

@@ -4,9 +4,11 @@ using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -354,6 +356,84 @@ internal static class AppointmentRescheduleCloner
             accessTypeId: source.AccessTypeId);
 
         clone.TenantId = newTenantId;
+        return clone;
+    }
+
+    /// <summary>
+    /// C6 (Phase 17 cascade-clone gap, 2026-05-04) -- clone a
+    /// <see cref="CustomFieldValue"/> for the new appointment row.
+    /// Mirrors OLD <c>AppointmentChangeRequestDomain.cs:435-450</c>:
+    /// every <c>spm.CustomFieldsValues</c> row pointing at the source
+    /// appointment is duplicated to the new appointment with the same
+    /// <see cref="CustomFieldValue.CustomFieldId"/> + <c>Value</c> so the
+    /// IT-Admin-defined intake answers carry forward verbatim.
+    /// </summary>
+    internal static CustomFieldValue CloneCustomFieldValueFor(
+        CustomFieldValue source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        return new CustomFieldValue(
+            id: newId,
+            tenantId: newTenantId,
+            customFieldId: source.CustomFieldId,
+            appointmentId: newAppointmentId,
+            value: source.Value);
+    }
+
+    /// <summary>
+    /// C6 (Phase 17 cascade-clone gap, 2026-05-04) -- clone an ad-hoc
+    /// <see cref="AppointmentDocument"/> for the new appointment row.
+    /// Mirrors OLD <c>AppointmentChangeRequestDomain.cs:523-549</c>:
+    /// OLD's <c>AppointmentNewDocument</c> table only held the ad-hoc
+    /// patient uploads; OLD's package-doc table was NOT cloned because
+    /// package status is recomputed against the new appointment date.
+    /// NEW unified both into <see cref="AppointmentDocument"/> via the
+    /// <see cref="AppointmentDocument.IsAdHoc"/> flag (Phase 1.6); the
+    /// caller filters to <c>IsAdHoc == true</c> rows so this helper only
+    /// runs against the OLD-equivalent subset.
+    ///
+    /// <para>The clone reuses the same <see cref="AppointmentDocument.BlobName"/>
+    /// pointer so both rows reference the same physical blob. Storage is
+    /// content-addressed; deletion of either row leaves the blob intact
+    /// per the existing retention policy. Status, rejection notes, and
+    /// review-time fields are NOT carried forward -- the new appointment
+    /// row's review starts fresh (the supervisor approving the reschedule
+    /// hasn't reviewed the cloned uploads yet).</para>
+    ///
+    /// <para>JDF documents (<see cref="AppointmentDocument.IsJointDeclaration"/>=true)
+    /// follow the same intent: clone if ad-hoc-flagged, otherwise leave
+    /// for the JDF-upload flow on the new appointment. Per OLD line 526
+    /// the joint-declaration table also wasn't cloned, so JDF-only docs
+    /// stay on the source row.</para>
+    /// </summary>
+    internal static AppointmentDocument CloneAdHocDocumentFor(
+        AppointmentDocument source,
+        Guid newId,
+        Guid newAppointmentId,
+        Guid? newTenantId)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var clone = new AppointmentDocument(
+            id: newId,
+            tenantId: newTenantId,
+            appointmentId: newAppointmentId,
+            documentName: source.DocumentName,
+            fileName: source.FileName,
+            blobName: source.BlobName,
+            contentType: source.ContentType,
+            fileSize: source.FileSize,
+            uploadedByUserId: source.UploadedByUserId);
+
+        // Carry forward only the structural / classifier flags. Status
+        // resets to the constructor default (Uploaded) so the new
+        // appointment's review pipeline picks the document up fresh.
+        clone.IsAdHoc = source.IsAdHoc;
+        clone.IsJointDeclaration = source.IsJointDeclaration;
         return clone;
     }
 }
