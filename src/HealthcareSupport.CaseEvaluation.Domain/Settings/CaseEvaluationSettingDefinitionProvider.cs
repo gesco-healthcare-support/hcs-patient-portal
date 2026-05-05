@@ -53,18 +53,26 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail,             defaultValue: "");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff,             defaultValue: "");
 
-        // G4 / F8 (Phase 9, 2026-05-04): force email-verification before
-        // login on all hosts, matching OLD's IsVerified gate at
+        // G4 / F8 (Phase 9, 2026-05-04): originally forced email-verification
+        // before login, matching OLD's IsVerified gate at
         // P:\PatientPortalOld\PatientAppointment.Domain\Core\UserAuthenticationDomain.cs:143.
-        // Overrides ABP Identity's default of "false". Applied module-load
-        // time so every host (AuthServer, API, DbMigrator) sees the same
-        // default before any tenant-level override is consulted.
+        //
+        // Phase 1A demo override (2026-05-05, Adrian directive): default
+        // flipped to "false" so the demo flow runs without a real
+        // mailbox. The verification email STILL fires (the registration
+        // handler dispatches it independently of this gate); users who
+        // enter a real address can still verify themselves at their
+        // leisure. Dummy `*.test` addresses just don't get blocked at
+        // login. Re-enable this gate (set DefaultValue back to "true")
+        // once the demo is signed off and a working mailbox is wired
+        // for the production smoke environment.
+        //
         // ABP setting key: "Abp.Identity.SignIn.RequireConfirmedEmail".
         var emailConfirmRequired = context.GetOrNull(
             IdentitySettingNames.SignIn.RequireConfirmedEmail);
         if (emailConfirmRequired != null)
         {
-            emailConfirmRequired.DefaultValue = "true";
+            emailConfirmRequired.DefaultValue = "false";
         }
     }
 

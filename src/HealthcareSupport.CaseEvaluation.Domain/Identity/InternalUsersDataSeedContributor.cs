@@ -167,6 +167,17 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                 email, tenantId);
         }
 
+        // Demo flow gate: G4's email-confirm requirement (commit 682093c)
+        // forces /Account/ConfirmUser after login when EmailConfirmed=false.
+        // Seeded demo accounts never receive a real verification email,
+        // so we mark them confirmed at seed time. Production-only paths
+        // are not affected because this contributor is Development-gated.
+        if (!user.EmailConfirmed)
+        {
+            user.SetEmailConfirmed(true);
+            await _userManager.UpdateAsync(user);
+        }
+
         if (!await _userManager.IsInRoleAsync(user, roleName))
         {
             var addRoleResult = await _userManager.AddToRoleAsync(user, roleName);
