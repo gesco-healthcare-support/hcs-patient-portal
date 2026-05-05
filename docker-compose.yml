@@ -59,7 +59,12 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${AUTH_PORT:-44368}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327}"
+      # ADR-006 (2026-05-05) -- subdomain tenant routing.
+      # The wildcard `*.localhost` origins are matched by ABP's CORS policy
+      # because `SetIsOriginAllowedToAllowWildcardSubdomains()` is wired in
+      # CaseEvaluationAuthServerModule.ConfigureServices. Drop the bare
+      # `localhost` entries when prod migrates off `*.localhost`.
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327},http://*.localhost:${NG_PORT:-4200},http://*.localhost:${API_PORT:-44327}"
       # G5 (2026-05-04): the in-process HealthChecks UI probe constructs an
       # absolute URL from this env var. Without it, ABP falls back to the
       # listener bind address ([::]:8080 -> 0.0.0.0:8080), which curl
@@ -99,7 +104,8 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${API_PORT:-44327}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368}"
+      # ADR-006 (2026-05-05) -- subdomain tenant routing. See AuthServer block.
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368},http://*.localhost:${NG_PORT:-4200},http://*.localhost:${AUTH_PORT:-44368}"
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__MetaAddress: "http://authserver:8080"

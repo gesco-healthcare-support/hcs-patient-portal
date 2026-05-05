@@ -34,6 +34,7 @@ using Volo.Abp.Studio;
 using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Auditing;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
 using Volo.Abp.AspNetCore.Security;
@@ -92,6 +93,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHealthChecks(context);
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
+        ConfigureMultiTenancy();
 
         Configure<PermissionManagementOptions>(options =>
         {
@@ -110,6 +112,24 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<AbpSecurityHeadersOptions>(options =>
         {
             options.Headers["X-Frame-Options"] = "DENY";
+        });
+    }
+
+    /// <summary>
+    /// ADR-006 (2026-05-05) -- subdomain tenant routing.
+    ///
+    /// Mirrors AuthServer's resolver config so API requests resolve tenant from
+    /// the Host header (e.g. falkinstein.localhost:44327 -> Falkinstein tenant).
+    /// QueryString, Cookie, Route, and Header resolvers are dropped so
+    /// ?__tenant=GUID cannot override the URL.
+    /// </summary>
+    private void ConfigureMultiTenancy()
+    {
+        Configure<AbpTenantResolveOptions>(options =>
+        {
+            options.TenantResolvers.Clear();
+            options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            options.AddDomainTenantResolver("{0}.localhost");
         });
     }
 
@@ -372,6 +392,68 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
                     options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
                 }
+
+                // ADR-006 (2026-05-05) -- subdomain tenant routing.
+                //
+                // With each tenant served on its own subdomain
+                // (e.g. http://falkinstein.localhost:44368), tokens are issued with
+                // `iss: http://falkinstein.localhost:44368/` -- one issuer per tenant.
+                // The default ValidIssuer set above is the bare-host URL
+                // (http://localhost:44368/) and would reject the per-tenant variants.
+                //
+                // The IssuerValidator callback accepts any issuer whose host pattern
+                // is `<slug>.<authority-host>` on the same scheme + port. This turns
+                // a single registered ValidIssuer into a wildcard that mirrors the
+                // resolver's `{0}.localhost` format. Compromises nothing: the
+                // signing key still has to come from the AuthServer's discovery
+                // doc, which the API fetches from the internal MetaAddress.
+                //
+                // Cross-reference: ADR-006 + Volosoft Medium article on Angular +
+                // OpenIddict subdomain resolution.
+                var authority = configuration["AuthServer:Authority"]!;
+                var authorityUri = new Uri(authority);
+                var authorityHost = authorityUri.Host;
+                var authorityPort = authorityUri.Port;
+                var authorityScheme = authorityUri.Scheme;
+
+                options.TokenValidationParameters.IssuerValidator = (issuer, _, _) =>
+                {
+                    if (string.IsNullOrEmpty(issuer))
+                    {
+                        throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException("Empty issuer");
+                    }
+
+                    var issuerUri = new Uri(issuer);
+                    if (issuerUri.Scheme != authorityScheme || issuerUri.Port != authorityPort)
+                    {
+                        throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException(
+                            $"Issuer scheme/port {issuerUri.Scheme}://...:{issuerUri.Port} does not match authority {authorityScheme}://...:{authorityPort}");
+                    }
+
+                    // Accept exact-host match (host context, e.g. admin.localhost
+                    // resolves to no tenant) OR any single-label subdomain of the
+                    // authority host (e.g. falkinstein.localhost when authority
+                    // host is localhost). Reject deeper paths, IPs, and unrelated
+                    // hosts.
+                    var issuerHost = issuerUri.Host;
+                    if (string.Equals(issuerHost, authorityHost, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return issuer;
+                    }
+                    if (issuerHost.EndsWith("." + authorityHost, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var slugPart = issuerHost.Substring(0, issuerHost.Length - authorityHost.Length - 1);
+                        if (slugPart.Length > 0 && !slugPart.Contains('.', StringComparison.Ordinal))
+                        {
+                            return issuer;
+                        }
+                    }
+                    throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException(
+                        $"Issuer host {issuerHost} is not the authority host or a single-label subdomain of it ({authorityHost}).");
+                };
+                // Clear ValidIssuer so the framework defers to the callback above.
+                options.TokenValidationParameters.ValidIssuer = null;
+                options.TokenValidationParameters.ValidateIssuer = true;
             });
 
         context.Services.Configure<AbpClaimsPrincipalFactoryOptions>(options =>
