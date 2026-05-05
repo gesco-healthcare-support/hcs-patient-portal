@@ -19,6 +19,8 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
+using Volo.Abp.EventBus.Local;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -46,6 +48,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // D.2 (2026-04-30): wired for the admin invite endpoint.
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    // R1 follow-up (2026-05-05): publish UserRegisteredEto so the
+    // notification handler can send OLD's "verify your email" message.
+    private readonly ILocalEventBus _localEventBus;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -64,7 +69,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
         ISettingProvider settingProvider,
-        IBackgroundJobManager backgroundJobManager)
+        IBackgroundJobManager backgroundJobManager,
+        ILocalEventBus localEventBus)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -83,6 +89,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
+        _localEventBus = localEventBus;
     }
 
     [AllowAnonymous]
@@ -420,6 +427,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // and immediately see the appointments that named them, without anyone
             // having to re-enter their details.
             await AutoLinkAppointmentsForUserAsync(user, input.UserType);
+
+            // R1 follow-up (2026-05-05) -- publish UserRegisteredEto so the
+            // UserRegisteredEmailHandler can dispatch OLD's "verify your email"
+            // message. Mirrors OLD UserDomain.cs:332 SendMail call. The handler
+            // generates the email-confirmation token + verify URL on the
+            // consumer side so the Eto stays minimal (no token-leak risk in the
+            // event payload). Published inside the `using (CurrentTenant.Change)`
+            // block so the local event bus captures the right tenant context.
+            await _localEventBus.PublishAsync(new UserRegisteredEto
+            {
+                UserId = user.Id,
+                TenantId = CurrentTenant.Id,
+                Email = user.Email ?? string.Empty,
+                FirstName = user.Name ?? string.Empty,
+                LastName = user.Surname ?? string.Empty,
+                RoleName = roleName,
+                OccurredAt = DateTime.UtcNow,
+            });
         }
     }
 
