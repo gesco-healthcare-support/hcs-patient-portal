@@ -35,6 +35,15 @@ export const APP_ROUTES: Routes = [
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
     canActivate: [authGuard, permissionGuard],
   },
+  // R1 (2026-05-05): public external-user registration. Defined BEFORE the
+  // lazy `account` loadChildren so this exact-match route wins over ABP
+  // account-module's built-in /register surface. ADR-006: tenant resolves
+  // from subdomain; no tenant selector on the form.
+  {
+    path: 'account/register',
+    loadComponent: () =>
+      import('./account/register/register.component').then((c) => c.RegisterComponent),
+  },
   {
     path: 'account',
     loadChildren: () => import('@volo/abp.ng.account/public').then((c) => c.createRoutes()),

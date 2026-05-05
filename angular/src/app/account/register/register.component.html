@@ -1,0 +1,202 @@
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <h3 class="card-title text-center mb-4">
+            {{ 'AbpAccount::Register' | abpLocalization }}
+          </h3>
+
+          <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+            <!-- User Type / Role -->
+            <div class="mb-3">
+              <label class="form-label" for="userType">User Type</label>
+              <select
+                id="userType"
+                class="form-select"
+                formControlName="userType"
+                [attr.aria-invalid]="
+                  form.controls.userType.invalid && form.controls.userType.touched
+                "
+              >
+                <option *ngFor="let opt of roleOptions" [ngValue]="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <!-- First Name + Last Name (Patient / Adjuster) -->
+            <div class="row" *ngIf="!isAttorney">
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="firstName">First Name</label>
+                <input
+                  id="firstName"
+                  type="text"
+                  class="form-control"
+                  formControlName="firstName"
+                  maxlength="50"
+                  autocomplete="given-name"
+                  [attr.aria-invalid]="
+                    form.controls.firstName.invalid && form.controls.firstName.touched
+                  "
+                />
+                <div
+                  class="invalid-feedback d-block"
+                  *ngIf="
+                    form.controls.firstName.touched && form.controls.firstName.errors?.['required']
+                  "
+                >
+                  First Name is required.
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="lastName">Last Name</label>
+                <input
+                  id="lastName"
+                  type="text"
+                  class="form-control"
+                  formControlName="lastName"
+                  maxlength="50"
+                  autocomplete="family-name"
+                  [attr.aria-invalid]="
+                    form.controls.lastName.invalid && form.controls.lastName.touched
+                  "
+                />
+                <div
+                  class="invalid-feedback d-block"
+                  *ngIf="
+                    form.controls.lastName.touched && form.controls.lastName.errors?.['required']
+                  "
+                >
+                  Last Name is required.
+                </div>
+              </div>
+            </div>
+
+            <!-- Firm Name (Attorneys) -->
+            <div class="mb-3" *ngIf="isAttorney">
+              <label class="form-label" for="firmName">Firm Name</label>
+              <input
+                id="firmName"
+                type="text"
+                class="form-control"
+                formControlName="firmName"
+                maxlength="50"
+                [attr.aria-invalid]="
+                  form.controls.firmName.invalid && form.controls.firmName.touched
+                "
+              />
+              <div
+                class="invalid-feedback d-block"
+                *ngIf="
+                  form.controls.firmName.touched && form.controls.firmName.errors?.['required']
+                "
+              >
+                Firm Name is required.
+              </div>
+            </div>
+
+            <!-- Email -->
+            <div class="mb-3">
+              <label class="form-label" for="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                class="form-control"
+                formControlName="email"
+                maxlength="100"
+                autocomplete="email"
+                [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
+              />
+              <div
+                class="invalid-feedback d-block"
+                *ngIf="form.controls.email.touched && form.controls.email.errors?.['required']"
+              >
+                Email is required.
+              </div>
+              <div
+                class="invalid-feedback d-block"
+                *ngIf="form.controls.email.touched && form.controls.email.errors?.['email']"
+              >
+                Enter a valid email address.
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div class="mb-3">
+              <label class="form-label" for="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                class="form-control"
+                formControlName="password"
+                autocomplete="new-password"
+                [attr.aria-invalid]="
+                  form.controls.password.invalid && form.controls.password.touched
+                "
+              />
+              <div
+                class="invalid-feedback d-block"
+                *ngIf="
+                  form.controls.password.touched && form.controls.password.errors?.['required']
+                "
+              >
+                Password is required.
+              </div>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="mb-3">
+              <label class="form-label" for="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                class="form-control"
+                formControlName="confirmPassword"
+                autocomplete="new-password"
+                [attr.aria-invalid]="
+                  form.controls.confirmPassword.invalid && form.controls.confirmPassword.touched
+                "
+              />
+              <div
+                class="invalid-feedback d-block"
+                *ngIf="
+                  form.controls.confirmPassword.touched &&
+                  form.controls.confirmPassword.errors?.['required']
+                "
+              >
+                Confirm Password is required.
+              </div>
+            </div>
+
+            <!-- Server-returned error -->
+            <div class="alert alert-danger py-2" *ngIf="errorMessage()">
+              {{ errorMessage() }}
+            </div>
+
+            <!-- T&C footnote (OLD html:50-52: text + link, no checkbox) -->
+            <p class="small text-muted text-center mb-3">
+              By clicking 'Sign Up' you agree to our
+              <a href="#" target="_blank" rel="noopener">terms of service and privacy policy</a>
+              .
+            </p>
+
+            <button
+              type="submit"
+              class="btn btn-primary w-100"
+              [disabled]="form.invalid || isSubmitting()"
+            >
+              <span *ngIf="isSubmitting()" class="spinner-border spinner-border-sm me-2"></span>
+              {{ 'AbpAccount::Register' | abpLocalization }}
+            </button>
+          </form>
+
+          <div class="text-center mt-3">
+            <span class="text-muted">Already have an account?</span>
+            <a href="javascript:void(0)" (click)="goToLogin()" class="ms-1">Sign In</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
