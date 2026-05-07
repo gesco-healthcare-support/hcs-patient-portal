@@ -351,8 +351,13 @@ export class AppointmentAddComponent {
     firstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     lastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     middleName: [null as string | null, [Validators.maxLength(50)]],
+    // 2026-05-07 (#14): drop `disabled: true`. Disabled controls skip
+    // validators, so the previous shape silently bypassed Validators.required
+    // for Patient bookers (their loadPatientProfile path patched a value but
+    // never enabled the control). The HTML now uses [readonly] per OLD
+    // parity to gate editing -- readonly preserves submit + validation.
     email: [
-      { value: null as string | null, disabled: true },
+      null as string | null,
       [Validators.required, Validators.maxLength(50), Validators.email],
     ],
     genderId: [null as number | null],
@@ -1147,7 +1152,10 @@ export class AppointmentAddComponent {
           return;
         }
         this.patientLabel = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-        this.form.get('email')?.enable();
+        // 2026-05-07 (#14): the email control is no longer disabled by
+        // default (see form-build site), so an explicit enable() here is
+        // redundant. The HTML applies [readonly] for Patient bookers to
+        // gate editing without skipping validators.
         this.form.get('patientId')?.clearValidators();
         this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
         this.loadPatientListCache();
@@ -1853,12 +1861,20 @@ export class AppointmentAddComponent {
     appointmentId?: string,
   ): Promise<void> {
     const raw = this.form.getRawValue();
-    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyIdentityUserId) {
+    // Bonus issue (2026-05-07): drop the IdentityUserId precondition. Send
+    // the upsert whenever the AA section is enabled AND the booker typed at
+    // least an email; the backend resolves IdentityUser by email or stores
+    // the row with a null IdentityUserId, which the registration linkback
+    // contributor patches when the AA later registers.
+    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyEmail) {
       return;
     }
     const body = {
       applicantAttorneyId: this.applicantAttorneyId ?? undefined,
-      identityUserId: raw.applicantAttorneyIdentityUserId,
+      // Send Guid.Empty so the backend's ResolveIdentityUserIdForBookingAsync
+      // helper falls through to the email-based lookup when no existing
+      // IdentityUser was matched at search time.
+      identityUserId: raw.applicantAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
       firstName: raw.applicantAttorneyFirstName ?? '',
       lastName: raw.applicantAttorneyLastName ?? '',
       email: raw.applicantAttorneyEmail ?? '',
@@ -2023,12 +2039,15 @@ export class AppointmentAddComponent {
     appointmentId?: string,
   ): Promise<void> {
     const raw = this.form.getRawValue();
-    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyIdentityUserId) {
+    // Bonus issue (2026-05-07): mirror the AA upsert above. Submit whenever
+    // the DA section is enabled AND the booker typed an email; backend
+    // resolves IdentityUser by email or persists with null + linkback.
+    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyEmail) {
       return;
     }
     const body = {
       defenseAttorneyId: this.defenseAttorneyId ?? undefined,
-      identityUserId: raw.defenseAttorneyIdentityUserId,
+      identityUserId: raw.defenseAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
       firstName: raw.defenseAttorneyFirstName ?? '',
       lastName: raw.defenseAttorneyLastName ?? '',
       email: raw.defenseAttorneyEmail ?? '',

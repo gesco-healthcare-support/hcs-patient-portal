@@ -1004,7 +1004,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
+        // 2026-05-07 (Bonus issue): drop the IdentityUserId == Guid.Empty
+        // early-return so a brand-new attorney typed by the booker (no
+        // IdentityUser yet) is still persisted. The master ApplicantAttorney
+        // and AppointmentApplicantAttorney rows accept nullable
+        // IdentityUserId; the registration-time linkback contributor patches
+        // them when the attorney later registers with this email + role.
+        // We skip entirely only when the booker submitted no recognisable
+        // identifier at all (no IdentityUser AND no email).
+        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
+        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
         {
             return;
         }
@@ -1015,6 +1024,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["Appointment not found."]);
         }
 
+        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
+
         ApplicantAttorney applicantAttorney;
         if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != Guid.Empty)
         {
@@ -1022,7 +1033,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             applicantAttorney = await _applicantAttorneyManager.UpdateAsync(
                 applicantAttorney.Id,
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 applicantAttorney.FirmAddress,
                 input.PhoneNumber,
@@ -1031,13 +1042,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                input.ConcurrencyStamp);
+                input.ConcurrencyStamp,
+                normalisedEmail);
         }
         else
         {
             applicantAttorney = await _applicantAttorneyManager.CreateAsync(
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 null,
                 input.PhoneNumber,
@@ -1045,7 +1057,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.FaxNumber,
                 input.Street,
                 input.City,
-                input.ZipCode);
+                input.ZipCode,
+                normalisedEmail);
         }
 
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
@@ -1057,13 +1070,37 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 link.AppointmentApplicantAttorney.Id,
                 appointmentId,
                 applicantAttorney.Id,
-                input.IdentityUserId,
+                resolvedUserId,
                 link.AppointmentApplicantAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, input.IdentityUserId);
+            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
         }
+    }
+
+    /// <summary>
+    /// Bonus issue (2026-05-07) -- if the booker did not pre-resolve an
+    /// IdentityUser via the email-search path, look up by typed email and
+    /// reuse that user's id. Returns null when the email is unknown so the
+    /// caller can persist with a null IdentityUserId; the linkback hook on
+    /// registration will set it later.
+    /// </summary>
+    private async Task<Guid?> ResolveIdentityUserIdForBookingAsync(Guid identityUserId, string? email)
+    {
+        if (identityUserId != Guid.Empty)
+        {
+            return identityUserId;
+        }
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+        var trimmed = email.Trim();
+        var userQuery = await _identityUserRepository.GetQueryableAsync();
+        var match = await AsyncExecuter.FirstOrDefaultAsync(
+            userQuery.Where(u => u.Email != null && u.Email.ToLower() == trimmed.ToLower()));
+        return match?.Id;
     }
 
     [Authorize]
@@ -1143,7 +1180,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
+        // 2026-05-07 (Bonus issue): mirror the AA upsert above. Drop the
+        // IdentityUserId == Guid.Empty early-return; resolve via email when
+        // possible; persist with null IdentityUserId otherwise. The
+        // registration-time linkback contributor sets it when the DA later
+        // registers.
+        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
+        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
         {
             return;
         }
@@ -1154,6 +1197,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["Appointment not found."]);
         }
 
+        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
+
         DefenseAttorney defenseAttorney;
         if (input.DefenseAttorneyId.HasValue && input.DefenseAttorneyId.Value != Guid.Empty)
         {
@@ -1161,7 +1206,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
                 defenseAttorney.Id,
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 defenseAttorney.FirmAddress,
                 input.PhoneNumber,
@@ -1170,13 +1215,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                input.ConcurrencyStamp);
+                input.ConcurrencyStamp,
+                normalisedEmail);
         }
         else
         {
             defenseAttorney = await _defenseAttorneyManager.CreateAsync(
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 null,
                 input.PhoneNumber,
@@ -1184,12 +1230,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.FaxNumber,
                 input.Street,
                 input.City,
-                input.ZipCode);
+                input.ZipCode,
+                normalisedEmail);
         }
 
-        // W2-7 mirror of UpsertApplicantAttorneyForAppointmentAsync. The applicant-side
-        // upsert reads up to 10 links and updates only the first; preserve that quirk
-        // here for parity (the design fix is a separate refactor per W2-7 deep-dive).
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
 
@@ -1199,12 +1243,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 link.AppointmentDefenseAttorney.Id,
                 appointmentId,
                 defenseAttorney.Id,
-                input.IdentityUserId,
+                resolvedUserId,
                 link.AppointmentDefenseAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, input.IdentityUserId);
+            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, resolvedUserId);
         }
     }
 

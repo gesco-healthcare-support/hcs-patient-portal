@@ -602,12 +602,48 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
     {
+        // Bonus issue (2026-05-07): claim any unlinked master AA rows that
+        // were created by the booking flow with this email and a null
+        // IdentityUserId. The booking AppService persists AA rows for
+        // typed-but-unregistered attorneys; once the attorney registers we
+        // patch IdentityUserId here so the existing IdentityUserId-keyed
+        // lookup below finds them and the Appointment.ApplicantAttorneyEmail
+        // scan stays applicable.
+        var unlinkedMasterQuery = await _applicantAttorneyRepository.GetQueryableAsync();
+        var unlinkedMasters = await AsyncExecuter.ToListAsync(
+            unlinkedMasterQuery.Where(a =>
+                a.IdentityUserId == null
+                && a.Email != null
+                && a.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinkedMasters)
+        {
+            master.IdentityUserId = identityUserId;
+            await _applicantAttorneyRepository.UpdateAsync(master);
+        }
+        if (unlinkedMasters.Count > 0)
+        {
+            // Patch any existing link rows that point at these masters so
+            // the attorney's "My Appointments" list surfaces them via the
+            // visibility filter on AppointmentApplicantAttorney.IdentityUserId.
+            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            var unlinkedLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+            var unlinkedLinks = await AsyncExecuter.ToListAsync(
+                unlinkedLinkQuery.Where(l =>
+                    l.IdentityUserId == null && masterIds.Contains(l.ApplicantAttorneyId)));
+            foreach (var link in unlinkedLinks)
+            {
+                link.IdentityUserId = identityUserId;
+                await _appointmentApplicantAttorneyRepository.UpdateAsync(link);
+            }
+        }
+
         var applicantAttorney = await _applicantAttorneyRepository
             .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
         if (applicantAttorney == null)
         {
-            // Should never happen because the AA registration branch creates
-            // one above, but guard defensively rather than crashing the signup.
+            // No master row exists yet (no booking captured this email).
+            // Nothing further to backfill; the AA can still appear on
+            // future bookings.
             return;
         }
 
@@ -636,6 +672,34 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     private async Task AutoLinkDefenseAttorneyAsync(Guid identityUserId, string normalizedEmail)
     {
+        // Bonus issue (2026-05-07): mirror the AA path. Claim unlinked
+        // master DA rows + their link rows by email before falling through
+        // to the IdentityUserId-keyed lookup.
+        var unlinkedMasterQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+        var unlinkedMasters = await AsyncExecuter.ToListAsync(
+            unlinkedMasterQuery.Where(d =>
+                d.IdentityUserId == null
+                && d.Email != null
+                && d.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinkedMasters)
+        {
+            master.IdentityUserId = identityUserId;
+            await _defenseAttorneyRepository.UpdateAsync(master);
+        }
+        if (unlinkedMasters.Count > 0)
+        {
+            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            var unlinkedLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+            var unlinkedLinks = await AsyncExecuter.ToListAsync(
+                unlinkedLinkQuery.Where(l =>
+                    l.IdentityUserId == null && masterIds.Contains(l.DefenseAttorneyId)));
+            foreach (var link in unlinkedLinks)
+            {
+                link.IdentityUserId = identityUserId;
+                await _appointmentDefenseAttorneyRepository.UpdateAsync(link);
+            }
+        }
+
         var defenseAttorney = await _defenseAttorneyRepository
             .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
         if (defenseAttorney == null)

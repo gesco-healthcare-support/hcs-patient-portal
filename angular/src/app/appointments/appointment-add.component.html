@@ -180,16 +180,6 @@
                 }
               </select>
             </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Patient Email *</label>
-              <input
-                type="email"
-                class="form-control"
-                placeholder="Enter email if patient is not selected from dropdown"
-                formControlName="email"
-                (input)="onPatientEmailInputChanged()"
-              />
-            </div>
           </div>
           @if (patientLoadMessage) {
             <div class="alert alert-info mb-3" role="alert">{{ patientLoadMessage }}</div>
@@ -262,12 +252,17 @@
               }
             </div>
           </div>
-          @if (!isExternalUserNonPatient) {
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }} *</label>
-              <input class="form-control" formControlName="email" maxlength="50" />
-            </div>
-          }
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }} *</label>
+            <input
+              type="email"
+              class="form-control"
+              formControlName="email"
+              maxlength="50"
+              [readonly]="!isExternalUserNonPatient && !isItAdmin"
+              (input)="isExternalUserNonPatient ? onPatientEmailInputChanged() : null"
+            />
+          </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">
               {{ '::CellPhoneNumber' | abpLocalization }}
