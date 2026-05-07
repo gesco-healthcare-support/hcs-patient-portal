@@ -60,6 +60,23 @@ public class SubmissionEmailHandler :
     [UnitOfWork]
     public virtual async Task HandleEventAsync(AppointmentSubmittedEto eventData)
     {
+        // B15 (2026-05-07): the newer BookingSubmissionEmailHandler (in
+        // Application/Notifications/Handlers/) is the OLD-parity-correct
+        // submission email path -- it uses the seeded
+        // PatientAppointmentPending HTML template, the per-tenant CC list,
+        // and the shared recipient resolver. This older inline-HTML
+        // handler was an early W1-2 implementation that became redundant
+        // once W2-10 introduced the resolver-based handler. Both still
+        // subscribe to AppointmentSubmittedEto, so every booking fired
+        // two emails per stakeholder ("BookingSubmitted/Pending/" + this
+        // one's "Submission/<role>/").
+        //
+        // Per the Phase 1 email-scope directive, return early so only the
+        // template-driven handler fires. The body is preserved below in
+        // case we need to re-enable for a fallback scenario.
+        await Task.CompletedTask;
+        return;
+#pragma warning disable CS0162 // unreachable code -- intentional, preserved for re-enable
         var bookerUser = await _identityUserRepository.FindAsync(eventData.BookerUserId);
         var patient = await _patientRepository.FindAsync(eventData.PatientId);
         var bookerName = ResolveBookerName(bookerUser, patient);
@@ -111,6 +128,7 @@ public class SubmissionEmailHandler :
             args.Context = $"Submission/{args.Role}/{eventData.AppointmentId}";
             await _backgroundJobManager.EnqueueAsync(args);
         }
+#pragma warning restore CS0162
     }
 
     /// <summary>

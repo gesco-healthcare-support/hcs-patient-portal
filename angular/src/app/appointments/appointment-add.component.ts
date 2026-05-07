@@ -503,6 +503,20 @@ export class AppointmentAddComponent {
       !!this.form.get('claimExaminerEnabled')?.value,
     );
 
+    // B11 (2026-05-07): the AA/DA cards are hidden via @if for Claim
+    // Examiner bookers, but the underlying FormControls still default to
+    // applicantAttorneyEnabled=true / defenseAttorneyEnabled=true (form
+    // builder defaults at lines 380 + 396), so the email validators stay
+    // required and the form fails to submit. Force the flags off when
+    // the section is hidden so the existing valueChanges subscription
+    // strips the required validator and clears the email FormControl.
+    if (!this.shouldShowApplicantAttorneySection()) {
+      this.form.get('applicantAttorneyEnabled')?.setValue(false);
+    }
+    if (!this.shouldShowDefenseAttorneySection()) {
+      this.form.get('defenseAttorneyEnabled')?.setValue(false);
+    }
+
     this.applyOwnRoleAttorneyPrefill();
   }
 
