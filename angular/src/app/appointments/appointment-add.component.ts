@@ -410,11 +410,14 @@ export class AppointmentAddComponent {
     defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
     defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
-    // OLD parity (live audit 2026-05-07): the Claim Examiner sub-section
-    // is enabled by default in OLD (`appointmentClaimExaminer.isActive
-    // = true` at OLD :142). Flipping NEW's default to true keeps the
-    // conditional-required validators engaged from form-build time.
-    claimExaminerEnabled: [true],
+    // The top-level claimExaminer{Enabled,Name,Email} controls are
+    // vestigial -- the actual per-injury Claim Examiner data is captured
+    // in the injury modal's child FormGroup (built around line 727).
+    // Flipping `claimExaminerEnabled` to true engaged a required
+    // validator on `claimExaminerEmail` which has NO matching DOM input,
+    // making the form unsubmittable. Stays `false` until the per-injury
+    // child FormGroup gets the same OLD-parity required treatment.
+    claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
