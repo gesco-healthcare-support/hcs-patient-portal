@@ -124,9 +124,14 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             };
         }
 
-        // 1. Office mailbox -- per-tenant ABP setting (W1-2 OfficeEmail key).
-        var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
-        AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
+        // 2026-05-07 follow-on (#5): the office mailbox AddIfPresent used to
+        // run FIRST. Combined with the first-wins dedup at line 113, that
+        // meant a party (AA/DA/CE) whose email coincided with the tenant's
+        // OfficeEmail setting got locked to RecipientRole.OfficeAdmin and
+        // every later party-role pass silently dropped them -- the symptom
+        // Adrian flagged as "Defense Attorney received the internal admin's
+        // email." Moved to the END of the resolver: parties claim the email
+        // first; OfficeAdmin only lands when the email is otherwise unseen.
 
         // B13 (2026-05-06): the booker/patient AddIfPresent calls below
         // used to run BEFORE the AA/DA/CE walks, which meant a CE / AA / DA
@@ -221,6 +226,12 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
 
         var patient = await _patientRepository.FindAsync(appointment.PatientId);
         AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
+
+        // 2026-05-07 follow-on (#5): office mailbox last so any party that
+        // shares that email keeps its party role. Office only lands when
+        // the email is truly office-only.
+        var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
+        AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
 
         return byEmail.Values.ToList();
     }

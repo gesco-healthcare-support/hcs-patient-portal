@@ -104,11 +104,26 @@ public class UserRegisteredEmailHandler :
             var portalBaseUrl = await ResolvePortalBaseUrlAsync();
             var verifyUrl = BuildEmailConfirmationUrl(portalBaseUrl, eventData.UserId, confirmationToken);
 
+            // 2026-05-07 follow-on (#5): strict role match. ResolveRecipientRole
+            // used to coerce unknown role names to RecipientRole.Patient, which
+            // silently mis-tagged self-registering internal staff (admin /
+            // Staff Supervisor / Clinic Staff). Now an unknown role aborts the
+            // verification email with a loud Warning so the registration flow
+            // surfaces the gap instead of mailing the wrong template body.
+            var resolvedRole = ResolveRecipientRole(eventData.RoleName);
+            if (resolvedRole == null)
+            {
+                _logger.LogWarning(
+                    "UserRegisteredEmailHandler: unknown role {RoleName} for user {UserId} -- skipping verification email until handler is taught the role.",
+                    eventData.RoleName, eventData.UserId);
+                return;
+            }
+
             var recipients = new List<NotificationRecipient>
             {
                 new(
                     email: eventData.Email,
-                    role: ResolveRecipientRole(eventData.RoleName),
+                    role: resolvedRole.Value,
                     isRegistered: true),
             };
 
@@ -168,17 +183,19 @@ public class UserRegisteredEmailHandler :
     }
 
     /// <summary>
-    /// Maps the Eto's role name to <see cref="RecipientRole"/>. Returns
-    /// <see cref="RecipientRole.Patient"/> when the role does not match
-    /// a typed value -- Patient is the most demo-frequent registration
-    /// path and the only one the resolver currently uses for downstream
-    /// branching. Unrecognised role names log at Debug.
+    /// Maps the Eto's role name to <see cref="RecipientRole"/> for one of
+    /// the four external roles. Returns <c>null</c> for any unknown role
+    /// name -- callers (HandleEventAsync) treat null as "do not send" so
+    /// internal staff registrations and unrecognised roles do not silently
+    /// mail the wrong template body. Empty/null roleName also returns null
+    /// rather than the previous Patient default; an actual Patient signup
+    /// must carry the literal role string.
     /// </summary>
-    private RecipientRole ResolveRecipientRole(string? roleName)
+    private RecipientRole? ResolveRecipientRole(string? roleName)
     {
         if (string.IsNullOrWhiteSpace(roleName))
         {
-            return RecipientRole.Patient;
+            return null;
         }
         return roleName.Trim() switch
         {
@@ -187,7 +204,7 @@ public class UserRegisteredEmailHandler :
             "Applicant Attorney" => RecipientRole.ApplicantAttorney,
             "Defense Attorney" => RecipientRole.DefenseAttorney,
             "Claim Examiner" => RecipientRole.ClaimExaminer,
-            _ => RecipientRole.Patient,
+            _ => null,
         };
     }
 
