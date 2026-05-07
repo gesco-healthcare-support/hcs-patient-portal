@@ -318,7 +318,7 @@
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">
-              {{ '::AppointmentLanguage' | abpLocalization }}
+              {{ '::AppointmentLanguage' | abpLocalization }} *
             </label>
             <abp-lookup-select
               cid="appointment-patient-language-id"
@@ -327,7 +327,19 @@
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">Do you need an interpreter?</label>
+            <!--
+              OLD parity (live audit 2026-05-07): the interpreter prompt
+              flips per role. Patient bookers see "Do you ..."; AA / DA /
+              Adjuster bookers see "Does the patient ..." since they are
+              booking on someone else's behalf. Mirrors OLD's html:209.
+            -->
+            <label class="form-label fw-semibold">
+              {{
+                isExternalUserNonPatient
+                  ? 'Does the patient need an interpreter?'
+                  : 'Do you need an interpreter?'
+              }}
+            </label>
             <div class="d-flex gap-3 pt-2">
               <div class="form-check">
                 <input
@@ -373,7 +385,7 @@
       <div class="card-body">
         <div class="row">
           <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Employer Name</label>
+            <label class="form-label fw-semibold">Employer Name *</label>
             <input
               class="form-control"
               formControlName="employerName"
@@ -382,7 +394,7 @@
             />
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Occupation</label>
+            <label class="form-label fw-semibold">Occupation *</label>
             <input
               class="form-control"
               formControlName="employerOccupation"

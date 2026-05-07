@@ -356,7 +356,9 @@ export class AppointmentAddComponent {
       [Validators.required, Validators.maxLength(50), Validators.email],
     ],
     genderId: [null as number | null],
-    dateOfBirth: [null as string | null],
+    // OLD parity (live audit 2026-05-07): DOB is required for every
+    // external role per OLD's "Mandatory Fields" submit modal.
+    dateOfBirth: [null as string | null, [Validators.required]],
     cellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     phoneNumber: [null as string | null, [Validators.maxLength(20)]],
     phoneNumberTypeId: [null as number | null],
@@ -366,12 +368,14 @@ export class AppointmentAddComponent {
     city: [null as string | null, [Validators.maxLength(50)]],
     stateId: [null as string | null],
     zipCode: [null as string | null, [Validators.maxLength(15)]],
-    appointmentLanguageId: [null as string | null],
+    // OLD parity (live audit 2026-05-07): Language is required.
+    appointmentLanguageId: [null as string | null, [Validators.required]],
     needsInterpreter: [null as boolean | null],
     interpreterVendorName: [null as string | null, [Validators.maxLength(255)]],
     refferedBy: [null as string | null, [Validators.maxLength(50)]],
-    employerName: [null as string | null, [Validators.maxLength(255)]],
-    employerOccupation: [null as string | null, [Validators.maxLength(255)]],
+    // OLD parity: Employer Name + Occupation required.
+    employerName: [null as string | null, [Validators.required, Validators.maxLength(255)]],
+    employerOccupation: [null as string | null, [Validators.required, Validators.maxLength(255)]],
     employerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     employerStreet: [null as string | null, [Validators.maxLength(255)]],
     employerCity: [null as string | null, [Validators.maxLength(255)]],
@@ -406,7 +410,11 @@ export class AppointmentAddComponent {
     defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
     defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
-    claimExaminerEnabled: [false],
+    // OLD parity (live audit 2026-05-07): the Claim Examiner sub-section
+    // is enabled by default in OLD (`appointmentClaimExaminer.isActive
+    // = true` at OLD :142). Flipping NEW's default to true keeps the
+    // conditional-required validators engaged from form-build time.
+    claimExaminerEnabled: [true],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
@@ -473,12 +481,14 @@ export class AppointmentAddComponent {
     // checkbox.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
+      this.applyConditionalAttorneySectionValidators('applicantAttorney', !!enabled);
       if (!enabled) {
         this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
       }
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
+      this.applyConditionalAttorneySectionValidators('defenseAttorney', !!enabled);
       if (!enabled) {
         this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
       }
@@ -490,33 +500,19 @@ export class AppointmentAddComponent {
       }
     });
     // Apply once at construction for the initial enabled state.
-    this.applyConditionalEmailValidator(
-      'applicantAttorneyEmail',
-      !!this.form.get('applicantAttorneyEnabled')?.value,
-    );
-    this.applyConditionalEmailValidator(
-      'defenseAttorneyEmail',
-      !!this.form.get('defenseAttorneyEnabled')?.value,
-    );
-    this.applyConditionalEmailValidator(
-      'claimExaminerEmail',
-      !!this.form.get('claimExaminerEnabled')?.value,
-    );
+    const aaInitialEnabled = !!this.form.get('applicantAttorneyEnabled')?.value;
+    const daInitialEnabled = !!this.form.get('defenseAttorneyEnabled')?.value;
+    const ceInitialEnabled = !!this.form.get('claimExaminerEnabled')?.value;
+    this.applyConditionalEmailValidator('applicantAttorneyEmail', aaInitialEnabled);
+    this.applyConditionalAttorneySectionValidators('applicantAttorney', aaInitialEnabled);
+    this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
+    this.applyConditionalAttorneySectionValidators('defenseAttorney', daInitialEnabled);
+    this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
 
-    // B11 (2026-05-07): the AA/DA cards are hidden via @if for Claim
-    // Examiner bookers, but the underlying FormControls still default to
-    // applicantAttorneyEnabled=true / defenseAttorneyEnabled=true (form
-    // builder defaults at lines 380 + 396), so the email validators stay
-    // required and the form fails to submit. Force the flags off when
-    // the section is hidden so the existing valueChanges subscription
-    // strips the required validator and clears the email FormControl.
-    if (!this.shouldShowApplicantAttorneySection()) {
-      this.form.get('applicantAttorneyEnabled')?.setValue(false);
-    }
-    if (!this.shouldShowDefenseAttorneySection()) {
-      this.form.get('defenseAttorneyEnabled')?.setValue(false);
-    }
-
+    // B11-followup (2026-05-07): the earlier "hide AA/DA for CE" auto-
+    // flip-off is no longer needed -- shouldShowApplicantAttorneySection
+    // / shouldShowDefenseAttorneySection now always return true to match
+    // OLD's behavior (see the comment on those methods).
     this.applyOwnRoleAttorneyPrefill();
   }
 
@@ -567,6 +563,48 @@ export class AppointmentAddComponent {
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
     control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * OLD parity (live audit 2026-05-07): when the Applicant Attorney or
+   * Defense Attorney "Include" toggle is on, the OLD `Mandatory Fields`
+   * submit modal lists Name, Firm Name, Phone Number, Fax Number,
+   * Street, City, State, Zip as required for that section. NEW only
+   * required the email. Toggling the section off must strip those
+   * required validators (parallel to applyConditionalEmailValidator).
+   *
+   * Flips Validators.required on a fixed list of non-email field names
+   * keyed by the section's prefix (`applicantAttorney` / `defenseAttorney`).
+   * Email itself stays handled by applyConditionalEmailValidator.
+   */
+  private applyConditionalAttorneySectionValidators(
+    prefix: 'applicantAttorney' | 'defenseAttorney',
+    required: boolean,
+  ): void {
+    // Field-name suffix -> existing maxLength so we preserve format checks.
+    const suffixes: Array<{ name: string; maxLength: number }> = [
+      { name: 'FirstName', maxLength: 50 },
+      { name: 'FirmName', maxLength: 50 },
+      { name: 'PhoneNumber', maxLength: 20 },
+      { name: 'FaxNumber', maxLength: 19 },
+      { name: 'Street', maxLength: 255 },
+      { name: 'City', maxLength: 50 },
+      { name: 'StateId', maxLength: 0 },
+      { name: 'ZipCode', maxLength: 10 },
+    ];
+    for (const { name, maxLength } of suffixes) {
+      const control = this.form.get(prefix + name);
+      if (!control) continue;
+      const validators = [];
+      if (required) {
+        validators.push(Validators.required);
+      }
+      if (maxLength > 0) {
+        validators.push(Validators.maxLength(maxLength));
+      }
+      control.setValidators(validators);
+      control.updateValueAndValidity({ emitEvent: false });
+    }
   }
 
   /**
@@ -861,28 +899,37 @@ export class AppointmentAddComponent {
     return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
   }
 
-  // B11 (2026-05-06): role-conditional rendering for the booking form.
-  // OLD parity: Adjuster (= NEW's Claim Examiner) never sees the
-  // Applicant Attorney, Defense Attorney, or Authorized-User sections
-  // because adjusters book FOR insurance carriers and have no party-
-  // attorney involvement to capture. Patient / AA / DA bookers continue
-  // to see all three so they can attach attorneys + co-accessors.
-  // OLD-side flag: `showFormBaseOnRole` at appointment-add.component.html
-  // lines 600 + 651. IT Admin overrides every gate so internal staff
-  // booking on-behalf still sees every section.
+  // B11 reversed (2026-05-07): the earlier interpretation hid the
+  // Applicant Attorney / Defense Attorney / Additional Authorized User
+  // cards for the Claim Examiner (= OLD's Adjuster) booker. A live
+  // walkthrough of the OLD app under `adjuster@local.test` showed that
+  // OLD shows ALL three sections to the Adjuster; only the Insurance
+  // fieldset is `[disabled]` and the Claim Examiner Name + Email fields
+  // auto-fill from the booker identity and become readonly (OLD
+  // appointment-add.component.html:378 + :461). The methods below stay
+  // for any future role-specific gating but currently always return
+  // true for parity.
   shouldShowApplicantAttorneySection(): boolean {
-    if (this.isItAdmin) return true;
-    return !this.isClaimExaminerRole;
+    return true;
   }
 
   shouldShowDefenseAttorneySection(): boolean {
-    if (this.isItAdmin) return true;
-    return !this.isClaimExaminerRole;
+    return true;
   }
 
   shouldShowAuthorizedUserSection(): boolean {
-    if (this.isItAdmin) return true;
-    return !this.isClaimExaminerRole;
+    return true;
+  }
+
+  /**
+   * OLD parity: when the booker is a Claim Examiner (= OLD's Adjuster),
+   * the Primary Insurance fieldset is rendered but `[disabled]`. The
+   * Claim Examiner sub-section is rendered with Name + Email auto-filled
+   * and readonly (handled separately in the per-injury modal). Mirrors
+   * OLD `appointment-add.component.html:378` `[disabled]="isAdjusterLogin"`.
+   */
+  get isInsuranceFieldsetDisabled(): boolean {
+    return this.isClaimExaminerRole && !this.isItAdmin;
   }
 
   /**
