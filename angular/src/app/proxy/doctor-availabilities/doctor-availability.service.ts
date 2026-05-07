@@ -1,4 +1,4 @@
-import type { DoctorAvailabilityCreateDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput } from './models';
+import type { DoctorAvailabilityBulkDeleteResultDto, DoctorAvailabilityCreateDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -30,7 +30,7 @@ export class DoctorAvailabilityService {
   
 
   deleteByDate = (input: DoctorAvailabilityDeleteByDateInputDto, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, void>({
+    this.restService.request<any, DoctorAvailabilityBulkDeleteResultDto>({
       method: 'DELETE',
       url: '/api/app/doctor-availabilities/by-date',
       params: { locationId: input.locationId, availableDate: input.availableDate },

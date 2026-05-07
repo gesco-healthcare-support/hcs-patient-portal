@@ -16,7 +16,7 @@ public interface IDoctorAvailabilitiesAppService : IApplicationService
     Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input);
     Task DeleteAsync(Guid id);
     Task DeleteBySlotAsync(DoctorAvailabilityDeleteBySlotInputDto input);
-    Task DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input);
+    Task<DoctorAvailabilityBulkDeleteResultDto> DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input);
     Task<DoctorAvailabilityDto> CreateAsync(DoctorAvailabilityCreateDto input);
     Task<DoctorAvailabilityDto> UpdateAsync(Guid id, DoctorAvailabilityUpdateDto input);
     Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto> input);

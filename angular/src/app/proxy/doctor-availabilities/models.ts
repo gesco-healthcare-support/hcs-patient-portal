@@ -12,6 +12,11 @@ export interface DoctorAvailabilityCreateDto {
   appointmentTypeId?: string | null;
 }
 
+export interface DoctorAvailabilityBulkDeleteResultDto {
+  deletedCount: number;
+  skippedSlotIds: string[];
+}
+
 export interface DoctorAvailabilityDeleteByDateInputDto {
   locationId?: string;
   availableDate?: string;

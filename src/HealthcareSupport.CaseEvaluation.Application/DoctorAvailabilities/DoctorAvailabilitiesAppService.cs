@@ -140,7 +140,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     }
 
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Delete)]
-    public virtual async Task DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input)
+    public virtual async Task<DoctorAvailabilityBulkDeleteResultDto> DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input)
     {
         if (input.LocationId == Guid.Empty)
         {
@@ -154,19 +154,27 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         var matches = await AsyncExecuter.ToListAsync(query);
 
-        // Phase 7 (2026-05-03): mirror OLD DoctorsAvailabilityDomain.cs:143-150.
-        // Reject the entire bulk-delete if ANY slot in the matched set is
-        // Reserved or Booked -- bulk delete must not silently drop slots
-        // tied to in-flight appointments.
-        if (matches.Any(x => HasInFlightStatus(x.BookingStatusId)))
-        {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotBulkDeleteWithBookedSlots);
-        }
-
+        // Mirror OLD DoctorsAvailabilityDomain.Delete (P:\PatientPortalOld\
+        // PatientAppointment.Domain\DoctorManagementModule\
+        // DoctorsAvailabilityDomain.cs:159-177): partial-delete, NOT
+        // all-or-nothing. Skip Booked + Reserved rows so they stay tied to
+        // their in-flight appointments; delete only the Available rows in
+        // the same date+location. Returns the per-call counts so the UI can
+        // render "N of M deleted; K still booked" instead of a blanket 403.
+        var result = new DoctorAvailabilityBulkDeleteResultDto();
         foreach (var item in matches)
         {
+            if (HasInFlightStatus(item.BookingStatusId))
+            {
+                result.SkippedSlotIds.Add(item.Id);
+                continue;
+            }
+
             await _doctorAvailabilityRepository.DeleteAsync(item);
+            result.DeletedCount++;
         }
+
+        return result;
     }
 
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Create)]
