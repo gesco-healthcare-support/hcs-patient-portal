@@ -128,13 +128,14 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
         AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
 
-        // 2. Booker / Patient -- whoever logged in to create the request.
-        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
-        AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
-
-        // 2b. Patient row email (if different from the booker's IdentityUser).
-        var patient = await _patientRepository.FindAsync(appointment.PatientId);
-        AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
+        // B13 (2026-05-06): the booker/patient AddIfPresent calls below
+        // used to run BEFORE the AA/DA/CE walks, which meant a CE / AA / DA
+        // who booked their own appointment got tagged Patient (first-wins
+        // dedup) and the later party-role pass silently skipped them. We
+        // now defer the booker pass until AFTER the link-table walks +
+        // appointment-level email column walk so the booker only gets a
+        // generic Patient tag when no party-specific row matched their
+        // email. The Patient row email fall-back is moved with it.
 
         // 3. Applicant Attorney -- via the AppointmentApplicantAttorney join.
         var applicantLinkQueryable = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
@@ -207,6 +208,19 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             byEmail, AddIfPresent, appointment.DefenseAttorneyEmail, RecipientRole.DefenseAttorney, "da-email-col");
         await AddPartyEmailIfNotKnownAsync(
             byEmail, AddIfPresent, appointment.ClaimExaminerEmail, RecipientRole.ClaimExaminer, "ce-email-col");
+
+        // B13 (2026-05-06): deferred booker + patient-row passes. By the
+        // time we reach here every party-specific source (AA/DA/CE link
+        // tables + the 4 appointment-level email columns) has had a chance
+        // to claim the booker's email with the correct role. AddIfPresent
+        // is first-wins dedup-by-email, so these calls only land for true
+        // patient bookers (or appointments where the patient row's email
+        // is distinct from any other party).
+        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
+        AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
+
+        var patient = await _patientRepository.FindAsync(appointment.PatientId);
+        AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
 
         return byEmail.Values.ToList();
     }

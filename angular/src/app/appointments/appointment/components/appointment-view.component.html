@@ -22,41 +22,35 @@
       </h2>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         @if (canTakeOfficeAction) {
-          <select
-            class="form-select form-select-sm"
-            style="min-width: 220px"
-            [(ngModel)]="selectedAction"
-            [name]="'appointment-action-dropdown'"
-          >
-            <option value="">{{ '::Appointment:Action:ChooseAction' | abpLocalization }}</option>
-            @for (action of availableActions; track action) {
-              <option [value]="action">
-                @switch (action) {
-                  @case ('approve') {
-                    {{ '::Appointment:Action:Approve' | abpLocalization }}
-                  }
-                  @case ('reject') {
-                    {{ '::Appointment:Action:Reject' | abpLocalization }}
-                  }
-                }
-              </option>
+          <!--
+            B14 (2026-05-06): the previous select + Submit toolbar combo had
+            near-zero contrast against adjacent buttons and no visible label,
+            so users could not see the action control. Replaced with two
+            inline buttons that map 1:1 to the existing approve/reject
+            modals via dispatchAction(action). Visibility is still gated by
+            `canTakeOfficeAction`, which only returns true on Pending.
+          -->
+          @for (action of availableActions; track action) {
+            @if (action === 'approve') {
+              <button
+                type="button"
+                class="btn btn-success btn-sm"
+                (click)="dispatchAction('approve')"
+              >
+                {{ '::Appointment:Action:Approve' | abpLocalization }}
+              </button>
+            } @else if (action === 'reject') {
+              <button
+                type="button"
+                class="btn btn-danger btn-sm"
+                (click)="dispatchAction('reject')"
+              >
+                {{ '::Appointment:Action:Reject' | abpLocalization }}
+              </button>
             }
-          </select>
-          <button
-            type="button"
-            class="btn btn-success btn-sm"
-            [disabled]="!selectedAction"
-            (click)="dispatchAction()"
-          >
-            {{ '::Appointment:Action:Submit' | abpLocalization }}
-          </button>
+          }
         }
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          (click)="save()"
-          [disabled]="isSaving"
-        >
+        <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="isSaving">
           {{ isSaving ? 'Saving...' : 'Save' }}
         </button>
         <button
@@ -221,6 +215,9 @@
                 ngbDatepicker
                 #dateOfBirthInput
                 #dateOfBirthDatepicker="ngbDatepicker"
+                [minDate]="dobMinDate"
+                [maxDate]="dobMaxDate"
+                navigation="select"
                 (click)="dateOfBirthDatepicker.open()"
                 (keyup.space)="dateOfBirthDatepicker.open()"
                 [disabled]="isReadOnly"
@@ -295,11 +292,7 @@
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.street"
-              [disabled]="isReadOnly"
-            />
+            <input class="form-control" [(ngModel)]="patientForm.street" [disabled]="isReadOnly" />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Unit #</label>
@@ -311,11 +304,7 @@
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.city"
-              [disabled]="isReadOnly"
-            />
+            <input class="form-control" [(ngModel)]="patientForm.city" [disabled]="isReadOnly" />
           </div>
 
           <div class="col-md-3 mb-3">
@@ -330,11 +319,7 @@
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.zipCode"
-              [disabled]="isReadOnly"
-            />
+            <input class="form-control" [(ngModel)]="patientForm.zipCode" [disabled]="isReadOnly" />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">

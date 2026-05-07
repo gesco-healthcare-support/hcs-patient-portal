@@ -181,10 +181,19 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             return null;
         }
 
+        // B10 (2026-05-06): seed internal users with a Name/Surname pair so
+        // the SPA welcome banner shows "First Last" instead of falling back
+        // to the email address. Mapping is hardcoded for the small set of
+        // seeded internal-admin emails; anything else gets a generic Test
+        // User pair so the banner is at least non-email.
+        var (firstName, lastName) = BuildInternalUserDisplayName(email);
+
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
         {
             user = new IdentityUser(Guid.NewGuid(), userName, email, tenantId);
+            user.Name = firstName;
+            user.Surname = lastName;
             var createResult = await _userManager.CreateAsync(user, DefaultPassword);
             if (!createResult.Succeeded)
             {
@@ -197,6 +206,27 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             _logger.LogInformation(
                 "InternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
                 email, tenantId);
+        }
+        else
+        {
+            // Idempotent backfill: previously-seeded users were created
+            // without Name/Surname (B10 root cause). Fill in here so the
+            // banner shows correctly without requiring a fresh tenant.
+            var nameChanged = false;
+            if (string.IsNullOrWhiteSpace(user.Name))
+            {
+                user.Name = firstName;
+                nameChanged = true;
+            }
+            if (string.IsNullOrWhiteSpace(user.Surname))
+            {
+                user.Surname = lastName;
+                nameChanged = true;
+            }
+            if (nameChanged)
+            {
+                await _userManager.UpdateAsync(user);
+            }
         }
 
         // Demo flow gate: G4's email-confirm requirement (commit 682093c)
@@ -240,6 +270,28 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         {
             return await _tenantRepository.FindAsync(tenantId);
         }
+    }
+
+    /// <summary>
+    /// B10 (2026-05-06): map a seeded internal-admin email to a Name +
+    /// Surname pair so the SPA welcome banner has something to render
+    /// other than the email address. The mapping is hardcoded for the
+    /// known seeded emails; everything else falls back to a generic
+    /// "Test User" pair (still better than the email).
+    /// </summary>
+    private static (string FirstName, string LastName) BuildInternalUserDisplayName(string email)
+    {
+        var prefix = (email ?? string.Empty).Split('@')[0].ToLowerInvariant();
+        return prefix switch
+        {
+            "admin"        => ("Tenant", "Administrator"),
+            "supervisor"   => ("Staff", "Supervisor"),
+            "staff"        => ("Clinic", "Staff"),
+            "it.admin"     => ("IT", "Administrator"),
+            "softwareone"  => ("Software", "One"),
+            "softwaretwo"  => ("Software", "Two"),
+            _              => ("Test", "User"),
+        };
     }
 
     /// <summary>

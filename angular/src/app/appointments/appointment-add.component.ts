@@ -160,6 +160,16 @@ export class AppointmentAddComponent {
   // B1: expose enum to template for *ngIf branches.
   readonly CustomFieldType = CustomFieldType;
 
+  // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
+  // window. For DOB we want the full century. Setting [minDate]/[maxDate]
+  // and `navigation="select"` switches the header to month + year selects
+  // that span the full configured range.
+  readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
+  readonly dobMaxDate: NgbDateStruct = (() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  })();
+
   activeTabId = 'appointment';
   isSaving = false;
   isProfileLoading = true;
@@ -453,14 +463,31 @@ export class AppointmentAddComponent {
     // section, the corresponding email field becomes required (in addition to
     // the existing format check). This drives the post-submit fan-out --
     // each party we name on the appointment must have a deliverable email.
+    //
+    // B12 (2026-05-06): also clear the email field whenever the checkbox
+    // flips off so a stale typed value cannot ride along on a later submit
+    // (the @if hides the input but the FormControl retains its value).
+    // Use setValue(null, { emitEvent: false }) to avoid recursion through
+    // the validator subscription -- emitEvent: false suppresses the
+    // valueChanges event on the email field itself, not on the enabled
+    // checkbox.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
+      if (!enabled) {
+        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
+      if (!enabled) {
+        this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     this.form.get('claimExaminerEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('claimExaminerEmail', !!enabled);
+      if (!enabled) {
+        this.form.get('claimExaminerEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     // Apply once at construction for the initial enabled state.
     this.applyConditionalEmailValidator(
@@ -818,6 +845,30 @@ export class AppointmentAddComponent {
   get isClaimExaminerRole(): boolean {
     const roles = this.currentUser?.roles ?? [];
     return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
+  }
+
+  // B11 (2026-05-06): role-conditional rendering for the booking form.
+  // OLD parity: Adjuster (= NEW's Claim Examiner) never sees the
+  // Applicant Attorney, Defense Attorney, or Authorized-User sections
+  // because adjusters book FOR insurance carriers and have no party-
+  // attorney involvement to capture. Patient / AA / DA bookers continue
+  // to see all three so they can attach attorneys + co-accessors.
+  // OLD-side flag: `showFormBaseOnRole` at appointment-add.component.html
+  // lines 600 + 651. IT Admin overrides every gate so internal staff
+  // booking on-behalf still sees every section.
+  shouldShowApplicantAttorneySection(): boolean {
+    if (this.isItAdmin) return true;
+    return !this.isClaimExaminerRole;
+  }
+
+  shouldShowDefenseAttorneySection(): boolean {
+    if (this.isItAdmin) return true;
+    return !this.isClaimExaminerRole;
+  }
+
+  shouldShowAuthorizedUserSection(): boolean {
+    if (this.isItAdmin) return true;
+    return !this.isClaimExaminerRole;
   }
 
   /**

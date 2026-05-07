@@ -95,5 +95,19 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Appointments.Create";
         yield return $"{Group}.Appointments.RequestCancellation";
         yield return $"{Group}.Appointments.RequestReschedule";
+
+        // B7 (2026-05-06): external users need to read AND upload documents
+        // for their own appointment, plus view the doctor packet. Document
+        // delete / approve / reject + packet regenerate stay supervisor-
+        // only because they are clinical-workflow actions, not booker
+        // actions. The AppService methods are still expected to enforce
+        // per-record ownership (caller must be a party on the appointment).
+        // Note: AppointmentPackets has no `.Default` child -- the parent
+        // permission name itself is what AppointmentPacketsAppService
+        // gates on (CaseEvaluationPermissions.AppointmentPackets.Default
+        // resolves to "CaseEvaluation.AppointmentPackets").
+        yield return $"{Group}.AppointmentDocuments";
+        yield return $"{Group}.AppointmentDocuments.Create";
+        yield return $"{Group}.AppointmentPackets";
     }
 }

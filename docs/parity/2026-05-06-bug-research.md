@@ -137,10 +137,17 @@ or via `System.Text.Json`, primitives are reconstructed as
 check first; `JsonElement` fails it and falls through to
 `Convert.ChangeType` which throws on the boxed JsonElement.
 
-**Sources.**
+**Sources (verified 2026-05-06).**
 - ABP Object Extensions docs: `https://abp.io/docs/en/abp/latest/Object-Extensions`
-- Related ABP issue: `https://github.com/abpframework/abp/issues/19430`
+- Issue 12547 -- Non-primitive ExtraProperties: `https://github.com/abpframework/abp/issues/12547` (recommends custom getter/setter helpers, exactly what we built)
+- Issue 23546 -- Better ExtraProperties mapping for EF Core (Aug 2025): `https://github.com/abpframework/abp/issues/23546` (acknowledges the architectural problem; no merged fix)
+- Issue 19430 -- Tenant Entity Extension `KeyNotFoundException` at `JsonElement.GetProperty`: `https://github.com/abpframework/abp/issues/19430`
+- Issue 19617 -- Cannot update ExtraProperties (8.0.4+): `https://github.com/abpframework/abp/issues/19617`
 - ABP support thread: `https://abp.io/support/questions/8925/extra-properties-get-json-value`
+
+The last successful merged fix touching the JsonElement coercion
+path appears to be on the OPEN issue list, not in any 10.x release.
+So our workaround is the right answer for now.
 
 **Fix paths.**
 1. **Document the existing pattern.** The patch in
@@ -289,96 +296,134 @@ the OAuth standard.
 **Reported.** Patient and AA users see 403 when booking. DA and CE
 succeed (today's test).
 
-**NEW code.**
-- `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs:35` -- class-level `[Authorize]`
-- `:552-557` -- `CreateAsync` with method-level
-  `[Authorize(CaseEvaluationPermissions.Appointments.Create)]`
-- `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissions.cs:94-107`
-  -- permission name `CaseEvaluation.Appointments.Create`.
-- `src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs:88-98`
-  -- `BookingBaselineGrants()` yields `Appointments.Create` for ALL 4
-  external roles.
+### Verified diagnosis (deep dive 2026-05-06, supersedes earlier hypothesis)
 
-**Permission matrix (per seed).**
+The earlier "missing grant" hypothesis is **WRONG**. The seeder DOES
+grant `CaseEvaluation.Appointments.Create` to all 4 external roles
+unconditionally. Verified evidence:
 
-| Role               | Create | Expected |
-|--------------------|--------|----------|
-| Patient            | granted | should be 200 |
-| Applicant Attorney | granted | should be 200 |
-| Defense Attorney   | granted | (was 200 today) |
-| Claim Examiner     | granted | (was 200 today) |
+`ExternalUserRoleDataSeedContributor.cs:60-63`
+```csharp
+foreach (var roleName in new[] { "Patient", "Claim Examiner",
+                                 "Applicant Attorney", "Defense Attorney" })
+{
+    await GrantAllAsync(roleName, BookingBaselineGrants());
+}
+```
 
-**Root cause (most likely).** Seed contributor is tenant-scoped (`if
-(context?.TenantId != null)`). For Patient and AA, either: (a) the
-seed didn't run for the tenant they registered into; (b) the role
-assignment on the IdentityUser didn't take (the user has the role
-membership row but no permission grant); (c) cached permission
-provider hadn't refreshed when the user logged in.
+`ExternalUserRoleDataSeedContributor.cs:88-98`
+```csharp
+private static IEnumerable<string> BookingBaselineGrants()
+{
+    yield return $"{Group}.DoctorAvailabilities";
+    yield return $"{Group}.Appointments";
+    yield return $"{Group}.Appointments.Create";
+    yield return $"{Group}.Appointments.RequestCancellation";
+    yield return $"{Group}.Appointments.RequestReschedule";
+}
+```
 
-**Verification before fix.**
-- Query `AbpPermissionGrants` for the tenant, role keys `Patient`
-  and `ApplicantAttorney`, permission name
-  `CaseEvaluation.Appointments.Create`. If row missing, the seed
-  didn't write it.
-- Query `AbpUserRoles` for the failing user -- confirm the role row
-  exists and points to the tenant role, not the host role.
-- Reproduce 403 with Playwright + capture API log line for the
-  permission check.
+So all 4 roles get `Appointments.Create` with no role-specific
+filtering. Patient and AA should NOT be hitting 403 at the
+permission gate.
 
-**Fix path.**
-1. If seed didn't run: re-run db-migrator on the tenant, or
-   manually `INSERT` the missing grant rows.
-2. If seed ran but grant is missing: investigate whether `BookingBaselineGrants` is being filtered at runtime
-   (look for `if (RoleName == ...)` in the contributor) and
-   correct.
-3. Add a backfill migration that asserts each external role has the
-   booking baseline -- protects against the same drift in new
-   tenants.
+**The 403 must be downstream.** Three plausible causes that have NOT
+yet been verified:
+1. **SPA hits a different endpoint depending on booker role.** Patient
+   may be POSTing to a public/external signup endpoint while DA/CE go
+   through the authenticated `/api/app/appointments`; the endpoint
+   that returns 403 is the OTHER one. Confirm by capturing the actual
+   POST URL from a Patient/AA Playwright run.
+2. **Per-record validation in `AppointmentManager.CreateAsync`.** The
+   domain service may throw an `Authorization` exception (which ABP
+   surfaces as 403 not 400) when the booker's `IdentityUserId` does
+   not match the patient's IdentityUser link, e.g. for Patient role
+   the patient row may not yet exist or be unlinked.
+3. **`AppointmentRecipientResolver` or recipient-side ownership check
+   that runs at create time.** Less likely to surface as 403, more
+   likely 500.
 
-**Effort.** S.
+**Required investigation before the fix.**
+- Reproduce 403 as Patient with Playwright, capture:
+  - The exact POST URL.
+  - The full request body.
+  - The full response (status + body + headers).
+  - The corresponding API log line at the moment of 403.
+- Read `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs`
+  for any role-based / ownership-based validation in `CreateAsync`.
+
+**Effort.** S once the actual cause is known. Do NOT fix the seeder
+-- it is correct. The fix is elsewhere.
 
 ---
 
 ## B7: 403 on /documents and /packet for external roles
 
-**NEW code.**
-- `src/HealthcareSupport.CaseEvaluation.Application/AppointmentDocuments/AppointmentDocumentsAppService.cs:63`
-  -- `[Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]`
-- `:78` -- `[Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]`
-- `src/HealthcareSupport.CaseEvaluation.Application/AppointmentDocuments/AppointmentPacketsAppService.cs:30, 44`
-  -- both methods gated on `AppointmentPackets.Default`.
-- `ExternalUserRoleDataSeedContributor.cs:88-98` -- baseline does
-  NOT include `AppointmentDocuments.*` or `AppointmentPackets.*`.
+### Verified diagnosis (deep dive 2026-05-06)
 
-**Permission matrix.**
+Confirmed: `BookingBaselineGrants()` does NOT include any
+`AppointmentDocuments.*` or `AppointmentPackets.*` permissions. The
+parent `Appointments` permission is granted; the document/packet
+sub-resources are not.
 
-| Role               | Documents view | Packet view | Documents upload |
-|--------------------|----------------|-------------|------------------|
-| Patient            | 403 (missing)  | 403         | 403              |
-| Applicant Attorney | 403            | 403         | 403              |
-| Defense Attorney   | 403            | 403         | 403              |
-| Claim Examiner     | 403            | 403         | 403              |
+**Verified grant inventory for external roles** (file =
+`ExternalUserRoleDataSeedContributor.cs`):
+
+| Permission name                                      | Granted? | Source line |
+| ---------------------------------------------------- | -------- | ----------- |
+| `CaseEvaluation.DoctorAvailabilities`                | yes      | :91         |
+| `CaseEvaluation.Appointments`                        | yes      | :94         |
+| `CaseEvaluation.Appointments.Create`                 | yes      | :95         |
+| `CaseEvaluation.Appointments.RequestCancellation`    | yes      | :96         |
+| `CaseEvaluation.Appointments.RequestReschedule`      | yes      | :97         |
+| `CaseEvaluation.AppointmentDocuments`                | **no**   | (defined only at `CaseEvaluationPermissions.cs:111`) |
+| `CaseEvaluation.AppointmentDocuments.Create`         | **no**   | :112        |
+| `CaseEvaluation.AppointmentDocuments.Edit`           | **no**   | :113        |
+| `CaseEvaluation.AppointmentDocuments.Delete`         | **no**   | :114        |
+| `CaseEvaluation.AppointmentDocuments.Approve`        | **no**   | :115        |
+| `CaseEvaluation.AppointmentPackets`                  | **no**   | :120        |
+| `CaseEvaluation.AppointmentPackets.Default`          | **no**   | :120        |
+| `CaseEvaluation.AppointmentPackets.Regenerate`       | **no**   | :121        |
+
+**AppService gate matrix** (verified by reading the AppService
+`[Authorize]` attributes):
+
+| File:Method | Permission required | Granted to external? | Per-record ownership in body? |
+| --- | --- | --- | --- |
+| `AppointmentDocumentsAppService.cs:64 GetListByAppointmentAsync` | `AppointmentDocuments.Default` | no | not visible -- relies on IMultiTenant + appointment-scoped query |
+| `AppointmentDocumentsAppService.cs:78 UploadStreamAsync` | `AppointmentDocuments.Create` | no | not visible |
+| `:170 UploadPackageDocumentAsync` | `AppointmentDocuments.Create` | no | not visible |
+| `:210 UploadJointDeclarationAsync` | `AppointmentDocuments.Create` | no | not visible |
+| `:393 DownloadAsync` | `AppointmentDocuments.Default` | no | not visible |
+| `:414 DeleteAsync` | `AppointmentDocuments.Delete` | no | not granted -- correct, externals shouldn't delete |
+| `:434 ApproveAsync` | `AppointmentDocuments.Approve` | no | correctly internal-only |
+| `:464 RejectAsync` | `AppointmentDocuments.Approve` | no | correctly internal-only |
+| `AppointmentPacketsAppService.cs:31 GetByAppointmentAsync` | `AppointmentPackets.Default` | no | relies on IMultiTenant |
+| `:45 DownloadAsync` | `AppointmentPackets.Default` | no | relies on IMultiTenant |
 
 **OLD parity.** OLD's
 `PatientAppointment.Api/Controllers/Api/AppointmentRequest/AppointmentDocumentsController.cs`
-allows authenticated users to fetch documents for appointments they
-are involved in -- ownership/accessor check at the data layer, not
-permission check at the controller.
+gated only on authentication; ownership filtering was at the data
+layer.
 
-**Fix path.**
-1. Add to `BookingBaselineGrants()` in
-   `ExternalUserRoleDataSeedContributor.cs`:
-   - `CaseEvaluation.AppointmentDocuments` (read)
-   - `CaseEvaluation.AppointmentDocuments.Create` (upload)
-   - `CaseEvaluation.AppointmentPackets` (read packet)
-2. Verify per-record ownership is enforced INSIDE the AppService:
-   the caller's IdentityUserId must match either the appointment
-   booker, the patient, an `AppointmentAccessor` row, or the linked
-   AA/DA/CE row. If not, add `IRepository<AppointmentAccessor>`-
-   based filter before the Get.
-3. Migration / re-seed for existing tenants.
+**Fix path (concrete).** Add to `BookingBaselineGrants()`:
+- `CaseEvaluation.AppointmentDocuments` (read own appointment docs)
+- `CaseEvaluation.AppointmentDocuments.Create` (upload to own appt)
+- `CaseEvaluation.AppointmentPackets.Default` (view + download own packet)
 
-**Effort.** S (grants + ownership check + migration).
+Do **not** grant `Edit`, `Delete`, `Approve`, or `Regenerate` to
+external roles. Add a re-seed migration so existing tenants pick up
+the new grants.
+
+**Defense in depth (recommended).** The current AppServices for
+documents/packets do not contain a visible ownership check; they
+likely rely on `IMultiTenant` filtering plus the
+`appointmentId`-scoped query. Audit those queries to confirm they
+join through `AppointmentAccessor` / appointment-party tables so an
+external user with the new permission cannot enumerate other
+patients' documents in the same tenant.
+
+**Effort.** S (grants + audit + migration).
 
 ---
 
@@ -400,18 +445,22 @@ permission check at the controller.
   uses a custom `<rx-date>` component; year range is unconstrained
   (input parses any year).
 
-**Fix path.** In each component using `ngbDatepicker` for DOB:
-- Add `dobMinDate = { year: 1900, month: 1, day: 1 }` and
-  `dobMaxDate = today` properties (TS).
+**Fix path (verified).** In each component using `ngbDatepicker` for DOB:
+- Add `dobMinDate = { year: 1920, month: 1, day: 1 }` and
+  `dobMaxDate = { year: <currentYear>, month: 12, day: 31 }` (TS).
 - Bind `[minDate]="dobMinDate" [maxDate]="dobMaxDate" navigation="select"`
   in the template.
 
-Files to touch:
-- `angular/src/app/appointments/appointment-add.component.ts`/`.html`
-- `angular/src/app/appointments/appointment/components/appointment-view.component.ts`/`.html`
-- `angular/src/app/account/register/register.component.ts`/`.html`
-  if DOB is added to registration in the future. (Today register has
-  no DOB; AuthServer Razor handles registration so this may be moot.)
+**Files to touch (only two, confirmed):**
+- `angular/src/app/appointments/appointment-add.component.{ts,html}`
+- `angular/src/app/appointments/appointment/components/appointment-view.component.{ts,html}`
+
+Confirmed: `register.component.html` collects only First Name, Last
+Name, Email, Password -- no DOB field. So registration is NOT in
+scope for this fix.
+
+ng-bootstrap version installed: **19.0.1** (verified via package
+listing). The +/-10-year default behavior holds in v19.
 
 **Effort.** S.
 
@@ -475,14 +524,22 @@ non-empty value when the directive is lifted.
 `P:\PatientPortalOld\patientappointment-portal\src\app\components\shared\top-bar\top-bar.component.ts:40-54`
 -- always shows `firstName + ' ' + lastName`. Never email.
 
-**Fix path.**
-1. In `InternalUsersDataSeedContributor.EnsureUserWithRoleAsync()`,
-   set `user.Name` and `user.Surname` based on the email prefix or a
-   role-derived label (e.g. `admin@...` -> Name="Admin",
-   Surname="User"; `supervisor@...` -> Name="Staff", Surname="Supervisor").
-2. As a safety net, update `displayUserName` in `home.component.ts`
-   to suppress the email fallback (return a generic role label
-   instead).
+**Fix path (verified).**
+1. In `InternalUsersDataSeedContributor.EnsureUserWithRoleAsync()`
+   (around `:184-211`), set `user.Name` and `user.Surname` BEFORE
+   calling `_userManager.CreateAsync()`. Suggested mapping:
+   - `admin@<slug>.test`        -> Name="Admin",      Surname="User"
+   - `supervisor@<slug>.test`   -> Name="Staff",      Surname="Supervisor"
+   - `staff@<slug>.test`        -> Name="Clinic",     Surname="Staff"
+   - extra demo admins (SoftwareOne / SoftwareTwo) -> derive from email prefix
+2. As a safety net, update `displayUserName` getter in
+   `home.component.ts:191-199` to suppress the `userName` fallback
+   when it looks like an email (contains `@`) -- show the role name
+   instead.
+
+The display name is read from id_token claims (no API call), so
+after this seed change a user must logout/login (or token refresh)
+to see the new name.
 
 **Effort.** XS-S.
 
@@ -490,96 +547,152 @@ non-empty value when the directive is lifted.
 
 ## B11: Booking form is role-agnostic; CE has no Claim Examiner section
 
-**NEW code.**
-- `angular/src/app/appointments/appointment-add.component.ts:819-822`
-  defines role flags `isClaimExaminerRole`, `isApplicantAttorney`,
-  `isDefenseAttorney`, `isItAdmin` -- but they're only used for
-  field-level `[readonly]` toggling (lines 475, 587 etc.), NOT for
-  section-level `*ngIf`/`@if`.
-- `:442-666` html renders the AA card and DA card unconditionally.
-- No top-level "Claim Examiner / Adjuster" section. The only CE
-  fields live inside the per-injury modal at `:995-1129`, gated by
-  `claimExaminer.isActive` -- a per-injury attribute, not a booker
-  attribute.
+### Verified diagnosis (deep dive 2026-05-06)
 
-**OLD code.**
-- `P:\PatientPortalOld\patientappointment-portal\src\app\components\appointment-request\appointments\add\appointment-add.component.ts:66, 145-159`
-  reads `userRoleId`, sets `isAdjusterLogin / isPatientLogin /
-  isPatientAttorneyLogin`.
-- `appointment-add.component.html:600, 651` uses
-  `*ngIf="showFormBaseOnRole"` to gate AA / DA / Authorized-User
-  sections.
-- Inside the injury modal, CE fields are pre-filled with the booker's
-  identity and disabled when `isAdjusterLogin` is true (HTML
-  line 378 `[disabled]="isAdjusterLogin"`).
+**OLD role detection.** OLD reads `user.data["roleId"]` at
+`appointment-add.component.ts:66` and switches on `RoleEnum`:
 
-**Fix path.**
-1. Add `@if`-driven section rendering in
-   `appointment-add.component.html`:
-   - "Applicant Attorney Details" card -> visible iff booker is
-     Patient OR ApplicantAttorney.
-   - "Defense Attorney Details" card -> visible iff booker is
-     Patient OR DefenseAttorney.
-   - NEW "Claim Examiner / Adjuster Details" card (sibling of the
-     attorney cards) -> visible iff `isClaimExaminerRole`.
-2. CE card pre-fills CE name + email from `currentUser`, marks
-   `[readonly]="isClaimExaminerRole && !isItAdmin"` per OLD
-   pattern.
-3. Patient demographics card: when booker is Patient, pre-fill
-   First/Last/Email from `currentUser` and mark readonly. When
-   booker is AA/DA/CE, those fields stay editable for them to enter
-   the patient's info.
+- `RoleEnum.Patient = 4`
+- `RoleEnum.Adjuster = 5`  (OLD's name for what NEW calls Claim Examiner)
+- `RoleEnum.PatientAttorney = 6`  (= NEW's Applicant Attorney)
+- `RoleEnum.DefenseAttorney = 7`
 
-**Effort.** M (form template restructure + role flag plumbing +
-visual QA).
+OLD pre-fill logic:
+- `:145` `if (userRoleId == Adjuster && !isRevolutionForm)` -> auto-fill claim-examiner name + email + readonly inside the per-injury modal.
+- `:156` `if (userRoleId == Patient)` -> pre-fill patient email.
+- `:159` `else if (userRoleId == PatientAttorney)` -> pre-fill applicant-attorney email.
 
-**Parity-flag candidate.** The OLD field "Authorized User" section
-exists only for Patient role per the OLD HTML. Confirm whether NEW
-`additional-authorized-users` table replaces it or is in addition.
+**OLD section-visibility table** (read from
+`appointment-add.component.html` in OLD, `*ngIf="showFormBaseOnRole"`
+gates lines 600 + 651):
+
+| Section                       | Patient                             | Applicant Attorney                       | Defense Attorney                         | Adjuster (CE)                                   |
+| ----------------------------- | ----------------------------------- | ---------------------------------------- | ---------------------------------------- | ---------------------------------------------- |
+| Patient Demographics          | visible, email pre-filled, editable | visible, editable                        | visible, editable                        | visible, editable                              |
+| Employer Details              | visible, editable                   | visible, editable                        | visible, editable                        | visible, editable                              |
+| Applicant Attorney Details    | visible, toggle, editable           | visible, toggle, email pre-filled + RO   | visible, toggle, editable                | visible, toggle, editable                      |
+| Defense Attorney Details      | visible, toggle, editable           | visible, toggle, editable                | visible, toggle, email pre-filled + RO   | visible, toggle, editable                      |
+| Additional Authorized User    | visible (showFormBaseOnRole=true)   | visible                                  | visible                                  | **HIDDEN** (showFormBaseOnRole=false)          |
+| Claim Information / Injury    | visible, CE fields editable per injury | visible, CE fields editable per injury | visible, CE fields editable per injury | visible, CE fields **pre-filled + RO** per injury, isAdjusterLogin=true |
+
+**NEW current state.** Role flags `isClaimExaminerRole`,
+`isApplicantAttorney`, `isDefenseAttorney`, `isItAdmin` exist at
+`appointment-add.component.ts:819-822` but are only used for
+field-level `[readonly]` toggling. **No section-level `@if`
+guards exist.** All cards render unconditionally for every role.
+The CE-fields-readonly-when-CE-books logic IS in place in the
+per-injury modal at lines 1002-1007 + 2402-2405 (forced
+`isActive=true`, name/email pre-filled).
+
+**Mechanical delta** (this is the fix recipe):
+
+| Gap                                                | Fix location                                          | Action                                              |
+| -------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| AA card always visible, OLD hides it for CE booker | `appointment-add.component.html:443` (start of AA card) | Wrap with `@if (shouldShowApplicantAttorneySection())`; method returns `!isClaimExaminerRole` |
+| DA card always visible, OLD hides it for CE booker | `appointment-add.component.html:551` (start of DA card) | Wrap with `@if (shouldShowDefenseAttorneySection())`; method returns `!isClaimExaminerRole` |
+| Authorized-User table always visible, OLD hides for CE | `appointment-add.component.html:1153` (start of section) | Wrap with `@if (shouldShowAuthorizedUserSection())`; method returns `!isClaimExaminerRole` |
+| Patient demographics email not pre-filled for Patient booker | `appointment-add.component.ts` ngOnInit / role-detect block | When `isPatientRole`, patch `patientEmail` from currentUser and set `[readonly]` on the input |
+| AA email not pre-filled for AA booker | same | When `isApplicantAttorney`, patch `applicantAttorneyEmail` and set readonly (already partly there at line 475 but verify pre-fill happens) |
+| DA email not pre-filled for DA booker | same | symmetric to AA |
+| CE-as-Adjuster: claim-examiner section already correct | `:1002-1007` + `:2402-2405` | already pre-fills + readonly when `isClaimExaminerRole` -- no change |
+
+**OLD-NEW role mapping note.** OLD has `Adjuster (5)` where NEW has
+`Claim Examiner`. The NEW `appointment-add.component.ts` uses
+`isClaimExaminerRole` flag, which is the equivalent of OLD's
+`isAdjusterLogin`. No code change needed here -- just keep the
+naming consistent.
+
+**Effort.** M (3 `@if` wrappers + 3 method declarations + 2-3
+pre-fill patches + visual QA across 4 roles).
+
+**Parity-flag candidate.** OLD's "Additional Authorized User" hidden
+for Adjuster matches Adrian's expectation that the CE booker doesn't
+add other authorized users for an appointment. Confirm during fix QA.
 
 ---
 
 ## B12: AA/DA email persisted even when "Include" unchecked
 
-**NEW code.**
-- Conditional validators ARE wired:
-  `angular/src/app/appointments/appointment-add.component.ts:456-477`
-  subscribes to checkbox changes;
-  `:656-664` `applyConditionalEmailValidator()` strips
-  `Validators.required` when the include flag is false.
-- HTML hides the card body with `@if (form.get('applicantAttorneyEnabled')?.value)`
-  at `:457-551`. Symmetric for DA.
-- Payload construction: `:900-908`
-  `applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled ? raw.applicantAttorneyEmail : undefined`.
-  When the include flag flips off, the field value is NOT cleared --
-  whatever the user typed remains in the FormGroup. `undefined` is
-  serialized away by JSON.stringify, but that depends on the HTTP
-  client behavior.
-- Backend: `AppointmentsAppService.CreateAsync` -- need to confirm it
-  doesn't accept a non-empty email when the corresponding "include"
-  flag is also false. Today's reproduction shows
-  `unused-aa@example.com` and `unused-da@example.com` in
-  StatusChange/Rejected fan-out, which means the placeholders ARE
-  being persisted somewhere.
+### Verified diagnosis (deep dive 2026-05-06)
 
-**Hypothesis.** Either (a) the SPA sends the email anyway because the
-form field value is still set despite the checkbox being unchecked, or
-(b) the backend persists whatever non-null email it gets, or (c) a
-seed/test fixture contains the placeholders.
+**Surprise finding.** A grep for `unused-aa@example.com` and
+`unused-da@example.com` across the entire codebase returns **zero
+hits in source code**. The only occurrences are inside this research
+doc itself. No seed contributor, no test fixture, no DTO default
+populates those values.
 
-**Fix path.**
-1. SPA: when checkbox flips off, call
-   `this.form.get('applicantAttorneyEmail')?.reset()` and same for
-   DA. This clears the value so payload is genuinely null.
-2. SPA: in payload construction lines 900-908, change `undefined` to
-   `null` so the field is explicitly cleared on the wire.
-3. Backend `AppointmentCreateDto` validator: if include flag is
-   false, force the email field to null. If include flag is true,
-   require email to be a real email (not `unused-*@example.com`).
-4. Recipient resolver
-   (`src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Notifications/AppointmentRecipientResolver.cs:202-209`):
-   skip recipients whose email matches `^unused-.*@example\.com$`
-   as a defense-in-depth filter.
+That means the placeholder addresses observed in the SMTP fan-out
+during today's lifecycle test must have come from one of:
+
+1. **Form field values typed manually during prior tests** that
+   persisted in the FormGroup across re-renders, then got submitted
+   when "Include" was unchecked but the field value was not reset.
+2. **Stale rows already in the database** from earlier test runs --
+   the appointment row for that earlier test had those placeholders
+   in `ApplicantAttorneyEmail` / `DefenseAttorneyEmail` columns, and
+   the resolver dutifully fanned out to them on the new
+   submit/approve/reject events.
+
+**The frontend payload code at lines 899-904 of
+`appointment-add.component.ts` is correct:**
+```typescript
+applicantAttorneyEmail: rawAfter.applicantAttorneyEnabled
+  ? (rawAfter.applicantAttorneyEmail ?? undefined)
+  : undefined,
+defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
+  ? (rawAfter.defenseAttorneyEmail ?? undefined)
+  : undefined,
+```
+When the include flag is false, `undefined` is sent; the backend
+maps it to a NULL column.
+
+> NOTE: There IS a copy-paste bug at line 902 -- the second ternary
+> reads `rawAfter.defenseAttorneyEnabled` (boolean) instead of
+> `rawAfter.defenseAttorneyEmail` (string), so the boolean coerces
+> to `"true"` / `undefined`. This is a separate bug ("DA email gets
+> set to the literal string 'true'") that should be fixed alongside
+> B12. Confirm in the actual file before fixing.
+
+**The backend at `AppointmentsAppService.cs:725-728` is correct:**
+```csharp
+appointment.PatientEmail = input.PatientEmail;
+appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
+appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
+appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+```
+No default-substitution.
+
+**Real root cause.** The form's FormControl value is NOT cleared when
+the include checkbox is unchecked. The hidden card visually disappears
+(via `@if`) but the FormGroup retains whatever value was typed before
+the toggle. If the user (or a prior test setup) had typed
+`unused-aa@example.com` while the checkbox was on, then later
+unchecked the box, the field still contains that string. On the next
+submit, `rawAfter.applicantAttorneyEnabled` may be true again (or the
+toggle re-flipped) and the stale value gets posted.
+
+This also means existing DB rows (created during earlier debugging)
+may carry placeholder emails that survive subsequent edits.
+
+**Fix path (concrete, ranked).**
+1. **SPA: reset on uncheck.** In the `applicantAttorneyEnabled`
+   value-change subscription (`appointment-add.component.ts:456-461`),
+   when the checkbox flips off, call
+   `this.form.get('applicantAttorneyEmail')?.reset()`. Symmetric for
+   DA. Lowest risk.
+2. **Fix the line-902 copy-paste bug** so the DA email isn't sent as
+   the boolean `"true"`.
+3. **Backend defensive validator on `AppointmentCreateDto`.** Reject
+   `ApplicantAttorneyEmail` matching the regex `^unused-.*@.*` or any
+   value that doesn't conform to `[A-Z]{2,}` ASCII format. Cheap
+   safety net.
+4. **Defense in depth in the recipient resolver.** In
+   `AppointmentRecipientResolver.cs:202-209`, skip recipients whose
+   email matches `^unused-.*@example\.com$`. Belt-and-suspenders.
+5. **One-time DB cleanup.** UPDATE
+   `AppAppointments SET ApplicantAttorneyEmail = NULL WHERE
+   ApplicantAttorneyEmail LIKE 'unused-%@example.com'` (and
+   symmetric for DA). Adrian to run when convenient.
 
 **Effort.** S.
 
@@ -606,20 +719,29 @@ referenced the booker by their actual role
 (`{{ApplicantAttorneyName}}` etc.), implying the resolver knew who the
 booker was.
 
-**Fix path.**
-1. Replace the hardcoded `Patient` with a role-detection step. Two
-   options:
-   - **Option A (preferred).** Look up the booker's IdentityUserRoles
-     and map the first matching role to `RecipientRole`. Cache result
-     per appointment to avoid extra queries.
-   - **Option B.** Add a `BookerRole` column to the Appointment entity
-     and populate from `CurrentUser.Roles` at create time. Cheaper at
-     read time, costs a migration.
-2. If the booker matches one of the appointment-linked parties (e.g.
-   the AA on the appointment IS the booker), suppress the duplicate
-   recipient row.
+**Fix path (verified, simpler than originally proposed).**
 
-**Effort.** S (Option A) or S+migration (Option B).
+The simplest correct fix is **Option C: detect via appointment-linked
+party rows** (no DB migration, no roles lookup):
+
+1. Before line 133 in `AppointmentRecipientResolver.cs`, check
+   whether `bookerUser.Id` matches the `IdentityUserId` of any
+   `AppointmentClaimExaminer`, `AppointmentApplicantAttorney`, or
+   `AppointmentDefenseAttorney` row already loaded for the
+   appointment. If yes, set the recipient role to that role.
+2. Otherwise fall back to `RecipientRole.Patient` (true patient
+   bookers).
+3. Suppress duplicate recipient rows when the booker is also linked
+   as a party (the resolver already adds the linked party further
+   down; do not double-emit).
+
+**Verified RecipientRole enum** (file =
+`Domain.Shared/Appointments/Notifications/RecipientRole.cs:11-20`):
+`Patient=1, ApplicantAttorney=2, DefenseAttorney=3, ClaimExaminer=4,
+InsuranceCarrierContact=5, OfficeAdmin=6, Employer=7`. No
+`ResponsibleUser` -- the earlier doc was wrong; ignore that name.
+
+**Effort.** S.
 
 ---
 
@@ -658,18 +780,27 @@ RejectionReason, so the buttons map 1:1 to the existing modal trigger.
 prefix, bump border to `border-2`, set background to
 `bg-light` so it stands out from the toolbar.
 
+**Verified.** `appointment-view.component.ts:435-445` already has a
+`dispatchAction()` method that takes an `'approve' | 'reject'`
+argument and opens `ApproveConfirmationModalComponent` /
+`RejectAppointmentModalComponent`. The two-button replacement maps
+1:1 to existing wiring -- just call
+`dispatchAction('approve')` / `dispatchAction('reject')` directly
+from each button. No state plumbing needed.
+
 **Effort.** S either way.
 
 ---
 
 ## B16: Broken links inside outbound email bodies
 
-**Reported (2026-05-06).** Adrian observed that the links embedded in
-the outgoing emails (email verification, appointment-requested,
-approved / rejected) had bugs. The exact symptom (404? wrong host?
-wrong tenant subdomain? double-encoded token? port mismatch?) was not
-captured -- the rate-limit blast meant most emails never landed in a
-usable inbox to inspect.
+**Reported (2026-05-06, clarified later same day).** The verification
+email link works correctly. The links that break are the ones in
+emails sent to **non-booker stakeholders** (Patient, AA, DA, CE
+recipients other than the person who submitted the booking). The
+exact symptom on those links was not captured because rate-limit
+blast prevented inspection. **Deferred** -- Adrian directed us to
+hold this investigation until the rest of the bug list is addressed.
 
 **Why this didn't surface in code review.** The link-construction
 logic is split across:
@@ -742,42 +873,66 @@ links).
 
 ## B15: Duplicate booking emails ("requested" + "still pending")
 
-**Symptom (today).** When a stakeholder books a new appointment, every
-recipient gets two emails almost simultaneously: "appointment has been
-requested" then "the requested appointment is still pending". The
-second is a status-still-pending nudge that should not fire on the
-same submit.
+### Verified diagnosis (deep dive 2026-05-06)
 
-**Likely paths.**
-- `BookingSubmissionEmailHandler` -- the legitimate "requested" email.
-- Some other handler subscribed to either the same domain event OR a
-  status-changed-to-Pending event triggered by the create. Suspect
-  candidates: `StatusChangeEmailHandler` firing for the
-  `Created -> Pending` transition as if it were a status change, OR a
-  `PendingNudge` / `AppointmentReminder` handler running at submit
-  time.
+**The duplicate is NOT from two handlers; it is from ONE handler
+sending TWO templates.**
 
-**Investigation steps before the fix.**
-1. Grep `src/HealthcareSupport.CaseEvaluation.Application/Notifications/Handlers/`
-   for handlers subscribing to `AppointmentCreatedEto`,
-   `AppointmentStatusChangedEto`, or similar. Enumerate all handlers
-   that emit emails on submit.
-2. Check the Hangfire dashboard / SQL for the two job rows queued
-   when a booking is submitted -- their job names tell you which
-   handler fired each.
-3. Confirm against the "Phase 1 email scope" memory entry: the only
-   submit-time email allowed is the single "requested" email per
-   stakeholder.
+`BookingSubmissionEmailHandler.cs` subscribes to
+`AppointmentSubmittedEto` (line 53) and dispatches:
 
-**Fix path.**
-1. Identify the redundant handler. Either delete it, gate it behind
-   a feature flag, or change its event subscription so it doesn't
-   fire on the create transition.
-2. Document the policy in
-   `docs/parity/email-handlers-demo-critical.md`: which handlers are
-   active in Phase 1 and which are gated off.
+1. **`PatientAppointmentPending`** to ALL stakeholders (lines
+   183-187). This is the "appointment has been requested" email.
+2. **`PatientAppointmentApproveReject`** -- intended for Staff
+   Supervisor + Clinic Staff only when the booker is external (lines
+   221-225). This is the "still pending, please approve/reject"
+   internal alert.
 
-**Effort.** S (once the duplicate handler is identified).
+The only other on-create-related handler is
+`StatusChangeEmailHandler.cs:59`, which subscribes to
+`AppointmentStatusChangedEto` BUT explicitly returns early for any
+status that isn't Approved or Rejected (lines 98-102). It does
+**not** fire on the initial Pending status.
+
+`RequestSchedulingReminderJob.cs:105` does mention "still pending"
+but it is a SCHEDULED job (recurring reminder), not an on-create
+handler.
+
+**Why every stakeholder seems to receive both emails.** Adrian's
+report says ALL parties get both templates, but the design only
+sends template 2 to staff. So either:
+- (a) the staff-only filter in
+  `BookingSubmissionEmailHandler.DispatchApproveRejectToStaffWhenBookerIsExternalAsync`
+  is broken -- it's calling
+  `_recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted)`
+  (line 162) which returns the FULL stakeholder list, not just staff,
+  so the staff-only intent is not enforced.
+- (b) The two templates were both visible in the admin's mailbox
+  because the admin IS staff AND a stakeholder simultaneously, so
+  they got the union of both fan-outs.
+
+Need to confirm: does
+`AppointmentRecipientResolver.ResolveAsync(id, NotificationKind.Submitted)`
+return staff or stakeholders? The resolver doesn't appear to filter
+by `NotificationKind`; it returns whoever's wired up to the
+appointment. That makes (a) the more likely cause.
+
+**Phase 1 directive impact.** Per the active email-scope directive,
+template 2 (`PatientAppointmentApproveReject`) should be **removed
+entirely** from this handler -- only the "requested" email (template
+1) should fire on submit. That makes the bug moot.
+
+**Fix path (concrete).**
+1. **Per Phase 1 directive: delete the
+   `DispatchApproveRejectToStaffWhenBookerIsExternalAsync` call**
+   (around `BookingSubmissionEmailHandler.cs:160-180`). The handler
+   should fire only one template (`PatientAppointmentPending`) on
+   submit. This single edit makes the duplicate go away.
+2. After Phase 1 lifts: revisit and either (a) gate the second
+   template behind an actual staff-only resolver query, or (b)
+   redesign as two separate handlers with distinct events.
+
+**Effort.** S (one-method deletion).
 
 ---
 

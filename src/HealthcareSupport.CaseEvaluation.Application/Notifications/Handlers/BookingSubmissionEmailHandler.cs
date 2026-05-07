@@ -138,8 +138,17 @@ public class BookingSubmissionEmailHandler :
             await DispatchPendingToStakeholdersAsync(
                 eventData, ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
 
-            await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
-                eventData, ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
+            // B15 + Phase 1 email-scope (locked 2026-05-06): suppress the
+            // PatientAppointmentApproveReject "still pending, please
+            // approve/reject" staff-blast so each booking only fires the
+            // single "appointment requested" template above. The method is
+            // kept intact below so the second dispatch can be re-enabled
+            // once Phase 1 lifts (just uncomment the call here). See
+            // memory/project_email-scope-phase1.md for the directive.
+            //
+            // await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
+            //     eventData, ctx, appointment, appointmentDate,
+            //     appointmentFromTime, appointmentToTime);
         }
     }
 

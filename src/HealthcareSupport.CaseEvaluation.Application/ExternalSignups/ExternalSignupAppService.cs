@@ -408,56 +408,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
-    /// Reads a bool ABP extension property from an IdentityUser. ABP stores
-    /// extras as JSON objects so the property may surface as
-    /// <c>System.Boolean</c>, <c>System.Text.Json.JsonElement</c>, or a
-    /// stringified <c>"True" / "False"</c> depending on whether the value
-    /// was just written or was round-tripped from the JSON column. This
-    /// helper normalizes all three to a plain bool, defaulting to
-    /// <c>false</c> when the property is missing.
-    /// Internal so unit tests can verify without an IdentityUser.
+    /// B3 (2026-05-06): thin pass-through to the shared
+    /// <see cref="HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters.GetBoolOrDefault"/>
+    /// helper. Kept here so unit tests and existing call sites do not
+    /// need to update their import. Any new caller should target the
+    /// shared helper directly.
     /// </summary>
     internal static bool ReadBoolExtensionProperty(
         Volo.Abp.Identity.IdentityUser user,
         string propertyName)
-    {
-        if (user == null || string.IsNullOrEmpty(propertyName))
-        {
-            return false;
-        }
-        // Use the non-generic GetProperty(string) overload. The typed
-        // GetProperty<T>(string, T) routes through TypeHelper.ChangeTypePrimitiveExtended<T>
-        // which only supports primitive Ts (and explicitly throws an
-        // AbpException for object?, JsonElement, etc.). We need the raw
-        // value so CoerceBool can normalize whichever shape ABP serialized
-        // it as -- bool, "True"/"False" string, or a JsonElement.
-        var raw = ((IHasExtraProperties)user).GetProperty(propertyName);
-        return CoerceBool(raw);
-    }
+        => HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters
+            .GetBoolOrDefault(user, propertyName);
 
     /// <summary>
-    /// Coerces ABP's extra-property JSON-shaped value into a bool. Returns
-    /// <c>false</c> for null, unrecognized strings, and unrecognized types.
-    /// Internal for unit-test coverage.
+    /// B3 (2026-05-06): pass-through to the shared coercion helper.
     /// </summary>
     internal static bool CoerceBool(object? raw)
-    {
-        if (raw == null)
-        {
-            return false;
-        }
-        if (raw is bool b)
-        {
-            return b;
-        }
-        if (raw is string s)
-        {
-            return bool.TryParse(s, out var parsed) && parsed;
-        }
-        // JsonElement-shaped values: best-effort string parse; any other
-        // numeric / object shape falls through to false.
-        return bool.TryParse(raw.ToString(), out var parsedFallback) && parsedFallback;
-    }
+        => HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters
+            .CoerceBool(raw);
 
     [AllowAnonymous]
     public virtual async Task RegisterAsync(ExternalUserSignUpDto input)

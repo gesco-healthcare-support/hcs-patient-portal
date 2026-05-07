@@ -23,7 +23,7 @@ import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { firstValueFrom } from 'rxjs';
-import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
@@ -112,9 +112,18 @@ export class AppointmentViewComponent implements OnInit {
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
-  selectedAction: TransitionAction | '' = '';
   approveModalVisible = false;
   rejectModalVisible = false;
+
+  // B8 (2026-05-06): widen the DOB datepicker year range. Default
+  // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
+  // and `navigation="select"` the header shows year + month selects
+  // spanning the full configured range.
+  readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
+  readonly dobMaxDate: NgbDateStruct = (() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  })();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
@@ -431,12 +440,12 @@ export class AppointmentViewComponent implements OnInit {
     return [];
   }
 
-  /** Triggered when the office clicks Submit on the action dropdown. */
-  dispatchAction(): void {
-    if (!this.appointment?.appointment?.id || !this.selectedAction) {
+  /** Triggered when the office clicks Approve or Reject in the toolbar. */
+  dispatchAction(action: TransitionAction): void {
+    if (!this.appointment?.appointment?.id) {
       return;
     }
-    switch (this.selectedAction) {
+    switch (action) {
       case 'approve':
         this.approveModalVisible = true;
         break;
@@ -456,7 +465,6 @@ export class AppointmentViewComponent implements OnInit {
    * re-fetch in the background to refresh nav-property snapshots.
    */
   onActionSucceeded(dto: AppointmentDto): void {
-    this.selectedAction = '';
     if (this.appointment?.appointment && dto) {
       this.appointment.appointment = { ...this.appointment.appointment, ...dto };
     }
