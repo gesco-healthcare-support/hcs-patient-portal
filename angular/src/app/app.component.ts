@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
+import { AuthService, ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
 import { Router, NavigationEnd } from '@angular/router';
 import { GdprCookieConsentComponent } from '@volo/abp.ng.gdpr/config';
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
@@ -19,9 +19,11 @@ import { hasAnyExternalRole } from './shared/auth/external-user-roles';
 export class AppComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
   private readonly subscription = new Subscription();
 
   ngOnInit(): void {
+    this.handleAuthServerLogoutHandshake();
     this.updatePatientRoleClass();
 
     this.subscription.add(
@@ -29,6 +31,49 @@ export class AppComponent implements OnInit, OnDestroy {
         .pipe(filter((event) => event instanceof NavigationEnd))
         .subscribe(() => this.updatePatientRoleClass()),
     );
+  }
+
+  /**
+   * B5 (2026-05-07) -- when the AuthServer's /Account/Logout page is
+   * hit (manually or via redirect), our custom LogoutModel signs out
+   * its cookie and bounces back to the SPA root with `?logout=true`.
+   * On that bootstrap we forcibly clear the SPA's OAuth state so any
+   * cached access_token / refresh_token / id_token in localStorage is
+   * invalidated. Without this, the SPA would keep using the stale
+   * tokens until they expire even though the AuthServer cookie is
+   * gone -- the original user-visible bug Adrian flagged.
+   *
+   * AuthService.logout() drives the underlying angular-oauth2-oidc
+   * client to clear the state; we then strip the query param so a
+   * page reload doesn't repeat the cleanup.
+   */
+  private handleAuthServerLogoutHandshake(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('logout') !== 'true') {
+      return;
+    }
+    // Local-only logout: clear tokens but do NOT redirect to AuthServer
+    // again (we just came from there). AuthService.logout() with no
+    // ConfigFlags option calls OAuthService.logOut() which clears
+    // localStorage state. We swallow the observable to avoid leaving
+    // a hanging subscription; cleanup is synchronous on the SPA side.
+    this.authService.logout().subscribe({
+      complete: () => {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        this.router.navigateByUrl('/login');
+      },
+      error: () => {
+        // If logout fails (e.g. already logged out), still strip the
+        // query param + navigate so we don't loop.
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        this.router.navigateByUrl('/login');
+      },
+    });
   }
 
   ngOnDestroy(): void {
