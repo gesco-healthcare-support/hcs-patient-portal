@@ -109,5 +109,45 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.AppointmentDocuments";
         yield return $"{Group}.AppointmentDocuments.Create";
         yield return $"{Group}.AppointmentPackets";
+
+        // B6 follow-on (2026-05-07): the NEW booking submit fans out into
+        // a POST per child resource (injury details, body parts, claim
+        // examiners, attorney links, primary insurance, employer, master
+        // attorney records). Each child AppService gates on its own
+        // Default + Create + Edit permission. OLD's controllers carried
+        // NO [Authorize] attributes on these booking endpoints (verified
+        // 2026-05-07 in P:\PatientPortalOld\PatientAppointment.Api), so
+        // any authenticated user could submit the entire booking graph.
+        // Per Adrian's strict-parity directive (option A): preserve NEW's
+        // permission-gate architecture but widen the booking baseline to
+        // grant every external role the same effective set OLD allowed.
+        // Delete stays out -- bookers cannot drop sub-records once
+        // committed; that path is admin-only. Per-record ownership
+        // enforcement remains the AppService's responsibility.
+        yield return $"{Group}.AppointmentInjuryDetails";
+        yield return $"{Group}.AppointmentInjuryDetails.Create";
+        yield return $"{Group}.AppointmentInjuryDetails.Edit";
+        yield return $"{Group}.AppointmentBodyParts";
+        yield return $"{Group}.AppointmentBodyParts.Create";
+        yield return $"{Group}.AppointmentBodyParts.Edit";
+        yield return $"{Group}.AppointmentClaimExaminers";
+        yield return $"{Group}.AppointmentClaimExaminers.Create";
+        yield return $"{Group}.AppointmentClaimExaminers.Edit";
+        yield return $"{Group}.AppointmentApplicantAttorneys";
+        yield return $"{Group}.AppointmentApplicantAttorneys.Create";
+        yield return $"{Group}.AppointmentApplicantAttorneys.Edit";
+        yield return $"{Group}.AppointmentDefenseAttorneys";
+        yield return $"{Group}.AppointmentDefenseAttorneys.Create";
+        yield return $"{Group}.AppointmentDefenseAttorneys.Edit";
+        yield return $"{Group}.AppointmentPrimaryInsurances";
+        yield return $"{Group}.AppointmentPrimaryInsurances.Create";
+        yield return $"{Group}.AppointmentPrimaryInsurances.Edit";
+        yield return $"{Group}.AppointmentEmployerDetails";
+        yield return $"{Group}.ApplicantAttorneys";
+        yield return $"{Group}.ApplicantAttorneys.Create";
+        yield return $"{Group}.ApplicantAttorneys.Edit";
+        yield return $"{Group}.DefenseAttorneys";
+        yield return $"{Group}.DefenseAttorneys.Create";
+        yield return $"{Group}.DefenseAttorneys.Edit";
     }
 }
