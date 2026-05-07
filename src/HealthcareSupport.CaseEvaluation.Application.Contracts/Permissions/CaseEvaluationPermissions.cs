@@ -297,4 +297,26 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".DoctorPreferredLocations";
         public const string Toggle = Default + ".Toggle";
     }
+
+    /// <summary>
+    /// Phase A (2026-05-05) -- per-user signature image upload, replicating
+    /// OLD's <c>User.SignatureAWSFilePath</c> profile feature. Internal
+    /// staff (Clinic Staff / Staff Supervisor / IT Admin) only;
+    /// external roles do not have signatures (OLD parity). Used by the
+    /// packet-generation flow to stamp the responsible user's signature
+    /// on the Patient Packet at <c>##Appointments.Signature##</c>.
+    ///
+    /// <para><c>ManageOwn</c> gates the upload / download / delete of the
+    /// caller's OWN signature -- a permission a user can self-grant via
+    /// role membership. There is no separate per-user-target gate because
+    /// the AppService scopes every operation to <c>CurrentUser.Id</c>;
+    /// internal-only <c>GetByUserIdAsync</c> is hidden via
+    /// <c>[RemoteService(IsEnabled = false)]</c> and called by the packet
+    /// resolver in-process, so no permission is wired to it.</para>
+    /// </summary>
+    public static class UserSignatures
+    {
+        public const string Default = GroupName + ".UserSignatures";
+        public const string ManageOwn = Default + ".ManageOwn";
+    }
 }

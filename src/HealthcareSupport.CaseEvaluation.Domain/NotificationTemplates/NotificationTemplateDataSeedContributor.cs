@@ -84,12 +84,38 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         // cascade) use OLD-verbatim subject + body via EmailBodyTemplates;
         // remaining codes keep stub strings until their per-feature phase
         // wires real content. See docs/parity/email-coverage-audit.md.
+        //
+        // 2026-05-06: when the canonical .html file under EmailBodies/ ships
+        // for a code (i.e. EmailBodyResources.TryLoadBody returns non-null),
+        // overwrite the existing DB row's subject + body on every seed run.
+        // Reason: when we update a demo-critical template (e.g. drop
+        // branding placeholders), the seeder used to skip rows that already
+        // existed and the inboxes kept rendering the stale body. IT-admin
+        // edits to non-resource-backed (stub) codes are still preserved.
         var queryable = await _templateRepository.GetQueryableAsync();
-        var existingCodes = queryable.Select(x => x.TemplateCode).ToList();
+        var existing = queryable.ToDictionary(x => x.TemplateCode, x => x);
 
-        foreach (var code in NotificationTemplateConsts.Codes.All.Where(c => !existingCodes.Contains(c)))
+        foreach (var code in NotificationTemplateConsts.Codes.All)
         {
             var (subject, body) = GetSubjectAndBody(code);
+            var hasResourceBackedBody = EmailBodyResources.TryLoadBody(code) != null;
+
+            if (existing.TryGetValue(code, out var current))
+            {
+                if (!hasResourceBackedBody)
+                {
+                    continue;
+                }
+                if (current.Subject == subject && current.BodyEmail == body)
+                {
+                    continue;
+                }
+                current.Subject = subject;
+                current.BodyEmail = body;
+                await _templateRepository.UpdateAsync(current, autoSave: false);
+                continue;
+            }
+
             var entity = new NotificationTemplate(
                 id: _guidGenerator.Create(),
                 tenantId: tenantId,

@@ -45,12 +45,12 @@ public class UserRegisteredEmailHandler :
 {
     /// <summary>
     /// Dev-default AuthServer URL when the per-tenant
-    /// <see cref="CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl"/>
+    /// <see cref="CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl"/>
     /// setting is not configured. Mirrors the same default the
     /// AccessorInvitedEmailHandler uses, keeping the two flows in sync
     /// so a single setting flip switches both.
     /// </summary>
-    private const string DefaultAuthServerBaseUrl = "https://localhost:44368";
+    private const string DefaultPortalBaseUrl = "http://falkinstein.localhost:4200";
 
     private readonly INotificationDispatcher _dispatcher;
     private readonly IdentityUserManager _userManager;
@@ -101,8 +101,8 @@ public class UserRegisteredEmailHandler :
             // ABP's stock email-confirmation flow: token is single-use,
             // expires per IdentityOptions.Tokens.EmailConfirmationTokenProvider.
             var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-            var verifyUrl = BuildEmailConfirmationUrl(authServerBaseUrl, eventData.UserId, confirmationToken);
+            var portalBaseUrl = await ResolvePortalBaseUrlAsync();
+            var verifyUrl = BuildEmailConfirmationUrl(portalBaseUrl, eventData.UserId, confirmationToken);
 
             var recipients = new List<NotificationRecipient>
             {
@@ -122,20 +122,36 @@ public class UserRegisteredEmailHandler :
         }
     }
 
-    private async Task<string> ResolveAuthServerBaseUrlAsync()
+    private async Task<string> ResolvePortalBaseUrlAsync()
     {
+        // 2026-05-06 -- email confirmation links open the SPA's
+        // /account/email-confirmation page, so the base URL must point at
+        // the SPA host (port 4200), not the AuthServer (44368). The
+        // PortalBaseUrl setting is the right knob -- AuthServerBaseUrl
+        // is reserved for actual AuthServer-hosted endpoints.
         var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
         if (string.IsNullOrWhiteSpace(configured))
         {
-            return DefaultAuthServerBaseUrl;
+            return DefaultPortalBaseUrl;
         }
         return configured.TrimEnd('/');
     }
 
     /// <summary>
-    /// Builds ABP's stock confirm-email URL contract:
-    /// <c>{base}/Account/EmailConfirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
+    /// Builds the SPA-hosted confirm-email URL:
+    /// <c>{base}/account/email-confirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
+    /// 2026-05-06 -- changed from the AuthServer Razor path
+    /// (<c>/Account/EmailConfirmation</c>) to the SPA route. ABP's
+    /// <c>@volo/abp.ng.account/public</c> ships the matching client-side
+    /// route, registered in <c>app.routes.ts</c> under
+    /// <c>path: 'account'</c>. The AuthServer route's
+    /// <c>options.Applications["Angular"].Urls[AccountUrlNames.EmailConfirmation]</c>
+    /// already points at <c>account/email-confirmation</c> for any code
+    /// that goes through <c>IAppUrlProvider</c>; this handler now matches.
+    /// The base URL setting <c>Notifications:AuthServerBaseUrl</c> should
+    /// therefore point at the SPA host (e.g. <c>http://falkinstein.localhost:4200</c>),
+    /// not the AuthServer host.
     /// Internal for unit-test coverage.
     /// </summary>
     internal static string BuildEmailConfirmationUrl(
@@ -145,7 +161,7 @@ public class UserRegisteredEmailHandler :
     {
         var builder = new StringBuilder();
         builder.Append(authServerBaseUrl);
-        builder.Append("/Account/EmailConfirmation");
+        builder.Append("/account/email-confirmation");
         builder.Append("?userId=").Append(userId.ToString());
         builder.Append("&confirmationToken=").Append(WebUtility.UrlEncode(confirmationToken));
         return builder.ToString();

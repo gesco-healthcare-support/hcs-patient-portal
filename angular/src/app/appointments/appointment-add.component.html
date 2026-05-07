@@ -271,25 +271,15 @@
             </label>
             <input class="form-control" formControlName="cellPhoneNumber" maxlength="12" />
           </div>
+          <!-- OLD parity 2026-05-06: OLD's appointment-add form has a single
+               Phone Number field with no Work/Home type radio. The radio
+               that ABP added with the field is omitted to match. The
+               phoneNumberTypeId form control still exists in the
+               FormGroup so the API contract stays intact (defaults to
+               null, server treats as not specified). -->
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input class="form-control mb-2" formControlName="phoneNumber" maxlength="20" />
-            <div class="d-flex gap-3">
-              @for (option of phoneNumberTypeOptions; track option.key) {
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="radio"
-                    [id]="'phone-type-' + option.key"
-                    formControlName="phoneNumberTypeId"
-                    [value]="option.value"
-                  />
-                  <label class="form-check-label" [for]="'phone-type-' + option.key">
-                    {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
-                  </label>
-                </div>
-              }
-            </div>
+            <input class="form-control" formControlName="phoneNumber" maxlength="20" />
           </div>
 
           <div class="col-md-3 mb-3">
@@ -466,71 +456,23 @@
           </div>
           @if (form.get('applicantAttorneyEnabled')?.value) {
             <div class="card-body">
-              @if (!isApplicantAttorney) {
-                <div class="row mb-3">
-                  <div class="col-md-5">
-                    <label class="form-label fw-semibold">Applicant Attorney Email</label>
-                    <input
-                      type="email"
-                      class="form-control"
-                      placeholder="Enter email to load existing applicant attorney"
-                      [value]="applicantAttorneyEmailSearch"
-                      (input)="onApplicantAttorneyEmailSearch($event)"
-                    />
-                  </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <button
-                      type="button"
-                      class="btn btn-outline-primary"
-                      [disabled]="!applicantAttorneyEmailSearch || isApplicantAttorneyLoading"
-                      (click)="loadApplicantAttorneyByEmail()"
-                    >
-                      Load Applicant Attorney
-                    </button>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label fw-semibold">Or select from list</label>
-                    <select
-                      class="form-select"
-                      formControlName="applicantAttorneyIdentityUserId"
-                      (change)="onApplicantAttorneySelected($any($event.target).value || null)"
-                    >
-                      <option [ngValue]="null">Select Applicant Attorney</option>
-                      @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                        <option [value]="opt.identityUserId">
-                          {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
-                        </option>
-                      }
-                    </select>
-                  </div>
-                </div>
-              }
               <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">First Name</label>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Name</label>
                   <input
                     class="form-control"
                     formControlName="applicantAttorneyFirstName"
-                    placeholder="FIRST NAME"
-                    readonly
+                    placeholder="ATTORNEY NAME"
                   />
                 </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Last Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyLastName"
-                    placeholder="LAST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-6 mb-3">
                   <label class="form-label fw-semibold">Email</label>
                   <input
+                    type="email"
                     class="form-control"
                     formControlName="applicantAttorneyEmail"
-                    placeholder="EMAIL"
-                    readonly
+                    placeholder="ATTORNEY EMAIL"
+                    [readonly]="isApplicantAttorney && !isItAdmin"
                   />
                 </div>
                 <div class="col-md-3 mb-3">
@@ -596,7 +538,7 @@
                   ></abp-lookup-select>
                 </div>
                 <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Zip Code</label>
+                  <label class="form-label fw-semibold">Zip</label>
                   <input
                     class="form-control"
                     formControlName="applicantAttorneyZipCode"
@@ -626,69 +568,23 @@
           </div>
           @if (form.get('defenseAttorneyEnabled')?.value) {
             <div class="card-body">
-              <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Defense Attorney Email</label>
-                  <input
-                    type="email"
-                    class="form-control"
-                    placeholder="Enter email to load existing defense attorney"
-                    [value]="defenseAttorneyEmailSearch"
-                    (input)="onDefenseAttorneyEmailSearch($event)"
-                  />
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                  <button
-                    type="button"
-                    class="btn btn-outline-primary"
-                    [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
-                    (click)="loadDefenseAttorneyByEmail()"
-                  >
-                    Load Defense Attorney
-                  </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select from list</label>
-                  <select
-                    class="form-select"
-                    formControlName="defenseAttorneyIdentityUserId"
-                    (change)="onDefenseAttorneySelected($any($event.target).value || null)"
-                  >
-                    <option [ngValue]="null">Select Defense Attorney</option>
-                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
-                      <option [value]="opt.identityUserId">
-                        {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
-                      </option>
-                    }
-                  </select>
-                </div>
-              </div>
               <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">First Name</label>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-semibold">Name</label>
                   <input
                     class="form-control"
                     formControlName="defenseAttorneyFirstName"
-                    placeholder="FIRST NAME"
-                    readonly
+                    placeholder="ATTORNEY NAME"
                   />
                 </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Last Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyLastName"
-                    placeholder="LAST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-6 mb-3">
                   <label class="form-label fw-semibold">Email</label>
                   <input
+                    type="email"
                     class="form-control"
                     formControlName="defenseAttorneyEmail"
-                    placeholder="EMAIL"
-                    readonly
+                    placeholder="ATTORNEY EMAIL"
+                    [readonly]="isDefenseAttorney && !isItAdmin"
                   />
                 </div>
                 <div class="col-md-3 mb-3">
@@ -754,7 +650,7 @@
                   ></abp-lookup-select>
                 </div>
                 <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Zip Code</label>
+                  <label class="form-label fw-semibold">Zip</label>
                   <input
                     class="form-control"
                     formControlName="defenseAttorneyZipCode"
@@ -767,62 +663,6 @@
           }
         </div>
       </div>
-    </div>
-
-    <!-- W2-8 / Step 4.5: Claim Examiner Details card. Extracted from the per-injury
-         modal (where CE was a sub-card) into a top-level appointment-level card.
-         Name + Email only at this stage; remaining CE fields land when the full
-         CE entity is built. Submission integration follows in Step 5.1. -->
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold">Claim Examiner Details</h5>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="claim-examiner-enabled"
-            formControlName="claimExaminerEnabled"
-          />
-          <label class="form-check-label" for="claim-examiner-enabled">Include</label>
-        </div>
-      </div>
-      @if (form.get('claimExaminerEnabled')?.value) {
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Name</label>
-              <input
-                class="form-control"
-                formControlName="claimExaminerName"
-                placeholder="CLAIM EXAMINER NAME"
-              />
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Email</label>
-              <input
-                type="email"
-                class="form-control"
-                formControlName="claimExaminerEmail"
-                placeholder="CLAIM EXAMINER EMAIL"
-              />
-              @if (
-                form.get('claimExaminerEmail')?.touched &&
-                form.get('claimExaminerEmail')?.hasError('email')
-              ) {
-                <div class="text-danger small mt-1">Enter a valid email address.</div>
-              }
-              @if (
-                form.get('claimExaminerEmail')?.touched &&
-                form.get('claimExaminerEmail')?.hasError('required')
-              ) {
-                <div class="text-danger small mt-1">
-                  Email is required when Claim Examiner is included.
-                </div>
-              }
-            </div>
-          </div>
-        </div>
-      }
     </div>
 
     <!-- W2-8: Claim Information card. Mirrors OLD's appointment-add layout
@@ -910,7 +750,10 @@
         role="dialog"
         style="background: rgba(0, 0, 0, 0.5)"
       >
-        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div
+          class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"
+          role="document"
+        >
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">Claim Information</h5>
@@ -1148,6 +991,142 @@
                   </div>
                 }
               </div>
+
+              <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h6 class="mb-0 fw-bold">Claim Examiner</h6>
+                  <div class="form-check form-switch">
+                    <input
+                      type="checkbox"
+                      class="form-check-input"
+                      id="injury-claim-examiner-enabled"
+                      [(ngModel)]="injuryEditing.claimExaminer.isActive"
+                      [ngModelOptions]="{ standalone: true }"
+                      name="injuryClaimExaminerEnabled"
+                    />
+                    <label class="form-check-label" for="injury-claim-examiner-enabled">
+                      Include
+                    </label>
+                  </div>
+                </div>
+                @if (injuryEditing.claimExaminer.isActive) {
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-md-3 mb-2">
+                        <label class="form-label">Name</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="50"
+                          [(ngModel)]="injuryEditing.claimExaminer.name"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerName"
+                          placeholder="NAME"
+                          [readonly]="isClaimExaminerRole && !isItAdmin"
+                        />
+                      </div>
+                      <div class="col-md-3 mb-2">
+                        <label class="form-label">Email</label>
+                        <input
+                          type="email"
+                          class="form-control"
+                          maxlength="50"
+                          [(ngModel)]="injuryEditing.claimExaminer.email"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerEmail"
+                          placeholder="EMAIL"
+                          [readonly]="isClaimExaminerRole && !isItAdmin"
+                        />
+                      </div>
+                      <div class="col-md-3 mb-2">
+                        <label class="form-label">Phone Number</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="12"
+                          [(ngModel)]="injuryEditing.claimExaminer.phoneNumber"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerPhone"
+                          placeholder="PHONE NUMBER"
+                        />
+                      </div>
+                      <div class="col-md-3 mb-2">
+                        <label class="form-label">Fax</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="20"
+                          [(ngModel)]="injuryEditing.claimExaminer.fax"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerFax"
+                          placeholder="FAX"
+                        />
+                      </div>
+                      <div class="col-md-3 mb-2">
+                        <label class="form-label">Street</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="255"
+                          [(ngModel)]="injuryEditing.claimExaminer.street"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerStreet"
+                          placeholder="STREET"
+                        />
+                      </div>
+                      <div class="col-md-1 mb-2">
+                        <label class="form-label">STE</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="50"
+                          [(ngModel)]="injuryEditing.claimExaminer.claimExaminerNumber"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerSte"
+                          placeholder="STE"
+                        />
+                      </div>
+                      <div class="col-md-2 mb-2">
+                        <label class="form-label">City</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="50"
+                          [(ngModel)]="injuryEditing.claimExaminer.city"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerCity"
+                          placeholder="CITY"
+                        />
+                      </div>
+                      <div class="col-md-2 mb-2">
+                        <label class="form-label">State</label>
+                        <select
+                          class="form-select"
+                          [(ngModel)]="injuryEditing.claimExaminer.stateId"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerStateId"
+                        >
+                          <option [ngValue]="null">Select</option>
+                          @for (s of injuryStateOptions; track s.id) {
+                            <option [ngValue]="s.id">{{ s.displayName }}</option>
+                          }
+                        </select>
+                      </div>
+                      <div class="col-md-2 mb-2">
+                        <label class="form-label">Zip</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          maxlength="10"
+                          [(ngModel)]="injuryEditing.claimExaminer.zip"
+                          [ngModelOptions]="{ standalone: true }"
+                          name="injuryClaimExaminerZip"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
             </div>
             <div class="modal-footer flex-column align-items-stretch">
               @if (injuryModalError) {
@@ -1192,8 +1171,9 @@
             <tbody>
               @if (appointmentAuthorizedUsers.length === 0) {
                 <tr>
-                  <td colspan="5" class="text-muted text-center py-3">
-                    No additional authorized users.
+                  <td colspan="5" class="text-secondary py-3">
+                    Add email of a user who can manage this appointment details on behalf of
+                    yourself.
                   </td>
                 </tr>
               } @else {
@@ -1433,9 +1413,17 @@
       <button type="button" class="btn btn-secondary" (click)="cancel()">
         {{ 'AbpUi::Cancel' | abpLocalization }}
       </button>
+      <!-- OLD parity 2026-05-06: bottom submit reads "Book an appointment"
+           verbatim like the top toolbar button (P:\PatientPortalOld\.../
+           appointment-add.component.html). The Save text + check icon
+           was the ABP default. -->
       <button type="submit" class="btn btn-primary">
-        <i class="fa fa-check me-1" [class.fa-spinner]="isSaving" [class.fa-pulse]="isSaving"></i>
-        {{ 'AbpUi::Save' | abpLocalization }}
+        <i
+          class="fa fa-paper-plane me-1"
+          [class.fa-spinner]="isSaving"
+          [class.fa-pulse]="isSaving"
+        ></i>
+        Book an appointment
       </button>
     </div>
   </form>

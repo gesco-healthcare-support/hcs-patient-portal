@@ -380,7 +380,10 @@ export class AppointmentAddComponent {
     applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
     applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
-    defenseAttorneyEnabled: [false],
+    // OLD parity 2026-05-06: Defense Attorney section is enabled by default
+    // (matching OLD's two-attorney row with both toggles ON). Booker can
+    // turn it off explicitly if not needed. Same for Claim Examiner below.
+    defenseAttorneyEnabled: [true],
     defenseAttorneyIdentityUserId: [null as string | null],
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
@@ -472,6 +475,47 @@ export class AppointmentAddComponent {
       'claimExaminerEmail',
       !!this.form.get('claimExaminerEnabled')?.value,
     );
+
+    this.applyOwnRoleAttorneyPrefill();
+  }
+
+  /**
+   * OLD parity (appointment-add.component.ts:159-162): when the booker is
+   * the Applicant Attorney, pre-fill that section's email from their
+   * identity. Same idea for Defense Attorney (DA email is also readonly
+   * for DA-role bookers per OLD HTML line 749). The HTML pairs this with
+   * `[readonly]` on those email fields so the booker cannot retype their
+   * own address.
+   */
+  private applyOwnRoleAttorneyPrefill(): void {
+    const user = this.currentUser;
+    if (!user) return;
+    // OLD parity: AA/DA have a single "Name" field. We map the combined
+    // name into the existing firstName form control and leave lastName
+    // empty so downstream display ("firstName lastName") renders the
+    // single name without trailing whitespace.
+    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    if (this.isApplicantAttorney && !this.isItAdmin) {
+      this.form.patchValue(
+        {
+          applicantAttorneyEmail: user.email ?? this.form.get('applicantAttorneyEmail')?.value,
+          applicantAttorneyFirstName:
+            fullName || this.form.get('applicantAttorneyFirstName')?.value,
+          applicantAttorneyLastName: '',
+        },
+        { emitEvent: false },
+      );
+    }
+    if (this.isDefenseAttorney && !this.isItAdmin) {
+      this.form.patchValue(
+        {
+          defenseAttorneyEmail: user.email ?? this.form.get('defenseAttorneyEmail')?.value,
+          defenseAttorneyFirstName: fullName || this.form.get('defenseAttorneyFirstName')?.value,
+          defenseAttorneyLastName: '',
+        },
+        { emitEvent: false },
+      );
+    }
   }
 
   private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
@@ -757,6 +801,33 @@ export class AppointmentAddComponent {
   get isApplicantAttorney(): boolean {
     const roles = this.currentUser?.roles ?? [];
     return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
+  }
+
+  /** True when current user is Defense Attorney. OLD parity: own email field readonly + auto-filled. */
+  get isDefenseAttorney(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'defense attorney');
+  }
+
+  /**
+   * True when current user is Claim Examiner. OLD parity: their per-injury
+   * claim examiner name + email auto-fill from their identity and become
+   * readonly. NEW's "Claim Examiner" role is the same as OLD's "Adjuster"
+   * (renamed for clarity, see shared/auth/external-user-roles.ts).
+   */
+  get isClaimExaminerRole(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
+  }
+
+  /**
+   * True when current user holds the IT Admin internal role. OLD HTML uses
+   * `userRoleId != roleEnum.ITAdmin` as an override that lets IT Admins
+   * edit otherwise-readonly own-role email fields when booking on behalf.
+   */
+  get isItAdmin(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'it admin');
   }
 
   isFieldInvalid(fieldName: string): boolean {
@@ -1060,7 +1131,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: (patient.genderId as number | undefined) ?? null,
-          dateOfBirth: patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -1174,7 +1245,9 @@ export class AppointmentAddComponent {
           middleName: profile.patient.middleName ?? null,
           email: profile.patient.email ?? null,
           genderId: (profile.patient.genderId as number | undefined) ?? null,
-          dateOfBirth: profile.patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(
+            profile.patient.dateOfBirth as string | null,
+          ),
           cellPhoneNumber: profile.patient.cellPhoneNumber ?? null,
           phoneNumber: profile.patient.phoneNumber ?? null,
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -1214,6 +1287,21 @@ export class AppointmentAddComponent {
       return d.toISOString().split('T')[0];
     }
     return null;
+  }
+
+  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1900) return null;
+    const today = new Date();
+    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
+      return null;
+    }
+    return value;
   }
 
   onPatientSelected(patientId: string | null): void {
@@ -1277,7 +1365,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: (patient.genderId as number | undefined) ?? null,
-          dateOfBirth: patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -1937,6 +2025,7 @@ export class AppointmentAddComponent {
     userName?: string;
     name?: string;
     surname?: string;
+    email?: string;
     roles?: string[];
   } | null {
     return (this.configState.getOne('currentUser') as any) ?? null;
@@ -2236,7 +2325,7 @@ export class AppointmentAddComponent {
       wcabAdj: null,
       bodyPartsSummary: '',
       primaryInsurance: {
-        isActive: false,
+        isActive: true,
         name: null,
         insuranceNumber: null,
         attention: null,
@@ -2248,7 +2337,7 @@ export class AppointmentAddComponent {
         zip: null,
       },
       claimExaminer: {
-        isActive: false,
+        isActive: true,
         name: null,
         email: null,
         phoneNumber: null,
@@ -2292,8 +2381,28 @@ export class AppointmentAddComponent {
   openAddInjuryModal(): void {
     this.injuryEditingIndex = -1;
     this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.applyClaimExaminerRolePrefill();
     this.loadInjuryLookups();
     this.isInjuryModalOpen = true;
+  }
+
+  /**
+   * OLD parity (appointment-add.component.ts:145-149): when the booker is
+   * an Adjuster (NEW = Claim Examiner role) on a fresh appointment (not
+   * re-evaluation), pre-fill the per-injury claim examiner row with the
+   * logged-in user's name + email so they don't re-type their own info.
+   * The HTML pairs this with `[readonly]` on those fields when the booker
+   * holds the role and is not IT Admin.
+   */
+  private applyClaimExaminerRolePrefill(): void {
+    if (!this.isClaimExaminerRole || this.isItAdmin) return;
+    const user = this.currentUser;
+    if (!user) return;
+    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    this.injuryEditing.claimExaminer.name =
+      fullName || user.userName || this.injuryEditing.claimExaminer.name;
+    this.injuryEditing.claimExaminer.email = user.email || this.injuryEditing.claimExaminer.email;
+    this.injuryEditing.claimExaminer.isActive = true;
   }
 
   openEditInjuryModal(index: number): void {

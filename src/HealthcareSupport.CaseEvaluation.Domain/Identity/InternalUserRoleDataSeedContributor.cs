@@ -232,6 +232,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // action that gates Link / Unlink endpoints. AllEntities yields the
         // standard CRUD; this yields the extra action explicitly.
         yield return $"{Group}.PackageDetails.ManageDocuments";
+
+        // Phase A (2026-05-05) -- per-user signature upload, internal-only.
+        // Default lets IT Admin see the feature in the admin UI; ManageOwn
+        // gates the upload of their own signature for stamping on the
+        // Patient Packet PDF.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
     /// <summary>
@@ -292,6 +299,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("NotificationTemplates");
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
+
+        // Phase A (2026-05-05) -- supervisor uploads a signature so OLD packets
+        // they are responsible for include a stamped image (per OLD parity).
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
     /// <summary>
@@ -340,6 +352,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Reject("Appointments");
         yield return Default("AppointmentChangeRequests");
         yield return Default("SystemParameters");
+
+        // Phase A (2026-05-05) -- clinic staff uploads a signature so OLD
+        // packets they are responsible for include a stamped image. Mirrors
+        // OLD where ClinicStaff/ITAdmin/StaffSupervisor were the three roles
+        // that could upload via the My-Profile page.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
 }

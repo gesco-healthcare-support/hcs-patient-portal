@@ -484,14 +484,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
     {
-        // Distinct: a single AppointmentType is offered by many doctors via the
-        // Doctor->AppointmentTypes M2M; without Distinct the dropdown shows one row per edge.
-        var queryable = (await _doctorRepository.GetQueryableAsync())
-            .SelectMany(x => x.AppointmentTypes)
-            .Select(x => x.AppointmentType)
-            .Distinct();
-
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
+        // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
+        var query = (await _appointmentTypeRepository.GetQueryableAsync())
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -503,13 +499,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetLocationLookupAsync(LookupRequestDto input)
     {
-        // Distinct: same reason as GetAppointmentTypeLookupAsync above -- the Doctor->Locations
-        // M2M can have multiple doctors at the same Location.
-        var queryable = (await _doctorRepository.GetQueryableAsync())
-            .SelectMany(x => x.Locations)
-            .Select(x => x.Location)
-            .Distinct();
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
+        // exist, so query Location directly. IMultiTenant filter scopes by tenant.
+        var query = (await _locationRepository.GetQueryableAsync())
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

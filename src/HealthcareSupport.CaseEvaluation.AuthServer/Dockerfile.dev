@@ -1,0 +1,51 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+ARG ABP_NUGET_API_KEY
+WORKDIR /app
+
+COPY NuGet.Config.template .
+RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+
+COPY Directory.Build.props .
+COPY HealthcareSupport.CaseEvaluation.slnx .
+COPY src/ src/
+COPY test/ test/
+
+# Placeholder secrets (real ones bind-mounted at runtime via compose).
+RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json \
+ && echo '{}' > src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.secrets.json \
+ && echo '{}' > src/HealthcareSupport.CaseEvaluation.DbMigrator/appsettings.secrets.json \
+ && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
+ && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
+
+# Restore NuGet packages once, baked into the image. Subsequent dotnet watch
+# runs reuse the cached packages without re-restoring on every container start.
+RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+
+# Pre-build so the first watch run starts faster. dotnet watch will rebuild
+# incrementally on file changes after that.
+RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
+    -c Debug --no-restore
+
+# DOTNET_USE_POLLING_FILE_WATCHER=1 is required when source is bind-mounted
+# from a Windows / WSL2 host because inotify doesn't propagate over the
+# Docker Desktop bridge. Compose sets this; default here belt-and-suspenders.
+ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+ENV ASPNETCORE_URLS=http://+:8080
+
+EXPOSE 8080
+
+# Wipe bin/ + obj/ on container start. Otherwise the host's stale Windows-
+# generated obj/project.assets.json (which references
+# `C:\Program Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages`) leaks
+# into the Linux container via the bind mount and breaks the first restore
+# with "Unable to find fallback package folder ..." MSB4018.
+ENTRYPOINT ["sh", "-c", "\
+  # Wipe restore artifacts that might encode Windows host paths. Keep bin/obj\
+  # otherwise so a stale build still has its layout intact.\
+  find src -name 'project.assets.json' -delete 2>/dev/null; \
+  find src -name '*.nuget.g.props' -delete 2>/dev/null; \
+  find src -name '*.nuget.g.targets' -delete 2>/dev/null; \
+  # Single serial restore avoids the parallel-write race that produces\
+  # 'file already exists' on .nuget.g.props during dotnet watch's restore.\
+  dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
+  exec dotnet watch run --non-interactive --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]

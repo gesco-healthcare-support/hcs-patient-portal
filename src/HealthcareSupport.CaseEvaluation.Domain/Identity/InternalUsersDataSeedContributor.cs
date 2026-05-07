@@ -35,6 +35,22 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     public const string DefaultPassword = "1q2w3E*r";
     public const string ItAdminEmail = "it.admin@hcs.test";
 
+    /// <summary>
+    /// 2026-05-06 -- additional per-tenant admin emails seeded for the
+    /// end-to-end demo scripts. These get the same `admin` role as
+    /// `admin@&lt;tenantSlug&gt;.test` and the same password. They are
+    /// intended for the appointment-lifecycle test plan where two human
+    /// testers each need their own admin account in the same tenant
+    /// (Falkinstein) so they can independently book + approve / reject
+    /// appointments without trampling each other's session state.
+    /// Development-gated like the rest of the seeder.
+    /// </summary>
+    public static readonly string[] ExtraTenantAdminEmails =
+    {
+        "SoftwareOne@evaluators.com",
+        "SoftwareTwo@evaluators.com",
+    };
+
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly ICurrentTenant _currentTenant;
@@ -123,6 +139,22 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     email: email,
                     userName: email,
                     roleName: roleName,
+                    tenantId: tenantId);
+            }
+
+            // 2026-05-06 (Adrian directive): also seed the extra demo
+            // admin emails into every tenant. Idempotent -- if an
+            // already-registered external user happens to share the same
+            // email, EnsureUserWithRoleAsync will leave the row alone and
+            // just add the admin role. (For the test plan we delete the
+            // matching external rows beforehand via the dev API so the
+            // seeder creates a fresh admin user.)
+            foreach (var extraEmail in ExtraTenantAdminEmails)
+            {
+                await EnsureUserWithRoleAsync(
+                    email: extraEmail,
+                    userName: extraEmail,
+                    roleName: "admin",
                     tenantId: tenantId);
             }
         }

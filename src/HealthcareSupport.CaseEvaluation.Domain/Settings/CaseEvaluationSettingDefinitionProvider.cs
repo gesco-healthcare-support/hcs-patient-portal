@@ -36,7 +36,11 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // Notifications policy
         Define(context, CaseEvaluationSettings.NotificationsPolicy.CcEmailAddresses, defaultValue: "");
         Define(context, CaseEvaluationSettings.NotificationsPolicy.OfficeEmail,      defaultValue: "");
-        Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,    defaultValue: "http://localhost:4200");
+        // 2026-05-06 -- PortalBaseUrl default targets the Falkinstein subdomain so
+        // tenant-scoped requests (email-confirmation, change-request links, etc.)
+        // land on the right tenant context out of the box. Override per-tenant
+        // once Phase 1B multi-tenant URL routing ships.
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,    defaultValue: "http://falkinstein.localhost:4200");
         // S-6.1: AuthServer base URL for tenant-pre-filled register links in
         // "register as [role]" emails sent to non-registered parties.
         Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: "https://localhost:44368");
@@ -53,26 +57,24 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail,             defaultValue: "");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff,             defaultValue: "");
 
-        // G4 / F8 (Phase 9, 2026-05-04): originally forced email-verification
-        // before login, matching OLD's IsVerified gate at
+        // G4 / F8 (Phase 9, 2026-05-04): forces email-verification before
+        // login, matching OLD's IsVerified gate at
         // P:\PatientPortalOld\PatientAppointment.Domain\Core\UserAuthenticationDomain.cs:143.
         //
-        // Phase 1A demo override (2026-05-05, Adrian directive): default
-        // flipped to "false" so the demo flow runs without a real
-        // mailbox. The verification email STILL fires (the registration
-        // handler dispatches it independently of this gate); users who
-        // enter a real address can still verify themselves at their
-        // leisure. Dummy `*.test` addresses just don't get blocked at
-        // login. Re-enable this gate (set DefaultValue back to "true")
-        // once the demo is signed off and a working mailbox is wired
-        // for the production smoke environment.
+        // 2026-05-06 (Adrian directive): re-enabled. Previous Phase 1A
+        // flip to "false" (2026-05-05) was a demo convenience because the
+        // local SMTP rejects RFC-2606 *.test addresses; we now want OLD
+        // parity. Users who registered with a *.test address before this
+        // flip must either click a real verification link OR have
+        // EmailConfirmed=1 set manually in AbpUsers. New registrations
+        // need a working mailbox to actually receive the link.
         //
         // ABP setting key: "Abp.Identity.SignIn.RequireConfirmedEmail".
         var emailConfirmRequired = context.GetOrNull(
             IdentitySettingNames.SignIn.RequireConfirmedEmail);
         if (emailConfirmRequired != null)
         {
-            emailConfirmRequired.DefaultValue = "false";
+            emailConfirmRequired.DefaultValue = "true";
         }
     }
 

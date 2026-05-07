@@ -24,12 +24,13 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// would NRE. NEW's substitutor also accepts null values and renders
 /// them as the empty string explicitly so this stays safe.</para>
 ///
-/// <para><c>internal static</c> for unit-testability via
-/// <c>InternalsVisibleTo</c> (mirrors the Phase 3 SystemParameters
-/// pattern). Pure function -- no IO, no DI -- so tests run in
-/// microseconds.</para>
+/// <para>2026-05-06: moved from Application/Notifications (internal) to
+/// Domain/Notifications (public) so the AuthServer's IAccountEmailer
+/// override can use it without the AuthServer needing a reference to
+/// the Application layer. Pure function -- no IO, no DI -- so tests
+/// run in microseconds.</para>
 /// </summary>
-internal static class TemplateVariableSubstitutor
+public static class TemplateVariableSubstitutor
 {
     /// <summary>
     /// Substitutes <c>##Key##</c> placeholders in <paramref name="body"/>

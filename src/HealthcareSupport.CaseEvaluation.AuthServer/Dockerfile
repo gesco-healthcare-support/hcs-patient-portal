@@ -38,10 +38,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# ABP VFS in Development mode expects sibling source directories for hot-reload.
-# Create empty stubs so PhysicalFileProvider doesn't throw DirectoryNotFoundException.
-# ABP falls back to embedded resources when directories are empty.
-RUN mkdir -p /HealthcareSupport.CaseEvaluation.Domain.Shared \
- && mkdir -p /HealthcareSupport.CaseEvaluation.Domain
+# ABP VFS in Development mode optionally replaces embedded files with a
+# physical sibling source directory for hot-reload. The CaseEvaluationAuthServer
+# module guards each ReplaceEmbeddedByPhysical call with `Directory.Exists`
+# AND an empty-check, so missing source directories simply mean we use the
+# embedded fileset baked into the DLL. (Earlier this Dockerfile created
+# empty stub dirs to dodge a phantom DirectoryNotFoundException; that move
+# silently nuked all localization JSON because ABP replaces the embedded
+# fileset with an empty physical one. Don't reintroduce the stubs.)
 
 ENTRYPOINT ["dotnet", "HealthcareSupport.CaseEvaluation.AuthServer.dll"]

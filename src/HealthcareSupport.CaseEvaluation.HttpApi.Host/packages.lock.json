@@ -928,6 +928,11 @@
         "resolved": "8.6.3",
         "contentHash": "xRlcE+1FidqIfZ7zxBT6klSblJ/7MAJq1x5yvYoLnwNhs8Xc2gp3Srf8wHG2NpFxVBqrldc3svhkMPJjSzTmzw=="
       },
+      "QuestPDF": {
+        "type": "Transitive",
+        "resolved": "2026.2.4",
+        "contentHash": "fajBdRJFr3hu2Mr6mEVsXjvVKD9Q/Q6hfPEUMpV/xlwxWdFebmpGdi0FLQTApMvpapy72v9dvcGuk7e7NQmQyQ=="
+      },
       "Riok.Mapperly": {
         "type": "Transitive",
         "resolved": "4.3.1",
@@ -3025,6 +3030,7 @@
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "PDFsharp-MigraDoc": "[6.2.4, )",
           "PdfSharp": "[6.2.4, )",
+          "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.1.0, )",
           "Stateless": "[5.20.1, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",

@@ -26,12 +26,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# ABP VFS in Development mode expects sibling source directories for hot-reload.
-# Create empty stubs so PhysicalFileProvider doesn't throw DirectoryNotFoundException.
-RUN mkdir -p /src/HealthcareSupport.CaseEvaluation.Domain.Shared \
- && mkdir -p /src/HealthcareSupport.CaseEvaluation.Domain \
- && mkdir -p /src/HealthcareSupport.CaseEvaluation.Application.Contracts \
- && mkdir -p /src/HealthcareSupport.CaseEvaluation.Application \
- && mkdir -p /src/HealthcareSupport.CaseEvaluation.HttpApi
+# See AuthServer Dockerfile note: empty-stub directories silently nuke the
+# embedded localization fileset because ABP's ReplaceEmbeddedByPhysical
+# fully replaces (not merges) when the physical path exists. The
+# HttpApiHost module now guards each replace call with Directory.Exists,
+# so missing host source directories cleanly fall back to embedded
+# resources. Don't reintroduce the stubs.
 
 ENTRYPOINT ["dotnet", "HealthcareSupport.CaseEvaluation.HttpApi.Host.dll"]

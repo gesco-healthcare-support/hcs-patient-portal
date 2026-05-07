@@ -8,25 +8,11 @@
           </h3>
 
           <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-            <!-- User Type / Role -->
-            <div class="mb-3">
-              <label class="form-label" for="userType">User Type</label>
-              <select
-                id="userType"
-                class="form-select"
-                formControlName="userType"
-                [attr.aria-invalid]="
-                  form.controls.userType.invalid && form.controls.userType.touched
-                "
-              >
-                <option *ngFor="let opt of roleOptions" [ngValue]="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-            </div>
+            <!-- 2026-05-06: User Type dropdown removed; public form is Patient-only.
+                 Non-Patient external accounts are admin-provisioned. -->
 
-            <!-- First Name + Last Name (Patient / Adjuster) -->
-            <div class="row" *ngIf="!isAttorney">
+            <!-- First Name + Last Name -->
+            <div class="row">
               <div class="col-md-6 mb-3">
                 <label class="form-label" for="firstName">First Name</label>
                 <input
@@ -70,29 +56,6 @@
                 >
                   Last Name is required.
                 </div>
-              </div>
-            </div>
-
-            <!-- Firm Name (Attorneys) -->
-            <div class="mb-3" *ngIf="isAttorney">
-              <label class="form-label" for="firmName">Firm Name</label>
-              <input
-                id="firmName"
-                type="text"
-                class="form-control"
-                formControlName="firmName"
-                maxlength="50"
-                [attr.aria-invalid]="
-                  form.controls.firmName.invalid && form.controls.firmName.touched
-                "
-              />
-              <div
-                class="invalid-feedback d-block"
-                *ngIf="
-                  form.controls.firmName.touched && form.controls.firmName.errors?.['required']
-                "
-              >
-                Firm Name is required.
               </div>
             </div>
 

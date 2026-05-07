@@ -25,6 +25,8 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
 using Volo.Saas.Tenants;
+using Microsoft.Extensions.Hosting;
+using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
@@ -51,6 +53,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // R1 follow-up (2026-05-05): publish UserRegisteredEto so the
     // notification handler can send OLD's "verify your email" message.
     private readonly ILocalEventBus _localEventBus;
+    // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
+    // gate on EnvironmentName so they cannot be invoked in production.
+    private readonly IHostEnvironment _hostEnvironment;
+    // 2026-05-06: cross-tenant queries in the dev helpers (find a user by
+    // email regardless of which tenant they registered under) need to bypass
+    // ABP's IMultiTenant filter. CurrentTenant.Change(null) only switches
+    // to host context; the filter still applies and excludes tenant rows.
+    // IDataFilter.Disable<IMultiTenant> turns the filter off entirely.
+    private readonly IDataFilter _dataFilter;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -70,7 +81,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
         ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
-        ILocalEventBus localEventBus)
+        ILocalEventBus localEventBus,
+        IHostEnvironment hostEnvironment,
+        IDataFilter dataFilter)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -90,6 +103,137 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
         _localEventBus = localEventBus;
+        _hostEnvironment = hostEnvironment;
+        _dataFilter = dataFilter;
+    }
+
+    /// <summary>
+    /// Dev-only: mark a user's email as confirmed by email lookup. Cross-
+    /// tenant: switches to host context and finds the IdentityUser regardless
+    /// of which tenant they registered under, so the demo can iterate
+    /// without re-typing tenant ids. Throws if not Development.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task MarkEmailConfirmedAsync(string email)
+    {
+        EnsureDevelopmentOnly(nameof(MarkEmailConfirmedAsync));
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new UserFriendlyException("Email is required.");
+        }
+
+        var normalized = email.Trim();
+        // Cross-tenant lookup: disable the IMultiTenant filter so the
+        // query returns rows from every tenant, not just the host. Switching
+        // CurrentTenant to null is NOT enough -- the filter still applies
+        // and excludes rows whose TenantId is non-null. See
+        // memory/project_imultitenant-filter.md.
+        Guid? foundTenantId;
+        Guid foundUserId;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var query = await _identityUserRepository.GetQueryableAsync();
+            var user = await AsyncExecuter.FirstOrDefaultAsync(
+                query.Where(u => u.Email != null && u.Email.ToLower() == normalized.ToLower()));
+            if (user == null)
+            {
+                throw new UserFriendlyException($"User with email '{email}' not found.");
+            }
+            foundTenantId = user.TenantId;
+            foundUserId = user.Id;
+        }
+
+        using (CurrentTenant.Change(foundTenantId))
+        {
+            var managed = await _userManager.GetByIdAsync(foundUserId);
+            if (managed == null)
+            {
+                throw new UserFriendlyException($"User with email '{email}' not found in tenant scope.");
+            }
+            managed.SetEmailConfirmed(true);
+            var result = await _userManager.UpdateAsync(managed);
+            if (!result.Succeeded)
+            {
+                throw new UserFriendlyException(string.Join(", ", result.Errors.Select(x => x.Description)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dev-only: delete the IdentityUser rows matching the given emails plus
+    /// any dependent Patient / ApplicantAttorney / DefenseAttorney profile
+    /// rows. Lets the demo re-register the same emails repeatedly. Cross-
+    /// tenant lookup. Throws if not Development.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task<DeleteTestUsersResultDto> DeleteTestUsersAsync(IList<string> emails)
+    {
+        EnsureDevelopmentOnly(nameof(DeleteTestUsersAsync));
+        var result = new DeleteTestUsersResultDto();
+        if (emails == null || emails.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var rawEmail in emails)
+        {
+            if (string.IsNullOrWhiteSpace(rawEmail))
+            {
+                continue;
+            }
+            var email = rawEmail.Trim();
+
+            // Cross-tenant lookup: disable the IMultiTenant filter so the
+            // query sees rows from every tenant. See
+            // memory/project_imultitenant-filter.md for why CurrentTenant.Change(null)
+            // is not sufficient on its own.
+            List<(Guid Id, Guid? TenantId)> targets;
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var query = await _identityUserRepository.GetQueryableAsync();
+                var users = await AsyncExecuter.ToListAsync(
+                    query.Where(u => u.Email != null && u.Email.ToLower() == email.ToLower())
+                         .Select(u => new { u.Id, u.TenantId }));
+                targets = users.Select(u => (u.Id, u.TenantId)).ToList();
+            }
+
+            if (targets.Count == 0)
+            {
+                result.NotFound.Add(email);
+                continue;
+            }
+
+            foreach (var t in targets)
+            {
+                using (CurrentTenant.Change(t.TenantId))
+                {
+                    var managed = await _userManager.GetByIdAsync(t.Id);
+                    if (managed != null)
+                    {
+                        var deleteResult = await _userManager.DeleteAsync(managed);
+                        if (!deleteResult.Succeeded)
+                        {
+                            throw new UserFriendlyException(
+                                $"Delete failed for {email}: " +
+                                string.Join(", ", deleteResult.Errors.Select(x => x.Description)));
+                        }
+                    }
+                }
+            }
+
+            result.Deleted.Add(email);
+        }
+
+        return result;
+    }
+
+    private void EnsureDevelopmentOnly(string operation)
+    {
+        if (!_hostEnvironment.IsDevelopment())
+        {
+            throw new UserFriendlyException(
+                $"{operation} is only available in Development environment.");
+        }
     }
 
     [AllowAnonymous]
@@ -281,7 +425,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             return false;
         }
-        var raw = user.GetProperty<object?>(propertyName);
+        // Use the non-generic GetProperty(string) overload. The typed
+        // GetProperty<T>(string, T) routes through TypeHelper.ChangeTypePrimitiveExtended<T>
+        // which only supports primitive Ts (and explicitly throws an
+        // AbpException for object?, JsonElement, etc.). We need the raw
+        // value so CoerceBool can normalize whichever shape ABP serialized
+        // it as -- bool, "True"/"False" string, or a JsonElement.
+        var raw = ((IHasExtraProperties)user).GetProperty(propertyName);
         return CoerceBool(raw);
     }
 
@@ -396,7 +546,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     lastName: input.LastName ?? string.Empty,
                     email: input.Email,
                     genderId: Gender.Male,
-                    dateOfBirth: DateTime.UtcNow.Date,
+                    dateOfBirth: DateTime.MinValue,
                     phoneNumberTypeId: PhoneNumberType.Home
                 );
             }
@@ -428,23 +578,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // having to re-enter their details.
             await AutoLinkAppointmentsForUserAsync(user, input.UserType);
 
-            // R1 follow-up (2026-05-05) -- publish UserRegisteredEto so the
-            // UserRegisteredEmailHandler can dispatch OLD's "verify your email"
-            // message. Mirrors OLD UserDomain.cs:332 SendMail call. The handler
-            // generates the email-confirmation token + verify URL on the
-            // consumer side so the Eto stays minimal (no token-leak risk in the
-            // event payload). Published inside the `using (CurrentTenant.Change)`
-            // block so the local event bus captures the right tenant context.
-            await _localEventBus.PublishAsync(new UserRegisteredEto
-            {
-                UserId = user.Id,
-                TenantId = CurrentTenant.Id,
-                Email = user.Email ?? string.Empty,
-                FirstName = user.Name ?? string.Empty,
-                LastName = user.Surname ?? string.Empty,
-                RoleName = roleName,
-                OccurredAt = DateTime.UtcNow,
-            });
+            // 2026-05-06 (Adrian directive): the verification email is NOT sent
+            // when the user submits the register form. Instead the SPA bounces
+            // them to `/Account/ConfirmUser?email=...` and the email fires only
+            // when they explicitly click "Verify" there (which calls
+            // /api/public/external-signup/resend-verification, publishing the
+            // UserRegisteredEto). This lets registration finish silently if the
+            // user closes the tab and removes the wasted SMTP send for users
+            // who never click through.
         }
     }
 

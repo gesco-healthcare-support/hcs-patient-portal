@@ -49,6 +49,9 @@ using Volo.Abp.UI.Navigation.Urls;
 using Volo.Abp.VirtualFileSystem;
 using Volo.Abp.Studio.Client.AspNetCore;
 using Volo.Abp.AspNetCore.Authentication.JwtBearer;
+using Localization.Resources.AbpUi;
+using Volo.Abp.Account.Localization;
+using Volo.Abp.Localization;
 
 namespace HealthcareSupport.CaseEvaluation;
 
@@ -94,6 +97,21 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
         ConfigureMultiTenancy();
+
+        // OLD-parity label overrides: inject extra JSON into AbpUi +
+        // AbpAccount resources so the SPA's /api/abp/application-localization
+        // endpoint serves "Sign Up" / "Sign In" / "Already have an account?"
+        // (the same overrides registered in AuthServerModule for Razor pages).
+        Configure<AbpLocalizationOptions>(options =>
+        {
+            options.Resources
+                .Get<AbpUiResource>()
+                .AddVirtualJson("/Localization/AbpUiOverride");
+
+            options.Resources
+                .Get<AccountResource>()
+                .AddVirtualJson("/Localization/AccountOverride");
+        });
 
         Configure<PermissionManagementOptions>(options =>
         {
@@ -173,13 +191,45 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
         if (hostingEnvironment.IsDevelopment())
         {
+            // See AuthServer module for the rationale: Directory.Exists guard
+            // protects the embedded fileset in Docker (where the host source
+            // tree isn't mounted). Without the guard, all CaseEvaluation
+            // localization JSON gets replaced by an empty directory and
+            // every L("Menu:Home"), L("Enum:..."), L("Appointment:Action:...")
+            // call returns the literal key.
+            var basePath = hostingEnvironment.ContentRootPath;
+            string Resolve(string projectName) => Path.Combine(
+                basePath,
+                string.Format("..{0}..{0}src{0}{1}", Path.DirectorySeparatorChar, projectName));
+
+            var sharedPath = Resolve("HealthcareSupport.CaseEvaluation.Domain.Shared");
+            var domainPath = Resolve("HealthcareSupport.CaseEvaluation.Domain");
+            var appContractsPath = Resolve("HealthcareSupport.CaseEvaluation.Application.Contracts");
+            var appPath = Resolve("HealthcareSupport.CaseEvaluation.Application");
+            var httpApiPath = Resolve("HealthcareSupport.CaseEvaluation.HttpApi");
+
             Configure<AbpVirtualFileSystemOptions>(options =>
             {
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Domain.Shared", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Domain", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationContractsModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Application.Contracts", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Application", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationHttpApiModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.HttpApi", Path.DirectorySeparatorChar)));
+                if (Directory.Exists(sharedPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(sharedPath);
+                }
+                if (Directory.Exists(domainPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(domainPath);
+                }
+                if (Directory.Exists(appContractsPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationContractsModule>(appContractsPath);
+                }
+                if (Directory.Exists(appPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationModule>(appPath);
+                }
+                if (Directory.Exists(httpApiPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationHttpApiModule>(httpApiPath);
+                }
             });
         }
     }
@@ -488,9 +538,21 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
 
         var dataProtectionBuilder = context.Services.AddDataProtection().SetApplicationName("CaseEvaluation");
-        if (!hostingEnvironment.IsDevelopment())
+
+        // Persist DataProtection keys to Redis whenever a Redis connection is
+        // configured, in BOTH dev and prod. Reason: AuthServer + HttpApi.Host
+        // run as separate Docker containers (separate filesystems), so the
+        // default key store at /root/.aspnet/DataProtection-Keys is per-
+        // container. ABP-Identity tokens (e.g. EmailConfirmation) generated
+        // by the API host fail validation when the AuthServer's confirm-email
+        // endpoint tries to decrypt them with a different key ring -- the
+        // request returns 403 with "Volo.Abp.Identity:InvalidToken".
+        // Redis-backed shared keys + matching SetApplicationName above make
+        // both processes interchangeable validators.
+        var redisConfig = configuration["Redis:Configuration"];
+        if (!string.IsNullOrWhiteSpace(redisConfig))
         {
-            var redis = ConnectionMultiplexer.Connect(configuration["Redis:Configuration"]!);
+            var redis = ConnectionMultiplexer.Connect(redisConfig);
             dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, "CaseEvaluation-Protection-Keys");
         }
     }

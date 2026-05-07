@@ -467,4 +467,17 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string RegistrationFirmNameRequired =
         "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
+
+    /// <summary>
+    /// 2026-05-06 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
+    /// when <c>UserType</c> is anything other than <c>Patient</c>. The
+    /// public register form is Patient-only per
+    /// <c>project_external-registration-role</c> memory; non-Patient
+    /// external accounts are admin-provisioned through the invite flow.
+    /// Defense-in-depth against tampered clients (the SPA already removed
+    /// the User Type dropdown). Localization key
+    /// <c>Registration:RoleNotAllowedForPublicSignup</c>.
+    /// </summary>
+    public const string RegistrationRoleNotAllowed =
+        "CaseEvaluation:Registration.RoleNotAllowedForPublicSignup";
 }

@@ -55,6 +55,13 @@ public class CaseEvaluationDomainModule : AbpModule
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
         });
 
+        // Phase 1 (2026-05-05): QuestPDF community-license registration.
+        // Required before any QuestPDF render call -- the library throws on
+        // first use otherwise. Community license is free for our scale (Gesco
+        // is well below QuestPDF's 1M ARR / 10-employee threshold). License
+        // text: https://www.questpdf.com/license/community.html
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 
 
         // Adrian (2026-04-30 / W-A-10): the previous `#if DEBUG` guard never fired in the

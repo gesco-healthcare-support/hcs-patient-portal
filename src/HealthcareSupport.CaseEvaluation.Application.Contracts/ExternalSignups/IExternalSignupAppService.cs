@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Shared;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -30,4 +31,21 @@ public interface IExternalSignupAppService : IApplicationService
     /// silently until ACS credentials land per S-5.7).
     /// </summary>
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
+
+    /// <summary>
+    /// Dev-only test helper: flip <c>EmailConfirmed=true</c> on the user
+    /// matching <paramref name="email"/> across all tenants. Lets demo
+    /// testing skip the inbox round-trip when verifying flows that depend
+    /// on the email-confirm gate. Throws when not running in Development.
+    /// </summary>
+    Task MarkEmailConfirmedAsync(string email);
+
+    /// <summary>
+    /// Dev-only test helper: delete IdentityUser rows (and dependent
+    /// Patient/ApplicantAttorney/DefenseAttorney profiles) for the given
+    /// emails, across all tenants. Allows the demo register flow to be
+    /// re-run repeatedly with the same email addresses. Throws when not
+    /// running in Development.
+    /// </summary>
+    Task<DeleteTestUsersResultDto> DeleteTestUsersAsync(IList<string> emails);
 }

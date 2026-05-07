@@ -35,14 +35,29 @@ export const APP_ROUTES: Routes = [
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
     canActivate: [authGuard, permissionGuard],
   },
-  // R1 (2026-05-05): public external-user registration. Defined BEFORE the
-  // lazy `account` loadChildren so this exact-match route wins over ABP
-  // account-module's built-in /register surface. ADR-006: tenant resolves
-  // from subdomain; no tenant selector on the form.
+  // 2026-05-06: the SPA register page is dead -- the live register flow
+  // lives on the AuthServer Razor page at port 44368. Redirect anyone
+  // landing on /account/register on the SPA to the AuthServer URL on the
+  // same subdomain so they reach the working form.
   {
     path: 'account/register',
     loadComponent: () =>
-      import('./account/register/register.component').then((c) => c.RegisterComponent),
+      import('./shared/auth/redirect-to-authserver-register.component').then(
+        (c) => c.RedirectToAuthServerRegisterComponent,
+      ),
+  },
+  // 2026-05-06 -- OLD-parity URL alias. OLD emailed
+  // `/verify-email/{userId}?query={UUID}`; redirect such links to ABP's
+  // `/account/email-confirmation?userId&confirmationToken` so legacy links
+  // resolve. Token format is incompatible (OLD UUID vs NEW DataProtection)
+  // so verification itself will fail for genuinely-old codes; but the
+  // user-facing routing works.
+  {
+    path: 'verify-email/:userId',
+    loadComponent: () =>
+      import('./shared/auth/verify-email-redirect.component').then(
+        (c) => c.VerifyEmailRedirectComponent,
+      ),
   },
   {
     path: 'account',

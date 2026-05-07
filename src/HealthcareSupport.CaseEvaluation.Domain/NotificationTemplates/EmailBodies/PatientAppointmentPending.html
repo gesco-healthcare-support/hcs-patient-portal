@@ -1,79 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 </head>
-<body>
-    <style>
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 14px;
-            line-height: 20px;
-            text-align: left;
-            color: #fff;
-        }
-
-        .heaer {
-            background: #0b3a60;
-        }
-
-        td {
-            color: #000;
-        }
-
-        .table {
-            background-color: #ffffff;
-            border-color: #e3e2e2;
-        }
-    </style>
-    <table align="center" width="50%" cellspacing="0" cellpadding="10" border="1" bordercolor="#666">
-        <tr>
-            <td bgcolor="#0b3a60">
-                <table width="100%" cellspacing="0" cellpadding="0">
-                    <tr>
-                        <td width="130" height="83" style="text-align:left;">
-                            <img src="##CompanyLogo##" width="130" height="50" alt="" />
-                        </td>
-                        <td align="left" style="font-size:20px;text-align:left;color:#fff;padding-left:30px">##lblHeaderTitle##</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-        <tr>
-            <td class="table">
-                <table width="100%" cellspacing="0" cellpadding="0">
-                    <tr> <td>&nbsp;</td> </tr>
-                    <tr>
-                        <td>Hello, ##PatientFirstName##</td>
-                    </tr>
-                    <tr> <td>&nbsp;</td> </tr>
-                    <tr> <td>Your appointment has been Pending on ##AppointmentDate## ##AppointmentFromTime##. Your confirmation number is <b style='font-size:17px'> ##AppointmentRequestConfirmationNumber## </b>. </td> </tr>
-                    <tr> <td>We will send you confirmation mail for your appointment booking request once it gets approved.</td> </tr>
-					<tr> <td>&nbsp;</td> </tr>
-                    <tr> <td>&nbsp;</td> </tr>
-                    <tr> <td>&nbsp;</td> </tr>
-
-                </table>
-            </td>
-        </tr>
-        <tr>
-            <td bgcolor="#9dc13b" style="color:#fff;">
-                <table width="100%" cellspacing="0" cellpadding="0">
-                    <tr>
-                        <td>
-                            <table width="100%" cellspacing="0" cellpadding="0">
-                                <tr> <td style="color:#fff; font-size:18px;"><strong> ##lblFooterText## </strong> </td> </tr>
-                                <tr> <td>&nbsp;</td> </tr>
-                                <tr> <td style="color:#fff;">Email: ##Email##</td> </tr>
-                                <tr> <td style="color:#fff;">Phone Number: ##ph_US##</td> </tr>
-                                <tr> <td style="color:#fff;">Fax: ##fax##</td> </tr>
-                            </table>
-                        </td>
-                        <td align="right"><img src="##imageInByte##" width="83" height="83" /></td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 20px; color: #000;">
+    <p>Hello, ##PatientFirstName##</p>
+    <p>Your appointment has been Pending on ##AppointmentDate## ##AppointmentFromTime##. Your confirmation number is <b style="font-size:17px">##AppointmentRequestConfirmationNumber##</b>.</p>
+    <p>We will send you confirmation mail for your appointment booking request once it gets approved.</p>
 </body>
 </html>

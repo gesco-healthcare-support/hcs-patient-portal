@@ -156,6 +156,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         doctorPreferredLocationsPermission.AddChild(
             CaseEvaluationPermissions.DoctorPreferredLocations.Toggle,
             L("Permission:DoctorPreferredLocations.Toggle"));
+
+        // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
+        var userSignaturesPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.UserSignatures.Default,
+            L("Permission:UserSignatures"));
+        userSignaturesPermission.AddChild(
+            CaseEvaluationPermissions.UserSignatures.ManageOwn,
+            L("Permission:UserSignatures.ManageOwn"));
     }
 
     private static LocalizableString L(string name)
