@@ -25,10 +25,14 @@ public class ExternalUserSignUpDto
     [Required]
     public ExternalUserType UserType { get; set; }
 
-    // Adrian (2026-04-30): names are NOT collected on the register page.
-    // They are captured later on the booking form's patient/AA section, so
-    // these are nullable here. The server stores them as-is on IdentityUser
-    // (Name/Surname) when supplied; otherwise leaves them null.
+    // B17 (2026-05-07): OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85)
+    // collects FirstName + LastName for every external role (Patient,
+    // Adjuster/Claim Examiner, Patient/Applicant Attorney, Defense
+    // Attorney) and persists them as separate columns. The Razor
+    // register form now shows both fields for all roles -- only FirmName
+    // is attorney-only. These remain nullable here so the booking-form
+    // backfill path stays available, but the typical register submission
+    // sends both populated.
     [StringLength(128)]
     public string? FirstName { get; set; }
 

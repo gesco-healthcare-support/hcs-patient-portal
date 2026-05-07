@@ -226,14 +226,22 @@
     });
 
     function applyRoleVisibility() {
+      // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
+      // every role -- Patient, Adjuster (Claim Examiner), Patient Attorney
+      // (Applicant Attorney), Defense Attorney -- has FirstName + LastName
+      // columns and the OLD register form collects them for everyone. Only
+      // FirmName is attorney-only. Earlier NEW behavior hid First/Last for
+      // attorneys, leaving IdentityUser.Name + Surname null and breaking
+      // the welcome banner, the booking-form pre-fill, and the attorney
+      // lookup labels (all of which read those two fields).
       var select = form.querySelector('#external-user-type');
       var role = select ? Number(select.value || 1) : 1;
       var isAttorney = role === 3 || role === 4;
       var firstWrap = firstNameInput.closest('.form-floating, .mb-2, .mb-3');
       var lastWrap = lastNameInput.closest('.form-floating, .mb-2, .mb-3');
       var firmWrap = firmNameInput.closest('.form-floating, .mb-2, .mb-3');
-      if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
-      if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
+      if (firstWrap) firstWrap.style.display = '';
+      if (lastWrap) lastWrap.style.display = '';
       if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
     }
 
@@ -567,11 +575,13 @@
     }
     const tenantId = ctx.id;
 
-    // OLD parity: First Name + Last Name for non-attorney roles, Firm
-    // Name for the two attorney roles (Applicant Attorney = 3, Defense
-    // Attorney = 4). The role-visibility hook in ensureExtraRegisterFields
-    // shows/hides the appropriate inputs; we still read all three off
-    // the DOM and let the backend ignore the irrelevant ones.
+    // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
+    // First Name + Last Name are collected for every role; Firm Name is
+    // additional for the two attorney roles (Applicant Attorney = 3,
+    // Defense Attorney = 4). Always send First / Last so the
+    // IdentityUser.Name / Surname columns never end up null -- the
+    // welcome banner, booking-form pre-fill, and attorney lookup all
+    // read those two fields.
     const firstName = getFirstValue(form, ['#external-first-name', 'input[name="FirstName"]']);
     const lastName = getFirstValue(form, ['#external-last-name', 'input[name="LastName"]']);
     const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
@@ -579,8 +589,8 @@
 
     const payload = {
       userType: userType,
-      firstName: isAttorney ? null : (firstName || null),
-      lastName: isAttorney ? null : (lastName || null),
+      firstName: firstName || null,
+      lastName: lastName || null,
       firmName: isAttorney ? (firmName || null) : null,
       email: email,
       password: password,
