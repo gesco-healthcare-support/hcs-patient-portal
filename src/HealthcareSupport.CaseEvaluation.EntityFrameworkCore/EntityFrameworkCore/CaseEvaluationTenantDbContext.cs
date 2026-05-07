@@ -419,8 +419,9 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Street).HasColumnName(nameof(ApplicantAttorney.Street)).HasMaxLength(ApplicantAttorneyConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(ApplicantAttorney.City)).HasMaxLength(ApplicantAttorneyConsts.CityMaxLength);
             b.Property(x => x.ZipCode).HasColumnName(nameof(ApplicantAttorney.ZipCode)).HasMaxLength(ApplicantAttorneyConsts.ZipCodeMaxLength);
+            b.Property(x => x.Email).HasColumnName(nameof(ApplicantAttorney.Email)).HasMaxLength(ApplicantAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
-            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
@@ -429,7 +430,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentApplicantAttorney.TenantId));
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<ApplicantAttorney>().WithMany().IsRequired().HasForeignKey(x => x.ApplicantAttorneyId).OnDelete(DeleteBehavior.NoAction);
-            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<DefenseAttorney>(b =>
         {
@@ -444,8 +445,9 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Street).HasColumnName(nameof(DefenseAttorney.Street)).HasMaxLength(DefenseAttorneyConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(DefenseAttorney.City)).HasMaxLength(DefenseAttorneyConsts.CityMaxLength);
             b.Property(x => x.ZipCode).HasColumnName(nameof(DefenseAttorney.ZipCode)).HasMaxLength(DefenseAttorneyConsts.ZipCodeMaxLength);
+            b.Property(x => x.Email).HasColumnName(nameof(DefenseAttorney.Email)).HasMaxLength(DefenseAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
-            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<AppointmentDefenseAttorney>(b =>
         {
@@ -454,7 +456,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentDefenseAttorney.TenantId));
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DefenseAttorney>().WithMany().IsRequired().HasForeignKey(x => x.DefenseAttorneyId).OnDelete(DeleteBehavior.NoAction);
-            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<AppointmentInjuryDetail>(b =>
         {

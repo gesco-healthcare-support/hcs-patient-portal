@@ -19,20 +19,18 @@ public class AppointmentDefenseAttorneyManager : DomainService
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
     }
 
-    public virtual async Task<AppointmentDefenseAttorney> CreateAsync(Guid appointmentId, Guid defenseAttorneyId, Guid identityUserId)
+    public virtual async Task<AppointmentDefenseAttorney> CreateAsync(Guid appointmentId, Guid defenseAttorneyId, Guid? identityUserId)
     {
         Check.NotNull(appointmentId, nameof(appointmentId));
         Check.NotNull(defenseAttorneyId, nameof(defenseAttorneyId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         var appointmentDefenseAttorney = new AppointmentDefenseAttorney(GuidGenerator.Create(), appointmentId, defenseAttorneyId, identityUserId);
         return await _appointmentDefenseAttorneyRepository.InsertAsync(appointmentDefenseAttorney);
     }
 
-    public virtual async Task<AppointmentDefenseAttorney> UpdateAsync(Guid id, Guid appointmentId, Guid defenseAttorneyId, Guid identityUserId, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<AppointmentDefenseAttorney> UpdateAsync(Guid id, Guid appointmentId, Guid defenseAttorneyId, Guid? identityUserId, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNull(appointmentId, nameof(appointmentId));
         Check.NotNull(defenseAttorneyId, nameof(defenseAttorneyId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         var appointmentDefenseAttorney = await _appointmentDefenseAttorneyRepository.GetAsync(id);
         appointmentDefenseAttorney.AppointmentId = appointmentId;
         appointmentDefenseAttorney.DefenseAttorneyId = defenseAttorneyId;

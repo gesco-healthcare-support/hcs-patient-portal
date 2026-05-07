@@ -148,7 +148,11 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         foreach (var link in applicantLinks)
         {
             var aa = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId);
-            var aaUser = await _identityUserRepository.FindAsync(link.IdentityUserId);
+            if (link.IdentityUserId is null)
+            {
+                continue;
+            }
+            var aaUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
             AddIfPresent(aaUser?.Email, RecipientRole.ApplicantAttorney, $"aa/{link.Id}");
         }
 
@@ -158,7 +162,11 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         foreach (var link in defenseLinks)
         {
             var da = await _defenseAttorneyRepository.FindAsync(link.DefenseAttorneyId);
-            var daUser = await _identityUserRepository.FindAsync(link.IdentityUserId);
+            if (link.IdentityUserId is null)
+            {
+                continue;
+            }
+            var daUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
             AddIfPresent(daUser?.Email, RecipientRole.DefenseAttorney, $"da/{link.Id}");
         }
 

@@ -48,7 +48,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             if (appApplicantAttorney != null)
             {
                 var applicantAttorney = await dbContext.Set<ApplicantAttorney>().FindAsync(new object[] { appApplicantAttorney.ApplicantAttorneyId }, cancellationToken);
-                var applicantIdentityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { appApplicantAttorney.IdentityUserId }, cancellationToken);
+                IdentityUser? applicantIdentityUser = null;
+                if (appApplicantAttorney.IdentityUserId is Guid aaUserId)
+                {
+                    applicantIdentityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { aaUserId }, cancellationToken);
+                }
                 if (applicantAttorney != null && applicantIdentityUser != null)
                 {
                     result.AppointmentApplicantAttorney = new AppointmentApplicantAttorneyWithNavigationProperties
@@ -88,7 +92,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         if (link == null) return;
 
         var defenseAttorney = await dbContext.Set<DefenseAttorney>().FindAsync(new object[] { link.DefenseAttorneyId }, ct);
-        var identityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { link.IdentityUserId }, ct);
+        IdentityUser? identityUser = null;
+        if (link.IdentityUserId is Guid daUserId)
+        {
+            identityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { daUserId }, ct);
+        }
         if (defenseAttorney == null || identityUser == null) return;
 
         result.AppointmentDefenseAttorney = new AppointmentDefenseAttorneyWithNavigationProperties
