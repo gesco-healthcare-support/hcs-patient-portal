@@ -624,7 +624,17 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   openUploadDocuments(): void {
-    this.router.navigateByUrl('/file-management');
+    // The documents block is already embedded below on this view
+    // (<app-appointment-documents id="appointment-documents-anchor">). The
+    // button just scrolls it into view so the booker can click the upload
+    // input. The earlier '/file-management' target hit Volo's tenant-wide
+    // explorer which external roles cannot access (403). The per-appointment
+    // upload path (AppointmentDocumentsAppService.UploadStreamAsync) is
+    // already permission-granted to the four external roles via
+    // BookingBaselineGrants.
+    document
+      .getElementById('appointment-documents-anchor')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   openHelp(): void {

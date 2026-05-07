@@ -862,6 +862,7 @@
     </div>
 
     <app-appointment-documents
+      id="appointment-documents-anchor"
       [appointmentId]="appointment.appointment?.id ?? null"
       (documentsChanged)="packetPanel.refresh()"
     ></app-appointment-documents>
