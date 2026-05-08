@@ -80,6 +80,12 @@ public class AppointmentDocumentController : AbpController
         return _service.RegeneratePacketAsync(appointmentId);
     }
 
+    [HttpGet("/api/app/appointments/{appointmentId}/documents/combined")]
+    public virtual Task<List<PatientPortalDocumentDto>> GetCombinedForAppointmentAsync(Guid appointmentId)
+    {
+        return _service.GetCombinedForAppointmentAsync(appointmentId);
+    }
+
     /// <summary>
     /// Phase 14 (2026-05-04) -- package-document upload (authenticated).
     /// Updates an existing Pending row created by
