@@ -48,7 +48,11 @@ public class AccessorInvitedEmailHandler :
     ILocalEventHandler<AppointmentAccessorInvitedEto>,
     ITransientDependency
 {
-    private const string DefaultAuthServerBaseUrl = "https://localhost:44368";
+    // 2026-05-07 (Wave 3 #17.1): default flipped to the Phase 1A Falkinstein
+    // tenant subdomain on plain HTTP (the Docker-exposed AuthServer port).
+    // Defensive fallback when ABP setting subsystem returns null for
+    // AuthServerBaseUrl. Override per-tenant in /setting-management.
+    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
 
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;

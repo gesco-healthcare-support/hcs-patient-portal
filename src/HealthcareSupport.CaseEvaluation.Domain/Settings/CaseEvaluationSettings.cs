@@ -89,7 +89,9 @@ public static class CaseEvaluationSettings
         // /Account/Register?__tenant=&lt;TenantName&gt;&email=&lt;email&gt; links in
         // the "register as [role]" emails sent to non-registered parties whose
         // emails were captured at booking time on the appointment row (S-5.1).
-        // Default https://localhost:44368 for dev; admins override per-tenant.
+        // Default http://falkinstein.localhost:44368 for Phase 1A dev (matches
+        // the Docker-exposed AuthServer plain-HTTP port + tenant subdomain);
+        // admins override per-tenant once HTTPS dev wiring ships.
         public const string AuthServerBaseUrl = Notifications + ".AuthServerBaseUrl";
     }
 

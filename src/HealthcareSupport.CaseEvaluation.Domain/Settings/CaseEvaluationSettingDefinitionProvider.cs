@@ -43,7 +43,14 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,    defaultValue: "http://falkinstein.localhost:4200");
         // S-6.1: AuthServer base URL for tenant-pre-filled register links in
         // "register as [role]" emails sent to non-registered parties.
-        Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: "https://localhost:44368");
+        // 2026-05-07 (Wave 3 #17.1): default flipped from
+        // "https://localhost:44368" to the Falkinstein subdomain on HTTP so
+        // the AuthServer Razor pages -- which the Docker compose binds to
+        // 127.0.0.1:44368 plain HTTP -- are reachable from email links in
+        // dev/Phase 1A. Override per-tenant once Phase 1B HTTPS dev wiring
+        // ships. The non-tenant-aware "https://localhost:44368" stranded
+        // recipients on a host that did not respond.
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: "http://falkinstein.localhost:44368");
 
         // W2-10: 10 reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e) + appointment-day).
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors,    defaultValue: "30,60,75,85,90");

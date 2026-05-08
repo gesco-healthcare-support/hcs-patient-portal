@@ -37,7 +37,11 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 [RemoteService(IsEnabled = false)]
 public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAccountAppService
 {
-    private const string DefaultAuthServerBaseUrl = "https://localhost:44368";
+    // 2026-05-07 (Wave 3 #17.1): default flipped to the Phase 1A Falkinstein
+    // tenant subdomain on plain HTTP (the Docker-exposed AuthServer port). Used
+    // only when ABP setting subsystem returns null for AuthServerBaseUrl --
+    // defensive fallback. Override per-tenant in /setting-management.
+    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
 
     private readonly IdentityUserManager _userManager;
     private readonly ISettingProvider _settingProvider;

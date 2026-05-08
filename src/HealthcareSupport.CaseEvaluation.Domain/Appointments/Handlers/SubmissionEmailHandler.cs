@@ -11,6 +11,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
@@ -39,6 +40,8 @@ public class SubmissionEmailHandler :
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly IAppointmentRecipientResolver _recipientResolver;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantStore _tenantStore;
     private readonly ILogger<SubmissionEmailHandler> _logger;
 
     public SubmissionEmailHandler(
@@ -47,6 +50,8 @@ public class SubmissionEmailHandler :
         ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
         IAppointmentRecipientResolver recipientResolver,
+        ICurrentTenant currentTenant,
+        ITenantStore tenantStore,
         ILogger<SubmissionEmailHandler> logger)
     {
         _patientRepository = patientRepository;
@@ -54,29 +59,53 @@ public class SubmissionEmailHandler :
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
         _recipientResolver = recipientResolver;
+        _currentTenant = currentTenant;
+        _tenantStore = tenantStore;
         _logger = logger;
     }
 
     [UnitOfWork]
     public virtual async Task HandleEventAsync(AppointmentSubmittedEto eventData)
     {
-        // B15 (2026-05-07): the newer BookingSubmissionEmailHandler (in
-        // Application/Notifications/Handlers/) is the OLD-parity-correct
-        // submission email path -- it uses the seeded
-        // PatientAppointmentPending HTML template, the per-tenant CC list,
-        // and the shared recipient resolver. This older inline-HTML
-        // handler was an early W1-2 implementation that became redundant
-        // once W2-10 introduced the resolver-based handler. Both still
-        // subscribe to AppointmentSubmittedEto, so every booking fired
-        // two emails per stakeholder ("BookingSubmitted/Pending/" + this
-        // one's "Submission/<role>/").
-        //
-        // Per the Phase 1 email-scope directive, return early so only the
-        // template-driven handler fires. The body is preserved below in
-        // case we need to re-enable for a fallback scenario.
-        await Task.CompletedTask;
-        return;
-#pragma warning disable CS0162 // unreachable code -- intentional, preserved for re-enable
+        // B15-followup (2026-05-07): this inline-HTML "Appointment requested"
+        // handler is the email Adrian wants delivered to all 4 stakeholders
+        // (Patient + AA + DA + CE) on every submission. The duplicate it
+        // used to compete with -- the PatientAppointmentPending template
+        // dispatched by BookingSubmissionEmailHandler -- has been suppressed
+        // there instead, leaving this handler as the sole stakeholder email
+        // and keeping the Application handler responsible only for the
+        // PatientAppointmentApproveReject staff-blast.
+        if (eventData == null)
+        {
+            return;
+        }
+
+        // Wave 3 #17.4 (2026-05-07): wrap the body in the eventData's tenant
+        // context with the resolved tenant name. The single-arg
+        // ICurrentTenant.Change(id) overload sets Id but leaves Name=null,
+        // so the resolver's `_currentTenant.Name` read returned null and
+        // every Register CTA URL was missing the `?__tenant=Falkinstein`
+        // query param -- recipients clicked through to AuthServer's Host
+        // tenant where registration silently failed. We resolve the name
+        // via ITenantStore (the standard ABP pattern; same store the
+        // DomainTenantResolveContributor uses on the inbound request) and
+        // pass it to the 2-arg Change overload so `_currentTenant.Name`
+        // stays populated for the resolver. BookingSubmissionEmailHandler
+        // had the bare 1-arg wrap and inherited the same bug; Adrian's
+        // staff-blast emails went out under role=OfficeAdmin where the
+        // handler does not consume TenantName, so the bug was masked there.
+        var tenantConfig = eventData.TenantId.HasValue
+            ? await _tenantStore.FindAsync(eventData.TenantId.Value)
+            : null;
+        var tenantName = tenantConfig?.Name;
+        using (_currentTenant.Change(eventData.TenantId, tenantName))
+        {
+            await DispatchRecipientEmailsAsync(eventData);
+        }
+    }
+
+    private async Task DispatchRecipientEmailsAsync(AppointmentSubmittedEto eventData)
+    {
         var bookerUser = await _identityUserRepository.FindAsync(eventData.BookerUserId);
         var patient = await _patientRepository.FindAsync(eventData.PatientId);
         var bookerName = ResolveBookerName(bookerUser, patient);
@@ -128,7 +157,6 @@ public class SubmissionEmailHandler :
             args.Context = $"Submission/{args.Role}/{eventData.AppointmentId}";
             await _backgroundJobManager.EnqueueAsync(args);
         }
-#pragma warning restore CS0162
     }
 
     /// <summary>

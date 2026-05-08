@@ -50,6 +50,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
     private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IRecipientRoleResolver _roleResolver;
     private readonly ILogger<AppointmentRecipientResolver> _logger;
 
     public AppointmentRecipientResolver(
@@ -66,6 +67,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         IRepository<AppointmentEmployerDetail, Guid> employerDetailRepository,
         ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
+        IRecipientRoleResolver roleResolver,
         ILogger<AppointmentRecipientResolver> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -81,6 +83,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         _employerDetailRepository = employerDetailRepository;
         _settingProvider = settingProvider;
         _currentTenant = currentTenant;
+        _roleResolver = roleResolver;
         _logger = logger;
     }
 
@@ -244,10 +247,15 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         return byEmail.Values.ToList();
     }
 
-    // S-6.1: helper for the email-column walk. Looks up the email against the
-    // current-tenant IdentityUser table to decide IsRegistered, then delegates
-    // to AddIfPresent. Skips silently when the email is empty or already
-    // present in the dict (first-wins dedup matches the rest of the resolver).
+    // S-6.1 / Wave-3 #17.3: helper for the email-column walk. Classifies the
+    // typed email against the EXPECTED role via IRecipientRoleResolver -- not
+    // a bare email-existence check -- so a same-email account registered
+    // under a different role flows through the not-registered branch (Option
+    // A). Pre-Wave-3 implementation called userQuery.Any(...) inline; the
+    // off-role symptom Adrian flagged ("DA email landed at a Patient
+    // dashboard") came from that exact gap. Skips silently when the email
+    // is empty or already present in the dict (first-wins dedup matches the
+    // rest of the resolver).
     private async Task AddPartyEmailIfNotKnownAsync(
         Dictionary<string, SendAppointmentEmailArgs> byEmail,
         Action<string?, RecipientRole, string, bool> addIfPresent,
@@ -260,11 +268,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             return;
         }
 
-        var normalizedEmail = email.Trim().ToLower();
-        var userQuery = await _identityUserRepository.GetQueryableAsync();
-        var hasRegisteredUser = userQuery
-            .Any(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
-
-        addIfPresent(email, role, contextSuffix, hasRegisteredUser);
+        var classification = await _roleResolver.ClassifyAsync(email, role);
+        addIfPresent(email, role, contextSuffix, classification.IsRegistered);
     }
 }

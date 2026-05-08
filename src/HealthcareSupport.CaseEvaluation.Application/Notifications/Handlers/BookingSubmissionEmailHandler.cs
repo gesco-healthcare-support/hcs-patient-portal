@@ -135,20 +135,25 @@ public class BookingSubmissionEmailHandler :
             var appointmentFromTime = FormatTimeOnlyOrEmpty(availability?.FromTime);
             var appointmentToTime = FormatTimeOnlyOrEmpty(availability?.ToTime);
 
-            await DispatchPendingToStakeholdersAsync(
-                eventData, ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
-
-            // B15 + Phase 1 email-scope (locked 2026-05-06): suppress the
-            // PatientAppointmentApproveReject "still pending, please
-            // approve/reject" staff-blast so each booking only fires the
-            // single "appointment requested" template above. The method is
-            // kept intact below so the second dispatch can be re-enabled
-            // once Phase 1 lifts (just uncomment the call here). See
-            // memory/project_email-scope-phase1.md for the directive.
+            // B15-followup (2026-05-07): the PatientAppointmentPending
+            // stakeholder dispatch (subject "Your appointment request has
+            // been Pending") is the duplicate Adrian flagged. The OLD-parity
+            // "appointment requested" stakeholder email is delivered by the
+            // Domain SubmissionEmailHandler instead. Method body kept intact
+            // below so this can be re-enabled if the stakeholder template
+            // ever replaces the inline-HTML handler.
             //
-            // await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
-            //     eventData, ctx, appointment, appointmentDate,
-            //     appointmentFromTime, appointmentToTime);
+            // await DispatchPendingToStakeholdersAsync(
+            //     eventData, ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
+
+            // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
+            // when the booker is an external user, also fan out
+            // PatientAppointmentApproveReject to every Staff Supervisor +
+            // Clinic Staff user in the tenant. Different recipient set than
+            // the stakeholder email above, so it is not a duplicate.
+            await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
+                eventData, ctx, appointment, appointmentDate,
+                appointmentFromTime, appointmentToTime);
         }
     }
 
