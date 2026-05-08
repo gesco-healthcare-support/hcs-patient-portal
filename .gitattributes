@@ -7,3 +7,17 @@
 angular/.husky/pre-commit text eol=lf
 angular/.husky/commit-msg text eol=lf
 angular/.husky/pre-push text eol=lf
+
+# Dockerfiles + docker-compose: must stay LF on every host. Even though the
+# Docker daemon parses Dockerfile syntax fine with CRLF, any heredoc body
+# (`COPY <<EOF ...`) is written into the resulting image verbatim including
+# CR characters -- which then corrupts shebangs on shell scripts emitted via
+# heredoc. We removed angular/Dockerfile.dev's heredoc on 2026-05-08 in
+# favor of a real `dev-entrypoint.sh` file (covered by the *.sh rule above),
+# but pinning Dockerfiles + compose to LF is the belt-and-suspenders that
+# prevents the same class of bug if anyone ever reintroduces a heredoc.
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+docker-compose*.yaml text eol=lf
