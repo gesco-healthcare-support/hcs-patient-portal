@@ -97,6 +97,13 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
+        // Phase 2.5 (2026-05-01) -- per-action gates for clinic-staff approval
+        // and external-user change-request submission. The booking + view
+        // flows live under Default / Create / Edit / Delete.
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+        public const string RequestCancellation = Default + ".RequestCancellation";
+        public const string RequestReschedule = Default + ".RequestReschedule";
     }
 
     public static class AppointmentDocuments
@@ -220,5 +227,96 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".SystemParameters";
         public const string Edit = Default + ".Edit";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
+    /// user-submitted cancel / reschedule lifecycle. External roles never
+    /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
+    /// Clinic Staff gets Default (read-only inbox view).
+    /// </summary>
+    public static class AppointmentChangeRequests
+    {
+        public const string Default = GroupName + ".AppointmentChangeRequests";
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- IT Admin manages tenant-scoped notification
+    /// templates. Read access is gated to Default; the editor button gates on
+    /// Edit. No Create / Delete -- templates are seeded.
+    /// </summary>
+    public static class NotificationTemplates
+    {
+        public const string Default = GroupName + ".NotificationTemplates";
+        public const string Edit = Default + ".Edit";
+    }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin maintains the master template catalog.
+    /// Each Document is a blank PDF/DOCX form that is later linked to one or
+    /// more PackageDetails for use in appointment-specific document packets.
+    /// Mirrors OLD's <c>spm.Documents</c> CRUD surface.
+    /// </summary>
+    public static class Documents
+    {
+        public const string Default = GroupName + ".Documents";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+    }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin manages per-AppointmentType package
+    /// templates and the Documents linked into each. Mirrors OLD's
+    /// <c>spm.PackageDetails</c> + <c>spm.DocumentPackages</c> CRUD. The
+    /// "one active package per AppointmentType" rule lives in the AppService;
+    /// see <c>P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\PackageDetailDomain.cs</c>:48-53.
+    /// <c>ManageDocuments</c> gates Link / Unlink endpoints because those are
+    /// distinct user actions (separate from Create/Edit on the package itself).
+    /// </summary>
+    public static class PackageDetails
+    {
+        public const string Default = GroupName + ".PackageDetails";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+        public const string ManageDocuments = Default + ".ManageDocuments";
+    }
+
+    /// <summary>
+    /// Phase 7b (2026-05-03) -- IT Admin / Staff Supervisor toggles which
+    /// Locations a Doctor accepts appointments at. Mirrors OLD
+    /// <c>DoctorPreferredLocationDomain</c>. <c>Default</c> gates the read
+    /// path (consumed by the booking-form Location dropdown);
+    /// <c>Toggle</c> gates the upsert / on-off flip.
+    /// </summary>
+    public static class DoctorPreferredLocations
+    {
+        public const string Default = GroupName + ".DoctorPreferredLocations";
+        public const string Toggle = Default + ".Toggle";
+    }
+
+    /// <summary>
+    /// Phase A (2026-05-05) -- per-user signature image upload, replicating
+    /// OLD's <c>User.SignatureAWSFilePath</c> profile feature. Internal
+    /// staff (Clinic Staff / Staff Supervisor / IT Admin) only;
+    /// external roles do not have signatures (OLD parity). Used by the
+    /// packet-generation flow to stamp the responsible user's signature
+    /// on the Patient Packet at <c>##Appointments.Signature##</c>.
+    ///
+    /// <para><c>ManageOwn</c> gates the upload / download / delete of the
+    /// caller's OWN signature -- a permission a user can self-grant via
+    /// role membership. There is no separate per-user-target gate because
+    /// the AppService scopes every operation to <c>CurrentUser.Id</c>;
+    /// internal-only <c>GetByUserIdAsync</c> is hidden via
+    /// <c>[RemoteService(IsEnabled = false)]</c> and called by the packet
+    /// resolver in-process, so no permission is wired to it.</para>
+    /// </summary>
+    public static class UserSignatures
+    {
+        public const string Default = GroupName + ".UserSignatures";
+        public const string ManageOwn = Default + ".ManageOwn";
     }
 }

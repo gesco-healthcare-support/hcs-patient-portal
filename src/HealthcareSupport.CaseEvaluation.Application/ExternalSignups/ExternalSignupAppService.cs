@@ -18,10 +18,15 @@ using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
+using Volo.Abp.Data;
+using Volo.Abp.EventBus.Local;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
 using Volo.Saas.Tenants;
+using Microsoft.Extensions.Hosting;
+using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
@@ -45,6 +50,18 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // D.2 (2026-04-30): wired for the admin invite endpoint.
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    // R1 follow-up (2026-05-05): publish UserRegisteredEto so the
+    // notification handler can send OLD's "verify your email" message.
+    private readonly ILocalEventBus _localEventBus;
+    // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
+    // gate on EnvironmentName so they cannot be invoked in production.
+    private readonly IHostEnvironment _hostEnvironment;
+    // 2026-05-06: cross-tenant queries in the dev helpers (find a user by
+    // email regardless of which tenant they registered under) need to bypass
+    // ABP's IMultiTenant filter. CurrentTenant.Change(null) only switches
+    // to host context; the filter still applies and excludes tenant rows.
+    // IDataFilter.Disable<IMultiTenant> turns the filter off entirely.
+    private readonly IDataFilter _dataFilter;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -63,7 +80,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
         ISettingProvider settingProvider,
-        IBackgroundJobManager backgroundJobManager)
+        IBackgroundJobManager backgroundJobManager,
+        ILocalEventBus localEventBus,
+        IHostEnvironment hostEnvironment,
+        IDataFilter dataFilter)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -82,6 +102,138 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
+        _localEventBus = localEventBus;
+        _hostEnvironment = hostEnvironment;
+        _dataFilter = dataFilter;
+    }
+
+    /// <summary>
+    /// Dev-only: mark a user's email as confirmed by email lookup. Cross-
+    /// tenant: switches to host context and finds the IdentityUser regardless
+    /// of which tenant they registered under, so the demo can iterate
+    /// without re-typing tenant ids. Throws if not Development.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task MarkEmailConfirmedAsync(string email)
+    {
+        EnsureDevelopmentOnly(nameof(MarkEmailConfirmedAsync));
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new UserFriendlyException("Email is required.");
+        }
+
+        var normalized = email.Trim();
+        // Cross-tenant lookup: disable the IMultiTenant filter so the
+        // query returns rows from every tenant, not just the host. Switching
+        // CurrentTenant to null is NOT enough -- the filter still applies
+        // and excludes rows whose TenantId is non-null. See
+        // memory/project_imultitenant-filter.md.
+        Guid? foundTenantId;
+        Guid foundUserId;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var query = await _identityUserRepository.GetQueryableAsync();
+            var user = await AsyncExecuter.FirstOrDefaultAsync(
+                query.Where(u => u.Email != null && u.Email.ToLower() == normalized.ToLower()));
+            if (user == null)
+            {
+                throw new UserFriendlyException($"User with email '{email}' not found.");
+            }
+            foundTenantId = user.TenantId;
+            foundUserId = user.Id;
+        }
+
+        using (CurrentTenant.Change(foundTenantId))
+        {
+            var managed = await _userManager.GetByIdAsync(foundUserId);
+            if (managed == null)
+            {
+                throw new UserFriendlyException($"User with email '{email}' not found in tenant scope.");
+            }
+            managed.SetEmailConfirmed(true);
+            var result = await _userManager.UpdateAsync(managed);
+            if (!result.Succeeded)
+            {
+                throw new UserFriendlyException(string.Join(", ", result.Errors.Select(x => x.Description)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dev-only: delete the IdentityUser rows matching the given emails plus
+    /// any dependent Patient / ApplicantAttorney / DefenseAttorney profile
+    /// rows. Lets the demo re-register the same emails repeatedly. Cross-
+    /// tenant lookup. Throws if not Development.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task<DeleteTestUsersResultDto> DeleteTestUsersAsync(IList<string> emails)
+    {
+        EnsureDevelopmentOnly(nameof(DeleteTestUsersAsync));
+        var result = new DeleteTestUsersResultDto();
+        if (emails == null || emails.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var rawEmail in emails)
+        {
+            if (string.IsNullOrWhiteSpace(rawEmail))
+            {
+                continue;
+            }
+            var email = rawEmail.Trim();
+
+            // Cross-tenant lookup: disable the IMultiTenant filter so the
+            // query sees rows from every tenant. See
+            // memory/project_imultitenant-filter.md for why CurrentTenant.Change(null)
+            // is not sufficient on its own.
+            List<(Guid Id, Guid? TenantId)> targets;
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var query = await _identityUserRepository.GetQueryableAsync();
+                var users = await AsyncExecuter.ToListAsync(
+                    query.Where(u => u.Email != null && u.Email.ToLower() == email.ToLower())
+                         .Select(u => new { u.Id, u.TenantId }));
+                targets = users.Select(u => (u.Id, u.TenantId)).ToList();
+            }
+
+            if (targets.Count == 0)
+            {
+                result.NotFound.Add(email);
+                continue;
+            }
+
+            foreach (var t in targets)
+            {
+                using (CurrentTenant.Change(t.TenantId))
+                {
+                    var managed = await _userManager.GetByIdAsync(t.Id);
+                    if (managed != null)
+                    {
+                        var deleteResult = await _userManager.DeleteAsync(managed);
+                        if (!deleteResult.Succeeded)
+                        {
+                            throw new UserFriendlyException(
+                                $"Delete failed for {email}: " +
+                                string.Join(", ", deleteResult.Errors.Select(x => x.Description)));
+                        }
+                    }
+                }
+            }
+
+            result.Deleted.Add(email);
+        }
+
+        return result;
+    }
+
+    private void EnsureDevelopmentOnly(string operation)
+    {
+        if (!_hostEnvironment.IsDevelopment())
+        {
+            throw new UserFriendlyException(
+                $"{operation} is only available in Development environment.");
+        }
     }
 
     [AllowAnonymous]
@@ -234,6 +386,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 
+        // Phase 9 (2026-05-03) -- surface IsExternalUser + IsAccessor
+        // extension props registered in Phase 2.4 so the Angular SPA can
+        // post-login route external-> /home / internal-> /dashboard
+        // without a second roundtrip.
+        var isExternalUser = ReadBoolExtensionProperty(
+            user, CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName);
+        var isAccessor = ReadBoolExtensionProperty(
+            user, CaseEvaluationModuleExtensionConfigurator.IsAccessorPropertyName);
+
         return new ExternalUserProfileDto
         {
             IdentityUserId = user.Id,
@@ -241,12 +402,41 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             LastName = user.Surname ?? string.Empty,
             Email = user.Email ?? string.Empty,
             UserRole = userRole,
+            IsExternalUser = isExternalUser,
+            IsAccessor = isAccessor,
         };
     }
+
+    /// <summary>
+    /// B3 (2026-05-06): thin pass-through to the shared
+    /// <see cref="HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters.GetBoolOrDefault"/>
+    /// helper. Kept here so unit tests and existing call sites do not
+    /// need to update their import. Any new caller should target the
+    /// shared helper directly.
+    /// </summary>
+    internal static bool ReadBoolExtensionProperty(
+        Volo.Abp.Identity.IdentityUser user,
+        string propertyName)
+        => HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters
+            .GetBoolOrDefault(user, propertyName);
+
+    /// <summary>
+    /// B3 (2026-05-06): pass-through to the shared coercion helper.
+    /// </summary>
+    internal static bool CoerceBool(object? raw)
+        => HealthcareSupport.CaseEvaluation.Extensions.ExtraPropertyConverters
+            .CoerceBool(raw);
 
     [AllowAnonymous]
     public virtual async Task RegisterAsync(ExternalUserSignUpDto input)
     {
+        // Phase 8 (2026-05-03) -- OLD-parity validation:
+        //   - ConfirmPassword must equal Password (UserDomain.cs:88)
+        //   - FirmName required for ApplicantAttorney AND DefenseAttorney
+        //     (OLD-bug-fix on UserDomain.cs:272 which checked PatientAttorney
+        //     twice; intent was both attorney roles)
+        ValidateRegistrationInput(input);
+
         var tenantId = ResolveTenantId(input.TenantId);
         var roleName = ToRoleName(input.UserType);
 
@@ -270,6 +460,29 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 Name = input.FirstName,
                 Surname = input.LastName,
             };
+
+            // Phase 8 (2026-05-03) -- mark this row as an external user
+            // (replaces OLD's UserType.ExternalUser=7 column). Extension
+            // properties registered in Phase 2.4 via
+            // CaseEvaluationModuleExtensionConfigurator. Persist BEFORE
+            // CreateAsync so the property write is part of the same
+            // INSERT (extra-properties are part of the entity row).
+            user.SetProperty(
+                CaseEvaluationModuleExtensionConfigurator.IsExternalUserPropertyName, true);
+
+            // Phase 8 (2026-05-03) -- OLD UserDomain.cs:104-108 persists
+            // FirmName + auto-derives FirmEmail from EmailId.ToLower() for
+            // attorneys. NEW respects an explicit FirmEmail when supplied;
+            // otherwise auto-derives, matching OLD behavior.
+            if (IsAttorneyRole(input.UserType))
+            {
+                user.SetProperty(
+                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName,
+                    input.FirmName!.Trim());
+                user.SetProperty(
+                    CaseEvaluationModuleExtensionConfigurator.FirmEmailPropertyName,
+                    DeriveFirmEmail(input));
+            }
 
             var createResult = await _userManager.CreateAsync(user, input.Password);
             if (!createResult.Succeeded)
@@ -301,7 +514,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     lastName: input.LastName ?? string.Empty,
                     email: input.Email,
                     genderId: Gender.Male,
-                    dateOfBirth: DateTime.UtcNow.Date,
+                    dateOfBirth: DateTime.MinValue,
                     phoneNumberTypeId: PhoneNumberType.Home
                 );
             }
@@ -332,6 +545,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // and immediately see the appointments that named them, without anyone
             // having to re-enter their details.
             await AutoLinkAppointmentsForUserAsync(user, input.UserType);
+
+            // 2026-05-06 (Adrian directive): the verification email is NOT sent
+            // when the user submits the register form. Instead the SPA bounces
+            // them to `/Account/ConfirmUser?email=...` and the email fires only
+            // when they explicitly click "Verify" there (which calls
+            // /api/public/external-signup/resend-verification, publishing the
+            // UserRegisteredEto). This lets registration finish silently if the
+            // user closes the tab and removes the wasted SMTP send for users
+            // who never click through.
         }
     }
 
@@ -380,12 +602,48 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
     {
+        // Bonus issue (2026-05-07): claim any unlinked master AA rows that
+        // were created by the booking flow with this email and a null
+        // IdentityUserId. The booking AppService persists AA rows for
+        // typed-but-unregistered attorneys; once the attorney registers we
+        // patch IdentityUserId here so the existing IdentityUserId-keyed
+        // lookup below finds them and the Appointment.ApplicantAttorneyEmail
+        // scan stays applicable.
+        var unlinkedMasterQuery = await _applicantAttorneyRepository.GetQueryableAsync();
+        var unlinkedMasters = await AsyncExecuter.ToListAsync(
+            unlinkedMasterQuery.Where(a =>
+                a.IdentityUserId == null
+                && a.Email != null
+                && a.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinkedMasters)
+        {
+            master.IdentityUserId = identityUserId;
+            await _applicantAttorneyRepository.UpdateAsync(master);
+        }
+        if (unlinkedMasters.Count > 0)
+        {
+            // Patch any existing link rows that point at these masters so
+            // the attorney's "My Appointments" list surfaces them via the
+            // visibility filter on AppointmentApplicantAttorney.IdentityUserId.
+            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            var unlinkedLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+            var unlinkedLinks = await AsyncExecuter.ToListAsync(
+                unlinkedLinkQuery.Where(l =>
+                    l.IdentityUserId == null && masterIds.Contains(l.ApplicantAttorneyId)));
+            foreach (var link in unlinkedLinks)
+            {
+                link.IdentityUserId = identityUserId;
+                await _appointmentApplicantAttorneyRepository.UpdateAsync(link);
+            }
+        }
+
         var applicantAttorney = await _applicantAttorneyRepository
             .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
         if (applicantAttorney == null)
         {
-            // Should never happen because the AA registration branch creates
-            // one above, but guard defensively rather than crashing the signup.
+            // No master row exists yet (no booking captured this email).
+            // Nothing further to backfill; the AA can still appear on
+            // future bookings.
             return;
         }
 
@@ -414,6 +672,34 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     private async Task AutoLinkDefenseAttorneyAsync(Guid identityUserId, string normalizedEmail)
     {
+        // Bonus issue (2026-05-07): mirror the AA path. Claim unlinked
+        // master DA rows + their link rows by email before falling through
+        // to the IdentityUserId-keyed lookup.
+        var unlinkedMasterQuery = await _defenseAttorneyRepository.GetQueryableAsync();
+        var unlinkedMasters = await AsyncExecuter.ToListAsync(
+            unlinkedMasterQuery.Where(d =>
+                d.IdentityUserId == null
+                && d.Email != null
+                && d.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinkedMasters)
+        {
+            master.IdentityUserId = identityUserId;
+            await _defenseAttorneyRepository.UpdateAsync(master);
+        }
+        if (unlinkedMasters.Count > 0)
+        {
+            var masterIds = unlinkedMasters.Select(m => m.Id).ToHashSet();
+            var unlinkedLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+            var unlinkedLinks = await AsyncExecuter.ToListAsync(
+                unlinkedLinkQuery.Where(l =>
+                    l.IdentityUserId == null && masterIds.Contains(l.DefenseAttorneyId)));
+            foreach (var link in unlinkedLinks)
+            {
+                link.IdentityUserId = identityUserId;
+                await _appointmentDefenseAttorneyRepository.UpdateAsync(link);
+            }
+        }
+
         var defenseAttorney = await _defenseAttorneyRepository
             .FirstOrDefaultAsync(a => a.IdentityUserId == identityUserId);
         if (defenseAttorney == null)
@@ -614,16 +900,83 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return requestedTenantId.Value;
     }
 
-    private static string ToRoleName(ExternalUserType userType)
+    /// <summary>
+    /// Maps the external-user-type enum to the role-name string seeded by
+    /// <c>ExternalUserRoleDataSeedContributor</c>. Phase 8 (2026-05-03)
+    /// added <c>Adjuster</c> per OLD parity (<c>Roles.cs:14-17</c>).
+    /// <c>ClaimExaminer</c> is a NEW deviation flagged in audit gap G1
+    /// and retained for Session A's tenant-invite flow compatibility.
+    /// Internal so unit tests can verify without ABP infra.
+    /// </summary>
+    internal static string ToRoleName(ExternalUserType userType)
     {
         return userType switch
         {
             ExternalUserType.Patient => "Patient",
+            ExternalUserType.Adjuster => "Adjuster",
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",
             _ => throw new UserFriendlyException("Invalid user type."),
         };
+    }
+
+    /// <summary>
+    /// True for the two attorney roles. <c>FirmName</c> + <c>FirmEmail</c>
+    /// extension props are persisted only for attorneys, mirroring OLD
+    /// <c>UserDomain.cs:104-108</c>. OLD's source had a copy-paste bug
+    /// at line 272 that checked <c>PatientAttorney</c> twice; NEW
+    /// validates both attorney roles correctly (audit gap G6 / OLD-bug-fix).
+    /// </summary>
+    internal static bool IsAttorneyRole(ExternalUserType userType) =>
+        userType == ExternalUserType.ApplicantAttorney
+        || userType == ExternalUserType.DefenseAttorney;
+
+    /// <summary>
+    /// OLD-parity validation invoked at the top of <c>RegisterAsync</c>:
+    /// <list type="bullet">
+    ///   <item>Confirm-password match (OLD <c>UserDomain.cs:88</c>).</item>
+    ///   <item>FirmName required for both attorney roles (OLD-bug-fix on
+    ///         <c>UserDomain.cs:272</c> which checked PatientAttorney
+    ///         twice).</item>
+    /// </list>
+    /// Internal so unit tests can verify without standing up ABP.
+    /// </summary>
+    internal static void ValidateRegistrationInput(ExternalUserSignUpDto input)
+    {
+        Check.NotNull(input, nameof(input));
+        Check.NotNullOrWhiteSpace(input.Email, nameof(input.Email));
+        Check.NotNullOrWhiteSpace(input.Password, nameof(input.Password));
+        Check.NotNullOrWhiteSpace(input.ConfirmPassword, nameof(input.ConfirmPassword));
+
+        if (!string.Equals(input.Password, input.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
+        }
+
+        if (IsAttorneyRole(input.UserType) && string.IsNullOrWhiteSpace(input.FirmName))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
+                .WithData("UserType", input.UserType.ToString());
+        }
+    }
+
+    /// <summary>
+    /// Returns the explicit <c>FirmEmail</c> when supplied (lowercased +
+    /// trimmed), otherwise auto-derives from <c>Email</c> verbatim with
+    /// OLD <c>UserDomain.cs:106</c>:
+    ///   <c>user.FirmEmail = user.EmailId.ToLower().ToString().Trim()</c>.
+    /// Caller guarantees <c>Email</c> is non-empty (validated upstream).
+    /// Internal so unit tests can verify without ABP infra.
+    /// </summary>
+    internal static string DeriveFirmEmail(ExternalUserSignUpDto input)
+    {
+        var explicitEmail = input.FirmEmail?.Trim();
+        if (!string.IsNullOrEmpty(explicitEmail))
+        {
+            return explicitEmail.ToLowerInvariant();
+        }
+        return input.Email.Trim().ToLowerInvariant();
     }
 
     private async Task EnsureRoleAsync(string roleName)

@@ -33,10 +33,117 @@
         <h3 class="patient-home__requests-title mb-0">
           My Appointments Requests ({{ service.data.totalCount }})
         </h3>
-        <div class="patient-home__search">
-          <input type="text" class="form-control form-control-sm" placeholder="Search" />
+        <div class="patient-home__search d-flex align-items-center gap-2">
+          <input
+            type="text"
+            class="form-control form-control-sm"
+            placeholder="Search"
+            [(ngModel)]="quickSearchText"
+            (keyup.enter)="applyQuickSearch()"
+          />
+          <button
+            type="button"
+            class="btn btn-link p-1"
+            title="Reset search"
+            (click)="resetQuickSearch()"
+          >
+            <i class="fa fa-sync"></i>
+          </button>
         </div>
       </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header" (click)="advancedSearchOpen = !advancedSearchOpen" role="button">
+        <div class="d-flex justify-content-between align-items-center h5 mb-0">
+          Advanced Search
+          <i
+            class="fa"
+            [class.fa-chevron-down]="!advancedSearchOpen"
+            [class.fa-chevron-up]="advancedSearchOpen"
+          ></i>
+        </div>
+      </div>
+      @if (advancedSearchOpen) {
+        <div class="card-body" [formGroup]="advancedSearchForm">
+          <div class="row">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Appointment Type</label>
+              <select class="form-select" formControlName="appointmentTypeId">
+                <option [ngValue]="null">Select</option>
+                @for (opt of advancedAppointmentTypeOptions; track opt.id) {
+                  <option [ngValue]="opt.id">{{ opt.displayName }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Confirmation Number</label>
+              <input
+                type="text"
+                placeholder="A0000"
+                class="form-control"
+                formControlName="confirmationNumber"
+              />
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Location</label>
+              <select class="form-select" formControlName="locationId">
+                <option [ngValue]="null">Select</option>
+                @for (opt of advancedLocationOptions; track opt.id) {
+                  <option [ngValue]="opt.id">{{ opt.displayName }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Appointment Status</label>
+              <select class="form-select" formControlName="appointmentStatus">
+                <option [ngValue]="null">Select</option>
+                @for (opt of advancedAppointmentStatusOptions; track opt.value) {
+                  <option [ngValue]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Claim #</label>
+              <input
+                type="text"
+                placeholder="Claim #"
+                class="form-control"
+                formControlName="claimNumber"
+              />
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Date Of Injury</label>
+              <input type="date" class="form-control" formControlName="dateOfInjury" />
+            </div>
+            @if (!isPatientRole) {
+              <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+                <label class="form-label">Date Of Birth</label>
+                <input type="date" class="form-control" formControlName="dateOfBirth" />
+              </div>
+            }
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-3">
+              <label class="form-label">Social Security #</label>
+              <input
+                type="text"
+                placeholder="Social Security #"
+                class="form-control"
+                formControlName="socialSecurityNumber"
+              />
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" (click)="resetAdvancedSearch()">
+              Reset
+              <i class="fa fa-sync ms-1"></i>
+            </button>
+            <button type="button" class="btn btn-primary" (click)="applyAdvancedSearch()">
+              Search
+              <i class="fa fa-search ms-1"></i>
+            </button>
+          </div>
+        </div>
+      }
     </div>
 
     <div class="card">
@@ -47,31 +154,26 @@
           [count]="service.data.totalCount"
           [list]="list"
         >
-          <ngx-datatable-column
-            name="{{ '::AppointmentType' | abpLocalization }}"
-            prop="appointmentType.name"
-          >
+          <ngx-datatable-column name="Type" prop="appointmentType.name">
             <ng-template let-row="row" ngx-datatable-cell-template>
               {{ row.appointmentType?.name }}
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.email">
+          <ngx-datatable-column name="Patient Name" prop="patient.email">
             <ng-template let-row="row" ngx-datatable-cell-template>
               {{ row.patient?.firstName + ' ' + row.patient?.lastName }}
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column
-            name="{{ '::PanelNumber' | abpLocalization }}"
-            prop="appointment.panelNumber"
-          >
+          <ngx-datatable-column name="Gender" prop="patient.genderId">
             <ng-template let-row="row" ngx-datatable-cell-template>
-              {{ row.appointment.panelNumber }}
+              {{
+                row.patient?.genderId
+                  ? ('::Enum:Gender.' + row.patient.genderId | abpLocalization)
+                  : ''
+              }}
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column
-            name="{{ '::RequestConfirmationNumber' | abpLocalization }}"
-            prop="appointment.requestConfirmationNumber"
-          >
+          <ngx-datatable-column name="Confirmation #" prop="appointment.requestConfirmationNumber">
             <ng-template let-row="row" ngx-datatable-cell-template>
               <button
                 type="button"
@@ -82,18 +184,36 @@
               </button>
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column
-            name="{{ '::AppointmentDate' | abpLocalization }}"
-            prop="appointment.appointmentDate"
-          >
+          <ngx-datatable-column name="Appointment Date" prop="appointment.appointmentDate">
             <ng-template let-row="row" ngx-datatable-cell-template>
               {{ row.appointment.appointmentDate }}
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column
-            name="{{ '::AppointmentStatus' | abpLocalization }}"
-            prop="appointment.appointmentStatus"
-          >
+          <ngx-datatable-column name="SSN" prop="patient.socialSecurityNumber">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.patient?.socialSecurityNumber }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="Claim #" prop="appointmentInjuryDetails">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              @for (inj of row.appointmentInjuryDetails; track $index) {
+                <div>{{ inj.appointmentInjuryDetail?.claimNumber }}</div>
+              }
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="Date Of Injury" prop="appointmentInjuryDetails">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              @for (inj of row.appointmentInjuryDetails; track $index) {
+                <div>{{ inj.appointmentInjuryDetail?.dateOfInjury }}</div>
+              }
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="Location" prop="location.name">
+            <ng-template let-row="row" ngx-datatable-cell-template>
+              {{ row.location?.name }}
+            </ng-template>
+          </ngx-datatable-column>
+          <ngx-datatable-column name="Status" prop="appointment.appointmentStatus">
             <ng-template let-row="row" ngx-datatable-cell-template>
               {{
                 row.appointment.appointmentStatus !== null
@@ -103,9 +223,15 @@
               }}
             </ng-template>
           </ngx-datatable-column>
-          <ngx-datatable-column name="{{ '::Location' | abpLocalization }}" prop="location.name">
+          <ngx-datatable-column name="Action" sortable="false">
             <ng-template let-row="row" ngx-datatable-cell-template>
-              {{ row.location?.name }}
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                (click)="openAppointmentDetail(row.appointment?.id)"
+              >
+                Document Manager
+              </button>
             </ng-template>
           </ngx-datatable-column>
         </ngx-datatable>

@@ -1,5 +1,6 @@
 import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
+import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { STATE_ROUTES } from './states/state/state-routes';
 import { APPOINTMENT_TYPE_ROUTES } from './appointment-types/appointment-type/appointment-type-routes';
@@ -19,6 +20,13 @@ export const APP_ROUTES: Routes = [
   {
     path: '',
     pathMatch: 'full',
+    // Phase 9 L7 (2026-05-04) -- post-login routing parity with OLD:
+    // internal users (admin / Clinic Staff / Staff Supervisor / IT Admin
+    // / Doctor) redirect to /dashboard; external users (Patient / AA /
+    // DA / CE / Adjuster) stay on /home. The guard returns a UrlTree
+    // for the redirect so this is route-level, not a flash-render of
+    // home before redirect.
+    canActivate: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
   },
   {
@@ -26,6 +34,30 @@ export const APP_ROUTES: Routes = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
     canActivate: [authGuard, permissionGuard],
+  },
+  // 2026-05-06: the SPA register page is dead -- the live register flow
+  // lives on the AuthServer Razor page at port 44368. Redirect anyone
+  // landing on /account/register on the SPA to the AuthServer URL on the
+  // same subdomain so they reach the working form.
+  {
+    path: 'account/register',
+    loadComponent: () =>
+      import('./shared/auth/redirect-to-authserver-register.component').then(
+        (c) => c.RedirectToAuthServerRegisterComponent,
+      ),
+  },
+  // 2026-05-06 -- OLD-parity URL alias. OLD emailed
+  // `/verify-email/{userId}?query={UUID}`; redirect such links to ABP's
+  // `/account/email-confirmation?userId&confirmationToken` so legacy links
+  // resolve. Token format is incompatible (OLD UUID vs NEW DataProtection)
+  // so verification itself will fail for genuinely-old codes; but the
+  // user-facing routing works.
+  {
+    path: 'verify-email/:userId',
+    loadComponent: () =>
+      import('./shared/auth/verify-email-redirect.component').then(
+        (c) => c.VerifyEmailRedirectComponent,
+      ),
   },
   {
     path: 'account',

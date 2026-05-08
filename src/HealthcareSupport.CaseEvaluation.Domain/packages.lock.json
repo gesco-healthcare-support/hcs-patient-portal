@@ -23,6 +23,12 @@
           "System.Security.Cryptography.Pkcs": "8.0.1"
         }
       },
+      "QuestPDF": {
+        "type": "Direct",
+        "requested": "[2026.2.4, )",
+        "resolved": "2026.2.4",
+        "contentHash": "fajBdRJFr3hu2Mr6mEVsXjvVKD9Q/Q6hfPEUMpV/xlwxWdFebmpGdi0FLQTApMvpapy72v9dvcGuk7e7NQmQyQ=="
+      },
       "Scriban": {
         "type": "Direct",
         "requested": "[7.1.0, )",

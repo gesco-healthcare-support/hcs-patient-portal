@@ -1,6 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
@@ -13,7 +20,7 @@ import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import {
   NgbDateAdapter,
@@ -34,10 +41,56 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
-import type {
-  AppointmentInjuryDraft,
-  AppointmentInjuryDetailWithNavigationPropertiesDto,
-} from '../proxy/appointment-injury-details/models';
+import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
+import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
+import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
+
+// W2-8 -- transient front-end shape for the "add injury" booking-form
+// modal. Bundles the AppointmentInjuryDetail core fields with the
+// linked PrimaryInsurance + ClaimExaminer rows so the user can enter
+// all three in one modal step; on submit the booking flow splits them
+// across the dedicated endpoints (appointment-injury-details +
+// appointment-primary-insurances + appointment-claim-examiners).
+//
+// Pre-regen this shape lived in
+// `proxy/appointment-injury-details/models.ts` as `AppointmentInjuryDraft`.
+// The post-merge backend dropped the C# class, so the proxy regen
+// removed it. This is a frontend-only transient type, not an API DTO --
+// declared locally to keep the modal logic intact without a
+// non-functional proxy round-trip.
+interface AppointmentInjuryDraft {
+  isCumulativeInjury: boolean;
+  dateOfInjury: string | null;
+  toDateOfInjury: string | null;
+  claimNumber: string;
+  wcabOfficeId: string | null;
+  wcabAdj: string | null;
+  bodyPartsSummary: string;
+  primaryInsurance: {
+    isActive: boolean;
+    name: string | null;
+    insuranceNumber: string | null;
+    attention: string | null;
+    phoneNumber: string | null;
+    faxNumber: string | null;
+    street: string | null;
+    city: string | null;
+    stateId: string | null;
+    zip: string | null;
+  };
+  claimExaminer: {
+    isActive: boolean;
+    name: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    fax: string | null;
+    street: string | null;
+    claimExaminerNumber: string | null;
+    city: string | null;
+    stateId: string | null;
+    zip: string | null;
+  };
+}
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -101,6 +154,21 @@ export class AppointmentAddComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
+  // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
+  private readonly customFieldsService = inject(CustomFieldsService);
+
+  // B1: expose enum to template for *ngIf branches.
+  readonly CustomFieldType = CustomFieldType;
+
+  // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
+  // window. For DOB we want the full century. Setting [minDate]/[maxDate]
+  // and `navigation="select"` switches the header to month + year selects
+  // that span the full configured range.
+  readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
+  readonly dobMaxDate: NgbDateStruct = (() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  })();
 
   activeTabId = 'appointment';
   isSaving = false;
@@ -165,7 +233,18 @@ export class AppointmentAddComponent {
   injuryDrafts: AppointmentInjuryDraft[] = [];
   isInjuryModalOpen = false;
   injuryEditingIndex = -1;
-  injuryEditing: AppointmentInjuryDraft = this.makeEmptyInjuryDraft();
+  // W2-10 (2026-05-07): per-injury modal converted from template-driven
+  // ngModel to a reactive FormGroup so OLD-equivalent conditional
+  // Validators.required (Insurance toggle / Claim Examiner toggle) can be
+  // applied. Mirrors OLD `customValdiationForClaimExaminer` /
+  // `customValdiationForPrimaryInsurance` from
+  // patientappointment-portal/.../appointment.domain.ts:558-668.
+  //
+  // Field-init order matters: injuryToggleSubscriptions is referenced
+  // inside buildInjuryForm() so it must be declared (and assigned `[]`)
+  // BEFORE injuryForm's initializer runs.
+  private injuryToggleSubscriptions: Subscription[] = [];
+  injuryForm: FormGroup = this.buildInjuryForm();
   // W-A-4 (2026-04-30): inline validation error displayed inside the
   // Claim Information modal when the booker clicks Add/Save with required
   // fields blank. Previously saveInjuryModal silently returned, leaving the
@@ -283,12 +362,19 @@ export class AppointmentAddComponent {
     firstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     lastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     middleName: [null as string | null, [Validators.maxLength(50)]],
+    // 2026-05-07 (#14): drop `disabled: true`. Disabled controls skip
+    // validators, so the previous shape silently bypassed Validators.required
+    // for Patient bookers (their loadPatientProfile path patched a value but
+    // never enabled the control). The HTML now uses [readonly] per OLD
+    // parity to gate editing -- readonly preserves submit + validation.
     email: [
-      { value: null as string | null, disabled: true },
+      null as string | null,
       [Validators.required, Validators.maxLength(50), Validators.email],
     ],
     genderId: [null as number | null],
-    dateOfBirth: [null as string | null],
+    // OLD parity (live audit 2026-05-07): DOB is required for every
+    // external role per OLD's "Mandatory Fields" submit modal.
+    dateOfBirth: [null as string | null, [Validators.required]],
     cellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     phoneNumber: [null as string | null, [Validators.maxLength(20)]],
     phoneNumberTypeId: [null as number | null],
@@ -298,12 +384,17 @@ export class AppointmentAddComponent {
     city: [null as string | null, [Validators.maxLength(50)]],
     stateId: [null as string | null],
     zipCode: [null as string | null, [Validators.maxLength(15)]],
+    // OLD parity (Wave 2 #9, 2026-05-07): patient.ts in OLD does NOT carry
+    // @required() on AppointmentLanguageId, and customValdiationFor* never
+    // applies a required validator to it. The earlier audit's "Language is
+    // required" reading was a NEW deviation; dropping to match OLD verbatim.
     appointmentLanguageId: [null as string | null],
     needsInterpreter: [null as boolean | null],
     interpreterVendorName: [null as string | null, [Validators.maxLength(255)]],
     refferedBy: [null as string | null, [Validators.maxLength(50)]],
-    employerName: [null as string | null, [Validators.maxLength(255)]],
-    employerOccupation: [null as string | null, [Validators.maxLength(255)]],
+    // OLD parity: Employer Name + Occupation required.
+    employerName: [null as string | null, [Validators.required, Validators.maxLength(255)]],
+    employerOccupation: [null as string | null, [Validators.required, Validators.maxLength(255)]],
     employerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     employerStreet: [null as string | null, [Validators.maxLength(255)]],
     employerCity: [null as string | null, [Validators.maxLength(255)]],
@@ -322,7 +413,10 @@ export class AppointmentAddComponent {
     applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
     applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
-    defenseAttorneyEnabled: [false],
+    // OLD parity 2026-05-06: Defense Attorney section is enabled by default
+    // (matching OLD's two-attorney row with both toggles ON). Booker can
+    // turn it off explicitly if not needed. Same for Claim Examiner below.
+    defenseAttorneyEnabled: [true],
     defenseAttorneyIdentityUserId: [null as string | null],
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
@@ -335,10 +429,39 @@ export class AppointmentAddComponent {
     defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
     defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    // The top-level claimExaminer{Enabled,Name,Email} controls are
+    // vestigial -- the actual per-injury Claim Examiner data is captured
+    // in the injury modal's child FormGroup (built around line 727).
+    // Flipping `claimExaminerEnabled` to true engaged a required
+    // validator on `claimExaminerEmail` which has NO matching DOM input,
+    // making the form unsubmittable. Stays `false` until the per-injury
+    // child FormGroup gets the same OLD-parity required treatment.
     claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
+    // OLD's `appointment.customFieldsValues` FormArray rebuilt on
+    // appointmentTypeId change. Each child FormGroup carries the static
+    // CustomField metadata (id / label / type / options / mandatory)
+    // alongside the booker-supplied `customFieldValue` control.
+    customFieldsValues: this.fb.array([] as FormGroup[]),
   });
+
+  // B1: monotonically-incrementing version so that an older slow lookup
+  // response cannot overwrite the FormArray after the user has switched
+  // AppointmentType (mirrors the same pattern at fieldConfigsRequestVersion).
+  private customFieldsRequestVersion = 0;
+
+  // Wave 4 / #15 (2026-05-07, NEW-only enhancement -- no OLD parity):
+  // when patient language = English, interpreter is irrelevant so the
+  // radio is forced to No and locked. Cached on first lookup so the
+  // valueChanges subscriber runs as a pure compare.
+  private englishLanguageId: string | null = null;
+  private englishLanguageLookupComplete = false;
+
+  get customFieldsArray(): FormArray<FormGroup> {
+    return this.form.get('customFieldsValues') as FormArray<FormGroup>;
+  }
 
   constructor() {
     // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
@@ -355,6 +478,10 @@ export class AppointmentAddComponent {
     this.form.get('appointmentTypeId')?.valueChanges.subscribe((appointmentTypeId) => {
       this.loadAvailableDatesBySelection();
       this.applyFieldConfigsForAppointmentType(appointmentTypeId);
+      // B1 (2026-05-05): rebuild the custom-field FormArray for the newly
+      // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
+      // which re-binds `customFieldsValues` on AppointmentType change.
+      this.loadCustomFieldsForAppointmentType(appointmentTypeId);
     });
     this.form
       .get('appointmentDate')
@@ -365,6 +492,17 @@ export class AppointmentAddComponent {
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
     this.loadCurrentPatientProfile();
     this.loadExternalAuthorizedUsers();
+
+    // Wave 4 / #15 (2026-05-07): cache the English language GUID and
+    // wire a valueChanges subscriber on appointmentLanguageId. When the
+    // patient language is English, interpreter is irrelevant -- force
+    // needsInterpreter to No and disable the radio. NEW-only enhancement
+    // with no OLD parity (OLD html:199 has no English coupling); see
+    // PARITY-FLAG-NEW-004 in docs/parity/_parity-flags.md.
+    this.loadEnglishLanguageId();
+    this.form
+      .get('appointmentLanguageId')
+      ?.valueChanges.subscribe((value) => this.applyEnglishInterpreterLock(value));
     this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
       this.onAuthorizedUserIdentityChanged(value);
     });
@@ -373,28 +511,88 @@ export class AppointmentAddComponent {
     // section, the corresponding email field becomes required (in addition to
     // the existing format check). This drives the post-submit fan-out --
     // each party we name on the appointment must have a deliverable email.
+    //
+    // B12 (2026-05-06): also clear the email field whenever the checkbox
+    // flips off so a stale typed value cannot ride along on a later submit
+    // (the @if hides the input but the FormControl retains its value).
+    // Use setValue(null, { emitEvent: false }) to avoid recursion through
+    // the validator subscription -- emitEvent: false suppresses the
+    // valueChanges event on the email field itself, not on the enabled
+    // checkbox.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
+      this.applyConditionalAttorneySectionValidators('applicantAttorney', !!enabled);
+      if (!enabled) {
+        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
+      this.applyConditionalAttorneySectionValidators('defenseAttorney', !!enabled);
+      if (!enabled) {
+        this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     this.form.get('claimExaminerEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('claimExaminerEmail', !!enabled);
+      if (!enabled) {
+        this.form.get('claimExaminerEmail')?.setValue(null, { emitEvent: false });
+      }
     });
     // Apply once at construction for the initial enabled state.
-    this.applyConditionalEmailValidator(
-      'applicantAttorneyEmail',
-      !!this.form.get('applicantAttorneyEnabled')?.value,
-    );
-    this.applyConditionalEmailValidator(
-      'defenseAttorneyEmail',
-      !!this.form.get('defenseAttorneyEnabled')?.value,
-    );
-    this.applyConditionalEmailValidator(
-      'claimExaminerEmail',
-      !!this.form.get('claimExaminerEnabled')?.value,
-    );
+    const aaInitialEnabled = !!this.form.get('applicantAttorneyEnabled')?.value;
+    const daInitialEnabled = !!this.form.get('defenseAttorneyEnabled')?.value;
+    const ceInitialEnabled = !!this.form.get('claimExaminerEnabled')?.value;
+    this.applyConditionalEmailValidator('applicantAttorneyEmail', aaInitialEnabled);
+    this.applyConditionalAttorneySectionValidators('applicantAttorney', aaInitialEnabled);
+    this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
+    this.applyConditionalAttorneySectionValidators('defenseAttorney', daInitialEnabled);
+    this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
+
+    // B11-followup (2026-05-07): the earlier "hide AA/DA for CE" auto-
+    // flip-off is no longer needed -- shouldShowApplicantAttorneySection
+    // / shouldShowDefenseAttorneySection now always return true to match
+    // OLD's behavior (see the comment on those methods).
+    this.applyOwnRoleAttorneyPrefill();
+  }
+
+  /**
+   * OLD parity (appointment-add.component.ts:159-162): when the booker is
+   * the Applicant Attorney, pre-fill that section's email from their
+   * identity. Same idea for Defense Attorney (DA email is also readonly
+   * for DA-role bookers per OLD HTML line 749). The HTML pairs this with
+   * `[readonly]` on those email fields so the booker cannot retype their
+   * own address.
+   */
+  private applyOwnRoleAttorneyPrefill(): void {
+    const user = this.currentUser;
+    if (!user) return;
+    // OLD parity: AA/DA have a single "Name" field. We map the combined
+    // name into the existing firstName form control and leave lastName
+    // empty so downstream display ("firstName lastName") renders the
+    // single name without trailing whitespace.
+    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    if (this.isApplicantAttorney && !this.isItAdmin) {
+      this.form.patchValue(
+        {
+          applicantAttorneyEmail: user.email ?? this.form.get('applicantAttorneyEmail')?.value,
+          applicantAttorneyFirstName:
+            fullName || this.form.get('applicantAttorneyFirstName')?.value,
+          applicantAttorneyLastName: '',
+        },
+        { emitEvent: false },
+      );
+    }
+    if (this.isDefenseAttorney && !this.isItAdmin) {
+      this.form.patchValue(
+        {
+          defenseAttorneyEmail: user.email ?? this.form.get('defenseAttorneyEmail')?.value,
+          defenseAttorneyFirstName: fullName || this.form.get('defenseAttorneyFirstName')?.value,
+          defenseAttorneyLastName: '',
+        },
+        { emitEvent: false },
+      );
+    }
   }
 
   private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
@@ -405,6 +603,48 @@ export class AppointmentAddComponent {
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
     control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * OLD parity (live audit 2026-05-07): when the Applicant Attorney or
+   * Defense Attorney "Include" toggle is on, the OLD `Mandatory Fields`
+   * submit modal lists Name, Firm Name, Phone Number, Fax Number,
+   * Street, City, State, Zip as required for that section. NEW only
+   * required the email. Toggling the section off must strip those
+   * required validators (parallel to applyConditionalEmailValidator).
+   *
+   * Flips Validators.required on a fixed list of non-email field names
+   * keyed by the section's prefix (`applicantAttorney` / `defenseAttorney`).
+   * Email itself stays handled by applyConditionalEmailValidator.
+   */
+  private applyConditionalAttorneySectionValidators(
+    prefix: 'applicantAttorney' | 'defenseAttorney',
+    required: boolean,
+  ): void {
+    // Field-name suffix -> existing maxLength so we preserve format checks.
+    const suffixes: Array<{ name: string; maxLength: number }> = [
+      { name: 'FirstName', maxLength: 50 },
+      { name: 'FirmName', maxLength: 50 },
+      { name: 'PhoneNumber', maxLength: 20 },
+      { name: 'FaxNumber', maxLength: 19 },
+      { name: 'Street', maxLength: 255 },
+      { name: 'City', maxLength: 50 },
+      { name: 'StateId', maxLength: 0 },
+      { name: 'ZipCode', maxLength: 10 },
+    ];
+    for (const { name, maxLength } of suffixes) {
+      const control = this.form.get(prefix + name);
+      if (!control) continue;
+      const validators = [];
+      if (required) {
+        validators.push(Validators.required);
+      }
+      if (maxLength > 0) {
+        validators.push(Validators.maxLength(maxLength));
+      }
+      control.setValidators(validators);
+      control.updateValueAndValidity({ emitEvent: false });
+    }
   }
 
   /**
@@ -495,6 +735,149 @@ export class AppointmentAddComponent {
     this.readOnlyFieldNames.clear();
   }
 
+  /**
+   * B1 (2026-05-05) -- when AppointmentType changes, fetch the active
+   * <see cref="CustomFieldDto"/> rows for that type and rebuild the
+   * `customFieldsValues` FormArray. Mirrors OLD's
+   * `clearFormDataAsPerAppointmentType` (P:\PatientPortalOld\
+   * patientappointment-portal\src\app\components\appointment-request\
+   * appointments\add\appointment-add.component.ts:281-297) which resets
+   * `appointment.customFieldsValues` on AppointmentType change.
+   *
+   * Race-safety pattern matches `applyFieldConfigsForAppointmentType` --
+   * a `customFieldsRequestVersion` counter discards stale responses.
+   *
+   * Validators per type follow the renderer matrix in
+   * `docs/research/stage-2-3-booking-and-view.md` section B1.4.
+   */
+  private loadCustomFieldsForAppointmentType(appointmentTypeId: string | null): void {
+    this.customFieldsArray.clear();
+
+    if (!appointmentTypeId) {
+      return;
+    }
+
+    const requestVersion = ++this.customFieldsRequestVersion;
+
+    this.customFieldsService.getActiveForAppointmentType(appointmentTypeId).subscribe({
+      next: (rows) => {
+        if (requestVersion !== this.customFieldsRequestVersion) {
+          // Newer AppointmentType change cancelled this fetch.
+          return;
+        }
+        // Rebuild from scratch -- order by DisplayOrder ascending so the
+        // booker sees fields in the order IT Admin configured.
+        const ordered = (rows ?? [])
+          .filter((r) => r.isActive !== false)
+          .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        for (const row of ordered) {
+          this.customFieldsArray.push(this.buildCustomFieldGroup(row));
+        }
+      },
+      error: () => {
+        // Same race protection as success: only reset state on the
+        // currently-pending request.
+        if (requestVersion === this.customFieldsRequestVersion) {
+          this.customFieldsArray.clear();
+        }
+      },
+    });
+  }
+
+  /**
+   * B1 -- construct one FormGroup per CustomField. Carries the static
+   * metadata (id / label / type / options / mandatory / length) alongside
+   * the booker-supplied `customFieldValue` control.
+   */
+  private buildCustomFieldGroup(row: CustomFieldDto): FormGroup {
+    const validators = [];
+    if (row.isMandatory) {
+      validators.push(Validators.required);
+    }
+    if (row.fieldType === CustomFieldType.Alphanumeric && row.fieldLength) {
+      validators.push(Validators.maxLength(row.fieldLength));
+    }
+    if (row.fieldType === CustomFieldType.Numeric) {
+      // OLD's column is plain string; allow integers + decimals + leading minus.
+      validators.push(Validators.pattern(/^-?\d+(\.\d+)?$/));
+    }
+
+    return this.fb.group({
+      customFieldId: [row.id ?? ''],
+      fieldType: [row.fieldType ?? CustomFieldType.Alphanumeric],
+      fieldLabel: [row.fieldLabel ?? ''],
+      fieldLength: [row.fieldLength ?? null],
+      multipleValues: [row.multipleValues ?? null],
+      isMandatory: [!!row.isMandatory],
+      customFieldValue: [row.defaultValue ?? null, validators],
+    });
+  }
+
+  /**
+   * B1 -- helper consumed by the template to render Picklist / Tickbox /
+   * Radio option lists. OLD stores options as a comma-separated string in
+   * `MultipleValues` (no separate option entity); split + trim + drop empty.
+   */
+  optionsFromMultipleValues(multipleValues: string | null | undefined): string[] {
+    if (!multipleValues) return [];
+    return multipleValues
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
+  /**
+   * B1 -- map the customFieldsValues FormArray into CustomFieldValueInputDto[]
+   * for the booking POST. Each child FormGroup carries the static
+   * CustomField metadata + the booker-supplied `customFieldValue` control;
+   * here we serialize per-type and drop empties:
+   *   - Date    : ISO yyyy-MM-dd from the NgbDateStruct (the form binds a
+   *               yyyy-MM-dd string when the picker fires; OLD persisted MM/DD/YYYY
+   *               but server stores it as a string column either way, so the
+   *               wire format only matters for reciprocal display).
+   *   - Time    : HH:mm string from the timepicker.
+   *   - Tickbox : the form binds an array of selected option labels for
+   *               multi-option tickboxes; we comma-join. Single-option
+   *               tickboxes bind a boolean which we serialise as "true"/"false".
+   *   - Other   : raw string from the control.
+   */
+  private serializeCustomFieldValues(): CustomFieldValueInputDto[] {
+    const out: CustomFieldValueInputDto[] = [];
+    for (const group of this.customFieldsArray.controls) {
+      const v = group.value as {
+        customFieldId?: string;
+        fieldType?: CustomFieldType;
+        multipleValues?: string | null;
+        customFieldValue?: unknown;
+      };
+      if (!v.customFieldId) continue;
+      const serialized = this.serializeOneCustomFieldValue(v);
+      if (serialized === null || serialized === '') continue;
+      out.push({ customFieldId: v.customFieldId, value: serialized });
+    }
+    return out;
+  }
+
+  private serializeOneCustomFieldValue(v: {
+    fieldType?: CustomFieldType;
+    multipleValues?: string | null;
+    customFieldValue?: unknown;
+  }): string | null {
+    const raw = v.customFieldValue;
+    if (raw === null || raw === undefined) return null;
+
+    if (v.fieldType === CustomFieldType.Tickbox) {
+      // Multi-option: array of selected option strings. Single-option:
+      // boolean. Serialize uniformly to a string.
+      if (Array.isArray(raw)) return raw.filter((x) => !!x).join(',');
+      if (typeof raw === 'boolean') return raw ? 'true' : 'false';
+      return String(raw);
+    }
+
+    if (typeof raw === 'string') return raw.trim();
+    return String(raw);
+  }
+
   get displayUserName(): string {
     const user = this.currentUser;
     if (!user) return '';
@@ -537,6 +920,66 @@ export class AppointmentAddComponent {
   get isApplicantAttorney(): boolean {
     const roles = this.currentUser?.roles ?? [];
     return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
+  }
+
+  /** True when current user is Defense Attorney. OLD parity: own email field readonly + auto-filled. */
+  get isDefenseAttorney(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'defense attorney');
+  }
+
+  /**
+   * True when current user is Claim Examiner. OLD parity: their per-injury
+   * claim examiner name + email auto-fill from their identity and become
+   * readonly. NEW's "Claim Examiner" role is the same as OLD's "Adjuster"
+   * (renamed for clarity, see shared/auth/external-user-roles.ts).
+   */
+  get isClaimExaminerRole(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
+  }
+
+  // B11 reversed (2026-05-07): the earlier interpretation hid the
+  // Applicant Attorney / Defense Attorney / Additional Authorized User
+  // cards for the Claim Examiner (= OLD's Adjuster) booker. A live
+  // walkthrough of the OLD app under `adjuster@local.test` showed that
+  // OLD shows ALL three sections to the Adjuster; only the Insurance
+  // fieldset is `[disabled]` and the Claim Examiner Name + Email fields
+  // auto-fill from the booker identity and become readonly (OLD
+  // appointment-add.component.html:378 + :461). The methods below stay
+  // for any future role-specific gating but currently always return
+  // true for parity.
+  shouldShowApplicantAttorneySection(): boolean {
+    return true;
+  }
+
+  shouldShowDefenseAttorneySection(): boolean {
+    return true;
+  }
+
+  shouldShowAuthorizedUserSection(): boolean {
+    return true;
+  }
+
+  /**
+   * OLD parity: when the booker is a Claim Examiner (= OLD's Adjuster),
+   * the Primary Insurance fieldset is rendered but `[disabled]`. The
+   * Claim Examiner sub-section is rendered with Name + Email auto-filled
+   * and readonly (handled separately in the per-injury modal). Mirrors
+   * OLD `appointment-add.component.html:378` `[disabled]="isAdjusterLogin"`.
+   */
+  get isInsuranceFieldsetDisabled(): boolean {
+    return this.isClaimExaminerRole && !this.isItAdmin;
+  }
+
+  /**
+   * True when current user holds the IT Admin internal role. OLD HTML uses
+   * `userRoleId != roleEnum.ITAdmin` as an override that lets IT Admins
+   * edit otherwise-readonly own-role email fields when booking on behalf.
+   */
+  get isItAdmin(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'it admin');
   }
 
   isFieldInvalid(fieldName: string): boolean {
@@ -614,6 +1057,10 @@ export class AppointmentAddComponent {
         claimExaminerEmail: rawAfter.claimExaminerEnabled
           ? (rawAfter.claimExaminerEmail ?? undefined)
           : undefined,
+        // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
+        // Empty / whitespace values are dropped to match OLD's "no answer"
+        // semantics; the backend AppService also drops them defensively.
+        customFieldValues: this.serializeCustomFieldValues(),
       };
 
       const createdAppointment = await firstValueFrom(
@@ -713,6 +1160,82 @@ export class AppointmentAddComponent {
     }
   }
 
+  /**
+   * Wave 4 / #15 (NEW-only enhancement, PARITY-FLAG-NEW-004): looks up the
+   * English AppointmentLanguage row once to cache its GUID. The
+   * `?filter=English&maxResultCount=1` shape matches the existing
+   * `getAppointmentLanguageLookup` server contract. Re-runs
+   * `applyEnglishInterpreterLock` after the cache is populated so a
+   * pre-filled English value (e.g. patient profile prefill) locks the
+   * interpreter immediately, even if the lookup completes after the
+   * profile load fires its initial valueChanges event.
+   */
+  private loadEnglishLanguageId(): void {
+    if (this.englishLanguageLookupComplete) {
+      return;
+    }
+    this.englishLanguageLookupComplete = true;
+    this.getAppointmentLanguageLookup({
+      filter: 'English',
+      skipCount: 0,
+      maxResultCount: 1,
+    }).subscribe({
+      next: (response) => {
+        const match = response?.items?.find(
+          (item) => item.displayName?.trim().toLowerCase() === 'english',
+        );
+        this.englishLanguageId = match?.id ?? null;
+        if (this.englishLanguageId) {
+          this.applyEnglishInterpreterLock(this.form.get('appointmentLanguageId')?.value ?? null);
+        }
+      },
+      error: () => {
+        // If the lookup fails the lock simply stays disabled until next
+        // language change retries -- the form remains usable.
+        this.englishLanguageLookupComplete = false;
+      },
+    });
+  }
+
+  /**
+   * Wave 4 / #15: when the selected language is English, force
+   * `needsInterpreter = false` and disable the radio control. Otherwise
+   * re-enable so the booker can choose. `emitEvent: false` on both the
+   * setValue and the disable/enable calls suppresses the cascading
+   * valueChanges event that would otherwise re-enter via
+   * `interpreterVendorName` validators or the @if-rendered vendor input.
+   */
+  private applyEnglishInterpreterLock(currentLanguageId: string | null): void {
+    const interpreterCtrl = this.form.get('needsInterpreter');
+    if (!interpreterCtrl) {
+      return;
+    }
+    if (!this.englishLanguageId) {
+      // Lookup not done yet -- do not touch the control. The lookup
+      // success branch will re-call this method once the cache is set.
+      return;
+    }
+    const isEnglish = !!currentLanguageId && currentLanguageId === this.englishLanguageId;
+    if (isEnglish) {
+      if (interpreterCtrl.value !== false) {
+        interpreterCtrl.setValue(false, { emitEvent: false });
+      }
+      // Also clear the conditional vendor name so a pre-filled value
+      // does not silently ride along on submit when the @if hides it.
+      const vendorCtrl = this.form.get('interpreterVendorName');
+      if (vendorCtrl?.value) {
+        vendorCtrl.setValue(null, { emitEvent: false });
+      }
+      if (interpreterCtrl.enabled) {
+        interpreterCtrl.disable({ emitEvent: false });
+      }
+    } else {
+      if (interpreterCtrl.disabled) {
+        interpreterCtrl.enable({ emitEvent: false });
+      }
+    }
+  }
+
   private loadExternalUserProfile(): void {
     this.restService
       .request<
@@ -737,7 +1260,10 @@ export class AppointmentAddComponent {
           return;
         }
         this.patientLabel = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-        this.form.get('email')?.enable();
+        // 2026-05-07 (#14): the email control is no longer disabled by
+        // default (see form-build site), so an explicit enable() here is
+        // redundant. The HTML applies [readonly] for Patient bookers to
+        // gate editing without skipping validators.
         this.form.get('patientId')?.clearValidators();
         this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
         this.loadPatientListCache();
@@ -836,7 +1362,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: (patient.genderId as number | undefined) ?? null,
-          dateOfBirth: patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -950,7 +1476,9 @@ export class AppointmentAddComponent {
           middleName: profile.patient.middleName ?? null,
           email: profile.patient.email ?? null,
           genderId: (profile.patient.genderId as number | undefined) ?? null,
-          dateOfBirth: profile.patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(
+            profile.patient.dateOfBirth as string | null,
+          ),
           cellPhoneNumber: profile.patient.cellPhoneNumber ?? null,
           phoneNumber: profile.patient.phoneNumber ?? null,
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -990,6 +1518,21 @@ export class AppointmentAddComponent {
       return d.toISOString().split('T')[0];
     }
     return null;
+  }
+
+  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1900) return null;
+    const today = new Date();
+    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
+      return null;
+    }
+    return value;
   }
 
   onPatientSelected(patientId: string | null): void {
@@ -1053,7 +1596,7 @@ export class AppointmentAddComponent {
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
           genderId: (patient.genderId as number | undefined) ?? null,
-          dateOfBirth: patient.dateOfBirth ?? null,
+          dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
@@ -1426,12 +1969,20 @@ export class AppointmentAddComponent {
     appointmentId?: string,
   ): Promise<void> {
     const raw = this.form.getRawValue();
-    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyIdentityUserId) {
+    // Bonus issue (2026-05-07): drop the IdentityUserId precondition. Send
+    // the upsert whenever the AA section is enabled AND the booker typed at
+    // least an email; the backend resolves IdentityUser by email or stores
+    // the row with a null IdentityUserId, which the registration linkback
+    // contributor patches when the AA later registers.
+    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyEmail) {
       return;
     }
     const body = {
       applicantAttorneyId: this.applicantAttorneyId ?? undefined,
-      identityUserId: raw.applicantAttorneyIdentityUserId,
+      // Send Guid.Empty so the backend's ResolveIdentityUserIdForBookingAsync
+      // helper falls through to the email-based lookup when no existing
+      // IdentityUser was matched at search time.
+      identityUserId: raw.applicantAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
       firstName: raw.applicantAttorneyFirstName ?? '',
       lastName: raw.applicantAttorneyLastName ?? '',
       email: raw.applicantAttorneyEmail ?? '',
@@ -1596,12 +2147,15 @@ export class AppointmentAddComponent {
     appointmentId?: string,
   ): Promise<void> {
     const raw = this.form.getRawValue();
-    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyIdentityUserId) {
+    // Bonus issue (2026-05-07): mirror the AA upsert above. Submit whenever
+    // the DA section is enabled AND the booker typed an email; backend
+    // resolves IdentityUser by email or persists with null + linkback.
+    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyEmail) {
       return;
     }
     const body = {
       defenseAttorneyId: this.defenseAttorneyId ?? undefined,
-      identityUserId: raw.defenseAttorneyIdentityUserId,
+      identityUserId: raw.defenseAttorneyIdentityUserId ?? '00000000-0000-0000-0000-000000000000',
       firstName: raw.defenseAttorneyFirstName ?? '',
       lastName: raw.defenseAttorneyLastName ?? '',
       email: raw.defenseAttorneyEmail ?? '',
@@ -1713,6 +2267,7 @@ export class AppointmentAddComponent {
     userName?: string;
     name?: string;
     surname?: string;
+    email?: string;
     roles?: string[];
   } | null {
     return (this.configState.getOne('currentUser') as any) ?? null;
@@ -1768,7 +2323,7 @@ export class AppointmentAddComponent {
     const requestVersion = ++this.availableSlotsRequestVersion;
     this.isAvailableDatesLoading = true;
 
-    this.fetchAllAvailableSlots(locationId, appointmentTypeId)
+    this.fetchAllAvailableSlots(locationId as string, appointmentTypeId as string)
       .then((items) => {
         if (requestVersion !== this.availableSlotsRequestVersion) {
           return;
@@ -1952,12 +2507,10 @@ export class AppointmentAddComponent {
     const threshold = new Date(today);
     threshold.setDate(threshold.getDate() + this.minimumBookingDays);
 
-    console.log('Date check:', {
-      selected: selected.toISOString(),
-      threshold: threshold.toISOString(),
-      isBefore: selected < threshold,
-    });
-
+    // Phase 11d (2026-05-04): client-side guard is informational only.
+    // The server-side BookingPolicyValidator (Phase 11b) is authoritative
+    // and reads SystemParameter.AppointmentLeadTime per-tenant. UI used
+    // to log a debug `console.log('Date check:', ...)` here; removed.
     return selected < threshold;
   }
 
@@ -1978,6 +2531,7 @@ export class AppointmentAddComponent {
             url: '/api/app/doctor-availabilities',
             params: {
               locationId,
+              appointmentTypeId,
               bookingStatusId: BookingStatus.Available,
               skipCount,
               maxResultCount: pageSize,
@@ -2003,6 +2557,93 @@ export class AppointmentAddComponent {
 
   // -------- W2-8: Claim Information modal + multi-injury workflow --------
 
+  /**
+   * W2-10 (2026-05-07): builds the reactive FormGroup that backs the
+   * per-injury modal. Field-name keys match the existing HTML
+   * `name="injury..."` attributes one-to-one so the Playwright fill
+   * helper at .playwright-mcp/book-appointment-fill.js keeps working
+   * unchanged. The shape is FLAT (not nested under primaryInsurance /
+   * claimExaminer) because formControlName cannot traverse nested
+   * groups without formGroupName scopes; serialization back into the
+   * nested AppointmentInjuryDraft happens in saveInjuryModal().
+   *
+   * Always-required: dateOfInjury, claimNumber, bodyPartsSummary
+   *   (mirrors NEW's existing imperative checks AND OLD's defaults).
+   * Conditionally required:
+   *   - injuryInsuranceName when injuryInsuranceEnabled = true
+   *     (OLD customValdiationForPrimaryInsurance:639-650).
+   *   - 8 CE fields when injuryClaimExaminerEnabled = true
+   *     (OLD customValdiationForClaimExaminer:558-590).
+   */
+  private buildInjuryForm(initial?: AppointmentInjuryDraft): FormGroup {
+    const src = initial ?? this.makeEmptyInjuryDraft();
+    const group = this.fb.group({
+      // Top-level always-required + flags.
+      injuryCumulative: [src.isCumulativeInjury],
+      injuryDateOfInjury: [src.dateOfInjury, [Validators.required]],
+      injuryToDateOfInjury: [src.toDateOfInjury],
+      injuryClaimNumber: [src.claimNumber, [Validators.required]],
+      injuryBodyPartsSummary: [src.bodyPartsSummary, [Validators.required]],
+      injuryWcabOfficeId: [src.wcabOfficeId],
+      injuryWcabAdj: [src.wcabAdj],
+      // Insurance section.
+      injuryInsuranceEnabled: [src.primaryInsurance.isActive],
+      injuryInsuranceName: [src.primaryInsurance.name],
+      injuryInsuranceAttention: [src.primaryInsurance.attention],
+      injuryInsurancePhone: [src.primaryInsurance.phoneNumber],
+      injuryInsuranceFax: [src.primaryInsurance.faxNumber],
+      injuryInsuranceStreet: [src.primaryInsurance.street],
+      injuryInsuranceSte: [src.primaryInsurance.insuranceNumber],
+      injuryInsuranceCity: [src.primaryInsurance.city],
+      injuryInsuranceStateId: [src.primaryInsurance.stateId],
+      injuryInsuranceZip: [src.primaryInsurance.zip],
+      // Claim Examiner section.
+      injuryClaimExaminerEnabled: [src.claimExaminer.isActive],
+      injuryClaimExaminerName: [src.claimExaminer.name],
+      injuryClaimExaminerEmail: [src.claimExaminer.email],
+      injuryClaimExaminerPhone: [src.claimExaminer.phoneNumber],
+      injuryClaimExaminerFax: [src.claimExaminer.fax],
+      injuryClaimExaminerStreet: [src.claimExaminer.street],
+      injuryClaimExaminerSte: [src.claimExaminer.claimExaminerNumber],
+      injuryClaimExaminerCity: [src.claimExaminer.city],
+      injuryClaimExaminerStateId: [src.claimExaminer.stateId],
+      injuryClaimExaminerZip: [src.claimExaminer.zip],
+    });
+
+    // Drop any leftover subscriptions from a prior modal session BEFORE
+    // wiring this group's listeners.
+    this.clearInjuryToggleSubscriptions();
+
+    // Apply initial validator state to match the toggle defaults.
+    this.applyInsuranceRequiredValidators(
+      group,
+      group.get('injuryInsuranceEnabled')?.value === true,
+    );
+    this.applyClaimExaminerRequiredValidators(
+      group,
+      group.get('injuryClaimExaminerEnabled')?.value === true,
+    );
+
+    // Subscribe to toggle changes so flipping the include switch flips
+    // the per-section required validators in lockstep.
+    const insuranceSub = group
+      .get('injuryInsuranceEnabled')
+      ?.valueChanges.subscribe((on) => this.applyInsuranceRequiredValidators(group, on === true));
+    if (insuranceSub) this.injuryToggleSubscriptions.push(insuranceSub);
+
+    const examinerSub = group
+      .get('injuryClaimExaminerEnabled')
+      ?.valueChanges.subscribe((on) =>
+        this.applyClaimExaminerRequiredValidators(group, on === true),
+      );
+    if (examinerSub) this.injuryToggleSubscriptions.push(examinerSub);
+
+    return group;
+  }
+
+  /** Default empty draft -- still useful as the seed for buildInjuryForm
+   * AND as the storage shape inside `injuryDrafts` (we serialize the
+   * FormGroup back into this nested shape on save). */
   private makeEmptyInjuryDraft(): AppointmentInjuryDraft {
     return {
       isCumulativeInjury: false,
@@ -2013,7 +2654,7 @@ export class AppointmentAddComponent {
       wcabAdj: null,
       bodyPartsSummary: '',
       primaryInsurance: {
-        isActive: false,
+        isActive: true,
         name: null,
         insuranceNumber: null,
         attention: null,
@@ -2025,7 +2666,7 @@ export class AppointmentAddComponent {
         zip: null,
       },
       claimExaminer: {
-        isActive: false,
+        isActive: true,
         name: null,
         email: null,
         phoneNumber: null,
@@ -2035,6 +2676,98 @@ export class AppointmentAddComponent {
         city: null,
         stateId: null,
         zip: null,
+      },
+    };
+  }
+
+  /** OLD parity: customValdiationForPrimaryInsurance -- toggles
+   * Validators.required on injuryInsuranceName based on the include
+   * switch. Other insurance fields stay optional in OLD too. */
+  private applyInsuranceRequiredValidators(group: FormGroup, required: boolean): void {
+    const ctrl = group.get('injuryInsuranceName');
+    if (!ctrl) return;
+    if (required) {
+      ctrl.setValidators([Validators.required]);
+    } else {
+      ctrl.clearValidators();
+    }
+    ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** OLD parity: customValdiationForClaimExaminer -- 8 fields toggle
+   * Validators.required when the include switch is on (email also gets
+   * Validators.email). STE stays optional. */
+  private applyClaimExaminerRequiredValidators(group: FormGroup, required: boolean): void {
+    const fields: Array<{ key: string; extra?: any[] }> = [
+      { key: 'injuryClaimExaminerName' },
+      { key: 'injuryClaimExaminerEmail', extra: [Validators.email] },
+      { key: 'injuryClaimExaminerPhone' },
+      { key: 'injuryClaimExaminerFax' },
+      { key: 'injuryClaimExaminerStreet' },
+      { key: 'injuryClaimExaminerCity' },
+      { key: 'injuryClaimExaminerStateId' },
+      { key: 'injuryClaimExaminerZip' },
+    ];
+    for (const f of fields) {
+      const ctrl = group.get(f.key);
+      if (!ctrl) continue;
+      if (required) {
+        ctrl.setValidators([Validators.required, ...(f.extra ?? [])]);
+      } else {
+        // Off-branch keeps email format validator if it was attached
+        // (parity with OLD which strips required but does not strip
+        // format validators on the email field). Acceptable to clear
+        // entirely here; OLD also clears values, but we leave values
+        // alone so Edit still surfaces saved data.
+        ctrl.clearValidators();
+      }
+      ctrl.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  private clearInjuryToggleSubscriptions(): void {
+    for (const s of this.injuryToggleSubscriptions) {
+      s.unsubscribe();
+    }
+    this.injuryToggleSubscriptions = [];
+  }
+
+  /** Serialize the flat FormGroup value back into the nested
+   * AppointmentInjuryDraft shape that `injuryDrafts[]` and
+   * persistInjuryDraftsIfProvided expect. */
+  private serializeInjuryForm(group: FormGroup): AppointmentInjuryDraft {
+    const v = group.getRawValue();
+    return {
+      isCumulativeInjury: v.injuryCumulative === true,
+      dateOfInjury: v.injuryDateOfInjury ?? null,
+      toDateOfInjury: v.injuryToDateOfInjury ?? null,
+      claimNumber: v.injuryClaimNumber ?? '',
+      wcabOfficeId: v.injuryWcabOfficeId ?? null,
+      wcabAdj: v.injuryWcabAdj ?? null,
+      bodyPartsSummary: v.injuryBodyPartsSummary ?? '',
+      primaryInsurance: {
+        isActive: v.injuryInsuranceEnabled === true,
+        name: v.injuryInsuranceName ?? null,
+        insuranceNumber: v.injuryInsuranceSte ?? null,
+        attention: v.injuryInsuranceAttention ?? null,
+        phoneNumber: v.injuryInsurancePhone ?? null,
+        faxNumber: v.injuryInsuranceFax ?? null,
+        street: v.injuryInsuranceStreet ?? null,
+        city: v.injuryInsuranceCity ?? null,
+        stateId: v.injuryInsuranceStateId ?? null,
+        zip: v.injuryInsuranceZip ?? null,
+      },
+      claimExaminer: {
+        isActive: v.injuryClaimExaminerEnabled === true,
+        name: v.injuryClaimExaminerName ?? null,
+        email: v.injuryClaimExaminerEmail ?? null,
+        phoneNumber: v.injuryClaimExaminerPhone ?? null,
+        fax: v.injuryClaimExaminerFax ?? null,
+        street: v.injuryClaimExaminerStreet ?? null,
+        claimExaminerNumber: v.injuryClaimExaminerSte ?? null,
+        city: v.injuryClaimExaminerCity ?? null,
+        stateId: v.injuryClaimExaminerStateId ?? null,
+        zip: v.injuryClaimExaminerZip ?? null,
       },
     };
   }
@@ -2068,47 +2801,74 @@ export class AppointmentAddComponent {
 
   openAddInjuryModal(): void {
     this.injuryEditingIndex = -1;
-    this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.injuryForm = this.buildInjuryForm();
+    this.applyClaimExaminerRolePrefill();
     this.loadInjuryLookups();
+    this.injuryModalError = null;
     this.isInjuryModalOpen = true;
+  }
+
+  /**
+   * OLD parity (appointment-add.component.ts:145-149): when the booker is
+   * an Adjuster (NEW = Claim Examiner role) on a fresh appointment (not
+   * re-evaluation), pre-fill the per-injury claim examiner row with the
+   * logged-in user's name + email so they don't re-type their own info.
+   * The HTML pairs this with `[readonly]` on those fields when the booker
+   * holds the role and is not IT Admin.
+   */
+  private applyClaimExaminerRolePrefill(): void {
+    if (!this.isClaimExaminerRole || this.isItAdmin) return;
+    const user = this.currentUser;
+    if (!user) return;
+    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    const nameCtrl = this.injuryForm.get('injuryClaimExaminerName');
+    const emailCtrl = this.injuryForm.get('injuryClaimExaminerEmail');
+    const enabledCtrl = this.injuryForm.get('injuryClaimExaminerEnabled');
+    if (nameCtrl) {
+      nameCtrl.setValue(fullName || user.userName || nameCtrl.value);
+    }
+    if (emailCtrl) {
+      emailCtrl.setValue(user.email || emailCtrl.value);
+    }
+    if (enabledCtrl) {
+      enabledCtrl.setValue(true);
+    }
   }
 
   openEditInjuryModal(index: number): void {
     const existing = this.injuryDrafts[index];
     if (!existing) return;
     // Deep clone so cancel discards in-modal edits.
-    this.injuryEditing = JSON.parse(JSON.stringify(existing));
+    const cloned: AppointmentInjuryDraft = JSON.parse(JSON.stringify(existing));
+    this.injuryForm = this.buildInjuryForm(cloned);
     this.injuryEditingIndex = index;
     this.loadInjuryLookups();
+    this.injuryModalError = null;
     this.isInjuryModalOpen = true;
   }
 
   closeInjuryModal(): void {
     this.isInjuryModalOpen = false;
     this.injuryEditingIndex = -1;
-    this.injuryEditing = this.makeEmptyInjuryDraft();
+    this.clearInjuryToggleSubscriptions();
+    this.injuryForm = this.buildInjuryForm();
     this.injuryModalError = null;
   }
 
   saveInjuryModal(): void {
-    const missing: string[] = [];
-    if (!this.injuryEditing.dateOfInjury) missing.push('Date of Injury');
-    if (!this.injuryEditing.claimNumber) missing.push('Claim Number');
-    if (!this.injuryEditing.bodyPartsSummary) missing.push('Body Parts');
-    if (missing.length > 0) {
-      this.injuryModalError =
-        'Please fill the required field' +
-        (missing.length > 1 ? 's' : '') +
-        ': ' +
-        missing.join(', ') +
-        '.';
+    // Mark every control as touched so per-input ng-invalid styling kicks
+    // in for any missing required field on the very first Save click.
+    this.injuryForm.markAllAsTouched();
+    if (this.injuryForm.invalid) {
+      this.injuryModalError = 'Please complete the required fields highlighted below.';
       return;
     }
     this.injuryModalError = null;
+    const draft = this.serializeInjuryForm(this.injuryForm);
     if (this.injuryEditingIndex >= 0) {
-      this.injuryDrafts[this.injuryEditingIndex] = this.injuryEditing;
+      this.injuryDrafts[this.injuryEditingIndex] = draft;
     } else {
-      this.injuryDrafts.push(this.injuryEditing);
+      this.injuryDrafts.push(draft);
     }
     this.closeInjuryModal();
   }

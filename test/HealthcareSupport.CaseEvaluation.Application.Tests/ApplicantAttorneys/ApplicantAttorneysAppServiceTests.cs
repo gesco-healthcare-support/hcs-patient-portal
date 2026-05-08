@@ -133,7 +133,13 @@ public abstract class ApplicantAttorneysAppServiceTests<TStartupModule> : CaseEv
                 City = existing.City,
                 ZipCode = existing.ZipCode,
                 StateId = existing.StateId,
-                IdentityUserId = existing.IdentityUserId,
+                // 2026-05-08: ApplicantAttorney.IdentityUserId became
+                // nullable in fd78159 (allow typed-AA without a linked
+                // user). The Update DTO stays non-nullable -- update
+                // requests must specify a concrete user. Seeded
+                // Attorney1 always has a non-null IdentityUserId so
+                // .Value is safe here.
+                IdentityUserId = existing.IdentityUserId!.Value,
                 ConcurrencyStamp = existing.ConcurrencyStamp
             };
 

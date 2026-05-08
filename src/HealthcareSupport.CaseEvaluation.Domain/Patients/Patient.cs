@@ -15,7 +15,15 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
-public class Patient : FullAuditedAggregateRoot<Guid>
+// FEAT-09 (ADR-006 T4, 2026-05-05): Patient implements IMultiTenant so
+// ABP's automatic tenant filter scopes queries by CurrentTenant.Id. Was
+// previously host-only with a manual TenantId column but no auto-filter,
+// which let any caller with the Patients permission read every tenant's
+// patients. Skipped test
+// PatientsAppServiceTests.GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients
+// flips green once the interface is added; the framework filter does the
+// rest -- no AppService change needed.
+public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     [NotNull]
     public virtual string FirstName { get; set; } = null!;

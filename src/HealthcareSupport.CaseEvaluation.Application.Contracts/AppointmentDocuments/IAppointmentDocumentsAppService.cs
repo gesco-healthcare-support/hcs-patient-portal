@@ -10,13 +10,59 @@ public interface IAppointmentDocumentsAppService
     Task<List<AppointmentDocumentDto>> GetListByAppointmentAsync(Guid appointmentId);
 
     /// <summary>
-    /// Stream-based upload entry point. The controller layer accepts the
-    /// IFormFile from a multipart request and forwards the stream + metadata
-    /// here so the AppService stays free of ASP.NET Core dependencies.
+    /// Stream-based ad-hoc upload entry point. Marks the new row
+    /// <c>IsAdHoc = true</c>; ad-hoc uploads have no status / due-date
+    /// gate (mirrors OLD <c>AppointmentNewDocumentDomain</c>). The
+    /// controller layer accepts the IFormFile and forwards the stream +
+    /// metadata so the AppService stays free of ASP.NET Core
+    /// dependencies.
     /// </summary>
     Task<AppointmentDocumentDto> UploadStreamAsync(
         Guid appointmentId,
         string documentName,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content);
+
+    /// <summary>
+    /// Phase 14: package-document upload. Updates an existing
+    /// <c>Pending</c> row created by the package-doc auto-queue
+    /// handler. Gates: appointment Approved/RescheduleRequested +
+    /// not past DueDate; document not currently Accepted (external
+    /// users only -- internal users bypass).
+    /// </summary>
+    Task<AppointmentDocumentDto> UploadPackageDocumentAsync(
+        Guid documentId,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content);
+
+    /// <summary>
+    /// Phase 14: AME Joint Declaration Form upload. Creates a NEW row
+    /// with <c>IsJointDeclaration = true</c>. Gates: appointment
+    /// Approved + not past DueDate; AppointmentType is AME; caller is
+    /// the booking attorney (Applicant or Defense Attorney role +
+    /// creator match).
+    /// </summary>
+    Task<AppointmentDocumentDto> UploadJointDeclarationAsync(
+        Guid appointmentId,
+        string documentName,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content);
+
+    /// <summary>
+    /// Phase 14: anonymous package-doc upload via per-document
+    /// verification code. Used by the patient via the email link
+    /// without an authenticated session. Rate-limited at the HTTP
+    /// layer.
+    /// </summary>
+    Task<AppointmentDocumentDto> UploadByVerificationCodeAsync(
+        Guid documentId,
+        Guid verificationCode,
         string fileName,
         string? contentType,
         long fileSize,

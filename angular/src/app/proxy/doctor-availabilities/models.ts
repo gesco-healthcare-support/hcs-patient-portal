@@ -12,6 +12,11 @@ export interface DoctorAvailabilityCreateDto {
   appointmentTypeId?: string | null;
 }
 
+export interface DoctorAvailabilityBulkDeleteResultDto {
+  deletedCount: number;
+  skippedSlotIds: string[];
+}
+
 export interface DoctorAvailabilityDeleteByDateInputDto {
   locationId?: string;
   availableDate?: string;
@@ -78,7 +83,7 @@ export interface DoctorAvailabilityUpdateDto {
 
 export interface DoctorAvailabilityWithNavigationPropertiesDto {
   doctorAvailability?: DoctorAvailabilityDto;
-  location?: LocationDto;
+  location?: LocationDto | null;
   appointmentType?: AppointmentTypeDto | null;
 }
 
@@ -93,4 +98,11 @@ export interface GetDoctorAvailabilitiesInput extends PagedAndSortedResultReques
   bookingStatusId?: BookingStatus | null;
   locationId?: string | null;
   appointmentTypeId?: string | null;
+}
+
+export interface GetDoctorAvailabilityLookupInput {
+  locationId?: string;
+  appointmentTypeId?: string | null;
+  availableDateFrom?: string | null;
+  availableDateTo?: string | null;
 }

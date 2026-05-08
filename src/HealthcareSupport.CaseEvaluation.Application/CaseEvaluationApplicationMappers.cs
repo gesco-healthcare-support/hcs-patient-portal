@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using HealthcareSupport.CaseEvaluation.Books;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 
 [assembly: MapperDefaults(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 
@@ -288,20 +289,6 @@ public partial class AppointmentPacketToDtoMapper : MapperBase<HealthcareSupport
     public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto destination);
 }
 
-[Mapper]
-public partial class AppointmentSendBackInfoToDtoMapper : MapperBase<AppointmentSendBackInfo, AppointmentSendBackInfoDto>
-{
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial AppointmentSendBackInfoDto Map(AppointmentSendBackInfo source);
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial void Map(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination);
-
-    public override void AfterMap(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination)
-    {
-        destination.FlaggedFields = source.GetFlaggedFields().ToList();
-    }
-}
-
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper : MapperBase<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>
 {
@@ -518,3 +505,16 @@ public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDto
     public override partial AppointmentPrimaryInsuranceDto Map(AppointmentPrimaryInsurance source);
     public override partial void Map(AppointmentPrimaryInsurance source, AppointmentPrimaryInsuranceDto destination);
 }
+
+// Phase 3 (2026-05-02) -- IT Admin SystemParameters AppService.
+// One read mapper (entity -> DTO) and one write mapper
+// (UpdateDto -> entity, audit / id / tenant / concurrency stamp ignored on
+// the destination so the existing aggregate-root invariants are preserved).
+[Mapper]
+public partial class SystemParameterToSystemParameterDtoMapper
+    : MapperBase<SystemParameter, SystemParameterDto>
+{
+    public override partial SystemParameterDto Map(SystemParameter source);
+    public override partial void Map(SystemParameter source, SystemParameterDto destination);
+}
+

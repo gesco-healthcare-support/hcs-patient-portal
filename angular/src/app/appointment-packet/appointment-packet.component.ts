@@ -10,9 +10,15 @@ import {
 import { CommonModule } from '@angular/common';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { PermissionService } from '@abp/ng.core';
-import { AppointmentPacketService } from '../proxy/appointment-packets/appointment-packet.service';
+// Post-regen (G2.1, 2026-05-04): the AppointmentPacket types live under
+// proxy/appointment-documents/ now -- the merged backend folded the packet
+// service in alongside AppointmentDocumentService. Pre-regen the consumer
+// imported from proxy/appointment-packets/, which the regenerator removed.
+import { AppointmentPacketService } from '../proxy/appointment-documents/appointment-packet.service';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
-import { AppointmentPacketDto, PacketGenerationStatus } from '../proxy/appointment-packets/models';
+import { AppointmentPacketDto } from '../proxy/appointment-documents/models';
+import { PacketGenerationStatus } from '../proxy/appointment-documents/packet-generation-status.enum';
+import { AppointmentDocumentUrls } from '../appointment-documents/appointment-document-urls';
 
 /**
  * W2-11 packet UI. Displays the merged-PDF packet status for an
@@ -59,6 +65,11 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   private documentService = inject(AppointmentDocumentService);
   private toaster = inject(ToasterService);
   private permission = inject(PermissionService);
+  // Pre-regen carried buildDownloadUrl as a hand-edited service method.
+  // Post-regen we keep the same UX (window.open against an absolute URL)
+  // by routing through the AppointmentDocumentUrls helper that lives
+  // outside proxy/. See docs/research/proxy-regen-doc-flow-fix.md (Q2).
+  private urls = inject(AppointmentDocumentUrls);
 
   packet: AppointmentPacketDto | null = null;
   isLoading = false;
@@ -108,7 +119,7 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
     if (!this.appointmentId || this.packet?.status !== PacketGenerationStatus.Generated) {
       return;
     }
-    const url = this.packetService.buildDownloadUrl(this.appointmentId);
+    const url = this.urls.buildPacket(this.appointmentId);
     window.open(url, '_blank');
   }
 

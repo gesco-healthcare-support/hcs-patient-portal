@@ -155,24 +155,51 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.RejectAsync(id, input);
     }
 
-    [HttpPost]
-    [Route("{id}/send-back")]
-    public virtual Task<AppointmentDto> SendBackAsync(Guid id, [FromBody] SendBackAppointmentInput input)
-    {
-        return _appointmentsAppService.SendBackAsync(id, input);
-    }
-
-    [HttpPost]
-    [Route("{id}/save-and-resubmit")]
-    public virtual Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
-    {
-        return _appointmentsAppService.SaveAndResubmitAsync(id);
-    }
-
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- look up an appointment by user-facing
+    /// confirmation number. Same access policy as the by-Id variant.
+    /// </summary>
     [HttpGet]
-    [Route("{id}/send-back-info/latest")]
-    public virtual Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
+    [Route("by-confirmation-number/{requestConfirmationNumber}")]
+    public virtual Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber)
     {
-        return _appointmentsAppService.GetLatestUnresolvedSendBackInfoAsync(id);
+        return _appointmentsAppService.GetByConfirmationNumberAsync(requestConfirmationNumber);
     }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit (OLD <c>IsReRequestForm</c>).
+    /// Source confirmation number flows in the route (uppercase A##### is
+    /// always URL-safe). Body carries the new appointment's intake DTO.
+    /// </summary>
+    [HttpPost]
+    [Route("re-submit/{sourceConfirmationNumber}")]
+    public virtual Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, [FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.ReSubmitAsync(sourceConfirmationNumber, input);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval (OLD <c>IsRevolutionForm</c>).
+    /// </summary>
+    [HttpPost]
+    [Route("create-reval/{sourceConfirmationNumber}")]
+    public virtual Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, [FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.CreateRevalAsync(sourceConfirmationNumber, input);
+    }
+
+    /// <summary>
+    /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- pending
+    /// appointments count for the sidebar badge. Permission gate
+    /// (<c>Appointments.Edit</c>) lives on the AppService method;
+    /// callers without that permission get a 403 here. Returns 0 for
+    /// empty queues. Polled every 60s by the Angular signal.
+    /// </summary>
+    [HttpGet]
+    [Route("pending-count")]
+    public virtual Task<int> GetPendingCountAsync()
+    {
+        return _appointmentsAppService.GetPendingCountAsync();
+    }
+
 }

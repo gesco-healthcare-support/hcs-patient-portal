@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
+using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Sqlite;
 using Volo.Abp.FeatureManagement;
@@ -30,6 +31,21 @@ public class CaseEvaluationEntityFrameworkCoreTestModule : AbpModule
 
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
+        // ABP Pro 10.0.2's AbpIdentityProDomainModule adds a background worker
+        // during OnApplicationInitializationAsync. The worker base class
+        // resolves its Logger lazily through LazyServiceProvider, but in the
+        // xUnit testhost LazyServiceProvider is not yet attached when
+        // StartAsync runs, raising a NullReferenceException that crashes the
+        // testhost (exit -42) before any test executes. Disabling the
+        // background-worker manager globally for the test run is the standard
+        // ABP workaround documented for the test infrastructure (see
+        // abpframework/abp issue 19065). Tests that need a worker must spin
+        // one up explicitly. Diagnosed Phase 4 (2026-05-03).
+        Configure<AbpBackgroundWorkerOptions>(options =>
+        {
+            options.IsEnabled = false;
+        });
+
         Configure<FeatureManagementOptions>(options =>
         {
             options.SaveStaticFeaturesToDatabase = false;

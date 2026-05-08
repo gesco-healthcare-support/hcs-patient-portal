@@ -1,5 +1,11 @@
 <div class="top-header-navbar" style="margin-right: 73px">
-  <div class="top-header-navbar__tenant">{{ tenantName }}</div>
+  <a class="top-header-navbar__brand" href="/" aria-label="Home">
+    <img
+      src="assets/images/header-logo.png"
+      [alt]="tenantName + ' logo'"
+      class="top-header-navbar__logo"
+    />
+  </a>
 
   <div class="top-header-navbar__user-meta">
     <span>

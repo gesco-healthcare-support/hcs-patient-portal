@@ -77,11 +77,11 @@ Navigation projection `PatientWithNavigationProperties` carries Patient + State?
 
 ## Multi-tenancy
 
-**IMultiTenant: No.** Patient does NOT implement `IMultiTenant`. ABP's automatic tenant filter does NOT apply. The class declaration is `Patient : FullAuditedAggregateRoot<Guid>`; there is no `, IMultiTenant` interface.
+**IMultiTenant: Yes.** Patient implements `IMultiTenant` (FEAT-09 closed 2026-05-05 via ADR-006 T4). ABP's automatic tenant filter scopes every query by `CurrentTenant.Id`. The class declaration is `Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant`.
 
-- Patient does have a manual `TenantId` property (FK to `Saas.Tenants.Tenant`, SetNull on delete), but ABP treats it as an ordinary nullable Guid -- not as a tenant discriminator.
-- DbContext config lives in `CaseEvaluationDbContext.OnModelCreating` inside `if (builder.IsHostDatabase())` -- host-scoped only. There is no tenant DbContext entry for Patient.
-- Consequence (HIPAA-relevant): any caller with `CaseEvaluation.Patients` permission can read every tenant's patients via `GetListAsync`. The skipped test `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` pins the target behavior; it flips green when Patient becomes IMultiTenant or PatientsAppService adds a manual `CurrentTenant.Id` filter. Tracked as FEAT-09 (see Known Gotchas).
+- Patient carries a `TenantId` property required by the interface contract; the column is auto-populated by ABP on insert based on the resolved tenant.
+- DbContext config still lives in `CaseEvaluationDbContext.OnModelCreating` (host-side, under `IsHostDatabase()` guard); the dual-DbContext physical split is deferred to Phase 1B and tracked separately. For Phase 1A every tenant's data lives in the host DB and is scoped at row level by the `IMultiTenant` filter.
+- HIPAA consequence: callers with `CaseEvaluation.Patients` permission see only their tenant's patients. Cross-tenant visibility (admin / IT-Admin paths in host context) is opt-in via `IDataFilter<IMultiTenant>.Disable()` -- `PatientsAppService` mirrors `DoctorsAppService` and disables the filter when `CurrentTenant.Id == null`. The previously-skipped test `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` now passes.
 
 ## Mapper Configuration
 
@@ -180,7 +180,7 @@ Booking + profile + State/AppointmentLanguage lookups use `[Authorize]` (any aut
 
 ## Known Gotchas
 
-1. **TenantId without IMultiTenant (FEAT-09).** `Patient` has a `TenantId` property and a manual FK to `Saas.Tenants.Tenant`, but does NOT implement `IMultiTenant`. ABP's automatic tenant filter is NOT engaged. Any caller with `CaseEvaluation.Patients` permission reads every tenant's patients. This is HIPAA-relevant. Intent (per `docs/product/patients.md`, Adrian-confirmed 2026-04-24) is strictly tenant-scoped; FEAT-09 is a code-vs-intent gap to close, not a design choice. The skipped xUnit test `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` pins the target behavior.
+1. **FEAT-09 closed (was: TenantId without IMultiTenant).** Resolved 2026-05-05 via ADR-006 T4. `Patient` now implements `IMultiTenant`; ABP's auto-filter scopes every read by `CurrentTenant.Id`. Cross-tenant visibility for admin / IT-Admin paths in host context is opt-in via `IDataFilter<IMultiTenant>.Disable()` -- `PatientsAppService` mirrors `DoctorsAppService` and disables the filter when `CurrentTenant.Id == null`. The previously-skipped test `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` now passes. Phase 1B is tracked separately for the physical DB-per-tenant split (currently every tenant's data lives in the host DB).
 
 2. **Hardcoded default password on auto-created patients (Q-12).** `GetOrCreatePatientForAppointmentBookingAsync` assigns `CaseEvaluationConsts.AdminPasswordDefaultValue` to every newly created IdentityUser. Combined with the relaxed password policy (SEC-05), patient accounts are trivially compromised. Intent is an invite-token flow.
 
@@ -200,13 +200,13 @@ Booking + profile + State/AppointmentLanguage lookups use `[Authorize]` (any aut
   - CRUD happy path: GetAsync, GetListAsync (no filter, by FirstName, by Email), CreateAsync, UpdateAsync (preserves IdentityUserId), DeleteAsync
   - Validation guards: empty `IdentityUserId` throws `UserFriendlyException` on Create + Update
   - Length validation theory: 15 fields x 2 (Create + Update on PatientManager) = 30 cases
-  - Cross-tenant: `GetListAsync_FromHostContext_ReturnsPatientsFromBothTenants` passes (host-context behavior); `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` SKIPPED, pinning the FEAT-09 fix
+  - Cross-tenant: `GetListAsync_FromHostContext_ReturnsPatientsFromBothTenants` passes (host-context disables the IMultiTenant filter); `GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients` passes (FEAT-09 closed via IMultiTenant on Patient).
   - Booking email lookup: found / not-found / empty
   - Profile tests: skipped pending `WithCurrentUser` test infrastructure (tracked in `docs/issues/INCOMPLETE-FEATURES.md#test-current-user-faking`)
 - Repository tests: `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/Patients/PatientRepositoryTests.cs`
   - GetListAsync no-filter, GetListAsync by FirstName, GetCountAsync by Email, GetListWithNavigationPropertiesAsync by IdentityUserId, GetWithNavigationPropertiesAsync resolves Tenant nav prop
 
-Coverage gaps still open: profile endpoints (CurrentUser faking), tenant-scoped visibility (waiting on FEAT-09 fix to flip the skipped test), Angular components.
+Coverage gaps still open: profile endpoints (CurrentUser + tenant fixture coupling), Angular components.
 
 ## Links
 

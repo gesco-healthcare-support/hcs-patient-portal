@@ -36,11 +36,6 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     public const string ItAdminRoleName = "IT Admin";
     public const string StaffSupervisorRoleName = "Staff Supervisor";
     public const string ClinicStaffRoleName = "Clinic Staff";
-    // D.1 / W-I-3 (2026-04-30): Doctor role at tenant scope. One tenant = one
-    // doctor's office / medical examiner's office; the office may host multiple
-    // doctor accounts. Read-mostly + edit-own-availability scope; the row-level
-    // "own appointments only" filter is a separate domain concern (W-DOC-1).
-    public const string DoctorRoleName = "Doctor";
 
     // Matches Volo.Abp.PermissionManagement.RolePermissionValueProvider.ProviderName ("R").
     private const string RoleProviderName = "R";
@@ -74,16 +69,16 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         }
         else
         {
-            // PER-TENANT pass: seed Staff Supervisor + Clinic Staff + Doctor per tenant + grant tenant-side permissions.
+            // PER-TENANT pass: seed Staff Supervisor + Clinic Staff per tenant + grant tenant-side permissions.
+            // Doctor is a non-user reference entity per OLD spec (Phase 0.1, 2026-05-01):
+            // Staff Supervisor manages the Doctor on its behalf; no Doctor user role exists.
             using (_currentTenant.Change(context.TenantId))
             {
                 await EnsureRoleAsync(StaffSupervisorRoleName, context.TenantId);
                 await EnsureRoleAsync(ClinicStaffRoleName, context.TenantId);
-                await EnsureRoleAsync(DoctorRoleName, context.TenantId);
 
                 await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorGrants());
                 await GrantAllAsync(ClinicStaffRoleName, ClinicStaffGrants());
-                await GrantAllAsync(DoctorRoleName, DoctorGrants());
             }
         }
     }
@@ -119,6 +114,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     // Both internal roles need these for the office workflow per the W-I findings.
     private static string Approve(string entity) => $"{Group}.{entity}.Approve";
     private static string Regenerate(string entity) => $"{Group}.{entity}.Regenerate";
+    // Phase 2.5 (2026-05-01): per-action permission helpers for the
+    // approval / change-request lifecycle. RequestCancellation +
+    // RequestReschedule are external-user actions; permission strings exist
+    // so AppService [Authorize(...)] attributes can reference them, but
+    // INTERNAL roles do NOT receive these grants -- external roles are
+    // seeded separately in <c>ExternalUserRoleDataSeedContributor</c>.
+    private static string Reject(string entity) => $"{Group}.{entity}.Reject";
 
     private static readonly string[] AllEntities =
     {
@@ -152,6 +154,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // also yielded explicitly per role.
         "AppointmentDocuments",
         "CustomFields",
+        // Phase 5 (2026-05-03): IT Admin master Document catalog + per-
+        // AppointmentType package templates. PackageDetails has an extra
+        // ManageDocuments action yielded explicitly below.
+        "Documents",
+        "PackageDetails",
     };
 
     private static readonly string[] OperationalEntities =
@@ -209,6 +216,29 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Approve("AppointmentDocuments");
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
+
+        // Phase 2.5 (2026-05-01) -- approval + change-request lifecycle.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
+        yield return Default("NotificationTemplates");
+        yield return Edit("NotificationTemplates");
+        yield return Default("SystemParameters");
+        yield return Edit("SystemParameters");
+
+        // Phase 5 (2026-05-03) -- PackageDetails has a custom ManageDocuments
+        // action that gates Link / Unlink endpoints. AllEntities yields the
+        // standard CRUD; this yields the extra action explicitly.
+        yield return $"{Group}.PackageDetails.ManageDocuments";
+
+        // Phase A (2026-05-05) -- per-user signature upload, internal-only.
+        // Default lets IT Admin see the feature in the admin UI; ManageOwn
+        // gates the upload of their own signature for stamping on the
+        // Patient Packet PDF.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
     /// <summary>
@@ -257,6 +287,23 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // D.1 / W-I-2: read-only field-config access (the booker form fetches
         // these to render per-AppointmentType field state). Edit stays admin-only.
         yield return Default("CustomFields");
+
+        // Phase 2.5 (2026-05-01) -- supervisor approval surface for booking
+        // approval + cancel / reschedule requests; tenant-side notification
+        // template editing.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
+        yield return Default("NotificationTemplates");
+        yield return Edit("NotificationTemplates");
+        yield return Default("SystemParameters");
+
+        // Phase A (2026-05-05) -- supervisor uploads a signature so OLD packets
+        // they are responsible for include a stamped image (per OLD parity).
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
     /// <summary>
@@ -297,57 +344,21 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
         yield return Default("CustomFields");
+
+        // Phase 2.5 (2026-05-01) -- clinic staff is the front-line approver
+        // for new bookings. Change requests are read-only at this tier; only
+        // the supervisor finalizes cancel / reschedule outcomes.
+        yield return Approve("Appointments");
+        yield return Reject("Appointments");
+        yield return Default("AppointmentChangeRequests");
+        yield return Default("SystemParameters");
+
+        // Phase A (2026-05-05) -- clinic staff uploads a signature so OLD
+        // packets they are responsible for include a stamped image. Mirrors
+        // OLD where ClinicStaff/ITAdmin/StaffSupervisor were the three roles
+        // that could upload via the My-Profile page.
+        yield return Default("UserSignatures");
+        yield return $"{Group}.UserSignatures.ManageOwn";
     }
 
-    /// <summary>
-    /// D.1 / W-I-3 (2026-04-30): Doctor (TENANT scope). Read-mostly persona;
-    /// the doctor needs to inspect appointments + patients on their own
-    /// schedule, manage their availability slots, and regenerate the packet
-    /// for an appointment they own. Specifically NOT granted:
-    ///   - .Create / .Edit on Appointments (booking is office workflow)
-    ///   - .Create / .Edit on Patients (intake is receptionist workflow)
-    ///   - .Approve on documents (sign-off lives with office staff)
-    ///   - .Delete on anything
-    /// Row-level "own appointments only" filtering is a separate domain
-    /// concern (W-DOC-1) and is NOT enforced by this seeder; today a Doctor
-    /// reads every appointment in their tenant. Tightening to per-doctor
-    /// visibility is a follow-up.
-    /// </summary>
-    private static IEnumerable<string> DoctorGrants()
-    {
-        yield return $"{Group}.Dashboard.Tenant";
-
-        foreach (var entity in LookupReadEntities)
-        {
-            yield return Default(entity);
-        }
-
-        yield return Default("Appointments");
-        yield return Default("Patients");
-
-        // Edit-own-availability: doctors self-manage their schedule.
-        yield return Default("DoctorAvailabilities");
-        yield return Create("DoctorAvailabilities");
-        yield return Edit("DoctorAvailabilities");
-
-        // Read-only across the per-injury / per-employer / attorney sub-entities.
-        yield return Default("AppointmentInjuryDetails");
-        yield return Default("AppointmentEmployerDetails");
-        yield return Default("AppointmentApplicantAttorneys");
-        yield return Default("AppointmentDefenseAttorneys");
-        yield return Default("AppointmentClaimExaminers");
-        yield return Default("AppointmentBodyParts");
-        yield return Default("AppointmentPrimaryInsurances");
-
-        // Read documents; regenerate the packet PDF.
-        yield return Default("AppointmentDocuments");
-        yield return Default("AppointmentPackets");
-        yield return Regenerate("AppointmentPackets");
-
-        // Audit visibility for own appointments + field-config read for the
-        // booking-form lookups (booker form is closed to Doctor today, but
-        // Default lookups must succeed for any appointment-detail render).
-        yield return Default("AppointmentChangeLogs");
-        yield return Default("CustomFields");
-    }
 }

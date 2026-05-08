@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
@@ -38,4 +39,13 @@ public class AppointmentUpdateDto : IHasConcurrencyStamp
 
     [StringLength(AppointmentConsts.PartyEmailMaxLength)]
     public string? ClaimExaminerEmail { get; set; }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- replace-all set of per-AppointmentType custom-field
+    /// answers. The AppService deletes existing <c>CustomFieldValue</c> rows
+    /// for this appointment and inserts the supplied list. Empty-string values
+    /// are skipped. Mirrors OLD's edit-mode write in
+    /// <c>AppointmentDomain.cs</c>.
+    /// </summary>
+    public List<CustomFieldValueInputDto> CustomFieldValues { get; set; } = new();
 }

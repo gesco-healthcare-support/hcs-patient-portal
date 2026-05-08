@@ -12,7 +12,6 @@ import {
 } from '@abp/ng.core';
 import type {
   AppointmentDto,
-  AppointmentSendBackInfoDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
@@ -23,17 +22,14 @@ import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
-import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
-import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
-import { buildFlaggedFieldLookup } from '../send-back-fields';
 
-type TransitionAction = 'approve' | 'reject' | 'sendBack';
+type TransitionAction = 'approve' | 'reject';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -102,7 +98,6 @@ type DefenseAttorneyLookupResult = {
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
-    SendBackAppointmentModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
   ],
@@ -114,19 +109,21 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
-  private readonly toaster = inject(ToasterService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
-  selectedAction: TransitionAction | '' = '';
   approveModalVisible = false;
   rejectModalVisible = false;
-  sendBackModalVisible = false;
-  latestSendBackInfo: AppointmentSendBackInfoDto | null = null;
-  private readonly flaggedFieldLookup = buildFlaggedFieldLookup();
-  // W2-9: cache of flaggedFields[] as a Set<string> for O(1) canEdit() lookup.
-  // Reset to null whenever latestSendBackInfo changes (see maybeLoadLatestSendBackInfo).
-  private flaggedFieldsCache: Set<string> | null = null;
+
+  // B8 (2026-05-06): widen the DOB datepicker year range. Default
+  // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
+  // and `navigation="select"` the header shows year + month selects
+  // spanning the full configured range.
+  readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
+  readonly dobMaxDate: NgbDateStruct = (() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  })();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
@@ -326,7 +323,6 @@ export class AppointmentViewComponent implements OnInit {
           refferedBy: patient?.refferedBy ?? '',
         };
         this.stateIdControl.setValue(patient?.stateId ?? null, { emitEvent: false });
-        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
         this.isLoading = false;
       },
       error: () => {
@@ -347,11 +343,10 @@ export class AppointmentViewComponent implements OnInit {
    * Patient -> /patients/me (W-B-2 fix, 2026-04-30: previously CE + internal
    * bookers fell through to /patients/me and got 404).
    *
-   * S-5.3b (W-VIEW-10): do NOT use this getter for read-only / canEdit gates.
-   * It returns true for internal admins, which incorrectly classifies them as
-   * external and locks them out of every field outside AwaitingMoreInfo. Use
-   * `isPatientUser` (which actually checks any-of-the-4-external-roles) and
-   * negate it to detect internal admins instead.
+   * S-5.3b (W-VIEW-10): do NOT use this getter for read-only gates. It
+   * returns true for internal admins, which incorrectly classifies them as
+   * external. Use `isPatientUser` (which actually checks any-of-the-4-external
+   * -roles) and negate it to detect internal admins instead.
    */
   get isExternalUserNonPatient(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
@@ -374,11 +369,11 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * W2-9: returns true if the current user holds any external role
-   * (Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
-   * Used by canEdit() to decide whether the read-only-by-default policy
-   * applies. Internal admins (anyone NOT in this set) bypass the gate
-   * entirely; the server's permission attributes remain authoritative.
+   * Returns true if the current user holds any external role (Patient,
+   * Applicant Attorney, Defense Attorney, Claim Examiner). Used by
+   * `isReadOnly` to decide whether view-page form fields are locked.
+   * Internal admins (anyone NOT in this set) edit freely; the server's
+   * permission attributes remain authoritative.
    */
   get isPatientUser(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
@@ -392,44 +387,21 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * W2-9: cached set of flagged field keys from the latest unresolved
-   * AppointmentSendBackInfo row. O(1) `.has(key)` lookup instead of
-   * O(n) Array.includes(). Cache is reset to null inside
-   * maybeLoadLatestSendBackInfo whenever latestSendBackInfo changes.
-   */
-  private get flaggedFieldsSet(): Set<string> {
-    if (!this.flaggedFieldsCache && this.latestSendBackInfo?.flaggedFields) {
-      this.flaggedFieldsCache = new Set(this.latestSendBackInfo.flaggedFields);
-    }
-    return this.flaggedFieldsCache ?? new Set();
-  }
-
-  /**
-   * W2-9: per-field read-only-edit-mode gate.
-   *  - Internal admin tier (anyone NOT in the 4 external roles): always editable;
-   *    server permission attributes (`Appointments.Edit` etc.) remain authoritative.
-   *  - External roles (Patient / Applicant Attorney / Defense Attorney /
-   *    Claim Examiner): read-only by default. Edit unlocks ONLY when
-   *    appointmentStatus = AwaitingMoreInfo AND `fieldName` is in the
-   *    latest unresolved SendBack info's flaggedFields list.
+   * Read-only gate for view-page form fields. Per O5 strict-parity decision
+   * (2026-05-04), OLD has no return-to-booker correction loop -- staff
+   * comments via `InternalUserComments` (approve) or `RejectionNotes`
+   * (reject) and the booker re-files from scratch on rejection. So:
    *
-   * Bind in HTML as `[disabled]="!canEdit('fieldKey')"` on every ngModel
-   * input/select/textarea. Field-key vocabulary matches `send-back-fields.ts`.
+   *  - Internal admin tier (anyone NOT in the 4 external roles): editable;
+   *    server permission attributes remain authoritative.
+   *  - External roles (Patient / AA / DA / CE): read-only on the view page.
+   *    Booking is the canonical create surface; edits to an existing
+   *    appointment are not part of the OLD-parity flow.
+   *
+   * Bind in HTML as `[disabled]="isReadOnly"` on every ngModel input.
    */
-  canEdit(fieldName: string): boolean {
-    // S-5.3b (W-VIEW-10): internal admin = NOT in any of the 4 external roles
-    // (Patient / AA / DA / CE). The previous form combined isExternalUserNonPatient
-    // with !isPatientUser, but isExternalUserNonPatient returns true for admins
-    // (who lack the 'patient' role), so the AND collapsed to false for every admin
-    // and locked them out of every field outside AwaitingMoreInfo.
-    const isInternalAdmin = !this.isPatientUser;
-    if (isInternalAdmin) {
-      return true;
-    }
-    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
-      return false;
-    }
-    return this.flaggedFieldsSet.has(fieldName);
+  get isReadOnly(): boolean {
+    return this.isPatientUser;
   }
 
   // ----- W1-1 transition state-machine UI helpers -----
@@ -450,93 +422,35 @@ export class AppointmentViewComponent implements OnInit {
       return false;
     }
     const status = this.currentStatus;
-    const officeStatuses: AppointmentStatusType[] = [
-      AppointmentStatusType.Pending,
-      AppointmentStatusType.AwaitingMoreInfo,
-    ];
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      !this.isPatientUser && status !== undefined && officeStatuses.includes(status)
+      !this.isPatientUser && status === AppointmentStatusType.Pending
     );
   }
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending: approve | reject | sendBack
-   *  AwaitingMoreInfo: approve | reject  (sendBack would be redundant)
+   *  Pending: approve | reject  (OLD parity -- no send-back path)
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
-      return ['approve', 'reject', 'sendBack'];
-    }
-    if (status === AppointmentStatusType.AwaitingMoreInfo) {
       return ['approve', 'reject'];
     }
     return [];
   }
 
-  /**
-   * Booker mode: the appointment is in AwaitingMoreInfo and the current user
-   * is its creator. Server-side ownership enforcement is deferred (ledger);
-   * MVP relies on this UI gate plus the standard tenant filter.
-   */
-  get isResubmitMode(): boolean {
-    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
-      return false;
-    }
-    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
-    const creatorId = this.appointment?.appointment?.creatorId;
-    return !!currentUserId && !!creatorId && currentUserId === creatorId;
-  }
-
-  /**
-   * Distinct sections containing flagged fields. Used to render the amber
-   * pills on the booker banner.
-   */
-  get flaggedSections(): { sectionId: string; sectionLabel: string }[] {
-    if (!this.latestSendBackInfo?.flaggedFields?.length) {
-      return [];
-    }
-    const seen = new Map<string, { sectionId: string; sectionLabel: string }>();
-    for (const key of this.latestSendBackInfo.flaggedFields) {
-      const meta = this.flaggedFieldLookup.get(key);
-      if (meta && !seen.has(meta.sectionId)) {
-        seen.set(meta.sectionId, { sectionId: meta.sectionId, sectionLabel: meta.sectionLabel });
-      }
-    }
-    return Array.from(seen.values());
-  }
-
-  /**
-   * Field-level labels for the "Specific fields flagged" banner subsection.
-   * Falls back to the raw key if the lookup misses (e.g. office flagged a
-   * field name we no longer recognise after a rename).
-   */
-  get flaggedFieldLabels(): string[] {
-    if (!this.latestSendBackInfo?.flaggedFields?.length) {
-      return [];
-    }
-    return this.latestSendBackInfo.flaggedFields.map((key) => {
-      const meta = this.flaggedFieldLookup.get(key);
-      return meta ? `${meta.sectionLabel}: ${meta.fieldLabel}` : key;
-    });
-  }
-
-  /** Triggered when the office clicks Submit on the action dropdown. */
-  dispatchAction(): void {
-    if (!this.appointment?.appointment?.id || !this.selectedAction) {
+  /** Triggered when the office clicks Approve or Reject in the toolbar. */
+  dispatchAction(action: TransitionAction): void {
+    if (!this.appointment?.appointment?.id) {
       return;
     }
-    switch (this.selectedAction) {
+    switch (action) {
       case 'approve':
         this.approveModalVisible = true;
         break;
       case 'reject':
         this.rejectModalVisible = true;
-        break;
-      case 'sendBack':
-        this.sendBackModalVisible = true;
         break;
     }
   }
@@ -545,16 +459,12 @@ export class AppointmentViewComponent implements OnInit {
    * Modal-success callback: refresh nav-properties + reset dropdown.
    *
    * S-7.2 (2.11): the modal hands us the post-transition `AppointmentDto`
-   * directly (the server response from Approve / Reject / SendBack /
-   * SaveAndResubmit). Patch `appointment.appointment` from that dto
-   * immediately so the status pill flips on the same change-detection cycle
-   * the modal closed in -- previously the user saw "Pending" for a few
-   * seconds while the follow-up `getWithNavigationProperties` round-trip
-   * resolved. We still re-fetch in the background to refresh nav-property
-   * snapshots (patient first/last name updates, last-modified-by, etc.).
+   * directly (the server response from Approve / Reject). Patch
+   * `appointment.appointment` from that dto immediately so the status pill
+   * flips on the same change-detection cycle the modal closed in. We still
+   * re-fetch in the background to refresh nav-property snapshots.
    */
   onActionSucceeded(dto: AppointmentDto): void {
-    this.selectedAction = '';
     if (this.appointment?.appointment && dto) {
       this.appointment.appointment = { ...this.appointment.appointment, ...dto };
     }
@@ -565,78 +475,10 @@ export class AppointmentViewComponent implements OnInit {
     this.appointmentService.getWithNavigationProperties(id).subscribe({
       next: (data) => {
         this.appointment = data;
-        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
       },
     });
   }
 
-  /**
-   * Booker calls this from the Save & Resubmit button. Awaits the standard
-   * save() chain (patient + appointment + employer + attorney upserts),
-   * then fires the SaveAndResubmit transition which auto-flips status to
-   * Pending and marks the latest send-back row resolved server-side.
-   *
-   * If save() fails the resubmit is skipped and the user sees save's error
-   * message. If save() succeeds but the transition fails, the changes
-   * persist (the booker effectively "saved") but the appointment stays in
-   * AwaitingMoreInfo so they can retry.
-   */
-  async saveAndResubmit(): Promise<void> {
-    const id = this.appointment?.appointment?.id;
-    if (!id || this.isSaving) {
-      return;
-    }
-    try {
-      await this.save();
-    } catch {
-      // save() populated errorMessage; abort the resubmit transition.
-      return;
-    }
-    this.isSaving = true;
-    try {
-      const dto = await firstValueFrom(this.appointmentService.saveAndResubmit(id));
-      this.toaster.success('::Appointment:Toast:Resubmitted');
-      this.latestSendBackInfo = null;
-      this.flaggedFieldsCache = null;
-      this.onActionSucceeded(dto);
-    } catch {
-      this.toaster.error('::Appointment:Toast:ResubmitFailed');
-      this.errorMessage =
-        'Saved your changes, but submitting back to the office failed. Please try again.';
-    } finally {
-      this.isSaving = false;
-    }
-  }
-
-  private maybeLoadLatestSendBackInfo(
-    appointmentId: string | undefined,
-    status: AppointmentStatusType | undefined,
-  ): void {
-    if (!appointmentId || status !== AppointmentStatusType.AwaitingMoreInfo) {
-      this.latestSendBackInfo = null;
-      this.flaggedFieldsCache = null;
-      return;
-    }
-    this.appointmentService.getLatestUnresolvedSendBackInfo(appointmentId).subscribe({
-      next: (info) => {
-        this.latestSendBackInfo = info;
-        this.flaggedFieldsCache = null;
-      },
-      error: () => {
-        this.latestSendBackInfo = null;
-        this.flaggedFieldsCache = null;
-      },
-    });
-  }
-
-  /**
-   * Returns a Promise that resolves after the full chain (patient PUT,
-   * appointment PUT, employer + attorney upserts) completes successfully,
-   * or rejects with the first failure. Returning a Promise (rather than
-   * void) lets saveAndResubmit() await this before firing the transition.
-   * Unawaited callers (the existing Save button) get fire-and-forget
-   * behavior identical to the original signature.
-   */
   save(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const selected = this.appointment?.appointment;
@@ -707,24 +549,32 @@ export class AppointmentViewComponent implements OnInit {
         )
         .subscribe({
           next: (updatedPatient) => {
+            // R2 (2026-05-04): the backend AppointmentManager.UpdateAsync
+            // accepts ONLY the 14 fields below. isPatientAlreadyExist,
+            // internalUserComments, appointmentApproveDate, appointmentStatus
+            // are intentionally NOT on AppointmentUpdateDto -- they are set
+            // via dedicated transitions (Approve / Reject / SendBack-removed)
+            // and the EF entity preserves prior values across this update.
+            // Earlier the view sent those fields and TypeScript silently
+            // dropped them; the proxy regen now enforces strict shape.
             const payload: AppointmentUpdateDto = {
               panelNumber: this.panelNumber || undefined,
               appointmentDate: selected.appointmentDate,
-              isPatientAlreadyExist: selected.isPatientAlreadyExist,
-              requestConfirmationNumber: selected.requestConfirmationNumber,
+              requestConfirmationNumber: selected.requestConfirmationNumber!,
               dueDate: selected.dueDate,
-              internalUserComments: selected.internalUserComments,
-              appointmentApproveDate: selected.appointmentApproveDate,
-              appointmentStatus: selected.appointmentStatus,
-              patientId: selected.patientId,
-              identityUserId: selected.identityUserId,
-              appointmentTypeId: selected.appointmentTypeId,
-              locationId: selected.locationId,
-              doctorAvailabilityId: selected.doctorAvailabilityId,
-              concurrencyStamp: selected.concurrencyStamp,
+              patientId: selected.patientId!,
+              identityUserId: selected.identityUserId!,
+              appointmentTypeId: selected.appointmentTypeId!,
+              locationId: selected.locationId!,
+              doctorAvailabilityId: selected.doctorAvailabilityId!,
+              concurrencyStamp: selected.concurrencyStamp ?? '',
+              patientEmail: selected.patientEmail,
+              applicantAttorneyEmail: selected.applicantAttorneyEmail,
+              defenseAttorneyEmail: selected.defenseAttorneyEmail,
+              claimExaminerEmail: selected.claimExaminerEmail,
             };
 
-            this.appointmentService.update(selected.id, payload).subscribe({
+            this.appointmentService.update(selected.id!, payload).subscribe({
               next: async (updated) => {
                 let savedClean = true;
                 try {
@@ -774,7 +624,17 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   openUploadDocuments(): void {
-    this.router.navigateByUrl('/file-management');
+    // The documents block is already embedded below on this view
+    // (<app-appointment-documents id="appointment-documents-anchor">). The
+    // button just scrolls it into view so the booker can click the upload
+    // input. The earlier '/file-management' target hit Volo's tenant-wide
+    // explorer which external roles cannot access (403). The per-appointment
+    // upload path (AppointmentDocumentsAppService.UploadStreamAsync) is
+    // already permission-granted to the four external roles via
+    // BookingBaselineGrants.
+    document
+      .getElementById('appointment-documents-anchor')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   openHelp(): void {

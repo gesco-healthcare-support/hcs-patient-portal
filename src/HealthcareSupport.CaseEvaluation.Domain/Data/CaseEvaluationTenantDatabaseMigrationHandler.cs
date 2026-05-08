@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -23,6 +24,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IDataSeeder _dataSeeder;
     private readonly ITenantStore _tenantStore;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<CaseEvaluationTenantDatabaseMigrationHandler> _logger;
 
     public CaseEvaluationTenantDatabaseMigrationHandler(
@@ -31,6 +33,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         IUnitOfWorkManager unitOfWorkManager,
         IDataSeeder dataSeeder,
         ITenantStore tenantStore,
+        IHostEnvironment hostEnvironment,
         ILogger<CaseEvaluationTenantDatabaseMigrationHandler> logger)
     {
         _dbSchemaMigrators = dbSchemaMigrators;
@@ -38,6 +41,7 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         _unitOfWorkManager = unitOfWorkManager;
         _dataSeeder = dataSeeder;
         _tenantStore = tenantStore;
+        _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
 
@@ -89,6 +93,23 @@ public class CaseEvaluationTenantDatabaseMigrationHandler :
         string adminEmail,
         string adminPassword)
     {
+        // Smoke-test 2026-05-04 (G0c): the duplicate-key race on
+        // AbpLocalizationResources came from this handler running concurrently
+        // in HttpApi.Host AND AuthServer (each subscribes via ITransientDependency
+        // when the Domain module loads). The DbMigrator already runs the central
+        // IDataSeeder pipeline, so non-migrator hosts can no-op safely.
+        // Detect via IHostEnvironment.ApplicationName, which ASP.NET Core sets
+        // from the entry-assembly name (HealthcareSupport.CaseEvaluation.DbMigrator
+        // for the migrator console, AuthServer / HttpApi.Host otherwise).
+        if (!_hostEnvironment.ApplicationName.Contains("DbMigrator", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "CaseEvaluationTenantDatabaseMigrationHandler: skipping tenant migration + seed " +
+                "(host '{ApplicationName}' is not the DbMigrator).",
+                _hostEnvironment.ApplicationName);
+            return;
+        }
+
         try
         {
             using (_currentTenant.Change(tenantId))
