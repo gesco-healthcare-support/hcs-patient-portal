@@ -99,7 +99,10 @@ public class GenerateAppointmentPacketJob :
         var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
         var blobName = $"{tenantSegment}/{args.AppointmentId}/packet/{Guid.NewGuid():N}.pdf";
 
-        var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, args.AppointmentId, blobName);
+        // Phase 1A.1 backward-compat: this legacy single-PDF job is replaced
+        // by the per-kind orchestrator in Phase 1C.6. Until then, treat the
+        // merged-PDF as Kind=Patient so the existing UI keeps working.
+        var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, args.AppointmentId, PacketKind.Patient, blobName);
 
         try
         {

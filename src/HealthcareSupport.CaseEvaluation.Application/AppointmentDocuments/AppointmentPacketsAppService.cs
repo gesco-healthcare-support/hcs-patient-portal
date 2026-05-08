@@ -34,8 +34,12 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // Phase 1A.1 backward-compat: existing UI fetches one packet per
+        // appointment. Filter to Kind=Patient so this surface keeps
+        // returning the single Patient packet until Phase 1D.9 expands
+        // the surface to per-kind reads.
         var queryable = await _packetRepository.GetQueryableAsync();
-        var entity = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId);
+        var entity = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == PacketKind.Patient);
         return entity == null
             ? null
             : ObjectMapper.Map<AppointmentPacket, AppointmentPacketDto>(entity);
@@ -49,7 +53,7 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
         var queryable = await _packetRepository.GetQueryableAsync();
-        var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId)
+        var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == PacketKind.Patient)
             ?? throw new EntityNotFoundException(typeof(AppointmentPacket), appointmentId);
 
         if (packet.Status != PacketGenerationStatus.Generated)

@@ -16,6 +16,14 @@
          Loaded via EmailBodyResources.LoadBody at seed time and at any
          future migration that re-applies bodies on existing tenants. -->
     <EmbeddedResource Include="NotificationTemplates\EmailBodies\*.html" />
+
+    <!-- OLD-verbatim packet DOCX templates (Phase 1A.2). Three actively
+         used templates copied byte-identical from OLD's
+         wwwroot/Documents/documentBluePrint/. Embedded so the renderer
+         ships with its own templates and never depends on a filesystem
+         layout. Loaded via EmbeddedTemplateResources.LoadTemplate keyed
+         on PacketKind. -->
+    <EmbeddedResource Include="AppointmentDocuments\Templates\Resources\*.docx" />
   </ItemGroup>
 
   <ItemGroup>
