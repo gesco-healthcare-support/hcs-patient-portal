@@ -188,4 +188,18 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.CreateRevalAsync(sourceConfirmationNumber, input);
     }
 
+    /// <summary>
+    /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- pending
+    /// appointments count for the sidebar badge. Permission gate
+    /// (<c>Appointments.Edit</c>) lives on the AppService method;
+    /// callers without that permission get a 403 here. Returns 0 for
+    /// empty queues. Polled every 60s by the Angular signal.
+    /// </summary>
+    [HttpGet]
+    [Route("pending-count")]
+    public virtual Task<int> GetPendingCountAsync()
+    {
+        return _appointmentsAppService.GetPendingCountAsync();
+    }
+
 }

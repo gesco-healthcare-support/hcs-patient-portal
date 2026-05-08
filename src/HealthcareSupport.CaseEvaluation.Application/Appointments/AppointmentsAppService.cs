@@ -593,6 +593,27 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
+    /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- returns
+    /// the count of Pending appointments in the current tenant. Powers
+    /// the Angular sidebar count badge on the Appointments menu entry.
+    /// Authorization: <c>Appointments.Edit</c> matches the Approve /
+    /// Reject permission scope so external roles cannot read the
+    /// triage queue size. Repository call uses the existing typed
+    /// <c>appointmentStatus</c> filter; ABP's IMultiTenant filter
+    /// scopes the count to the caller's tenant. Returns <c>int</c>
+    /// (not <c>long</c>) because the badge UI does not need >2B
+    /// precision and the int contract is friendlier to the
+    /// auto-generated proxy on the Angular side.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<int> GetPendingCountAsync()
+    {
+        var count = await _appointmentRepository.GetCountAsync(
+            appointmentStatus: AppointmentStatusType.Pending);
+        return count > int.MaxValue ? int.MaxValue : (int)count;
+    }
+
+    /// <summary>
     /// Phase 11g (2026-05-04) -- shared booking pipeline used by
     /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
     /// <see cref="CreateRevalAsync"/>. All three flows perform identical

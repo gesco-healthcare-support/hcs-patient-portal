@@ -104,4 +104,19 @@ public interface IAppointmentsAppService : IApplicationService
     /// Admin callers, when the source is not in status <c>Approved</c>.
     /// </exception>
     Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
+
+    /// <summary>
+    /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003): returns
+    /// the count of appointments in the current tenant whose
+    /// <c>AppointmentStatus</c> is <c>Pending</c> -- the work queue an
+    /// admin / staff supervisor / clinic staff user must triage. Powers
+    /// the Appointments sidebar count badge polled every 60s by the
+    /// Angular `appointment-route.provider.ts`. ABP's automatic
+    /// IMultiTenant filter scopes the count to the caller's tenant.
+    /// Authorization is gated by <c>Appointments.Edit</c> so external
+    /// roles (Patient / AA / DA / CE) get a 403 -- they have no triage
+    /// queue to display. Returns <c>0</c> when no rows match (never
+    /// throws on empty).
+    /// </summary>
+    Task<int> GetPendingCountAsync();
 }

@@ -6,6 +6,7 @@ import { LoaderBarComponent } from '@abp/ng.theme.shared';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { hasAnyExternalRole } from './shared/auth/external-user-roles';
+import { AppointmentPendingCountService } from './appointments/services/appointment-pending-count.service';
 
 @Component({
   selector: 'app-root',
@@ -20,11 +21,16 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
+  // Wave 4 / #6: kicks off the pending-appointments badge polling for
+  // admin / staff users. Service is providedIn root and self-stops
+  // when permission drops, so a single `start()` call here is enough.
+  private readonly appointmentPendingCount = inject(AppointmentPendingCountService);
   private readonly subscription = new Subscription();
 
   ngOnInit(): void {
     this.handleAuthServerLogoutHandshake();
     this.updatePatientRoleClass();
+    this.appointmentPendingCount.start();
 
     this.subscription.add(
       this.router.events
