@@ -56,6 +56,7 @@
               cid="appointment-appointment-type-id"
               formControlName="appointmentTypeId"
               [getFn]="getAppointmentTypeLookup"
+              [class.is-invalid]="isFieldInvalid('appointmentTypeId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -74,6 +75,7 @@
               formControlName="locationId"
               [getFn]="getLocationLookup"
               (valueChange)="onLocationSelected($event)"
+              [class.is-invalid]="isFieldInvalid('locationId')"
             ></abp-lookup-select>
           </div>
 
@@ -305,6 +307,7 @@
               cid="appointment-patient-state-id"
               formControlName="stateId"
               [getFn]="getStateLookup"
+              [class.is-invalid]="isFieldInvalid('stateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -313,12 +316,13 @@
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">
-              {{ '::AppointmentLanguage' | abpLocalization }} *
+              {{ '::AppointmentLanguage' | abpLocalization }}
             </label>
             <abp-lookup-select
               cid="appointment-patient-language-id"
               formControlName="appointmentLanguageId"
               [getFn]="getAppointmentLanguageLookup"
+              [class.is-invalid]="isFieldInvalid('appointmentLanguageId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -430,6 +434,7 @@
               cid="appointment-employer-state-id"
               formControlName="employerStateId"
               [getFn]="getStateLookup"
+              [class.is-invalid]="isFieldInvalid('employerStateId')"
             ></abp-lookup-select>
           </div>
           <div class="col-md-3 mb-3">
@@ -476,30 +481,33 @@
                 <div class="card-body">
                   <div class="row">
                     <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Name</label>
+                      <label class="form-label fw-semibold">Name *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyFirstName"
                         placeholder="ATTORNEY NAME"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFirstName')"
                       />
                     </div>
                     <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Email</label>
+                      <label class="form-label fw-semibold">Email *</label>
                       <input
                         type="email"
                         class="form-control"
                         formControlName="applicantAttorneyEmail"
                         placeholder="ATTORNEY EMAIL"
                         [readonly]="isApplicantAttorney && !isItAdmin"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyEmail')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Firm Name</label>
+                      <label class="form-label fw-semibold">Firm Name *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyFirmName"
                         placeholder="FIRM NAME"
                         maxlength="50"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFirmName')"
                       />
                     </div>
                     <div class="col-md-6 mb-3">
@@ -512,56 +520,62 @@
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Phone Number</label>
+                      <label class="form-label fw-semibold">Phone Number *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyPhoneNumber"
                         placeholder="PHONE NUMBER"
                         maxlength="20"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyPhoneNumber')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Fax</label>
+                      <label class="form-label fw-semibold">Fax *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyFaxNumber"
                         placeholder="FAX"
                         maxlength="19"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFaxNumber')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Street</label>
+                      <label class="form-label fw-semibold">Street *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyStreet"
                         placeholder="STREET"
                         maxlength="255"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyStreet')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">City</label>
+                      <label class="form-label fw-semibold">City *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyCity"
                         placeholder="CITY"
                         maxlength="50"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyCity')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">State</label>
+                      <label class="form-label fw-semibold">State *</label>
                       <abp-lookup-select
                         cid="appointment-applicant-attorney-state-id"
                         formControlName="applicantAttorneyStateId"
                         [getFn]="getStateLookup"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyStateId')"
                       ></abp-lookup-select>
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Zip</label>
+                      <label class="form-label fw-semibold">Zip *</label>
                       <input
                         class="form-control"
                         formControlName="applicantAttorneyZipCode"
                         placeholder="ZIP"
                         maxlength="10"
+                        [class.is-invalid]="isFieldInvalid('applicantAttorneyZipCode')"
                       />
                     </div>
                   </div>
@@ -590,30 +604,33 @@
                 <div class="card-body">
                   <div class="row">
                     <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Name</label>
+                      <label class="form-label fw-semibold">Name *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyFirstName"
                         placeholder="ATTORNEY NAME"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFirstName')"
                       />
                     </div>
                     <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Email</label>
+                      <label class="form-label fw-semibold">Email *</label>
                       <input
                         type="email"
                         class="form-control"
                         formControlName="defenseAttorneyEmail"
                         placeholder="ATTORNEY EMAIL"
                         [readonly]="isDefenseAttorney && !isItAdmin"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyEmail')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Firm Name</label>
+                      <label class="form-label fw-semibold">Firm Name *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyFirmName"
                         placeholder="FIRM NAME"
                         maxlength="50"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFirmName')"
                       />
                     </div>
                     <div class="col-md-6 mb-3">
@@ -626,56 +643,62 @@
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Phone Number</label>
+                      <label class="form-label fw-semibold">Phone Number *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyPhoneNumber"
                         placeholder="PHONE NUMBER"
                         maxlength="20"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyPhoneNumber')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Fax</label>
+                      <label class="form-label fw-semibold">Fax *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyFaxNumber"
                         placeholder="FAX"
                         maxlength="19"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFaxNumber')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Street</label>
+                      <label class="form-label fw-semibold">Street *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyStreet"
                         placeholder="STREET"
                         maxlength="255"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyStreet')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">City</label>
+                      <label class="form-label fw-semibold">City *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyCity"
                         placeholder="CITY"
                         maxlength="50"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyCity')"
                       />
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">State</label>
+                      <label class="form-label fw-semibold">State *</label>
                       <abp-lookup-select
                         cid="appointment-defense-attorney-state-id"
                         formControlName="defenseAttorneyStateId"
                         [getFn]="getStateLookup"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyStateId')"
                       ></abp-lookup-select>
                     </div>
                     <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Zip</label>
+                      <label class="form-label fw-semibold">Zip *</label>
                       <input
                         class="form-control"
                         formControlName="defenseAttorneyZipCode"
                         placeholder="ZIP"
                         maxlength="10"
+                        [class.is-invalid]="isFieldInvalid('defenseAttorneyZipCode')"
                       />
                     </div>
                   </div>
@@ -786,7 +809,7 @@
                 (click)="closeInjuryModal()"
               ></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" [formGroup]="injuryForm">
               <div class="row">
                 <div class="col-md-2 mb-3">
                   <label class="form-label fw-semibold">Cumulative Trauma Injury</label>
@@ -795,8 +818,7 @@
                       <input
                         type="radio"
                         class="form-check-input me-1"
-                        [(ngModel)]="injuryEditing.isCumulativeInjury"
-                        [ngModelOptions]="{ standalone: true }"
+                        formControlName="injuryCumulative"
                         [value]="true"
                         name="injuryCumulative"
                       />
@@ -806,8 +828,7 @@
                       <input
                         type="radio"
                         class="form-check-input me-1"
-                        [(ngModel)]="injuryEditing.isCumulativeInjury"
-                        [ngModelOptions]="{ standalone: true }"
+                        formControlName="injuryCumulative"
                         [value]="false"
                         name="injuryCumulative"
                       />
@@ -817,24 +838,27 @@
                 </div>
                 <div class="col-md-2 mb-3">
                   <label class="form-label fw-semibold">
-                    {{ injuryEditing.isCumulativeInjury ? 'From Date' : 'Date Of Injury' }} *
+                    {{ injuryForm.get('injuryCumulative')?.value ? 'From Date' : 'Date Of Injury' }}
+                    *
                   </label>
                   <input
                     type="date"
                     class="form-control"
-                    [(ngModel)]="injuryEditing.dateOfInjury"
-                    [ngModelOptions]="{ standalone: true }"
+                    [class.is-invalid]="
+                      injuryForm.get('injuryDateOfInjury')?.invalid &&
+                      injuryForm.get('injuryDateOfInjury')?.touched
+                    "
+                    formControlName="injuryDateOfInjury"
                     name="injuryDateOfInjury"
                   />
                 </div>
-                @if (injuryEditing.isCumulativeInjury) {
+                @if (injuryForm.get('injuryCumulative')?.value) {
                   <div class="col-md-2 mb-3">
                     <label class="form-label fw-semibold">To Date</label>
                     <input
                       type="date"
                       class="form-control"
-                      [(ngModel)]="injuryEditing.toDateOfInjury"
-                      [ngModelOptions]="{ standalone: true }"
+                      formControlName="injuryToDateOfInjury"
                       name="injuryToDateOfInjury"
                     />
                   </div>
@@ -844,9 +868,12 @@
                   <input
                     type="text"
                     class="form-control"
+                    [class.is-invalid]="
+                      injuryForm.get('injuryClaimNumber')?.invalid &&
+                      injuryForm.get('injuryClaimNumber')?.touched
+                    "
                     maxlength="50"
-                    [(ngModel)]="injuryEditing.claimNumber"
-                    [ngModelOptions]="{ standalone: true }"
+                    formControlName="injuryClaimNumber"
                     name="injuryClaimNumber"
                   />
                 </div>
@@ -854,8 +881,7 @@
                   <label class="form-label fw-semibold">WCAB Office (Venue)</label>
                   <select
                     class="form-select"
-                    [(ngModel)]="injuryEditing.wcabOfficeId"
-                    [ngModelOptions]="{ standalone: true }"
+                    formControlName="injuryWcabOfficeId"
                     name="injuryWcabOfficeId"
                   >
                     <option [ngValue]="null">Select</option>
@@ -870,8 +896,7 @@
                     type="text"
                     class="form-control"
                     maxlength="50"
-                    [(ngModel)]="injuryEditing.wcabAdj"
-                    [ngModelOptions]="{ standalone: true }"
+                    formControlName="injuryWcabAdj"
                     name="injuryWcabAdj"
                   />
                 </div>
@@ -879,10 +904,13 @@
                   <label class="form-label fw-semibold">Body Parts *</label>
                   <textarea
                     class="form-control"
+                    [class.is-invalid]="
+                      injuryForm.get('injuryBodyPartsSummary')?.invalid &&
+                      injuryForm.get('injuryBodyPartsSummary')?.touched
+                    "
                     rows="2"
                     maxlength="500"
-                    [(ngModel)]="injuryEditing.bodyPartsSummary"
-                    [ngModelOptions]="{ standalone: true }"
+                    formControlName="injuryBodyPartsSummary"
                     name="injuryBodyPartsSummary"
                     placeholder="e.g. Lower back, right knee, left wrist"
                   ></textarea>
@@ -892,29 +920,41 @@
               <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <h6 class="mb-0 fw-bold">Insurance</h6>
-                  <div class="form-check form-switch">
+                  <!--
+                    Wave 2 #11 (2026-05-07): mirror OLD's <fieldset [disabled]="isAdjusterLogin">
+                    wrap at appointment-add.component.html:378 of P:\PatientPortalOld. The CE
+                    booker should not be able to toggle Insurance off; pre-filled values stay
+                    visible (the @if below still renders). Same getter is reused for the CE
+                    toggle below since OLD applies the identical role gate at :440.
+                  -->
+                  <fieldset
+                    [disabled]="isInsuranceFieldsetDisabled"
+                    class="form-check form-switch p-0 m-0 border-0"
+                  >
                     <input
                       type="checkbox"
                       class="form-check-input"
                       id="injury-insurance-enabled"
-                      [(ngModel)]="injuryEditing.primaryInsurance.isActive"
-                      [ngModelOptions]="{ standalone: true }"
+                      formControlName="injuryInsuranceEnabled"
                       name="injuryInsuranceEnabled"
                     />
                     <label class="form-check-label" for="injury-insurance-enabled">Include</label>
-                  </div>
+                  </fieldset>
                 </div>
-                @if (injuryEditing.primaryInsurance.isActive) {
+                @if (injuryForm.get('injuryInsuranceEnabled')?.value) {
                   <div class="card-body">
                     <div class="row">
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Company Name</label>
+                        <label class="form-label">Company Name *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryInsuranceName')?.invalid &&
+                            injuryForm.get('injuryInsuranceName')?.touched
+                          "
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.primaryInsurance.name"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceName"
                           name="injuryInsuranceName"
                         />
                       </div>
@@ -924,8 +964,7 @@
                           type="text"
                           class="form-control"
                           maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.attention"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceAttention"
                           name="injuryInsuranceAttention"
                         />
                       </div>
@@ -935,8 +974,7 @@
                           type="text"
                           class="form-control"
                           maxlength="12"
-                          [(ngModel)]="injuryEditing.primaryInsurance.phoneNumber"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsurancePhone"
                           name="injuryInsurancePhone"
                         />
                       </div>
@@ -946,8 +984,7 @@
                           type="text"
                           class="form-control"
                           maxlength="20"
-                          [(ngModel)]="injuryEditing.primaryInsurance.faxNumber"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceFax"
                           name="injuryInsuranceFax"
                         />
                       </div>
@@ -957,8 +994,7 @@
                           type="text"
                           class="form-control"
                           maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.street"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceStreet"
                           name="injuryInsuranceStreet"
                         />
                       </div>
@@ -968,8 +1004,7 @@
                           type="text"
                           class="form-control"
                           maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.insuranceNumber"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceSte"
                           name="injuryInsuranceSte"
                         />
                       </div>
@@ -979,8 +1014,7 @@
                           type="text"
                           class="form-control"
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.primaryInsurance.city"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceCity"
                           name="injuryInsuranceCity"
                         />
                       </div>
@@ -988,8 +1022,7 @@
                         <label class="form-label">State</label>
                         <select
                           class="form-select"
-                          [(ngModel)]="injuryEditing.primaryInsurance.stateId"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceStateId"
                           name="injuryInsuranceStateId"
                         >
                           <option [ngValue]="null">Select</option>
@@ -1004,8 +1037,7 @@
                           type="text"
                           class="form-control"
                           maxlength="10"
-                          [(ngModel)]="injuryEditing.primaryInsurance.zip"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryInsuranceZip"
                           name="injuryInsuranceZip"
                         />
                       </div>
@@ -1017,81 +1049,98 @@
               <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <h6 class="mb-0 fw-bold">Claim Examiner</h6>
-                  <div class="form-check form-switch">
+                  <fieldset
+                    [disabled]="isInsuranceFieldsetDisabled"
+                    class="form-check form-switch p-0 m-0 border-0"
+                  >
                     <input
                       type="checkbox"
                       class="form-check-input"
                       id="injury-claim-examiner-enabled"
-                      [(ngModel)]="injuryEditing.claimExaminer.isActive"
-                      [ngModelOptions]="{ standalone: true }"
+                      formControlName="injuryClaimExaminerEnabled"
                       name="injuryClaimExaminerEnabled"
                     />
                     <label class="form-check-label" for="injury-claim-examiner-enabled">
                       Include
                     </label>
-                  </div>
+                  </fieldset>
                 </div>
-                @if (injuryEditing.claimExaminer.isActive) {
+                @if (injuryForm.get('injuryClaimExaminerEnabled')?.value) {
                   <div class="card-body">
                     <div class="row">
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Name</label>
+                        <label class="form-label">Name *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerName')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerName')?.touched
+                          "
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.name"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerName"
                           name="injuryClaimExaminerName"
                           placeholder="NAME"
                           [readonly]="isClaimExaminerRole && !isItAdmin"
                         />
                       </div>
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Email</label>
+                        <label class="form-label">Email *</label>
                         <input
                           type="email"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerEmail')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerEmail')?.touched
+                          "
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.email"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerEmail"
                           name="injuryClaimExaminerEmail"
                           placeholder="EMAIL"
                           [readonly]="isClaimExaminerRole && !isItAdmin"
                         />
                       </div>
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Phone Number</label>
+                        <label class="form-label">Phone Number *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerPhone')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerPhone')?.touched
+                          "
                           maxlength="12"
-                          [(ngModel)]="injuryEditing.claimExaminer.phoneNumber"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerPhone"
                           name="injuryClaimExaminerPhone"
                           placeholder="PHONE NUMBER"
                         />
                       </div>
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Fax</label>
+                        <label class="form-label">Fax *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerFax')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerFax')?.touched
+                          "
                           maxlength="20"
-                          [(ngModel)]="injuryEditing.claimExaminer.fax"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerFax"
                           name="injuryClaimExaminerFax"
                           placeholder="FAX"
                         />
                       </div>
                       <div class="col-md-3 mb-2">
-                        <label class="form-label">Street</label>
+                        <label class="form-label">Street *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerStreet')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerStreet')?.touched
+                          "
                           maxlength="255"
-                          [(ngModel)]="injuryEditing.claimExaminer.street"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerStreet"
                           name="injuryClaimExaminerStreet"
                           placeholder="STREET"
                         />
@@ -1102,30 +1151,35 @@
                           type="text"
                           class="form-control"
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.claimExaminerNumber"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerSte"
                           name="injuryClaimExaminerSte"
                           placeholder="STE"
                         />
                       </div>
                       <div class="col-md-2 mb-2">
-                        <label class="form-label">City</label>
+                        <label class="form-label">City *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerCity')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerCity')?.touched
+                          "
                           maxlength="50"
-                          [(ngModel)]="injuryEditing.claimExaminer.city"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerCity"
                           name="injuryClaimExaminerCity"
                           placeholder="CITY"
                         />
                       </div>
                       <div class="col-md-2 mb-2">
-                        <label class="form-label">State</label>
+                        <label class="form-label">State *</label>
                         <select
                           class="form-select"
-                          [(ngModel)]="injuryEditing.claimExaminer.stateId"
-                          [ngModelOptions]="{ standalone: true }"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerStateId')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerStateId')?.touched
+                          "
+                          formControlName="injuryClaimExaminerStateId"
                           name="injuryClaimExaminerStateId"
                         >
                           <option [ngValue]="null">Select</option>
@@ -1135,13 +1189,16 @@
                         </select>
                       </div>
                       <div class="col-md-2 mb-2">
-                        <label class="form-label">Zip</label>
+                        <label class="form-label">Zip *</label>
                         <input
                           type="text"
                           class="form-control"
+                          [class.is-invalid]="
+                            injuryForm.get('injuryClaimExaminerZip')?.invalid &&
+                            injuryForm.get('injuryClaimExaminerZip')?.touched
+                          "
                           maxlength="10"
-                          [(ngModel)]="injuryEditing.claimExaminer.zip"
-                          [ngModelOptions]="{ standalone: true }"
+                          formControlName="injuryClaimExaminerZip"
                           name="injuryClaimExaminerZip"
                         />
                       </div>
