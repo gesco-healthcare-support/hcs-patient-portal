@@ -1,3 +1,16 @@
+# Single development compose file (2026-05-06).
+#
+# This is the only compose file we run; the previous prod/dev split
+# (docker-compose.yml + docker-compose.dev.yml overlay) has been folded
+# into one. Authserver + API run via `dotnet watch run` from
+# Dockerfile.dev with bind-mounted source so C# / Razor edits hot-reload
+# without rebuilding the image. Angular runs `ng build --watch` +
+# browser-sync from its Dockerfile.dev with bind-mounted source so SPA
+# edits live-reload through the browser.
+#
+# When a production deployment story lands (likely Azure App Service or
+# AKS), it will be a separate stack -- not a sibling compose file.
+
 services:
   sql-server:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -7,8 +20,7 @@ services:
       MSSQL_PID: "Developer"
     ports:
       # Bind to 127.0.0.1 explicitly to skip Docker Desktop's IPv6 host listener.
-      # See docs/plans/deferred-from-mvp.md "W1 bugfix sprint" 2026-04-28 for context;
-      # post-W3 HTTPS migration removes the need for this workaround.
+      # See docs/plans/deferred-from-mvp.md "W1 bugfix sprint" 2026-04-28.
       - "127.0.0.1:${SQL_HOST_PORT:-1434}:1433"
     volumes:
       - sqldata:/var/opt/mssql
@@ -51,23 +63,49 @@ services:
   authserver:
     build:
       context: .
-      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
+      # Dockerfile.dev runs `dotnet watch run` so source edits hot-reload.
+      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile.dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
+      # Polling watcher OOMs by walking every file each poll. Inotify works
+      # through Docker Desktop bind mounts on recent versions (gRPC FUSE /
+      # VirtioFS); fall back to polling only if a future host fails to
+      # deliver events.
+      DOTNET_USE_POLLING_FILE_WATCHER: "0"
+      DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${AUTH_PORT:-44368}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327}"
+      # ADR-006 (2026-05-05) -- subdomain tenant routing. Wildcard
+      # *.localhost origins are matched by ABP's CORS policy because
+      # `SetIsOriginAllowedToAllowWildcardSubdomains()` is wired in
+      # CaseEvaluationAuthServerModule.ConfigureServices. Drop bare
+      # `localhost` entries when prod migrates off `*.localhost`.
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${API_PORT:-44327},http://*.localhost:${NG_PORT:-4200},http://*.localhost:${API_PORT:-44327}"
+      # G5 (2026-05-04): the in-process HealthChecks UI probe constructs
+      # an absolute URL from this env var. Without it, ABP falls back to
+      # the listener bind address, which curl rejects as a non-target.
+      App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__RequireHttpsMetadata: "false"
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
     volumes:
+      # Bind source for hot-reload.
+      - ./src:/app/src
+      - ./Directory.Build.props:/app/Directory.Build.props:ro
+      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx:ro
+      # `dotnet watch` sets the content root to the project folder. ASP.NET
+      # only loads appsettings.secrets.json from the content root, so bind
+      # the real secrets file at BOTH the legacy /app path (used by the
+      # eventual published image) AND the content-root path (used in dev).
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
+      - ./docker/appsettings.secrets.json:/app/src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
+      # test/ deliberately omitted so dotnet watch doesn't traverse it.
     ports:
       - "127.0.0.1:${AUTH_PORT:-44368}:8080"
     depends_on:
@@ -80,20 +118,25 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      # First-boot inside dotnet watch needs to restore + build before
+      # the listener opens.
+      start_period: 180s
 
   api:
     build:
       context: .
-      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
+      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile.dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "0"
+      DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
       App__SelfUrl: "http://localhost:${API_PORT:-44327}"
-      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368}"
+      # ADR-006 (2026-05-05) -- subdomain tenant routing. See AuthServer block.
+      App__CorsOrigins: "http://localhost:${NG_PORT:-4200},http://localhost:${AUTH_PORT:-44368},http://*.localhost:${NG_PORT:-4200},http://*.localhost:${AUTH_PORT:-44368}"
       App__HealthUiCheckUrl: "http://localhost:8080/health-status"
       AuthServer__Authority: "http://localhost:${AUTH_PORT:-44368}"
       AuthServer__MetaAddress: "http://authserver:8080"
@@ -102,7 +145,11 @@ services:
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
     volumes:
+      - ./src:/app/src
+      - ./Directory.Build.props:/app/Directory.Build.props:ro
+      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx:ro
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
+      - ./docker/appsettings.secrets.json:/app/src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "127.0.0.1:${API_PORT:-44327}:8080"
@@ -116,18 +163,33 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 180s
 
   angular:
     build:
       context: ./angular
-      dockerfile: Dockerfile
+      # Dockerfile.dev runs `ng build --watch` + browser-sync. The
+      # NG_CONFIG arg picks the angular.json configuration that ships
+      # http (not https) URLs for AuthServer + API in dev.
+      dockerfile: Dockerfile.dev
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
+    # browser-sync listens on container port 80 (set in Dockerfile.dev's
+    # entrypoint), so port mapping host:4200 -> container:80 stays intact.
     ports:
       - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
-      - ./docker/dynamic-env.json:/usr/share/nginx/html/dynamic-env.json:ro
+      # Bind source so file edits trigger ng build --watch. node_modules
+      # stays inside the image (anonymous volume) to avoid the slow
+      # Windows-host symlink-deep node_modules tree.
+      - ./angular/src:/app/src
+      - ./angular/angular.json:/app/angular.json:ro
+      - ./angular/tsconfig.json:/app/tsconfig.json:ro
+      - ./angular/tsconfig.app.json:/app/tsconfig.app.json:ro
+      - ./angular/package.json:/app/package.json:ro
+      # dynamic-env.json sits at /app in dev; the entrypoint copies it
+      # into dist/CaseEvaluation/browser after each rebuild.
+      - ./docker/dynamic-env.json:/app/dynamic-env.json:ro
     depends_on:
       api:
         condition: service_healthy

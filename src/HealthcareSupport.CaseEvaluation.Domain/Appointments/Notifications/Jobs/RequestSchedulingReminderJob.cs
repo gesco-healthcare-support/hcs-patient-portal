@@ -15,8 +15,8 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 
 /// <summary>
 /// W2-10: CCR Title 8 Sec. 31.5 -- request-scheduling reminder. Fires daily
-/// at 08:00 Pacific Time. For each tenant, locates Pending or AwaitingMoreInfo
-/// appointments whose request submission has been outstanding for the
+/// at 08:00 Pacific Time. For each tenant, locates Pending appointments
+/// whose request submission has been outstanding for the
 /// elapsed-day windows defined in CCR (default 30 / 60 / 75 / 85 / 90 days
 /// since RequestConfirmationNumber assignment), resolves all parties via
 /// <see cref="IAppointmentRecipientResolver"/>, and enqueues per-recipient
@@ -91,9 +91,7 @@ public class RequestSchedulingReminderJob : ITransientDependency
         // ABP CreationTime is set at appointment row insert (the request submit
         // moment), so windowStart = today - daysElapsed (date-only).
         var eligible = queryable
-            .Where(a =>
-                (a.AppointmentStatus == AppointmentStatusType.Pending ||
-                 a.AppointmentStatus == AppointmentStatusType.AwaitingMoreInfo))
+            .Where(a => a.AppointmentStatus == AppointmentStatusType.Pending)
             .ToList()
             .Where(a => ReminderElapsedDays.Any(d => a.CreationTime.Date == nowUtc.AddDays(-d)))
             .ToList();

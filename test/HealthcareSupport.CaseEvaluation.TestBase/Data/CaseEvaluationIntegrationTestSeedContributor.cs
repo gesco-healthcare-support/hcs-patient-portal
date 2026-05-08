@@ -14,6 +14,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Data;
@@ -59,6 +60,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
+    private readonly SystemParameterDataSeedContributor _systemParameterSeeder;
     private readonly ICurrentTenant _currentTenant;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
 
@@ -80,6 +82,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
+        SystemParameterDataSeedContributor systemParameterSeeder,
         ICurrentTenant currentTenant,
         IUnitOfWorkManager unitOfWorkManager)
     {
@@ -100,6 +103,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
+        _systemParameterSeeder = systemParameterSeeder;
         _currentTenant = currentTenant;
         _unitOfWorkManager = unitOfWorkManager;
     }
@@ -112,6 +116,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         }
 
         await SeedTenantsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedSystemParametersAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await _identityUsersSeeder.SeedAsync(context);
@@ -163,6 +170,19 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _tenantRepository.InsertAsync(tenantB);
             TenantsTestData.TenantBRef = tenantB.Id;
         }
+    }
+
+    private async Task SeedSystemParametersAsync()
+    {
+        // Per-tenant singleton. In production the row is seeded when ABP fires
+        // TenantCreatedEto, which routes to SystemParameterDataSeedContributor.
+        // The in-memory SQLite test rig has no event bus, so we invoke the
+        // production contributor directly per tenant. Using the production
+        // contributor (rather than re-implementing the entity insert) keeps
+        // OLD-parity defaults from SystemParameterConsts in lock-step with
+        // production seeding.
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantARef));
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantBRef));
     }
 
     private async Task SeedLocationsAsync()
@@ -230,16 +250,14 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 firstName: DoctorsTestData.Doctor1FirstName,
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor1UserId));
+                gender: default));
 
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,
                 lastName: DoctorsTestData.Doctor2LastName,
                 email: DoctorsTestData.Doctor2Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor2UserId));
+                gender: default));
         }
     }
 

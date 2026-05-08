@@ -38,7 +38,7 @@ public class EfCoreDefenseAttorneyRepository : EfCoreRepository<CaseEvaluationDb
         return from defenseAttorney in (await GetDbSetAsync())
                join state in (await GetDbContextAsync()).Set<State>() on defenseAttorney.StateId equals state.Id into states
                from state in states.DefaultIfEmpty()
-               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on defenseAttorney.IdentityUserId equals identityUser.Id into identityUsers
+               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on defenseAttorney.IdentityUserId equals (Guid?)identityUser.Id into identityUsers
                from identityUser in identityUsers.DefaultIfEmpty()
                select new DefenseAttorneyWithNavigationProperties
                {

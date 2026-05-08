@@ -351,8 +351,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     {
         // Insert a scratch Available slot in TenantA (don't mutate Slot2 from
         // the shared seed). Then book it via the AppService.
+        // Phase 11b (G6 follow-up) -- BookingPolicyValidator now enforces
+        // [Today + leadTime, Today + maxTime] on CreateAsync. AppointmentType1
+        // ("TEST-IME-Eval") routes to the OTHER 60-day cap. Use Today + 7
+        // (>= leadTime 3, <= 60) and stagger across tests to keep slots distinct.
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 1, 10, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(7),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -372,11 +376,59 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         }
     }
 
+    // R2 (Phase 9, 2026-05-04): pin that AppointmentCreateDto.IsPatientAlreadyExist
+    // round-trips to the persisted Appointment row. Mirrors OLD
+    // AppointmentDomain.cs:210, 217 where the dedup outcome lands on the entity
+    // at booking time. The Angular booking form populates this from the
+    // PatientWithNavigationPropertiesDto.IsExisting flag.
+
+    [Fact]
+    public async Task CreateAsync_WhenInputHasIsPatientAlreadyExistTrue_PersistsTrue()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(8),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            input.IsPatientAlreadyExist = true;
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenInputOmitsIsPatientAlreadyExist_DefaultsToFalseOnEntity()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(9),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            // input.IsPatientAlreadyExist intentionally left at default (false)
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeFalse();
+        }
+    }
+
     [Fact]
     public async Task CreateAsync_GeneratesConfirmationNumberInAFormat()
     {
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 2, 5, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(10),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -397,11 +449,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     public async Task CreateAsync_TwoSequentialCreates_ProduceIncreasingNumbers()
     {
         var scratchA = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(11),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
         var scratchB = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 2, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(12),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -429,7 +481,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // The Skip Fact below pins the divergence; this live Fact passes
         // either way the production code resolves it.
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 4, 7, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(13),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 

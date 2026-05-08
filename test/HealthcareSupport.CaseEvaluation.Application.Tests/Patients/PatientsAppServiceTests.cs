@@ -97,15 +97,29 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         created.LastName.ShouldBe("Tester");
         created.Email.ShouldBe("alice.tester@test.local");
 
-        var persisted = await _patientRepository.FindAsync(created.Id);
-        persisted.ShouldNotBeNull();
-        persisted!.FirstName.ShouldBe("Alice");
+        // FEAT-09: Patient is IMultiTenant; raw repository reads from
+        // the host context apply WHERE TenantId IS NULL, which excludes
+        // the just-created TenantA row. Enter the tenant context for
+        // the verification read.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var persisted = await _patientRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.FirstName.ShouldBe("Alice");
+        }
     }
 
     [Fact]
     public async Task UpdateAsync_ChangesMutableFields_DoesNotChangeIdentityUserId()
     {
-        var patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        // FEAT-09: Patient is IMultiTenant; raw repository reads need
+        // to run inside the patient's tenant scope so the auto-filter
+        // does not exclude the row.
+        Patient patient1;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        }
         var originalIdentityUserId = patient1.IdentityUserId;
 
         var update = new PatientUpdateDto
@@ -124,8 +138,11 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         var result = await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update);
 
         result.FirstName.ShouldBe("Renamed");
-        var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
-        refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+            refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        }
     }
 
     [Fact]
@@ -255,11 +272,10 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         patient2!.Patient.TenantId.ShouldBe(TenantsTestData.TenantBRef);
     }
 
-    [Fact(Skip = "KNOWN BUG: PatientsAppService.GetListAsync has no tenant filter, so "
-              + "tenant-scoped callers (TenantAdmin, Doctor, attorney, patient, etc.) "
-              + "currently see all tenants' patients. When Patient becomes IMultiTenant "
-              + "(or AppService adds a manual CurrentTenant.Id filter), this test flips green. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#patient-imultitenant")]
+    // FEAT-09 (ADR-006 T4, 2026-05-05): now passes -- Patient implements
+    // IMultiTenant, so ABP's automatic filter scopes the query when
+    // CurrentTenant.Id is set. No AppService change was needed.
+    [Fact]
     public async Task GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients()
     {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
@@ -374,6 +390,31 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
 
         result.ShouldNotBeNull();
         result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+    }
+
+    // R2 (Phase 9, 2026-05-04): IsExisting=true on the email-fast-path branch.
+    // Mirrors OLD AppointmentDomain.cs:210 -- when booking resolves to an
+    // already-existing Patient, the Appointment must record IsPatientAlreadyExist=true.
+    // Coverage for the dedup-match branch + FindOrCreate.wasFound branches needs
+    // the runtime-creation harness work flagged in the existing skipped tests
+    // (NEW-SEC-04 in docs/gap-analysis); deferred to the same Wave-2 follow-up.
+    [Fact]
+    public async Task GetOrCreatePatient_WhenEmailMatchesPatient1_SetsIsExistingTrue()
+    {
+        var input = new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = PatientsTestData.Patient1FirstName,
+            LastName = PatientsTestData.Patient1LastName,
+            Email = PatientsTestData.Patient1Email,
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = PatientsTestData.FixedDateOfBirth,
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+        };
+
+        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+
+        result.ShouldNotBeNull();
+        result.IsExisting.ShouldBeTrue();
     }
 
     [Fact(Skip = "KNOWN GAP: GetOrCreatePatientForAppointmentBookingAsync uses CaseEvaluationConsts.AdminPasswordDefaultValue for runtime-created IdentityUser. Tracked: src/.../Domain/Patients/CLAUDE.md Known Gotchas (hardcoded admin password) AND docs/gap-analysis NEW-SEC-04. When an invite-token / temp-password flow replaces the hardcoded password, this Fact flips live.")]

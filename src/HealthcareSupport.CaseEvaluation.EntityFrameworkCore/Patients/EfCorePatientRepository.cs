@@ -123,4 +123,63 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
             ? null
             : new PatientMatchCandidate(best.Id, best.MatchCount, best.CreationTime);
     }
+
+    public virtual async Task<List<Patient>> GetDeduplicationCandidatesAsync(
+        Guid? tenantId,
+        string? lastName,
+        DateTime? dateOfBirth,
+        string? phone,
+        string? email,
+        string? ssn,
+        IReadOnlyCollection<string?>? claimNumbers,
+        CancellationToken cancellationToken = default)
+    {
+        // Phase 11k (2026-05-04) -- OLD-parity SQL prefilter from
+        // AppointmentDomain.cs:736-738 (IsPatientRegistered):
+        //   WHERE LastName = @ln
+        //      OR PhoneNumber = @phone
+        //      OR SocialSecurityNumber = @ssn
+        //      OR DateOfBirth = @dob
+        //      OR Email = @email
+        //      OR ClaimNumber IN @claimNumbers
+        // Plus the manual TenantId filter (Patient is NOT IMultiTenant).
+        //
+        // Note we deliberately do NOT push the 3-of-6 threshold check
+        // into SQL: the OR-prefilter set is small in practice (each
+        // field is selective) and the per-field counter is a few
+        // microseconds in .NET. Keeping the threshold logic in C#
+        // matches OLD's structure and lets the caller share the same
+        // tested predicate (AppointmentBookingValidators.IsPatientDuplicate).
+        var ln = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim().ToLower();
+        var ph = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        var em = string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLower();
+        var sn = string.IsNullOrWhiteSpace(ssn) ? null : ssn.Trim();
+        var dob = dateOfBirth?.Date;
+
+        // ClaimNumber match: OLD asks "is the existing patient row's
+        // ClaimNumber in the incoming intake's claim list". The
+        // ClaimNumber lives on Patient in OLD's vPatientDetail view; in
+        // NEW we don't have a ClaimNumber column on Patient (claim
+        // numbers live on AppointmentInjuryDetail). For now we drop the
+        // ClaimNumber prefilter at the SQL level -- the caller's
+        // predicate (IsPatientDuplicate) will simply count fewer
+        // potential matches when no ClaimNumber is shared. Phase 11h
+        // wires injury rows through the Manager and revisits this gap.
+        // We keep the parameter on the interface so the OLD-parity
+        // method signature is preserved for the day NEW grows the
+        // matching column or denormalises it.
+        _ = claimNumbers;
+
+        var query = (await GetQueryableAsync())
+            .Where(p => p.TenantId == tenantId);
+
+        var preFilter = query.Where(p =>
+            (ln != null && p.LastName != null && p.LastName.ToLower() == ln) ||
+            (dob.HasValue && p.DateOfBirth == dob.Value) ||
+            (ph != null && p.PhoneNumber != null && p.PhoneNumber == ph) ||
+            (em != null && p.Email != null && p.Email.ToLower() == em) ||
+            (sn != null && p.SocialSecurityNumber != null && p.SocialSecurityNumber == sn));
+
+        return await preFilter.ToListAsync(GetCancellationToken(cancellationToken));
+    }
 }

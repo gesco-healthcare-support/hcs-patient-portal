@@ -1,5 +1,10 @@
-﻿namespace HealthcareSupport.CaseEvaluation.Enums
+namespace HealthcareSupport.CaseEvaluation.Enums
 {
+    /// <summary>
+    /// Mirrors OLD's AppointmentStatusType enum verbatim for strict parity
+    /// (Phase 1.7, 2026-05-01). 13 values; the NEW-only AwaitingMoreInfo=14
+    /// state was removed when the SendBack flow was deleted in Phase 0.2.
+    /// </summary>
     public enum AppointmentStatusType
     {
         Pending = 1,
@@ -15,6 +20,5 @@
         Billed = 11,
         RescheduleRequested = 12,
         CancellationRequested = 13,
-        AwaitingMoreInfo = 14,
     }
 }

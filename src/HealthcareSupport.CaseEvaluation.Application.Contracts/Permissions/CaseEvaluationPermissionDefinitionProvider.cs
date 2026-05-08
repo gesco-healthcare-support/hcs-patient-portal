@@ -56,6 +56,12 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Create, L("Permission:Create"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Edit, L("Permission:Edit"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Delete, L("Permission:Delete"));
+        // Phase 2.5 (2026-05-01) -- per-action gates for the approval +
+        // change-request submission flows.
+        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Approve, L("Permission:Approve"));
+        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Reject, L("Permission:Reject"));
+        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestCancellation, L("Permission:RequestCancellation"));
+        appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestReschedule, L("Permission:RequestReschedule"));
         var appointmentEmployerDetailPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentEmployerDetails.Default, L("Permission:AppointmentEmployerDetails"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Create, L("Permission:Create"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Edit, L("Permission:Edit"));
@@ -119,6 +125,45 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
 
         var appointmentPacketsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
         appointmentPacketsPermission.AddChild(CaseEvaluationPermissions.AppointmentPackets.Regenerate, L("Permission:Regenerate"));
+
+        // Phase 2.5 (2026-05-01) -- supervisor approval surface for cancel /
+        // reschedule. Default = read-only inbox; Approve / Reject = supervisor.
+        var appointmentChangeRequestsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeRequests.Default, L("Permission:AppointmentChangeRequests"));
+        appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Approve, L("Permission:Approve"));
+        appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Reject, L("Permission:Reject"));
+
+        // Phase 2.5 (2026-05-01) -- IT Admin notification template editor.
+        var notificationTemplatesPermission = myGroup.AddPermission(CaseEvaluationPermissions.NotificationTemplates.Default, L("Permission:NotificationTemplates"));
+        notificationTemplatesPermission.AddChild(CaseEvaluationPermissions.NotificationTemplates.Edit, L("Permission:Edit"));
+
+        // Phase 5 (2026-05-03) -- IT Admin master Document catalog.
+        var documentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Documents.Default, L("Permission:Documents"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Create, L("Permission:Create"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Edit, L("Permission:Edit"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Delete, L("Permission:Delete"));
+
+        // Phase 5 (2026-05-03) -- IT Admin per-AppointmentType package templates.
+        var packageDetailsPermission = myGroup.AddPermission(CaseEvaluationPermissions.PackageDetails.Default, L("Permission:PackageDetails"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Create, L("Permission:Create"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Edit, L("Permission:Edit"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Delete, L("Permission:Delete"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.ManageDocuments, L("Permission:PackageDetails.ManageDocuments"));
+
+        // Phase 7b (2026-05-03) -- Doctor-Location preference toggle.
+        var doctorPreferredLocationsPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.DoctorPreferredLocations.Default,
+            L("Permission:DoctorPreferredLocations"));
+        doctorPreferredLocationsPermission.AddChild(
+            CaseEvaluationPermissions.DoctorPreferredLocations.Toggle,
+            L("Permission:DoctorPreferredLocations.Toggle"));
+
+        // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
+        var userSignaturesPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.UserSignatures.Default,
+            L("Permission:UserSignatures"));
+        userSignaturesPermission.AddChild(
+            CaseEvaluationPermissions.UserSignatures.ManageOwn,
+            L("Permission:UserSignatures.ManageOwn"));
     }
 
     private static LocalizableString L(string name)

@@ -19,7 +19,12 @@ export abstract class AbstractDoctorDetailViewService {
 
   public readonly getLocationLookup = this.proxyService.getLocationLookup;
 
-  public readonly getIdentityUserLookup = this.proxyService.getIdentityUserLookup;
+  // OLD parity: Doctor is a non-user reference entity. Pre-merge NEW
+  // (incorrectly) modeled Doctor.IdentityUserId; cleanup commit d1bbdab
+  // removed the entity FK + DoctorAppService.GetIdentityUserLookupAsync,
+  // and the proxy regen reflected the removal. The dropdown that consumed
+  // this lookup is dead UI; the residual form-control and template cleanup
+  // is tracked separately. See docs/research/proxy-regen-identity-lookup-fix.md.
 
   public readonly getTenantLookup = this.proxyService.getTenantLookup;
 
@@ -31,10 +36,11 @@ export abstract class AbstractDoctorDetailViewService {
   form: FormGroup | undefined;
 
   protected createRequest() {
+    const formValue = this.form!.value;
     const formValues = {
-      ...this.form.value,
-      appointmentTypeIds: this.form.value.appointmentTypeIds.map(({ id }) => id),
-      locationIds: this.form.value.locationIds.map(({ id }) => id),
+      ...formValue,
+      appointmentTypeIds: (formValue.appointmentTypeIds ?? []).map(({ id }: { id: string }) => id),
+      locationIds: (formValue.locationIds ?? []).map(({ id }: { id: string }) => id),
     };
 
     if (this.selected) {
@@ -76,7 +82,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   update(record: DoctorWithNavigationPropertiesDto) {
-    this.proxyService.getWithNavigationProperties(record.doctor.id).subscribe((data) => {
+    this.proxyService.getWithNavigationProperties(record.doctor!.id!).subscribe((data) => {
       this.selected = data;
       this.showForm();
     });
@@ -87,7 +93,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   submitForm() {
-    if (this.form.invalid) return;
+    if (this.form!.invalid) return;
 
     this.isBusy = true;
 

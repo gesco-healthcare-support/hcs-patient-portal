@@ -17,4 +17,5 @@ public static class DefenseAttorneyConsts
     public const int StreetMaxLength = 255;
     public const int CityMaxLength = 50;
     public const int ZipCodeMaxLength = 10;
+    public const int EmailMaxLength = 100;
 }

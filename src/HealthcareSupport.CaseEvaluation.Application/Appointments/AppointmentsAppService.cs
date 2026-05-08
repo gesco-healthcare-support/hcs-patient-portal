@@ -1,7 +1,9 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -52,12 +54,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     protected DefenseAttorneyManager _defenseAttorneyManager;
     protected AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
-    protected IRepository<AppointmentSendBackInfo, Guid> _sendBackInfoRepository;
     protected IRepository<AppointmentInjuryDetail, Guid> _appointmentInjuryDetailRepository;
     protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
     protected ILocalEventBus _localEventBus;
+    // Phase 11b (2026-05-04) -- lead-time + per-type max-time gates.
+    protected BookingPolicyValidator _bookingPolicyValidator;
+    // Phase 13 (2026-05-04) -- accessor-row lookup for read/edit access policy.
+    protected IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
+    // B1 (2026-05-05) -- per-appointment custom-field answer rows.
+    protected IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentSendBackInfo, Guid> sendBackInfoRepository, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -75,10 +82,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
-        _sendBackInfoRepository = sendBackInfoRepository;
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
         _localEventBus = localEventBus;
+        _bookingPolicyValidator = bookingPolicyValidator;
+        _appointmentAccessorRepository = appointmentAccessorRepository;
+        _customFieldValueRepository = customFieldValueRepository;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -220,13 +229,99 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>((await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
+        // Phase 13 (2026-05-04) -- creator-or-accessor gate. Internal
+        // users (admin / Clinic Staff / etc.) bypass; external users
+        // must be the creator OR have an AppointmentAccessor row.
+        await EnsureCanReadAsync(id);
+        var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
+            (await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
+        // Phase 13b (2026-05-04) -- mask InternalUserComments for external
+        // users so the field is not exposed via the API JSON payload.
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
     public virtual async Task<AppointmentDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
+        await EnsureCanReadAsync(id);
+        var dto = ObjectMapper.Map<Appointment, AppointmentDto>(await _appointmentRepository.GetAsync(id));
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+    }
+
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- look up by confirmation number. Same
+    /// access policy as GetWithNavigationPropertiesAsync. Returns null
+    /// when no row matches; throws BusinessException(AccessDenied)
+    /// when a row exists but the caller cannot read it (so callers
+    /// cannot probe the confirmation-number space to discover that
+    /// other tenants' rows exist).
+    /// </summary>
+    [Authorize]
+    public virtual async Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber)
+    {
+        var appointment = await _appointmentRepository.FindByConfirmationNumberAsync(requestConfirmationNumber);
+        if (appointment == null)
+        {
+            return null;
+        }
+        await EnsureCanReadAppointmentAsync(appointment);
+        var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
+            (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
+        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+    }
+
+    /// <summary>
+    /// Phase 13b (2026-05-04) -- thin wrapper around
+    /// <see cref="BookingFlowRoles.IsInternalUserCaller"/> with the
+    /// inverse semantics. Returns true when the caller is NOT in any
+    /// internal role; that's the trigger for the
+    /// <see cref="ExternalUserDtoFilter"/> mask.
+    /// </summary>
+    private bool IsExternalCaller()
+    {
+        var roles = CurrentUser.Roles ?? Array.Empty<string>();
+        return !BookingFlowRoles.IsInternalUserCaller(roles);
+    }
+
+    /// <summary>
+    /// Phase 13 (2026-05-04) -- composes <see cref="AppointmentAccessRules.CanRead"/>
+    /// with live state: looks up the appointment + its accessor rows,
+    /// computes whether the current user holds an internal role, and
+    /// throws <c>BusinessException(AppointmentAccessDenied)</c> on
+    /// failure. Internal users always pass.
+    /// </summary>
+    private async Task EnsureCanReadAsync(Guid appointmentId)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await EnsureCanReadAppointmentAsync(appointment);
+    }
+
+    private async Task EnsureCanReadAppointmentAsync(Appointment appointment)
+    {
+        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
+        var isInternal = BookingFlowRoles.IsInternalUserCaller(callerRoles);
+        if (isInternal)
+        {
+            return;
+        }
+
+        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
+        var entries = await AsyncExecuter.ToListAsync(
+            accessorQuery
+                .Where(a => a.AppointmentId == appointment.Id)
+                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
+
+        var canRead = AppointmentAccessRules.CanRead(
+            callerUserId: CurrentUser.Id,
+            callerIsInternalUser: false,
+            appointmentCreatorId: appointment.CreatorId,
+            accessorEntries: entries);
+
+        if (!canRead)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied)
+                .WithData("appointmentId", appointment.Id);
+        }
     }
 
     // T3 minimum-bar lookup scope: Patient is not IMultiTenant per CLAUDE.md, so
@@ -389,14 +484,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
     {
-        // Distinct: a single AppointmentType is offered by many doctors via the
-        // Doctor->AppointmentTypes M2M; without Distinct the dropdown shows one row per edge.
-        var queryable = (await _doctorRepository.GetQueryableAsync())
-            .SelectMany(x => x.AppointmentTypes)
-            .Select(x => x.AppointmentType)
-            .Distinct();
-
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
+        // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
+        var query = (await _appointmentTypeRepository.GetQueryableAsync())
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -408,13 +499,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetLocationLookupAsync(LookupRequestDto input)
     {
-        // Distinct: same reason as GetAppointmentTypeLookupAsync above -- the Doctor->Locations
-        // M2M can have multiple doctors at the same Location.
-        var queryable = (await _doctorRepository.GetQueryableAsync())
-            .SelectMany(x => x.Locations)
-            .Select(x => x.Location)
-            .Distinct();
-        var query = queryable.WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
+        // exist, so query Location directly. IMultiTenant filter scopes by tenant.
+        var query = (await _locationRepository.GetQueryableAsync())
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -462,7 +550,81 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     [Authorize]
-    public virtual async Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual Task<AppointmentDto> CreateAsync(AppointmentCreateDto input)
+    {
+        return CreateAppointmentInternalAsync(input, lifecycleFlow: null, sourceConfirmationNumber: null);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Re-Submit endpoint.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> ReSubmitAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        // Validate the source via the Manager so the BusinessException
+        // gate runs against the live entity (in case the source's status
+        // mutated between the UI's lookup and this call).
+        var source = await _appointmentManager.LoadResubmitSourceAsync(sourceConfirmationNumber);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.ReSubmit,
+            sourceConfirmationNumber: source.RequestConfirmationNumber);
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- Reval endpoint.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual async Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input)
+    {
+        // OLD AppointmentDomain.cs:163-174 reads the IT Admin role at gate
+        // time, NOT at request time. Mirror that: pass CurrentUser's role
+        // membership through the validator so admin / non-admin callers
+        // see distinct error messages.
+        var callerIsItAdmin = CurrentUser.IsInRole("IT Admin");
+        var source = await _appointmentManager.LoadRevalSourceAsync(sourceConfirmationNumber, callerIsItAdmin);
+        return await CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.Reval,
+            sourceConfirmationNumber: source.RequestConfirmationNumber);
+    }
+
+    /// <summary>
+    /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- returns
+    /// the count of Pending appointments in the current tenant. Powers
+    /// the Angular sidebar count badge on the Appointments menu entry.
+    /// Authorization: <c>Appointments.Edit</c> matches the Approve /
+    /// Reject permission scope so external roles cannot read the
+    /// triage queue size. Repository call uses the existing typed
+    /// <c>appointmentStatus</c> filter; ABP's IMultiTenant filter
+    /// scopes the count to the caller's tenant. Returns <c>int</c>
+    /// (not <c>long</c>) because the badge UI does not need >2B
+    /// precision and the int contract is friendlier to the
+    /// auto-generated proxy on the Angular side.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<int> GetPendingCountAsync()
+    {
+        var count = await _appointmentRepository.GetCountAsync(
+            appointmentStatus: AppointmentStatusType.Pending);
+        return count > int.MaxValue ? int.MaxValue : (int)count;
+    }
+
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- shared booking pipeline used by
+    /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
+    /// <see cref="CreateRevalAsync"/>. All three flows perform identical
+    /// existence + slot + lead-time + max-time validation; they differ
+    /// only in confirmation-number resolution (per OLD's branching at
+    /// <c>AppointmentDomain.cs:262-271</c>).
+    /// </summary>
+    private async Task<AppointmentDto> CreateAppointmentInternalAsync(
+        AppointmentCreateDto input,
+        AppointmentLifecycleFlow? lifecycleFlow,
+        string? sourceConfirmationNumber)
     {
         ValidateCreateGuids(input);
 
@@ -498,7 +660,33 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
 
-        var requestConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+        // Phase 11b (2026-05-04) -- lead-time + per-AppointmentType max-time
+        // gates per OLD AppointmentDomain.cs Add path. Throws BusinessException
+        // with localized error code on failure.
+        await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
+
+        // Phase 11h (2026-05-04) -- internal-user fast-path. OLD
+        // AppointmentDomain.cs:221-240 sets status=Approved + slot=Booked
+        // directly when UserType is InternalUser (admin / Clinic Staff /
+        // Staff Supervisor / IT Admin / Doctor). External users (Patient,
+        // AA, DA, CE, Adjuster) land at Pending + Reserved as the office
+        // approves the request. The slot transition cascades through
+        // SlotCascadeHandler from the AppointmentStatusChangedEto we
+        // publish below: Pending -> Reserved, Approved -> Booked.
+        var callerRoles = CurrentUser.Roles ?? System.Array.Empty<string>();
+        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(callerRoles);
+        var initialStatus = isInternalCaller
+            ? AppointmentStatusType.Approved
+            : AppointmentStatusType.Pending;
+
+        // Phase 11h (2026-05-04) -- Adjuster auto-fill of ClaimExaminerEmail.
+        // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
+        // own email when the booker is an Adjuster, regardless of what the
+        // form posted. Strict parity preserves that override.
+        var resolvedClaimExaminerEmail = BookingFlowRoles.ResolveClaimExaminerEmail(
+            callerRoles,
+            currentUserEmail: CurrentUser.Email,
+            dtoClaimExaminerEmail: input.ClaimExaminerEmail);
 
         // W1-1: per T11 lifecycle, every booker submission lands at Pending. The
         // client-supplied AppointmentStatus on AppointmentCreateDto used to be
@@ -506,7 +694,51 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Pending so external bookers cannot self-approve. The state machine
         // still allows the office to transition forward via the Approve / Reject
         // / SendBack endpoints exposed on AppointmentManager.
-        var appointment = await _appointmentManager.CreateAsync(input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, requestConfirmationNumber, AppointmentStatusType.Pending, input.PanelNumber, input.DueDate);
+        //
+        // Phase 11f (2026-05-04) -- wrap the conf# generation + Manager.CreateAsync
+        // call in ConfirmationNumberRetryPolicy. The unique index on
+        // (TenantId, RequestConfirmationNumber) means two concurrent bookers can
+        // collide; the loser's SaveChangesAsync throws and we retry up to 5 times,
+        // re-generating MAX(...) + 1 each iteration. ABP wraps this method in a
+        // unit-of-work; any retry happens within the same UoW, and the failed
+        // SaveChanges leaves the EF change-tracker in a state ABP rolls back at
+        // the outer transaction boundary. Re-throwing surfaces the policy's
+        // budget-exhausted message (rare in practice; race window is microseconds).
+        //
+        // Phase 11g (2026-05-04) -- when called from Re-Submit, the source's
+        // confirmation number is reused (OLD line 263-266). Reval generates
+        // a fresh number (OLD line 268). The standard CreateAsync flow has
+        // no source number; the helper still demands a non-null
+        // newlyGeneratedConfirmationNumber so we always pass both and let
+        // ResolveConfirmationNumber pick the right one.
+        var appointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
+        {
+            var freshConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            string requestConfirmationNumber;
+            if (lifecycleFlow.HasValue)
+            {
+                requestConfirmationNumber = AppointmentLifecycleValidators.ResolveConfirmationNumber(
+                    lifecycleFlow.Value,
+                    sourceConfirmationNumber: sourceConfirmationNumber!,
+                    newlyGeneratedConfirmationNumber: freshConfirmationNumber);
+            }
+            else
+            {
+                requestConfirmationNumber = freshConfirmationNumber;
+            }
+
+            return await _appointmentManager.CreateAsync(
+                input.PatientId,
+                input.IdentityUserId,
+                input.AppointmentTypeId,
+                input.LocationId,
+                input.DoctorAvailabilityId,
+                input.AppointmentDate,
+                requestConfirmationNumber,
+                initialStatus,
+                input.PanelNumber,
+                input.DueDate);
+        });
 
         // S-5.1: snapshot party emails at booking time for async fan-out (step 6.1).
         // Emails are saved on the appointment regardless of whether a join row exists
@@ -514,7 +746,23 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.PatientEmail = input.PatientEmail;
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
-        appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+        appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+
+        // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
+        // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
+        // IsPatientAlreadyExist tracks whether the booking resolved to an
+        // existing Patient (true) or created a new one (false). The Angular
+        // booking form populates input.IsPatientAlreadyExist from the
+        // PatientWithNavigationPropertiesDto.IsExisting flag returned by the
+        // prior GetOrCreatePatientForAppointmentBookingAsync call. Set BEFORE
+        // the AppointmentStatusChangedEto publish so any handler observing the
+        // initial-create event sees the final state.
+        appointment.IsPatientAlreadyExist = input.IsPatientAlreadyExist;
+
+        // B1 (2026-05-05) -- persist per-AppointmentType custom-field answers
+        // alongside the appointment row. Mirrors OLD's combined write in
+        // AppointmentDomain.cs (custom-field rows inserted with the same UoW).
+        await PersistCustomFieldValuesAsync(appointment.Id, appointment.TenantId, input.CustomFieldValues);
 
         // W2-3: per T11 slot-sync, submission moves the slot Available -> Reserved
         // (NOT Booked). Earlier (W1-1) this was an inline slot mutation; W2-3
@@ -679,6 +927,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
         await _appointmentRepository.UpdateAsync(appointment);
 
+        // B1 (2026-05-05) -- replace-all custom-field answers. OLD's edit path
+        // overwrites the prior CustomFieldsValues for this appointment.
+        await ReplaceCustomFieldValuesAsync(appointment.Id, appointment.TenantId, input.CustomFieldValues);
+
         if (oldSlotId.HasValue && oldSlotId.Value != appointment.DoctorAvailabilityId)
         {
             await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
@@ -773,7 +1025,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertApplicantAttorneyForAppointmentAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
+        // 2026-05-07 (Bonus issue): drop the IdentityUserId == Guid.Empty
+        // early-return so a brand-new attorney typed by the booker (no
+        // IdentityUser yet) is still persisted. The master ApplicantAttorney
+        // and AppointmentApplicantAttorney rows accept nullable
+        // IdentityUserId; the registration-time linkback contributor patches
+        // them when the attorney later registers with this email + role.
+        // We skip entirely only when the booker submitted no recognisable
+        // identifier at all (no IdentityUser AND no email).
+        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
+        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
         {
             return;
         }
@@ -784,6 +1045,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["Appointment not found."]);
         }
 
+        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
+
         ApplicantAttorney applicantAttorney;
         if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != Guid.Empty)
         {
@@ -791,7 +1054,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             applicantAttorney = await _applicantAttorneyManager.UpdateAsync(
                 applicantAttorney.Id,
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 applicantAttorney.FirmAddress,
                 input.PhoneNumber,
@@ -800,13 +1063,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                input.ConcurrencyStamp);
+                input.ConcurrencyStamp,
+                normalisedEmail);
         }
         else
         {
             applicantAttorney = await _applicantAttorneyManager.CreateAsync(
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 null,
                 input.PhoneNumber,
@@ -814,7 +1078,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.FaxNumber,
                 input.Street,
                 input.City,
-                input.ZipCode);
+                input.ZipCode,
+                normalisedEmail);
         }
 
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
@@ -826,13 +1091,37 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 link.AppointmentApplicantAttorney.Id,
                 appointmentId,
                 applicantAttorney.Id,
-                input.IdentityUserId,
+                resolvedUserId,
                 link.AppointmentApplicantAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, input.IdentityUserId);
+            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
         }
+    }
+
+    /// <summary>
+    /// Bonus issue (2026-05-07) -- if the booker did not pre-resolve an
+    /// IdentityUser via the email-search path, look up by typed email and
+    /// reuse that user's id. Returns null when the email is unknown so the
+    /// caller can persist with a null IdentityUserId; the linkback hook on
+    /// registration will set it later.
+    /// </summary>
+    private async Task<Guid?> ResolveIdentityUserIdForBookingAsync(Guid identityUserId, string? email)
+    {
+        if (identityUserId != Guid.Empty)
+        {
+            return identityUserId;
+        }
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+        var trimmed = email.Trim();
+        var userQuery = await _identityUserRepository.GetQueryableAsync();
+        var match = await AsyncExecuter.FirstOrDefaultAsync(
+            userQuery.Where(u => u.Email != null && u.Email.ToLower() == trimmed.ToLower()));
+        return match?.Id;
     }
 
     [Authorize]
@@ -912,7 +1201,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     [Authorize]
     public virtual async Task UpsertDefenseAttorneyForAppointmentAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
+        // 2026-05-07 (Bonus issue): mirror the AA upsert above. Drop the
+        // IdentityUserId == Guid.Empty early-return; resolve via email when
+        // possible; persist with null IdentityUserId otherwise. The
+        // registration-time linkback contributor sets it when the DA later
+        // registers.
+        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
+        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
         {
             return;
         }
@@ -923,6 +1218,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["Appointment not found."]);
         }
 
+        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
+
         DefenseAttorney defenseAttorney;
         if (input.DefenseAttorneyId.HasValue && input.DefenseAttorneyId.Value != Guid.Empty)
         {
@@ -930,7 +1227,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
                 defenseAttorney.Id,
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 defenseAttorney.FirmAddress,
                 input.PhoneNumber,
@@ -939,13 +1236,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                input.ConcurrencyStamp);
+                input.ConcurrencyStamp,
+                normalisedEmail);
         }
         else
         {
             defenseAttorney = await _defenseAttorneyManager.CreateAsync(
                 input.StateId,
-                input.IdentityUserId,
+                resolvedUserId,
                 input.FirmName,
                 null,
                 input.PhoneNumber,
@@ -953,12 +1251,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.FaxNumber,
                 input.Street,
                 input.City,
-                input.ZipCode);
+                input.ZipCode,
+                normalisedEmail);
         }
 
-        // W2-7 mirror of UpsertApplicantAttorneyForAppointmentAsync. The applicant-side
-        // upsert reads up to 10 links and updates only the first; preserve that quirk
-        // here for parity (the design fix is a separate refactor per W2-7 deep-dive).
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
 
@@ -968,54 +1264,90 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 link.AppointmentDefenseAttorney.Id,
                 appointmentId,
                 defenseAttorney.Id,
-                input.IdentityUserId,
+                resolvedUserId,
                 link.AppointmentDefenseAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, input.IdentityUserId);
+            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, resolvedUserId);
         }
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    // B2 (Phase 9, 2026-05-04): legacy thin entry points -- gated on the
+    // dedicated approve/reject permissions, not the catch-all Edit. Mirrors
+    // OLD's intent: a clinic-staff role granted only "approve appointments"
+    // (without full edit rights) must still be able to call this endpoint.
+    // The richer AppointmentApprovalAppService.ApproveAppointmentAsync
+    // already uses these constants -- this aligns the legacy surface.
+    [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
     public virtual async Task<AppointmentDto> ApproveAsync(Guid id)
     {
         var appointment = await _appointmentManager.ApproveAsync(id, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    [Authorize(CaseEvaluationPermissions.Appointments.Reject)]
     public virtual async Task<AppointmentDto> RejectAsync(Guid id, RejectAppointmentInput input)
     {
         var appointment = await _appointmentManager.RejectAsync(id, input?.Reason, CurrentUser.Id);
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
-    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
-    public virtual async Task<AppointmentDto> SendBackAsync(Guid id, SendBackAppointmentInput input)
+    /// <summary>
+    /// B1 (2026-05-05) -- inserts <see cref="CustomFieldValue"/> rows for
+    /// every non-empty entry in <paramref name="values"/>. Empty / whitespace
+    /// values are skipped to match OLD's "no answer" semantics. The caller
+    /// supplies the parent appointment's <see cref="Appointment.Id"/> +
+    /// <see cref="Appointment.TenantId"/> so the value rows inherit the same
+    /// tenant scope as their parent.
+    /// </summary>
+    private async Task PersistCustomFieldValuesAsync(
+        Guid appointmentId,
+        Guid? tenantId,
+        IReadOnlyList<CustomFieldValueInputDto>? values)
     {
-        var fields = input?.FlaggedFields ?? new List<string>();
-        var appointment = await _appointmentManager.SendBackAsync(id, fields, input?.Note, CurrentUser.Id);
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
+        if (values == null || values.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var v in values)
+        {
+            if (v == null || v.CustomFieldId == Guid.Empty || string.IsNullOrWhiteSpace(v.Value))
+            {
+                continue;
+            }
+
+            var entity = new CustomFieldValue(
+                id: GuidGenerator.Create(),
+                tenantId: tenantId,
+                customFieldId: v.CustomFieldId,
+                appointmentId: appointmentId,
+                value: v.Value);
+
+            await _customFieldValueRepository.InsertAsync(entity, autoSave: false);
+        }
     }
 
-    [Authorize]
-    public virtual async Task<AppointmentDto> SaveAndResubmitAsync(Guid id)
+    /// <summary>
+    /// B1 (2026-05-05) -- replace-all variant for the update path. Deletes
+    /// every <see cref="CustomFieldValue"/> row currently attached to the
+    /// appointment, then inserts the supplied set. Mirrors OLD's edit-mode
+    /// write where the booker-form re-submission overwrites the prior
+    /// CustomFieldsValues rather than merging by CustomFieldId.
+    /// </summary>
+    private async Task ReplaceCustomFieldValuesAsync(
+        Guid appointmentId,
+        Guid? tenantId,
+        IReadOnlyList<CustomFieldValueInputDto>? values)
     {
-        var appointment = await _appointmentManager.SaveAndResubmitAsync(id, CurrentUser.Id);
-        return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
-    }
+        var existing = await _customFieldValueRepository.GetListAsync(
+            x => x.AppointmentId == appointmentId);
+        foreach (var row in existing)
+        {
+            await _customFieldValueRepository.DeleteAsync(row, autoSave: false);
+        }
 
-    [Authorize]
-    public virtual async Task<AppointmentSendBackInfoDto?> GetLatestUnresolvedSendBackInfoAsync(Guid id)
-    {
-        var queryable = await _sendBackInfoRepository.GetQueryableAsync();
-        var latest = queryable
-            .Where(x => x.AppointmentId == id && !x.IsResolved)
-            .OrderByDescending(x => x.SentBackAt)
-            .FirstOrDefault();
-        return latest == null
-            ? null
-            : ObjectMapper.Map<AppointmentSendBackInfo, AppointmentSendBackInfoDto>(latest);
+        await PersistCustomFieldValuesAsync(appointmentId, tenantId, values);
     }
 }

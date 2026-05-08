@@ -11,8 +11,14 @@ public enum NotificationKind
     Submitted = 1,
     Approved = 2,
     Rejected = 3,
-    AwaitingMoreInfo = 4,
     RequestSchedulingReminder = 5,
     CancellationRescheduleReminder = 6,
     AppointmentDayReminder = 7,
+
+    // Phase 14b (2026-05-04) -- document-flow recipient routing.
+    DocumentUploaded = 8,
+    DocumentAccepted = 9,
+    DocumentRejected = 10,
+    JdfAutoCancelled = 11,
+    PackageDocumentReminder = 12,
 }
