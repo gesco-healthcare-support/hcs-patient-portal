@@ -51,4 +51,29 @@ public interface IExternalAccountAppService : IApplicationService
     ///     template.
     /// </summary>
     Task ResetPasswordAsync(ResetPasswordInput input);
+
+    /// <summary>
+    /// Phase 1.D (Category 1, 2026-05-08): re-fires the email-verification
+    /// link to the inbox of an unverified user. Triggered by:
+    ///   - The post-register confirmation page's "Send verification email" button
+    ///   - The blocked-login error's "Click here to resend" link
+    ///
+    /// <para>Behavior:</para>
+    /// <list type="bullet">
+    ///   <item>Resolves the user by email. If not found OR already
+    ///         confirmed OR soft-deleted, returns silently (success
+    ///         response) to avoid account-enumeration leak.</item>
+    ///   <item>Generates a fresh email-confirmation token via
+    ///         <c>IdentityUserManager.GenerateEmailConfirmationTokenAsync</c>.</item>
+    ///   <item>Builds the SPA-hosted verify URL pointing at
+    ///         <c>{portalBaseUrl}/account/email-confirmation?userId=&amp;confirmationToken=</c>.</item>
+    ///   <item>Dispatches the seeded <c>UserRegistered</c> notification
+    ///         template (same template as the initial registration
+    ///         verify email).</item>
+    /// </list>
+    ///
+    /// <para>Anonymous endpoint. Rate-limited identically to
+    /// <see cref="SendPasswordResetCodeAsync"/> (5 / hour / email key).</para>
+    /// </summary>
+    Task ResendEmailVerificationAsync(ResendEmailVerificationInput input);
 }
