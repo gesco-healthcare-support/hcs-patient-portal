@@ -12,6 +12,7 @@ using Volo.Abp.BlobStoring;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 
@@ -88,6 +89,12 @@ public class GenerateAppointmentPacketJob :
         _logger = logger;
     }
 
+    // [UnitOfWork] mirrors AppointmentDayReminderJob.cs:56. Without it, each
+    // repo call auto-starts its own UoW that disposes the DbContext on return;
+    // FirstOrDefaultAsync(predicate) materializes against a disposed context
+    // and throws ObjectDisposedException. FindAsync(id) survives via the
+    // identity-map fast path which is why the symptom is selective.
+    [UnitOfWork]
     public override async Task ExecuteAsync(GenerateAppointmentPacketArgs args)
     {
         using (_currentTenant.Change(args.TenantId))

@@ -209,8 +209,13 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     private async Task PopulateEmployerAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
-        var queryable = await _employerDetailRepository.GetQueryableAsync();
-        var employer = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId);
+        // GetQueryableAsync returns an IQueryable bound to the current UoW's
+        // DbContext; the sync FirstOrDefault below blows up with
+        // ObjectDisposedException once the surrounding job has no [UnitOfWork]
+        // wrapper. The async repo terminator runs inside a UoW that the
+        // extension method manages itself.
+        var employer = await _employerDetailRepository.FirstOrDefaultAsync(
+            x => x.AppointmentId == appointmentId, ct);
         if (employer == null)
         {
             return;
@@ -227,8 +232,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     private async Task PopulatePatientAttorneyAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
-        var linkQ = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
-        var link = linkQ.FirstOrDefault(x => x.AppointmentId == appointmentId);
+        var link = await _appointmentApplicantAttorneyRepository.FirstOrDefaultAsync(
+            x => x.AppointmentId == appointmentId, ct);
         if (link == null)
         {
             return;
@@ -251,8 +256,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     private async Task PopulateDefenseAttorneyAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
-        var linkQ = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
-        var link = linkQ.FirstOrDefault(x => x.AppointmentId == appointmentId);
+        var link = await _appointmentDefenseAttorneyRepository.FirstOrDefaultAsync(
+            x => x.AppointmentId == appointmentId, ct);
         if (link == null)
         {
             return;
@@ -275,15 +280,12 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     private async Task PopulateInjuryDetailsAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
-        var injuryQ = await _injuryRepository.GetQueryableAsync();
-        var injuries = injuryQ.Where(x => x.AppointmentId == appointmentId).ToList();
+        var injuries = await _injuryRepository.GetListAsync(
+            x => x.AppointmentId == appointmentId, cancellationToken: ct);
         if (injuries.Count == 0)
         {
             return;
         }
-
-        var claimExaminerQ = await _claimExaminerRepository.GetQueryableAsync();
-        var primaryInsuranceQ = await _primaryInsuranceRepository.GetQueryableAsync();
 
         // Per-row collectors. We accumulate raw values per injury, then
         // join with the OLD-pattern trailing-space behavior.
@@ -327,9 +329,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
             wcabOfficeState.Add(await ResolveStateNameOrNullAsync(wcabOffice?.StateId, ct));
 
             // Primary insurance: first active per injury.
-            var primaryInsurance = primaryInsuranceQ
-                .Where(x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive)
-                .FirstOrDefault();
+            var primaryInsurance = await _primaryInsuranceRepository.FirstOrDefaultAsync(
+                x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive, ct);
             primaryInsuranceName.Add(primaryInsurance?.Name);
             primaryInsuranceStreet.Add(primaryInsurance?.Street);
             primaryInsuranceCity.Add(primaryInsurance?.City);
@@ -338,9 +339,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
             primaryInsuranceState.Add(await ResolveStateNameOrNullAsync(primaryInsurance?.StateId, ct));
 
             // Claim examiner: first active per injury.
-            var claimExaminer = claimExaminerQ
-                .Where(x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive)
-                .FirstOrDefault();
+            var claimExaminer = await _claimExaminerRepository.FirstOrDefaultAsync(
+                x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive, ct);
             claimExaminerName.Add(claimExaminer?.Name);
             claimExaminerStreet.Add(claimExaminer?.Street);
             claimExaminerCity.Add(claimExaminer?.City);
