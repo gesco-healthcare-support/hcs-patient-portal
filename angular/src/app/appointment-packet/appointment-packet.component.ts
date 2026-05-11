@@ -20,6 +20,8 @@ import { AppointmentPacketDto } from '../proxy/appointment-documents/models';
 import { PacketGenerationStatus } from '../proxy/appointment-documents/packet-generation-status.enum';
 import { PacketKind } from '../proxy/appointment-documents/packet-kind.enum';
 import { AppointmentDocumentUrls } from '../appointment-documents/appointment-document-urls';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 /**
  * Phase 1D.9 packet UI. Displays the per-kind packet status for an
@@ -81,6 +83,13 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   // by routing through the AppointmentDocumentUrls helper that lives
   // outside proxy/. See docs/research/proxy-regen-doc-flow-fix.md (Q2).
   private urls = inject(AppointmentDocumentUrls);
+  // 2026-05-11 (Bug E fix): HttpClient (with ABP's auth interceptor)
+  // for blob downloads. window.open opens a new tab with NO Bearer
+  // token attached, so the API returns 500 (AbpAuthorizationException
+  // mapped to 500 instead of 401). HttpClient.get with
+  // responseType:'blob' goes through the interceptor + attaches the
+  // Bearer transparently.
+  private http = inject(HttpClient);
 
   packets: AppointmentPacketDto[] = [];
   isLoading = false;
@@ -136,6 +145,17 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   }
 
   download(packet: AppointmentPacketDto): void {
+    // 2026-05-11 (Bug E fix): replace the old `window.open(url, '_blank')`
+    // with an authenticated HttpClient.get<Blob>. The new tab opened by
+    // window.open does not inherit the SPA's Bearer token, so the API
+    // rejected the request with AbpAuthorizationException (mapped to 500).
+    // HttpClient runs through ABP's auth interceptor and attaches the
+    // Bearer transparently, then we materialise the response as a blob
+    // and trigger a synthetic anchor click for the browser file download.
+    void this.downloadInternal(packet);
+  }
+
+  private async downloadInternal(packet: AppointmentPacketDto): Promise<void> {
     if (
       !this.appointmentId ||
       packet.status !== PacketGenerationStatus.Generated ||
@@ -144,7 +164,45 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
       return;
     }
     const url = this.urls.buildPacket(this.appointmentId, packet.kind);
-    window.open(url, '_blank');
+    try {
+      const response = await firstValueFrom(
+        this.http.get(url, {
+          observe: 'response',
+          responseType: 'blob',
+        }),
+      );
+      const blob = response.body;
+      if (!blob) {
+        this.toaster.error('Empty packet response from server.');
+        return;
+      }
+      // Honor Content-Disposition filename when the server provides it;
+      // fall back to a synthesised name derived from the kind + confirmation.
+      const disp = response.headers.get('content-disposition') || '';
+      const match = /filename\*?=(?:UTF-8'')?\"?([^\";]+)/i.exec(disp);
+      const fileName = match
+        ? decodeURIComponent(match[1])
+        : `${PacketKind[packet.kind] ?? 'Packet'}.pdf`;
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      } finally {
+        // Small delay before revoke to let the browser kick off the download.
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      }
+    } catch (err) {
+      // 401/403 land here when the SPA token has expired; the API now
+      // returns 401 instead of 500 after Bug E backend fix.
+      const status =
+        (err as { status?: number; error?: { status?: number } } | null)?.status ?? '?';
+      this.toaster.error(`Packet download failed (status ${status}).`);
+    }
   }
 
   regenerate(): void {
