@@ -53,12 +53,22 @@ public class GenerateAppointmentPacketJob :
     ITransientDependency
 {
     /// <summary>
-    /// AppointmentType.Name values that trigger the AttorneyClaimExaminer
-    /// packet (case-insensitive match). Matches OLD's per-type branches at
-    /// <c>AppointmentDocumentDomain.cs:643, :689, :740, :801</c>.
+    /// True for AppointmentType names that trigger the AttorneyClaimExaminer
+    /// packet. Mirrors OLD's per-type branches at
+    /// <c>AppointmentDocumentDomain.cs:643, :689, :740, :801</c> via case-
+    /// insensitive substring match on "PQME" or "AME". This matches both the
+    /// short codes ("PQME", "AME", "PQME-REVAL", "AME-REVAL") and the
+    /// DbMigrator-seeded long names ("Panel QME",
+    /// "Agreed Medical Examination (AME)"), keeping the live AttyCE branch
+    /// correct under both naming conventions. Aligns with
+    /// <c>AppointmentBookingValidators.ResolveMaxTimeDaysForType</c>
+    /// (AppointmentBookingValidators.cs:62-88).
     /// </summary>
-    private static readonly HashSet<string> AttorneyClaimExaminerTypes =
-        new(StringComparer.OrdinalIgnoreCase) { "PQME", "PQMEREEVAL", "AME", "AMEREEVAL" };
+    private static bool IsAttorneyClaimExaminerType(string? typeName)
+    {
+        var name = (typeName ?? string.Empty).ToUpperInvariant();
+        return name.Contains("PQME") || name.Contains("AME");
+    }
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
@@ -112,7 +122,7 @@ public class GenerateAppointmentPacketJob :
         var context = await _tokenResolver.ResolveAsync(args.AppointmentId);
 
         var kindsToGenerate = new List<PacketKind> { PacketKind.Patient, PacketKind.Doctor };
-        if (appointmentType != null && AttorneyClaimExaminerTypes.Contains(appointmentType.Name))
+        if (appointmentType != null && IsAttorneyClaimExaminerType(appointmentType.Name))
         {
             kindsToGenerate.Add(PacketKind.AttorneyClaimExaminer);
         }
