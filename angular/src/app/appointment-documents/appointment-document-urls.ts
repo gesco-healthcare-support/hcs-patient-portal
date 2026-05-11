@@ -1,5 +1,6 @@
 import { EnvironmentService } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
+import { PacketKind } from '../proxy/appointment-documents/packet-kind.enum';
 
 /**
  * URL helpers for appointment-document and appointment-packet downloads.
@@ -35,12 +36,15 @@ export class AppointmentDocumentUrls {
   }
 
   /**
-   * Returns the absolute URL for downloading the merged packet (all
-   * accepted package documents merged into a single PDF) for an
-   * appointment. Mirrors <c>AppointmentPacketController.DownloadAsync</c>.
+   * Returns the absolute URL for downloading one rendered packet (DOCX for
+   * Phase 1, PDF once Phase 2's DOCX->PDF conversion lands). Mirrors the
+   * per-kind route added in Phase 1D.9
+   * (<c>AppointmentPacketsAppService.DownloadByKindAsync</c>): one of the
+   * three <see cref="PacketKind"/> values produced by the multi-kind
+   * orchestrator at <c>GenerateAppointmentPacketJob.GenerateInsideTenantAsync</c>.
    */
-  buildPacket(appointmentId: string): string {
+  buildPacket(appointmentId: string, kind: PacketKind): string {
     const base = this.environmentService.getApiUrl('Default') ?? '';
-    return `${base}/api/app/appointments/${appointmentId}/packet/download`;
+    return `${base}/api/app/appointments/${appointmentId}/packet/download/${kind}`;
   }
 }
