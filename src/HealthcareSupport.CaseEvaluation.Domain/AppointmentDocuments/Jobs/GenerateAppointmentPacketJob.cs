@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -76,6 +77,7 @@ public class GenerateAppointmentPacketJob :
     private readonly IBlobContainer<AppointmentPacketsContainer> _packetsContainer;
     private readonly IPacketTokenResolver _tokenResolver;
     private readonly IDocxTemplateRenderer _renderer;
+    private readonly IDocxToPdfConverter _docxToPdfConverter;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<GenerateAppointmentPacketJob> _logger;
 
@@ -86,6 +88,7 @@ public class GenerateAppointmentPacketJob :
         IBlobContainer<AppointmentPacketsContainer> packetsContainer,
         IPacketTokenResolver tokenResolver,
         IDocxTemplateRenderer renderer,
+        IDocxToPdfConverter docxToPdfConverter,
         ICurrentTenant currentTenant,
         ILogger<GenerateAppointmentPacketJob> logger)
     {
@@ -95,6 +98,7 @@ public class GenerateAppointmentPacketJob :
         _packetsContainer = packetsContainer;
         _tokenResolver = tokenResolver;
         _renderer = renderer;
+        _docxToPdfConverter = docxToPdfConverter;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -136,23 +140,34 @@ public class GenerateAppointmentPacketJob :
     private async Task GenerateKindAsync(Guid appointmentId, PacketKind kind, PacketTokenContext context)
     {
         var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/packet/{kind.ToString().ToLowerInvariant()}/{Guid.NewGuid():N}.docx";
+        // Phase 2 (2026-05-11): blob extension is .pdf, not .docx --
+        // the renderer still emits DOCX but Gotenberg converts it before
+        // we persist. PacketAttachmentProvider.PdfContentType matches.
+        var blobName = $"{tenantSegment}/{appointmentId}/packet/{kind.ToString().ToLowerInvariant()}/{Guid.NewGuid():N}.pdf";
 
         var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
 
         try
         {
             var templateBytes = EmbeddedTemplateResources.LoadTemplate(kind);
-            var rendered = _renderer.Render(templateBytes, context);
+            var docxBytes = _renderer.Render(templateBytes, context);
+            // Phase 2 (2026-05-11): hand the rendered DOCX to the Gotenberg
+            // sidecar for PDF conversion. Transport / timeout failures here
+            // intentionally propagate -- they are NOT in the per-kind
+            // catch filter below, so Hangfire's retry policy will re-run
+            // the job and try again. Only permanent rendering failures
+            // (IOException, InvalidOperationException, ArgumentException
+            // from the OpenXml renderer) get marked Failed without retry.
+            var pdfBytes = await _docxToPdfConverter.ConvertAsync(docxBytes);
 
-            using var ms = new MemoryStream(rendered);
+            using var ms = new MemoryStream(pdfBytes);
             await _packetsContainer.SaveAsync(blobName, ms, overrideExisting: true);
 
             await _packetManager.MarkGeneratedAsync(packet.Id, blobName);
 
             _logger.LogInformation(
-                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({Bytes} bytes).",
-                appointmentId, kind, rendered.Length);
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({DocxBytes} bytes DOCX -> {PdfBytes} bytes PDF).",
+                appointmentId, kind, docxBytes.Length, pdfBytes.Length);
         }
         catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is ArgumentException)
         {

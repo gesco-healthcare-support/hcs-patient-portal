@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using System;
@@ -61,6 +62,23 @@ public class CaseEvaluationDomainModule : AbpModule
         // is well below QuestPDF's 1M ARR / 10-employee threshold). License
         // text: https://www.questpdf.com/license/community.html
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        // Phase 2 (2026-05-11): Gotenberg sidecar typed HttpClient for the
+        // packet pipeline's DOCX -> PDF conversion. URL comes from
+        // configuration (env var `Gotenberg__Url` in docker-compose); the
+        // fallback hostname matches the gotenberg compose service so that
+        // dev stacks work without explicit env-var setup. 60s timeout
+        // accommodates LibreOffice's worst-case rendering time. If a
+        // second external HTTP integration ever lands in Domain, that is
+        // the trigger to extract these adapters into a dedicated
+        // Infrastructure.Http project.
+        var pdfConfiguration = context.Services.GetConfiguration();
+        var gotenbergUrl = pdfConfiguration["Gotenberg:Url"] ?? "http://gotenberg:3000";
+        context.Services.AddHttpClient<IDocxToPdfConverter, GotenbergDocxToPdfConverter>(client =>
+        {
+            client.BaseAddress = new Uri(gotenbergUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
 
 
 

@@ -15,19 +15,22 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// <summary>
 /// Default implementation. Reads the (appointment, kind) row, streams
 /// the blob bytes, and builds the OLD-style filename
-/// <c>{ConfirmationNumber}_{KindName}_{ddMMyyyy_hhmmss}.docx</c>.
+/// <c>{ConfirmationNumber}_{KindName}_{ddMMyyyy_hhmmss}.pdf</c>.
 ///
 /// <para>OLD source pattern: <c>AppointmentDocumentDomain.cs:519, :612</c>
 /// (Patient + Doctor) where the rendered DOCX is saved to disk with
 /// <c>RequestConfirmationNumber + "_Patient Packet_" + ddMMyyyy_hhmmss + ".docx"</c>.
-/// We preserve the verbatim filename pattern so recipients see the
-/// same naming as OLD.</para>
+/// Phase 2 (2026-05-11) replaced the DOCX output with PDF after Gotenberg
+/// conversion; the filename pattern stays OLD-verbatim except the
+/// extension. Recipients see the same naming, just immutable PDFs
+/// instead of editable DOCX.</para>
 /// </summary>
 public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDependency
 {
-    /// <summary>DOCX MIME type per RFC 4288.</summary>
-    public const string DocxContentType =
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    /// <summary>PDF MIME type. Phase 2 (2026-05-11) replaced the DOCX
+    /// output after Gotenberg DOCX -> PDF conversion landed -- the
+    /// packet blob is now always a PDF.</summary>
+    public const string PdfContentType = "application/pdf";
 
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
@@ -68,7 +71,7 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
         var confirmation = appointment?.RequestConfirmationNumber ?? appointmentId.ToString("N");
         var fileName = BuildFileName(confirmation, kind, packet.GeneratedAt);
 
-        return new PacketAttachment(bytes, fileName, DocxContentType);
+        return new PacketAttachment(bytes, fileName, PdfContentType);
     }
 
     public virtual async Task NotifySendCompletedAsync(Guid packetId, bool success, CancellationToken cancellationToken = default)
@@ -127,6 +130,6 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
             _ => kind.ToString(),
         };
         var timestamp = generatedAt.ToString("ddMMyyyy_hhmmss", CultureInfo.InvariantCulture);
-        return $"{confirmation}_{kindName}_{timestamp}.docx";
+        return $"{confirmation}_{kindName}_{timestamp}.pdf";
     }
 }
