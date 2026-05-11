@@ -315,3 +315,11 @@ temp.md
 
 # Local execution scratch of the worktree setup plan (not for commit)
 /WORKTREE_SETUP_PLAN.md
+# Phase 2 cleanup (2026-05-11): exclude runtime artifacts from Playwright MCP,
+# .NET test runs, and ad-hoc dev scratch so they cannot pollute git status or
+# Claude's read scope. Each path produced 1k+ files / 24+ MB of churn before
+# being deleted; the gitignore entries below stop them from coming back.
+.playwright-mcp/
+test-results/
+tests/**/test-results/
+tmp/
