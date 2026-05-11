@@ -135,6 +135,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>
     /// ADR-006 (2026-05-05) -- subdomain tenant routing.
+    /// ADR-007 (2026-05-11) -- replaced stock DomainTenantResolveContributor
+    /// with HostAwareDomainTenantResolveContributor so the reserved subdomain
+    /// "admin" maps to Host context instead of 404. See ADR-007 for the
+    /// empirical evidence that the stock contributor 404s on unknown slugs
+    /// rather than falling through to host.
     ///
     /// Mirrors AuthServer's resolver config so API requests resolve tenant from
     /// the Host header (e.g. falkinstein.localhost:44327 -> Falkinstein tenant).
@@ -147,7 +152,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
-            options.AddDomainTenantResolver("{0}.localhost");
+            options.TenantResolvers.Add(
+                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
         });
     }
 
@@ -767,6 +773,37 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.CronExpression,
+            options);
+
+        // Phase 7 (Category 7, 2026-05-10) -- four OLD SchedulerDomain reminder paths
+        // wired into Hangfire RecurringJobs. Cron times chosen so reminders fan out in
+        // OLD-style deterministic order on top of the existing 06:00-08:30 PT chain:
+        //   08:15 -- DueDateApproachingJob       (T-14/T-7/T-3 days before DueDate)
+        //   08:45 -- DueDateDocumentIncompleteJob (T-7 + docs outstanding)
+        //   09:00 -- PendingDailyDigestJob       (digest to clinic-staff inbox)
+        //   09:15 -- InternalStaffQueueDigestJob (per-staff queue counts)
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.CronExpression,
             options);
     }
 
