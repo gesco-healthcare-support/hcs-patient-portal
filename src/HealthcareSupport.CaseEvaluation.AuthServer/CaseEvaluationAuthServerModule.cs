@@ -75,7 +75,12 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpAccountPublicWebImpersonationModule),
     typeof(AbpAspNetCoreSerilogModule),
     typeof(AbpAspNetCoreMvcUiLeptonXThemeModule),
-    typeof(CaseEvaluationEntityFrameworkCoreModule)
+    typeof(CaseEvaluationEntityFrameworkCoreModule),
+    // Phase 1.D follow-up (2026-05-08): DependsOn the Application module so
+    // the AuthServer's DI container can resolve IExternalAccountAppService
+    // (used by Pages/Account/ResendVerification.cshtml.cs to dispatch the
+    // verification email through the same path as the API host).
+    typeof(CaseEvaluationApplicationModule)
     )]
 public class CaseEvaluationAuthServerModule : AbpModule
 {
@@ -394,7 +399,15 @@ public class CaseEvaluationAuthServerModule : AbpModule
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
-            options.AddDomainTenantResolver("{0}.localhost");
+            // ADR-007 (2026-05-11): HostAwareDomainTenantResolveContributor
+            // replaces the stock DomainTenantResolveContributor so the
+            // reserved subdomain "admin" maps to Host context instead of
+            // 404. The stock contributor sets context.TenantIdOrName from
+            // the host and ABP's MultiTenancyMiddleware throws 404 when
+            // the slug is not a registered tenant -- which broke the
+            // intended Host surface URL admin.localhost:44368.
+            options.TenantResolvers.Add(
+                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
         });
     }
 
