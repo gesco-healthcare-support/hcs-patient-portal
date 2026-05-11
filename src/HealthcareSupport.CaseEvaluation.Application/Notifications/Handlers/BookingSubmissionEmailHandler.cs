@@ -2,11 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
@@ -14,6 +18,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
@@ -58,10 +63,18 @@ public class BookingSubmissionEmailHandler :
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
-    private readonly ISystemParameterRepository _systemParameterRepository;
+    private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly CcRecipientAppender _ccAppender;
     private readonly IdentityUserManager _userManager;
+    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<BookingSubmissionEmailHandler> _logger;
+
+    // Phase 2.A defaults (Adrian Decision A 2026-05-08): same fallbacks the
+    // CaseEvaluationAccountEmailer uses, kept in sync so per-tenant URL
+    // overrides are read from one settings surface.
+    private const string DefaultPortalBaseUrl = "http://falkinstein.localhost:4200";
+    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
 
     /// <summary>
     /// OLD :945 -- internal-staff recipients for the
@@ -81,8 +94,10 @@ public class BookingSubmissionEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
-        ISystemParameterRepository systemParameterRepository,
+        IRepository<Patient, Guid> patientRepository,
+        CcRecipientAppender ccAppender,
         IdentityUserManager userManager,
+        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
         ILogger<BookingSubmissionEmailHandler> logger)
     {
@@ -91,8 +106,10 @@ public class BookingSubmissionEmailHandler :
         _recipientResolver = recipientResolver;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
-        _systemParameterRepository = systemParameterRepository;
+        _patientRepository = patientRepository;
+        _ccAppender = ccAppender;
         _userManager = userManager;
+        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -135,22 +152,25 @@ public class BookingSubmissionEmailHandler :
             var appointmentFromTime = FormatTimeOnlyOrEmpty(availability?.FromTime);
             var appointmentToTime = FormatTimeOnlyOrEmpty(availability?.ToTime);
 
-            // B15-followup (2026-05-07): the PatientAppointmentPending
-            // stakeholder dispatch (subject "Your appointment request has
-            // been Pending") is the duplicate Adrian flagged. The OLD-parity
-            // "appointment requested" stakeholder email is delivered by the
-            // Domain SubmissionEmailHandler instead. Method body kept intact
-            // below so this can be re-enabled if the stakeholder template
-            // ever replaces the inline-HTML handler.
-            //
-            // await DispatchPendingToStakeholdersAsync(
-            //     eventData, ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
+            // Phase 2.A (Category 2, 2026-05-08): per-recipient
+            // "Appointment Requested" stakeholder fan-out. Replaces the
+            // earlier inline-HTML implementation in Domain
+            // SubmissionEmailHandler (now deleted) -- same role-aware
+            // content (registered party gets "log in to view"; unregistered
+            // AA/DA/CE gets "register as [role]" with a tenant-prefilled
+            // AuthServer link), but rendered through the per-tenant
+            // NotificationTemplate path. Three template codes
+            // (AppointmentRequestedOffice / Registered / Unregistered)
+            // partition the audience. NO CC on this fan-out per Adrian
+            // override 2026-05-08.
+            await DispatchAppointmentRequestedAsync(
+                eventData, ctx, appointment, appointmentDate, appointmentFromTime);
 
             // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
             // when the booker is an external user, also fan out
             // PatientAppointmentApproveReject to every Staff Supervisor +
             // Clinic Staff user in the tenant. Different recipient set than
-            // the stakeholder email above, so it is not a duplicate.
+            // the AppointmentRequested fan-out above, so it is not a duplicate.
             await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
                 eventData, ctx, appointment, appointmentDate,
                 appointmentFromTime, appointmentToTime);
@@ -158,47 +178,268 @@ public class BookingSubmissionEmailHandler :
     }
 
     /// <summary>
-    /// OLD :925-933 -- the unconditional Pending fan-out. Resolves
-    /// stakeholders via the shared resolver, appends per-tenant
-    /// <see cref="SystemParameter.CcEmailIds"/> entries as additional
-    /// <see cref="RecipientRole.OfficeAdmin"/> recipients (NEW does not
-    /// emit a CC header; each CC address becomes its own send so logging
-    /// + retry is per-address). Empty stakeholder list short-circuits.
+    /// Phase 2.A (Category 2, 2026-05-08) -- per-recipient
+    /// "Appointment Requested" stakeholder fan-out. For each recipient
+    /// returned by <see cref="IAppointmentRecipientResolver"/>, classify
+    /// into one of three audience buckets and dispatch the matching
+    /// template code:
+    /// <list type="bullet">
+    ///   <item><b>Office mailbox</b> (<see cref="RecipientRole.OfficeAdmin"/>) ->
+    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedOffice"/>.
+    ///         "New appointment request" + portal queue link.</item>
+    ///   <item><b>Registered party</b> (any other role with
+    ///         <c>IsRegistered=true</c>) ->
+    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedRegistered"/>.
+    ///         "Log in to view" + portal CTA.</item>
+    ///   <item><b>Unregistered party</b> (any other role with
+    ///         <c>IsRegistered=false</c>) ->
+    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered"/>.
+    ///         "Register as [role]" + AuthServer register link with
+    ///         <c>?__tenant=&amp;email=</c> pre-fill so the new account
+    ///         lands in the right tenant + saves the typed-but-unregistered
+    ///         email a re-entry.</item>
+    /// </list>
+    ///
+    /// <para>NO CC on this fan-out per Adrian directive 2026-05-08
+    /// (Decision 2.1). The office mailbox already receives its own
+    /// dedicated email via the <see cref="RecipientRole.OfficeAdmin"/>
+    /// path; appending <see cref="SystemParameter.CcEmailIds"/> entries
+    /// would duplicate.</para>
     /// </summary>
-    private async Task DispatchPendingToStakeholdersAsync(
+    private async Task DispatchAppointmentRequestedAsync(
         AppointmentSubmittedEto eventData,
         DocumentEmailContext ctx,
         Appointment appointment,
         string appointmentDate,
-        string appointmentFromTime,
-        string appointmentToTime)
+        string appointmentFromTime)
     {
         var resolverOutput = await _recipientResolver.ResolveAsync(
             eventData.AppointmentId, NotificationKind.Submitted);
-        var stakeholders = resolverOutput
+        var recipients = resolverOutput
             .Where(r => !string.IsNullOrWhiteSpace(r.To))
-            .Select(r => new NotificationRecipient(
-                email: r.To, role: r.Role, isRegistered: r.IsRegistered))
             .ToList();
 
-        await AppendCcRecipientsAsync(stakeholders);
-
-        if (stakeholders.Count == 0)
+        if (recipients.Count == 0)
         {
             _logger.LogInformation(
-                "BookingSubmissionEmailHandler: no recipients for Pending appointment {AppointmentId}; skipping.",
+                "BookingSubmissionEmailHandler: no recipients for AppointmentRequested fan-out, appointment {AppointmentId}; skipping.",
                 eventData.AppointmentId);
             return;
         }
 
-        var vars = BuildVariables(
-            ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
+        // Resolve the URLs once per dispatch -- both are tenant-scoped
+        // settings that don't change per-recipient.
+        var portalBaseUrl = await ResolveSettingAsync(
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
+            DefaultPortalBaseUrl);
+        var authServerBaseUrl = await ResolveSettingAsync(
+            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl,
+            DefaultAuthServerBaseUrl);
 
-        await _dispatcher.DispatchAsync(
-            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentPending,
-            recipients: stakeholders,
-            variables: vars,
-            contextTag: $"BookingSubmitted/Pending/{eventData.AppointmentId}");
+        // Build the booker name + patient name once -- both are stable
+        // across all recipient variants and used by every template body.
+        var bookerUser = eventData.BookerUserId == Guid.Empty
+            ? null
+            : await _userManager.FindByIdAsync(eventData.BookerUserId.ToString());
+        var patient = await _patientRepository.FindAsync(eventData.PatientId);
+        var bookerName = ResolveBookerName(bookerUser, patient);
+        var patientName = ResolvePatientName(patient);
+        var dateLine = appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt");
+
+        // Classify + dispatch per recipient. One DispatchAsync call per
+        // recipient so each gets its own variable bag (RoleDisplayName
+        // matters per recipient, RegisterUrl needs the recipient email).
+        // Group by template code so the renderer's template-load happens
+        // once per audience bucket rather than per-recipient -- the
+        // dispatcher batches recipients sharing a (templateCode, variables)
+        // tuple, but our variables differ per recipient (RoleDisplayName,
+        // RegisterUrl) so we dispatch per-recipient.
+        foreach (var args in recipients)
+        {
+            // SendAppointmentEmailArgs.Role is nullable -- the resolver
+            // sets it for every stakeholder fan-out today, but defending
+            // against null avoids a NRE if a future caller publishes a
+            // role-less AppointmentSubmittedEto. Default to Patient (the
+            // most-permissive booker fallback the deleted Domain handler
+            // also used) which routes to the Registered/Unregistered
+            // template variants based on IsRegistered.
+            var role = args.Role ?? RecipientRole.Patient;
+            var templateCode = ClassifyTemplateCode(role, args.IsRegistered);
+            var variables = BuildAppointmentRequestedVariables(
+                eventData,
+                ctx,
+                args,
+                bookerName,
+                patientName,
+                dateLine,
+                portalBaseUrl,
+                authServerBaseUrl);
+            var single = new[]
+            {
+                new NotificationRecipient(
+                    email: args.To,
+                    role: args.Role,
+                    isRegistered: args.IsRegistered),
+            };
+            await _dispatcher.DispatchAsync(
+                templateCode: templateCode,
+                recipients: single,
+                variables: variables,
+                contextTag: $"AppointmentRequested/{args.Role}/{eventData.AppointmentId}");
+        }
+    }
+
+    /// <summary>
+    /// Phase 2.A: maps a recipient's (role, isRegistered) pair to the
+    /// matching <see cref="NotificationTemplateConsts.Codes"/> entry.
+    /// OfficeAdmin always lands on the Office template; other roles split
+    /// on registration status.
+    /// </summary>
+    private static string ClassifyTemplateCode(RecipientRole role, bool isRegistered)
+    {
+        if (role == RecipientRole.OfficeAdmin)
+        {
+            return NotificationTemplateConsts.Codes.AppointmentRequestedOffice;
+        }
+        return isRegistered
+            ? NotificationTemplateConsts.Codes.AppointmentRequestedRegistered
+            : NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered;
+    }
+
+    /// <summary>
+    /// Phase 2.A: build the variable bag for the per-recipient
+    /// AppointmentRequested templates. Includes the booker / patient name
+    /// + role display + per-recipient login or register URL. Brand
+    /// placeholders stay empty until per-tenant branding ships.
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?> BuildAppointmentRequestedVariables(
+        AppointmentSubmittedEto eventData,
+        DocumentEmailContext ctx,
+        SendAppointmentEmailArgs args,
+        string bookerName,
+        string patientName,
+        string dateLine,
+        string portalBaseUrl,
+        string authServerBaseUrl)
+    {
+        // Same null-coalesce as the dispatch loop -- args.Role is nullable
+        // on SendAppointmentEmailArgs but the helpers are non-nullable.
+        var role = args.Role ?? RecipientRole.Patient;
+        var roleDisplayName = ResolveRoleDisplayName(role);
+        var portalUrl = portalBaseUrl.TrimEnd('/');
+        var registerUrl = BuildRegisterUrl(authServerBaseUrl, args.TenantName, args.To, role);
+
+        var vars = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["AppointmentRequestConfirmationNumber"] = eventData.RequestConfirmationNumber,
+            ["AppointmentDateTime"] = dateLine,
+            ["BookerFullName"] = bookerName,
+            ["PatientFirstName"] = ctx.PatientFirstName ?? patientName,
+            ["PatientLastName"] = ctx.PatientLastName ?? string.Empty,
+            ["RoleDisplayName"] = roleDisplayName,
+            ["PortalUrl"] = portalUrl,
+            ["RegisterUrl"] = registerUrl,
+        };
+        AddBrandPlaceholders(vars);
+        return vars;
+    }
+
+    /// <summary>
+    /// Phase 2.A: human-readable role string used inside the template
+    /// bodies ("You are listed as the [applicant attorney] on this
+    /// appointment"). Mirrors the wording previously hardcoded in the
+    /// Domain SubmissionEmailHandler.
+    /// </summary>
+    private static string ResolveRoleDisplayName(RecipientRole role) => role switch
+    {
+        RecipientRole.OfficeAdmin => "office",
+        RecipientRole.Patient => "patient",
+        RecipientRole.ApplicantAttorney => "applicant attorney",
+        RecipientRole.DefenseAttorney => "defense attorney",
+        RecipientRole.ClaimExaminer => "claim examiner",
+        _ => "party",
+    };
+
+    /// <summary>
+    /// Phase 2.A: build the AuthServer Register URL with
+    /// <c>?__tenant=&amp;email=</c> pre-fill so an unregistered AA / DA /
+    /// CE landing here from the email lands in the right tenant + has
+    /// their email pre-populated. Mirrors the prior inline implementation
+    /// in Domain SubmissionEmailHandler.BuildRegisterCta.
+    /// </summary>
+    private static string BuildRegisterUrl(
+        string authServerBaseUrl,
+        string? tenantName,
+        string email,
+        RecipientRole role)
+    {
+        var baseUrl = authServerBaseUrl.TrimEnd('/');
+        var query = new StringBuilder("?");
+        if (!string.IsNullOrWhiteSpace(tenantName))
+        {
+            query.Append("__tenant=").Append(WebUtility.UrlEncode(tenantName)).Append('&');
+        }
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            query.Append("email=").Append(WebUtility.UrlEncode(email)).Append('&');
+        }
+        var queryString = query.ToString().TrimEnd('?', '&');
+        return $"{baseUrl}/Account/Register{queryString}";
+    }
+
+    /// <summary>
+    /// Phase 2.A: tenant setting fallback. Reads via
+    /// <see cref="ISettingProvider"/>; falls back to the documented
+    /// dev-stack default when the setting is unset.
+    /// </summary>
+    private async Task<string> ResolveSettingAsync(string settingKey, string defaultValue)
+    {
+        var configured = await _settingProvider.GetOrNullAsync(settingKey);
+        return string.IsNullOrWhiteSpace(configured) ? defaultValue : configured!;
+    }
+
+    /// <summary>
+    /// Phase 2.A: human-friendly booker name. Pulls from the
+    /// <see cref="IdentityUser"/> first; falls back to the patient row
+    /// when the booker has no display name (e.g. early-flow accounts).
+    /// </summary>
+    private static string ResolveBookerName(IdentityUser? bookerUser, Patient? patient)
+    {
+        if (bookerUser != null)
+        {
+            var name = $"{bookerUser.Name} {bookerUser.Surname}".Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+            if (!string.IsNullOrWhiteSpace(bookerUser.Email))
+            {
+                return bookerUser.Email!;
+            }
+        }
+        if (patient != null)
+        {
+            var name = $"{patient.FirstName} {patient.LastName}".Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+        return "(unknown booker)";
+    }
+
+    /// <summary>
+    /// Phase 2.A: human-friendly patient name. Falls back when the patient
+    /// row is missing or names are blank.
+    /// </summary>
+    private static string ResolvePatientName(Patient? patient)
+    {
+        if (patient == null)
+        {
+            return "(unknown patient)";
+        }
+        var name = $"{patient.FirstName} {patient.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(name) ? "(unnamed patient)" : name;
     }
 
     /// <summary>
@@ -228,6 +469,14 @@ public class BookingSubmissionEmailHandler :
                 eventData.AppointmentId);
             return;
         }
+
+        // Phase 2.B (Adrian Decision 2.2 2026-05-08): plus office mailbox CC'd
+        // on the staff blast. OLD's :950 SendSMTPMail overload at this leg
+        // takes only 3 args (no CC) -- this is an explicit override of OLD
+        // behavior to keep an off-staff office address in the loop.
+        await _ccAppender.AppendAsync(
+            staffRecipients,
+            contextTagForLogging: $"ApproveReject/{eventData.AppointmentId}");
 
         var vars = BuildVariables(
             ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
@@ -293,43 +542,6 @@ public class BookingSubmissionEmailHandler :
             }
         }
         return byEmail.Values.ToList();
-    }
-
-    /// <summary>
-    /// Appends per-tenant CC recipients from
-    /// <see cref="SystemParameter.CcEmailIds"/> (semicolon-separated).
-    /// Each CC address becomes its own <see cref="NotificationRecipient"/>
-    /// with role <see cref="RecipientRole.OfficeAdmin"/>. Dedupes
-    /// against any address already in <paramref name="recipients"/>
-    /// so a CC address that's also a stakeholder doesn't double-send.
-    /// </summary>
-    private async Task AppendCcRecipientsAsync(List<NotificationRecipient> recipients)
-    {
-        var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
-        if (systemParameter == null || string.IsNullOrWhiteSpace(systemParameter.CcEmailIds))
-        {
-            return;
-        }
-
-        var existing = new HashSet<string>(
-            recipients.Select(r => r.Email),
-            StringComparer.OrdinalIgnoreCase);
-
-        var ccAddresses = systemParameter.CcEmailIds
-            .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(a => a.Trim())
-            .Where(a => a.Length > 0);
-
-        foreach (var address in ccAddresses)
-        {
-            if (existing.Add(address))
-            {
-                recipients.Add(new NotificationRecipient(
-                    email: address,
-                    role: RecipientRole.OfficeAdmin,
-                    isRegistered: false));
-            }
-        }
     }
 
     /// <summary>

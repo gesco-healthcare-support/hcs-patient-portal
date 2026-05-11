@@ -63,6 +63,7 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
         string contextTag,
+        PacketAttachmentRef? packetRef = null,
         CancellationToken cancellationToken = default)
     {
         Check.NotNullOrWhiteSpace(templateCode, nameof(templateCode));
@@ -83,7 +84,7 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
         var tenantName = _currentTenant.Name;
         foreach (var recipient in recipients)
         {
-            await EnqueueEmailAsync(recipient, rendered, contextTag, templateCode, tenantName);
+            await EnqueueEmailAsync(recipient, rendered, contextTag, templateCode, tenantName, packetRef);
         }
     }
 
@@ -92,7 +93,8 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
         RenderedNotification rendered,
         string contextTag,
         string templateCode,
-        string? tenantName)
+        string? tenantName,
+        PacketAttachmentRef? packetRef)
     {
         if (string.IsNullOrWhiteSpace(recipient.Email))
         {
@@ -112,6 +114,7 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
             Role = recipient.Role,
             IsRegistered = recipient.IsRegistered,
             TenantName = tenantName,
+            PacketRef = packetRef,
         };
         await _backgroundJobManager.EnqueueAsync(args);
     }

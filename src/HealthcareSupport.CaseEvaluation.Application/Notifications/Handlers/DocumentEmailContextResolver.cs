@@ -101,6 +101,8 @@ public class DocumentEmailContextResolver : ITransientDependency
             DocumentUploadedByUserId = document?.UploadedByUserId,
             DocumentRejectionReason = document?.RejectionReason,
             PortalBaseUrl = portalUrl,
+            IsAdHoc = document?.IsAdHoc ?? false,
+            IsJointDeclaration = document?.IsJointDeclaration ?? false,
         };
     }
 
@@ -180,4 +182,23 @@ public class DocumentEmailContext
     public Guid? DocumentUploadedByUserId { get; set; }
     public string? DocumentRejectionReason { get; set; }
     public string? PortalBaseUrl { get; set; }
+
+    /// <summary>
+    /// Phase 6.A (Category 6, 2026-05-08): true when the document was
+    /// uploaded outside the post-approval package list (a free-form
+    /// document the patient or staff added to the appointment record).
+    /// Drives the <c>PatientNewDocument*</c> template branch in the
+    /// document email handlers per Adrian Decision 6.1 (strict OLD parity:
+    /// 3 paths -- PatientDocument*, PatientNewDocument*, JointAgreementLetter*).
+    /// Default <c>false</c> when no document is in scope.
+    /// </summary>
+    public bool IsAdHoc { get; set; }
+
+    /// <summary>
+    /// Phase 6.A (Category 6, 2026-05-08): true when the document is a
+    /// Joint Declaration (AME-only). Drives the
+    /// <c>JointAgreementLetter*</c> template branch -- takes precedence
+    /// over <see cref="IsAdHoc"/> when both happen to be true.
+    /// </summary>
+    public bool IsJointDeclaration { get; set; }
 }
