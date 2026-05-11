@@ -66,6 +66,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.EntityFrameworkCore\HealthcareSupport.CaseEvaluation.EntityFrameworkCore.csproj" />
+    <!--
+      Phase 1.D follow-up (2026-05-08): the Account/ResendVerification Razor
+      page injects IExternalAccountAppService to call ResendEmailVerificationAsync
+      directly via DI. Both Application + Application.Contracts must be
+      project references on the AuthServer csproj for the interface to be
+      compile-visible AND the implementation to be DI-resolvable.
+    -->
+    <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Application.Contracts\HealthcareSupport.CaseEvaluation.Application.Contracts.csproj" />
+    <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Application\HealthcareSupport.CaseEvaluation.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
