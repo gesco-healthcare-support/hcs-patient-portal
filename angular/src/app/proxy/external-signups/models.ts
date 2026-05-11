@@ -1,5 +1,14 @@
 import type { ExternalUserType } from './external-user-type.enum';
 
+export interface DeleteTestUsersDto {
+  emails?: string[];
+}
+
+export interface DeleteTestUsersResultDto {
+  deleted?: string[];
+  notFound?: string[];
+}
+
 export interface ExternalUserLookupDto {
   identityUserId?: string;
   firstName?: string;
@@ -41,4 +50,8 @@ export interface InviteExternalUserResultDto {
   email?: string;
   roleName?: string;
   tenantName?: string;
+}
+
+export interface MarkEmailConfirmedDto {
+  email?: string;
 }

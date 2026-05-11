@@ -65,8 +65,23 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly CcRecipientAppender _ccAppender;
+    private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
+
+    /// <summary>
+    /// Phase 2.C (2026-05-08): NoShow recipients are limited to internal
+    /// staff (StaffSupervisor + ClinicStaff) per OLD :1021 -- patient does
+    /// NOT receive the no-show notification. Same role allow-list as
+    /// <c>BookingSubmissionEmailHandler.StaffApprovalNotificationRoles</c>;
+    /// kept duplicated here so each handler is self-contained.
+    /// </summary>
+    private static readonly string[] NoShowInternalRoles =
+    {
+        "Staff Supervisor",
+        "Clinic Staff",
+    };
 
     public StatusChangeEmailHandler(
         INotificationDispatcher dispatcher,
@@ -75,6 +90,8 @@ public class StatusChangeEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
+        CcRecipientAppender ccAppender,
+        IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<StatusChangeEmailHandler> logger)
     {
@@ -84,6 +101,8 @@ public class StatusChangeEmailHandler :
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _identityUserRepository = identityUserRepository;
+        _ccAppender = ccAppender;
+        _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -95,8 +114,12 @@ public class StatusChangeEmailHandler :
         {
             return;
         }
-        if (eventData.ToStatus != AppointmentStatusType.Approved
-            && eventData.ToStatus != AppointmentStatusType.Rejected)
+        // Phase 2.C (2026-05-08): the four deferred status emails ride on
+        // the same handler -- one Eto, status-switched dispatch. Statuses
+        // outside this set are intentionally unhandled (Phase 12 lifecycle
+        // states like Billed / RescheduleRequested / CancellationRequested
+        // either fire from their own handlers or are not emailed at all).
+        if (!IsHandledStatus(eventData.ToStatus))
         {
             return;
         }
@@ -131,15 +154,33 @@ public class StatusChangeEmailHandler :
                 "MM-dd-yyyy", CultureInfo.InvariantCulture);
             var appointmentFromTime = FormatTimeOnlyOrEmpty(availability?.FromTime);
 
-            var stakeholderArgs = await _recipientResolver.ResolveAsync(
-                eventData.AppointmentId, MapKind(eventData.ToStatus.Value));
-            var stakeholders = stakeholderArgs
-                .Where(r => !string.IsNullOrWhiteSpace(r.To))
-                .Select(r => new NotificationRecipient(
-                    email: r.To, role: r.Role, isRegistered: r.IsRegistered))
-                .ToList();
+            // IsHandledStatus filtered out null + unhandled statuses already;
+            // null-forgiving the .Value access since the compiler doesn't
+            // track the post-condition.
+            var status = eventData.ToStatus!.Value;
 
-            switch (eventData.ToStatus.Value)
+            // NoShow goes to internal staff only (OLD :1021), so its
+            // recipient set is computed below from IdentityUserManager
+            // rather than from the resolver. The other four (Approved,
+            // Rejected, CheckedIn, CheckedOut, CancelledNoBill) all use
+            // the standard stakeholder fan-out.
+            List<NotificationRecipient> stakeholders;
+            if (status == AppointmentStatusType.NoShow)
+            {
+                stakeholders = new List<NotificationRecipient>();
+            }
+            else
+            {
+                var stakeholderArgs = await _recipientResolver.ResolveAsync(
+                    eventData.AppointmentId, MapKind(status));
+                stakeholders = stakeholderArgs
+                    .Where(r => !string.IsNullOrWhiteSpace(r.To))
+                    .Select(r => new NotificationRecipient(
+                        email: r.To, role: r.Role, isRegistered: r.IsRegistered))
+                    .ToList();
+            }
+
+            switch (status)
             {
                 case AppointmentStatusType.Approved:
                     await DispatchApprovedAsync(
@@ -150,9 +191,44 @@ public class StatusChangeEmailHandler :
                     await DispatchRejectedAsync(
                         eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
                     break;
+
+                case AppointmentStatusType.CheckedIn:
+                    await DispatchCheckedInAsync(
+                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                    break;
+
+                case AppointmentStatusType.CheckedOut:
+                    await DispatchCheckedOutAsync(
+                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                    break;
+
+                case AppointmentStatusType.NoShow:
+                    await DispatchNoShowAsync(
+                        eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                    break;
+
+                case AppointmentStatusType.CancelledNoBill:
+                    await DispatchCancelledNoBillAsync(
+                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                    break;
             }
         }
     }
+
+    /// <summary>
+    /// Phase 2.C (2026-05-08): the six statuses this handler covers. Any
+    /// other status passes through silently.
+    /// </summary>
+    private static bool IsHandledStatus(AppointmentStatusType? status) => status switch
+    {
+        AppointmentStatusType.Approved => true,
+        AppointmentStatusType.Rejected => true,
+        AppointmentStatusType.CheckedIn => true,
+        AppointmentStatusType.CheckedOut => true,
+        AppointmentStatusType.NoShow => true,
+        AppointmentStatusType.CancelledNoBill => true,
+        _ => false,
+    };
 
     private async Task DispatchApprovedAsync(
         AppointmentStatusChangedEto eventData,
@@ -165,8 +241,14 @@ public class StatusChangeEmailHandler :
         // OLD :968-981 (the !internalUserUpdateStatus branch -- in NEW
         // this is always "the stakeholder side" because all approves
         // run through internal staff). Comment prefix is "Please note:".
+        // Phase 2.B: per-tenant CC list appended (OLD :954 reads
+        // clinicStaffEmail and passes as the 4th-arg emailCC at :980).
         if (stakeholders.Count > 0)
         {
+            await _ccAppender.AppendAsync(
+                stakeholders,
+                contextTagForLogging: $"Approved/Stakeholders/{eventData.AppointmentId}");
+
             var extVars = BuildVariables(
                 ctx,
                 appointment,
@@ -213,6 +295,13 @@ public class StatusChangeEmailHandler :
                 role: RecipientRole.OfficeAdmin,
                 isRegistered: true),
         };
+
+        // Phase 2.B: per-tenant CC list also applies to the responsible-user
+        // leg (OLD :954 sets emailCC once and reuses it across both internal
+        // and ext branches at :966 and :980).
+        await _ccAppender.AppendAsync(
+            internalRecipients,
+            contextTagForLogging: $"Approved/Responsible/{eventData.AppointmentId}");
 
         var internalVars = BuildVariables(
             ctx,
@@ -263,6 +352,200 @@ public class StatusChangeEmailHandler :
             recipients: stakeholders,
             variables: rejectVars,
             contextTag: $"StatusChange/Rejected/Stakeholders/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Phase 2.C / Decision 4 (2026-05-08): CheckedIn fires
+    /// <c>PatientAppointmentCheckedIn</c> to all stakeholders. OLD ::997-1002
+    /// wraps the appointment's <c>RejectionNotes</c> column with the
+    /// "Please note rejection reason:" prefix and surfaces it inside the
+    /// CheckedIn body -- a clear OLD bug because a checked-in appointment
+    /// has no rejection. NEW skips the RejectionNotes substitution entirely;
+    /// the simplified body does not reference the token. NO CC (OLD :1002
+    /// is the 3-arg overload).
+    /// </summary>
+    private async Task DispatchCheckedInAsync(
+        AppointmentStatusChangedEto eventData,
+        DocumentEmailContext ctx,
+        Appointment appointment,
+        string appointmentDate,
+        string appointmentFromTime,
+        List<NotificationRecipient> stakeholders)
+    {
+        if (stakeholders.Count == 0)
+        {
+            _logger.LogInformation(
+                "StatusChangeEmailHandler: no stakeholders for CheckedIn appointment {AppointmentId}; skipping.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        var vars = BuildVariables(
+            ctx,
+            appointment,
+            appointmentDate,
+            appointmentFromTime,
+            wrapInternalComments: string.Empty,
+            rejectionNotes: null);
+
+        await _dispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedIn,
+            recipients: stakeholders,
+            variables: vars,
+            contextTag: $"StatusChange/CheckedIn/Stakeholders/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Phase 2.C / Decision 4 (2026-05-08): CheckedOut fires
+    /// <c>PatientAppointmentCheckedOut</c> to all stakeholders. Same
+    /// RejectionNotes-skip as CheckedIn. OLD :1004-1014. NO CC.
+    /// </summary>
+    private async Task DispatchCheckedOutAsync(
+        AppointmentStatusChangedEto eventData,
+        DocumentEmailContext ctx,
+        Appointment appointment,
+        string appointmentDate,
+        string appointmentFromTime,
+        List<NotificationRecipient> stakeholders)
+    {
+        if (stakeholders.Count == 0)
+        {
+            _logger.LogInformation(
+                "StatusChangeEmailHandler: no stakeholders for CheckedOut appointment {AppointmentId}; skipping.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        var vars = BuildVariables(
+            ctx,
+            appointment,
+            appointmentDate,
+            appointmentFromTime,
+            wrapInternalComments: string.Empty,
+            rejectionNotes: null);
+
+        await _dispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut,
+            recipients: stakeholders,
+            variables: vars,
+            contextTag: $"StatusChange/CheckedOut/Stakeholders/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Phase 2.C / Decision 5 (2026-05-08): NoShow fires
+    /// <c>PatientAppointmentNoShow</c> to internal staff only -- patient
+    /// does NOT receive a no-show notification. Replicates OLD :1016-1026
+    /// exactly: <c>emailTos</c> is rebuilt from a vInternalUserEmail walk
+    /// limited to <c>StaffSupervisor + ClinicStaff</c>. NO CC (OLD :1026
+    /// is the 3-arg overload).
+    /// </summary>
+    private async Task DispatchNoShowAsync(
+        AppointmentStatusChangedEto eventData,
+        DocumentEmailContext ctx,
+        Appointment appointment,
+        string appointmentDate,
+        string appointmentFromTime)
+    {
+        var staffRecipients = await ResolveNoShowInternalRecipientsAsync(eventData.AppointmentId);
+        if (staffRecipients.Count == 0)
+        {
+            _logger.LogInformation(
+                "StatusChangeEmailHandler: no Staff Supervisor / Clinic Staff users in tenant; skipping NoShow for appointment {AppointmentId}.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        var vars = BuildVariables(
+            ctx,
+            appointment,
+            appointmentDate,
+            appointmentFromTime,
+            wrapInternalComments: string.Empty,
+            rejectionNotes: null);
+
+        await _dispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentNoShow,
+            recipients: staffRecipients,
+            variables: vars,
+            contextTag: $"StatusChange/NoShow/InternalStaff/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Phase 2.C (2026-05-08): CancelledNoBill fires
+    /// <c>PatientAppointmentCancelledNoBill</c> to all stakeholders. The
+    /// body references the appointment's <c>CancellationReason</c> column
+    /// -- the only one of the four new templates that surfaces a non-default
+    /// variable. OLD :1029-1033. NO CC.
+    /// </summary>
+    private async Task DispatchCancelledNoBillAsync(
+        AppointmentStatusChangedEto eventData,
+        DocumentEmailContext ctx,
+        Appointment appointment,
+        string appointmentDate,
+        string appointmentFromTime,
+        List<NotificationRecipient> stakeholders)
+    {
+        if (stakeholders.Count == 0)
+        {
+            _logger.LogInformation(
+                "StatusChangeEmailHandler: no stakeholders for CancelledNoBill appointment {AppointmentId}; skipping.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        var baseVars = BuildVariables(
+            ctx,
+            appointment,
+            appointmentDate,
+            appointmentFromTime,
+            wrapInternalComments: string.Empty,
+            rejectionNotes: null);
+
+        // Inject the appointment-specific cancellation reason on top of
+        // the base bag. BuildVariables doesn't know about CancellationReason;
+        // it's only referenced by this single template.
+        var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
+        {
+            ["CancellationReason"] = appointment.CancellationReason ?? string.Empty,
+        };
+
+        await _dispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill,
+            recipients: stakeholders,
+            variables: vars,
+            contextTag: $"StatusChange/CancelledNoBill/Stakeholders/{eventData.AppointmentId}");
+    }
+
+    /// <summary>
+    /// Phase 2.C: walks <see cref="IdentityUserManager"/> for every user in
+    /// <c>Staff Supervisor</c> + <c>Clinic Staff</c> and packages them into
+    /// <see cref="NotificationRecipient"/> rows. Mirrors OLD :1021's
+    /// <c>vInternalUserEmail.RoleId == StaffSupervisor || ClinicStaff</c>
+    /// query. Dedupes on email so a user with both roles only gets one
+    /// email.
+    /// </summary>
+    private async Task<List<NotificationRecipient>> ResolveNoShowInternalRecipientsAsync(Guid appointmentId)
+    {
+        var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
+        foreach (var roleName in NoShowInternalRoles)
+        {
+            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            foreach (var user in users)
+            {
+                if (string.IsNullOrWhiteSpace(user.Email))
+                {
+                    _logger.LogDebug(
+                        "StatusChangeEmailHandler: skipping {Role} user {UserId} -- empty email; appointment {AppointmentId}.",
+                        roleName, user.Id, appointmentId);
+                    continue;
+                }
+                byEmail[user.Email] = new NotificationRecipient(
+                    email: user.Email,
+                    role: RecipientRole.OfficeAdmin,
+                    isRegistered: true);
+            }
+        }
+        return byEmail.Values.ToList();
     }
 
     /// <summary>
@@ -332,6 +615,14 @@ public class StatusChangeEmailHandler :
     {
         AppointmentStatusType.Approved => NotificationKind.Approved,
         AppointmentStatusType.Rejected => NotificationKind.Rejected,
+        // Phase 2.C (2026-05-08): the four deferred status emails reuse
+        // the Approved fan-out (same Patient + AA + DA + CE + Office set
+        // OLD already mailed via emailTos at AppointmentDomain.cs:910/990).
+        // The resolver doesn't gate behavior by kind today; using Approved
+        // here is purely a context tag for downstream logging.
+        AppointmentStatusType.CheckedIn => NotificationKind.Approved,
+        AppointmentStatusType.CheckedOut => NotificationKind.Approved,
+        AppointmentStatusType.CancelledNoBill => NotificationKind.Approved,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 

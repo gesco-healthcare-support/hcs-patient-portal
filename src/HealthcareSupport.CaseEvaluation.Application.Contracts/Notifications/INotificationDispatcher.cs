@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Appointments;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
@@ -50,10 +51,19 @@ public interface INotificationDispatcher
     /// <c>SendAppointmentEmailArgs.Context</c> field for log
     /// correlation. Convention: <c>"{Phase}/{TemplateCode}/{EntityId}"</c>.
     /// </param>
+    /// <param name="packetRef">
+    /// Phase 4 (Category 4, 2026-05-10): when set, applied to EVERY recipient
+    /// in this dispatch. <c>SendAppointmentEmailJob</c> fetches the rendered
+    /// DOCX bytes from <c>AppointmentPacketsContainer</c> at send time, attaches
+    /// via MailMessage, and calls
+    /// <c>IPacketAttachmentProvider.NotifySendCompletedAsync</c> after the
+    /// transport returns. Null = no attachment (normal email path).
+    /// </param>
     Task DispatchAsync(
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
         string contextTag,
+        PacketAttachmentRef? packetRef = null,
         CancellationToken cancellationToken = default);
 }

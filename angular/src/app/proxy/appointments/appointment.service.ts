@@ -150,6 +150,14 @@ export class AppointmentService {
     { apiName: this.apiName,...config });
   
 
+  getPendingCount = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, number>({
+      method: 'GET',
+      url: '/api/app/appointments/pending-count',
+    },
+    { apiName: this.apiName,...config });
+  
+
   getWithNavigationProperties = (id: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentWithNavigationPropertiesDto>({
       method: 'GET',

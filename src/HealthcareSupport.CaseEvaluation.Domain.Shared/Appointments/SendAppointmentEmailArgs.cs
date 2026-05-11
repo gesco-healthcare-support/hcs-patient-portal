@@ -1,4 +1,5 @@
 using System;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -55,4 +56,34 @@ public class SendAppointmentEmailArgs
     /// host-tenant context (host should never receive party-email fan-out).
     /// </summary>
     public string? TenantName { get; set; }
+
+    /// <summary>
+    /// Phase 4 (Category 4, 2026-05-10): packet attachment reference. When set,
+    /// <c>SendAppointmentEmailJob</c> fetches the rendered DOCX bytes via
+    /// <c>IPacketAttachmentProvider.GetAttachmentAsync</c> at send time and
+    /// attaches it as a MailMessage attachment. After successful send the job
+    /// calls <c>IPacketAttachmentProvider.NotifySendCompletedAsync</c> so
+    /// AttyCE-kind rows are pruned (Patient/Doctor rows persist).
+    ///
+    /// <para>Storing the reference (small Guid+enum) instead of the bytes
+    /// keeps Hangfire serialized args lean -- a 1 MB DOCX would otherwise
+    /// inflate the job table per recipient. Bytes already live in
+    /// <c>AppointmentPacketsContainer</c> blob storage.</para>
+    /// </summary>
+    public PacketAttachmentRef? PacketRef { get; set; }
+}
+
+/// <summary>
+/// Phase 4 (Category 4, 2026-05-10) -- reference to a packet attachment
+/// the email job should fetch from blob storage at send time. Carries
+/// only identifiers so the serialized Hangfire job stays small.
+/// </summary>
+[Serializable]
+public class PacketAttachmentRef
+{
+    public Guid AppointmentId { get; set; }
+
+    public Guid PacketId { get; set; }
+
+    public PacketKind Kind { get; set; }
 }

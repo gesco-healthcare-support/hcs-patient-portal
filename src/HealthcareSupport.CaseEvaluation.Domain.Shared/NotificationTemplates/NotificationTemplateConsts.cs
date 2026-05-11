@@ -144,6 +144,26 @@ public static class NotificationTemplateConsts
         public const string AppointmentDocumentAddWithAttachment = "AppointmentDocumentAddWithAttachment";
         public const string PendingAppointmentDailyNotification = "PendingAppointmentDailyNotification";
 
+        // --------------------------------------------------------------
+        // C. Phase 2.A (Category 2, 2026-05-08) -- per-recipient
+        //    "Appointment Requested" templates. Replaces the inline-HTML
+        //    role-aware content that lived in Domain SubmissionEmailHandler
+        //    with template-driven dispatch via INotificationDispatcher.
+        //    Three codes because ABP NotificationTemplate has a single body
+        //    per row; per-recipient-class branching needs separate codes.
+        //    Adrian directive 2026-05-08: subject "Appointment Requested",
+        //    NO CC on Pending stakeholders.
+        // --------------------------------------------------------------
+
+        /// <summary>Office mailbox sees "new request submitted" + portal link.</summary>
+        public const string AppointmentRequestedOffice = "AppointmentRequestedOffice";
+
+        /// <summary>Patient / Booker / registered party sees "log in to view" + portal CTA.</summary>
+        public const string AppointmentRequestedRegistered = "AppointmentRequestedRegistered";
+
+        /// <summary>Unregistered AA / DA / CE sees "register as [role]" + AuthServer register link with `?__tenant=&amp;email=` pre-fill.</summary>
+        public const string AppointmentRequestedUnregistered = "AppointmentRequestedUnregistered";
+
         /// <summary>
         /// All 59 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -180,6 +200,9 @@ public static class NotificationTemplateConsts
             PatientAppointmentRescheduleReq, JointAgreementLetterAccepted,
             JointAgreementLetterUploaded, JointAgreementLetterRejected,
             AppointmentDocumentAddWithAttachment, PendingAppointmentDailyNotification,
+
+            // Phase 2.A (Category 2, 2026-05-08) -- per-recipient appointment-requested templates.
+            AppointmentRequestedOffice, AppointmentRequestedRegistered, AppointmentRequestedUnregistered,
         };
     }
 }

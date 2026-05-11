@@ -3,6 +3,11 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 import type { LocationDto } from '../locations/models';
 import type { AppointmentTypeDto } from '../appointment-types/models';
 
+export interface DoctorAvailabilityBulkDeleteResultDto {
+  deletedCount?: number;
+  skippedSlotIds?: string[];
+}
+
 export interface DoctorAvailabilityCreateDto {
   availableDate?: string;
   fromTime?: string;
@@ -10,11 +15,6 @@ export interface DoctorAvailabilityCreateDto {
   bookingStatusId?: BookingStatus;
   locationId?: string;
   appointmentTypeId?: string | null;
-}
-
-export interface DoctorAvailabilityBulkDeleteResultDto {
-  deletedCount: number;
-  skippedSlotIds: string[];
 }
 
 export interface DoctorAvailabilityDeleteByDateInputDto {

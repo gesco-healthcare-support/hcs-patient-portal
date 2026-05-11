@@ -21,4 +21,20 @@ public enum NotificationKind
     DocumentRejected = 10,
     JdfAutoCancelled = 11,
     PackageDocumentReminder = 12,
+
+    // Category 7 (2026-05-10) -- OLD SchedulerDomain reminder fan-outs.
+    // #1 OLD :72 -- daily digest of all pending requests to the per-tenant clinic-staff inbox.
+    PendingDailyDigest = 13,
+    // #2 OLD :87 -- per-internal-staff queue counts (PendingCount + ApprovedCount).
+    InternalStaffQueueDigest = 14,
+    // #4 OLD :152 -- per-stakeholder due-date approaching reminder (14 / 7 / 3 days).
+    DueDateApproachingReminder = 15,
+    // #5 OLD :176 -- per-stakeholder documents-incomplete-and-due-date-approaching reminder.
+    DueDateDocumentIncompleteReminder = 16,
+
+    // Category 4 (2026-05-10) -- per-recipient packet email fan-out
+    // (AppointmentDocumentAddWithAttachment). Used by AttyCE packet
+    // handler so recipient resolution can be tagged distinctly from the
+    // status-change Approved email.
+    PacketAttyCEDelivery = 17,
 }

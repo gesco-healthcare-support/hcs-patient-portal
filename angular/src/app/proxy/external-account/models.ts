@@ -1,4 +1,8 @@
 
+export interface ResendEmailVerificationInput {
+  email: string;
+}
+
 export interface ResetPasswordInput {
   userId: string;
   resetToken: string;

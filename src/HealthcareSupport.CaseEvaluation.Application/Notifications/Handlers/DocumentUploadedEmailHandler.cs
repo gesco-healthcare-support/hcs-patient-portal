@@ -123,11 +123,18 @@ public class DocumentUploadedEmailHandler :
                 clinicName: _currentTenant.Name,
                 portalUrl: ctx.PortalBaseUrl);
 
+            // Phase 6.B (Adrian Decision 6.1, 2026-05-08): pick template
+            // by (IsAdHoc, IsJointDeclaration) -- 3 OLD-parity paths.
+            var templateCode = DocumentNotificationContext.ClassifyDocumentTemplateCode(
+                DocumentEmailKind.Uploaded,
+                ctx.IsAdHoc,
+                ctx.IsJointDeclaration);
+
             await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.PatientDocumentUploaded,
+                templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"DocumentUploaded/{eventData.AppointmentDocumentId}");
+                contextTag: $"DocumentUploaded/{templateCode}/{eventData.AppointmentDocumentId}");
         }
     }
 }

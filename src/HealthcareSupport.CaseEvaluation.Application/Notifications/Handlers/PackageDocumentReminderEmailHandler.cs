@@ -1,31 +1,46 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
-/// Phase 14b (2026-05-04) -- subscribes to
-/// <see cref="PackageDocumentReminderEto"/> and dispatches the
-/// OLD-parity <c>PackageDocumentsReminder</c> /
-/// <c>JDFReminder</c> email to the patient (or the document's
-/// original uploader).
+/// Subscribes to <see cref="PackageDocumentReminderEto"/> and dispatches
+/// the OLD-parity <c>UploadPendingDocuments</c> reminder email.
 ///
-/// <para>JDF documents get the
-/// <see cref="NotificationTemplateConsts.Codes.JDFReminder"/>
-/// template; package docs get
-/// <see cref="NotificationTemplateConsts.Codes.PackageDocumentsReminder"/>.
-/// Mirrors OLD's two separate reminder templates per spec lines
-/// 569-593 -- "Reminder for incomplete package documents (multiple
-/// reminders)" + "JDFReminder".</para>
+/// <para>Phase 7 (Category 7, 2026-05-10) refactor (closes Category 7.D
+/// + Reminders #3 + #6, resolves PARITY-FLAG PF-001):</para>
+/// <list type="bullet">
+///   <item>Template is now <c>UploadPendingDocuments</c> for BOTH
+///         package docs and JDF. Mirrors OLD <c>SchedulerDomain.cs</c>
+///         :146 (package, 4-arg SendSMTPMail with CC) and :229 (JDF,
+///         reuses the same template). PF-001's
+///         <c>AppointmentDueDateUploadDocumentLeft</c> mapping is
+///         retired; OLD never used that template for either reminder.</item>
+///   <item>Recipients are now the full stakeholder fan-out via
+///         <see cref="IAppointmentRecipientResolver"/> -- mirrors OLD
+///         :146's per-row <c>item.EmailList</c>. The earlier
+///         uploader-only addressee was a narrower seam that dropped AAs,
+///         DAs, claim examiners, and the office mailbox.</item>
+///   <item>CC is added via <see cref="CcRecipientAppender"/> (per-tenant
+///         <c>SystemParameter.CcEmailIds</c>). OLD's :146 uses the
+///         proc's per-row <c>item.PrimaryEmailList</c> -- semantically
+///         the office's known important email -- which is unavailable
+///         in NEW because the proc has no analogue. The tenant-level
+///         CC list is the closest standing seam.</item>
+/// </list>
 /// </summary>
 public class PackageDocumentReminderEmailHandler :
     ILocalEventHandler<PackageDocumentReminderEto>,
@@ -33,17 +48,26 @@ public class PackageDocumentReminderEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
+    private readonly IAppointmentRecipientResolver _recipientResolver;
+    private readonly CcRecipientAppender _ccAppender;
+    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PackageDocumentReminderEmailHandler> _logger;
 
     public PackageDocumentReminderEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
+        IAppointmentRecipientResolver recipientResolver,
+        CcRecipientAppender ccAppender,
+        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
         ILogger<PackageDocumentReminderEmailHandler> logger)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
+        _recipientResolver = recipientResolver;
+        _ccAppender = ccAppender;
+        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -67,51 +91,51 @@ public class PackageDocumentReminderEmailHandler :
                 return;
             }
 
-            var uploaderEmail = await _contextResolver.ResolveUploaderEmailAsync(
-                ctx.DocumentUploadedByUserId,
-                ctx.PatientEmail ?? ctx.BookerEmail);
+            var resolverOutput = await _recipientResolver.ResolveAsync(
+                eventData.AppointmentId,
+                NotificationKind.PackageDocumentReminder);
+            var recipients = resolverOutput
+                .Where(r => !string.IsNullOrWhiteSpace(r.To))
+                .Select(r => new NotificationRecipient(
+                    email: r.To,
+                    role: r.Role,
+                    isRegistered: r.IsRegistered))
+                .ToList();
 
-            if (string.IsNullOrWhiteSpace(uploaderEmail))
+            if (recipients.Count == 0)
             {
+                _logger.LogInformation(
+                    "PackageDocumentReminderEmailHandler: no recipients for appointment {AppointmentId}; skipping.",
+                    eventData.AppointmentId);
                 return;
             }
 
-            var recipients = new List<NotificationRecipient>
+            // OLD :146 CC the per-row PrimaryEmailList; NEW uses
+            // SystemParameter.CcEmailIds for the same intent (see class doc).
+            await _ccAppender.AppendAsync(
+                recipients,
+                contextTagForLogging: $"PackageDocumentReminder/{eventData.AppointmentId}");
+
+            var portalUrl = ctx.PortalBaseUrl ?? await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+
+            var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                new NotificationRecipient(
-                    email: uploaderEmail!,
-                    role: RecipientRole.Patient,
-                    isRegistered: ctx.DocumentUploadedByUserId.HasValue),
+                ["AppointmentRequestConfirmationNumber"] = ctx.RequestConfirmationNumber,
+                ["DueDate"] = ctx.DueDate.HasValue
+                    ? ctx.DueDate.Value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)
+                    : string.Empty,
+                ["PendingDocList"] = ctx.DocumentName ?? string.Empty,
+                ["IsJointDeclaration"] = eventData.IsJointDeclaration,
+                ["PortalUrl"] = portalUrl ?? string.Empty,
+                ["ClinicName"] = _currentTenant.Name ?? string.Empty,
             };
 
-            var variables = DocumentNotificationContext.BuildVariables(
-                patientFirstName: ctx.PatientFirstName,
-                patientLastName: ctx.PatientLastName,
-                patientEmail: ctx.PatientEmail,
-                requestConfirmationNumber: ctx.RequestConfirmationNumber,
-                appointmentDate: ctx.AppointmentDate,
-                claimNumber: ctx.ClaimNumber,
-                wcabAdj: ctx.WcabAdj,
-                documentName: ctx.DocumentName,
-                rejectionNotes: null,
-                clinicName: _currentTenant.Name,
-                portalUrl: ctx.PortalBaseUrl);
-
-            // OLD-verbatim template codes per docs/parity/it-admin-notification-templates.md.
-            // PackageDoc reminder = AppointmentDocumentIncomplete (EmailTemplate disk
-            // HTML, "Pending-docs reminder" row in Phase 1 scope).
-            // PARITY-FLAG (PF-001, docs/parity/_parity-flags.md): OLD has no
-            // dedicated JDF reminder template; AppointmentDueDateUploadDocumentLeft
-            // is the closest semantic match. Revisit during Stage 7 N1.
-            var templateCode = eventData.IsJointDeclaration
-                ? NotificationTemplateConsts.Codes.AppointmentDueDateUploadDocumentLeft
-                : NotificationTemplateConsts.Codes.AppointmentDocumentIncomplete;
-
             await _dispatcher.DispatchAsync(
-                templateCode: templateCode,
+                templateCode: NotificationTemplateConsts.Codes.UploadPendingDocuments,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"PackageDocumentReminder/{eventData.AppointmentDocumentId}");
+                contextTag: $"PackageDocumentReminder/{(eventData.IsJointDeclaration ? "JDF" : "Package")}/{eventData.AppointmentDocumentId}");
         }
     }
 }

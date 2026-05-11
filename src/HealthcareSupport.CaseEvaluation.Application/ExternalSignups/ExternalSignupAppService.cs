@@ -19,8 +19,6 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
-using Volo.Abp.EventBus.Local;
-using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
@@ -50,9 +48,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // D.2 (2026-04-30): wired for the admin invite endpoint.
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
-    // R1 follow-up (2026-05-05): publish UserRegisteredEto so the
-    // notification handler can send OLD's "verify your email" message.
-    private readonly ILocalEventBus _localEventBus;
     // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
     // gate on EnvironmentName so they cannot be invoked in production.
     private readonly IHostEnvironment _hostEnvironment;
@@ -81,7 +76,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
         ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
-        ILocalEventBus localEventBus,
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter)
     {
@@ -102,7 +96,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
         _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
-        _localEventBus = localEventBus;
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
     }
@@ -547,13 +540,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             await AutoLinkAppointmentsForUserAsync(user, input.UserType);
 
             // 2026-05-06 (Adrian directive): the verification email is NOT sent
-            // when the user submits the register form. Instead the SPA bounces
-            // them to `/Account/ConfirmUser?email=...` and the email fires only
-            // when they explicitly click "Verify" there (which calls
-            // /api/public/external-signup/resend-verification, publishing the
-            // UserRegisteredEto). This lets registration finish silently if the
-            // user closes the tab and removes the wasted SMTP send for users
-            // who never click through.
+            // when the user submits the register form. Instead the SPA shows a
+            // post-register page with a "Send verification email" button; the
+            // email fires only when the user clicks that button (or when a
+            // blocked-login error nudges them to resend). The trigger flows
+            // through ABP's stock account flow into our IAccountEmailer override
+            // (CaseEvaluationAccountEmailer.SendEmailConfirmationLinkAsync),
+            // which dispatches the UserRegistered template through the same
+            // template renderer + Hangfire queue used by every other email.
+            // This lets registration finish silently if the user closes the
+            // tab and removes the wasted SMTP send for users who never click
+            // through.
         }
     }
 
