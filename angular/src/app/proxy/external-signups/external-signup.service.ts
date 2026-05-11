@@ -1,4 +1,4 @@
-import type { ExternalUserLookupDto, ExternalUserProfileDto, ExternalUserSignUpDto, InviteExternalUserDto, InviteExternalUserResultDto } from './models';
+import type { DeleteTestUsersResultDto, ExternalUserLookupDto, ExternalUserProfileDto, ExternalUserSignUpDto, InviteExternalUserDto, InviteExternalUserResultDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { ListResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -10,6 +10,15 @@ import type { LookupDto } from '../shared/models';
 export class ExternalSignupService {
   private restService = inject(RestService);
   apiName = 'Default';
+  
+
+  deleteTestUsers = (emails: string[], config?: Partial<Rest.Config>) =>
+    this.restService.request<any, DeleteTestUsersResultDto>({
+      method: 'DELETE',
+      url: '/api/app/external-signup/test-users',
+      params: { emails },
+    },
+    { apiName: this.apiName,...config });
   
 
   getExternalUserLookup = (filter?: string, config?: Partial<Rest.Config>) =>
@@ -43,6 +52,15 @@ export class ExternalSignupService {
       method: 'POST',
       url: '/api/app/external-signup/invite-external-user',
       body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  markEmailConfirmed = (email: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, void>({
+      method: 'POST',
+      url: '/api/app/external-signup/mark-email-confirmed',
+      params: { email },
     },
     { apiName: this.apiName,...config });
   

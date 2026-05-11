@@ -8059,6 +8059,43 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
             },
+            "GetCombinedForAppointmentAsyncByAppointmentId": {
+              "uniqueName": "GetCombinedForAppointmentAsyncByAppointmentId",
+              "name": "GetCombinedForAppointmentAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/documents/combined",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.AppointmentDocuments.PatientPortalDocumentDto>",
+                "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.PatientPortalDocumentDto]"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
             "UploadPackageAsyncByAppointmentIdAndIdAndForm": {
               "uniqueName": "UploadPackageAsyncByAppointmentIdAndIdAndForm",
               "name": "UploadPackageAsync",
@@ -8288,6 +8325,100 @@
                   "jsonName": null,
                   "type": "System.Guid",
                   "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentPacketController"
+            },
+            "GetListByAppointmentAsyncByAppointmentId": {
+              "uniqueName": "GetListByAppointmentAsyncByAppointmentId",
+              "name": "GetListByAppointmentAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/packet/list",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto>",
+                "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto]"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentPacketController"
+            },
+            "DownloadByKindAsyncByAppointmentIdAndKind": {
+              "uniqueName": "DownloadByKindAsyncByAppointmentIdAndKind",
+              "name": "DownloadByKindAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/packet/download/{kind}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "kind",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind, HealthcareSupport.CaseEvaluation.Domain.Shared",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind",
+                  "typeSimple": "enum",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "kind",
+                  "name": "kind",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind",
+                  "typeSimple": "enum",
                   "isOptional": false,
                   "defaultValue": null,
                   "constraintTypes": [],
@@ -11029,6 +11160,14 @@
                     "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
                     "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
                   }
+                },
+                {
+                  "name": "GetPendingCountAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "System.Int32",
+                    "typeSimple": "number"
+                  }
                 }
               ]
             }
@@ -12256,6 +12395,21 @@
               "returnValue": {
                 "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
                 "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
+            },
+            "GetPendingCountAsync": {
+              "uniqueName": "GetPendingCountAsync",
+              "name": "GetPendingCountAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/pending-count",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Int32",
+                "typeSimple": "number"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
@@ -14966,8 +15120,8 @@
                     }
                   ],
                   "returnValue": {
-                    "type": "System.Void",
-                    "typeSimple": "System.Void"
+                    "type": "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityBulkDeleteResultDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityBulkDeleteResultDto"
                   }
                 },
                 {
@@ -15682,8 +15836,8 @@
                 }
               ],
               "returnValue": {
-                "type": "System.Void",
-                "typeSimple": "System.Void"
+                "type": "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityBulkDeleteResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityBulkDeleteResultDto"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.IDoctorAvailabilitiesAppService"
@@ -17075,6 +17229,43 @@
               },
               "allowAnonymous": true,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalAccount.ExternalAccountController"
+            },
+            "ResendEmailVerificationAsyncByInput": {
+              "uniqueName": "ResendEmailVerificationAsyncByInput",
+              "name": "ResendEmailVerificationAsync",
+              "httpMethod": "POST",
+              "url": "api/public/external-account/resend-email-verification",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalAccount.ExternalAccountController"
             }
           }
         },
@@ -17231,6 +17422,80 @@
               "returnValue": {
                 "type": "Microsoft.AspNetCore.Mvc.IActionResult",
                 "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.ExternalSignupController"
+            },
+            "MarkEmailConfirmedAsyncByInput": {
+              "uniqueName": "MarkEmailConfirmedAsyncByInput",
+              "name": "MarkEmailConfirmedAsync",
+              "httpMethod": "POST",
+              "url": "api/public/external-signup/dev/mark-email-confirmed",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto, HealthcareSupport.CaseEvaluation.HttpApi",
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.ExternalSignupController"
+            },
+            "DeleteTestUsersAsyncByInput": {
+              "uniqueName": "DeleteTestUsersAsyncByInput",
+              "name": "DeleteTestUsersAsync",
+              "httpMethod": "POST",
+              "url": "api/public/external-signup/dev/delete-test-users",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto, HealthcareSupport.CaseEvaluation.HttpApi",
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto"
               },
               "allowAnonymous": true,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.ExternalSignupController"
@@ -20708,6 +20973,99 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController": {
+          "controllerName": "UserSignature",
+          "controllerGroupName": "UserSignature",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController",
+          "interfaces": [],
+          "actions": {
+            "GetInfoAsync": {
+              "uniqueName": "GetInfoAsync",
+              "name": "GetInfoAsync",
+              "httpMethod": "GET",
+              "url": "api/app/user-signatures/me",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureInfoDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureInfoDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController"
+            },
+            "UploadAsyncByForm": {
+              "uniqueName": "UploadAsyncByForm",
+              "name": "UploadAsync",
+              "httpMethod": "POST",
+              "url": "api/app/user-signatures/me",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "form",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UploadUserSignatureForm, HealthcareSupport.CaseEvaluation.HttpApi",
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UploadUserSignatureForm",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UploadUserSignatureForm",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "form",
+                  "name": "File",
+                  "jsonName": null,
+                  "type": "Microsoft.AspNetCore.Http.IFormFile",
+                  "typeSimple": "Microsoft.AspNetCore.Http.IFormFile",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "FormFile",
+                  "descriptorName": "form"
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureInfoDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureInfoDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController"
+            },
+            "DownloadAsync": {
+              "uniqueName": "DownloadAsync",
+              "name": "DownloadAsync",
+              "httpMethod": "GET",
+              "url": "api/app/user-signatures/me/download",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController"
+            },
+            "DeleteAsync": {
+              "uniqueName": "DeleteAsync",
+              "name": "DeleteAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/user-signatures/me",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.WcabOffices.WcabOfficeController": {
           "controllerName": "WcabOffice",
           "controllerGroupName": "WcabOffice",
@@ -22589,11 +22947,119 @@
                     "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.InviteExternalUserResultDto",
                     "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.InviteExternalUserResultDto"
                   }
+                },
+                {
+                  "name": "MarkEmailConfirmedAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "email",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "DeleteTestUsersAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "emails",
+                      "typeAsString": "System.Collections.Generic.IList`1[[System.String, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], System.Private.CoreLib",
+                      "type": "System.Collections.Generic.IList<System.String>",
+                      "typeSimple": "[string]",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto"
+                  }
                 }
               ]
             }
           ],
           "actions": {
+            "MarkEmailConfirmedAsyncByEmail": {
+              "uniqueName": "MarkEmailConfirmedAsyncByEmail",
+              "name": "MarkEmailConfirmedAsync",
+              "httpMethod": "POST",
+              "url": "api/app/external-signup/mark-email-confirmed",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "email",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "email",
+                  "name": "email",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.ExternalSignups.IExternalSignupAppService"
+            },
+            "DeleteTestUsersAsyncByEmails": {
+              "uniqueName": "DeleteTestUsersAsyncByEmails",
+              "name": "DeleteTestUsersAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/external-signup/test-users",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "emails",
+                  "typeAsString": "System.Collections.Generic.IList`1[[System.String, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], System.Private.CoreLib",
+                  "type": "System.Collections.Generic.IList<System.String>",
+                  "typeSimple": "[string]",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "emails",
+                  "name": "emails",
+                  "jsonName": null,
+                  "type": "System.Collections.Generic.IList<System.String>",
+                  "typeSimple": "[string]",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.ExternalSignups.IExternalSignupAppService"
+            },
             "GetTenantOptionsAsyncByFilter": {
               "uniqueName": "GetTenantOptionsAsyncByFilter",
               "name": "GetTenantOptionsAsync",
@@ -41375,6 +41841,19 @@
           "isNullable": false
         },
         {
+          "name": "Kind",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
           "name": "BlobName",
           "jsonName": null,
           "type": "System.String",
@@ -41471,6 +41950,136 @@
         1,
         2,
         3
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Patient",
+        "Doctor",
+        "AttorneyClaimExaminer"
+      ],
+      "enumValues": [
+        1,
+        2,
+        3
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PatientPortalDocumentDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Id",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Source",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PatientPortalDocumentSource",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "FileName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ContentType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "CreatedAt",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PacketKind",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "UploadStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.DocumentStatus?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PatientPortalDocumentSource": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Uploaded",
+        "GeneratedPacket"
+      ],
+      "enumValues": [
+        1,
+        2
       ],
       "genericArguments": null,
       "properties": null
@@ -45157,6 +45766,50 @@
         }
       ]
     },
+    "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.DeleteTestUsersDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Emails",
+          "jsonName": null,
+          "type": "[System.String]",
+          "typeSimple": "[string]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.MarkEmailConfirmedDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
     "HealthcareSupport.CaseEvaluation.Controllers.PackageDetailsControllers.LinkDocumentsRequest": {
       "baseType": null,
       "isEnum": false,
@@ -45169,6 +45822,28 @@
           "jsonName": null,
           "type": "[System.Guid]",
           "typeSimple": "[string]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UploadUserSignatureForm": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "File",
+          "jsonName": null,
+          "type": "Microsoft.AspNetCore.Http.IFormFile",
+          "typeSimple": "Microsoft.AspNetCore.Http.IFormFile",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
@@ -46393,6 +47068,41 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityBulkDeleteResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "DeletedCount",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "SkippedSlotIds",
+          "jsonName": null,
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -48199,6 +48909,28 @@
       "genericArguments": null,
       "properties": null
     },
+    "HealthcareSupport.CaseEvaluation.ExternalAccount.ResendEmailVerificationInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
     "HealthcareSupport.CaseEvaluation.ExternalAccount.ResetPasswordInput": {
       "baseType": null,
       "isEnum": false,
@@ -48292,6 +49024,41 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.ExternalSignups.DeleteTestUsersResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Deleted",
+          "jsonName": null,
+          "type": "[System.String]",
+          "typeSimple": "[string]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "NotFound",
+          "jsonName": null,
+          "type": "[System.String]",
+          "typeSimple": "[string]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -51970,6 +52737,54 @@
           "maximum": null,
           "regex": null,
           "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureInfoDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "HasSignature",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "FileName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ContentType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
