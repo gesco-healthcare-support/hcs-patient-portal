@@ -17,6 +17,8 @@ using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Emailing;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.MailKit;
+using MailKit.Security;
 using Volo.Abp.Identity;
 using Volo.Abp.Commercial.SuiteTemplates;
 using Volo.Abp.LanguageManagement;
@@ -37,6 +39,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpPermissionManagementDomainOpenIddictModule),
     typeof(AbpSettingManagementDomainModule),
     typeof(AbpEmailingModule),
+    typeof(AbpMailKitModule),
     typeof(AbpIdentityProDomainModule),
     typeof(AbpOpenIddictProDomainModule),
     typeof(SaasDomainModule),
@@ -54,6 +57,16 @@ public class CaseEvaluationDomainModule : AbpModule
         Configure<AbpMultiTenancyOptions>(options =>
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
+        });
+
+        // 2026-05-11: MailKit replaces the legacy System.Net.Mail.SmtpClient via
+        // Volo.Abp.MailKit. ABP MailKit defaults SecureSocketOption based on
+        // Abp.Mailing.Smtp.EnableSsl (true => SslOnConnect, false => StartTlsWhenAvailable),
+        // but SslOnConnect targets implicit-TLS port 465 -- our provider uses STARTTLS on
+        // port 587. Explicitly pin StartTls so the upgrade negotiation matches the server.
+        Configure<AbpMailKitOptions>(options =>
+        {
+            options.SecureSocketOption = SecureSocketOptions.StartTls;
         });
 
         // Phase 1 (2026-05-05): QuestPDF community-license registration.
