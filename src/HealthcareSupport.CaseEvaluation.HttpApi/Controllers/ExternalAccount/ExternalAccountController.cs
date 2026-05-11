@@ -54,6 +54,21 @@ public class ExternalAccountController : AbpController
     }
 
     /// <summary>
+    /// Phase 1.D (Category 1, 2026-05-08): re-fires the email-verification
+    /// link to an unverified user. Same anonymous + rate-limited surface as
+    /// <c>send-password-reset-code</c>; both share the
+    /// <c>password-reset-by-email</c> partition (5 / hour / email key) since
+    /// they're equivalent attack vectors for SMTP-flood / enumeration.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost]
+    [Route("resend-email-verification")]
+    public virtual Task ResendEmailVerificationAsync([FromBody] ResendEmailVerificationInput input)
+    {
+        return _externalAccountAppService.ResendEmailVerificationAsync(input);
+    }
+
+    /// <summary>
     /// Path prefix for the rate-limited routes. The
     /// <c>CaseEvaluationHttpApiHostModule</c> wires the global rate
     /// limiter against this prefix rather than via an
