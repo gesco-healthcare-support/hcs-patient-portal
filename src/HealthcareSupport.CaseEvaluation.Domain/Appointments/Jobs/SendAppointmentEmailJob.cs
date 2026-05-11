@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Emailing;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Jobs;
@@ -43,13 +44,16 @@ public class SendAppointmentEmailJob :
 {
     private readonly IEmailSender _emailSender;
     private readonly IPacketAttachmentProvider _packetAttachmentProvider;
+    private readonly ICurrentTenant _currentTenant;
 
     public SendAppointmentEmailJob(
         IEmailSender emailSender,
-        IPacketAttachmentProvider packetAttachmentProvider)
+        IPacketAttachmentProvider packetAttachmentProvider,
+        ICurrentTenant currentTenant)
     {
         _emailSender = emailSender;
         _packetAttachmentProvider = packetAttachmentProvider;
+        _currentTenant = currentTenant;
     }
 
     // [UnitOfWork] mirrors AppointmentDayReminderJob + GenerateAppointmentPacketJob.
@@ -59,15 +63,28 @@ public class SendAppointmentEmailJob :
     // ObjectDisposedException. The non-attachment SendPlainAsync path does
     // not hit a DbContext so it survived without -- but the safer pattern is
     // one UoW for the whole job.
+    //
+    // 2026-05-11 (Bug A fix): wrap the entire job in args.TenantId tenant
+    // scope. Without it, IPacketAttachmentProvider's IRepository observes
+    // ABP's automatic IMultiTenant filter at host scope (since Hangfire
+    // workers boot with no tenant context) and excludes the packet row
+    // even though it exists. Symptom: "packet is not Generated; skipping"
+    // warning fires every time on Cat 4 packet-with-attachment sends, no
+    // email is sent. NotifySendCompletedAsync (AttyCE prune) had the same
+    // bug -- prune silently no-op'd because FindAsync returned null. Both
+    // resolved by entering the right tenant once at the top of ExecuteAsync.
     [UnitOfWork]
     public override async Task ExecuteAsync(SendAppointmentEmailArgs args)
     {
-        if (args.PacketRef == null)
+        using (_currentTenant.Change(args.TenantId))
         {
-            await SendPlainAsync(args);
-            return;
+            if (args.PacketRef == null)
+            {
+                await SendPlainAsync(args);
+                return;
+            }
+            await SendWithAttachmentAsync(args, args.PacketRef);
         }
-        await SendWithAttachmentAsync(args, args.PacketRef);
     }
 
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
