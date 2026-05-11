@@ -7,11 +7,13 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
@@ -79,6 +81,8 @@ public class GenerateAppointmentPacketJob :
     private readonly IDocxTemplateRenderer _renderer;
     private readonly IDocxToPdfConverter _docxToPdfConverter;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ILocalEventBus _localEventBus;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<GenerateAppointmentPacketJob> _logger;
 
     public GenerateAppointmentPacketJob(
@@ -90,6 +94,8 @@ public class GenerateAppointmentPacketJob :
         IDocxTemplateRenderer renderer,
         IDocxToPdfConverter docxToPdfConverter,
         ICurrentTenant currentTenant,
+        ILocalEventBus localEventBus,
+        IUnitOfWorkManager unitOfWorkManager,
         ILogger<GenerateAppointmentPacketJob> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -100,6 +106,8 @@ public class GenerateAppointmentPacketJob :
         _renderer = renderer;
         _docxToPdfConverter = docxToPdfConverter;
         _currentTenant = currentTenant;
+        _localEventBus = localEventBus;
+        _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
     }
 
@@ -165,8 +173,44 @@ public class GenerateAppointmentPacketJob :
 
             await _packetManager.MarkGeneratedAsync(packet.Id, blobName);
 
+            // Phase 4 (Category 4, 2026-05-10): notify email handlers
+            // that the packet is ready for fan-out. One event per kind so
+            // PatientPacketEmailHandler + AttyCEPacketEmailHandler can
+            // subscribe independently. Doctor kind fires too but has no
+            // subscriber -- mirrors OLD's "Doctor packet is generated
+            // and stored, but NOT emailed" asymmetry at
+            // AppointmentDocumentDomain.cs:561-634.
+            //
+            // 2026-05-11: Defer publish until the surrounding UoW commits.
+            // ILocalEventBus inside an active UoW already buffers handler
+            // invocations until commit, but the handler in turn enqueues a
+            // Hangfire job whose worker opens a FRESH DB transaction and
+            // queries AppAppointmentPackets. Without OnCompleted, the
+            // worker can dequeue before EnsureGeneratingAsync /
+            // MarkGeneratedAsync writes are committed, see the Status row
+            // as still NotStarted, and log "is not Generated; skipping"
+            // (the Cat 4 P0 we hit while smoke-testing). OnCompleted runs
+            // strictly after SaveChanges, eliminating the race.
+            var eto = new PacketGeneratedEto
+            {
+                AppointmentId = appointmentId,
+                TenantId = _currentTenant.Id,
+                PacketId = packet.Id,
+                Kind = kind,
+                OccurredAt = DateTime.UtcNow,
+            };
+            var currentUow = _unitOfWorkManager.Current;
+            if (currentUow != null)
+            {
+                currentUow.OnCompleted(async () => await _localEventBus.PublishAsync(eto));
+            }
+            else
+            {
+                await _localEventBus.PublishAsync(eto);
+            }
+
             _logger.LogInformation(
-                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({DocxBytes} bytes DOCX -> {PdfBytes} bytes PDF).",
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({DocxBytes} bytes DOCX -> {PdfBytes} bytes PDF); PacketGeneratedEto published.",
                 appointmentId, kind, docxBytes.Length, pdfBytes.Length);
         }
         catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is ArgumentException)
