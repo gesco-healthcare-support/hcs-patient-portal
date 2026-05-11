@@ -18,13 +18,21 @@ import { AppointmentPacketService } from '../proxy/appointment-documents/appoint
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
 import { AppointmentPacketDto } from '../proxy/appointment-documents/models';
 import { PacketGenerationStatus } from '../proxy/appointment-documents/packet-generation-status.enum';
+import { PacketKind } from '../proxy/appointment-documents/packet-kind.enum';
 import { AppointmentDocumentUrls } from '../appointment-documents/appointment-document-urls';
 
 /**
- * W2-11 packet UI. Displays the merged-PDF packet status for an
- * appointment + Download / Regenerate actions. Polls every 5 seconds
- * while Generating so the office sees Failed/Generated transitions
- * without manual refresh. SignalR push deferred to ledger.
+ * Phase 1D.9 packet UI. Displays the per-kind packet status for an
+ * appointment (Patient / Doctor / AttorneyClaimExaminer rows produced by
+ * the multi-kind orchestrator at
+ * <c>GenerateAppointmentPacketJob.GenerateInsideTenantAsync</c>) with
+ * per-row Download actions plus one global Regenerate action that
+ * re-enqueues the job for all kinds (current
+ * <c>AppointmentDocumentsAppService.RegeneratePacketAsync</c> semantics).
+ *
+ * <para>Polls every 5 seconds while any packet is still <c>Generating</c>
+ * so the office sees Failed/Generated transitions without manual refresh.
+ * SignalR push is deferred to the post-MVP ledger.</para>
  */
 @Component({
   selector: 'app-appointment-packet',
@@ -41,6 +49,9 @@ import { AppointmentDocumentUrls } from '../appointment-documents/appointment-do
         padding: 12px;
         background: #f8f9fa;
         border-radius: 4px;
+      }
+      .packet-row + .packet-row {
+        margin-top: 8px;
       }
       .packet-meta {
         color: #6c757d;
@@ -71,15 +82,20 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
   // outside proxy/. See docs/research/proxy-regen-doc-flow-fix.md (Q2).
   private urls = inject(AppointmentDocumentUrls);
 
-  packet: AppointmentPacketDto | null = null;
+  packets: AppointmentPacketDto[] = [];
   isLoading = false;
   isRegenerating = false;
   private pollHandle: ReturnType<typeof setInterval> | null = null;
 
   readonly PacketGenerationStatus = PacketGenerationStatus;
+  readonly PacketKind = PacketKind;
 
   get canRegenerate(): boolean {
     return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentPackets.Regenerate');
+  }
+
+  get hasGenerating(): boolean {
+    return this.packets.some((p) => p.status === PacketGenerationStatus.Generating);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -94,16 +110,20 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
 
   refresh(): void {
     if (!this.appointmentId) {
-      this.packet = null;
+      this.packets = [];
       this.stopPolling();
       return;
     }
     this.isLoading = true;
-    this.packetService.getByAppointment(this.appointmentId).subscribe({
-      next: (row) => {
-        this.packet = row ?? null;
+    this.packetService.getListByAppointment(this.appointmentId).subscribe({
+      next: (rows) => {
+        // Sort by Kind enum value so display order is stable across re-fetches:
+        // Patient (1) -> Doctor (2) -> AttorneyClaimExaminer (3). Sorting on
+        // the client mirrors AppointmentPacketsAppService.GetListByAppointmentAsync
+        // which has no ORDER BY clause guarantee.
+        this.packets = (rows ?? []).slice().sort((a, b) => (a.kind ?? 0) - (b.kind ?? 0));
         this.isLoading = false;
-        if (this.packet?.status === PacketGenerationStatus.Generating) {
+        if (this.hasGenerating) {
           this.startPolling();
         } else {
           this.stopPolling();
@@ -115,11 +135,15 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
     });
   }
 
-  download(): void {
-    if (!this.appointmentId || this.packet?.status !== PacketGenerationStatus.Generated) {
+  download(packet: AppointmentPacketDto): void {
+    if (
+      !this.appointmentId ||
+      packet.status !== PacketGenerationStatus.Generated ||
+      packet.kind == null
+    ) {
       return;
     }
-    const url = this.urls.buildPacket(this.appointmentId);
+    const url = this.urls.buildPacket(this.appointmentId, packet.kind);
     window.open(url, '_blank');
   }
 
@@ -128,6 +152,11 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
       return;
     }
     this.isRegenerating = true;
+    // Backend semantics: one call re-enqueues GenerateAppointmentPacketArgs
+    // which the orchestrator expands into all applicable kinds (Patient +
+    // Doctor always; AttorneyClaimExaminer when the appointment type name
+    // contains "PQME" or "AME"). Per-kind regenerate is deferred until a
+    // dedicated backend endpoint lands.
     this.documentService.regeneratePacket(this.appointmentId).subscribe({
       next: () => {
         this.toaster.success('Packet regeneration queued.');
@@ -140,7 +169,20 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
     });
   }
 
-  statusLabel(status: PacketGenerationStatus): string {
+  kindLabel(kind: PacketKind | undefined): string {
+    switch (kind) {
+      case PacketKind.Patient:
+        return 'Patient Packet';
+      case PacketKind.Doctor:
+        return 'Doctor Packet';
+      case PacketKind.AttorneyClaimExaminer:
+        return 'Attorney / Claim Examiner Packet';
+      default:
+        return 'Packet';
+    }
+  }
+
+  statusLabel(status: PacketGenerationStatus | undefined): string {
     switch (status) {
       case PacketGenerationStatus.Generated:
         return 'Generated';
@@ -151,7 +193,7 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
     }
   }
 
-  statusBadgeClass(status: PacketGenerationStatus): string {
+  statusBadgeClass(status: PacketGenerationStatus | undefined): string {
     switch (status) {
       case PacketGenerationStatus.Generated:
         return 'bg-success';
@@ -160,6 +202,10 @@ export class AppointmentPacketComponent implements OnChanges, OnDestroy {
       default:
         return 'bg-info';
     }
+  }
+
+  trackByPacket(_index: number, packet: AppointmentPacketDto): string {
+    return packet.id ?? `${packet.kind}`;
   }
 
   private startPolling(): void {

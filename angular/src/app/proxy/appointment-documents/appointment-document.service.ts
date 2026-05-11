@@ -1,4 +1,4 @@
-import type { AppointmentDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
+import type { AppointmentDocumentDto, PatientPortalDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
@@ -31,6 +31,14 @@ export class AppointmentDocumentService {
     this.restService.request<any, IActionResult>({
       method: 'GET',
       url: `/api/app/appointments/${appointmentId}/documents/${id}/download`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getCombinedForAppointment = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, PatientPortalDocumentDto[]>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/documents/combined`,
     },
     { apiName: this.apiName,...config });
   

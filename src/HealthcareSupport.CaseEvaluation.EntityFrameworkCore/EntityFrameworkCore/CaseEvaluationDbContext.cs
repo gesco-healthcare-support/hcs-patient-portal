@@ -476,19 +476,25 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasIndex(x => x.TenantId).IsUnique();
         });
 
-        // W2-11: AppointmentPacket -- per-appointment merged-PDF metadata row.
+        // AppointmentPacket -- per-(appointment, kind) generated packet metadata row.
+        // Phase 1A.1: Kind discriminator + composite uniqueness so a single
+        // appointment can persist 3 distinct rows: Patient, Doctor, and
+        // AttorneyClaimExaminer (one rendered DOCX shared across all
+        // atty/CE recipients via per-recipient email fanout).
         builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentPackets", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName("TenantId");
             b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.Kind).HasColumnName("Kind").IsRequired();
             b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.BlobNameMaxLength);
             b.Property(x => x.Status).HasColumnName("Status");
             b.Property(x => x.GeneratedAt).HasColumnName("GeneratedAt");
             b.Property(x => x.RegeneratedAt).HasColumnName("RegeneratedAt");
             b.Property(x => x.ErrorMessage).HasColumnName("ErrorMessage").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.ErrorMessageMaxLength);
             b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => new { x.TenantId, x.AppointmentId, x.Kind }).IsUnique();
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 

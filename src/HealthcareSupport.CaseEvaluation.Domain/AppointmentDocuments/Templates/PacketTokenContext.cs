@@ -1,11 +1,12 @@
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 
 /// <summary>
-/// Resolved token values for one appointment, used by both
-/// <see cref="PatientPacketTemplate"/> and <see cref="DoctorPacketTemplate"/>.
+/// Resolved token values for one appointment, consumed by the OpenXml
+/// renderer when filling out PATIENT PACKET NEW, DOCTOR PACKET, and the
+/// unified ATTORNEY CLAIM EXAMINER PACKET templates.
 ///
 /// <para>OLD parity behaviors locked in
-/// <c>docs/parity/packet-generation-audit.md</c> (Phase 0):</para>
+/// <c>docs/parity/email-packet-parity/document-packets.md</c>:</para>
 /// <list type="bullet">
 ///   <item>Every string property is the FINAL render value -- already
 ///   <c>.ToUpper()</c>'d (matches OLD <c>AppointmentDocumentDomain.cs:1070</c>),
@@ -15,18 +16,18 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 ///   bytes; <c>null</c> when the responsible user has no signature uploaded.
 ///   Templates skip the image when null (OLD silent-skip at
 ///   <c>AppointmentDocumentDomain.cs:657</c>).</item>
-///   <item>InjuryDetails / BodyParts / CustomFields are pre-concatenated by
-///   the resolver: ALL rows joined with <c>" "</c> separator. Single-injury
-///   appointments produce a value with a trailing space (OLD pattern at
-///   <c>:1139, :1160, :1184</c>).</item>
+///   <item>InjuryDetails are pre-concatenated by the resolver: ALL rows
+///   joined with <c>" "</c> separator. Single-injury appointments produce
+///   a value with a trailing space (OLD pattern at
+///   <c>AppointmentDocumentDomain.cs:1139, :1160, :1184</c>).</item>
 /// </list>
 ///
-/// <para>The 49 properties below correspond 1:1 with the union of tokens
-/// used by <c>PATIENT PACKET NEW.docx</c> (44 tokens) and
-/// <c>DOCTOR PACKET.docx</c> (15 tokens). Property names match the OLD
-/// token's column part (after the <c>##Group.</c> prefix). The OLD token
-/// name appears in each XML doc comment so a template author can grep
-/// for the placeholder string.</para>
+/// <para>The 60 properties below correspond 1:1 with the union of tokens
+/// used by the 3 active OLD templates (44 in Patient Packet + 15 in
+/// Doctor Packet + 55 in AttorneyClaimExaminer; with overlap, 60 unique).
+/// Property names match the OLD token's column part (after the
+/// <c>##Group.</c> prefix). The OLD token name appears in each XML doc
+/// comment so a template author can grep for the placeholder string.</para>
 /// </summary>
 public class PacketTokenContext
 {
@@ -63,6 +64,9 @@ public class PacketTokenContext
 
     /// <summary>OLD: <c>##Patients.ZipCode##</c> (Patient Packet only)</summary>
     public string PatientZipCode { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##Patients.PhoneNumber##</c> (AttorneyClaimExaminer Packet only)</summary>
+    public string PatientPhoneNumber { get; set; } = string.Empty;
 
     // -- Appointments group (vAppointmentDetail view) ---------------------
 
@@ -114,13 +118,31 @@ public class PacketTokenContext
     public string PrimaryResponsibleUserName { get; set; } = string.Empty;
 
     /// <summary>
-    /// OLD: <c>##Appointments.Signature##</c> (Patient Packet only).
+    /// OLD: <c>##Appointments.Signature##</c> (Patient Packet + AttorneyClaimExaminer Packet).
     /// Per-user signature image bytes -- PNG or JPEG. <c>null</c> when the
     /// responsible user has no signature uploaded; templates skip the image
     /// (matches OLD silent-skip at <c>AppointmentDocumentDomain.cs:657</c>).
     /// Sourced via <c>IUserSignatureAppService.GetBytesByUserIdAsync</c>.
     /// </summary>
     public byte[]? ResponsibleUserSignature { get; set; }
+
+    /// <summary>
+    /// OLD: <c>##Appointments.AppointmentCreatedDate##</c> (AttorneyClaimExaminer Packet only).
+    /// Pre-formatted creation date (typically MM/dd/yyyy) of the appointment
+    /// row. Sourced from <c>Appointment.CreationTime</c> (or OLD's
+    /// equivalent column on vAppointmentDetail). ToUpper'd no-op for digits.
+    /// </summary>
+    public string AppointmentCreatedDate { get; set; } = string.Empty;
+
+    /// <summary>
+    /// OLD: <c>##Appointments.PanelNumber##</c> (AttorneyClaimExaminer Packet only).
+    /// Sourced from a per-appointment Panel Number field on
+    /// vAppointmentDetail. Phase 1B.4 resolver maps to the matching NEW
+    /// Appointment property; if NEW has no Panel Number column, the
+    /// resolver renders empty string (OLD silently empties unknown columns
+    /// per the reflection lookup at <c>AppointmentDocumentDomain.cs:1066-1071</c>).
+    /// </summary>
+    public string PanelNumber { get; set; } = string.Empty;
 
     // -- EmployerDetails group (vAppointmentEmployerDetail) ---------------
 
@@ -216,25 +238,43 @@ public class PacketTokenContext
     /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceName##</c></summary>
     public string InjuryPrimaryInsuranceName { get; set; } = string.Empty;
 
-    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceStreet##</c> (Patient Packet only)</summary>
+    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceStreet##</c> (Patient + AttorneyClaimExaminer)</summary>
     public string InjuryPrimaryInsuranceStreet { get; set; } = string.Empty;
 
-    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceCity##</c> (Patient Packet only)</summary>
+    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceCity##</c> (Patient + AttorneyClaimExaminer)</summary>
     public string InjuryPrimaryInsuranceCity { get; set; } = string.Empty;
 
-    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceState##</c> (Patient Packet only)</summary>
+    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsuranceState##</c> (Patient + AttorneyClaimExaminer)</summary>
     public string InjuryPrimaryInsuranceState { get; set; } = string.Empty;
 
     /// <summary>
-    /// OLD: <c>##InjuryDetails.PrimaryInsuranceZip##</c> (Patient Packet only).
+    /// OLD: <c>##InjuryDetails.PrimaryInsuranceZip##</c> (Patient + AttorneyClaimExaminer).
     /// NB: NEW <c>AppointmentPrimaryInsurance.Zip</c> -- one of the few NEW
     /// entities that uses <c>Zip</c> instead of <c>ZipCode</c> as the
     /// property name (inconsistent with WcabOffice, ApplicantAttorney etc.).
     /// </summary>
     public string InjuryPrimaryInsuranceZip { get; set; } = string.Empty;
 
-    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerName##</c> (Doctor Packet only)</summary>
+    /// <summary>OLD: <c>##InjuryDetails.PrimaryInsurancePhoneNumber##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryPrimaryInsurancePhoneNumber { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerName##</c> (Doctor + AttorneyClaimExaminer). Concat all injuries; first active examiner per injury.</summary>
     public string InjuryClaimExaminerName { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerStreet##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryClaimExaminerStreet { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerCity##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryClaimExaminerCity { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerState##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryClaimExaminerState { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerZip##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryClaimExaminerZip { get; set; } = string.Empty;
+
+    /// <summary>OLD: <c>##InjuryDetails.ClaimExaminerPhoneNumber##</c> (AttorneyClaimExaminer Packet only). Concat all injuries.</summary>
+    public string InjuryClaimExaminerPhoneNumber { get; set; } = string.Empty;
 
     // -- Others group ------------------------------------------------------
 

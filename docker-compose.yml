@@ -144,6 +144,11 @@ services:
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      # Phase 2 (2026-05-11) -- Gotenberg sidecar for DOCX -> PDF
+      # conversion in the packet pipeline. Service name resolves via
+      # Docker's internal DNS; CaseEvaluationDomainModule reads this
+      # value (with a localhost fallback that matches this service name).
+      Gotenberg__Url: "http://gotenberg:3000"
     volumes:
       - ./src:/app/src
       - ./Directory.Build.props:/app/Directory.Build.props:ro
@@ -158,12 +163,32 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      gotenberg:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 180s
+
+  # Phase 2 (2026-05-11) -- LibreOffice-backed DOCX -> PDF conversion
+  # via a Gotenberg sidecar. Custom Dockerfile bakes Microsoft Core
+  # Fonts (Calibri, Arial, Times New Roman, etc.) on top of the
+  # official gotenberg/gotenberg:8 image so packet templates render
+  # without font substitution drift. See docker/Dockerfile.gotenberg-fonts.
+  gotenberg:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gotenberg-fonts
+    ports:
+      - "127.0.0.1:${GOTENBERG_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   angular:
     build:
