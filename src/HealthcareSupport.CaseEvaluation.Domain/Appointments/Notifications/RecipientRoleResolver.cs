@@ -103,10 +103,10 @@ public class RecipientRoleResolver : IRecipientRoleResolver, ITransientDependenc
     /// </summary>
     internal static string? MapToRoleName(RecipientRole role) => role switch
     {
-        RecipientRole.Patient            => "Patient",
-        RecipientRole.ApplicantAttorney  => "Applicant Attorney",
-        RecipientRole.DefenseAttorney    => "Defense Attorney",
-        RecipientRole.ClaimExaminer      => "Claim Examiner",
+        RecipientRole.Patient => "Patient",
+        RecipientRole.ApplicantAttorney => "Applicant Attorney",
+        RecipientRole.DefenseAttorney => "Defense Attorney",
+        RecipientRole.ClaimExaminer => "Claim Examiner",
         _ => null,
     };
 }

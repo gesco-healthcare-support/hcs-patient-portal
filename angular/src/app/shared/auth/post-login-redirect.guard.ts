@@ -26,9 +26,10 @@ export const postLoginRedirectGuard: CanActivateFn = () => {
   const config = inject(ConfigStateService);
   const router = inject(Router);
 
-  const currentUser = config.getOne('currentUser') as
-    | { isAuthenticated?: boolean; roles?: string[] | null }
-    | null;
+  const currentUser = config.getOne('currentUser') as {
+    isAuthenticated?: boolean;
+    roles?: string[] | null;
+  } | null;
 
   // Anonymous: let the home route render. This matches OLD where the
   // login screen is the entry point but / itself was the doctor's
