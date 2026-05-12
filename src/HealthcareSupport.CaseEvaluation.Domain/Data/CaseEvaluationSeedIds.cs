@@ -20,11 +20,11 @@ public static class CaseEvaluationSeedIds
     public static class AppointmentTypes
     {
         // Qme is referenced by Location (default appointment type for demo clinics).
-        public static readonly Guid Qme                       = new("a0a00002-0000-4000-9000-000000000001");
-        public static readonly Guid PanelQme                  = new("a0a00002-0000-4000-9000-000000000002");
-        public static readonly Guid Ame                       = new("a0a00002-0000-4000-9000-000000000003");
-        public static readonly Guid RecordReview              = new("a0a00002-0000-4000-9000-000000000004");
-        public static readonly Guid Deposition                = new("a0a00002-0000-4000-9000-000000000005");
+        public static readonly Guid Qme = new("a0a00002-0000-4000-9000-000000000001");
+        public static readonly Guid PanelQme = new("a0a00002-0000-4000-9000-000000000002");
+        public static readonly Guid Ame = new("a0a00002-0000-4000-9000-000000000003");
+        public static readonly Guid RecordReview = new("a0a00002-0000-4000-9000-000000000004");
+        public static readonly Guid Deposition = new("a0a00002-0000-4000-9000-000000000005");
         public static readonly Guid SupplementalMedicalReport = new("a0a00002-0000-4000-9000-000000000006");
     }
 
@@ -35,13 +35,13 @@ public static class CaseEvaluationSeedIds
 
     public static class WcabOffices
     {
-        public static readonly Guid Anaheim        = new("a0a00004-0000-4000-9000-000000000001");
-        public static readonly Guid Bakersfield    = new("a0a00004-0000-4000-9000-000000000002");
-        public static readonly Guid Glendale       = new("a0a00004-0000-4000-9000-000000000003");
-        public static readonly Guid Irvine         = new("a0a00004-0000-4000-9000-000000000004");
-        public static readonly Guid Riverside      = new("a0a00004-0000-4000-9000-000000000005");
-        public static readonly Guid SanBernardino  = new("a0a00004-0000-4000-9000-000000000006");
-        public static readonly Guid VanNuys        = new("a0a00004-0000-4000-9000-000000000007");
+        public static readonly Guid Anaheim = new("a0a00004-0000-4000-9000-000000000001");
+        public static readonly Guid Bakersfield = new("a0a00004-0000-4000-9000-000000000002");
+        public static readonly Guid Glendale = new("a0a00004-0000-4000-9000-000000000003");
+        public static readonly Guid Irvine = new("a0a00004-0000-4000-9000-000000000004");
+        public static readonly Guid Riverside = new("a0a00004-0000-4000-9000-000000000005");
+        public static readonly Guid SanBernardino = new("a0a00004-0000-4000-9000-000000000006");
+        public static readonly Guid VanNuys = new("a0a00004-0000-4000-9000-000000000007");
     }
 
     public static class Locations

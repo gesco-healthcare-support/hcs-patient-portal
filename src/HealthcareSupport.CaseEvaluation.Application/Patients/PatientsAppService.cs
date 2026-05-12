@@ -153,153 +153,153 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 dtoExisting.IsExisting = true;
                 return dtoExisting;
             }
-        // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
-        // (Phase 11k repo method `GetDeduplicationCandidatesAsync`
-        // wired here per the Phase 11k audit-doc commitment).
-        // Mirrors OLD `AppointmentDomain.cs:732-780` IsPatientRegistered:
-        // pull rows matching ANY of LastName / DOB / Phone / Email /
-        // SSN, then count 3-of-6 matches via the pure helper. Email
-        // match alone hit the fast path above; here we catch the
-        // re-registration-under-different-email case the email
-        // pre-check missed. NEW's PatientManager.FindOrCreateAsync
-        // below remains as a safety net using its own (different)
-        // 3-of-6 field set.
-        var dedupCandidates = await _patientRepository.GetDeduplicationCandidatesAsync(
-            tenantId: CurrentTenant.Id,
-            lastName: input.LastName,
-            dateOfBirth: input.DateOfBirth,
-            phone: input.PhoneNumber,
-            email: input.Email,
-            ssn: input.SocialSecurityNumber,
-            // Patient does not carry ClaimNumber in NEW (per Phase 11k
-            // audit doc) -- the column lives on AppointmentInjuryDetail
-            // and is unavailable at Patient creation time. Pass null;
-            // the predicate counts the remaining 5 fields.
-            claimNumbers: null);
+            // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
+            // (Phase 11k repo method `GetDeduplicationCandidatesAsync`
+            // wired here per the Phase 11k audit-doc commitment).
+            // Mirrors OLD `AppointmentDomain.cs:732-780` IsPatientRegistered:
+            // pull rows matching ANY of LastName / DOB / Phone / Email /
+            // SSN, then count 3-of-6 matches via the pure helper. Email
+            // match alone hit the fast path above; here we catch the
+            // re-registration-under-different-email case the email
+            // pre-check missed. NEW's PatientManager.FindOrCreateAsync
+            // below remains as a safety net using its own (different)
+            // 3-of-6 field set.
+            var dedupCandidates = await _patientRepository.GetDeduplicationCandidatesAsync(
+                tenantId: CurrentTenant.Id,
+                lastName: input.LastName,
+                dateOfBirth: input.DateOfBirth,
+                phone: input.PhoneNumber,
+                email: input.Email,
+                ssn: input.SocialSecurityNumber,
+                // Patient does not carry ClaimNumber in NEW (per Phase 11k
+                // audit doc) -- the column lives on AppointmentInjuryDetail
+                // and is unavailable at Patient creation time. Pass null;
+                // the predicate counts the remaining 5 fields.
+                claimNumbers: null);
 
-        if (dedupCandidates.Count > 0)
-        {
-            var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+            if (dedupCandidates.Count > 0)
             {
-                LastName = input.LastName,
-                DateOfBirth = input.DateOfBirth,
-                PhoneNumber = input.PhoneNumber,
-                Email = input.Email,
-                SocialSecurityNumber = input.SocialSecurityNumber,
-                ClaimNumber = null,
-            };
-
-            foreach (var candidate in dedupCandidates)
-            {
-                var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
+                var incoming = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
                 {
-                    LastName = candidate.LastName,
-                    DateOfBirth = candidate.DateOfBirth,
-                    PhoneNumber = candidate.PhoneNumber,
-                    Email = candidate.Email,
-                    SocialSecurityNumber = candidate.SocialSecurityNumber,
+                    LastName = input.LastName,
+                    DateOfBirth = input.DateOfBirth,
+                    PhoneNumber = input.PhoneNumber,
+                    Email = input.Email,
+                    SocialSecurityNumber = input.SocialSecurityNumber,
                     ClaimNumber = null,
                 };
 
-                if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
-                    .IsPatientDuplicate(incoming, candidateBag))
+                foreach (var candidate in dedupCandidates)
                 {
-                    var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
-                    if (matchedWithNav != null)
+                    var candidateBag = new HealthcareSupport.CaseEvaluation.Appointments.PatientDeduplicationCandidate
                     {
-                        // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
-                        var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
-                        dtoMatched.IsExisting = true;
-                        return dtoMatched;
+                        LastName = candidate.LastName,
+                        DateOfBirth = candidate.DateOfBirth,
+                        PhoneNumber = candidate.PhoneNumber,
+                        Email = candidate.Email,
+                        SocialSecurityNumber = candidate.SocialSecurityNumber,
+                        ClaimNumber = null,
+                    };
+
+                    if (HealthcareSupport.CaseEvaluation.Appointments.AppointmentBookingValidators
+                        .IsPatientDuplicate(incoming, candidateBag))
+                    {
+                        var matchedWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(candidate.Id);
+                        if (matchedWithNav != null)
+                        {
+                            // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
+                            var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
+                            dtoMatched.IsExisting = true;
+                            return dtoMatched;
+                        }
                     }
                 }
             }
-        }
 
-        var identityUser = await _userManager.FindByEmailAsync(input.Email.Trim());
-        if (identityUser == null)
-        {
-            identityUser = new IdentityUser(
-                GuidGenerator.Create(),
-                userName: input.Email.Trim(),
+            var identityUser = await _userManager.FindByEmailAsync(input.Email.Trim());
+            if (identityUser == null)
+            {
+                identityUser = new IdentityUser(
+                    GuidGenerator.Create(),
+                    userName: input.Email.Trim(),
+                    email: input.Email.Trim(),
+                    tenantId: CurrentTenant.Id)
+                {
+                    Name = input.FirstName,
+                    Surname = input.LastName,
+                };
+
+                var tempPassword = CaseEvaluationConsts.AdminPasswordDefaultValue;
+                var createResult = await _userManager.CreateAsync(identityUser, tempPassword);
+                if (!createResult.Succeeded)
+                {
+                    throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
+                }
+            }
+            else
+            {
+                identityUser.Name = input.FirstName;
+                identityUser.Surname = input.LastName;
+                await _userManager.UpdateAsync(identityUser);
+            }
+
+            if (!await _userManager.IsInRoleAsync(identityUser, "Patient"))
+            {
+                var role = await _roleManager.FindByNameAsync("Patient");
+                if (role == null)
+                {
+                    role = new IdentityRole(GuidGenerator.Create(), "Patient", CurrentTenant.Id);
+                    await _roleManager.CreateAsync(role);
+                }
+                await _userManager.AddToRoleAsync(identityUser, "Patient");
+            }
+
+            // W1-0 (W0-8 carry-over): delegate to PatientManager.FindOrCreateAsync so the
+            // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
+            // re-registration under a different email. Email pre-check above stays as the
+            // fast-path; FindOrCreateAsync is the safety net.
+            // R2 (2026-05-04): capture wasFound from PatientManager.FindOrCreateAsync
+            // so we can echo the existence signal to the caller. wasFound=true means
+            // FindOrCreate's own 3-of-6 (different field set than the dedup repo
+            // method above) hit an existing row; wasFound=false means a brand-new
+            // patient was inserted by FindOrCreate.
+            var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
+                tenantId: CurrentTenant.Id,
+                identityUserId: identityUser.Id,
+                firstName: input.FirstName,
+                lastName: input.LastName,
                 email: input.Email.Trim(),
-                tenantId: CurrentTenant.Id)
-            {
-                Name = input.FirstName,
-                Surname = input.LastName,
-            };
+                genderId: input.GenderId,
+                dateOfBirth: input.DateOfBirth,
+                phoneNumberTypeId: input.PhoneNumberTypeId,
+                stateId: input.StateId,
+                appointmentLanguageId: input.AppointmentLanguageId,
+                phoneNumber: input.PhoneNumber,
+                socialSecurityNumber: input.SocialSecurityNumber,
+                zipCode: input.ZipCode,
+                middleName: input.MiddleName,
+                address: input.Address,
+                city: input.City,
+                refferedBy: input.RefferedBy,
+                cellPhoneNumber: input.CellPhoneNumber,
+                street: input.Street,
+                interpreterVendorName: input.InterpreterVendorName,
+                apptNumber: input.ApptNumber,
+                othersLanguageName: input.OthersLanguageName);
 
-            var tempPassword = CaseEvaluationConsts.AdminPasswordDefaultValue;
-            var createResult = await _userManager.CreateAsync(identityUser, tempPassword);
-            if (!createResult.Succeeded)
+            if (CurrentUnitOfWork != null)
             {
-                throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
+                await CurrentUnitOfWork.SaveChangesAsync();
             }
-        }
-        else
-        {
-            identityUser.Name = input.FirstName;
-            identityUser.Surname = input.LastName;
-            await _userManager.UpdateAsync(identityUser);
-        }
 
-        if (!await _userManager.IsInRoleAsync(identityUser, "Patient"))
-        {
-            var role = await _roleManager.FindByNameAsync("Patient");
-            if (role == null)
+            var createdWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(patient.Id);
+            if (createdWithNav == null)
             {
-                role = new IdentityRole(GuidGenerator.Create(), "Patient", CurrentTenant.Id);
-                await _roleManager.CreateAsync(role);
+                createdWithNav = new PatientWithNavigationProperties
+                {
+                    Patient = patient
+                };
             }
-            await _userManager.AddToRoleAsync(identityUser, "Patient");
-        }
-
-        // W1-0 (W0-8 carry-over): delegate to PatientManager.FindOrCreateAsync so the
-        // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
-        // re-registration under a different email. Email pre-check above stays as the
-        // fast-path; FindOrCreateAsync is the safety net.
-        // R2 (2026-05-04): capture wasFound from PatientManager.FindOrCreateAsync
-        // so we can echo the existence signal to the caller. wasFound=true means
-        // FindOrCreate's own 3-of-6 (different field set than the dedup repo
-        // method above) hit an existing row; wasFound=false means a brand-new
-        // patient was inserted by FindOrCreate.
-        var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
-            tenantId: CurrentTenant.Id,
-            identityUserId: identityUser.Id,
-            firstName: input.FirstName,
-            lastName: input.LastName,
-            email: input.Email.Trim(),
-            genderId: input.GenderId,
-            dateOfBirth: input.DateOfBirth,
-            phoneNumberTypeId: input.PhoneNumberTypeId,
-            stateId: input.StateId,
-            appointmentLanguageId: input.AppointmentLanguageId,
-            phoneNumber: input.PhoneNumber,
-            socialSecurityNumber: input.SocialSecurityNumber,
-            zipCode: input.ZipCode,
-            middleName: input.MiddleName,
-            address: input.Address,
-            city: input.City,
-            refferedBy: input.RefferedBy,
-            cellPhoneNumber: input.CellPhoneNumber,
-            street: input.Street,
-            interpreterVendorName: input.InterpreterVendorName,
-            apptNumber: input.ApptNumber,
-            othersLanguageName: input.OthersLanguageName);
-
-        if (CurrentUnitOfWork != null)
-        {
-            await CurrentUnitOfWork.SaveChangesAsync();
-        }
-
-        var createdWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(patient.Id);
-        if (createdWithNav == null)
-        {
-            createdWithNav = new PatientWithNavigationProperties
-            {
-                Patient = patient
-            };
-        }
 
             var dtoFinal = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(createdWithNav);
             dtoFinal.IsExisting = wasFound;
