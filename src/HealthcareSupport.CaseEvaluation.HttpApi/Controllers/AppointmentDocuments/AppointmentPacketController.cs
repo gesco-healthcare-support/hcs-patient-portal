@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +39,19 @@ public class AppointmentPacketController : AbpController
     public virtual async Task<IActionResult> DownloadAsync(Guid appointmentId)
     {
         var result = await _service.DownloadAsync(appointmentId);
+        return File(result.Content, result.ContentType, result.FileName);
+    }
+
+    [HttpGet("list")]
+    public virtual Task<List<AppointmentPacketDto>> GetListByAppointmentAsync(Guid appointmentId)
+    {
+        return _service.GetListByAppointmentAsync(appointmentId);
+    }
+
+    [HttpGet("download/{kind}")]
+    public virtual async Task<IActionResult> DownloadByKindAsync(Guid appointmentId, PacketKind kind)
+    {
+        var result = await _service.DownloadByKindAsync(appointmentId, kind);
         return File(result.Content, result.ContentType, result.FileName);
     }
 }

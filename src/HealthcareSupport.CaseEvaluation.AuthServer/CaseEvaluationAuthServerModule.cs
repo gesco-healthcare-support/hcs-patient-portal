@@ -75,7 +75,12 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpAccountPublicWebImpersonationModule),
     typeof(AbpAspNetCoreSerilogModule),
     typeof(AbpAspNetCoreMvcUiLeptonXThemeModule),
-    typeof(CaseEvaluationEntityFrameworkCoreModule)
+    typeof(CaseEvaluationEntityFrameworkCoreModule),
+    // Phase 1.D follow-up (2026-05-08): DependsOn the Application module so
+    // the AuthServer's DI container can resolve IExternalAccountAppService
+    // (used by Pages/Account/ResendVerification.cshtml.cs to dispatch the
+    // verification email through the same path as the API host).
+    typeof(CaseEvaluationApplicationModule)
     )]
 public class CaseEvaluationAuthServerModule : AbpModule
 {
@@ -394,7 +399,15 @@ public class CaseEvaluationAuthServerModule : AbpModule
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
-            options.AddDomainTenantResolver("{0}.localhost");
+            // ADR-007 (2026-05-11): HostAwareDomainTenantResolveContributor
+            // replaces the stock DomainTenantResolveContributor so the
+            // reserved subdomain "admin" maps to Host context instead of
+            // 404. The stock contributor sets context.TenantIdOrName from
+            // the host and ABP's MultiTenancyMiddleware throws 404 when
+            // the slug is not a registered tenant -- which broke the
+            // intended Host surface URL admin.localhost:44368.
+            options.TenantResolvers.Add(
+                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
         });
     }
 
@@ -420,6 +433,35 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         app.UseCorrelationId();
         app.UseRouting();
+        // Bug D fix (2026-05-11) -- relax X-Frame-Options for the two paths
+        // that angular-oauth2-oidc's silent-refresh flow needs to be able
+        // to iframe: the OpenIddict authorize endpoint (cookie-based identity
+        // check via prompt=none) and silent-refresh.html (postMessages the
+        // resulting code back to the SPA parent). CSP frame-ancestors limits
+        // framing to the SPA wildcard origin (*.localhost:4200); the global
+        // X-Frame-Options: DENY remains in place for every other path so
+        // clickjacking protection on login / register / profile / manage is
+        // unchanged. Registered BEFORE MapAbpStaticAssets so this OnStarting
+        // callback runs LAST (LIFO order) and wins over the security headers
+        // middleware's DENY assignment.
+        app.Use(async (ctx, next) =>
+        {
+            var path = ctx.Request.Path.Value ?? string.Empty;
+            var allowFraming =
+                path.Equals("/silent-refresh.html", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/connect/authorize", StringComparison.OrdinalIgnoreCase);
+            if (allowFraming)
+            {
+                ctx.Response.OnStarting(() =>
+                {
+                    ctx.Response.Headers.Remove("X-Frame-Options");
+                    ctx.Response.Headers["Content-Security-Policy"] =
+                        "frame-ancestors http://*.localhost:4200 http://localhost:4200";
+                    return System.Threading.Tasks.Task.CompletedTask;
+                });
+            }
+            await next();
+        });
         app.MapAbpStaticAssets();
         app.UseAbpStudioLink();
         app.UseAbpSecurityHeaders();

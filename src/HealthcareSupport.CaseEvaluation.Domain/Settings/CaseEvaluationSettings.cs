@@ -27,8 +27,8 @@ public static class CaseEvaluationSettings
 
         // Maximum minutes from now an appointment of a given type may be scheduled.
         // Defaults: 90 days (129,600 minutes) for QME / AME / Other.
-        public const string MaxHorizonQmeMinutes   = Booking + ".MaxHorizonQmeMinutes";
-        public const string MaxHorizonAmeMinutes   = Booking + ".MaxHorizonAmeMinutes";
+        public const string MaxHorizonQmeMinutes = Booking + ".MaxHorizonQmeMinutes";
+        public const string MaxHorizonAmeMinutes = Booking + ".MaxHorizonAmeMinutes";
         public const string MaxHorizonOtherMinutes = Booking + ".MaxHorizonOtherMinutes";
 
         // Default appointment duration. Default 60 minutes.

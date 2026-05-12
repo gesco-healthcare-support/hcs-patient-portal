@@ -29,6 +29,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppointmentDocumentsAppService
 {
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly IBlobContainer<AppointmentDocumentsContainer> _blobContainer;
@@ -40,6 +41,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
+        IRepository<AppointmentPacket, Guid> packetRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         AppointmentDocumentManager documentManager,
         IBlobContainer<AppointmentDocumentsContainer> blobContainer,
@@ -52,6 +54,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
         _documentManager = documentManager;
+        _packetRepository = packetRepository;
         _blobContainer = blobContainer;
         _currentTenant = currentTenant;
         _backgroundJobManager = backgroundJobManager;
@@ -487,6 +490,61 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         });
 
         return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(entity);
+    }
+
+    [Authorize]
+    public virtual async Task<List<PatientPortalDocumentDto>> GetCombinedForAppointmentAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+
+        // Uploaded documents.
+        var docQ = await _documentRepository.GetQueryableAsync();
+        var uploads = docQ
+            .Where(x => x.AppointmentId == appointmentId)
+            .ToList();
+
+        // Generated Patient packet (only when reached the Generated state).
+        var packetQ = await _packetRepository.GetQueryableAsync();
+        var packets = packetQ
+            .Where(x => x.AppointmentId == appointmentId
+                        && x.Kind == PacketKind.Patient
+                        && x.Status == PacketGenerationStatus.Generated)
+            .ToList();
+
+        var combined = new List<PatientPortalDocumentDto>(uploads.Count + packets.Count);
+
+        foreach (var u in uploads)
+        {
+            combined.Add(new PatientPortalDocumentDto
+            {
+                Id = u.Id,
+                Source = PatientPortalDocumentSource.Uploaded,
+                FileName = u.FileName ?? string.Empty,
+                ContentType = u.ContentType ?? string.Empty,
+                CreatedAt = u.CreationTime,
+                PacketKind = null,
+                UploadStatus = u.Status,
+            });
+        }
+
+        foreach (var p in packets)
+        {
+            combined.Add(new PatientPortalDocumentDto
+            {
+                Id = p.Id,
+                Source = PatientPortalDocumentSource.GeneratedPacket,
+                FileName = p.BlobName.Split('/').Last(),
+                ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                CreatedAt = p.GeneratedAt,
+                PacketKind = p.Kind,
+                UploadStatus = null,
+            });
+        }
+
+        return combined.OrderByDescending(x => x.CreatedAt).ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentPackets.Regenerate)]

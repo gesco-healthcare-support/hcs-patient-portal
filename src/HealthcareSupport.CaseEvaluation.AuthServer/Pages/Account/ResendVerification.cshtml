@@ -1,0 +1,129 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.ResendVerificationModel
+@{
+    ViewData["Title"] = Model.GetHeading();
+}
+@*
+    Phase 1.D follow-up (Category 1, 2026-05-08) -- the resend-verification
+    page rendered by ResendVerificationModel.
+
+    Layout: inherits the AuthServer's _Layout via Pages/_ViewImports.cshtml +
+    LeptonX theme; the wrapper div uses the same `account-card` /
+    `account-content` class names ABP's stock Account/Login + Register pages
+    use so visual rhythm (logo, card width, spacing, footer) stays
+    consistent.
+
+    Accessibility (Adrian Decision 2, 2026-05-08):
+      - Single h1 declares the page topic per WCAG 2.1 SC 2.4.6.
+      - The form has an explicit label for the email input + an
+        aria-describedby pointing at the helper text below it.
+      - The submit button gets a title attribute mirroring its visible
+        label so AT users hear context even when scanning links.
+      - Status / confirmation block uses role="status" + aria-live="polite"
+        so screen readers announce changes to RequestSubmitted without
+        moving focus.
+      - Color contrast: relies on LeptonX defaults (passes WCAG AA).
+      - Keyboard nav: the only interactive controls are the text input
+        and submit button; default tab order works.
+
+    Per Decision 3 (60-second cooldown), the form auto-disables the
+    submit button for 60 seconds after a successful POST so the user
+    cannot rapid-fire requests. Server-side rate-limit is the source of
+    truth; the JS countdown is a UX hint, not security.
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">@Model.GetHeading()</h1>
+
+        @if (Model.RequestSubmitted)
+        {
+            <div class="alert alert-success mt-3" role="status" aria-live="polite">
+                <strong>Request received.</strong>
+                <p class="mb-0">
+                    If the address below matches an unverified account, a new
+                    verification email is on its way. Check your inbox (and
+                    spam folder) in the next few minutes. You can request
+                    another email after 60 seconds if it does not arrive.
+                </p>
+            </div>
+        }
+
+        <p class="mt-3" id="resend-verification-intro">
+            @Model.GetIntro()
+        </p>
+
+        <form method="post" asp-page="ResendVerification" novalidate>
+            <input type="hidden" asp-for="Context" />
+
+            <div class="form-group mt-3">
+                <label asp-for="Email" class="form-label">Email address</label>
+                <input asp-for="Email"
+                       type="email"
+                       class="form-control"
+                       autocomplete="email"
+                       inputmode="email"
+                       aria-describedby="resend-verification-intro email-helper"
+                       required />
+                <span asp-validation-for="Email" class="text-danger"></span>
+                <small id="email-helper" class="form-text text-muted">
+                    Enter the email you used to register. We'll send a fresh
+                    verification link to it.
+                </small>
+            </div>
+
+            <div class="d-grid gap-2 mt-4">
+                <button id="resend-verification-submit"
+                        type="submit"
+                        class="btn btn-primary btn-lg"
+                        title="Send verification email">
+                    Send verification email
+                </button>
+            </div>
+        </form>
+
+        <hr class="my-4" />
+
+        <p class="text-center text-muted small">
+            Already verified? <a href="~/Account/Login">Sign in</a>.
+        </p>
+
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        // Phase 1.D follow-up: client-side cooldown UX hint. Server-side
+        // rate-limit (60s in ExternalAccountAppService) is authoritative;
+        // this just disables the button for a matching duration after a
+        // successful POST so the user does not click again immediately.
+        (function () {
+            var submitted = @(Model.RequestSubmitted ? "true" : "false");
+            if (!submitted) { return; }
+
+            var btn = document.getElementById('resend-verification-submit');
+            if (!btn) { return; }
+
+            var cooldownSeconds = 60;
+            var remaining = cooldownSeconds;
+            var originalLabel = btn.innerText;
+
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            btn.innerText = 'Send verification email (' + remaining + 's)';
+
+            var interval = setInterval(function () {
+                remaining = remaining - 1;
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-disabled');
+                    btn.innerText = originalLabel;
+                    return;
+                }
+                btn.innerText = 'Send verification email (' + remaining + 's)';
+            }, 1000);
+        })();
+    </script>
+}

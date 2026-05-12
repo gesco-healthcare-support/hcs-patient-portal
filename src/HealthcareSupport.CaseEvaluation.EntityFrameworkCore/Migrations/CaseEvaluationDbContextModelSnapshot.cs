@@ -894,6 +894,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("int")
+                        .HasColumnName("Kind");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -917,6 +921,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AppointmentId");
+
+                    b.HasIndex("TenantId", "AppointmentId", "Kind")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
 
                     b.ToTable("AppAppointmentPackets", (string)null);
                 });

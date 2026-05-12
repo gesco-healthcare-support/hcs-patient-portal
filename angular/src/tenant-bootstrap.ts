@@ -1,5 +1,7 @@
 /**
  * ADR-006 (2026-05-05) -- subdomain tenant routing.
+ * ADR-007 (2026-05-11) -- "admin" subdomain is the Volo SaaS Host surface;
+ * resolved server-side via HostAwareDomainTenantResolveContributor.
  *
  * The Angular SPA's environment file holds bare-host URLs
  * (`http://localhost:44368`, etc.) baked at build time. This module
@@ -12,11 +14,14 @@
  *     -> baseUrl `http://falkinstein.localhost:4200`
  *
  * Bare `localhost:4200` (no subdomain) redirects to `admin.localhost:4200`
- * because `admin` is the reserved IT-Admin / SoCal-staff host surface.
- * ABP's `DomainTenantResolveContributor` returns null when the slug does
- * not match a registered tenant, which is the host-context default --
- * hence "admin" is not a tenant in DB, and the resolver falls through
- * naturally.
+ * because `admin` is the reserved Volo SaaS Host surface. The api + auth
+ * server both register `HostAwareDomainTenantResolveContributor` (see
+ * `src/HealthcareSupport.CaseEvaluation.HttpApi/MultiTenancy/`) which
+ * recognises `admin` as reserved and leaves CurrentTenant null (Host
+ * context). Empirically the stock `DomainTenantResolveContributor`
+ * does NOT fall through on an unknown slug -- it 404s with header
+ * `Abp-Tenant-Resolve-Error: Tenant not found!`. Without the custom
+ * contributor `admin.localhost` would 404 on every request.
  *
  * Ports must match `App__CorsOrigins` in `docker-compose.yml` and
  * `WildcardDomainsFormat` in `CaseEvaluationAuthServerModule`. The
@@ -102,6 +107,9 @@ export function rewriteEnvironmentForTenantSubdomain(env: Environment, slug: str
     cfg['issuer'] = swap(cfg['issuer'] as string);
     cfg['redirectUri'] = swap(cfg['redirectUri'] as string);
     cfg['postLogoutRedirectUri'] = swap(cfg['postLogoutRedirectUri'] as string);
+    // Bug D fix (2026-05-11) -- silent-refresh helper lives on AuthServer
+    // wwwroot; rewrite the bare-host token to the tenant subdomain.
+    cfg['silentRefreshRedirectUri'] = swap(cfg['silentRefreshRedirectUri'] as string);
   }
   if (env.apis) {
     for (const apiName of Object.keys(env.apis)) {

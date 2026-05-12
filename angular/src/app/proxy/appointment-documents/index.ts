@@ -3,4 +3,6 @@ export * from './appointment-packet.service';
 export * from './document-status.enum';
 export * from './models';
 export * from './packet-generation-status.enum';
+export * from './packet-kind.enum';
+export * from './patient-portal-document-source.enum';
 export * from './public-document-upload.service';

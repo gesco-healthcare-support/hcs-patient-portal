@@ -12,16 +12,16 @@
 
 :root {
   // -- Color palette (verbatim OLD hex values) ---------------------------------
-  --brand-primary: #055495;            // links, primary actions, hover-active
-  --brand-primary-hover: #005494;      // primary button hover
-  --brand-accent: #9dc13b;             // form-field icons, success-ish accent
-  --brand-button-active: #006ffc;      // active button state
-  --brand-link: #00a2dc;               // edit / inline link color
-  --brand-error: #fe5a5b;              // delete / error color
+  --brand-primary: #055495; // links, primary actions, hover-active
+  --brand-primary-hover: #005494; // primary button hover
+  --brand-accent: #9dc13b; // form-field icons, success-ish accent
+  --brand-button-active: #006ffc; // active button state
+  --brand-link: #00a2dc; // edit / inline link color
+  --brand-error: #fe5a5b; // delete / error color
 
-  --brand-sidebar-bg: #0a4778;         // sidenav background (level 0)
-  --brand-sidebar-bg-2: #0a3354;       // sidenav nested level 1
-  --brand-sidebar-bg-3: #0b3a60;       // sidenav nested level 2
+  --brand-sidebar-bg: #0a4778; // sidenav background (level 0)
+  --brand-sidebar-bg-2: #0a3354; // sidenav nested level 1
+  --brand-sidebar-bg-3: #0b3a60; // sidenav nested level 2
 
   // -- Form control surfaces --------------------------------------------------
   --brand-input-bg: #f4f4f4;
@@ -40,15 +40,15 @@
   --brand-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   --brand-font-size-xs: 12px;
   --brand-font-size-sm: 13px;
-  --brand-font-size-base: 14px;        // labels and body copy
-  --brand-font-size-md: 16px;          // form fields (most pages)
-  --brand-font-size-lg: 18px;          // login form fields
-  --brand-font-size-button: 22px;      // primary login button
+  --brand-font-size-base: 14px; // labels and body copy
+  --brand-font-size-md: 16px; // form fields (most pages)
+  --brand-font-size-lg: 18px; // login form fields
+  --brand-font-size-button: 22px; // primary login button
 
   // -- Layout dimensions ------------------------------------------------------
-  --brand-sidebar-width: 282px;        // dashboard layout sidenav width
+  --brand-sidebar-width: 282px; // dashboard layout sidenav width
   --brand-sidebar-width-collapsed: 70px;
-  --brand-navbar-height: 86px;         // top bar height (dashboard layout)
+  --brand-navbar-height: 86px; // top bar height (dashboard layout)
 
   // -- Logo + asset slots -----------------------------------------------------
   // Filled at runtime by Phase 19b BrandingService once tenant config is live.

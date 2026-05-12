@@ -284,13 +284,13 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         var prefix = (email ?? string.Empty).Split('@')[0].ToLowerInvariant();
         return prefix switch
         {
-            "admin"        => ("Tenant", "Administrator"),
-            "supervisor"   => ("Staff", "Supervisor"),
-            "staff"        => ("Clinic", "Staff"),
-            "it.admin"     => ("IT", "Administrator"),
-            "softwareone"  => ("Software", "One"),
-            "softwaretwo"  => ("Software", "Two"),
-            _              => ("Test", "User"),
+            "admin" => ("Tenant", "Administrator"),
+            "supervisor" => ("Staff", "Supervisor"),
+            "staff" => ("Clinic", "Staff"),
+            "it.admin" => ("IT", "Administrator"),
+            "softwareone" => ("Software", "One"),
+            "softwaretwo" => ("Software", "Two"),
+            _ => ("Test", "User"),
         };
     }
 

@@ -1,0 +1,40 @@
+# Phase 2 (2026-05-11) -- Gotenberg sidecar with Microsoft Core Fonts.
+#
+# Why custom: since v8.30+ Gotenberg ships only 8 substitute fonts.
+# Packet templates render against Calibri / Arial / Times New Roman --
+# without the real fonts LibreOffice substitutes silently and the PDF
+# drifts from the original Word layout (column widths, line breaks,
+# justified-text spacing). Microsoft's Core Fonts EULA permits use in
+# this environment; only redistribution is restricted, which is why the
+# Debian installer downloads them at build time rather than shipping
+# binaries.
+#
+# Pinned to a minor-version-bounded base image so font installation
+# stays reproducible. Bump cautiously -- font behavior can change
+# between LibreOffice versions inside Gotenberg.
+
+FROM gotenberg/gotenberg:8
+
+USER root
+
+# Enable the `contrib` apt component -- ttf-mscorefonts-installer lives
+# there, not in `main`, because it downloads EULA-restricted Microsoft
+# fonts at install time. Debian trixie uses the deb822 sources format
+# (/etc/apt/sources.list.d/debian.sources), so we edit the Components
+# line in place rather than touching the legacy sources.list.
+#
+# Then accept the EULA non-interactively, install the installer +
+# fontconfig, refresh the font cache, and prune apt to keep the layer
+# small.
+RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
+ && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
+      | debconf-set-selections \
+ && apt-get install -y --no-install-recommends \
+      ttf-mscorefonts-installer \
+      fontconfig \
+ && fc-cache -fv \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+USER gotenberg

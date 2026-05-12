@@ -80,6 +80,15 @@ public interface IAppointmentDocumentsAppService
 
     /// <summary>W2-11: re-trigger the packet generation job for an appointment.</summary>
     Task RegeneratePacketAsync(Guid appointmentId);
+
+    /// <summary>
+    /// Phase 1D.10: combined patient-portal documents view. Returns the
+    /// patient-uploaded documents UNIONed with the generated Patient
+    /// Packet (Status=Generated only) for an appointment, sorted by
+    /// CreatedAt desc. Mirrors OLD's UX where the Patient Packet appeared
+    /// in the patient's documents list alongside their uploads.
+    /// </summary>
+    Task<List<PatientPortalDocumentDto>> GetCombinedForAppointmentAsync(Guid appointmentId);
 }
 
 /// <summary>

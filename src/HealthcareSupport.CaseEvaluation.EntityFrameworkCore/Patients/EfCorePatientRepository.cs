@@ -106,11 +106,11 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                 x.CreationTime,
                 MatchCount =
                     (x.FirstName.ToLower() == fn ? 1 : 0) +
-                    (x.LastName.ToLower()  == ln ? 1 : 0) +
-                    (x.DateOfBirth == dob               ? 1 : 0) +
-                    (ssn   != null && x.SocialSecurityNumber == ssn   ? 1 : 0) +
-                    (phone != null && x.PhoneNumber          == phone ? 1 : 0) +
-                    (zip   != null && x.ZipCode              == zip   ? 1 : 0)
+                    (x.LastName.ToLower() == ln ? 1 : 0) +
+                    (x.DateOfBirth == dob ? 1 : 0) +
+                    (ssn != null && x.SocialSecurityNumber == ssn ? 1 : 0) +
+                    (phone != null && x.PhoneNumber == phone ? 1 : 0) +
+                    (zip != null && x.ZipCode == zip ? 1 : 0)
             });
 
         var best = await query

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using System;
@@ -16,6 +17,8 @@ using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Emailing;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.MailKit;
+using MailKit.Security;
 using Volo.Abp.Identity;
 using Volo.Abp.Commercial.SuiteTemplates;
 using Volo.Abp.LanguageManagement;
@@ -36,6 +39,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpPermissionManagementDomainOpenIddictModule),
     typeof(AbpSettingManagementDomainModule),
     typeof(AbpEmailingModule),
+    typeof(AbpMailKitModule),
     typeof(AbpIdentityProDomainModule),
     typeof(AbpOpenIddictProDomainModule),
     typeof(SaasDomainModule),
@@ -55,12 +59,39 @@ public class CaseEvaluationDomainModule : AbpModule
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
         });
 
+        // 2026-05-11: MailKit replaces the legacy System.Net.Mail.SmtpClient via
+        // Volo.Abp.MailKit. ABP MailKit defaults SecureSocketOption based on
+        // Abp.Mailing.Smtp.EnableSsl (true => SslOnConnect, false => StartTlsWhenAvailable),
+        // but SslOnConnect targets implicit-TLS port 465 -- our provider uses STARTTLS on
+        // port 587. Explicitly pin StartTls so the upgrade negotiation matches the server.
+        Configure<AbpMailKitOptions>(options =>
+        {
+            options.SecureSocketOption = SecureSocketOptions.StartTls;
+        });
+
         // Phase 1 (2026-05-05): QuestPDF community-license registration.
         // Required before any QuestPDF render call -- the library throws on
         // first use otherwise. Community license is free for our scale (Gesco
         // is well below QuestPDF's 1M ARR / 10-employee threshold). License
         // text: https://www.questpdf.com/license/community.html
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        // Phase 2 (2026-05-11): Gotenberg sidecar typed HttpClient for the
+        // packet pipeline's DOCX -> PDF conversion. URL comes from
+        // configuration (env var `Gotenberg__Url` in docker-compose); the
+        // fallback hostname matches the gotenberg compose service so that
+        // dev stacks work without explicit env-var setup. 60s timeout
+        // accommodates LibreOffice's worst-case rendering time. If a
+        // second external HTTP integration ever lands in Domain, that is
+        // the trigger to extract these adapters into a dedicated
+        // Infrastructure.Http project.
+        var pdfConfiguration = context.Services.GetConfiguration();
+        var gotenbergUrl = pdfConfiguration["Gotenberg:Url"] ?? "http://gotenberg:3000";
+        context.Services.AddHttpClient<IDocxToPdfConverter, GotenbergDocxToPdfConverter>(client =>
+        {
+            client.BaseAddress = new Uri(gotenbergUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
 
 
 

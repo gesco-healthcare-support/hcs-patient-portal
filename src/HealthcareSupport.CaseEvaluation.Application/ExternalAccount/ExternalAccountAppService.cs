@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
-using Volo.Abp.Emailing;
 using Volo.Abp.Identity;
 using Volo.Abp.Settings;
 
@@ -24,15 +28,17 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 /// (<c>CaseEvaluationHttpApiHostModule</c>) to 5 requests / hour / email
 /// key per audit Q3 resolution.</para>
 ///
-/// <para>Email send is synchronous via <see cref="IEmailSender"/>. The
-/// existing <c>SendAppointmentEmailJob</c> Hangfire pipeline could
-/// background it, but for password-reset the user expects to see the
-/// "check your email" message and then check immediately -- a queued
-/// delivery introduces a perceived "did it send" gap that has worse UX
-/// than the synchronous SMTP latency. ACS placeholder credentials in
-/// dev throw at the transport layer; we catch + log so the user-visible
-/// "if registered, check your email" message remains generic
-/// (avoids account-enumeration leak).</para>
+/// <para>Phase 1.B/1.C (Category 1, 2026-05-08): the inline
+/// <c>IEmailSender</c> dispatch was replaced with the per-tenant
+/// <see cref="INotificationDispatcher"/> + <c>NotificationTemplate</c>
+/// path. Both endpoints now render the <c>ResetPassword</c> and
+/// <c>PasswordChange</c> templates that IT-Admin can edit per tenant;
+/// SMTP send becomes a queued Hangfire job (not synchronous), the
+/// same pipeline every other email in the app uses. The previous
+/// "synchronous to avoid did-it-send gap" rationale is moot: the SPA
+/// always shows a generic "if registered, check your email" message
+/// regardless of send status, and async queuing is what the rest of
+/// the stack does.</para>
 /// </summary>
 [RemoteService(IsEnabled = false)]
 public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAccountAppService
@@ -45,20 +51,33 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
 
     private readonly IdentityUserManager _userManager;
     private readonly ISettingProvider _settingProvider;
-    private readonly IEmailSender _emailSender;
+    private readonly INotificationDispatcher _dispatcher;
+    private readonly IDistributedCache _cache;
     private readonly ILogger<ExternalAccountAppService> _logger;
 
     public ExternalAccountAppService(
         IdentityUserManager userManager,
         ISettingProvider settingProvider,
-        IEmailSender emailSender,
+        INotificationDispatcher dispatcher,
+        IDistributedCache cache,
         ILogger<ExternalAccountAppService> logger)
     {
         _userManager = userManager;
         _settingProvider = settingProvider;
-        _emailSender = emailSender;
+        _dispatcher = dispatcher;
+        _cache = cache;
         _logger = logger;
     }
+
+    // Phase 1.D rate-limit constants (Adrian Decision 3, 2026-05-08): tighter
+    // than the password-reset-by-email partition because resend is a higher
+    // SMTP-flood risk -- a registered-but-unverified email is a known target.
+    // Silent reject (no thrown exception, no leak): the user-visible response
+    // is identical to user-not-found / already-confirmed paths, which keeps
+    // the endpoint enumeration-safe.
+    private const int ResendVerificationMaxPerHour = 3;
+    private static readonly TimeSpan ResendVerificationCooldown = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan ResendVerificationHourlyWindow = TimeSpan.FromHours(1);
 
     [AllowAnonymous]
     public virtual async Task SendPasswordResetCodeAsync(SendPasswordResetCodeInput input)
@@ -82,17 +101,29 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
         var resetUrl = BuildResetUrl(authServerBaseUrl, user.Id, token, input.ReturnUrl);
 
-        var subject = L["Account:PasswordResetEmailSubject"].Value;
-        var body = string.Format(L["Account:PasswordResetEmailBody"].Value, resetUrl);
+        // Phase 1.B (Category 1, 2026-05-08): dispatch the ResetPassword template
+        // through the per-tenant NotificationTemplate path. Body is the seeded
+        // EmailBodies/ResetPassword.html with ##PatientFirstName## + ##URL##
+        // tokens substituted. IT-Admin-editable per tenant; queued via Hangfire.
         try
         {
-            await _emailSender.SendAsync(user.Email!, subject, body, isBodyHtml: true);
+            await _dispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.ResetPassword,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: user.Email!,
+                        role: RecipientRole.Patient,
+                        isRegistered: true),
+                },
+                variables: BuildPasswordTokenVariables(user, resetUrl),
+                contextTag: $"PasswordReset/RequestLink/{user.Id}");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService.SendPasswordResetCodeAsync: SMTP delivery failed for user {UserId}. Configure SMTP / ACS credentials to deliver. Returning generic success to caller.",
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: dispatch failed for user {UserId}. Returning generic success to caller.",
                 user.Id);
         }
     }
@@ -127,29 +158,283 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                 string.Join(", ", resetResult.Errors.Select(e => e.Description)));
         }
 
-        // OLD parity: the post-reset confirmation email is sent inline.
-        // ABP 10.0.2 has no UserPasswordChangedEto distributed event we can
-        // subscribe to (verified by reflection 2026-05-03), so the master
-        // plan's "subscribe to UserPasswordChangedEto" instruction is
-        // adapted here: the confirmation goes out immediately after a
-        // successful ResetPasswordAsync. SMTP failure is logged but not
-        // bubbled -- the user has already had their password changed.
-        var subject = L["Account:PasswordChangedEmailSubject"].Value;
-        var body = L["Account:PasswordChangedEmailBody"].Value;
+        // Phase 1.C (Category 1, 2026-05-08): security-receipt confirmation
+        // email after a successful password reset. ABP 10.0.2 has no
+        // UserPasswordChangedEto distributed event we can subscribe to
+        // (verified by reflection 2026-05-03), so the confirmation goes
+        // out inline immediately after the ResetPasswordAsync succeeds.
+        // Dispatched through the per-tenant PasswordChange template via
+        // INotificationDispatcher (replaces an earlier inline IEmailSender
+        // path that used localized strings with unsubstituted {0}
+        // placeholders -- pre-Phase-1.C bug). Dispatch failure is logged
+        // but not bubbled because the user's password has already been
+        // changed and the API call should still return success.
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
         try
         {
-            if (!string.IsNullOrWhiteSpace(user.Email))
+            await _dispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.PasswordChange,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: user.Email,
+                        role: RecipientRole.Patient,
+                        isRegistered: true),
+                },
+                variables: BuildPasswordTokenVariables(user, url: null),
+                contextTag: $"PasswordChange/PostReset/{user.Id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "ExternalAccountAppService.ResetPasswordAsync: post-reset confirmation dispatch failed for user {UserId}.",
+                user.Id);
+        }
+    }
+
+    /// <summary>
+    /// Phase 1.D (Category 1, 2026-05-08): re-fires the email-verification
+    /// link to an unverified user. See <see cref="IExternalAccountAppService.ResendEmailVerificationAsync"/>
+    /// for the contract.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task ResendEmailVerificationAsync(ResendEmailVerificationInput input)
+    {
+        Check.NotNull(input, nameof(input));
+        var normalizedEmail = NormalizeEmail(input.Email);
+        if (normalizedEmail.Length == 0)
+        {
+            return;
+        }
+
+        // Phase 1.D rate-limit: silent reject when over the hourly limit OR
+        // inside the 60-second cooldown window. Silent so the response is
+        // identical to the user-not-found / already-confirmed paths -- keeps
+        // the endpoint enumeration-safe and doesn't leak rate-limit state to
+        // attackers. Cache-keyed by normalized email so the same user can't
+        // bypass by varying case / whitespace.
+        if (await IsResendVerificationRateLimitedAsync(normalizedEmail))
+        {
+            _logger.LogInformation(
+                "ExternalAccountAppService.ResendEmailVerificationAsync: rate-limited for email-key {EmailKey}. Silent reject.",
+                normalizedEmail);
+            return;
+        }
+
+        var user = await _userManager.FindByEmailAsync(normalizedEmail);
+        if (user == null)
+        {
+            // Silent return -- do not leak which emails are registered.
+            return;
+        }
+        if (user.EmailConfirmed)
+        {
+            // Already confirmed -- no need to fire another verify link.
+            // Generic success keeps the SPA flow consistent.
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
+
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var portalBaseUrl = await ResolvePortalBaseUrlAsync();
+        var verifyUrl = BuildEmailConfirmationUrl(portalBaseUrl, user.Id, token);
+
+        try
+        {
+            await _dispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.UserRegistered,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: user.Email,
+                        role: RecipientRole.Patient,
+                        isRegistered: false),
+                },
+                variables: BuildPasswordTokenVariables(user, verifyUrl),
+                contextTag: $"UserRegistered/Resend/{user.Id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "ExternalAccountAppService.ResendEmailVerificationAsync: dispatch failed for user {UserId}. Returning generic success to caller.",
+                user.Id);
+        }
+
+        // Stamp cache entries AFTER the dispatch so a dispatch failure doesn't
+        // tick the rate-limit counter against a user who legitimately needs
+        // a retry. Cooldown gate is the same email key for both successful
+        // sends and failed-but-attempted sends -- failures still consume an
+        // SMTP attempt slot, so we tick on every reach-the-dispatch path.
+        await StampResendVerificationRateLimitAsync(normalizedEmail);
+    }
+
+    /// <summary>
+    /// Phase 1.D rate-limit gate. True when the email-key is either (a)
+    /// inside the 60-second cooldown OR (b) at/over the 3-per-hour cap.
+    /// Cache-backed (Redis in dev/prod, in-memory in tests via
+    /// <c>MemoryDistributedCache</c>). Failure to read the cache returns
+    /// false (open) -- a Redis outage shouldn't lock all users out of
+    /// resend-verification; better to fail-open for this UX gate.
+    /// </summary>
+    private async Task<bool> IsResendVerificationRateLimitedAsync(string normalizedEmail)
+    {
+        var cooldownKey = $"resend-verify:cooldown:{normalizedEmail}";
+        var hourlyKey = $"resend-verify:hourly:{normalizedEmail}";
+
+        try
+        {
+            if (await _cache.GetStringAsync(cooldownKey) != null)
             {
-                await _emailSender.SendAsync(user.Email, subject, body, isBodyHtml: true);
+                return true;
+            }
+            var countStr = await _cache.GetStringAsync(hourlyKey);
+            if (countStr != null && int.TryParse(countStr, out var count) && count >= ResendVerificationMaxPerHour)
+            {
+                return true;
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(
                 ex,
-                "ExternalAccountAppService.ResetPasswordAsync: post-reset confirmation SMTP delivery failed for user {UserId}.",
-                user.Id);
+                "ExternalAccountAppService: rate-limit cache read failed; failing open for resend-verification.");
         }
+        return false;
+    }
+
+    /// <summary>
+    /// Stamps the cooldown + increments the hourly counter for the given
+    /// email key. Cooldown TTL is 60 seconds (rolling); hourly counter TTL
+    /// is the remaining time in the current 1-hour window when the first
+    /// request landed (not a rolling window -- counter resets to 0 once
+    /// the TTL expires). Cache write failure is logged but not propagated.
+    /// </summary>
+    private async Task StampResendVerificationRateLimitAsync(string normalizedEmail)
+    {
+        var cooldownKey = $"resend-verify:cooldown:{normalizedEmail}";
+        var hourlyKey = $"resend-verify:hourly:{normalizedEmail}";
+
+        try
+        {
+            await _cache.SetStringAsync(cooldownKey, "1", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = ResendVerificationCooldown,
+            });
+
+            var existing = await _cache.GetStringAsync(hourlyKey);
+            var nextCount = (existing != null && int.TryParse(existing, out var c) ? c : 0) + 1;
+            await _cache.SetStringAsync(hourlyKey, nextCount.ToString(), new DistributedCacheEntryOptions
+            {
+                // Set absolute expiration on first write; subsequent writes
+                // refresh-but-don't-extend by re-using the existing window.
+                // IDistributedCache doesn't expose remaining-TTL inspection,
+                // so we accept the simplification: the window slides slightly
+                // on each successful send. Behavioral effect: a user pinned
+                // at the hourly cap eventually times out their counter as
+                // they stop sending.
+                AbsoluteExpirationRelativeToNow = ResendVerificationHourlyWindow,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "ExternalAccountAppService: rate-limit cache write failed for email-key {EmailKey}; rate-limit may not enforce on this request.",
+                normalizedEmail);
+        }
+    }
+
+    /// <summary>
+    /// Phase 1.D: per-tenant SPA base URL the verify-link points at. Falls
+    /// back to the dev Falkinstein subdomain when the
+    /// <c>Notifications.PortalBaseUrl</c> setting is unset. Mirrors the
+    /// resolver in <c>CaseEvaluationAccountEmailer</c> so both paths land
+    /// on the same SPA host.
+    /// </summary>
+    private async Task<string> ResolvePortalBaseUrlAsync()
+    {
+        var configured = await _settingProvider.GetOrNullAsync(
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return "http://falkinstein.localhost:4200";
+        }
+        return configured.TrimEnd('/');
+    }
+
+    /// <summary>
+    /// Phase 1.D: SPA-hosted verify URL shape:
+    /// <c>{base}/account/email-confirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
+    /// Same shape as <c>CaseEvaluationAccountEmailer.BuildEmailConfirmationUrl</c>;
+    /// the SPA route registered by ABP's <c>@volo/abp.ng.account/public</c>
+    /// package consumes both query params identically regardless of which
+    /// pipeline produced the link.
+    /// Internal for unit-test coverage.
+    /// </summary>
+    internal static string BuildEmailConfirmationUrl(string portalBaseUrl, Guid userId, string confirmationToken)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(portalBaseUrl);
+        sb.Append("/account/email-confirmation");
+        sb.Append("?userId=").Append(userId.ToString());
+        sb.Append("&confirmationToken=").Append(WebUtility.UrlEncode(confirmationToken));
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Phase 1.B/1.C variable bag for the ResetPassword and PasswordChange
+    /// templates. PasswordFirstName / LastName / FullName / Email tokens
+    /// are populated from the IdentityUser; URL is the reset-link for the
+    /// SendPasswordResetCodeAsync flow and null for the post-reset
+    /// confirmation flow (the PasswordChange body has no link). Brand
+    /// placeholder tokens stay as empty strings until per-tenant branding
+    /// ships (deferred to end-of-categories per Adrian directive
+    /// 2026-05-08, Decision A).
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?> BuildPasswordTokenVariables(
+        Volo.Abp.Identity.IdentityUser user,
+        string? url)
+    {
+        var vars = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["PatientFirstName"] = user.Name ?? string.Empty,
+            ["PatientLastName"] = user.Surname ?? string.Empty,
+            ["PatientFullName"] = JoinName(user.Name, user.Surname),
+            ["PatientEmail"] = user.Email ?? string.Empty,
+            ["URL"] = url ?? string.Empty,
+        };
+        AddBrandPlaceholders(vars);
+        return vars;
+    }
+
+    private static string JoinName(string? first, string? last)
+    {
+        var hasFirst = !string.IsNullOrWhiteSpace(first);
+        var hasLast = !string.IsNullOrWhiteSpace(last);
+        if (hasFirst && hasLast) return first!.Trim() + " " + last!.Trim();
+        if (hasFirst) return first!.Trim();
+        if (hasLast) return last!.Trim();
+        return string.Empty;
+    }
+
+    private static void AddBrandPlaceholders(Dictionary<string, object?> vars)
+    {
+        vars["CompanyLogo"] = string.Empty;
+        vars["lblHeaderTitle"] = string.Empty;
+        vars["lblFooterText"] = string.Empty;
+        vars["Email"] = string.Empty;
+        vars["Skype"] = string.Empty;
+        vars["ph_US"] = string.Empty;
+        vars["fax"] = string.Empty;
+        vars["imageInByte"] = string.Empty;
     }
 
     private async Task<string> ResolveAuthServerBaseUrlAsync()

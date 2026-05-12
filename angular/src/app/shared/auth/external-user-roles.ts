@@ -32,13 +32,13 @@ const EXTERNAL_USER_ROLES = [
  *
  * Comparison is case-insensitive trimmed against EXTERNAL_USER_ROLES.
  */
-export function hasOnlyExternalRoles(roles: ReadonlyArray<string | null | undefined> | null | undefined): boolean {
+export function hasOnlyExternalRoles(
+  roles: ReadonlyArray<string | null | undefined> | null | undefined,
+): boolean {
   if (!roles || roles.length === 0) {
     return false;
   }
-  const normalized = roles
-    .map((r) => (r ?? '').toLowerCase().trim())
-    .filter((r) => r.length > 0);
+  const normalized = roles.map((r) => (r ?? '').toLowerCase().trim()).filter((r) => r.length > 0);
   if (normalized.length === 0) {
     return false;
   }
@@ -54,7 +54,9 @@ export function hasOnlyExternalRoles(roles: ReadonlyArray<string | null | undefi
  * a registered patient) DOES see the dashboard but DOES NOT get the
  * external CSS class because their internal role takes precedence.
  */
-export function hasAnyExternalRole(roles: ReadonlyArray<string | null | undefined> | null | undefined): boolean {
+export function hasAnyExternalRole(
+  roles: ReadonlyArray<string | null | undefined> | null | undefined,
+): boolean {
   if (!roles || roles.length === 0) {
     return false;
   }
