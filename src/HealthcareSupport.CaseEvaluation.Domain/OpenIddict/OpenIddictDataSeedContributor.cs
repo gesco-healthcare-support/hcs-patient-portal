@@ -63,6 +63,17 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
         if (!consoleAndAngularClientId.IsNullOrWhiteSpace())
         {
             var consoleAndAngularClientRootUrl = configurationSection["CaseEvaluation_App:RootUrl"]?.TrimEnd('/');
+            // Bug D fix (2026-05-11) -- silent-refresh redirect URI served from
+            // AuthServer wwwroot. The OpenIddict wildcard domain support
+            // (CaseEvaluationAuthServerModule.WildcardDomainsFormat) handles
+            // the `*.localhost:44368` subdomain at runtime; only the bare-host
+            // pattern needs to be whitelisted here.
+            var silentRefreshUri = configurationSection["CaseEvaluation_App:SilentRefreshUri"]?.TrimEnd('/');
+            var redirectUris = new List<string> { consoleAndAngularClientRootUrl! };
+            if (!silentRefreshUri.IsNullOrWhiteSpace())
+            {
+                redirectUris.Add(silentRefreshUri!);
+            }
             await CreateOrUpdateApplicationAsync(
                 applicationType: OpenIddictConstants.ApplicationTypes.Web,
                 name: consoleAndAngularClientId!,
@@ -79,7 +90,7 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
                     "Impersonation"
                 },
                 scopes: commonScopes,
-                redirectUris: new List<string> { consoleAndAngularClientRootUrl! },
+                redirectUris: redirectUris,
                 postLogoutRedirectUris: new List<string> { consoleAndAngularClientRootUrl! },
                 clientUri: consoleAndAngularClientRootUrl,
                 logoUri: "/images/clients/angular.svg"

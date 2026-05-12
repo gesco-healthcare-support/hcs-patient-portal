@@ -133,5 +133,19 @@ export const appConfig: ApplicationConfig = {
         component: NoOpTenantBoxComponent,
       });
     }),
+    // Bug D fix (2026-05-11) -- tune OAuthService for silent-refresh.
+    // - checkOrigin = false: silent-refresh.html is served from AuthServer
+    //   (port 44368), the SPA lives on :4200, so postMessage IS cross-origin.
+    //   The library's listener logs a console.error and proceeds anyway;
+    //   suppressing the error keeps the dev console clean. CSRF protection
+    //   is still provided by `state` validation inside tryLogin.
+    // - silentRefreshTimeout = 20s (library default) is left in place; the
+    //   iframe normally returns in <1s on a healthy AuthServer.
+    // - The periodic interval + focus/visibility triggers are wired up in
+    //   `SessionIdentityWatcherService`, started from AppComponent.
+    provideAppInitializer(() => {
+      const oauth = inject(OAuthService);
+      oauth.checkOrigin = false;
+    }),
   ],
 };

@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { hasAnyExternalRole } from './shared/auth/external-user-roles';
 import { AppointmentPendingCountService } from './appointments/services/appointment-pending-count.service';
+import { SessionIdentityWatcherService } from './shared/auth/session-identity-watcher.service';
 
 @Component({
   selector: 'app-root',
@@ -25,12 +26,16 @@ export class AppComponent implements OnInit, OnDestroy {
   // admin / staff users. Service is providedIn root and self-stops
   // when permission drops, so a single `start()` call here is enough.
   private readonly appointmentPendingCount = inject(AppointmentPendingCountService);
+  // Bug D fix (2026-05-11): detects AuthServer cookie identity swap and
+  // forces a full reload when sub changes. Same singleton-start pattern.
+  private readonly sessionIdentityWatcher = inject(SessionIdentityWatcherService);
   private readonly subscription = new Subscription();
 
   ngOnInit(): void {
     this.handleAuthServerLogoutHandshake();
     this.updatePatientRoleClass();
     this.appointmentPendingCount.start();
+    this.sessionIdentityWatcher.start();
 
     this.subscription.add(
       this.router.events
