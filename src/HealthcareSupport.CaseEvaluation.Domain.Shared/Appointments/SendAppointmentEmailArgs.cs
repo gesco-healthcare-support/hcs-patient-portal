@@ -58,6 +58,18 @@ public class SendAppointmentEmailArgs
     public string? TenantName { get; set; }
 
     /// <summary>
+    /// 2026-05-11 (Bug A fix): the originating tenant. The Hangfire worker
+    /// must re-enter this tenant via <c>ICurrentTenant.Change</c> before
+    /// it queries the packet row in <c>IPacketAttachmentProvider</c>,
+    /// otherwise the automatic <c>IMultiTenant</c> filter at the host
+    /// level excludes the row and the job logs "packet is not Generated;
+    /// skipping" even when the row is fully generated. Null = host scope
+    /// (the same fallback ABP's default UoW uses when CurrentTenant is
+    /// unset).
+    /// </summary>
+    public Guid? TenantId { get; set; }
+
+    /// <summary>
     /// Phase 4 (Category 4, 2026-05-10): packet attachment reference. When set,
     /// <c>SendAppointmentEmailJob</c> fetches the rendered DOCX bytes via
     /// <c>IPacketAttachmentProvider.GetAttachmentAsync</c> at send time and

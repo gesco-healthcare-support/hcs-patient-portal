@@ -114,6 +114,12 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
             Role = recipient.Role,
             IsRegistered = recipient.IsRegistered,
             TenantName = tenantName,
+            // 2026-05-11 (Bug A fix): capture the originating tenant so the
+            // Hangfire worker can re-enter the right tenant before querying
+            // AppointmentPackets (otherwise the IMultiTenant filter at the
+            // host level excludes the row and the packet-attachment path
+            // silently skips with "is not Generated").
+            TenantId = _currentTenant.Id,
             PacketRef = packetRef,
         };
         await _backgroundJobManager.EnqueueAsync(args);

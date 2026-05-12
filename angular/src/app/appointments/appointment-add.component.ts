@@ -1054,9 +1054,16 @@ export class AppointmentAddComponent {
         defenseAttorneyEmail: rawAfter.defenseAttorneyEnabled
           ? (rawAfter.defenseAttorneyEmail ?? undefined)
           : undefined,
-        claimExaminerEmail: rawAfter.claimExaminerEnabled
-          ? (rawAfter.claimExaminerEmail ?? undefined)
-          : undefined,
+        // 2026-05-11 (Bug C fix): the top-level claimExaminerEmail field is
+        // vestigial (see comment on form definition); the real CE email is
+        // typed into the per-injury modal (`injuryDrafts[i].claimExaminer.email`).
+        // The first injury's CE email is the canonical AppointmentRequested fan-out
+        // address -- mirrors how the resolver's `Appointment.ClaimExaminerEmail`
+        // column gets read for the CE-email-col walk. Without this sync, the column
+        // saves NULL for non-CE bookers and the CE leg of the fan-out silently drops.
+        claimExaminerEmail:
+          this.injuryDrafts[0]?.claimExaminer?.email?.trim() ||
+          (rawAfter.claimExaminerEnabled ? (rawAfter.claimExaminerEmail ?? undefined) : undefined),
         // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
         // Empty / whitespace values are dropped to match OLD's "no answer"
         // semantics; the backend AppService also drops them defensively.
