@@ -1,0 +1,189 @@
+<!-- #121 phase T1 (2026-05-13) -- "Additional Details" custom-fields
+     section. Card visible only when the FormArray has at least one
+     row (mirrors OLD's `*ngIf="isCustomeFileds"`).
+
+     Each iteration binds its FormGroup directly via `[formGroup]="cf"`
+     so the child does not need the parent FormGroup context. The
+     parent's FormArray is passed in by reference; the child renders
+     the same controls the parent owns. -->
+@if (customFieldsArray.length > 0) {
+  <div class="row">
+    <div class="col-12 col-md-12">
+      <div class="card mb-4">
+        <h6 class="card-header">Additional Details</h6>
+        <div class="card-body">
+          <div class="row">
+            @for (cf of customFieldsArray.controls; track cf.value.customFieldId; let i = $index) {
+              <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2" [formGroup]="cf">
+                <!-- Alphanumeric (12) -->
+                @if (cf.value.fieldType === CustomFieldType.Alphanumeric) {
+                  <div class="form-group mb-3">
+                    <label class="form-label">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      formControlName="customFieldValue"
+                      [placeholder]="cf.value.fieldLabel"
+                      [maxlength]="cf.value.fieldLength || null"
+                    />
+                  </div>
+                }
+
+                <!-- Numeric (13) -->
+                @if (cf.value.fieldType === CustomFieldType.Numeric) {
+                  <div class="form-group mb-3">
+                    <label class="form-label">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      class="form-control"
+                      formControlName="customFieldValue"
+                      [placeholder]="cf.value.fieldLabel"
+                    />
+                  </div>
+                }
+
+                <!-- Picklist (14) -->
+                @if (cf.value.fieldType === CustomFieldType.Picklist) {
+                  <div class="form-group mb-3">
+                    <label class="form-label">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    <select class="form-select" formControlName="customFieldValue">
+                      <option [ngValue]="null">-- Select --</option>
+                      @for (opt of optionsFromMultipleValues(cf.value.multipleValues); track opt) {
+                        <option [ngValue]="opt">{{ opt }}</option>
+                      }
+                    </select>
+                  </div>
+                }
+
+                <!-- Tickbox (15) -- single checkbox per OLD-parity simplest
+                     shape. Multi-option tickboxes (comma-separated MultipleValues)
+                     render as a stacked checkbox group whose values are
+                     comma-joined on submit. -->
+                @if (cf.value.fieldType === CustomFieldType.Tickbox) {
+                  <div class="form-group mb-3">
+                    <label class="form-label d-block">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    @if (optionsFromMultipleValues(cf.value.multipleValues).length === 0) {
+                      <div class="form-check">
+                        <input
+                          type="checkbox"
+                          class="form-check-input"
+                          [id]="'cf-tickbox-' + i"
+                          formControlName="customFieldValue"
+                        />
+                        <label class="form-check-label" [for]="'cf-tickbox-' + i">
+                          {{ cf.value.fieldLabel }}
+                        </label>
+                      </div>
+                    } @else {
+                      @for (opt of optionsFromMultipleValues(cf.value.multipleValues); track opt) {
+                        <div class="form-check">
+                          <input
+                            type="checkbox"
+                            class="form-check-input"
+                            [id]="'cf-tickbox-' + i + '-' + opt"
+                            [value]="opt"
+                          />
+                          <label class="form-check-label" [for]="'cf-tickbox-' + i + '-' + opt">
+                            {{ opt }}
+                          </label>
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+
+                <!-- Date (16) -- placeholder MM/DD/YYYY (OLD `<rx-date>`
+                     contract); ng-bootstrap datepicker emits NgbDateStruct
+                     which the existing form serialization helpers convert
+                     to the ISO yyyy-MM-dd string the API expects. -->
+                @if (cf.value.fieldType === CustomFieldType.Date) {
+                  <div class="form-group mb-3">
+                    <label class="form-label">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    <input
+                      class="form-control"
+                      formControlName="customFieldValue"
+                      ngbDatepicker
+                      #cfDp="ngbDatepicker"
+                      (click)="cfDp.toggle()"
+                      placeholder="MM/DD/YYYY"
+                    />
+                  </div>
+                }
+
+                <!-- Radio (17) -->
+                @if (cf.value.fieldType === CustomFieldType.Radio) {
+                  <div class="form-group mb-3">
+                    <label class="form-label d-block">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    @for (opt of optionsFromMultipleValues(cf.value.multipleValues); track opt) {
+                      <div class="form-check">
+                        <input
+                          type="radio"
+                          class="form-check-input"
+                          [id]="'cf-radio-' + i + '-' + opt"
+                          [value]="opt"
+                          formControlName="customFieldValue"
+                        />
+                        <label class="form-check-label" [for]="'cf-radio-' + i + '-' + opt">
+                          {{ opt }}
+                        </label>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <!-- Time (18) -->
+                @if (cf.value.fieldType === CustomFieldType.Time) {
+                  <div class="form-group mb-3">
+                    <label class="form-label">
+                      {{ cf.value.fieldLabel }}
+                      @if (cf.value.isMandatory) {
+                        <span class="text-danger">*</span>
+                      }
+                    </label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      formControlName="customFieldValue"
+                      placeholder="HH:mm"
+                    />
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}
