@@ -3,7 +3,7 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 export interface AppointmentPrimaryInsuranceCreateDto {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  insuranceNumber?: string | null;
+  suite?: string | null;
   attention?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
@@ -17,7 +17,7 @@ export interface AppointmentPrimaryInsuranceCreateDto {
 export interface AppointmentPrimaryInsuranceDto extends FullAuditedEntityDto<string> {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  insuranceNumber?: string | null;
+  suite?: string | null;
   attention?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
@@ -32,7 +32,7 @@ export interface AppointmentPrimaryInsuranceDto extends FullAuditedEntityDto<str
 export interface AppointmentPrimaryInsuranceUpdateDto {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  insuranceNumber?: string | null;
+  suite?: string | null;
   attention?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;

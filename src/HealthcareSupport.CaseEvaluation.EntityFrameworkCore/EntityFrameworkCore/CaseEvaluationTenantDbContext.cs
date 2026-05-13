@@ -492,7 +492,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentClaimExaminer.TenantId));
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentClaimExaminer.Name)).HasMaxLength(AppointmentClaimExaminerConsts.NameMaxLength);
-            b.Property(x => x.ClaimExaminerNumber).HasColumnName(nameof(AppointmentClaimExaminer.ClaimExaminerNumber)).HasMaxLength(AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength);
+            b.Property(x => x.Suite).HasColumnName(nameof(AppointmentClaimExaminer.Suite)).HasMaxLength(AppointmentClaimExaminerConsts.SuiteMaxLength);
             b.Property(x => x.Email).HasColumnName(nameof(AppointmentClaimExaminer.Email)).HasMaxLength(AppointmentClaimExaminerConsts.EmailMaxLength);
             b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentClaimExaminer.PhoneNumber)).HasMaxLength(AppointmentClaimExaminerConsts.PhoneNumberMaxLength);
             b.Property(x => x.Fax).HasColumnName(nameof(AppointmentClaimExaminer.Fax)).HasMaxLength(AppointmentClaimExaminerConsts.FaxMaxLength);
@@ -508,7 +508,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentPrimaryInsurance.TenantId));
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentPrimaryInsurance.Name)).HasMaxLength(AppointmentPrimaryInsuranceConsts.NameMaxLength);
-            b.Property(x => x.InsuranceNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.InsuranceNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength);
+            b.Property(x => x.Suite).HasColumnName(nameof(AppointmentPrimaryInsurance.Suite)).HasMaxLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength);
             b.Property(x => x.Attention).HasColumnName(nameof(AppointmentPrimaryInsurance.Attention)).HasMaxLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength);
             b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.PhoneNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength);
             b.Property(x => x.FaxNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.FaxNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength);

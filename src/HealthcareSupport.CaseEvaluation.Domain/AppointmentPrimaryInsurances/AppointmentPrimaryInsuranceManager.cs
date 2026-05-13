@@ -32,7 +32,7 @@ public class AppointmentPrimaryInsuranceManager : DomainService
     {
         Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
         Check.Length(name, nameof(name), AppointmentPrimaryInsuranceConsts.NameMaxLength, 0);
-        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength, 0);
+        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.SuiteMaxLength, 0);
         Check.Length(attention, nameof(attention), AppointmentPrimaryInsuranceConsts.AttentionMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength, 0);
         Check.Length(faxNumber, nameof(faxNumber), AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength, 0);
@@ -43,7 +43,7 @@ public class AppointmentPrimaryInsuranceManager : DomainService
         var entity = new AppointmentPrimaryInsurance(GuidGenerator.Create(), appointmentInjuryDetailId, isActive)
         {
             Name = name,
-            InsuranceNumber = insuranceNumber,
+            Suite = insuranceNumber,
             Attention = attention,
             PhoneNumber = phoneNumber,
             FaxNumber = faxNumber,
@@ -72,7 +72,7 @@ public class AppointmentPrimaryInsuranceManager : DomainService
     {
         Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
         Check.Length(name, nameof(name), AppointmentPrimaryInsuranceConsts.NameMaxLength, 0);
-        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength, 0);
+        Check.Length(insuranceNumber, nameof(insuranceNumber), AppointmentPrimaryInsuranceConsts.SuiteMaxLength, 0);
         Check.Length(attention, nameof(attention), AppointmentPrimaryInsuranceConsts.AttentionMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength, 0);
         Check.Length(faxNumber, nameof(faxNumber), AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength, 0);
@@ -84,7 +84,7 @@ public class AppointmentPrimaryInsuranceManager : DomainService
         entity.AppointmentInjuryDetailId = appointmentInjuryDetailId;
         entity.IsActive = isActive;
         entity.Name = name;
-        entity.InsuranceNumber = insuranceNumber;
+        entity.Suite = insuranceNumber;
         entity.Attention = attention;
         entity.PhoneNumber = phoneNumber;
         entity.FaxNumber = faxNumber;

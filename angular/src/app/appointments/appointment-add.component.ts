@@ -69,7 +69,7 @@ interface AppointmentInjuryDraft {
   primaryInsurance: {
     isActive: boolean;
     name: string | null;
-    insuranceNumber: string | null;
+    suite: string | null;
     attention: string | null;
     phoneNumber: string | null;
     faxNumber: string | null;
@@ -85,7 +85,7 @@ interface AppointmentInjuryDraft {
     phoneNumber: string | null;
     fax: string | null;
     street: string | null;
-    claimExaminerNumber: string | null;
+    suite: string | null;
     city: string | null;
     stateId: string | null;
     zip: string | null;
@@ -2600,7 +2600,7 @@ export class AppointmentAddComponent {
       injuryInsurancePhone: [src.primaryInsurance.phoneNumber],
       injuryInsuranceFax: [src.primaryInsurance.faxNumber],
       injuryInsuranceStreet: [src.primaryInsurance.street],
-      injuryInsuranceSte: [src.primaryInsurance.insuranceNumber],
+      injuryInsuranceSte: [src.primaryInsurance.suite],
       injuryInsuranceCity: [src.primaryInsurance.city],
       injuryInsuranceStateId: [src.primaryInsurance.stateId],
       injuryInsuranceZip: [src.primaryInsurance.zip],
@@ -2611,7 +2611,7 @@ export class AppointmentAddComponent {
       injuryClaimExaminerPhone: [src.claimExaminer.phoneNumber],
       injuryClaimExaminerFax: [src.claimExaminer.fax],
       injuryClaimExaminerStreet: [src.claimExaminer.street],
-      injuryClaimExaminerSte: [src.claimExaminer.claimExaminerNumber],
+      injuryClaimExaminerSte: [src.claimExaminer.suite],
       injuryClaimExaminerCity: [src.claimExaminer.city],
       injuryClaimExaminerStateId: [src.claimExaminer.stateId],
       injuryClaimExaminerZip: [src.claimExaminer.zip],
@@ -2663,7 +2663,7 @@ export class AppointmentAddComponent {
       primaryInsurance: {
         isActive: true,
         name: null,
-        insuranceNumber: null,
+        suite: null,
         attention: null,
         phoneNumber: null,
         faxNumber: null,
@@ -2679,7 +2679,7 @@ export class AppointmentAddComponent {
         phoneNumber: null,
         fax: null,
         street: null,
-        claimExaminerNumber: null,
+        suite: null,
         city: null,
         stateId: null,
         zip: null,
@@ -2755,7 +2755,7 @@ export class AppointmentAddComponent {
       primaryInsurance: {
         isActive: v.injuryInsuranceEnabled === true,
         name: v.injuryInsuranceName ?? null,
-        insuranceNumber: v.injuryInsuranceSte ?? null,
+        suite: v.injuryInsuranceSte ?? null,
         attention: v.injuryInsuranceAttention ?? null,
         phoneNumber: v.injuryInsurancePhone ?? null,
         faxNumber: v.injuryInsuranceFax ?? null,
@@ -2771,7 +2771,7 @@ export class AppointmentAddComponent {
         phoneNumber: v.injuryClaimExaminerPhone ?? null,
         fax: v.injuryClaimExaminerFax ?? null,
         street: v.injuryClaimExaminerStreet ?? null,
-        claimExaminerNumber: v.injuryClaimExaminerSte ?? null,
+        suite: v.injuryClaimExaminerSte ?? null,
         city: v.injuryClaimExaminerCity ?? null,
         stateId: v.injuryClaimExaminerStateId ?? null,
         zip: v.injuryClaimExaminerZip ?? null,
@@ -2930,7 +2930,7 @@ export class AppointmentAddComponent {
                 appointmentInjuryDetailId: injuryId,
                 isActive: true,
                 name: draft.primaryInsurance.name,
-                insuranceNumber: draft.primaryInsurance.insuranceNumber,
+                suite: draft.primaryInsurance.suite,
                 attention: draft.primaryInsurance.attention,
                 phoneNumber: draft.primaryInsurance.phoneNumber,
                 faxNumber: draft.primaryInsurance.faxNumber,
@@ -2956,7 +2956,7 @@ export class AppointmentAddComponent {
                 appointmentInjuryDetailId: injuryId,
                 isActive: true,
                 name: draft.claimExaminer.name,
-                claimExaminerNumber: draft.claimExaminer.claimExaminerNumber,
+                suite: draft.claimExaminer.suite,
                 email: draft.claimExaminer.email,
                 phoneNumber: draft.claimExaminer.phoneNumber,
                 fax: draft.claimExaminer.fax,
