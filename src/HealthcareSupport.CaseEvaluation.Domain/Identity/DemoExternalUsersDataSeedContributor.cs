@@ -86,22 +86,28 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
 
             var slug = ToTenantSlug(tenant.Name);
 
-            var seedPlan = new (string EmailPrefix, string RoleName)[]
+            // Issue 1.2 (2026-05-12): synthetic First/Last/Phone per
+            // demo user so admin pages + welcome banner aren't blank.
+            // Synthetic 555-prefix per .claude/rules/test-data.md.
+            var seedPlan = new (string EmailPrefix, string RoleName, string First, string Last, string Phone)[]
             {
-                ("patient",            "Patient"),
-                ("adjuster",           "Claim Examiner"),
-                ("applicant.attorney", "Applicant Attorney"),
-                ("defense.attorney",   "Defense Attorney"),
+                ("patient",            "Patient",            "Demo",     "Patient",          "555-020-0001"),
+                ("adjuster",           "Claim Examiner",     "Demo",     "Adjuster",         "555-020-0002"),
+                ("applicant.attorney", "Applicant Attorney", "Demo",     "ApplicantAttorney","555-020-0003"),
+                ("defense.attorney",   "Defense Attorney",   "Demo",     "DefenseAttorney",  "555-020-0004"),
             };
 
-            foreach (var (prefix, roleName) in seedPlan)
+            foreach (var (prefix, roleName, first, last, phone) in seedPlan)
             {
                 var email = $"{prefix}@{slug}.test";
                 await EnsureUserWithRoleAsync(
                     email: email,
                     userName: email,
                     roleName: roleName,
-                    tenantId: tenantId);
+                    tenantId: tenantId,
+                    firstName: first,
+                    lastName: last,
+                    phoneNumber: phone);
             }
         }
     }
@@ -110,7 +116,10 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
         string email,
         string userName,
         string roleName,
-        Guid? tenantId)
+        Guid? tenantId,
+        string firstName,
+        string lastName,
+        string phoneNumber)
     {
         var role = await _roleManager.FindByNameAsync(roleName);
         if (role == null)
@@ -125,6 +134,9 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
         if (user == null)
         {
             user = new IdentityUser(Guid.NewGuid(), userName, email, tenantId);
+            user.Name = firstName;
+            user.Surname = lastName;
+            user.SetPhoneNumber(phoneNumber, confirmed: true);
             var createResult = await _userManager.CreateAsync(user, InternalUsersDataSeedContributor.DefaultPassword);
             if (!createResult.Succeeded)
             {
@@ -137,6 +149,21 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             _logger.LogInformation(
                 "DemoExternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
                 email, tenantId);
+        }
+        else
+        {
+            // Idempotent backfill: prior seeds left Name/Surname/Phone
+            // blank. Fill in so admin pages don't show empty cells.
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(user.Name)) { user.Name = firstName; changed = true; }
+            if (string.IsNullOrWhiteSpace(user.Surname)) { user.Surname = lastName; changed = true; }
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                user.SetPhoneNumber(phoneNumber, confirmed: true);
+                changed = true;
+            }
+            if (!user.EmailConfirmed) { user.SetEmailConfirmed(true); changed = true; }
+            if (changed) await _userManager.UpdateAsync(user);
         }
 
         if (!await _userManager.IsInRoleAsync(user, roleName))
