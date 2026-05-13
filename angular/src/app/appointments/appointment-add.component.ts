@@ -55,53 +55,19 @@ import {
 } from './sections/appointment-add-authorized-users.component';
 // #121 phase T3 (2026-05-13) -- extracted Employer Details section.
 import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-add-employer-details.component';
+// #121 phase T4 (2026-05-13) -- extracted Claim Information section
+// (injury list + modal + lookups + cumulative-date + insurance/CE forms).
+import {
+  AppointmentAddClaimInformationComponent,
+  type AppointmentInjuryDraft,
+  type ClaimExaminerPrefill,
+} from './sections/appointment-add-claim-information.component';
 
-// W2-8 -- transient front-end shape for the "add injury" booking-form
-// modal. Bundles the AppointmentInjuryDetail core fields with the
-// linked PrimaryInsurance + ClaimExaminer rows so the user can enter
-// all three in one modal step; on submit the booking flow splits them
-// across the dedicated endpoints (appointment-injury-details +
-// appointment-primary-insurances + appointment-claim-examiners).
-//
-// Pre-regen this shape lived in
-// `proxy/appointment-injury-details/models.ts` as `AppointmentInjuryDraft`.
-// The post-merge backend dropped the C# class, so the proxy regen
-// removed it. This is a frontend-only transient type, not an API DTO --
-// declared locally to keep the modal logic intact without a
-// non-functional proxy round-trip.
-interface AppointmentInjuryDraft {
-  isCumulativeInjury: boolean;
-  dateOfInjury: string | null;
-  toDateOfInjury: string | null;
-  claimNumber: string;
-  wcabOfficeId: string | null;
-  wcabAdj: string | null;
-  bodyPartsSummary: string;
-  primaryInsurance: {
-    isActive: boolean;
-    name: string | null;
-    suite: string | null;
-    attention: string | null;
-    phoneNumber: string | null;
-    faxNumber: string | null;
-    street: string | null;
-    city: string | null;
-    stateId: string | null;
-    zip: string | null;
-  };
-  claimExaminer: {
-    isActive: boolean;
-    name: string | null;
-    email: string | null;
-    phoneNumber: string | null;
-    fax: string | null;
-    street: string | null;
-    suite: string | null;
-    city: string | null;
-    stateId: string | null;
-    zip: string | null;
-  };
-}
+// #121 phase T4 (2026-05-13) -- AppointmentInjuryDraft moved to the
+// claim-information section file. Imported at the section-import
+// block below so the parent's existing references (injuryDrafts[],
+// the Bug C email fan-out resolver, persistInjuryDraftsIfProvided)
+// keep type-checking.
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -139,6 +105,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddCustomFieldsComponent,
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddEmployerDetailsComponent,
+    AppointmentAddClaimInformationComponent,
   ],
   providers: [
     ListService,
@@ -232,28 +199,31 @@ export class AppointmentAddComponent {
   // this same flag.
   isReevaluation = false;
 
+  // #121 phase T4 (2026-05-13) -- injury list stays at parent because
+  // submit consumes it (persistInjuryDraftsIfProvided + Bug C email
+  // fan-out resolver). Passed into the section by reference; the
+  // section mutates via push / splice. Modal state, the per-injury
+  // FormGroup, lookup arrays, and the cumulative-/Insurance-/CE-toggle
+  // wiring all moved to AppointmentAddClaimInformationComponent.
   injuryDrafts: AppointmentInjuryDraft[] = [];
-  isInjuryModalOpen = false;
-  injuryEditingIndex = -1;
-  // W2-10 (2026-05-07): per-injury modal converted from template-driven
-  // ngModel to a reactive FormGroup so OLD-equivalent conditional
-  // Validators.required (Insurance toggle / Claim Examiner toggle) can be
-  // applied. Mirrors OLD `customValdiationForClaimExaminer` /
-  // `customValdiationForPrimaryInsurance` from
-  // patientappointment-portal/.../appointment.domain.ts:558-668.
-  //
-  // Field-init order matters: injuryToggleSubscriptions is referenced
-  // inside buildInjuryForm() so it must be declared (and assigned `[]`)
-  // BEFORE injuryForm's initializer runs.
-  private injuryToggleSubscriptions: Subscription[] = [];
-  injuryForm: FormGroup = this.buildInjuryForm();
-  // W-A-4 (2026-04-30): inline validation error displayed inside the
-  // Claim Information modal when the booker clicks Add/Save with required
-  // fields blank. Previously saveInjuryModal silently returned, leaving the
-  // booker confused why the Add button "did nothing".
-  injuryModalError: string | null = null;
-  wcabOfficeOptions: LookupDto<string>[] = [];
-  injuryStateOptions: LookupDto<string>[] = [];
+
+  /**
+   * #121 phase T4 (2026-05-13) -- computed Input passed to the
+   * claim-information section. Returns name + email when the booker is
+   * the Claim Examiner role on a fresh appointment (mirrors OLD
+   * appointment-add.component.ts:145-149); returns null otherwise so
+   * the section skips the prefill.
+   */
+  get claimExaminerPrefillForInjuryModal(): ClaimExaminerPrefill | null {
+    if (!this.isClaimExaminerRole || this.isItAdmin) return null;
+    const user = this.currentUser;
+    if (!user) return null;
+    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    return {
+      name: fullName || user.userName || null,
+      email: user.email ?? null,
+    };
+  }
   // #121 phase T2 (2026-05-13) -- the AppointmentAuthorizedUserDraft[]
   // array stays at parent because it carries the data the submit flow
   // consumes; passed into the section by reference so the modal can
@@ -2471,335 +2441,15 @@ export class AppointmentAddComponent {
     return allItems;
   }
 
-  // -------- W2-8: Claim Information modal + multi-injury workflow --------
-
-  /**
-   * W2-10 (2026-05-07): builds the reactive FormGroup that backs the
-   * per-injury modal. Field-name keys match the existing HTML
-   * `name="injury..."` attributes one-to-one so the Playwright fill
-   * helper at .playwright-mcp/book-appointment-fill.js keeps working
-   * unchanged. The shape is FLAT (not nested under primaryInsurance /
-   * claimExaminer) because formControlName cannot traverse nested
-   * groups without formGroupName scopes; serialization back into the
-   * nested AppointmentInjuryDraft happens in saveInjuryModal().
-   *
-   * Always-required: dateOfInjury, claimNumber, bodyPartsSummary
-   *   (mirrors NEW's existing imperative checks AND OLD's defaults).
-   * Conditionally required:
-   *   - injuryInsuranceName when injuryInsuranceEnabled = true
-   *     (OLD customValdiationForPrimaryInsurance:639-650).
-   *   - 8 CE fields when injuryClaimExaminerEnabled = true
-   *     (OLD customValdiationForClaimExaminer:558-590).
-   */
-  private buildInjuryForm(initial?: AppointmentInjuryDraft): FormGroup {
-    const src = initial ?? this.makeEmptyInjuryDraft();
-    const group = this.fb.group({
-      // Top-level always-required + flags.
-      injuryCumulative: [src.isCumulativeInjury],
-      injuryDateOfInjury: [src.dateOfInjury, [Validators.required]],
-      injuryToDateOfInjury: [src.toDateOfInjury],
-      injuryClaimNumber: [src.claimNumber, [Validators.required]],
-      injuryBodyPartsSummary: [src.bodyPartsSummary, [Validators.required]],
-      injuryWcabOfficeId: [src.wcabOfficeId],
-      injuryWcabAdj: [src.wcabAdj],
-      // Insurance section.
-      injuryInsuranceEnabled: [src.primaryInsurance.isActive],
-      injuryInsuranceName: [src.primaryInsurance.name],
-      injuryInsuranceAttention: [src.primaryInsurance.attention],
-      injuryInsurancePhone: [src.primaryInsurance.phoneNumber],
-      injuryInsuranceFax: [src.primaryInsurance.faxNumber],
-      injuryInsuranceStreet: [src.primaryInsurance.street],
-      injuryInsuranceSte: [src.primaryInsurance.suite],
-      injuryInsuranceCity: [src.primaryInsurance.city],
-      injuryInsuranceStateId: [src.primaryInsurance.stateId],
-      injuryInsuranceZip: [src.primaryInsurance.zip],
-      // Claim Examiner section.
-      injuryClaimExaminerEnabled: [src.claimExaminer.isActive],
-      injuryClaimExaminerName: [src.claimExaminer.name],
-      injuryClaimExaminerEmail: [src.claimExaminer.email],
-      injuryClaimExaminerPhone: [src.claimExaminer.phoneNumber],
-      injuryClaimExaminerFax: [src.claimExaminer.fax],
-      injuryClaimExaminerStreet: [src.claimExaminer.street],
-      injuryClaimExaminerSte: [src.claimExaminer.suite],
-      injuryClaimExaminerCity: [src.claimExaminer.city],
-      injuryClaimExaminerStateId: [src.claimExaminer.stateId],
-      injuryClaimExaminerZip: [src.claimExaminer.zip],
-    });
-
-    // Drop any leftover subscriptions from a prior modal session BEFORE
-    // wiring this group's listeners.
-    this.clearInjuryToggleSubscriptions();
-
-    // Apply initial validator state to match the toggle defaults.
-    this.applyInsuranceRequiredValidators(
-      group,
-      group.get('injuryInsuranceEnabled')?.value === true,
-    );
-    this.applyClaimExaminerRequiredValidators(
-      group,
-      group.get('injuryClaimExaminerEnabled')?.value === true,
-    );
-
-    // Subscribe to toggle changes so flipping the include switch flips
-    // the per-section required validators in lockstep.
-    const insuranceSub = group
-      .get('injuryInsuranceEnabled')
-      ?.valueChanges.subscribe((on) => this.applyInsuranceRequiredValidators(group, on === true));
-    if (insuranceSub) this.injuryToggleSubscriptions.push(insuranceSub);
-
-    const examinerSub = group
-      .get('injuryClaimExaminerEnabled')
-      ?.valueChanges.subscribe((on) =>
-        this.applyClaimExaminerRequiredValidators(group, on === true),
-      );
-    if (examinerSub) this.injuryToggleSubscriptions.push(examinerSub);
-
-    return group;
-  }
-
-  /** Default empty draft -- still useful as the seed for buildInjuryForm
-   * AND as the storage shape inside `injuryDrafts` (we serialize the
-   * FormGroup back into this nested shape on save). */
-  private makeEmptyInjuryDraft(): AppointmentInjuryDraft {
-    return {
-      isCumulativeInjury: false,
-      dateOfInjury: null,
-      toDateOfInjury: null,
-      claimNumber: '',
-      wcabOfficeId: null,
-      wcabAdj: null,
-      bodyPartsSummary: '',
-      primaryInsurance: {
-        isActive: true,
-        name: null,
-        suite: null,
-        attention: null,
-        phoneNumber: null,
-        faxNumber: null,
-        street: null,
-        city: null,
-        stateId: null,
-        zip: null,
-      },
-      claimExaminer: {
-        isActive: true,
-        name: null,
-        email: null,
-        phoneNumber: null,
-        fax: null,
-        street: null,
-        suite: null,
-        city: null,
-        stateId: null,
-        zip: null,
-      },
-    };
-  }
-
-  /** OLD parity: customValdiationForPrimaryInsurance -- toggles
-   * Validators.required on injuryInsuranceName based on the include
-   * switch. Other insurance fields stay optional in OLD too. */
-  private applyInsuranceRequiredValidators(group: FormGroup, required: boolean): void {
-    const ctrl = group.get('injuryInsuranceName');
-    if (!ctrl) return;
-    if (required) {
-      ctrl.setValidators([Validators.required]);
-    } else {
-      ctrl.clearValidators();
-    }
-    ctrl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  /** OLD parity: customValdiationForClaimExaminer -- 8 fields toggle
-   * Validators.required when the include switch is on (email also gets
-   * Validators.email). STE stays optional. */
-  private applyClaimExaminerRequiredValidators(group: FormGroup, required: boolean): void {
-    const fields: Array<{ key: string; extra?: any[] }> = [
-      { key: 'injuryClaimExaminerName' },
-      { key: 'injuryClaimExaminerEmail', extra: [Validators.email] },
-      { key: 'injuryClaimExaminerPhone' },
-      { key: 'injuryClaimExaminerFax' },
-      { key: 'injuryClaimExaminerStreet' },
-      { key: 'injuryClaimExaminerCity' },
-      { key: 'injuryClaimExaminerStateId' },
-      { key: 'injuryClaimExaminerZip' },
-    ];
-    for (const f of fields) {
-      const ctrl = group.get(f.key);
-      if (!ctrl) continue;
-      if (required) {
-        ctrl.setValidators([Validators.required, ...(f.extra ?? [])]);
-      } else {
-        // Off-branch keeps email format validator if it was attached
-        // (parity with OLD which strips required but does not strip
-        // format validators on the email field). Acceptable to clear
-        // entirely here; OLD also clears values, but we leave values
-        // alone so Edit still surfaces saved data.
-        ctrl.clearValidators();
-      }
-      ctrl.updateValueAndValidity({ emitEvent: false });
-    }
-  }
-
-  private clearInjuryToggleSubscriptions(): void {
-    for (const s of this.injuryToggleSubscriptions) {
-      s.unsubscribe();
-    }
-    this.injuryToggleSubscriptions = [];
-  }
-
-  /** Serialize the flat FormGroup value back into the nested
-   * AppointmentInjuryDraft shape that `injuryDrafts[]` and
-   * persistInjuryDraftsIfProvided expect. */
-  private serializeInjuryForm(group: FormGroup): AppointmentInjuryDraft {
-    const v = group.getRawValue();
-    return {
-      isCumulativeInjury: v.injuryCumulative === true,
-      dateOfInjury: v.injuryDateOfInjury ?? null,
-      toDateOfInjury: v.injuryToDateOfInjury ?? null,
-      claimNumber: v.injuryClaimNumber ?? '',
-      wcabOfficeId: v.injuryWcabOfficeId ?? null,
-      wcabAdj: v.injuryWcabAdj ?? null,
-      bodyPartsSummary: v.injuryBodyPartsSummary ?? '',
-      primaryInsurance: {
-        isActive: v.injuryInsuranceEnabled === true,
-        name: v.injuryInsuranceName ?? null,
-        suite: v.injuryInsuranceSte ?? null,
-        attention: v.injuryInsuranceAttention ?? null,
-        phoneNumber: v.injuryInsurancePhone ?? null,
-        faxNumber: v.injuryInsuranceFax ?? null,
-        street: v.injuryInsuranceStreet ?? null,
-        city: v.injuryInsuranceCity ?? null,
-        stateId: v.injuryInsuranceStateId ?? null,
-        zip: v.injuryInsuranceZip ?? null,
-      },
-      claimExaminer: {
-        isActive: v.injuryClaimExaminerEnabled === true,
-        name: v.injuryClaimExaminerName ?? null,
-        email: v.injuryClaimExaminerEmail ?? null,
-        phoneNumber: v.injuryClaimExaminerPhone ?? null,
-        fax: v.injuryClaimExaminerFax ?? null,
-        street: v.injuryClaimExaminerStreet ?? null,
-        suite: v.injuryClaimExaminerSte ?? null,
-        city: v.injuryClaimExaminerCity ?? null,
-        stateId: v.injuryClaimExaminerStateId ?? null,
-        zip: v.injuryClaimExaminerZip ?? null,
-      },
-    };
-  }
-
-  loadInjuryLookups(): void {
-    if (this.wcabOfficeOptions.length === 0) {
-      this.restService
-        .request<any, PagedResultDto<LookupDto<string>>>(
-          {
-            method: 'GET',
-            url: '/api/app/appointment-injury-details/wcab-office-lookup',
-            params: { skipCount: 0, maxResultCount: 200 },
-          },
-          { apiName: 'Default' },
-        )
-        .subscribe({ next: (r) => (this.wcabOfficeOptions = r?.items ?? []) });
-    }
-    if (this.injuryStateOptions.length === 0) {
-      this.restService
-        .request<any, PagedResultDto<LookupDto<string>>>(
-          {
-            method: 'GET',
-            url: '/api/app/applicant-attorneys/state-lookup',
-            params: { skipCount: 0, maxResultCount: 200 },
-          },
-          { apiName: 'Default' },
-        )
-        .subscribe({ next: (r) => (this.injuryStateOptions = r?.items ?? []) });
-    }
-  }
-
-  openAddInjuryModal(): void {
-    this.injuryEditingIndex = -1;
-    this.injuryForm = this.buildInjuryForm();
-    this.applyClaimExaminerRolePrefill();
-    this.loadInjuryLookups();
-    this.injuryModalError = null;
-    this.isInjuryModalOpen = true;
-  }
-
-  /**
-   * OLD parity (appointment-add.component.ts:145-149): when the booker is
-   * an Adjuster (NEW = Claim Examiner role) on a fresh appointment (not
-   * re-evaluation), pre-fill the per-injury claim examiner row with the
-   * logged-in user's name + email so they don't re-type their own info.
-   * The HTML pairs this with `[readonly]` on those fields when the booker
-   * holds the role and is not IT Admin.
-   */
-  private applyClaimExaminerRolePrefill(): void {
-    if (!this.isClaimExaminerRole || this.isItAdmin) return;
-    const user = this.currentUser;
-    if (!user) return;
-    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
-    const nameCtrl = this.injuryForm.get('injuryClaimExaminerName');
-    const emailCtrl = this.injuryForm.get('injuryClaimExaminerEmail');
-    const enabledCtrl = this.injuryForm.get('injuryClaimExaminerEnabled');
-    if (nameCtrl) {
-      nameCtrl.setValue(fullName || user.userName || nameCtrl.value);
-    }
-    if (emailCtrl) {
-      emailCtrl.setValue(user.email || emailCtrl.value);
-    }
-    if (enabledCtrl) {
-      enabledCtrl.setValue(true);
-    }
-  }
-
-  openEditInjuryModal(index: number): void {
-    const existing = this.injuryDrafts[index];
-    if (!existing) return;
-    // Deep clone so cancel discards in-modal edits.
-    const cloned: AppointmentInjuryDraft = JSON.parse(JSON.stringify(existing));
-    this.injuryForm = this.buildInjuryForm(cloned);
-    this.injuryEditingIndex = index;
-    this.loadInjuryLookups();
-    this.injuryModalError = null;
-    this.isInjuryModalOpen = true;
-  }
-
-  closeInjuryModal(): void {
-    this.isInjuryModalOpen = false;
-    this.injuryEditingIndex = -1;
-    this.clearInjuryToggleSubscriptions();
-    this.injuryForm = this.buildInjuryForm();
-    this.injuryModalError = null;
-  }
-
-  saveInjuryModal(): void {
-    // Mark every control as touched so per-input ng-invalid styling kicks
-    // in for any missing required field on the very first Save click.
-    this.injuryForm.markAllAsTouched();
-    if (this.injuryForm.invalid) {
-      this.injuryModalError = 'Please complete the required fields highlighted below.';
-      return;
-    }
-    this.injuryModalError = null;
-    const draft = this.serializeInjuryForm(this.injuryForm);
-    if (this.injuryEditingIndex >= 0) {
-      this.injuryDrafts[this.injuryEditingIndex] = draft;
-    } else {
-      this.injuryDrafts.push(draft);
-    }
-    this.closeInjuryModal();
-  }
-
-  removeInjury(index: number): void {
-    if (index >= 0 && index < this.injuryDrafts.length) {
-      this.injuryDrafts.splice(index, 1);
-    }
-  }
-
-  injuryWcabOfficeName(id: string | null | undefined): string {
-    if (!id) return '';
-    const opt = this.wcabOfficeOptions.find((o) => o.id === id);
-    return opt?.displayName ?? '';
-  }
+  // #121 phase T4 (2026-05-13) -- 14 methods moved to
+  // AppointmentAddClaimInformationComponent: buildInjuryForm,
+  // makeEmptyInjuryDraft, applyInsuranceRequiredValidators,
+  // applyClaimExaminerRequiredValidators, clearInjuryToggleSubscriptions,
+  // serializeInjuryForm, loadInjuryLookups, openAddInjuryModal,
+  // applyClaimExaminerRolePrefill, openEditInjuryModal,
+  // closeInjuryModal, saveInjuryModal, removeInjury,
+  // injuryWcabOfficeName. Parent keeps persistInjuryDraftsIfProvided
+  // below because the POST cascade is part of the submit flow.
 
   private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
     if (!appointmentId || this.injuryDrafts.length === 0) {
