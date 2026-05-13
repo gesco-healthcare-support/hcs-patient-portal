@@ -20,13 +20,13 @@ export const APP_ROUTES: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    // Phase 9 L7 (2026-05-04) -- post-login routing parity with OLD:
-    // internal users (admin / Clinic Staff / Staff Supervisor / IT Admin
-    // / Doctor) redirect to /dashboard; external users (Patient / AA /
-    // DA / CE / Adjuster) stay on /home. The guard returns a UrlTree
-    // for the redirect so this is route-level, not a flash-render of
-    // home before redirect.
-    canActivate: [postLoginRedirectGuard],
+    // Issue 1.1 (2026-05-12) -- canMatch (not canActivate) so the
+    // guard fires BEFORE the lazy HomeComponent chunk downloads.
+    // Anonymous / internal users get redirected via UrlTree without
+    // ever loading the home shell, eliminating the flash. External
+    // users continue to HomeComponent at /. See
+    // shared/auth/post-login-redirect.guard.ts for the three outcomes.
+    canMatch: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
   },
   {

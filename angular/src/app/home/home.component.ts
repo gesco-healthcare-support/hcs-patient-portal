@@ -82,15 +82,12 @@ export class HomeComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // OLD parity (locked 2026-05-06): anonymous visitors at `/` go straight
-    // to login, no public landing card. The route guard was unreliable
-    // here -- ABP's lazy-loaded standalone-component setup race-renders
-    // the home component before the guard's UrlTree resolves -- so we
-    // also gate at component-init.
-    if (!this.hasLoggedIn) {
-      this.authService.navigateToLogin();
-      return;
-    }
+    // Issue 1.1 (2026-05-12): anonymous redirect now lives in the
+    // CanMatchFn at app.routes.ts ':' route (see
+    // shared/auth/post-login-redirect.guard.ts). The CanMatchFn runs
+    // BEFORE this chunk downloads, so by the time we get here the user
+    // is authenticated. The prior in-component redirect (which caused
+    // the empty-home-shell flash for anon users) has been removed.
     if (!this.isPatientUser) {
       return;
     }
