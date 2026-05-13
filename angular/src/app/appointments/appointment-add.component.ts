@@ -1,13 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import {
-  FormArray,
-  FormBuilder,
-  FormGroup,
-  FormsModule,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   ConfigStateService,
@@ -17,62 +10,47 @@ import {
   RestService,
 } from '@abp/ng.core';
 import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
-import {
-  NgbDateAdapter,
-  NgbDateStruct,
-  NgbDatepickerModule,
-  NgbNavModule,
-  NgbTimeAdapter,
-} from '@ng-bootstrap/ng-bootstrap';
+import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto } from '../proxy/appointments/models';
 import { BookingStatus } from '../proxy/enums/booking-status.enum';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
-import { genderOptions } from '../proxy/enums/gender.enum';
-import { phoneNumberTypeOptions } from '../proxy/enums/phone-number-type.enum';
 import type {
   PatientUpdateDto,
   PatientWithNavigationPropertiesDto,
 } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
-import { NgxDatatableModule } from '@swimlane/ngx-datatable';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
-// #121 phase T1 (2026-05-13) -- extracted Custom Fields section.
+// #121 (2026-05-13) -- 7 section components extracted from the
+// monolithic booker template (T1-T7). The parent retains the 55-field
+// reactive `form` FormGroup, every cascade subscription, every
+// lookup/HTTP roundtrip, and every role-based visibility gate; each
+// child binds [formGroup]="form" and renders template-only. Types
+// surfaced here (AppointmentAuthorizedUserDraft, ExternalAuthorizedUserOption,
+// AppointmentInjuryDraft, ClaimExaminerPrefill) live in the section
+// files because they describe section-owned data; the parent imports
+// them so submit-time + draft-list reads keep type-checking.
 import { AppointmentAddCustomFieldsComponent } from './sections/appointment-add-custom-fields.component';
-// #121 phase T2 (2026-05-13) -- extracted Authorized Users section.
 import {
   AppointmentAddAuthorizedUsersComponent,
   type AppointmentAuthorizedUserDraft,
   type ExternalAuthorizedUserOption,
 } from './sections/appointment-add-authorized-users.component';
-// #121 phase T3 (2026-05-13) -- extracted Employer Details section.
 import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-add-employer-details.component';
-// #121 phase T4 (2026-05-13) -- extracted Claim Information section
-// (injury list + modal + lookups + cumulative-date + insurance/CE forms).
 import {
   AppointmentAddClaimInformationComponent,
   type AppointmentInjuryDraft,
   type ClaimExaminerPrefill,
 } from './sections/appointment-add-claim-information.component';
-// #121 phase T5 (2026-05-13) -- shared AA / DA attorney section.
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
-// #121 phase T6 (2026-05-13) -- Patient Demographics + Address section.
 import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
-// #121 phase T7 (2026-05-13) -- Schedule (Appointment Details) section.
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
-
-// #121 phase T4 (2026-05-13) -- AppointmentInjuryDraft moved to the
-// claim-information section file. Imported at the section-import
-// block below so the parent's existing references (injuryDrafts[],
-// the Bug C email fan-out resolver, persistInjuryDraftsIfProvided)
-// keep type-checking.
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -88,24 +66,15 @@ type AppointmentTypeFieldConfigDto = {
   defaultValue?: string | null;
 };
 
-// #121 phase T2 (2026-05-13) -- both authorized-user types moved to the
-// section file (they only describe section-owned data). Parent imports
-// them below alongside the component.
-
 @Component({
   selector: 'app-appointment-add',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     ReactiveFormsModule,
-    NgxDatatableModule,
     LocalizationPipe,
     TopHeaderNavbarComponent,
-    LookupSelectComponent,
     NgxValidateCoreModule,
-    NgbDatepickerModule,
-    NgbNavModule,
     AppointmentAddCustomFieldsComponent,
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddEmployerDetailsComponent,
@@ -132,22 +101,17 @@ export class AppointmentAddComponent {
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
 
-  // B1: expose enum to template for *ngIf branches.
-  // CustomFieldType is used only inside .ts methods now -- the template
-  // alias was needed for the inline custom-fields markup before phase
-  // T1 (#121) extracted it to AppointmentAddCustomFieldsComponent.
-
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
   // and `navigation="select"` switches the header to month + year selects
-  // that span the full configured range.
+  // that span the full configured range. Passed into the demographics
+  // section as Inputs since the datepicker template lives there.
   readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
   readonly dobMaxDate: NgbDateStruct = (() => {
     const today = new Date();
     return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
   })();
 
-  activeTabId = 'appointment';
   isSaving = false;
   isProfileLoading = true;
   patientLabel = '';
@@ -173,11 +137,6 @@ export class AppointmentAddComponent {
   readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
   appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
     [];
-  readonly genderOptions = genderOptions;
-  readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
-  // #121 phase T2 (2026-05-13) -- accessTypeOptions moved to
-  // AppointmentAddAuthorizedUsersComponent (only the modal renders the
-  // label set).
   private currentPatientProfile?: PatientWithNavigationPropertiesDto;
   patientListCache: LookupDto<string>[] = [];
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
