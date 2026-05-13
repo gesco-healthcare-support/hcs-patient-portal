@@ -41,7 +41,6 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
-import { NgxMaskDirective } from 'ngx-mask';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
@@ -64,6 +63,8 @@ import {
 } from './sections/appointment-add-claim-information.component';
 // #121 phase T5 (2026-05-13) -- shared AA / DA attorney section.
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
+// #121 phase T6 (2026-05-13) -- Patient Demographics + Address section.
+import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
 
 // #121 phase T4 (2026-05-13) -- AppointmentInjuryDraft moved to the
 // claim-information section file. Imported at the section-import
@@ -103,12 +104,12 @@ type AppointmentTypeFieldConfigDto = {
     NgxValidateCoreModule,
     NgbDatepickerModule,
     NgbNavModule,
-    NgxMaskDirective,
     AppointmentAddCustomFieldsComponent,
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddEmployerDetailsComponent,
     AppointmentAddClaimInformationComponent,
     AppointmentAddAttorneySectionComponent,
+    AppointmentAddPatientDemographicsComponent,
   ],
   providers: [
     ListService,
