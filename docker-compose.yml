@@ -38,6 +38,59 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
 
+  # 2026-05-13: MinIO blob store for document uploads. Replaces the
+  # DB-BLOB default for the seven per-feature document containers
+  # configured in CaseEvaluationDomainModule.ConfigureBlobStoring.
+  # Console UI at http://localhost:9001 (creds in MINIO_ROOT_*). MinIO
+  # is the chosen blob store for dev and for whatever production
+  # destination this stack lands on -- AWS / S3 is explicitly out of
+  # scope (Adrian, 2026-05-13).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # One-shot bucket initializer. The MinIO provider has
+  # CreateBucketIfNotExists wired (see CaseEvaluationDomainModule) so
+  # this is belt-and-suspenders for clarity in logs + to ensure the
+  # bucket exists before any upload regardless of which service runs
+  # first. Exits as soon as the bucket is present.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      BUCKET_NAME: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        if ! mc ls "local/$$BUCKET_NAME" >/dev/null 2>&1; then
+          mc mb "local/$$BUCKET_NAME"
+          echo "Created bucket: $$BUCKET_NAME"
+        else
+          echo "Bucket exists: $$BUCKET_NAME"
+        fi
+    restart: "no"
+
   db-migrator:
     build:
       context: .
@@ -52,6 +105,17 @@ services:
       # Bug D (2026-05-11) -- silent-refresh page served from AuthServer wwwroot.
       OpenIddict__Applications__CaseEvaluation_App__SilentRefreshUri: "http://localhost:${AUTH_PORT:-44368}/silent-refresh.html"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:${API_PORT:-44327}"
+      # 2026-05-13: MinIO blob storage for the seven document containers
+      # (see CaseEvaluationDomainModule.ConfigureBlobStoring). Endpoint
+      # uses the docker network alias; AccessKey + SecretKey come from
+      # MINIO_ROOT_*. CreateBucketIfNotExists is belt-and-suspenders
+      # alongside the minio-init service.
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
@@ -59,6 +123,8 @@ services:
       sql-server:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: "no"
 
@@ -95,6 +161,13 @@ services:
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
       # Bind source for hot-reload.
       - ./src:/app/src
@@ -114,6 +187,8 @@ services:
       db-migrator:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
@@ -151,6 +226,13 @@ services:
       # Docker's internal DNS; CaseEvaluationDomainModule reads this
       # value (with a localhost fallback that matches this service name).
       Gotenberg__Url: "http://gotenberg:3000"
+      # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
+      BlobStoring__Minio__Endpoint: "minio:9000"
+      BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      BlobStoring__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      BlobStoring__Minio__BucketName: "${MINIO_BUCKET_NAME:-case-evaluation-documents}"
+      BlobStoring__Minio__WithSsl: "false"
+      BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
       - ./src:/app/src
       - ./Directory.Build.props:/app/Directory.Build.props:ro
@@ -166,6 +248,8 @@ services:
       redis:
         condition: service_healthy
       gotenberg:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health-status || exit 1"]
@@ -223,3 +307,4 @@ services:
 
 volumes:
   sqldata:
+  miniodata:

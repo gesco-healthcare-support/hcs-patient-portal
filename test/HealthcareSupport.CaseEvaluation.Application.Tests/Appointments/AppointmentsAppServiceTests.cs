@@ -11,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Validation;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -57,10 +58,13 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.PatientId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator (#181) now fires before the
+        // AppService's manual UserFriendlyException check; AbpValidationException
+        // wins. Assertion checks the validator-produced ValidationErrors collection.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Patient");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Patient"));
     }
 
     [Fact]
@@ -69,12 +73,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.IdentityUserId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; its WithMessage
+        // produces "Booker (IdentityUser) is required."
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // ABP's L["..."] localizer inserts a space between CamelCase words, so
-        // the localized field label is "Identity User" rather than "IdentityUser".
-        ex.Message.ShouldContain("Identity User");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("IdentityUser"));
     }
 
     [Fact]
@@ -83,10 +87,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.AppointmentTypeId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Appointment type is required." (lowercase 'type').
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Appointment Type");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Appointment type"));
     }
 
     [Fact]
@@ -95,10 +101,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.LocationId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Location");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Location"));
     }
 
     [Fact]
@@ -107,13 +114,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.DoctorAvailabilityId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Time slot is required." (the user-facing label the validator picked).
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // Note: the localized label for `L["DoctorAvailability"]` resolves to
-        // "Availability & Time Slots" (the user-facing display name), not a
-        // CamelCase-split of the key.
-        ex.Message.ShouldContain("Availability & Time Slots");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Time slot"));
     }
 
     // =====================================================================

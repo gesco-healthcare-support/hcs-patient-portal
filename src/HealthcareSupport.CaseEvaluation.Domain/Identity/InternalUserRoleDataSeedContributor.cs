@@ -322,15 +322,26 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     {
         yield return $"{Group}.Dashboard.Tenant";
 
-        yield return Default("Appointments");
+        // 2026-05-13: read access to every operational entity under the
+        // tenant. Mirrors Staff Supervisor's loop but read-only -- the
+        // appointment-view page fans out to per-entity endpoints
+        // (AppointmentInjuryDetails, AppointmentEmployerDetails,
+        // ApplicantAttorneys, etc.), each gated by [Authorize(...Default)].
+        // Clinic Staff is the front-line reviewer for every appointment in
+        // their tenant, so they need read on the full operational set.
+        // Mutation rights stay scoped explicitly below to Appointments +
+        // Patients (and AppointmentDocuments.Approve / AppointmentPackets.
+        // Regenerate per the existing receptionist-tier scope).
+        foreach (var entity in OperationalEntities)
+        {
+            yield return Default(entity);
+        }
+
         yield return Create("Appointments");
         yield return Edit("Appointments");
 
-        yield return Default("Patients");
         yield return Create("Patients");
         yield return Edit("Patients");
-
-        yield return Default("DoctorAvailabilities");
 
         foreach (var entity in LookupReadEntities)
         {

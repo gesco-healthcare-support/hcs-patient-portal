@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
@@ -163,17 +164,33 @@ public class BookingSubmissionEmailHandler :
             // (AppointmentRequestedOffice / Registered / Unregistered)
             // partition the audience. NO CC on this fan-out per Adrian
             // override 2026-05-08.
-            await DispatchAppointmentRequestedAsync(
-                eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+            try
+            {
+                await DispatchAppointmentRequestedAsync(
+                    eventData, ctx, appointment, appointmentDate, appointmentFromTime);
 
-            // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
-            // when the booker is an external user, also fan out
-            // PatientAppointmentApproveReject to every Staff Supervisor +
-            // Clinic Staff user in the tenant. Different recipient set than
-            // the AppointmentRequested fan-out above, so it is not a duplicate.
-            await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
-                eventData, ctx, appointment, appointmentDate,
-                appointmentFromTime, appointmentToTime);
+                // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
+                // when the booker is an external user, also fan out
+                // PatientAppointmentApproveReject to every Staff Supervisor +
+                // Clinic Staff user in the tenant. Different recipient set than
+                // the AppointmentRequested fan-out above, so it is not a duplicate.
+                await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
+                    eventData, ctx, appointment, appointmentDate,
+                    appointmentFromTime, appointmentToTime);
+            }
+            catch (BusinessException ex)
+                when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+            {
+                // 2026-05-13: same tolerance as StatusChangeEmailHandler. A
+                // missing or inactive template must NOT block the CreateAsync
+                // UoW; the email is a side effect, the appointment write
+                // already committed. Log Warning so monitoring surfaces the
+                // gap.
+                _logger.LogWarning(
+                    "BookingSubmissionEmailHandler: template missing for appointment {AppointmentId}; email skipped. Detail: {Detail}",
+                    eventData.AppointmentId,
+                    ex.Data.Contains("templateCode") ? ex.Data["templateCode"] : "(unspecified)");
+            }
         }
     }
 
@@ -328,6 +345,7 @@ public class BookingSubmissionEmailHandler :
         var roleDisplayName = ResolveRoleDisplayName(role);
         var portalUrl = portalBaseUrl.TrimEnd('/');
         var registerUrl = BuildRegisterUrl(authServerBaseUrl, args.TenantName, args.To, role);
+        var loginUrl = BuildLoginUrl(authServerBaseUrl, args.TenantName, args.To);
 
         var vars = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -339,6 +357,10 @@ public class BookingSubmissionEmailHandler :
             ["RoleDisplayName"] = roleDisplayName,
             ["PortalUrl"] = portalUrl,
             ["RegisterUrl"] = registerUrl,
+            // Issue 2.4 (2026-05-12) — LoginUrl carries __tenant + email
+            // pre-fill so already-registered recipients click straight
+            // into a tenant-correct login screen.
+            ["LoginUrl"] = loginUrl,
         };
         AddBrandPlaceholders(vars);
         return vars;
@@ -367,7 +389,7 @@ public class BookingSubmissionEmailHandler :
     /// their email pre-populated. Mirrors the prior inline implementation
     /// in Domain SubmissionEmailHandler.BuildRegisterCta.
     /// </summary>
-    private static string BuildRegisterUrl(
+    internal static string BuildRegisterUrl(
         string authServerBaseUrl,
         string? tenantName,
         string email,
@@ -383,9 +405,61 @@ public class BookingSubmissionEmailHandler :
         {
             query.Append("email=").Append(WebUtility.UrlEncode(email)).Append('&');
         }
+        // Issue 2.4 (2026-05-12) — append role= so the Register page
+        // pre-selects the user type dropdown. Matches the shape that
+        // ExternalSignupAppService.BuildInviteUrl produces and that
+        // global-scripts.js applyRolePrefill() consumes.
+        var roleName = RoleToRoleName(role);
+        if (!string.IsNullOrWhiteSpace(roleName))
+        {
+            query.Append("role=").Append(WebUtility.UrlEncode(roleName)).Append('&');
+        }
         var queryString = query.ToString().TrimEnd('?', '&');
         return $"{baseUrl}/Account/Register{queryString}";
     }
+
+    /// <summary>
+    /// Issue 2.4 (2026-05-12) — Login URL for registered recipients.
+    /// Carries <c>__tenant + email</c> pre-fill (no role; login doesn't
+    /// pick role). When the recipient clicks the email's Login button
+    /// they land on a tenant-correct login form with their email already
+    /// in place.
+    /// </summary>
+    internal static string BuildLoginUrl(
+        string authServerBaseUrl,
+        string? tenantName,
+        string email)
+    {
+        var baseUrl = authServerBaseUrl.TrimEnd('/');
+        var query = new StringBuilder("?");
+        if (!string.IsNullOrWhiteSpace(tenantName))
+        {
+            query.Append("__tenant=").Append(WebUtility.UrlEncode(tenantName)).Append('&');
+        }
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            query.Append("email=").Append(WebUtility.UrlEncode(email)).Append('&');
+        }
+        var queryString = query.ToString().TrimEnd('?', '&');
+        return $"{baseUrl}/Account/Login{queryString}";
+    }
+
+    /// <summary>
+    /// Maps the recipient role to the canonical role-name string used
+    /// by ExternalSignupAppService.EnsureRoleAsync and consumed by the
+    /// AuthServer Register page's role-select pre-fill (global-scripts.js
+    /// applyRolePrefill). Mirrors the values in
+    /// CaseEvaluationConsts.Roles. OfficeAdmin maps to empty -- office
+    /// recipients never receive a register link.
+    /// </summary>
+    private static string RoleToRoleName(RecipientRole role) => role switch
+    {
+        RecipientRole.Patient => "Patient",
+        RecipientRole.ApplicantAttorney => "Applicant Attorney",
+        RecipientRole.DefenseAttorney => "Defense Attorney",
+        RecipientRole.ClaimExaminer => "Claim Examiner",
+        _ => string.Empty,
+    };
 
     /// <summary>
     /// Phase 2.A: tenant setting fallback. Reads via

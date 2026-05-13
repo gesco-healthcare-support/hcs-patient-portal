@@ -231,6 +231,7 @@
     "Appointment:RevalSourceNotApprovedAdminHint": "You can not Re-eval this appointment request because it's not yet approved. Please approve an appointment and try again.",
     "Appointment:AccessorRoleMismatch": "Your added accessor '{0}' is already registered in our system with different user type. Please select proper Accessor user's type and try again",
     "Appointment:AccessDenied": "You do not have permission to access this appointment.",
+    "Appointment.AccessDenied": "You do not have permission to access this appointment.",
     "AppointmentChangeRequest:AppointmentNotApproved": "Changes are not allowed on this appointment in its current status.",
     "AppointmentChangeRequest:CancelTimeWindow": "This appointment cannot be cancelled or rescheduled because the date is too close. Cancellations require at least {0} day(s) advance notice.",
     "AppointmentChangeRequest:EditAccessRequired": "You do not have edit access to this appointment.",

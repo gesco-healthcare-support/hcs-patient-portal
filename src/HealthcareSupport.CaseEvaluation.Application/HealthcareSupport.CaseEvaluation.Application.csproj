@@ -26,6 +26,10 @@
     <PackageReference Include="Volo.FileManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.TextTemplateManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.Gdpr.Application" Version="10.0.2" />
+    <!-- Issue 2.8 (2026-05-12) — FluentValidation backend integration.
+         Volo.Abp.FluentValidation auto-discovers AbstractValidator<T>
+         instances and invokes them at the AppService boundary. -->
+    <PackageReference Include="Volo.Abp.FluentValidation" Version="10.0.2" />
   </ItemGroup>
 
 </Project>

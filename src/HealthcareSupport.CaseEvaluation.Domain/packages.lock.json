@@ -112,6 +112,16 @@
           "Volo.Abp.Ddd.Domain": "10.0.2"
         }
       },
+      "Volo.Abp.BlobStoring.Minio": {
+        "type": "Direct",
+        "requested": "[10.0.2, )",
+        "resolved": "10.0.2",
+        "contentHash": "MxKJyJc00DBCT9r0hnqfUGuxD+H2iKlMIFavHtDfOWTRH7JFGLU2lvJdN4VtJVfoiypQ8G62SDBRmfExJKRzsQ==",
+        "dependencies": {
+          "Minio": "6.0.5",
+          "Volo.Abp.BlobStoring": "10.0.2"
+        }
+      },
       "Volo.Abp.Caching": {
         "type": "Direct",
         "requested": "[10.0.2, )",
@@ -306,6 +316,11 @@
         "type": "Transitive",
         "resolved": "2.6.2",
         "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
+      },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.0",
+        "contentHash": "flxspiBs0G/0GMp7IK2J2ijV9bTG6hEwFc/z6ekHqB6nwRJ4Ry2yLdx+TkbCUYFCl4XhABkAwomeKbT6zM2Zlg=="
       },
       "DocumentFormat.OpenXml.Framework": {
         "type": "Transitive",
@@ -662,6 +677,18 @@
           "Microsoft.IdentityModel.Logging": "8.14.0"
         }
       },
+      "Minio": {
+        "type": "Transitive",
+        "resolved": "6.0.5",
+        "contentHash": "AK3JIDZnFZg2Hpkqo6vlzyiEC4OifG+jQbuqpAtXePnIo49G4pNn27THh3DI8s4o84b/MMBQF+n1DEwBNenxsg==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Logging": "9.0.4",
+          "System.IO.Hashing": "9.0.4",
+          "System.Reactive": "6.0.1"
+        }
+      },
       "Newtonsoft.Json": {
         "type": "Transitive",
         "resolved": "13.0.4",
@@ -737,6 +764,11 @@
         "resolved": "5.0.0",
         "contentHash": "dMkqfy2el8A8/I76n2Hi1oBFEbG1SfxD2l5nhwXV3XjlnOmwxJlQbYpJH4W51odnU9sARCSAgv7S3CyAFMkpYg=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.4",
+        "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
+      },
       "System.IO.Packaging": {
         "type": "Transitive",
         "resolved": "8.0.1",
@@ -754,6 +786,11 @@
         "dependencies": {
           "System.CodeDom": "10.0.0"
         }
+      },
+      "System.Reactive": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "rHaWtKDwCi9qJ3ObKo8LHPMuuwv33YbmQi7TcUK1C264V3MFnOr5Im7QgCTdLniztP3GJyeiSg5x8NqYJFqRmg=="
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",

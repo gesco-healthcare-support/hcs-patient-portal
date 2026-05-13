@@ -21,6 +21,7 @@ using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 using Volo.Abp.Users;
+using Volo.Abp.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
@@ -38,6 +39,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private readonly IAuthorizationService _authorizationService;
     private readonly ILocalEventBus _localEventBus;
     private readonly IdentityUserManager _userManager;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -49,7 +51,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         IBackgroundJobManager backgroundJobManager,
         IAuthorizationService authorizationService,
         ILocalEventBus localEventBus,
-        IdentityUserManager userManager)
+        IdentityUserManager userManager,
+        IUnitOfWorkManager unitOfWorkManager)
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
@@ -61,6 +64,42 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _authorizationService = authorizationService;
         _localEventBus = localEventBus;
         _userManager = userManager;
+        _unitOfWorkManager = unitOfWorkManager;
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- Blob save + UoW-rollback compensating delete.
+    /// Saves the blob to the configured container, then registers a
+    /// compensating delete on the current UnitOfWork's Failed event so
+    /// any subsequent entity-insert / -update / UoW-commit failure
+    /// triggers a best-effort blob cleanup. Required because once the
+    /// blob provider is MinIO (out-of-band from EF), the blob save no
+    /// longer shares the EF transaction the way DB-BLOB does, so a
+    /// failing entity write would otherwise leave an orphan object.
+    /// </summary>
+    private async Task SaveBlobWithRollbackAsync(string blobName, Stream content)
+    {
+        await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
+
+        var uow = _unitOfWorkManager.Current;
+        if (uow == null)
+        {
+            return;
+        }
+        uow.Failed += (_, _) =>
+        {
+            // Best-effort, sync-only: the Failed event is sync. Swallow
+            // any exception so the cleanup never masks the original
+            // failure. The entity row is the source of truth; if blob
+            // delete fails here it becomes a cleanup-job concern.
+            try
+            {
+                _blobContainer.DeleteAsync(blobName).GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+        };
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
@@ -80,6 +119,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadStreamAsync(
         Guid appointmentId,
         string documentName,
@@ -111,9 +151,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // packet merge path's supported formats.
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/{Guid.NewGuid():N}";
-        await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(blobName, content);
 
         // W2-11: internal staff uploads land directly as Approved (matches
         // OLD's vInternalUser pre-set behaviour); external user uploads land
@@ -172,6 +212,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadPackageDocumentAsync(
         Guid documentId,
         string fileName,
@@ -212,6 +253,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadJointDeclarationAsync(
         Guid appointmentId,
         string documentName,
@@ -242,9 +284,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/{Guid.NewGuid():N}";
-        await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(blobName, content);
 
         var entity = await _documentManager.CreateAsync(
             tenantId: _currentTenant.Id,
@@ -288,6 +330,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [AllowAnonymous]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadByVerificationCodeAsync(
         Guid documentId,
         Guid verificationCode,
@@ -344,9 +387,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var newBlobName = $"{tenantSegment}/{document.AppointmentId}/{Guid.NewGuid():N}";
-        await _blobContainer.SaveAsync(newBlobName, content, overrideExisting: false);
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var newBlobName = $"{tenantSegment}/{document.AppointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(newBlobName, content);
 
         // Try to delete the placeholder/old blob if it was a real one
         // (queued rows have a "(pending-upload)" placeholder; skip that).

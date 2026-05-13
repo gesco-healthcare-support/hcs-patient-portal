@@ -20,13 +20,13 @@ export const APP_ROUTES: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    // Phase 9 L7 (2026-05-04) -- post-login routing parity with OLD:
-    // internal users (admin / Clinic Staff / Staff Supervisor / IT Admin
-    // / Doctor) redirect to /dashboard; external users (Patient / AA /
-    // DA / CE / Adjuster) stay on /home. The guard returns a UrlTree
-    // for the redirect so this is route-level, not a flash-render of
-    // home before redirect.
-    canActivate: [postLoginRedirectGuard],
+    // Issue 1.1 (2026-05-12) -- canMatch (not canActivate) so the
+    // guard fires BEFORE the lazy HomeComponent chunk downloads.
+    // Anonymous / internal users get redirected via UrlTree without
+    // ever loading the home shell, eliminating the flash. External
+    // users continue to HomeComponent at /. See
+    // shared/auth/post-login-redirect.guard.ts for the three outcomes.
+    canMatch: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
   },
   {
@@ -57,6 +57,18 @@ export const APP_ROUTES: Routes = [
     loadComponent: () =>
       import('./shared/auth/verify-email-redirect.component').then(
         (c) => c.VerifyEmailRedirectComponent,
+      ),
+  },
+  // Issue 1.4 (2026-05-12) -- custom email-confirmation component that
+  // surfaces a Resend Verification button. Must be declared BEFORE the
+  // wildcard `path: 'account'` route below so Angular's first-match
+  // precedence picks this over ABP's stock component. Reference:
+  // https://docs.abp.io/en/abp/latest/UI/Angular/Component-Replacement
+  {
+    path: 'account/email-confirmation',
+    loadComponent: () =>
+      import('./shared/auth/custom-email-confirmation.component').then(
+        (c) => c.CustomEmailConfirmationComponent,
       ),
   },
   {

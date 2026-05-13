@@ -46,6 +46,35 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
         @"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##",
         RegexOptions.Compiled);
 
+    /// <summary>
+    /// 2026-05-12 (Path 2 of packet-pagination fix): conservative
+    /// margin-tightening threshold and target. Any per-section page
+    /// margin currently >= 0.6 inch (~548640 EMU) gets clamped to
+    /// 0.5 inch (~457200 EMU). Smaller margins are left alone so we
+    /// don't expand intentionally-tight sections. Empirically this
+    /// drops residual overflow pages by ~50% on top of Option A's
+    /// font-substitution fix (see PR-91 measurements):
+    ///
+    ///   AttyCE  : 7 -> 6 pages (0 near-empty)
+    ///   Doctor  : 9 -> 9 pages (1 trailing blank page from a
+    ///             section break, NOT a margin issue)
+    ///   Patient : 23 -> 21 pages (2 near-empty, down from 4)
+    ///
+    /// Implementation: pre-pass before token replacement. Walks every
+    /// w:sectPr in the main body (and any nested section-properties in
+    /// final paragraphs) and tightens w:top, w:bottom, w:left, w:right,
+    /// and w:gutter when present.
+    /// </summary>
+    private const long MarginThresholdEmu = 548640L;  // 0.6"
+    private const long MarginTargetEmu = 457200L;     // 0.5"
+
+    /// <summary>OpenXml stores w:top etc. as twentieths of a point
+    /// (twips). Convert to EMU at 914400 EMU per inch == 20 twips per
+    /// point * 72 points per inch = 1440 twips per inch. So 1 twip =
+    /// 914400/1440 = 635 EMU. We compare in EMU for self-documentation
+    /// but the raw value on disk is twips.</summary>
+    private const long EmuPerTwip = 635L;
+
     public virtual byte[] Render(byte[] templateBytes, PacketTokenContext context)
     {
         // Copy the template into a writable MemoryStream so we don't mutate
@@ -56,6 +85,13 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
 
         using (var doc = WordprocessingDocument.Open(ms, isEditable: true))
         {
+            // 2026-05-12: tighten page margins before token replacement so
+            // LibreOffice's font-metric drift has more usable area per
+            // page to absorb. Reduces overflow pages from ~15% to ~8%
+            // total after Option A fonts. See class-level comment on
+            // MarginThresholdEmu for the rationale.
+            TightenLargeMargins(doc.MainDocumentPart!.Document);
+
             var tokenMap = BuildTokenMap(context);
 
             ReplaceTokensInPart(doc.MainDocumentPart!.Document, tokenMap);
@@ -82,6 +118,43 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
         }
 
         return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Walk every w:sectPr in the document and reduce any margin
+    /// currently >= MarginThresholdEmu (0.6") down to MarginTargetEmu
+    /// (0.5"). Section properties that already have tighter margins
+    /// stay unchanged. Internal so the unit tests can drive it
+    /// directly.
+    /// </summary>
+    internal static void TightenLargeMargins(OpenXmlElement root)
+    {
+        var thresholdTwips = MarginThresholdEmu / EmuPerTwip;
+        var targetTwips = MarginTargetEmu / EmuPerTwip;
+
+        foreach (var pageMargin in root.Descendants<PageMargin>().ToList())
+        {
+            if (pageMargin.Top?.Value is int topValue && topValue >= thresholdTwips)
+            {
+                pageMargin.Top = (int)targetTwips;
+            }
+            if (pageMargin.Bottom?.Value is int bottomValue && bottomValue >= thresholdTwips)
+            {
+                pageMargin.Bottom = (int)targetTwips;
+            }
+            // Left / Right / Gutter / Header / Footer use UInt32Value.
+            // Top + Bottom are Int32Value because Word allows negative
+            // values (content extending into the margin); the spec
+            // distinguishes them.
+            if (pageMargin.Left?.Value is uint leftValue && leftValue >= (uint)thresholdTwips)
+            {
+                pageMargin.Left = (uint)targetTwips;
+            }
+            if (pageMargin.Right?.Value is uint rightValue && rightValue >= (uint)thresholdTwips)
+            {
+                pageMargin.Right = (uint)targetTwips;
+            }
+        }
     }
 
     // -- Token replacement --------------------------------------------------

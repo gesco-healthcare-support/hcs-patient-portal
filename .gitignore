@@ -297,6 +297,10 @@ NuGet.Config
 # Docker compose env (contains passwords)
 docker/.env
 
+# 2026-05-12: docker/fonts/*.ttf are committed for now. They power the
+# Gotenberg packet-PDF renderer (see docker/Dockerfile.gotenberg-fonts).
+# Will be removed and replaced with a font-mount step before hosting.
+
 # Logs directory
 Logs/
 

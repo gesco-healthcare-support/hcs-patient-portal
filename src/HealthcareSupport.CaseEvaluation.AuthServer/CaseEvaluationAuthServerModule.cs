@@ -365,9 +365,13 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
         });
 
+        // 2026-05-12 (Issue 1.5) — light is the default for first-time
+        // visitors to AuthServer Razor pages (login / register / email
+        // confirmation). Users who explicitly toggle to dark still keep
+        // that choice via the LeptonX cookie.
         Configure<LeptonXThemeOptions>(options =>
         {
-            options.DefaultStyle = LeptonXStyleNames.System;
+            options.DefaultStyle = LeptonXStyleNames.Light;
         });
 
         Configure<AbpSecurityHeadersOptions>(options =>

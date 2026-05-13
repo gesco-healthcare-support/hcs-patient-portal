@@ -27,6 +27,7 @@ import {
   NgbTimeAdapter,
   NgbNavModule,
 } from '@ng-bootstrap/ng-bootstrap';
+import { NgxMaskDirective } from 'ngx-mask';
 
 @Component({
   selector: 'app-patient-profile',
@@ -43,6 +44,7 @@ import {
     AutofocusDirective,
     NgbDatepickerModule,
     NgbNavModule,
+    NgxMaskDirective,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },

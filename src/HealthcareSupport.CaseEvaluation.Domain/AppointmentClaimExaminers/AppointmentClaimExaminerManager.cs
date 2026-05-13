@@ -32,7 +32,7 @@ public class AppointmentClaimExaminerManager : DomainService
     {
         Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
         Check.Length(name, nameof(name), AppointmentClaimExaminerConsts.NameMaxLength, 0);
-        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength, 0);
+        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.SuiteMaxLength, 0);
         Check.Length(email, nameof(email), AppointmentClaimExaminerConsts.EmailMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentClaimExaminerConsts.PhoneNumberMaxLength, 0);
         Check.Length(fax, nameof(fax), AppointmentClaimExaminerConsts.FaxMaxLength, 0);
@@ -43,7 +43,7 @@ public class AppointmentClaimExaminerManager : DomainService
         var entity = new AppointmentClaimExaminer(GuidGenerator.Create(), appointmentInjuryDetailId, isActive)
         {
             Name = name,
-            ClaimExaminerNumber = claimExaminerNumber,
+            Suite = claimExaminerNumber,
             Email = email,
             PhoneNumber = phoneNumber,
             Fax = fax,
@@ -72,7 +72,7 @@ public class AppointmentClaimExaminerManager : DomainService
     {
         Check.NotNull(appointmentInjuryDetailId, nameof(appointmentInjuryDetailId));
         Check.Length(name, nameof(name), AppointmentClaimExaminerConsts.NameMaxLength, 0);
-        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength, 0);
+        Check.Length(claimExaminerNumber, nameof(claimExaminerNumber), AppointmentClaimExaminerConsts.SuiteMaxLength, 0);
         Check.Length(email, nameof(email), AppointmentClaimExaminerConsts.EmailMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), AppointmentClaimExaminerConsts.PhoneNumberMaxLength, 0);
         Check.Length(fax, nameof(fax), AppointmentClaimExaminerConsts.FaxMaxLength, 0);
@@ -84,7 +84,7 @@ public class AppointmentClaimExaminerManager : DomainService
         entity.AppointmentInjuryDetailId = appointmentInjuryDetailId;
         entity.IsActive = isActive;
         entity.Name = name;
-        entity.ClaimExaminerNumber = claimExaminerNumber;
+        entity.Suite = claimExaminerNumber;
         entity.Email = email;
         entity.PhoneNumber = phoneNumber;
         entity.Fax = fax;

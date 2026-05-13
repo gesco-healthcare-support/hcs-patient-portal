@@ -4,6 +4,20 @@
 // add LeptonX --lpx-* overrides that consume these.
 @use 'styles/brand';
 
+/* Issue 2.1 (2026-05-12) — SSN input redaction. The class is applied to
+ * the booking + profile + edit form's SSN input alongside ngx-mask's
+ * 000-00-0000 mask. CSS text-security renders each character as a disc
+ * regardless of the underlying value, so the on-screen view never
+ * exposes the SSN even though the FormControl carries the raw digits
+ * for submit. Supported across all modern browsers as of 2026
+ * (Chrome / Edge / Safari / Firefox 113+). The masked text on screen
+ * looks like *********** but the form value is still the 9 digits. */
+.app-ssn-redacted {
+  -webkit-text-security: disc;
+  -moz-text-security: disc;
+  text-security: disc;
+}
+
 :root .lpx-theme-dark {
   .abp-support {
     background-image: url('assets/images/getting-started/abp-support-white.svg');

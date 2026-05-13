@@ -21,6 +21,7 @@ import {
   NgbTimeAdapter,
 } from '@ng-bootstrap/ng-bootstrap';
 import { PatientDetailViewService } from '../services/patient-detail.service';
+import { NgxMaskDirective } from 'ngx-mask';
 
 @Component({
   selector: 'app-patient-detail-modal',
@@ -38,6 +39,7 @@ import { PatientDetailViewService } from '../services/patient-detail.service';
     ModalComponent,
     ButtonComponent,
     LookupSelectComponent,
+    NgxMaskDirective,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },

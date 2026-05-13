@@ -8,7 +8,7 @@ public class AppointmentPrimaryInsuranceDto : FullAuditedEntityDto<Guid>, IHasCo
 {
     public Guid AppointmentInjuryDetailId { get; set; }
     public string? Name { get; set; }
-    public string? InsuranceNumber { get; set; }
+    public string? Suite { get; set; }
     public string? Attention { get; set; }
     public string? PhoneNumber { get; set; }
     public string? FaxNumber { get; set; }
