@@ -545,7 +545,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
         var query = (await _appointmentTypeRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -560,7 +560,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query Location directly. IMultiTenant filter scopes by tenant.
         var query = (await _locationRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

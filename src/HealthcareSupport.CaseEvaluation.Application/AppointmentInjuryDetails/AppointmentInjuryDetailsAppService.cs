@@ -73,7 +73,7 @@ public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IApp
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetWcabOfficeLookupAsync(LookupRequestDto input)
     {
-        var query = (await _wcabOfficeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        var query = (await _wcabOfficeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
