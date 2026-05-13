@@ -1,5 +1,5 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { AuthService, ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
+import { Component, Injector, OnDestroy, OnInit, inject } from '@angular/core';
+import { ConfigStateService, DynamicLayoutComponent } from '@abp/ng.core';
 import { Router, NavigationEnd } from '@angular/router';
 import { GdprCookieConsentComponent } from '@volo/abp.ng.gdpr/config';
 import { LoaderBarComponent } from '@abp/ng.theme.shared';
@@ -8,6 +8,7 @@ import { filter } from 'rxjs/operators';
 import { hasAnyExternalRole } from './shared/auth/external-user-roles';
 import { AppointmentPendingCountService } from './appointments/services/appointment-pending-count.service';
 import { SessionIdentityWatcherService } from './shared/auth/session-identity-watcher.service';
+import { performFullLogout } from './shared/auth/full-logout';
 
 @Component({
   selector: 'app-root',
@@ -21,7 +22,7 @@ import { SessionIdentityWatcherService } from './shared/auth/session-identity-wa
 export class AppComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
   private readonly router = inject(Router);
-  private readonly authService = inject(AuthService);
+  private readonly injector = inject(Injector);
   // Wave 4 / #6: kicks off the pending-appointments badge polling for
   // admin / staff users. Service is providedIn root and self-stops
   // when permission drops, so a single `start()` call here is enough.
@@ -66,24 +67,16 @@ export class AppComponent implements OnInit, OnDestroy {
     if (params.get('logout') !== 'true') {
       return;
     }
-    // Local-only logout: clear tokens but do NOT redirect to AuthServer
-    // again (we just came from there). AuthService.logout() with no
-    // ConfigFlags option calls OAuthService.logOut() which clears
-    // localStorage state. We swallow the observable to avoid leaving
-    // a hanging subscription; cleanup is synchronous on the SPA side.
-    this.authService.logout().subscribe({
-      complete: () => {
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-        this.router.navigateByUrl('/login');
-      },
-      error: () => {
-        // If logout fails (e.g. already logged out), still strip the
-        // query param + navigate so we don't loop.
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-        this.router.navigateByUrl('/login');
-      },
+    // Issue #106a (2026-05-13) -- delegate to performFullLogout so the
+    // SPA matches the AuthServer's cookie cleanup. Prior implementation
+    // called AuthService.logout() directly which clears only OAuth keys;
+    // leftover __tenant + XSRF-TOKEN cookies could leak the previous
+    // user's tenant into the next registration. Also fixes the stray
+    // navigateByUrl('/login') -- the SPA route is '/account/login'.
+    void performFullLogout(this.injector).then(() => {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      this.router.navigateByUrl('/account/login');
     });
   }
 
