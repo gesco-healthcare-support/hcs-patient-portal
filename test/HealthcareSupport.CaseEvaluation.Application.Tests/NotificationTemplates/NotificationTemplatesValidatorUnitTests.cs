@@ -194,10 +194,12 @@ public class NotificationTemplatesValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void Codes_All_Has59Codes()
+    public void Codes_All_Has62Codes()
     {
-        // OLD has 16 + 43 = 59 events.
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(59);
+        // OLD has 16 + 43 = 59 events. 2026-05-12: Cat 2-7 expansion +
+        // packet-generation / reminder / digest handlers added 3 NEW-only
+        // codes for events OLD did not emit, taking the active count to 62.
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(62);
     }
 
     [Fact]

@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
@@ -180,37 +181,56 @@ public class StatusChangeEmailHandler :
                     .ToList();
             }
 
-            switch (status)
+            try
             {
-                case AppointmentStatusType.Approved:
-                    await DispatchApprovedAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                    break;
+                switch (status)
+                {
+                    case AppointmentStatusType.Approved:
+                        await DispatchApprovedAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                        break;
 
-                case AppointmentStatusType.Rejected:
-                    await DispatchRejectedAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                    break;
+                    case AppointmentStatusType.Rejected:
+                        await DispatchRejectedAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                        break;
 
-                case AppointmentStatusType.CheckedIn:
-                    await DispatchCheckedInAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                    break;
+                    case AppointmentStatusType.CheckedIn:
+                        await DispatchCheckedInAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                        break;
 
-                case AppointmentStatusType.CheckedOut:
-                    await DispatchCheckedOutAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                    break;
+                    case AppointmentStatusType.CheckedOut:
+                        await DispatchCheckedOutAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                        break;
 
-                case AppointmentStatusType.NoShow:
-                    await DispatchNoShowAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime);
-                    break;
+                    case AppointmentStatusType.NoShow:
+                        await DispatchNoShowAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                        break;
 
-                case AppointmentStatusType.CancelledNoBill:
-                    await DispatchCancelledNoBillAsync(
-                        eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
-                    break;
+                    case AppointmentStatusType.CancelledNoBill:
+                        await DispatchCancelledNoBillAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
+                        break;
+                }
+            }
+            catch (BusinessException ex)
+                when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+            {
+                // 2026-05-13: a status-change handler whose template is not
+                // seeded (or deactivated) must NOT block the upstream
+                // operation (booking, approval, etc.). The event handler is
+                // a side effect; the appointment write committed already.
+                // Log at Warning so monitoring surfaces it; let the handler
+                // return so the in-process event bus does not surface the
+                // exception back to the dispatching UoW.
+                _logger.LogWarning(
+                    "StatusChangeEmailHandler: template missing for appointment {AppointmentId} status {Status}; email skipped. Detail: {Detail}",
+                    eventData.AppointmentId,
+                    eventData.ToStatus,
+                    ex.Data.Contains("templateCode") ? ex.Data["templateCode"] : "(unspecified)");
             }
         }
     }

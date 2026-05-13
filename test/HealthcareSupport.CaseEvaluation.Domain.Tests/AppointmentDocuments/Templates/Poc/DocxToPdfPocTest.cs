@@ -54,6 +54,15 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates.Poc;
 /// </summary>
 public class DocxToPdfPocTest
 {
+    // 2026-05-13: PoC tests verified the LibreOffice-vs-Word DOCX-to-PDF
+    // parity during Phase 2 template engineering. Kept in tree as
+    // executable documentation; skipped in CI because LibreOffice is not
+    // on the GitHub Actions runner image. Run locally on a dev box with
+    // LibreOffice installed by removing this Skip reason or using a
+    // category filter when invoking `dotnet test`.
+    private const string PocSkipReason =
+        "PoC test; requires LibreOffice on PATH. Run locally only.";
+
     private readonly ITestOutputHelper _out;
 
     public DocxToPdfPocTest(ITestOutputHelper output)
@@ -67,7 +76,7 @@ public class DocxToPdfPocTest
     /// the parity samples folder. Adrian compares this PDF against
     /// the Word "Save as PDF" output of the same DOCX.
     /// </summary>
-    [Fact]
+    [Fact(Skip = PocSkipReason)]
     public void Poc_PatientPacket_RendererOnly()
     {
         RunRendererPoc(
@@ -75,7 +84,7 @@ public class DocxToPdfPocTest
             outputPdfName: "poc-patient-packet-libreoffice-no-tokens.pdf");
     }
 
-    [Fact]
+    [Fact(Skip = PocSkipReason)]
     public void Poc_DoctorPacket_RendererOnly()
     {
         RunRendererPoc(
@@ -83,7 +92,7 @@ public class DocxToPdfPocTest
             outputPdfName: "poc-doctor-packet-libreoffice-no-tokens.pdf");
     }
 
-    [Fact]
+    [Fact(Skip = PocSkipReason)]
     public void Poc_PatientPacket_WithTokenReplacement()
     {
         RunTokenReplacementPoc(
@@ -91,7 +100,7 @@ public class DocxToPdfPocTest
             outputPdfName: "poc-patient-packet-libreoffice-with-tokens.pdf");
     }
 
-    [Fact]
+    [Fact(Skip = PocSkipReason)]
     public void Poc_DoctorPacket_WithTokenReplacement()
     {
         RunTokenReplacementPoc(
