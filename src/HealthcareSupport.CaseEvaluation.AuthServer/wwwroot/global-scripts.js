@@ -509,6 +509,20 @@
    * enforces rate limits + the same surface for ResendEmailVerificationAsync).
    */
   function showSignupSuccess(form, email) {
+    // Issue #106b (2026-05-13) -- if a prior user is still cookie-authed
+    // at the AuthServer when this register completes, the next
+    // /connect/authorize from the new user's Sign In click would
+    // silently issue tokens for the prior user (because their Identity.
+    // ApplicationScheme cookie is still alive). Fire-and-forget GET to
+    // /Account/Logout BEFORE rendering the buttons clears every Identity
+    // scheme + the __tenant / XSRF-TOKEN cookies that ABP set. We use
+    // redirect:'manual' so the fetch does not follow the redirect to
+    // the SPA; the Set-Cookie headers from the 302 response are still
+    // applied by the browser, so the cookie cleanup takes effect.
+    try {
+      fetch('/Account/Logout', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
+        .catch(function () { /* best-effort */ });
+    } catch (e) { /* best-effort */ }
     var safeEmail = String(email || '').replace(/[<>&"']/g, function (ch) {
       switch (ch) {
         case '<': return '&lt;';

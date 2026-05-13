@@ -33,6 +33,27 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 /// </summary>
 public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
+    /// <summary>
+    /// Issue #119 (2026-05-13) -- 4 real-inbox external users for E2E
+    /// testing. Each is mapped to one of the 4 external roles so a
+    /// human tester can walk every external-side flow and read the
+    /// corresponding emails in a real Gmail mailbox. These were
+    /// previously seeded by hand via API in dev; codifying them keeps
+    /// a fresh stack reproducible (e.g. the main worktree session that
+    /// boots a fresh DB for userflow testing).
+    ///
+    /// Mailbox-side notes captured during the demo-readiness pass live
+    /// in docs/demo-readiness/2026-05-11-pre-demo.md (item B) -- the
+    /// SoftwareFour inbox routes some mail to Junk; not a code issue.
+    /// </summary>
+    public static readonly (string Email, string RoleName, string First, string Last, string Phone)[] InboxedExternalUsers =
+    {
+        ("SoftwareThree@gesco.com", "Patient",            "Software", "Three", "555-020-0101"),
+        ("SoftwareFour@gesco.com",  "Applicant Attorney", "Software", "Four",  "555-020-0102"),
+        ("SoftwareFive@gesco.com",  "Defense Attorney",   "Software", "Five",  "555-020-0103"),
+        ("SoftwareSix@gesco.com",   "Claim Examiner",     "Software", "Six",   "555-020-0104"),
+    };
+
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly ICurrentTenant _currentTenant;
@@ -100,6 +121,25 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             foreach (var (prefix, roleName, first, last, phone) in seedPlan)
             {
                 var email = $"{prefix}@{slug}.test";
+                await EnsureUserWithRoleAsync(
+                    email: email,
+                    userName: email,
+                    roleName: roleName,
+                    tenantId: tenantId,
+                    firstName: first,
+                    lastName: last,
+                    phoneNumber: phone);
+            }
+
+            // Issue #119 (2026-05-13) -- seed the 4 real-inbox external
+            // users into every tenant. Currently Phase 1A only ships
+            // Falkinstein so this effectively adds them to Falkinstein;
+            // when a second tenant lands, each gets its own copy with
+            // the same role mapping. They live alongside the synthetic
+            // @<slug>.test users above so a tester can sign in as
+            // either flavour depending on whether they need inbox checks.
+            foreach (var (email, roleName, first, last, phone) in InboxedExternalUsers)
+            {
                 await EnsureUserWithRoleAsync(
                     email: email,
                     userName: email,

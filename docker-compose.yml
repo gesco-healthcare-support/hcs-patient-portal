@@ -102,8 +102,6 @@ services:
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
-      # Bug D (2026-05-11) -- silent-refresh page served from AuthServer wwwroot.
-      OpenIddict__Applications__CaseEvaluation_App__SilentRefreshUri: "http://localhost:${AUTH_PORT:-44368}/silent-refresh.html"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:${API_PORT:-44327}"
       # 2026-05-13: MinIO blob storage for the seven document containers
       # (see CaseEvaluationDomainModule.ConfigureBlobStoring). Endpoint

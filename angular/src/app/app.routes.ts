@@ -1,6 +1,7 @@
 import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
+import { redirectAuthedToHomeGuard } from './shared/auth/redirect-authed-to-home.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { STATE_ROUTES } from './states/state/state-routes';
 import { APPOINTMENT_TYPE_ROUTES } from './appointment-types/appointment-type/appointment-type-routes';
@@ -35,16 +36,19 @@ export const APP_ROUTES: Routes = [
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
     canActivate: [authGuard, permissionGuard],
   },
-  // 2026-05-06: the SPA register page is dead -- the live register flow
-  // lives on the AuthServer Razor page at port 44368. Redirect anyone
-  // landing on /account/register on the SPA to the AuthServer URL on the
-  // same subdomain so they reach the working form.
+  // Issue #105 (2026-05-13): the SPA register page is dead -- the live
+  // register flow lives on the AuthServer Razor page at port 44368, and
+  // legitimate users reach it via the invitation link emailed to them.
+  // Anonymous visitors who deep-link to /account/register get a 404
+  // rendered by RouteNotFoundComponent. Authenticated visitors are
+  // bounced to `/` via the CanMatchFn UrlTree return -- the redirect
+  // happens BEFORE the wildcard `account` route below can resolve,
+  // so ABP's stock register component is fully suppressed.
   {
     path: 'account/register',
+    canMatch: [redirectAuthedToHomeGuard],
     loadComponent: () =>
-      import('./shared/auth/redirect-to-authserver-register.component').then(
-        (c) => c.RedirectToAuthServerRegisterComponent,
-      ),
+      import('./shared/auth/route-not-found.component').then((c) => c.RouteNotFoundComponent),
   },
   // 2026-05-06 -- OLD-parity URL alias. OLD emailed
   // `/verify-email/{userId}?query={UUID}`; redirect such links to ABP's

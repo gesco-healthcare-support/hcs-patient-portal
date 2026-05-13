@@ -40867,7 +40867,7 @@
           "isNullable": true
         },
         {
-          "name": "ClaimExaminerNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -41019,7 +41019,7 @@
           "isNullable": true
         },
         {
-          "name": "ClaimExaminerNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -41184,7 +41184,7 @@
           "isNullable": true
         },
         {
-          "name": "ClaimExaminerNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -43241,7 +43241,7 @@
           "isNullable": true
         },
         {
-          "name": "InsuranceNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -43393,7 +43393,7 @@
           "isNullable": true
         },
         {
-          "name": "InsuranceNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -43558,7 +43558,7 @@
           "isNullable": true
         },
         {
-          "name": "InsuranceNumber",
+          "name": "Suite",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
