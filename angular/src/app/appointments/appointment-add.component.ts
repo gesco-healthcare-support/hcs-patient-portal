@@ -65,6 +65,8 @@ import {
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
 // #121 phase T6 (2026-05-13) -- Patient Demographics + Address section.
 import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
+// #121 phase T7 (2026-05-13) -- Schedule (Appointment Details) section.
+import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
 
 // #121 phase T4 (2026-05-13) -- AppointmentInjuryDraft moved to the
 // claim-information section file. Imported at the section-import
@@ -110,6 +112,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddClaimInformationComponent,
     AppointmentAddAttorneySectionComponent,
     AppointmentAddPatientDemographicsComponent,
+    AppointmentAddScheduleComponent,
   ],
   providers: [
     ListService,

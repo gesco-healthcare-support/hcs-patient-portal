@@ -42,125 +42,32 @@
       <div class="alert alert-info mb-3">{{ 'AbpUi::Loading' | abpLocalization }}...</div>
     }
 
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0 fw-bold">Appointment Details</h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentType' | abpLocalization }} *
-            </label>
-            <abp-lookup-select
-              cid="appointment-appointment-type-id"
-              formControlName="appointmentTypeId"
-              [getFn]="getAppointmentTypeLookup"
-              [class.is-invalid]="isFieldInvalid('appointmentTypeId')"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::PanelNumber' | abpLocalization }}</label>
-            <input
-              formControlName="panelNumber"
-              class="form-control"
-              maxlength="50"
-              [class.is-invalid]="isFieldInvalid('panelNumber')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Location' | abpLocalization }} *</label>
-            <abp-lookup-select
-              cid="appointment-location-id"
-              formControlName="locationId"
-              [getFn]="getLocationLookup"
-              (valueChange)="onLocationSelected($event)"
-              [class.is-invalid]="isFieldInvalid('locationId')"
-            ></abp-lookup-select>
-          </div>
-
-          <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentDate' | abpLocalization }} *
-            </label>
-            <div class="input-group">
-              <input
-                readonly
-                class="form-control"
-                formControlName="appointmentDate"
-                [class.is-invalid]="isFieldInvalid('appointmentDate')"
-                ngbDatepicker
-                #appointmentDatePicker="ngbDatepicker"
-                [displayMonths]="2"
-                [markDisabled]="markAppointmentDateDisabled"
-                [dayTemplate]="appointmentDateDayTpl"
-                (click)="appointmentDatePicker.open()"
-              />
-              <button
-                class="btn btn-outline-secondary"
-                type="button"
-                (click)="appointmentDatePicker.open()"
-              >
-                <i class="fa fa-calendar"></i>
-              </button>
-              @if (form.get('appointmentDate')?.value) {
-                <button
-                  class="btn btn-outline-secondary"
-                  type="button"
-                  (click)="clearAppointmentDate()"
-                >
-                  <i class="fa fa-times"></i>
-                </button>
-              }
-            </div>
-            <ng-template
-              #appointmentDateDayTpl
-              let-date="date"
-              let-currentMonth="currentMonth"
-              let-selected="selected"
-            >
-              <span
-                class="appointment-date-day"
-                [class.outside-month]="date.month !== currentMonth"
-                [class.selected-day]="selected"
-                [class.available-day]="
-                  date.month === currentMonth && !selected && isAvailableAppointmentDate(date)
-                "
-              >
-                {{ date.day }}
-              </span>
-            </ng-template>
-            @if (isAvailableDatesLoading) {
-              <small class="text-muted">Loading available dates...</small>
-            }
-            @if (!isAvailableDatesLoading && form.get('appointmentDate')?.value) {
-              <small class="text-muted">{{ minimumBookingRuleMessage }}</small>
-            }
-          </div>
-
-          <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-            <label class="form-label fw-semibold">Appointment Time *</label>
-            <select
-              class="form-select"
-              formControlName="appointmentTime"
-              [class.is-invalid]="isFieldInvalid('appointmentTime')"
-            >
-              <option [ngValue]="null">SELECT</option>
-              @for (slot of appointmentTimeOptions; track slot.value) {
-                <option [value]="slot.value">{{ slot.label }}</option>
-              }
-            </select>
-            @if (
-              form.get('appointmentDate')?.value &&
-              !isAvailableDatesLoading &&
-              appointmentTimeOptions.length === 0
-            ) {
-              <small class="text-danger">No available time slots for selected date.</small>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- #121 phase T7 (2026-05-13): Appointment Details (Schedule)
+         card. Extracted to <app-appointment-add-schedule>. The 5
+         FormControls (appointmentTypeId, panelNumber, locationId,
+         appointmentDate, appointmentTime) plus the hidden
+         doctorAvailabilityId stay on the parent form. Parent owns
+         availableDateKeys / availableSlotsByDate caches,
+         appointmentTimeOptions, the cascade subscriptions
+         (appointmentTypeId/locationId/appointmentDate/appointmentTime
+         valueChanges), and the slot-fetch HTTP roundtrip. The child
+         binds [formGroup]="form" so formControlName resolves at the
+         parent scope. Location-select valueChange and the Clear-date
+         button are surfaced as outputs. -->
+    <app-appointment-add-schedule
+      [form]="form"
+      [checkForAppointmentTypeSelected]="checkForAppointmentTypeSelected"
+      [isAvailableDatesLoading]="isAvailableDatesLoading"
+      [appointmentTimeOptions]="appointmentTimeOptions"
+      [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+      [getAppointmentTypeLookup]="getAppointmentTypeLookup"
+      [getLocationLookup]="getLocationLookup"
+      [markAppointmentDateDisabled]="markAppointmentDateDisabled"
+      [isAvailableAppointmentDate]="isAvailableAppointmentDate"
+      [isFieldInvalid]="isFieldInvalidBound"
+      (locationSelected)="onLocationSelected($event)"
+      (appointmentDateCleared)="clearAppointmentDate()"
+    />
 
     <!-- #121 phase T6 (2026-05-13): Patient Demographics + Address card.
          Extracted to <app-appointment-add-patient-demographics>. All
