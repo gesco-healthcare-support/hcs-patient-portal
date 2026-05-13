@@ -172,6 +172,7 @@
     input.placeholder = opts.label;
     if (opts.autocomplete) input.setAttribute('autocomplete', opts.autocomplete);
     if (opts.maxLength) input.setAttribute('maxlength', String(opts.maxLength));
+    if (opts.required) input.setAttribute('required', 'required');
     var lab = document.createElement('label');
     lab.htmlFor = opts.id;
     lab.textContent = opts.label;
@@ -266,6 +267,7 @@
         label: 'Confirm Password',
         type: 'password',
         autocomplete: 'new-password',
+        required: true,
         afterContainer: passwordContainer,
       });
     }
@@ -494,11 +496,17 @@
   }
 
   /**
-   * Replace the register form's contents with a success banner + a manual
-   * Sign In link. Called after the API register endpoint returns 204.
-   * The user must click Sign In to continue -- no auto-redirect (matches
-   * Adrian's "manual login" preference, Option B 2026-05-06). The Sign In
-   * link pre-fills the username via ?username=<email> for convenience.
+   * Replace the register form with a success banner + two buttons:
+   * primary "Verify Email" (link to the existing ResendVerification page
+   * with autosend=1 so the verification email goes out on landing) and
+   * secondary "Sign In".
+   *
+   * Issue 1.4 (2026-05-12): the previous flow only offered Sign In and
+   * told users to verify after login. The new flow surfaces the verify
+   * step as the primary action so users don't have to log in first to
+   * receive the verification email. The autosend handshake delegates to
+   * the existing ResendVerification.cshtml.cs page model (which already
+   * enforces rate limits + the same surface for ResendEmailVerificationAsync).
    */
   function showSignupSuccess(form, email) {
     var safeEmail = String(email || '').replace(/[<>&"']/g, function (ch) {
@@ -511,15 +519,18 @@
       }
     });
     var loginUrl = '/Account/Login?username=' + encodeURIComponent(email || '');
+    var verifyUrl = '/Account/ResendVerification?context=register&email='
+      + encodeURIComponent(email || '') + '&autosend=1';
     form.innerHTML =
       '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
         '<strong>Account created.</strong>' +
         '<div style="margin-top:0.25rem;">' +
           'We created your account at <strong>' + safeEmail + '</strong>. ' +
-          'Sign in below to verify your email and finish setup.' +
+          'Verify your email and sign in to finish setup.' +
         '</div>' +
       '</div>' +
-      '<a href="' + loginUrl + '" class="btn btn-primary" style="width:100%;">Sign In</a>';
+      '<a href="' + verifyUrl + '" class="btn btn-primary" style="width:100%;margin-bottom:0.5rem;">Verify Email</a>' +
+      '<a href="' + loginUrl + '" class="btn btn-outline-secondary" style="width:100%;">Sign In</a>';
   }
 
   async function submitExternalSignup(form) {
@@ -541,20 +552,30 @@
     ]);
     const password = getFirstValue(form, ['#password', 'input[name="Input.Password"]', 'input[type="password"]']);
     // ABP's LeptonX register form names the confirm-password field
-    // Input.ConfirmPassword. Fall back to the second password-type input.
-    // The server's ValidateRegistrationInput requires this field to be non-empty
-    // and equal to password (OLD UserDomain.cs:88 parity).
+    // Input.ConfirmPassword. Read its value directly -- do NOT fall back
+    // to `password` when empty (2026-05-12 fix: prior `|| password`
+    // fallback silently bypassed the server's equality check, letting
+    // users register with a blank ConfirmPassword field).
     const allPasswordInputs = Array.from(form.querySelectorAll('input[type="password"]'));
     const confirmPassword = getFirstValue(form, ['input[name="Input.ConfirmPassword"]'])
-      || (allPasswordInputs.length >= 2 ? (allPasswordInputs[1].value || '').trim() : '')
-      || password;
+      || (allPasswordInputs.length >= 2 ? (allPasswordInputs[1].value || '').trim() : '');
 
     // OLD parity 2026-05-06: Username field is hidden and not part of the
-    // submit payload (server derives username from email). Validate only
-    // email + password.
+    // submit payload (server derives username from email). Validate
+    // email + password + confirm-password presence and equality.
     if (!email || !password) {
       notifyRegisterFailure(form, 'Please fill email and password.');
       log('Validation failed before API call.', { emailPresent: !!email, passwordPresent: !!password });
+      return;
+    }
+    if (!confirmPassword) {
+      notifyRegisterFailure(form, 'Please confirm your password.');
+      log('Validation failed: confirmPassword empty.');
+      return;
+    }
+    if (confirmPassword !== password) {
+      notifyRegisterFailure(form, 'Passwords do not match.');
+      log('Validation failed: confirmPassword mismatch.');
       return;
     }
     clearInlineRegisterError(form);

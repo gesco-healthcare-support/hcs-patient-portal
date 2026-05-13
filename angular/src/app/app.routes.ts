@@ -59,6 +59,18 @@ export const APP_ROUTES: Routes = [
         (c) => c.VerifyEmailRedirectComponent,
       ),
   },
+  // Issue 1.4 (2026-05-12) -- custom email-confirmation component that
+  // surfaces a Resend Verification button. Must be declared BEFORE the
+  // wildcard `path: 'account'` route below so Angular's first-match
+  // precedence picks this over ABP's stock component. Reference:
+  // https://docs.abp.io/en/abp/latest/UI/Angular/Component-Replacement
+  {
+    path: 'account/email-confirmation',
+    loadComponent: () =>
+      import('./shared/auth/custom-email-confirmation.component').then(
+        (c) => c.CustomEmailConfirmationComponent,
+      ),
+  },
   {
     path: 'account',
     loadChildren: () => import('@volo/abp.ng.account/public').then((c) => c.createRoutes()),
