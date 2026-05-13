@@ -28,7 +28,7 @@ Migrate `angular/src/app/appointments/appointment/components/appointment-view.co
 | 2 | **`[readonly]="isReadOnly"`** replaces every `[disabled]="isReadOnly"` | Matches booker OLD-parity convention (see booker dateOfBirth comment); preserves validators + submit values |
 | 3 | **Preserve current no-validator behavior** (no Validators.required / maxLength / email added in this PR) | Adding validators could surface currently-passing-but-actually-invalid existing records. Tackle parity in a follow-up. |
 | 4 | **Migrate the authorized-user modal too** (5 fields) | Drops the last ngModel sites; lets us drop `FormsModule` entirely. |
-| 5 | **Single PR, 7 commits** (V1-V7) | Same discipline as #121's T1-T8. Each phase compiles + passes Playwright independently. |
+| 5 | **Single PR, 2 commits** (revised 2026-05-14 from initial 7-commit plan) | The 7-section split forced ~50 lines of `[ngModelOptions]={ standalone: true }` churn per intermediate commit because mid-conversion `<form [formGroup]>` still wraps unconverted ngModel inputs. Mechanical regex-replace on identical fields doesn't bisect meaningfully. Cleaner: one conversion commit + one cleanup commit. |
 
 ## Phase plan
 
