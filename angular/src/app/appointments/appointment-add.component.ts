@@ -62,6 +62,8 @@ import {
   type AppointmentInjuryDraft,
   type ClaimExaminerPrefill,
 } from './sections/appointment-add-claim-information.component';
+// #121 phase T5 (2026-05-13) -- shared AA / DA attorney section.
+import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
 
 // #121 phase T4 (2026-05-13) -- AppointmentInjuryDraft moved to the
 // claim-information section file. Imported at the section-import
@@ -106,6 +108,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddEmployerDetailsComponent,
     AppointmentAddClaimInformationComponent,
+    AppointmentAddAttorneySectionComponent,
   ],
   providers: [
     ListService,
@@ -941,6 +944,16 @@ export class AppointmentAddComponent {
     const field = this.form.get(fieldName);
     return field ? field.invalid && (field.dirty || field.touched) : false;
   }
+
+  /**
+   * #121 phase T5 (2026-05-13) -- pre-bound reference passed to
+   * <app-appointment-add-attorney-section> as Input. Angular's change
+   * detection compares Input identities, so a freshly-bound arrow on
+   * every CD pass would force unnecessary child re-evaluation. Caching
+   * the bound reference keeps the section's OnPush change detection
+   * stable.
+   */
+  readonly isFieldInvalidBound = (fieldName: string): boolean => this.isFieldInvalid(fieldName);
 
   async onSubmit(): Promise<void> {
     const raw = this.form.getRawValue();

@@ -391,261 +391,39 @@
          remain on the parent form; child binds [formGroup]="form". -->
     <app-appointment-add-employer-details [form]="form" [getStateLookup]="getStateLookup" />
 
-    <!-- W2-7: Applicant + Defense attorney sections side-by-side (col-md-6 each).
-         Mirrors OLD's appointment-add.component.html layout (lines 654 + 724),
-         where both attorney cards share a single row so the booker fills them
-         in parallel.
+    <!-- #121 phase T5 (2026-05-13): shared
+         <app-appointment-add-attorney-section> renders both AA + DA
+         cards from the SAME template parameterized by role. Parent
+         retains visibility gates (shouldShow*Section), the form, the
+         lookup, and the readonly-condition computation.
 
-         B11 (2026-05-06): hide both attorney cards when the booker is a
-         Claim Examiner (= OLD's Adjuster). Adjuster bookings have no
-         party-attorney involvement; OLD gated this with
-         `*ngIf="showFormBaseOnRole"` at lines 600 + 651. IT Admin
-         booking-on-behalf still sees the cards. -->
+         W2-7 layout: side-by-side cards (col-md-6 each) inside a
+         single row so the booker fills both in parallel.
+
+         B11 (2026-05-06): hide both when the booker is a Claim Examiner.
+         IT Admin booking-on-behalf still sees the cards. -->
     @if (shouldShowApplicantAttorneySection() || shouldShowDefenseAttorneySection()) {
       <div class="row">
         @if (shouldShowApplicantAttorneySection()) {
           <div class="col-12 col-md-6">
-            <div class="card mb-4">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0 fw-bold">Applicant Attorney Details</h5>
-                <div class="form-check form-switch">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    id="applicant-attorney-enabled"
-                    formControlName="applicantAttorneyEnabled"
-                  />
-                  <label class="form-check-label" for="applicant-attorney-enabled">Include</label>
-                </div>
-              </div>
-              @if (form.get('applicantAttorneyEnabled')?.value) {
-                <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Name *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyFirstName"
-                        placeholder="ATTORNEY NAME"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFirstName')"
-                      />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Email *</label>
-                      <input
-                        type="email"
-                        class="form-control"
-                        formControlName="applicantAttorneyEmail"
-                        placeholder="ATTORNEY EMAIL"
-                        [readonly]="isApplicantAttorney && !isItAdmin"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyEmail')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Firm Name *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyFirmName"
-                        placeholder="FIRM NAME"
-                        maxlength="50"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFirmName')"
-                      />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Web Address</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyWebAddress"
-                        placeholder="WEB ADDRESS"
-                        maxlength="100"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Phone Number *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyPhoneNumber"
-                        placeholder="PHONE NUMBER"
-                        maxlength="20"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyPhoneNumber')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Fax *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyFaxNumber"
-                        placeholder="FAX"
-                        maxlength="19"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyFaxNumber')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Street *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyStreet"
-                        placeholder="STREET"
-                        maxlength="255"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyStreet')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">City *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyCity"
-                        placeholder="CITY"
-                        maxlength="50"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyCity')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">State *</label>
-                      <abp-lookup-select
-                        cid="appointment-applicant-attorney-state-id"
-                        formControlName="applicantAttorneyStateId"
-                        [getFn]="getStateLookup"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyStateId')"
-                      ></abp-lookup-select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Zip *</label>
-                      <input
-                        class="form-control"
-                        formControlName="applicantAttorneyZipCode"
-                        placeholder="ZIP"
-                        maxlength="10"
-                        [class.is-invalid]="isFieldInvalid('applicantAttorneyZipCode')"
-                      />
-                    </div>
-                  </div>
-                </div>
-              }
-            </div>
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="applicant"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="isApplicantAttorney && !isItAdmin"
+              [isFieldInvalid]="isFieldInvalidBound"
+            />
           </div>
         }
-
         @if (shouldShowDefenseAttorneySection()) {
           <div class="col-12 col-md-6">
-            <div class="card mb-4">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0 fw-bold">Defense Attorney Details</h5>
-                <div class="form-check form-switch">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    id="defense-attorney-enabled"
-                    formControlName="defenseAttorneyEnabled"
-                  />
-                  <label class="form-check-label" for="defense-attorney-enabled">Include</label>
-                </div>
-              </div>
-              @if (form.get('defenseAttorneyEnabled')?.value) {
-                <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Name *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyFirstName"
-                        placeholder="ATTORNEY NAME"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFirstName')"
-                      />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Email *</label>
-                      <input
-                        type="email"
-                        class="form-control"
-                        formControlName="defenseAttorneyEmail"
-                        placeholder="ATTORNEY EMAIL"
-                        [readonly]="isDefenseAttorney && !isItAdmin"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyEmail')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Firm Name *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyFirmName"
-                        placeholder="FIRM NAME"
-                        maxlength="50"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFirmName')"
-                      />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Web Address</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyWebAddress"
-                        placeholder="WEB ADDRESS"
-                        maxlength="100"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Phone Number *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyPhoneNumber"
-                        placeholder="PHONE NUMBER"
-                        maxlength="20"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyPhoneNumber')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Fax *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyFaxNumber"
-                        placeholder="FAX"
-                        maxlength="19"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyFaxNumber')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Street *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyStreet"
-                        placeholder="STREET"
-                        maxlength="255"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyStreet')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">City *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyCity"
-                        placeholder="CITY"
-                        maxlength="50"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyCity')"
-                      />
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">State *</label>
-                      <abp-lookup-select
-                        cid="appointment-defense-attorney-state-id"
-                        formControlName="defenseAttorneyStateId"
-                        [getFn]="getStateLookup"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyStateId')"
-                      ></abp-lookup-select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label fw-semibold">Zip *</label>
-                      <input
-                        class="form-control"
-                        formControlName="defenseAttorneyZipCode"
-                        placeholder="ZIP"
-                        maxlength="10"
-                        [class.is-invalid]="isFieldInvalid('defenseAttorneyZipCode')"
-                      />
-                    </div>
-                  </div>
-                </div>
-              }
-            </div>
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="defense"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="isDefenseAttorney && !isItAdmin"
+              [isFieldInvalid]="isFieldInvalidBound"
+            />
           </div>
         }
       </div>
