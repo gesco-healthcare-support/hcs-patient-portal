@@ -53,6 +53,8 @@ import {
   type AppointmentAuthorizedUserDraft,
   type ExternalAuthorizedUserOption,
 } from './sections/appointment-add-authorized-users.component';
+// #121 phase T3 (2026-05-13) -- extracted Employer Details section.
+import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-add-employer-details.component';
 
 // W2-8 -- transient front-end shape for the "add injury" booking-form
 // modal. Bundles the AppointmentInjuryDetail core fields with the
@@ -136,6 +138,7 @@ type AppointmentTypeFieldConfigDto = {
     NgxMaskDirective,
     AppointmentAddCustomFieldsComponent,
     AppointmentAddAuthorizedUsersComponent,
+    AppointmentAddEmployerDetailsComponent,
   ],
   providers: [
     ListService,
