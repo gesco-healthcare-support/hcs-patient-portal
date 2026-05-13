@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
@@ -163,17 +164,33 @@ public class BookingSubmissionEmailHandler :
             // (AppointmentRequestedOffice / Registered / Unregistered)
             // partition the audience. NO CC on this fan-out per Adrian
             // override 2026-05-08.
-            await DispatchAppointmentRequestedAsync(
-                eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+            try
+            {
+                await DispatchAppointmentRequestedAsync(
+                    eventData, ctx, appointment, appointmentDate, appointmentFromTime);
 
-            // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
-            // when the booker is an external user, also fan out
-            // PatientAppointmentApproveReject to every Staff Supervisor +
-            // Clinic Staff user in the tenant. Different recipient set than
-            // the AppointmentRequested fan-out above, so it is not a duplicate.
-            await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
-                eventData, ctx, appointment, appointmentDate,
-                appointmentFromTime, appointmentToTime);
+                // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
+                // when the booker is an external user, also fan out
+                // PatientAppointmentApproveReject to every Staff Supervisor +
+                // Clinic Staff user in the tenant. Different recipient set than
+                // the AppointmentRequested fan-out above, so it is not a duplicate.
+                await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
+                    eventData, ctx, appointment, appointmentDate,
+                    appointmentFromTime, appointmentToTime);
+            }
+            catch (BusinessException ex)
+                when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+            {
+                // 2026-05-13: same tolerance as StatusChangeEmailHandler. A
+                // missing or inactive template must NOT block the CreateAsync
+                // UoW; the email is a side effect, the appointment write
+                // already committed. Log Warning so monitoring surfaces the
+                // gap.
+                _logger.LogWarning(
+                    "BookingSubmissionEmailHandler: template missing for appointment {AppointmentId}; email skipped. Detail: {Detail}",
+                    eventData.AppointmentId,
+                    ex.Data.Contains("templateCode") ? ex.Data["templateCode"] : "(unspecified)");
+            }
         }
     }
 

@@ -62,7 +62,7 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task GetListAsync_ReturnsAllSeeded59Codes()
+    public async Task GetListAsync_ReturnsAllSeeded62Codes()
     {
         await EnsureSeededAsync(TenantsTestData.TenantARef);
 
@@ -73,8 +73,10 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
                 MaxResultCount = 100,
             });
 
-            result.TotalCount.ShouldBe(59);
-            result.Items.Count.ShouldBe(59);
+            // 2026-05-12: Cat 2-7 expansion + packet / reminder / digest
+            // handlers added 3 NEW-only codes (OLD baseline was 59).
+            result.TotalCount.ShouldBe(62);
+            result.Items.Count.ShouldBe(62);
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.AppointmentApproved)
                 .ShouldBeTrue();
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.JointAgreementLetterUploaded)
