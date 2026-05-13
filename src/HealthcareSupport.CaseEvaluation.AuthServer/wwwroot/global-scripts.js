@@ -550,15 +550,27 @@
       'input[name="Input.EmailAddress"]',
       'input[type="email"]',
     ]);
-    const password = getFirstValue(form, ['#password', 'input[name="Input.Password"]', 'input[type="password"]']);
-    // ABP's LeptonX register form names the confirm-password field
-    // Input.ConfirmPassword. Read its value directly -- do NOT fall back
-    // to `password` when empty (2026-05-12 fix: prior `|| password`
-    // fallback silently bypassed the server's equality check, letting
-    // users register with a blank ConfirmPassword field).
-    const allPasswordInputs = Array.from(form.querySelectorAll('input[type="password"]'));
-    const confirmPassword = getFirstValue(form, ['input[name="Input.ConfirmPassword"]'])
-      || (allPasswordInputs.length >= 2 ? (allPasswordInputs[1].value || '').trim() : '');
+    // Look up password fields by stable id / name -- NEVER by
+    // `input[type="password"]`. LeptonX's "Show password" eye-icon
+    // (and many password-manager autofills) toggle the input's type
+    // to `text` for visibility; a type-based query would then miss
+    // the field entirely.
+    //
+    // 2026-05-13 fix: prior version used type="password" as the
+    // fallback for confirmPassword, which returned empty whenever the
+    // user (or their password manager) had toggled visibility on the
+    // Password field -- producing a spurious "Please confirm your
+    // password." error even though both fields were filled correctly.
+    const password = getFirstValue(form, [
+      '#password-input',
+      '#password',
+      'input[name="Input.Password"]',
+    ]);
+    const confirmPassword = getFirstValue(form, [
+      '#external-confirm-password',
+      'input[name="ConfirmPassword"]',
+      'input[name="Input.ConfirmPassword"]',
+    ]);
 
     // OLD parity 2026-05-06: Username field is hidden and not part of the
     // submit payload (server derives username from email). Validate
