@@ -41,6 +41,7 @@ import type {
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
+import { NgxMaskDirective } from 'ngx-mask';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
@@ -138,6 +139,7 @@ type AppointmentAuthorizedUserDraft = {
     NgxValidateCoreModule,
     NgbDatepickerModule,
     NgbNavModule,
+    NgxMaskDirective,
   ],
   providers: [
     ListService,

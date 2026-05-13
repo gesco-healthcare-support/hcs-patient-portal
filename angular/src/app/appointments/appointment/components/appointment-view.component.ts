@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgxMaskDirective } from 'ngx-mask';
 import {
   ConfigStateService,
   ListResultDto,
@@ -100,6 +101,7 @@ type DefenseAttorneyLookupResult = {
     RejectAppointmentModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
+    NgxMaskDirective,
   ],
   templateUrl: './appointment-view.component.html',
 })
@@ -635,10 +637,6 @@ export class AppointmentViewComponent implements OnInit {
     document
       .getElementById('appointment-documents-anchor')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  openHelp(): void {
-    window.open('https://abp.io/docs/latest/getting-started', '_blank', 'noopener,noreferrer');
   }
 
   openAddAuthorizedUserModal(): void {

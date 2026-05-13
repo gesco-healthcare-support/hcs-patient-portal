@@ -15,6 +15,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { AppointmentViewService } from '../appointments/appointment/services/appointment.service';
 import { AppointmentDetailViewService } from '../appointments/appointment/services/appointment-detail.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
+import { SsnMaskPipe } from '../shared/pipes/ssn-mask.pipe';
 
 @Component({
   selector: 'app-home',
@@ -30,6 +31,7 @@ import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.en
     TopHeaderNavbarComponent,
     FormsModule,
     ReactiveFormsModule,
+    SsnMaskPipe,
   ],
   providers: [ListService, AppointmentViewService, AppointmentDetailViewService],
 })

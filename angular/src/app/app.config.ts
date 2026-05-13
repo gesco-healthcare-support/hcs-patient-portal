@@ -35,8 +35,10 @@ import {
   provideThemeLeptonX,
   withThemeLeptonXOptions,
 } from '@volosoft/abp.ng.theme.lepton-x';
+import { provideNgxMask } from 'ngx-mask';
+import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
-import { ApplicationConfig, Injector } from '@angular/core';
+import { ApplicationConfig, Injector, importProvidersFrom } from '@angular/core';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -114,6 +116,13 @@ export const appConfig: ApplicationConfig = {
       }
     }),
     provideSideMenuLayout(),
+    // Issue 2.1 + 2.8 (2026-05-12) — ngx-mask drives the on-screen SSN
+    // redaction (`[hiddenInput]="true"` shows '*' while typing).
+    // @rxweb/reactive-form-validators adds named domain validators
+    // (socialSecurityNumber, conditional required, digit, etc.) on top
+    // of Angular's standard Validators.* set.
+    provideNgxMask(),
+    importProvidersFrom(RxReactiveFormsModule),
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {

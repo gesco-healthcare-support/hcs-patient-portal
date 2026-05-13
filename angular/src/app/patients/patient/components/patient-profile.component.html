@@ -164,9 +164,14 @@
                       </label>
                       <input
                         id="patient-social-security-number"
+                        type="text"
                         formControlName="socialSecurityNumber"
-                        class="form-control"
-                        maxlength="20"
+                        class="form-control app-ssn-redacted"
+                        mask="000-00-0000"
+                        [dropSpecialCharacters]="true"
+                        maxlength="11"
+                        autocomplete="off"
+                        inputmode="numeric"
                       />
                     </div>
 

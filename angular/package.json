@@ -32,6 +32,7 @@
     "@angular/platform-browser": "~20.3.19",
     "@angular/platform-browser-dynamic": "~20.3.19",
     "@angular/router": "~20.3.19",
+    "@rxweb/reactive-form-validators": "^13",
     "@volo/abp.commercial.ng.ui": "~10.0.2",
     "@volo/abp.ng.account": "~10.0.2",
     "@volo/abp.ng.audit-logging": "~10.0.2",
@@ -43,6 +44,7 @@
     "@volo/abp.ng.saas": "~10.0.2",
     "@volo/abp.ng.text-template-management": "~10.0.2",
     "@volosoft/abp.ng.theme.lepton-x": "~5.0.2",
+    "ngx-mask": "~20.0.3",
     "rxjs": "~7.8.0",
     "tslib": "^2.0.0",
     "zone.js": "~0.15.0"
