@@ -198,6 +198,11 @@
         "resolved": "2.6.2",
         "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
       },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.0",
+        "contentHash": "flxspiBs0G/0GMp7IK2J2ijV9bTG6hEwFc/z6ekHqB6nwRJ4Ry2yLdx+TkbCUYFCl4XhABkAwomeKbT6zM2Zlg=="
+      },
       "DocumentFormat.OpenXml": {
         "type": "Transitive",
         "resolved": "3.3.0",
@@ -855,6 +860,18 @@
           "System.Security.Cryptography.Pkcs": "10.0.0"
         }
       },
+      "Minio": {
+        "type": "Transitive",
+        "resolved": "6.0.5",
+        "contentHash": "AK3JIDZnFZg2Hpkqo6vlzyiEC4OifG+jQbuqpAtXePnIo49G4pNn27THh3DI8s4o84b/MMBQF+n1DEwBNenxsg==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Logging": "9.0.4",
+          "System.IO.Hashing": "9.0.4",
+          "System.Reactive": "6.0.1"
+        }
+      },
       "Mono.TextTemplating": {
         "type": "Transitive",
         "resolved": "3.0.0",
@@ -1052,6 +1069,11 @@
           "Microsoft.IdentityModel.Tokens": "7.7.1"
         }
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.4",
+        "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
+      },
       "System.IO.Packaging": {
         "type": "Transitive",
         "resolved": "8.0.1",
@@ -1074,6 +1096,11 @@
         "type": "Transitive",
         "resolved": "8.0.1",
         "contentHash": "BVYuec3jV23EMRDeR7Dr1/qhx7369dZzJ9IWy2xylvb4YfXsrUxspWc4UWYid/tj4zZK58uGZqn2WQiaDMhmAg=="
+      },
+      "System.Reactive": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "rHaWtKDwCi9qJ3ObKo8LHPMuuwv33YbmQi7TcUK1C264V3MFnOr5Im7QgCTdLniztP3GJyeiSg5x8NqYJFqRmg=="
       },
       "System.Reflection.MetadataLoadContext": {
         "type": "Transitive",
@@ -1262,6 +1289,15 @@
         "contentHash": "uTXdYYZ7QmHckNH04N83EeX9qxYp9BwUnzBknk90SKhWXBuFiDB0kY5J4VlaLJw8jcJ06n1vmVQr9Yty4Jzn/g==",
         "dependencies": {
           "Volo.Abp.Validation": "10.0.2"
+        }
+      },
+      "Volo.Abp.BlobStoring.Minio": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "MxKJyJc00DBCT9r0hnqfUGuxD+H2iKlMIFavHtDfOWTRH7JFGLU2lvJdN4VtJVfoiypQ8G62SDBRmfExJKRzsQ==",
+        "dependencies": {
+          "Minio": "6.0.5",
+          "Volo.Abp.BlobStoring": "10.0.2"
         }
       },
       "Volo.Abp.Caching": {
@@ -2064,6 +2100,7 @@
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
+          "Volo.Abp.BlobStoring.Minio": "[10.0.2, )",
           "Volo.Abp.Caching": "[10.0.2, )",
           "Volo.Abp.Commercial.SuiteTemplates": "[10.0.2, )",
           "Volo.Abp.Emailing": "[10.0.2, )",
