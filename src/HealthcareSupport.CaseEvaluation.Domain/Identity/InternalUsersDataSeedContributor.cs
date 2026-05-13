@@ -186,7 +186,11 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         // to the email address. Mapping is hardcoded for the small set of
         // seeded internal-admin emails; anything else gets a generic Test
         // User pair so the banner is at least non-email.
+        // Issue 1.2 (2026-05-12): also seed a synthetic phone number so the
+        // user profile and admin pages don't display blank phone cells.
+        // Synthetic 555-prefix per .claude/rules/test-data.md.
         var (firstName, lastName) = BuildInternalUserDisplayName(email);
+        var seedPhone = BuildSeedPhoneNumber(email);
 
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
@@ -194,6 +198,7 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             user = new IdentityUser(Guid.NewGuid(), userName, email, tenantId);
             user.Name = firstName;
             user.Surname = lastName;
+            user.SetPhoneNumber(seedPhone, confirmed: true);
             var createResult = await _userManager.CreateAsync(user, DefaultPassword);
             if (!createResult.Succeeded)
             {
@@ -212,18 +217,24 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             // Idempotent backfill: previously-seeded users were created
             // without Name/Surname (B10 root cause). Fill in here so the
             // banner shows correctly without requiring a fresh tenant.
-            var nameChanged = false;
+            // Issue 1.2 (2026-05-12) extends this to PhoneNumber too.
+            var changed = false;
             if (string.IsNullOrWhiteSpace(user.Name))
             {
                 user.Name = firstName;
-                nameChanged = true;
+                changed = true;
             }
             if (string.IsNullOrWhiteSpace(user.Surname))
             {
                 user.Surname = lastName;
-                nameChanged = true;
+                changed = true;
             }
-            if (nameChanged)
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                user.SetPhoneNumber(seedPhone, confirmed: true);
+                changed = true;
+            }
+            if (changed)
             {
                 await _userManager.UpdateAsync(user);
             }
@@ -291,6 +302,27 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             "softwareone" => ("Software", "One"),
             "softwaretwo" => ("Software", "Two"),
             _ => ("Test", "User"),
+        };
+    }
+
+    /// <summary>
+    /// Issue 1.2 (2026-05-12): synthetic 555-prefix phone number per
+    /// seeded user. Synthetic data only (.claude/rules/test-data.md).
+    /// Deterministic so a reseed produces the same numbers and the test
+    /// fixture asserts don't drift.
+    /// </summary>
+    private static string BuildSeedPhoneNumber(string email)
+    {
+        var prefix = (email ?? string.Empty).Split('@')[0].ToLowerInvariant();
+        return prefix switch
+        {
+            "admin" => "555-010-0001",
+            "supervisor" => "555-010-0002",
+            "staff" => "555-010-0003",
+            "it.admin" => "555-010-0004",
+            "softwareone" => "555-010-0005",
+            "softwaretwo" => "555-010-0006",
+            _ => "555-010-0099",
         };
     }
 

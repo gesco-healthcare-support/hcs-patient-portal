@@ -67,7 +67,6 @@
         >
           {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
         </a>
-        <button type="button" class="btn btn-primary btn-sm" (click)="openHelp()">Help</button>
         <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
           {{ 'AbpUi::Back' | abpLocalization }}
         </button>
@@ -285,9 +284,15 @@
               {{ '::SocialSecurityNumber' | abpLocalization }}
             </label>
             <input
-              class="form-control"
+              type="text"
+              class="form-control app-ssn-redacted"
               [(ngModel)]="patientForm.socialSecurityNumber"
               [disabled]="isReadOnly"
+              mask="000-00-0000"
+              [dropSpecialCharacters]="true"
+              maxlength="11"
+              autocomplete="off"
+              inputmode="numeric"
             />
           </div>
           <div class="col-md-3 mb-3">

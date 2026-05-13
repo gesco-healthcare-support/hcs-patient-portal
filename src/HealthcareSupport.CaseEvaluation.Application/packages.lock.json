@@ -81,6 +81,16 @@
           "Volo.Abp.FeatureManagement.Domain": "10.0.2"
         }
       },
+      "Volo.Abp.FluentValidation": {
+        "type": "Direct",
+        "requested": "[10.0.2, )",
+        "resolved": "10.0.2",
+        "contentHash": "zDtB3mVg5CaRwvqwv6tVKdYEYvBFxm/VCCXM2qwX95kCxWxD4a2xn8GVf16sC5LKyKmuQyQ7/8hQrtMlEXvHaA==",
+        "dependencies": {
+          "FluentValidation": "12.0.0",
+          "Volo.Abp.Validation": "10.0.2"
+        }
+      },
       "Volo.Abp.Gdpr.Application": {
         "type": "Direct",
         "requested": "[10.0.2, )",
@@ -227,6 +237,11 @@
         "type": "Transitive",
         "resolved": "7.1.0",
         "contentHash": "Ihn2LiHZfiGD0Qu6aKngK5xtqOocZcS88khVG0Xv7uObfzilevAvXHDhAqpvWiZNIXPeCD6SA5Wy/rfP0U4brA=="
+      },
+      "FluentValidation": {
+        "type": "Transitive",
+        "resolved": "12.0.0",
+        "contentHash": "8NVLxtMUXynRHJIX3Hn1ACovaqZIJASufXIIFkD0EUbcd5PmMsL1xUD5h548gCezJ5BzlITaR9CAMrGe29aWpA=="
       },
       "JetBrains.Annotations": {
         "type": "Transitive",

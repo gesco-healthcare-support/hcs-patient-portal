@@ -286,7 +286,16 @@
             <label class="form-label fw-semibold">
               {{ '::SocialSecurityNumber' | abpLocalization }}
             </label>
-            <input class="form-control" formControlName="socialSecurityNumber" maxlength="20" />
+            <input
+              type="text"
+              class="form-control app-ssn-redacted"
+              formControlName="socialSecurityNumber"
+              mask="000-00-0000"
+              [dropSpecialCharacters]="true"
+              maxlength="11"
+              autocomplete="off"
+              inputmode="numeric"
+            />
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>

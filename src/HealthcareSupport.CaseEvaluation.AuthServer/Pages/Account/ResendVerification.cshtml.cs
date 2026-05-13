@@ -59,6 +59,18 @@ public class ResendVerificationModel : AbpPageModel
     public string? Context { get; set; }
 
     /// <summary>
+    /// Issue 1.4 (2026-05-12): when set to <c>1</c> on the GET,
+    /// auto-fire the resend-verification flow on landing so the user
+    /// doesn't need to click Send again. Used by the post-register
+    /// success page's "Verify Email" primary button: it links here with
+    /// <c>?context=register&amp;email=...&amp;autosend=1</c>, and the
+    /// page renders the success state immediately (subject to the same
+    /// rate-limit gate that an explicit POST would hit).
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public string? Autosend { get; set; }
+
+    /// <summary>
     /// True after a POST roundtrip. The view shows the "request received"
     /// message + disables the submit button when this is true.
     /// </summary>
@@ -75,8 +87,30 @@ public class ResendVerificationModel : AbpPageModel
         _logger = logger;
     }
 
-    public IActionResult OnGet()
+    public async Task<IActionResult> OnGetAsync()
     {
+        // Issue 1.4 (2026-05-12): auto-fire the resend on landing if
+        // the autosend handshake flag is set AND we have a non-empty
+        // email. Otherwise render the form normally so the user can
+        // submit manually. Swallows exceptions the same way OnPostAsync
+        // does so the UX never leaks rate-limit state.
+        if (string.Equals(Autosend, "1", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(Email))
+        {
+            try
+            {
+                await _externalAccountAppService.ResendEmailVerificationAsync(
+                    new ResendEmailVerificationInput { Email = Email! });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "ResendVerificationModel.OnGetAsync (autosend): ResendEmailVerificationAsync threw for email-key {EmailKey}; surfacing generic success.",
+                    Email);
+            }
+            RequestSubmitted = true;
+        }
         return Page();
     }
 

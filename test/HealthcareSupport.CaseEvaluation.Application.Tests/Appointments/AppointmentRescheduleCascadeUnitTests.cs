@@ -99,7 +99,7 @@ public class AppointmentRescheduleCascadeUnitTests
             isActive: true);
         src.TenantId = Guid.NewGuid();
         src.Name = "Jane Doe";
-        src.ClaimExaminerNumber = "CE-001";
+        src.Suite = "CE-001";
         src.Email = "ce@test.local";
         src.PhoneNumber = "555-0100";
         src.Fax = "555-0199";
@@ -119,7 +119,7 @@ public class AppointmentRescheduleCascadeUnitTests
         clone.TenantId.ShouldBe(newTenant);
         clone.IsActive.ShouldBe(src.IsActive);
         clone.Name.ShouldBe(src.Name);
-        clone.ClaimExaminerNumber.ShouldBe(src.ClaimExaminerNumber);
+        clone.Suite.ShouldBe(src.Suite);
         clone.Email.ShouldBe(src.Email);
         clone.PhoneNumber.ShouldBe(src.PhoneNumber);
         clone.Fax.ShouldBe(src.Fax);
@@ -138,7 +138,7 @@ public class AppointmentRescheduleCascadeUnitTests
             isActive: true);
         src.TenantId = Guid.NewGuid();
         src.Name = "ACME Insurance";
-        src.InsuranceNumber = "POL-001";
+        src.Suite = "POL-001";
         src.Attention = "Claims Dept";
         src.PhoneNumber = "555-0101";
         src.FaxNumber = "555-0299";
@@ -158,7 +158,7 @@ public class AppointmentRescheduleCascadeUnitTests
         clone.TenantId.ShouldBe(newTenant);
         clone.IsActive.ShouldBe(src.IsActive);
         clone.Name.ShouldBe(src.Name);
-        clone.InsuranceNumber.ShouldBe(src.InsuranceNumber);
+        clone.Suite.ShouldBe(src.Suite);
         clone.Attention.ShouldBe(src.Attention);
         clone.PhoneNumber.ShouldBe(src.PhoneNumber);
         clone.FaxNumber.ShouldBe(src.FaxNumber);

@@ -305,22 +305,80 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return;
         }
 
+        // 2026-05-12 expansion (2.5/2.6): widen from 2-pathway to
+        // 7-pathway. Mirrors the list endpoint's
+        // ComputeExternalPartyVisibilityAsync rule set so users who can
+        // see the row in their list can also open the detail view.
+        // Hydration order is the same as the list query.
         var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
-        var entries = await AsyncExecuter.ToListAsync(
+        var accessorEntries = await AsyncExecuter.ToListAsync(
             accessorQuery
                 .Where(a => a.AppointmentId == appointment.Id)
                 .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
 
-        var canRead = AppointmentAccessRules.CanRead(
+        // Patient: resolve IdentityUserId via the PatientId on the
+        // appointment. Patient is IMultiTenant so the auto-filter scopes
+        // this read to the current tenant.
+        var patientIdentityUserId = (Guid?)null;
+        var patient = await _patientRepository.FindAsync(appointment.PatientId);
+        if (patient != null)
+        {
+            patientIdentityUserId = patient.IdentityUserId;
+        }
+
+        // IdentityUserId on AA/DA link rows is nullable (an attorney can
+        // be named before they register). Filter to populated rows so the
+        // rule receives non-null Guids.
+        var aaLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+        var aaIdentityUserIds = await AsyncExecuter.ToListAsync(
+            aaLinkQuery
+                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
+                .Select(l => l.IdentityUserId!.Value));
+
+        var daLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+        var daIdentityUserIds = await AsyncExecuter.ToListAsync(
+            daLinkQuery
+                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
+                .Select(l => l.IdentityUserId!.Value));
+
+        // ClaimExaminer two-hop: AppointmentClaimExaminer rows are
+        // linked via AppointmentInjuryDetail.AppointmentId. Match by
+        // email (case-insensitive) since CE has no IdentityUser join.
+        var injuryQuery = await _appointmentInjuryDetailRepository.GetQueryableAsync();
+        var injuryIds = await AsyncExecuter.ToListAsync(
+            injuryQuery.Where(i => i.AppointmentId == appointment.Id).Select(i => i.Id));
+        var ceEmails = new List<string>();
+        if (injuryIds.Count > 0)
+        {
+            var ceQuery = await _appointmentClaimExaminerRepository.GetQueryableAsync();
+            ceEmails = await AsyncExecuter.ToListAsync(
+                ceQuery
+                    .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId) && c.Email != null)
+                    .Select(c => c.Email!));
+        }
+
+        var accessResult = AppointmentAccessRules.CanRead(
             callerUserId: CurrentUser.Id,
+            callerEmail: CurrentUser.Email,
             callerIsInternalUser: false,
             appointmentCreatorId: appointment.CreatorId,
-            accessorEntries: entries);
+            patientIdentityUserId: patientIdentityUserId,
+            applicantAttorneyIdentityUserIds: aaIdentityUserIds,
+            defenseAttorneyIdentityUserIds: daIdentityUserIds,
+            claimExaminerEmails: ceEmails,
+            accessorEntries: accessorEntries);
 
-        if (!canRead)
+        if (!accessResult.allowed)
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied)
-                .WithData("appointmentId", appointment.Id);
+            // 2026-05-12: use UserFriendlyException so the localized
+            // message reaches the client. BusinessException's
+            // auto-localization via MapCodeNamespace + en.json is not
+            // resolving in this codebase (returns "An internal error
+            // occurred during your request!" instead). UserFriendlyException
+            // always passes its message through unchanged.
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
+                message: L["Appointment:AccessDenied"]);
         }
     }
 
@@ -487,7 +545,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
         var query = (await _appointmentTypeRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -502,7 +560,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query Location directly. IMultiTenant filter scopes by tenant.
         var query = (await _locationRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>

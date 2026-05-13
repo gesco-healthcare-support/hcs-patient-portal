@@ -3,7 +3,7 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 export interface AppointmentClaimExaminerCreateDto {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  claimExaminerNumber?: string | null;
+  suite?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
   fax?: string | null;
@@ -17,7 +17,7 @@ export interface AppointmentClaimExaminerCreateDto {
 export interface AppointmentClaimExaminerDto extends FullAuditedEntityDto<string> {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  claimExaminerNumber?: string | null;
+  suite?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
   fax?: string | null;
@@ -32,7 +32,7 @@ export interface AppointmentClaimExaminerDto extends FullAuditedEntityDto<string
 export interface AppointmentClaimExaminerUpdateDto {
   appointmentInjuryDetailId?: string;
   name?: string | null;
-  claimExaminerNumber?: string | null;
+  suite?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
   fax?: string | null;

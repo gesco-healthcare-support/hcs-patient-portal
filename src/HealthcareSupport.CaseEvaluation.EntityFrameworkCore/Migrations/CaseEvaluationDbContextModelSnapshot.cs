@@ -543,11 +543,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("City");
 
-                    b.Property<string>("ClaimExaminerNumber")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("ClaimExaminerNumber");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -620,6 +615,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("Street");
+
+                    b.Property<string>("Suite")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Suite");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -1216,11 +1216,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasColumnName("FaxNumber");
 
-                    b.Property<string>("InsuranceNumber")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("InsuranceNumber");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1255,6 +1250,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)")
                         .HasColumnName("Street");
+
+                    b.Property<string>("Suite")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Suite");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")

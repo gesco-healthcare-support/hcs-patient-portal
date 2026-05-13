@@ -27,6 +27,7 @@ import {
 import { PatientViewService } from '../services/patient.service';
 import { PatientDetailViewService } from '../services/patient-detail.service';
 import { PatientDetailModalComponent } from './patient-detail.component';
+import { SsnMaskPipe } from '../../../shared/pipes/ssn-mask.pipe';
 import {
   AbstractPatientComponent,
   ChildTabDependencies,
@@ -58,6 +59,7 @@ import {
     LookupSelectComponent,
 
     UtcToLocalPipe,
+    SsnMaskPipe,
     PatientDetailModalComponent,
     ...ChildComponentDependencies,
   ],

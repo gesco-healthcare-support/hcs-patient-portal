@@ -215,7 +215,7 @@ internal static class AppointmentRescheduleCloner
 
         clone.TenantId = newTenantId;
         clone.Name = source.Name;
-        clone.ClaimExaminerNumber = source.ClaimExaminerNumber;
+        clone.Suite = source.Suite;
         clone.Email = source.Email;
         clone.PhoneNumber = source.PhoneNumber;
         clone.Fax = source.Fax;
@@ -247,7 +247,7 @@ internal static class AppointmentRescheduleCloner
 
         clone.TenantId = newTenantId;
         clone.Name = source.Name;
-        clone.InsuranceNumber = source.InsuranceNumber;
+        clone.Suite = source.Suite;
         clone.Attention = source.Attention;
         clone.PhoneNumber = source.PhoneNumber;
         clone.FaxNumber = source.FaxNumber;

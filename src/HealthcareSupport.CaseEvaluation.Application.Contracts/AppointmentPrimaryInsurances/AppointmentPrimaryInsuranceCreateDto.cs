@@ -10,8 +10,8 @@ public class AppointmentPrimaryInsuranceCreateDto
     [StringLength(AppointmentPrimaryInsuranceConsts.NameMaxLength)]
     public string? Name { get; set; }
 
-    [StringLength(AppointmentPrimaryInsuranceConsts.InsuranceNumberMaxLength)]
-    public string? InsuranceNumber { get; set; }
+    [StringLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength)]
+    public string? Suite { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength)]
     public string? Attention { get; set; }
