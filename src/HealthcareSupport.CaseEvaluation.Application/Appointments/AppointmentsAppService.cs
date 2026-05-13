@@ -63,8 +63,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
     // B1 (2026-05-05) -- per-appointment custom-field answer rows.
     protected IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
+    // Issue #114 (2026-05-13) -- shared read-gate, used by both this
+    // AppService and AppointmentDocumentsAppService.
+    protected AppointmentReadAccessGuard _readAccessGuard;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -88,6 +91,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _bookingPolicyValidator = bookingPolicyValidator;
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _customFieldValueRepository = customFieldValueRepository;
+        _readAccessGuard = readAccessGuard;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -284,102 +288,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
-    /// Phase 13 (2026-05-04) -- composes <see cref="AppointmentAccessRules.CanRead"/>
-    /// with live state: looks up the appointment + its accessor rows,
-    /// computes whether the current user holds an internal role, and
-    /// throws <c>BusinessException(AppointmentAccessDenied)</c> on
-    /// failure. Internal users always pass.
+    /// Phase 13 (2026-05-04) -- gate that composes
+    /// <see cref="AppointmentAccessRules.CanRead"/> with live state.
+    /// Extracted to <see cref="AppointmentReadAccessGuard"/> 2026-05-13
+    /// (Issue #114) so the same rule is enforced uniformly across
+    /// AppointmentsAppService and AppointmentDocumentsAppService. The
+    /// two private wrappers below remain to keep call-sites in this
+    /// file unchanged.
     /// </summary>
     private async Task EnsureCanReadAsync(Guid appointmentId)
     {
-        var appointment = await _appointmentRepository.GetAsync(appointmentId);
-        await EnsureCanReadAppointmentAsync(appointment);
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
     }
 
     private async Task EnsureCanReadAppointmentAsync(Appointment appointment)
     {
-        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
-        var isInternal = BookingFlowRoles.IsInternalUserCaller(callerRoles);
-        if (isInternal)
-        {
-            return;
-        }
-
-        // 2026-05-12 expansion (2.5/2.6): widen from 2-pathway to
-        // 7-pathway. Mirrors the list endpoint's
-        // ComputeExternalPartyVisibilityAsync rule set so users who can
-        // see the row in their list can also open the detail view.
-        // Hydration order is the same as the list query.
-        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
-        var accessorEntries = await AsyncExecuter.ToListAsync(
-            accessorQuery
-                .Where(a => a.AppointmentId == appointment.Id)
-                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
-
-        // Patient: resolve IdentityUserId via the PatientId on the
-        // appointment. Patient is IMultiTenant so the auto-filter scopes
-        // this read to the current tenant.
-        var patientIdentityUserId = (Guid?)null;
-        var patient = await _patientRepository.FindAsync(appointment.PatientId);
-        if (patient != null)
-        {
-            patientIdentityUserId = patient.IdentityUserId;
-        }
-
-        // IdentityUserId on AA/DA link rows is nullable (an attorney can
-        // be named before they register). Filter to populated rows so the
-        // rule receives non-null Guids.
-        var aaLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
-        var aaIdentityUserIds = await AsyncExecuter.ToListAsync(
-            aaLinkQuery
-                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
-                .Select(l => l.IdentityUserId!.Value));
-
-        var daLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
-        var daIdentityUserIds = await AsyncExecuter.ToListAsync(
-            daLinkQuery
-                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
-                .Select(l => l.IdentityUserId!.Value));
-
-        // ClaimExaminer two-hop: AppointmentClaimExaminer rows are
-        // linked via AppointmentInjuryDetail.AppointmentId. Match by
-        // email (case-insensitive) since CE has no IdentityUser join.
-        var injuryQuery = await _appointmentInjuryDetailRepository.GetQueryableAsync();
-        var injuryIds = await AsyncExecuter.ToListAsync(
-            injuryQuery.Where(i => i.AppointmentId == appointment.Id).Select(i => i.Id));
-        var ceEmails = new List<string>();
-        if (injuryIds.Count > 0)
-        {
-            var ceQuery = await _appointmentClaimExaminerRepository.GetQueryableAsync();
-            ceEmails = await AsyncExecuter.ToListAsync(
-                ceQuery
-                    .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId) && c.Email != null)
-                    .Select(c => c.Email!));
-        }
-
-        var accessResult = AppointmentAccessRules.CanRead(
-            callerUserId: CurrentUser.Id,
-            callerEmail: CurrentUser.Email,
-            callerIsInternalUser: false,
-            appointmentCreatorId: appointment.CreatorId,
-            patientIdentityUserId: patientIdentityUserId,
-            applicantAttorneyIdentityUserIds: aaIdentityUserIds,
-            defenseAttorneyIdentityUserIds: daIdentityUserIds,
-            claimExaminerEmails: ceEmails,
-            accessorEntries: accessorEntries);
-
-        if (!accessResult.allowed)
-        {
-            // 2026-05-12: use UserFriendlyException so the localized
-            // message reaches the client. BusinessException's
-            // auto-localization via MapCodeNamespace + en.json is not
-            // resolving in this codebase (returns "An internal error
-            // occurred during your request!" instead). UserFriendlyException
-            // always passes its message through unchanged.
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
-                message: L["Appointment:AccessDenied"]);
-        }
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
     }
 
     // T3 minimum-bar lookup scope: Patient is not IMultiTenant per CLAUDE.md, so
