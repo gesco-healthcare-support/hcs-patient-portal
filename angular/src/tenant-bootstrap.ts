@@ -107,9 +107,6 @@ export function rewriteEnvironmentForTenantSubdomain(env: Environment, slug: str
     cfg['issuer'] = swap(cfg['issuer'] as string);
     cfg['redirectUri'] = swap(cfg['redirectUri'] as string);
     cfg['postLogoutRedirectUri'] = swap(cfg['postLogoutRedirectUri'] as string);
-    // Bug D fix (2026-05-11) -- silent-refresh helper lives on AuthServer
-    // wwwroot; rewrite the bare-host token to the tenant subdomain.
-    cfg['silentRefreshRedirectUri'] = swap(cfg['silentRefreshRedirectUri'] as string);
   }
   if (env.apis) {
     for (const apiName of Object.keys(env.apis)) {

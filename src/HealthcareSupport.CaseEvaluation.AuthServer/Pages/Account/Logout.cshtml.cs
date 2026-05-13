@@ -68,6 +68,19 @@ public class LogoutModel : AbpPageModel
                 Request.Host.Host);
         }
 
+        // Issue #106a (2026-05-13) -- SignOutAsync above expires the
+        // HttpOnly auth cookies (.AspNetCore.Identity.Application etc.)
+        // but leaves the non-auth ABP cookies in place. A stale __tenant
+        // cookie can leak the prior user's tenant into a brand-new
+        // registration in the same browser, so explicitly expire it.
+        // XSRF-TOKEN is anti-forgery; rotating it on logout prevents
+        // an attacker who scraped the prior token from replaying it
+        // against the next session in the same browser. Same Path="/"
+        // ABP uses when setting them so the Expires/Max-Age=0 cookie
+        // matches and the browser drops it.
+        Response.Cookies.Delete("__tenant", new Microsoft.AspNetCore.Http.CookieOptions { Path = "/" });
+        Response.Cookies.Delete("XSRF-TOKEN", new Microsoft.AspNetCore.Http.CookieOptions { Path = "/" });
+
         return Redirect(BuildSpaLogoutUrl());
     }
 

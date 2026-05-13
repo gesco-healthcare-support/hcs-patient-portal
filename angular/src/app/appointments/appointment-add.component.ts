@@ -2518,8 +2518,7 @@ export class AppointmentAddComponent {
 
     // Phase 11d (2026-05-04): client-side guard is informational only.
     // The server-side BookingPolicyValidator (Phase 11b) is authoritative
-    // and reads SystemParameter.AppointmentLeadTime per-tenant. UI used
-    // to log a debug `console.log('Date check:', ...)` here; removed.
+    // and reads SystemParameter.AppointmentLeadTime per-tenant.
     return selected < threshold;
   }
 

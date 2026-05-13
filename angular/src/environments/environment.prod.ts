@@ -5,8 +5,6 @@ const baseUrl = 'http://localhost:4200';
 const oAuthConfig = {
   issuer: 'https://localhost:44368/',
   redirectUri: baseUrl,
-  // Bug D fix (2026-05-11) -- silent-refresh helper served from AuthServer wwwroot.
-  silentRefreshRedirectUri: 'https://localhost:44368/silent-refresh.html',
   clientId: 'CaseEvaluation_App',
   responseType: 'code',
   scope: 'offline_access CaseEvaluation',
