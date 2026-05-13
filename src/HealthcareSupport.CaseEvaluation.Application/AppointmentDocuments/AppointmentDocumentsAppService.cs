@@ -40,6 +40,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private readonly ILocalEventBus _localEventBus;
     private readonly IdentityUserManager _userManager;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
+    // Issue #114 (2026-05-13) -- per-appointment access gate. Without it
+    // any same-tenant external party with AppointmentDocuments.Default
+    // could list / download documents on an appointment they were not a
+    // party to (only the IMultiTenant filter applied, which scopes by
+    // tenant, not by appointment-membership).
+    private readonly AppointmentReadAccessGuard _readAccessGuard;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -52,7 +58,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         IAuthorizationService authorizationService,
         ILocalEventBus localEventBus,
         IdentityUserManager userManager,
-        IUnitOfWorkManager unitOfWorkManager)
+        IUnitOfWorkManager unitOfWorkManager,
+        AppointmentReadAccessGuard readAccessGuard)
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
@@ -65,6 +72,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _localEventBus = localEventBus;
         _userManager = userManager;
         _unitOfWorkManager = unitOfWorkManager;
+        _readAccessGuard = readAccessGuard;
     }
 
     /// <summary>
@@ -109,6 +117,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         var queryable = await _documentRepository.GetQueryableAsync();
         var rows = queryable
             .Where(x => x.AppointmentId == appointmentId)
@@ -144,6 +153,10 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException("File is empty.");
         }
+
+        // Issue #114 (2026-05-13): gate before any blob save so the
+        // user can't trigger a write at all if they're not a party.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
 
         // W2-11: magic-byte validation BEFORE any blob save. Browser-supplied
         // ContentType + extension are trivially spoofable; the file header
@@ -223,6 +236,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var document = await _documentRepository.GetAsync(documentId);
         var appointment = await _appointmentRepository.GetAsync(document.AppointmentId);
 
+        // Issue #114 (2026-05-13): gate via the already-loaded appointment.
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
         var isInternal = await IsInternalActorAsync();
         DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
         DocumentUploadGate.EnsureNotImmutable(document, isInternal);
@@ -276,6 +292,13 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
 
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        // Issue #114 (2026-05-13): gate via the loaded appointment. The
+        // existing EnsureCreatorIsAttorney below is a separate domain rule
+        // (only the booking attorney may upload JDF); the read-access gate
+        // is the broader "are you a party to this appointment" check.
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
         DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
         DocumentUploadGate.EnsureAme(appointment.AppointmentTypeId);
 
@@ -444,6 +467,10 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new EntityNotFoundException(typeof(AppointmentDocument), id);
         }
+        // Issue #114 (2026-05-13): gate by the document's parent
+        // appointment so an external party can only download files on
+        // appointments they are a party to.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         var stream = await _blobContainer.GetAsync(entity.BlobName);
         if (stream == null)
         {
@@ -466,6 +493,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             return;
         }
+        // Issue #114 (2026-05-13): gate before deleting. Delete is
+        // permission-restricted (only IT Admin holds it today and is
+        // internal so passes by default), but defense-in-depth keeps the
+        // surface consistent if the permission ever leaks to an external
+        // role.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         try
         {
             await _blobContainer.DeleteAsync(entity.BlobName);
@@ -482,6 +515,10 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     public virtual async Task<AppointmentDocumentDto> ApproveAsync(Guid id)
     {
         var entity = await _documentRepository.GetAsync(id);
+        // Issue #114 (2026-05-13): Approve is internal-only via permission
+        // and internal callers pass the gate unconditionally, but we
+        // still call it so the surface is uniform.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         entity.Status = DocumentStatus.Accepted;
         entity.RejectionReason = null;
         entity.RejectedByUserId = null;
@@ -514,6 +551,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             throw new UserFriendlyException("A rejection reason is required.");
         }
         var entity = await _documentRepository.GetAsync(id);
+        // Issue #114 (2026-05-13): see ApproveAsync — internal-only via
+        // permission, gate kept for uniformity.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         entity.Status = DocumentStatus.Rejected;
         entity.RejectionReason = input.Reason.Trim();
         entity.RejectedByUserId = CurrentUser.Id;
@@ -542,6 +582,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // Issue #114 (2026-05-13): gate so external parties see the
+        // combined view only for appointments they belong to.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
 
         // Uploaded documents.
         var docQ = await _documentRepository.GetQueryableAsync();
@@ -597,6 +640,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // Issue #114 (2026-05-13): Regenerate is IT-Admin permission and
+        // they pass the gate unconditionally; keep the call for uniformity.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
         {
             AppointmentId = appointmentId,

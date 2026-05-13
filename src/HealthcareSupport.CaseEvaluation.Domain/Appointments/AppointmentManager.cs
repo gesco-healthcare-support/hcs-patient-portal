@@ -37,8 +37,33 @@ public class AppointmentManager : DomainService
         Check.Length(requestConfirmationNumber, nameof(requestConfirmationNumber), AppointmentConsts.RequestConfirmationNumberMaxLength);
         Check.NotNull(appointmentStatus, nameof(appointmentStatus));
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
+        EnsureAppointmentDateNotInPast(appointmentDate);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
         return await _appointmentRepository.InsertAsync(appointment);
+    }
+
+    /// <summary>
+    /// Issue #115 (2026-05-13) -- domain-layer invariant. Rejects any
+    /// AppointmentDate strictly earlier than today (date-only compare).
+    /// Defense-in-depth: BookingPolicyValidator already runs this check
+    /// on the Create path at the AppService layer, but the Update path
+    /// previously skipped it entirely. Putting the guard here closes
+    /// every path through the domain regardless of which AppService
+    /// happens to call it.
+    ///
+    /// Re-uses <see cref="CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime"/>
+    /// with <c>leadTimeDays=0</c> so the existing localized message
+    /// chain renders. "Today" is local server time per
+    /// <see cref="DateTime.Today"/>; this matches the Create-path
+    /// comparison anchor in BookingPolicyValidator.
+    /// </summary>
+    private static void EnsureAppointmentDateNotInPast(DateTime appointmentDate)
+    {
+        if (appointmentDate.Date < DateTime.Today)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime)
+                .WithData("leadTimeDays", 0);
+        }
     }
 
     /// <summary>
@@ -122,6 +147,15 @@ public class AppointmentManager : DomainService
         Check.NotNull(appointmentDate, nameof(appointmentDate));
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
         var appointment = await _appointmentRepository.GetAsync(id);
+        // Issue #115 (2026-05-13): only enforce the not-in-past rule
+        // when the date is actually changing. Completed appointments
+        // (CheckedIn / CheckedOut / Billed) legitimately have past
+        // dates; editing PanelNumber or PatientId on them must still
+        // work. Moving an appointment TO a past date is the attack.
+        if (appointment.AppointmentDate.Date != appointmentDate.Date)
+        {
+            EnsureAppointmentDateNotInPast(appointmentDate);
+        }
         appointment.PatientId = patientId;
         appointment.IdentityUserId = identityUserId;
         appointment.AppointmentTypeId = appointmentTypeId;
