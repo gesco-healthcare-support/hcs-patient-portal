@@ -21,6 +21,7 @@ using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 using Volo.Abp.Users;
+using Volo.Abp.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
@@ -80,6 +81,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadStreamAsync(
         Guid appointmentId,
         string documentName,
@@ -111,8 +113,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // packet merge path's supported formats.
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/{Guid.NewGuid():N}";
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
         await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
 
         // W2-11: internal staff uploads land directly as Approved (matches
@@ -172,6 +174,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadPackageDocumentAsync(
         Guid documentId,
         string fileName,
@@ -212,6 +215,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadJointDeclarationAsync(
         Guid appointmentId,
         string documentName,
@@ -242,8 +246,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/{Guid.NewGuid():N}";
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
         await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
 
         var entity = await _documentManager.CreateAsync(
@@ -288,6 +292,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// </summary>
     [AllowAnonymous]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadByVerificationCodeAsync(
         Guid documentId,
         Guid verificationCode,
@@ -344,8 +349,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var newBlobName = $"{tenantSegment}/{document.AppointmentId}/{Guid.NewGuid():N}";
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var newBlobName = $"{tenantSegment}/{document.AppointmentId:N}/{Guid.NewGuid():N}";
         await _blobContainer.SaveAsync(newBlobName, content, overrideExisting: false);
 
         // Try to delete the placeholder/old blob if it was a real one

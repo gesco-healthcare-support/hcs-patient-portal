@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <!-- Issue 2.8 (2026-05-12) — FluentValidation main package brings
+         in the TestHelper namespace (TestValidate / ShouldHaveValidationErrorFor)
+         since 11.x; no separate TestHelper package needed. -->
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
   </ItemGroup>
 
 </Project>

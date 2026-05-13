@@ -391,6 +391,11 @@
         "resolved": "7.1.0",
         "contentHash": "Ihn2LiHZfiGD0Qu6aKngK5xtqOocZcS88khVG0Xv7uObfzilevAvXHDhAqpvWiZNIXPeCD6SA5Wy/rfP0U4brA=="
       },
+      "FluentValidation": {
+        "type": "Transitive",
+        "resolved": "12.0.0",
+        "contentHash": "8NVLxtMUXynRHJIX3Hn1ACovaqZIJASufXIIFkD0EUbcd5PmMsL1xUD5h548gCezJ5BzlITaR9CAMrGe29aWpA=="
+      },
       "Fractions": {
         "type": "Transitive",
         "resolved": "7.3.0",
@@ -1932,6 +1937,15 @@
           "Volo.Abp.Validation": "10.0.2"
         }
       },
+      "Volo.Abp.FluentValidation": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "zDtB3mVg5CaRwvqwv6tVKdYEYvBFxm/VCCXM2qwX95kCxWxD4a2xn8GVf16sC5LKyKmuQyQ7/8hQrtMlEXvHaA==",
+        "dependencies": {
+          "FluentValidation": "12.0.0",
+          "Volo.Abp.Validation": "10.0.2"
+        }
+      },
       "Volo.Abp.Gdpr.Abstractions": {
         "type": "Transitive",
         "resolved": "10.0.2",
@@ -3040,6 +3054,7 @@
           "Volo.Abp.Account.Pro.Public.Application": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application": "[10.0.2, )",
           "Volo.Abp.FeatureManagement.Application": "[10.0.2, )",
+          "Volo.Abp.FluentValidation": "[10.0.2, )",
           "Volo.Abp.Gdpr.Application": "[10.0.2, )",
           "Volo.Abp.Identity.Pro.Application": "[10.0.2, )",
           "Volo.Abp.LanguageManagement.Application": "[10.0.2, )",

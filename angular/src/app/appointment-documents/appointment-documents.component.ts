@@ -9,6 +9,7 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { PermissionService, RestService } from '@abp/ng.core';
@@ -98,6 +99,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
   // See docs/research/proxy-regen-doc-flow-fix.md (Q2).
   private restService = inject(RestService);
   private urls = inject(AppointmentDocumentUrls);
+  private http = inject(HttpClient);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;
@@ -188,14 +190,31 @@ export class AppointmentDocumentsComponent implements OnChanges {
   }
 
   download(doc: AppointmentDocumentDto): void {
-    if (!this.appointmentId) {
-      return;
-    }
-    if (!doc.id) {
+    if (!this.appointmentId || !doc.id) {
       return;
     }
     const url = this.urls.build(this.appointmentId, doc.id);
-    window.open(url, '_blank');
+    // window.open(url, '_blank') is broken under JWT auth -- the new tab
+    // does not carry the Authorization header. Fetch as Blob via HttpClient
+    // (the ABP auth interceptor adds Bearer) and trigger the download via a
+    // synthesised anchor click.
+    this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
+      next: (resp) => {
+        const blob = resp.body!;
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = doc.fileName ?? 'document';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Revoke after the click is dispatched.
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      },
+      error: () => {
+        this.toaster.error('Could not download document.');
+      },
+    });
   }
 
   delete(doc: AppointmentDocumentDto): void {
