@@ -45,6 +45,8 @@ import { NgxMaskDirective } from 'ngx-mask';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
+// #121 phase T1 (2026-05-13) -- extracted Custom Fields section.
+import { AppointmentAddCustomFieldsComponent } from './sections/appointment-add-custom-fields.component';
 
 // W2-8 -- transient front-end shape for the "add injury" booking-form
 // modal. Bundles the AppointmentInjuryDetail core fields with the
@@ -140,6 +142,7 @@ type AppointmentAuthorizedUserDraft = {
     NgbDatepickerModule,
     NgbNavModule,
     NgxMaskDirective,
+    AppointmentAddCustomFieldsComponent,
   ],
   providers: [
     ListService,
@@ -160,7 +163,9 @@ export class AppointmentAddComponent {
   private readonly customFieldsService = inject(CustomFieldsService);
 
   // B1: expose enum to template for *ngIf branches.
-  readonly CustomFieldType = CustomFieldType;
+  // CustomFieldType is used only inside .ts methods now -- the template
+  // alias was needed for the inline custom-fields markup before phase
+  // T1 (#121) extracted it to AppointmentAddCustomFieldsComponent.
 
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
@@ -813,19 +818,6 @@ export class AppointmentAddComponent {
       isMandatory: [!!row.isMandatory],
       customFieldValue: [row.defaultValue ?? null, validators],
     });
-  }
-
-  /**
-   * B1 -- helper consumed by the template to render Picklist / Tickbox /
-   * Radio option lists. OLD stores options as a comma-separated string in
-   * `MultipleValues` (no separate option entity); split + trim + drop empty.
-   */
-  optionsFromMultipleValues(multipleValues: string | null | undefined): string[] {
-    if (!multipleValues) return [];
-    return multipleValues
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
   }
 
   /**
