@@ -30,7 +30,11 @@ import { provideFileManagementConfig } from '@volo/abp.ng.file-management/config
 import { provideSaasConfig } from '@volo/abp.ng.saas/config';
 import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-management/config';
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
-import { HttpErrorComponent, provideThemeLeptonX } from '@volosoft/abp.ng.theme.lepton-x';
+import {
+  HttpErrorComponent,
+  provideThemeLeptonX,
+  withThemeLeptonXOptions,
+} from '@volosoft/abp.ng.theme.lepton-x';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector } from '@angular/core';
 import { OAuthService } from 'angular-oauth2-oidc';
@@ -84,7 +88,31 @@ export const appConfig: ApplicationConfig = {
     provideAccountAdminConfig(),
     provideAccountPublicConfig(),
     provideCommercialUiConfig(),
-    provideThemeLeptonX(),
+    // 2026-05-12 (Issue 1.5) — force light theme as the default for
+    // first-time visitors regardless of OS dark-mode preference.
+    // `defaultTheme: 'light'` sets the bootstrap default; `disableSystemOption`
+    // removes the "System" entry from the picker. Users who explicitly
+    // toggle to dark still have that choice persisted in LPX_THEME.
+    provideThemeLeptonX(
+      withThemeLeptonXOptions({
+        defaultTheme: 'light',
+        themeOptions: {
+          localStorageKey: 'LPX_THEME',
+          disableSystemOption: true,
+        },
+      }),
+    ),
+    // 2026-05-12 (Issue 1.5) — backfill returning users with stale
+    // localStorage['LPX_THEME'] = 'system'. Without this, users who
+    // loaded the SPA before the default was changed continue to follow
+    // their OS preference.
+    provideAppInitializer(() => {
+      if (typeof window === 'undefined') return;
+      const v = window.localStorage.getItem('LPX_THEME');
+      if (v === null || v === 'system') {
+        window.localStorage.setItem('LPX_THEME', 'light');
+      }
+    }),
     provideSideMenuLayout(),
     provideAbpThemeShared(
       withHttpErrorConfig({
