@@ -47,6 +47,12 @@ import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-f
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
 // #121 phase T1 (2026-05-13) -- extracted Custom Fields section.
 import { AppointmentAddCustomFieldsComponent } from './sections/appointment-add-custom-fields.component';
+// #121 phase T2 (2026-05-13) -- extracted Authorized Users section.
+import {
+  AppointmentAddAuthorizedUsersComponent,
+  type AppointmentAuthorizedUserDraft,
+  type ExternalAuthorizedUserOption,
+} from './sections/appointment-add-authorized-users.component';
 
 // W2-8 -- transient front-end shape for the "add injury" booking-form
 // modal. Bundles the AppointmentInjuryDetail core fields with the
@@ -109,23 +115,9 @@ type AppointmentTypeFieldConfigDto = {
   defaultValue?: string | null;
 };
 
-type ExternalAuthorizedUserOption = {
-  identityUserId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  userRole: string;
-};
-
-type AppointmentAuthorizedUserDraft = {
-  id?: string;
-  identityUserId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  userRole: string;
-  accessTypeId: number;
-};
+// #121 phase T2 (2026-05-13) -- both authorized-user types moved to the
+// section file (they only describe section-owned data). Parent imports
+// them below alongside the component.
 
 @Component({
   selector: 'app-appointment-add',
@@ -143,6 +135,7 @@ type AppointmentAuthorizedUserDraft = {
     NgbNavModule,
     NgxMaskDirective,
     AppointmentAddCustomFieldsComponent,
+    AppointmentAddAuthorizedUsersComponent,
   ],
   providers: [
     ListService,
@@ -205,10 +198,9 @@ export class AppointmentAddComponent {
     [];
   readonly genderOptions = genderOptions;
   readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
-  readonly accessTypeOptions = [
-    { value: 23, label: 'View' },
-    { value: 24, label: 'Edit' },
-  ];
+  // #121 phase T2 (2026-05-13) -- accessTypeOptions moved to
+  // AppointmentAddAuthorizedUsersComponent (only the modal renders the
+  // label set).
   private currentPatientProfile?: PatientWithNavigationPropertiesDto;
   patientListCache: LookupDto<string>[] = [];
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
@@ -259,15 +251,11 @@ export class AppointmentAddComponent {
   injuryModalError: string | null = null;
   wcabOfficeOptions: LookupDto<string>[] = [];
   injuryStateOptions: LookupDto<string>[] = [];
+  // #121 phase T2 (2026-05-13) -- the AppointmentAuthorizedUserDraft[]
+  // array stays at parent because it carries the data the submit flow
+  // consumes; passed into the section by reference so the modal can
+  // push / splice in place.
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
-  isAuthorizedUserModalOpen = false;
-  authorizedUserModalMode: 'create' | 'edit' = 'create';
-  editingAuthorizedUserIndex = -1;
-  selectedAuthorizedUser: ExternalAuthorizedUserOption | null = null;
-  readonly authorizedUserForm = this.fb.group({
-    identityUserId: [null as string | null, [Validators.required]],
-    accessTypeId: [23, [Validators.required]],
-  });
 
   readonly title = '::Menu:Appointments';
 
@@ -510,9 +498,9 @@ export class AppointmentAddComponent {
     this.form
       .get('appointmentLanguageId')
       ?.valueChanges.subscribe((value) => this.applyEnglishInterpreterLock(value));
-    this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
-      this.onAuthorizedUserIdentityChanged(value);
-    });
+    // #121 phase T2 (2026-05-13) -- authorized-user identityUserId
+    // change handler moved to the section component along with the
+    // modal FormGroup it watches.
 
     // S-NEW-2 (Adrian 2026-04-30): when the booker enables the AA or DA
     // section, the corresponding email field becomes required (in addition to
@@ -1677,87 +1665,12 @@ export class AppointmentAddComponent {
     );
   }
 
-  openAddAuthorizedUserModal(): void {
-    this.authorizedUserModalMode = 'create';
-    this.editingAuthorizedUserIndex = -1;
-    this.selectedAuthorizedUser = null;
-    this.authorizedUserForm.reset({ identityUserId: null, accessTypeId: 23 });
-    this.isAuthorizedUserModalOpen = true;
-  }
-
-  openEditAuthorizedUserModal(index: number): void {
-    const item = this.appointmentAuthorizedUsers[index];
-    if (!item) {
-      return;
-    }
-
-    this.authorizedUserModalMode = 'edit';
-    this.editingAuthorizedUserIndex = index;
-    this.authorizedUserForm.reset({
-      identityUserId: item.identityUserId,
-      accessTypeId: item.accessTypeId,
-    });
-    this.selectedAuthorizedUser =
-      this.externalAuthorizedUserOptions.find((x) => x.identityUserId === item.identityUserId) ??
-      null;
-    this.isAuthorizedUserModalOpen = true;
-  }
-
-  closeAuthorizedUserModal(): void {
-    this.isAuthorizedUserModalOpen = false;
-  }
-
-  saveAuthorizedUserFromModal(): void {
-    if (this.authorizedUserForm.invalid || !this.selectedAuthorizedUser) {
-      this.authorizedUserForm.markAllAsTouched();
-      return;
-    }
-
-    const raw = this.authorizedUserForm.getRawValue();
-    const identityUserId = raw.identityUserId ?? '';
-    const accessTypeId = Number(raw.accessTypeId ?? 23);
-
-    const duplicateIndex = this.appointmentAuthorizedUsers.findIndex(
-      (x, i) => x.identityUserId === identityUserId && i !== this.editingAuthorizedUserIndex,
-    );
-    if (duplicateIndex >= 0) {
-      return;
-    }
-
-    const mapped: AppointmentAuthorizedUserDraft = {
-      id:
-        this.authorizedUserModalMode === 'edit'
-          ? this.appointmentAuthorizedUsers[this.editingAuthorizedUserIndex]?.id
-          : undefined,
-      identityUserId: this.selectedAuthorizedUser.identityUserId,
-      firstName: this.selectedAuthorizedUser.firstName,
-      lastName: this.selectedAuthorizedUser.lastName,
-      email: this.selectedAuthorizedUser.email,
-      userRole: this.selectedAuthorizedUser.userRole,
-      accessTypeId,
-    };
-
-    if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserIndex >= 0) {
-      this.appointmentAuthorizedUsers[this.editingAuthorizedUserIndex] = mapped;
-    } else {
-      this.appointmentAuthorizedUsers.push(mapped);
-    }
-
-    this.closeAuthorizedUserModal();
-  }
-
-  removeAuthorizedUser(index: number): void {
-    this.appointmentAuthorizedUsers.splice(index, 1);
-  }
-
-  getAccessTypeLabel(value: number): string {
-    return this.accessTypeOptions.find((x) => x.value === value)?.label ?? '';
-  }
-
-  private onAuthorizedUserIdentityChanged(identityUserId: string | null): void {
-    this.selectedAuthorizedUser =
-      this.externalAuthorizedUserOptions.find((x) => x.identityUserId === identityUserId) ?? null;
-  }
+  // #121 phase T2 (2026-05-13) -- modal + table helpers all moved to
+  // AppointmentAddAuthorizedUsersComponent: openAdd / openEdit / close /
+  // saveFromModal / remove / getAccessTypeLabel / onAuthorizedUserIdentityChanged.
+  // The parent retains only the loadExternalAuthorizedUsers fetch
+  // because two other sections (Applicant + Defense Attorney) also
+  // consume the same lookup result.
 
   private loadExternalAuthorizedUsers(): void {
     this.restService

@@ -1236,78 +1236,16 @@
       </div>
     }
 
-    <!-- B11 (2026-05-06): hide Additional Authorized User table for
-         Claim Examiner bookers (= OLD's Adjuster). Adjuster bookings have
-         no need to attach co-accessors per OLD parity (showFormBaseOnRole
-         gate, OLD HTML line 600). -->
+    <!-- #121 phase T2 (2026-05-13): "Additional Authorized User"
+         section. Extracted to <app-appointment-add-authorized-users>.
+         B11 (2026-05-06): Claim Examiner bookers (= OLD's Adjuster)
+         see no co-accessor table per OLD `showFormBaseOnRole` (OLD
+         HTML line 600); parent decides via shouldShowAuthorizedUserSection. -->
     @if (shouldShowAuthorizedUserSection()) {
-      <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0 fw-bold">Additional Authorized User</h5>
-          <button
-            type="button"
-            class="btn btn-primary btn-sm"
-            (click)="openAddAuthorizedUserModal()"
-          >
-            Add
-            <i class="fa fa-plus ms-1"></i>
-          </button>
-        </div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>User Role</th>
-                  <th>Rights</th>
-                  <th style="width: 110px">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                @if (appointmentAuthorizedUsers.length === 0) {
-                  <tr>
-                    <td colspan="5" class="text-secondary py-3">
-                      Add email of a user who can manage this appointment details on behalf of
-                      yourself.
-                    </td>
-                  </tr>
-                } @else {
-                  @for (
-                    row of appointmentAuthorizedUsers;
-                    track row.identityUserId;
-                    let i = $index
-                  ) {
-                    <tr>
-                      <td>{{ row.firstName }} {{ row.lastName }}</td>
-                      <td>{{ row.email }}</td>
-                      <td>{{ row.userRole }}</td>
-                      <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
-                      <td>
-                        <button
-                          type="button"
-                          class="btn btn-link p-0 me-2"
-                          (click)="openEditAuthorizedUserModal(i)"
-                        >
-                          <i class="fa fa-pencil"></i>
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-link text-danger p-0"
-                          (click)="removeAuthorizedUser(i)"
-                        >
-                          <i class="fa fa-trash"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <app-appointment-add-authorized-users
+        [users]="appointmentAuthorizedUsers"
+        [userOptions]="externalAuthorizedUserOptions"
+      />
     }
 
     <!-- #121 phase T1 (2026-05-13): "Additional Details" custom-fields
@@ -1335,83 +1273,6 @@
     </div>
   </form>
 
-  @if (isAuthorizedUserModalOpen) {
-    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              {{
-                authorizedUserModalMode === 'edit' ? 'Edit Authorized User' : 'Add Authorized User'
-              }}
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              aria-label="Close"
-              (click)="closeAuthorizedUserModal()"
-            ></button>
-          </div>
-          <div class="modal-body" [formGroup]="authorizedUserForm">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Email</label>
-                <select class="form-select" formControlName="identityUserId">
-                  <option [ngValue]="null">Select email</option>
-                  @for (option of externalAuthorizedUserOptions; track option.identityUserId) {
-                    <option [value]="option.identityUserId">{{ option.email }}</option>
-                  }
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">First Name</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.firstName ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Last Name</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.lastName ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">User Role</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.userRole ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Rights</label>
-                <select class="form-select" formControlName="accessTypeId">
-                  @for (option of accessTypeOptions; track option.value) {
-                    <option [value]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-outline-secondary"
-              (click)="closeAuthorizedUserModal()"
-            >
-              Cancel
-            </button>
-            <button type="button" class="btn btn-primary" (click)="saveAuthorizedUserFromModal()">
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-backdrop fade show"></div>
-  }
+  <!-- #121 phase T2 (2026-05-13): authorized-user modal now lives
+       inside <app-appointment-add-authorized-users> above. -->
 </div>
