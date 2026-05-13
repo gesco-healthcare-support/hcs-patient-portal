@@ -9,7 +9,10 @@ using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.PermissionManagement.Identity;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
+using Volo.Abp.BlobStoring.Minio;
+using HealthcareSupport.CaseEvaluation.BlobContainers;
 using Volo.Abp.Caching;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
@@ -48,7 +51,8 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(FileManagementDomainModule),
     typeof(VoloAbpCommercialSuiteTemplatesModule),
     typeof(AbpGdprDomainModule),
-    typeof(BlobStoringDatabaseDomainModule)
+    typeof(BlobStoringDatabaseDomainModule),
+    typeof(AbpBlobStoringMinioModule)
     )]
 public class CaseEvaluationDomainModule : AbpModule
 {
@@ -58,6 +62,8 @@ public class CaseEvaluationDomainModule : AbpModule
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
         });
+
+        ConfigureBlobStoring(context);
 
         // 2026-05-11: MailKit replaces the legacy System.Net.Mail.SmtpClient via
         // Volo.Abp.MailKit. ABP MailKit defaults SecureSocketOption based on
@@ -126,6 +132,60 @@ public class CaseEvaluationDomainModule : AbpModule
                     ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
             }
         }
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- Route the seven document-bearing blob containers to
+    /// MinIO via the official MinIO .NET client (Volo.Abp.BlobStoring.Minio).
+    /// Other ABP-internal containers (audit logs, etc.) keep using the
+    /// default <c>BlobStoringDatabase</c> provider, so this is a
+    /// per-container swap, not a global default swap.
+    ///
+    /// MinIO config comes from <c>BlobStoring:Minio:*</c> with sensible
+    /// dev defaults that match the docker-compose <c>minio</c> service.
+    /// Production swaps the endpoint to a managed MinIO host (self-hosted
+    /// or BYO) -- AWS / S3 are explicitly out of scope per Adrian's
+    /// 2026-05-13 directive (no AWS dependency in this stack).
+    /// </summary>
+    private void ConfigureBlobStoring(ServiceConfigurationContext context)
+    {
+        var configuration = context.Services.GetConfiguration();
+        var minioSection = configuration.GetSection("BlobStoring:Minio");
+        // MinIO client wants host:port (no scheme); WithSSL controls http
+        // vs https. A scheme-prefixed value would throw InvalidEndpointException.
+        var endpoint = minioSection["Endpoint"] ?? "minio:9000";
+        var accessKey = minioSection["AccessKey"] ?? "minioadmin";
+        var secretKey = minioSection["SecretKey"] ?? "minioadmin";
+        var bucketName = minioSection["BucketName"] ?? "case-evaluation-documents";
+        var withSsl = bool.TryParse(minioSection["WithSsl"], out var sslFlag) && sslFlag;
+        var createBucketIfNotExists = !bool.TryParse(minioSection["CreateBucketIfNotExists"], out var createFlag) || createFlag;
+
+        Configure<AbpBlobStoringOptions>(options =>
+        {
+            void UseMinio<TContainer>()
+            {
+                options.Containers.Configure<TContainer>(container =>
+                {
+                    container.UseMinio(minio =>
+                    {
+                        minio.EndPoint = endpoint;
+                        minio.AccessKey = accessKey;
+                        minio.SecretKey = secretKey;
+                        minio.BucketName = bucketName;
+                        minio.WithSSL = withSsl;
+                        minio.CreateBucketIfNotExists = createBucketIfNotExists;
+                    });
+                });
+            }
+
+            UseMinio<AppointmentDocumentsContainer>();
+            UseMinio<AnonymousUploadsContainer>();
+            UseMinio<DocumentPackagesContainer>();
+            UseMinio<MasterDocumentsContainer>();
+            UseMinio<JointDeclarationsContainer>();
+            UseMinio<AppointmentPacketsContainer>();
+            UseMinio<UserSignaturesContainer>();
+        });
     }
 
     private static bool HasPlaceholderSmtpCredentials(string? userName, string? password)
