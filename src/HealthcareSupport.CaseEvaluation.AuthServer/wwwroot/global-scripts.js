@@ -76,8 +76,13 @@
   }
 
   function notifyRegisterFailure(form, message) {
+    // 2026-05-13 (BUG-002): drop the native window.alert() that
+    // previously stacked on top of the styled inline banner. The
+    // alert() blocks the UI thread, is not stylable / localizable,
+    // and duplicates the message already shown by
+    // showInlineRegisterError. Inline banner is the single source of
+    // truth for register errors.
     showInlineRegisterError(form, message);
-    try { alert(message); } catch (_e) { /* alert may be suppressed; inline error already shown */ }
   }
 
   function isRegisterPage() {
@@ -124,6 +129,21 @@
     select.id = 'external-user-type';
     select.name = 'ExternalUserType';
     select.className = 'form-control';
+    select.required = true;
+
+    // 2026-05-13 (BUG-004) -- leading disabled placeholder forces a
+    // conscious role selection. Without it the browser auto-selects
+    // the first option (Patient), so a Defense Attorney clicking
+    // Sign Up without touching the dropdown would silently register
+    // as a Patient. OLD parity:
+    // P:\PatientPortalOld\.../user-add.component.html:14 also uses a
+    // disabled "Select" leading option.
+    const placeholderOption = document.createElement('option');
+    placeholderOption.value = '';
+    placeholderOption.textContent = 'Select a user type';
+    placeholderOption.disabled = true;
+    placeholderOption.selected = true;
+    select.appendChild(placeholderOption);
 
     externalUserRoles.forEach(function (role) {
       const option = document.createElement('option');
@@ -606,8 +626,18 @@
     }
     clearInlineRegisterError(form);
 
-    const selectedRoleValue = Number((select && select.value) || 1);
-    const userType = Number.isFinite(selectedRoleValue) && selectedRoleValue > 0 ? selectedRoleValue : 1;
+    // 2026-05-13 (BUG-004 follow-up) -- with the leading disabled
+    // placeholder, an unsubmitted form has select.value === ''. Reject
+    // explicitly instead of silently coalescing to Patient(1); the
+    // user must consciously pick a role.
+    const rawSelectValue = select && select.value;
+    const selectedRoleValue = Number(rawSelectValue);
+    if (!rawSelectValue || !Number.isFinite(selectedRoleValue) || selectedRoleValue <= 0) {
+      notifyRegisterFailure(form, 'Please select a user type.');
+      log('Validation failed: no user type selected.');
+      return;
+    }
+    const userType = selectedRoleValue;
 
     // 1.6 (2026-04-30): tenant resolution priority is query > cookie. Cached
     // on init() so this is a fast path; null means we never resolved one.
@@ -793,6 +823,73 @@
     submitExternalSignup(form);
   }
 
+  // 2026-05-13 (BUG-005) -- gate the Sign Up submit button on form
+  // validity. Required by OLD parity (button is disabled on a fresh
+  // load until every required field is filled). Inputs that should
+  // gate the submit: User Type select, First Name, Last Name, Email,
+  // Password, Confirm Password. We listen on input + change so the
+  // state is responsive to both typing and dropdown selection.
+  function ensureButtonDisabledBinding(form) {
+    if (!form || form.dataset.signUpDisabledBindingAttached === 'true') {
+      return;
+    }
+    var submitBtn =
+      form.querySelector('button#external-signup-submit') ||
+      form.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+      log('ensureButtonDisabledBinding: no submit button found.');
+      return;
+    }
+    form.dataset.signUpDisabledBindingAttached = 'true';
+
+    function getRequiredInputs() {
+      // Collect inputs each time the listener fires -- the register
+      // form's First Name / Last Name / Firm Name fields are injected
+      // dynamically, so the set isn't stable at init() time.
+      return Array.prototype.slice.call(
+        form.querySelectorAll('input[required], select[required]')
+      );
+    }
+
+    function updateButtonState() {
+      var inputs = getRequiredInputs();
+      if (inputs.length === 0) {
+        // Defensive: leave the button enabled if no required inputs
+        // are present (e.g. fields not yet injected); the submit
+        // handler still re-validates.
+        submitBtn.removeAttribute('disabled');
+        return;
+      }
+      var allFilled = inputs.every(function (input) {
+        var val = (input.value || '').trim();
+        if (val === '') return false;
+        // Reject the placeholder option ("") for required selects.
+        if (input.tagName === 'SELECT' && input.required && val === '') return false;
+        return true;
+      });
+      if (allFilled) {
+        submitBtn.removeAttribute('disabled');
+      } else {
+        submitBtn.setAttribute('disabled', 'disabled');
+      }
+    }
+
+    // Initial state: disabled until the user fills at least the
+    // currently-visible required inputs.
+    submitBtn.setAttribute('disabled', 'disabled');
+
+    // Delegate from the form so dynamically-added fields are covered
+    // without needing to re-bind every time ensureExtraRegisterFields
+    // mutates the DOM.
+    form.addEventListener('input', updateButtonState);
+    form.addEventListener('change', updateButtonState);
+
+    // First pass right after attach, in case fields are already
+    // pre-filled (e.g. email prefill from query string).
+    updateButtonState();
+    log('Sign Up button disabled-binding attached.');
+  }
+
   function patchNativeFormSubmit() {
     if (nativeSubmitPatched || !window.HTMLFormElement || !window.HTMLFormElement.prototype) {
       return;
@@ -967,6 +1064,11 @@
     ensureExtraRegisterFields(form);
     ensureTermsBlock(form);
     hideUserNameField(form);
+    // 2026-05-13 (BUG-005) -- wire Sign Up disabled-state to form
+    // validity. Must run AFTER ensureExtraRegisterFields so the
+    // First/Last/Firm Name inputs (added by that function) are in the
+    // DOM when the binding queries for required inputs.
+    ensureButtonDisabledBinding(form);
 
     // 1.6 (2026-04-30): tenant banner + email/role pre-fill from query string.
     // Run after the role dropdown is in the DOM so applyRolePrefill can find

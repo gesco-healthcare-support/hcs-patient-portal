@@ -218,9 +218,13 @@ another 30 seconds -- `dotnet watch` is slow on first boot.
 
 ## Part 4: Test accounts
 
-Every account is seeded into `Falkinstein` tenant unless noted as host
-scope. Default password: `1q2w3E*r` (8 chars; digit + non-alphanumeric).
-Host admin uses `1q2w3E*` (no trailing `r`).
+Every account in the **seeded** table below is created automatically
+on every `docker compose down -v && up` cycle into the `Falkinstein`
+tenant unless noted as host scope. Default password: `1q2w3E*r`
+(8 chars; digit + non-alphanumeric). Host admin uses `1q2w3E*` (no
+trailing `r`).
+
+### Seeded automatically (use these for fast flow tests)
 
 | Role | Email | Subdomain to sign in on |
 | --- | --- | --- |
@@ -232,13 +236,28 @@ Host admin uses `1q2w3E*` (no trailing `r`).
 | **Staff Supervisor** | supervisor@falkinstein.test | `falkinstein.localhost:44368` |
 | **Clinic Staff** | staff@falkinstein.test | `falkinstein.localhost:44368` |
 | **Patient (synthetic)** | patient@falkinstein.test | `falkinstein.localhost:44368` |
-| **Patient (Gmail inbox)** | SoftwareThree@gesco.com | `falkinstein.localhost:44368` |
 | **Applicant Attorney (synth)** | applicant.attorney@falkinstein.test | `falkinstein.localhost:44368` |
-| **Applicant Attorney (Gmail)** | SoftwareFour@gesco.com | `falkinstein.localhost:44368` |
 | **Defense Attorney (synth)** | defense.attorney@falkinstein.test | `falkinstein.localhost:44368` |
-| **Defense Attorney (Gmail)** | SoftwareFive@gesco.com | `falkinstein.localhost:44368` |
 | **Claim Examiner (synth)** | adjuster@falkinstein.test | `falkinstein.localhost:44368` |
-| **Claim Examiner (Gmail)** | SoftwareSix@gesco.com | `falkinstein.localhost:44368` |
+
+### NOT seeded -- self-register for real-inbox tests
+
+The four `@gesco.com` identities below are intentionally NOT seeded
+(per SEED-1, 2026-05-13). To test a real-inbox flow, register them
+self-service from the AuthServer Register page; the verification
+email will land in the real Gmail inbox Adrian has access to.
+
+| Role | Email |
+| --- | --- |
+| **Patient** | SoftwareThree@gesco.com |
+| **Applicant Attorney** | SoftwareFour@gesco.com |
+| **Defense Attorney** | SoftwareFive@gesco.com |
+| **Claim Examiner** | SoftwareSix@gesco.com |
+
+The canonical email -> role mapping for these four is preserved as
+the `InboxedExternalUsers` constant in
+`src/HealthcareSupport.CaseEvaluation.Domain/Identity/DemoExternalUsersDataSeedContributor.cs`
+so test scripts can reference the same authoritative source.
 
 ### When to use which
 
@@ -246,9 +265,9 @@ Host admin uses `1q2w3E*` (no trailing `r`).
   you don't need to check email content. Their mail goes to MailKit's
   pickup folder, not a real inbox.
 - **Gmail inbox users** (`@gesco.com`) when the test needs to verify
-  an email landed in a real inbox. Adrian has access to those
-  mailboxes; if you need to verify an email, ask Adrian to spot-check
-  the inbox.
+  an email landed in a real inbox. Register them yourself from
+  `/Account/Register`; ask Adrian to spot-check the inbox for the
+  verification link.
 - **Tenant admin extras** (`SoftwareOne/Two@evaluators.com`) for
   multi-tester scenarios where two human testers need parallel admin
   accounts in the same tenant.
