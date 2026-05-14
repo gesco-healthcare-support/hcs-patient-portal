@@ -31,6 +31,7 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | [BUG-015](bugs/BUG-015-dynamic-env-unused.md) | medium | open | dynamic-env.json never read by SPA |
 | [BUG-016](bugs/BUG-016-openiddict-subdomain.md) | medium | open | OpenIddict RedirectUris missing subdomain wildcards |
 | [BUG-018](bugs/BUG-018-smtp-misleading-error.md) | medium | open | SMTP rate-limit logged as misleading "Configure ACS credentials" |
+| [BUG-020](bugs/BUG-020-smtp-password-decrypt-noise.md) | medium | open | `Abp.Mailing.Smtp.Password` decrypt round-trip throws on plaintext config |
 
 ## Seed gotchas
 
