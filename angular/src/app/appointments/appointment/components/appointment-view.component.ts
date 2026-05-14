@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgxMaskDirective } from 'ngx-mask';
 import {
@@ -185,71 +185,100 @@ export class AppointmentViewComponent implements OnInit {
   // so future shared section components (e.g. <app-patient-demographics>) can
   // drop in once both pages expose the same control surface. Save reads via
   // `this.form.getRawValue()`; loads call `this.form.patchValue({...})`.
+  //
+  // 2026-05-14 (validator parity): per-field Validators copied from the
+  // booker's `appointment-add.component.ts` form definition. Applied as
+  // SOFT validators -- the template uses `[class.is-invalid]` decorations
+  // on each input to surface invalidity visually, but save() does NOT gate
+  // on form.invalid. The existing manual null-check on the appointment IDs
+  // remains the only blocking guard; the server is authoritative on data
+  // validity. External roles (Patient/AA/DA/CE) have the whole form
+  // disabled in ngOnInit, so these validators only affect internal staff
+  // editing existing records.
   readonly form: FormGroup = this.fb.group({
     // top-level
-    panelNumber: [''],
+    panelNumber: [null as string | null, [Validators.maxLength(50)]],
     // patient (19 controls)
-    patientFirstName: [''],
-    patientLastName: [''],
-    patientMiddleName: [''],
-    patientEmail: [''],
+    patientFirstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
+    patientLastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
+    patientMiddleName: [null as string | null, [Validators.maxLength(50)]],
+    patientEmail: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50), Validators.email],
+    ],
     patientGenderId: [null as number | null],
     // S-5.5: ngbDatepicker's CVA needs NgbDateStruct; load helper converts
     // ISO -> { year, month, day } on first patch.
-    patientDateOfBirth: [null as NgbDateStruct | string | null],
-    patientCellPhoneNumber: [''],
-    patientPhoneNumber: [''],
+    patientDateOfBirth: [null as NgbDateStruct | string | null, [Validators.required]],
+    patientCellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    patientPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
     patientPhoneNumberTypeId: [null as number | null],
-    patientSocialSecurityNumber: [''],
-    patientStreet: [''],
-    patientAddress: [''],
-    patientApptNumber: [''], // "Unit #" -- view page only field
-    patientCity: [''],
+    patientSocialSecurityNumber: [null as string | null, [Validators.maxLength(20)]],
+    patientStreet: [null as string | null, [Validators.maxLength(255)]],
+    patientAddress: [null as string | null, [Validators.maxLength(100)]],
+    patientApptNumber: [null as string | null, [Validators.maxLength(100)]], // "Unit #" -- view page only field
+    patientCity: [null as string | null, [Validators.maxLength(50)]],
     patientStateId: [null as string | null],
-    patientZipCode: [''],
+    patientZipCode: [null as string | null, [Validators.maxLength(15)]],
     patientAppointmentLanguageId: [null as string | null],
     patientNeedsInterpreter: [false],
-    patientInterpreterVendorName: [''],
-    patientRefferedBy: [''],
+    patientInterpreterVendorName: [null as string | null, [Validators.maxLength(255)]],
+    patientRefferedBy: [null as string | null, [Validators.maxLength(50)]],
     // employer (7 controls)
-    employerName: [''],
-    employerOccupation: [''],
-    employerPhoneNumber: [''],
-    employerStreet: [''],
-    employerCity: [''],
+    employerName: [null as string | null, [Validators.required, Validators.maxLength(255)]],
+    employerOccupation: [null as string | null, [Validators.required, Validators.maxLength(255)]],
+    employerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    employerStreet: [null as string | null, [Validators.maxLength(255)]],
+    employerCity: [null as string | null, [Validators.maxLength(255)]],
     employerStateId: [null as string | null],
-    employerZipCode: [''],
+    employerZipCode: [null as string | null, [Validators.maxLength(10)]],
     // applicant attorney (14 controls + enabled toggle + email search)
     applicantAttorneyEnabled: [true],
-    applicantAttorneyEmailSearch: [''],
+    applicantAttorneyEmailSearch: [null as string | null],
     applicantAttorneyIdentityUserId: [null as string | null],
-    applicantAttorneyFirstName: [''],
-    applicantAttorneyLastName: [''],
-    applicantAttorneyEmail: [''],
-    applicantAttorneyFirmName: [''],
-    applicantAttorneyWebAddress: [''],
-    applicantAttorneyPhoneNumber: [''],
-    applicantAttorneyFaxNumber: [''],
-    applicantAttorneyStreet: [''],
-    applicantAttorneyCity: [''],
+    applicantAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
+    applicantAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
+    applicantAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    applicantAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
+    applicantAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
+    applicantAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
+    applicantAttorneyStreet: [null as string | null, [Validators.maxLength(255)]],
+    applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
-    applicantAttorneyZipCode: [''],
+    applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
     // defense attorney (mirror of AA)
     defenseAttorneyEnabled: [true],
-    defenseAttorneyEmailSearch: [''],
+    defenseAttorneyEmailSearch: [null as string | null],
     defenseAttorneyIdentityUserId: [null as string | null],
-    defenseAttorneyFirstName: [''],
-    defenseAttorneyLastName: [''],
-    defenseAttorneyEmail: [''],
-    defenseAttorneyFirmName: [''],
-    defenseAttorneyWebAddress: [''],
-    defenseAttorneyPhoneNumber: [''],
-    defenseAttorneyFaxNumber: [''],
-    defenseAttorneyStreet: [''],
-    defenseAttorneyCity: [''],
+    defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
+    defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
+    defenseAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
+    defenseAttorneyStreet: [null as string | null, [Validators.maxLength(255)]],
+    defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
-    defenseAttorneyZipCode: [''],
+    defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
   });
+
+  /**
+   * Soft-validator helper: returns true when the control is invalid AND
+   * the user has interacted with it (touched). Template `[class.is-invalid]`
+   * decorations use this so the red border only appears AFTER the user has
+   * focused + blurred the field -- empty initial state on a new appointment
+   * load does not show angry red borders on every required field.
+   *
+   * Save() does NOT consult this; the server remains authoritative on data
+   * validity. This is purely a UX cue for internal staff editing existing
+   * records.
+   */
+  isFieldInvalid(controlName: string): boolean {
+    const control = this.form.get(controlName);
+    return !!control && control.invalid && control.touched;
+  }
 
   // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
   // `form` because it represents draft state for a per-row append/edit
