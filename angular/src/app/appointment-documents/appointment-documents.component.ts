@@ -9,11 +9,14 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
-import { PermissionService } from '@abp/ng.core';
+import { PermissionService, RestService } from '@abp/ng.core';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
-import { AppointmentDocumentDto, DocumentStatus } from '../proxy/appointment-documents/models';
+import { AppointmentDocumentDto } from '../proxy/appointment-documents/models';
+import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
+import { AppointmentDocumentUrls } from './appointment-document-urls';
 
 /**
  * W1-3 + W2-11 appointment-documents UI. Embedded inside appointment-view
@@ -88,6 +91,15 @@ export class AppointmentDocumentsComponent implements OnChanges {
   private service = inject(AppointmentDocumentService);
   private toaster = inject(ToasterService);
   private permission = inject(PermissionService);
+  // Direct REST + URL helper bypass the auto-generated upload() / download
+  // helpers on AppointmentDocumentService. The proxy generator emits a
+  // typed multipart wrapper (UploadAppointmentDocumentForm with IFormFile)
+  // that does not produce a valid browser FormData request, and the
+  // hand-edited buildDownloadUrl helper does not survive regeneration.
+  // See docs/research/proxy-regen-doc-flow-fix.md (Q2).
+  private restService = inject(RestService);
+  private urls = inject(AppointmentDocumentUrls);
+  private http = inject(HttpClient);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;
@@ -149,31 +161,60 @@ export class AppointmentDocumentsComponent implements OnChanges {
     form.append('documentName', this.documentName.trim() || this.selectedFile.name);
 
     this.isUploading = true;
-    this.service.upload(this.appointmentId, form).subscribe({
-      next: () => {
-        this.toaster.success('Document uploaded.');
-        this.documentName = '';
-        this.selectedFile = null;
-        const input = document.getElementById('document-file-input') as HTMLInputElement | null;
-        if (input) {
-          input.value = '';
-        }
-        this.refresh();
-        this.documentsChanged.emit();
-        this.isUploading = false;
-      },
-      error: () => {
-        this.isUploading = false;
-      },
-    });
+    this.restService
+      .request<FormData, AppointmentDocumentDto>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${this.appointmentId}/documents`,
+          body: form,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: () => {
+          this.toaster.success('Document uploaded.');
+          this.documentName = '';
+          this.selectedFile = null;
+          const input = document.getElementById('document-file-input') as HTMLInputElement | null;
+          if (input) {
+            input.value = '';
+          }
+          this.refresh();
+          this.documentsChanged.emit();
+          this.isUploading = false;
+        },
+        error: () => {
+          this.isUploading = false;
+        },
+      });
   }
 
   download(doc: AppointmentDocumentDto): void {
-    if (!this.appointmentId) {
+    if (!this.appointmentId || !doc.id) {
       return;
     }
-    const url = this.service.buildDownloadUrl(this.appointmentId, doc.id);
-    window.open(url, '_blank');
+    const url = this.urls.build(this.appointmentId, doc.id);
+    // window.open(url, '_blank') is broken under JWT auth -- the new tab
+    // does not carry the Authorization header. Fetch as Blob via HttpClient
+    // (the ABP auth interceptor adds Bearer) and trigger the download via a
+    // synthesised anchor click.
+    this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
+      next: (resp) => {
+        const blob = resp.body!;
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = doc.fileName ?? 'document';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Revoke after the click is dispatched.
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      },
+      error: () => {
+        this.toaster.error('Could not download document.');
+      },
+    });
   }
 
   delete(doc: AppointmentDocumentDto): void {
@@ -181,6 +222,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
       return;
     }
     if (!confirm(`Delete "${doc.documentName}"?`)) {
+      return;
+    }
+    if (!doc.id) {
       return;
     }
     this.service.delete(this.appointmentId, doc.id).subscribe({
@@ -194,6 +238,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   approve(doc: AppointmentDocumentDto): void {
     if (!this.appointmentId || !this.canApprove) {
+      return;
+    }
+    if (!doc.id) {
       return;
     }
     this.service.approve(this.appointmentId, doc.id).subscribe({
@@ -232,6 +279,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
       this.toaster.error('Rejection reason exceeds 500 characters.');
       return;
     }
+    if (!this.rejectingDoc.id) {
+      return;
+    }
     this.isSubmittingReject = true;
     this.service.reject(this.appointmentId, this.rejectingDoc.id, { reason }).subscribe({
       next: () => {
@@ -248,7 +298,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   statusLabel(status: DocumentStatus): string {
     switch (status) {
-      case DocumentStatus.Approved:
+      case DocumentStatus.Accepted:
         return 'Approved';
       case DocumentStatus.Rejected:
         return 'Rejected';
@@ -259,7 +309,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   statusBadgeClass(status: DocumentStatus): string {
     switch (status) {
-      case DocumentStatus.Approved:
+      case DocumentStatus.Accepted:
         return 'bg-success';
       case DocumentStatus.Rejected:
         return 'bg-danger';

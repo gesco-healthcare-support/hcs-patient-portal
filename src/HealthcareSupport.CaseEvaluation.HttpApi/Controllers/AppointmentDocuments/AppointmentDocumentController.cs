@@ -79,6 +79,61 @@ public class AppointmentDocumentController : AbpController
     {
         return _service.RegeneratePacketAsync(appointmentId);
     }
+
+    [HttpGet("/api/app/appointments/{appointmentId}/documents/combined")]
+    public virtual Task<List<PatientPortalDocumentDto>> GetCombinedForAppointmentAsync(Guid appointmentId)
+    {
+        return _service.GetCombinedForAppointmentAsync(appointmentId);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- package-document upload (authenticated).
+    /// Updates an existing Pending row created by
+    /// <c>PackageDocumentQueueHandler</c>.
+    /// </summary>
+    [HttpPost("{id}/upload-package")]
+    [Consumes("multipart/form-data")]
+    public virtual async Task<AppointmentDocumentDto> UploadPackageAsync(
+        Guid appointmentId,
+        Guid id,
+        [FromForm] UploadAppointmentDocumentForm form)
+    {
+        if (form?.File == null || form.File.Length == 0)
+        {
+            throw new UserFriendlyException("File is required.");
+        }
+        await using var stream = form.File.OpenReadStream();
+        return await _service.UploadPackageDocumentAsync(
+            id,
+            form.File.FileName,
+            form.File.ContentType,
+            form.File.Length,
+            stream);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- AME Joint Declaration Form upload.
+    /// Creates a new <c>IsJointDeclaration = true</c> row.
+    /// </summary>
+    [HttpPost("upload-jdf")]
+    [Consumes("multipart/form-data")]
+    public virtual async Task<AppointmentDocumentDto> UploadJointDeclarationAsync(
+        Guid appointmentId,
+        [FromForm] UploadAppointmentDocumentForm form)
+    {
+        if (form?.File == null || form.File.Length == 0)
+        {
+            throw new UserFriendlyException("File is required.");
+        }
+        await using var stream = form.File.OpenReadStream();
+        return await _service.UploadJointDeclarationAsync(
+            appointmentId,
+            form.DocumentName ?? "Joint Declaration Form",
+            form.File.FileName,
+            form.File.ContentType,
+            form.File.Length,
+            stream);
+    }
 }
 
 /// <summary>

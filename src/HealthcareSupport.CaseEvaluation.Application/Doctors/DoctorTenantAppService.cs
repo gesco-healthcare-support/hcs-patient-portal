@@ -24,7 +24,6 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
     public class DoctorTenantAppService : TenantAppService
     {
         private readonly IdentityUserManager _userManager;
-        private readonly IdentityRoleManager _roleManager;
         private readonly IRepository<Doctor, Guid> _doctorRepository;
         private readonly IUnitOfWorkManager _unitOfWorkManager;
         public DoctorTenantAppService(ITenantRepository tenantRepository,
@@ -36,16 +35,20 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             IOptions<AbpDbConnectionOptions> dbConnectionOptions,
             IConnectionStringChecker connectionStringChecker,
             IdentityUserManager userManager,
-            IdentityRoleManager roleManager,
             IRepository<Doctor, Guid> doctorRepository,
             IUnitOfWorkManager unitOfWorkManager)
             : base(tenantRepository, editionRepository, tenantManager, dataSeeder, _localEventBus, distributedEventBus, dbConnectionOptions, connectionStringChecker)
         {
             _userManager = userManager;
-            _roleManager = roleManager;
             _doctorRepository = doctorRepository;
             _unitOfWorkManager = unitOfWorkManager;
         }
+        // ADR-006 (2026-05-05) -- "admin" is reserved for the host-context
+        // surface (admin.localhost). A tenant by that name would conflict
+        // with the SPA's no-subdomain redirect target and break the URL =
+        // tenant invariant. Match is case-insensitive on the trimmed name.
+        public const string ReservedTenantNameAdmin = "admin";
+
         public override async Task<SaasTenantDto> CreateAsync(SaasTenantCreateDto input)
         {
             Check.NotNull(input, nameof(input));
@@ -53,31 +56,34 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             Check.NotNullOrWhiteSpace(input.AdminPassword, nameof(input.AdminPassword));
             Check.NotNullOrWhiteSpace(input.AdminEmailAddress, nameof(input.AdminEmailAddress));
 
-            // W0-1 (NEW-SEC-03): single transactional UoW wraps SaasTenant + IdentityUser
-            // + Doctor + Role creation. Failure anywhere rolls back the SaasTenant insert
-            // and suppresses the TenantCreatedEto distributed event (ABP outbox defers to
-            // UoW commit), so the tenant DB never gets provisioned on failure either.
-            // Reference precedent: CaseEvaluationTenantDatabaseMigrationHandler.cs:113.
+            if (string.Equals(input.Name?.Trim(), ReservedTenantNameAdmin, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UserFriendlyException(
+                    $"Tenant name '{ReservedTenantNameAdmin}' is reserved for the host-context surface and cannot be used.");
+            }
+
+            // Single transactional UoW wraps SaasTenant + IdentityUser + Doctor.
+            // Failure anywhere rolls back the SaasTenant insert and suppresses the
+            // TenantCreatedEto distributed event (ABP outbox defers to UoW commit),
+            // so the tenant DB never gets provisioned on failure either.
             //
-            // DEFERRED (Wave 1): collect real FirstName / LastName / Gender via a derived
-            // SaasTenantCreateDto + Angular form widening. Until then the Doctor row
-            // continues to receive `LastName = ""` and `Gender = Male` placeholders --
-            // a data-quality issue, but no longer a tenant-orphan-on-failure issue.
+            // Doctor is a non-user reference entity per OLD spec (Phase 0.1, 2026-05-01):
+            // Staff Supervisor manages the Doctor on its behalf. The tenant admin user
+            // gets the "admin" role only.
             SaasTenantDto tenant;
             using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
             {
                 tenant = await base.CreateAsync(input);
                 using (CurrentTenant.Change(tenant.Id))
                 {
-                    var adminUser = await CreateDoctorUserAsync(input);
+                    var adminUser = await CreateAdminUserAsync(input);
                     await CreateDoctorProfileAsync(adminUser, input);
-                    await EnsureRoleAsync("Doctor");
                 }
                 await uow.CompleteAsync();
             }
             return tenant;
         }
-        private async Task<IdentityUser> CreateDoctorUserAsync(SaasTenantCreateDto input)
+        private async Task<IdentityUser> CreateAdminUserAsync(SaasTenantCreateDto input)
         {
             var existingUser = await _userManager.FindByEmailAsync(input.AdminEmailAddress);
             if (existingUser != null)
@@ -102,7 +108,6 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
                 Name = input.Name
             };
 
-            // Create with default password
             var result = await _userManager.CreateAsync(adminUser, input.AdminPassword);
 
             if (!result.Succeeded)
@@ -113,25 +118,9 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
 
             return adminUser;
         }
-        private async Task EnsureRoleAsync(string roleName)
-        {
-            var newRole = await _roleManager.FindByNameAsync(roleName);
-            if (newRole != null)
-            {
-                return;
-            }
-
-            newRole = new IdentityRole(GuidGenerator.Create(), roleName, CurrentTenant.Id);
-            var roleResult = await _roleManager.CreateAsync(newRole);
-            if (!roleResult.Succeeded)
-            {
-                throw new UserFriendlyException("Failed to create admin role: " +
-                    string.Join(", ", roleResult.Errors.Select(e => e.Description)));
-            }
-        }
         private async Task CreateDoctorProfileAsync(IdentityUser user, SaasTenantCreateDto input)
         {
-            var existingDoctor = await _doctorRepository.FirstOrDefaultAsync(x => x.IdentityUserId == user.Id);
+            var existingDoctor = await _doctorRepository.FirstOrDefaultAsync(x => x.Email == user.Email);
             if (existingDoctor != null)
             {
                 existingDoctor.FirstName = input.Name;
@@ -142,7 +131,6 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
 
             var doctor = new Doctor(
                 id: GuidGenerator.Create(),
-                identityUserId: user.Id,
                 firstName: input.Name,
                 lastName: "",
                 email: user.Email,

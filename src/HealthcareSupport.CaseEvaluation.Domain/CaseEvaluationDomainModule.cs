@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using System;
@@ -8,7 +9,10 @@ using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.PermissionManagement.Identity;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.BlobStoring.Database;
+using Volo.Abp.BlobStoring.Minio;
+using HealthcareSupport.CaseEvaluation.BlobContainers;
 using Volo.Abp.Caching;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.PermissionManagement.OpenIddict;
@@ -16,6 +20,8 @@ using Volo.Abp.AuditLogging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Emailing;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.MailKit;
+using MailKit.Security;
 using Volo.Abp.Identity;
 using Volo.Abp.Commercial.SuiteTemplates;
 using Volo.Abp.LanguageManagement;
@@ -36,6 +42,7 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpPermissionManagementDomainOpenIddictModule),
     typeof(AbpSettingManagementDomainModule),
     typeof(AbpEmailingModule),
+    typeof(AbpMailKitModule),
     typeof(AbpIdentityProDomainModule),
     typeof(AbpOpenIddictProDomainModule),
     typeof(SaasDomainModule),
@@ -44,7 +51,8 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(FileManagementDomainModule),
     typeof(VoloAbpCommercialSuiteTemplatesModule),
     typeof(AbpGdprDomainModule),
-    typeof(BlobStoringDatabaseDomainModule)
+    typeof(BlobStoringDatabaseDomainModule),
+    typeof(AbpBlobStoringMinioModule)
     )]
 public class CaseEvaluationDomainModule : AbpModule
 {
@@ -53,6 +61,42 @@ public class CaseEvaluationDomainModule : AbpModule
         Configure<AbpMultiTenancyOptions>(options =>
         {
             options.IsEnabled = MultiTenancyConsts.IsEnabled;
+        });
+
+        ConfigureBlobStoring(context);
+
+        // 2026-05-11: MailKit replaces the legacy System.Net.Mail.SmtpClient via
+        // Volo.Abp.MailKit. ABP MailKit defaults SecureSocketOption based on
+        // Abp.Mailing.Smtp.EnableSsl (true => SslOnConnect, false => StartTlsWhenAvailable),
+        // but SslOnConnect targets implicit-TLS port 465 -- our provider uses STARTTLS on
+        // port 587. Explicitly pin StartTls so the upgrade negotiation matches the server.
+        Configure<AbpMailKitOptions>(options =>
+        {
+            options.SecureSocketOption = SecureSocketOptions.StartTls;
+        });
+
+        // Phase 1 (2026-05-05): QuestPDF community-license registration.
+        // Required before any QuestPDF render call -- the library throws on
+        // first use otherwise. Community license is free for our scale (Gesco
+        // is well below QuestPDF's 1M ARR / 10-employee threshold). License
+        // text: https://www.questpdf.com/license/community.html
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        // Phase 2 (2026-05-11): Gotenberg sidecar typed HttpClient for the
+        // packet pipeline's DOCX -> PDF conversion. URL comes from
+        // configuration (env var `Gotenberg__Url` in docker-compose); the
+        // fallback hostname matches the gotenberg compose service so that
+        // dev stacks work without explicit env-var setup. 60s timeout
+        // accommodates LibreOffice's worst-case rendering time. If a
+        // second external HTTP integration ever lands in Domain, that is
+        // the trigger to extract these adapters into a dedicated
+        // Infrastructure.Http project.
+        var pdfConfiguration = context.Services.GetConfiguration();
+        var gotenbergUrl = pdfConfiguration["Gotenberg:Url"] ?? "http://gotenberg:3000";
+        context.Services.AddHttpClient<IDocxToPdfConverter, GotenbergDocxToPdfConverter>(client =>
+        {
+            client.BaseAddress = new Uri(gotenbergUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
 
 
@@ -88,6 +132,60 @@ public class CaseEvaluationDomainModule : AbpModule
                     ServiceDescriptor.Singleton<IEmailSender, NullEmailSender>());
             }
         }
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- Route the seven document-bearing blob containers to
+    /// MinIO via the official MinIO .NET client (Volo.Abp.BlobStoring.Minio).
+    /// Other ABP-internal containers (audit logs, etc.) keep using the
+    /// default <c>BlobStoringDatabase</c> provider, so this is a
+    /// per-container swap, not a global default swap.
+    ///
+    /// MinIO config comes from <c>BlobStoring:Minio:*</c> with sensible
+    /// dev defaults that match the docker-compose <c>minio</c> service.
+    /// Production swaps the endpoint to a managed MinIO host (self-hosted
+    /// or BYO) -- AWS / S3 are explicitly out of scope per Adrian's
+    /// 2026-05-13 directive (no AWS dependency in this stack).
+    /// </summary>
+    private void ConfigureBlobStoring(ServiceConfigurationContext context)
+    {
+        var configuration = context.Services.GetConfiguration();
+        var minioSection = configuration.GetSection("BlobStoring:Minio");
+        // MinIO client wants host:port (no scheme); WithSSL controls http
+        // vs https. A scheme-prefixed value would throw InvalidEndpointException.
+        var endpoint = minioSection["Endpoint"] ?? "minio:9000";
+        var accessKey = minioSection["AccessKey"] ?? "minioadmin";
+        var secretKey = minioSection["SecretKey"] ?? "minioadmin";
+        var bucketName = minioSection["BucketName"] ?? "case-evaluation-documents";
+        var withSsl = bool.TryParse(minioSection["WithSsl"], out var sslFlag) && sslFlag;
+        var createBucketIfNotExists = !bool.TryParse(minioSection["CreateBucketIfNotExists"], out var createFlag) || createFlag;
+
+        Configure<AbpBlobStoringOptions>(options =>
+        {
+            void UseMinio<TContainer>()
+            {
+                options.Containers.Configure<TContainer>(container =>
+                {
+                    container.UseMinio(minio =>
+                    {
+                        minio.EndPoint = endpoint;
+                        minio.AccessKey = accessKey;
+                        minio.SecretKey = secretKey;
+                        minio.BucketName = bucketName;
+                        minio.WithSSL = withSsl;
+                        minio.CreateBucketIfNotExists = createBucketIfNotExists;
+                    });
+                });
+            }
+
+            UseMinio<AppointmentDocumentsContainer>();
+            UseMinio<AnonymousUploadsContainer>();
+            UseMinio<DocumentPackagesContainer>();
+            UseMinio<MasterDocumentsContainer>();
+            UseMinio<JointDeclarationsContainer>();
+            UseMinio<AppointmentPacketsContainer>();
+            UseMinio<UserSignaturesContainer>();
+        });
     }
 
     private static bool HasPlaceholderSmtpCredentials(string? userName, string? password)

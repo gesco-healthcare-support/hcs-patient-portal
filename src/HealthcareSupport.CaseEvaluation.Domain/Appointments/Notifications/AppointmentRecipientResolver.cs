@@ -50,6 +50,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
     private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IRecipientRoleResolver _roleResolver;
     private readonly ILogger<AppointmentRecipientResolver> _logger;
 
     public AppointmentRecipientResolver(
@@ -66,6 +67,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         IRepository<AppointmentEmployerDetail, Guid> employerDetailRepository,
         ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
+        IRecipientRoleResolver roleResolver,
         ILogger<AppointmentRecipientResolver> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -81,6 +83,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         _employerDetailRepository = employerDetailRepository;
         _settingProvider = settingProvider;
         _currentTenant = currentTenant;
+        _roleResolver = roleResolver;
         _logger = logger;
     }
 
@@ -124,17 +127,23 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             };
         }
 
-        // 1. Office mailbox -- per-tenant ABP setting (W1-2 OfficeEmail key).
-        var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
-        AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
+        // 2026-05-07 follow-on (#5): the office mailbox AddIfPresent used to
+        // run FIRST. Combined with the first-wins dedup at line 113, that
+        // meant a party (AA/DA/CE) whose email coincided with the tenant's
+        // OfficeEmail setting got locked to RecipientRole.OfficeAdmin and
+        // every later party-role pass silently dropped them -- the symptom
+        // Adrian flagged as "Defense Attorney received the internal admin's
+        // email." Moved to the END of the resolver: parties claim the email
+        // first; OfficeAdmin only lands when the email is otherwise unseen.
 
-        // 2. Booker / Patient -- whoever logged in to create the request.
-        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
-        AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
-
-        // 2b. Patient row email (if different from the booker's IdentityUser).
-        var patient = await _patientRepository.FindAsync(appointment.PatientId);
-        AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
+        // B13 (2026-05-06): the booker/patient AddIfPresent calls below
+        // used to run BEFORE the AA/DA/CE walks, which meant a CE / AA / DA
+        // who booked their own appointment got tagged Patient (first-wins
+        // dedup) and the later party-role pass silently skipped them. We
+        // now defer the booker pass until AFTER the link-table walks +
+        // appointment-level email column walk so the booker only gets a
+        // generic Patient tag when no party-specific row matched their
+        // email. The Patient row email fall-back is moved with it.
 
         // 3. Applicant Attorney -- via the AppointmentApplicantAttorney join.
         var applicantLinkQueryable = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
@@ -142,7 +151,11 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         foreach (var link in applicantLinks)
         {
             var aa = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId);
-            var aaUser = await _identityUserRepository.FindAsync(link.IdentityUserId);
+            if (link.IdentityUserId is null)
+            {
+                continue;
+            }
+            var aaUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
             AddIfPresent(aaUser?.Email, RecipientRole.ApplicantAttorney, $"aa/{link.Id}");
         }
 
@@ -152,7 +165,11 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         foreach (var link in defenseLinks)
         {
             var da = await _defenseAttorneyRepository.FindAsync(link.DefenseAttorneyId);
-            var daUser = await _identityUserRepository.FindAsync(link.IdentityUserId);
+            if (link.IdentityUserId is null)
+            {
+                continue;
+            }
+            var daUser = await _identityUserRepository.FindAsync(link.IdentityUserId.Value);
             AddIfPresent(daUser?.Email, RecipientRole.DefenseAttorney, $"da/{link.Id}");
         }
 
@@ -208,13 +225,37 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         await AddPartyEmailIfNotKnownAsync(
             byEmail, AddIfPresent, appointment.ClaimExaminerEmail, RecipientRole.ClaimExaminer, "ce-email-col");
 
+        // B13 (2026-05-06): deferred booker + patient-row passes. By the
+        // time we reach here every party-specific source (AA/DA/CE link
+        // tables + the 4 appointment-level email columns) has had a chance
+        // to claim the booker's email with the correct role. AddIfPresent
+        // is first-wins dedup-by-email, so these calls only land for true
+        // patient bookers (or appointments where the patient row's email
+        // is distinct from any other party).
+        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
+        AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
+
+        var patient = await _patientRepository.FindAsync(appointment.PatientId);
+        AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
+
+        // 2026-05-07 follow-on (#5): office mailbox last so any party that
+        // shares that email keeps its party role. Office only lands when
+        // the email is truly office-only.
+        var officeEmail = await _settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
+        AddIfPresent(officeEmail, RecipientRole.OfficeAdmin, "office");
+
         return byEmail.Values.ToList();
     }
 
-    // S-6.1: helper for the email-column walk. Looks up the email against the
-    // current-tenant IdentityUser table to decide IsRegistered, then delegates
-    // to AddIfPresent. Skips silently when the email is empty or already
-    // present in the dict (first-wins dedup matches the rest of the resolver).
+    // S-6.1 / Wave-3 #17.3: helper for the email-column walk. Classifies the
+    // typed email against the EXPECTED role via IRecipientRoleResolver -- not
+    // a bare email-existence check -- so a same-email account registered
+    // under a different role flows through the not-registered branch (Option
+    // A). Pre-Wave-3 implementation called userQuery.Any(...) inline; the
+    // off-role symptom Adrian flagged ("DA email landed at a Patient
+    // dashboard") came from that exact gap. Skips silently when the email
+    // is empty or already present in the dict (first-wins dedup matches the
+    // rest of the resolver).
     private async Task AddPartyEmailIfNotKnownAsync(
         Dictionary<string, SendAppointmentEmailArgs> byEmail,
         Action<string?, RecipientRole, string, bool> addIfPresent,
@@ -227,11 +268,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             return;
         }
 
-        var normalizedEmail = email.Trim().ToLower();
-        var userQuery = await _identityUserRepository.GetQueryableAsync();
-        var hasRegisteredUser = userQuery
-            .Any(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
-
-        addIfPresent(email, role, contextSuffix, hasRegisteredUser);
+        var classification = await _roleResolver.ClassifyAsync(email, role);
+        addIfPresent(email, role, contextSuffix, classification.IsRegistered);
     }
 }

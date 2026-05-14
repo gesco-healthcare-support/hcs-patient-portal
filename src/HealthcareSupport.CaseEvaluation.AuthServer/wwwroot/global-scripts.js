@@ -14,15 +14,10 @@
       return fromMeta;
     }
 
-    const fromStorage =
-      window.localStorage && typeof window.localStorage.getItem === 'function'
-        ? (window.localStorage.getItem('externalSignupApiBaseUrl') || '').trim()
-        : '';
-    if (fromStorage) {
-      return fromStorage;
-    }
-
-    if (window.location.hostname === 'localhost' && window.location.port === '44368') {
+    // AuthServer is on :44368; the external-signup API lives on the API host
+    // (:44327). Preserve the subdomain so tenant resolution stays correct on
+    // subdomain URLs like falkinstein.localhost:44368.
+    if (window.location.port === '44368') {
       return window.location.protocol + '//' + window.location.hostname + ':44327';
     }
 
@@ -81,8 +76,13 @@
   }
 
   function notifyRegisterFailure(form, message) {
+    // 2026-05-13 (BUG-002): drop the native window.alert() that
+    // previously stacked on top of the styled inline banner. The
+    // alert() blocks the UI thread, is not stylable / localizable,
+    // and duplicates the message already shown by
+    // showInlineRegisterError. Inline banner is the single source of
+    // truth for register errors.
     showInlineRegisterError(form, message);
-    try { alert(message); } catch (_e) { /* alert may be suppressed; inline error already shown */ }
   }
 
   function isRegisterPage() {
@@ -129,6 +129,21 @@
     select.id = 'external-user-type';
     select.name = 'ExternalUserType';
     select.className = 'form-control';
+    select.required = true;
+
+    // 2026-05-13 (BUG-004) -- leading disabled placeholder forces a
+    // conscious role selection. Without it the browser auto-selects
+    // the first option (Patient), so a Defense Attorney clicking
+    // Sign Up without touching the dropdown would silently register
+    // as a Patient. OLD parity:
+    // P:\PatientPortalOld\.../user-add.component.html:14 also uses a
+    // disabled "Select" leading option.
+    const placeholderOption = document.createElement('option');
+    placeholderOption.value = '';
+    placeholderOption.textContent = 'Select a user type';
+    placeholderOption.disabled = true;
+    placeholderOption.selected = true;
+    select.appendChild(placeholderOption);
 
     externalUserRoles.forEach(function (role) {
       const option = document.createElement('option');
@@ -139,7 +154,8 @@
 
     const label = document.createElement('label');
     label.htmlFor = 'external-user-type';
-    label.textContent = 'External User Role';
+    // OLD parity (P:\PatientPortalOld\.../user-add.component.html:14): "User Type"
+    label.textContent = 'User Type';
 
     container.appendChild(select);
     container.appendChild(label);
@@ -154,6 +170,166 @@
     return select;
   }
 
+  // OLD parity (P:\PatientPortalOld\.../user-add.component.html:23-32 +
+  // 41-48): the register form has First Name + Last Name (two columns) and
+  // Confirm Password fields that ABP's stock cshtml does not render. Inject
+  // them client-side so the form layout, validation, and payload all line
+  // up with OLD without forking the entire .cshtml page.
+  //
+  // ensureTextInput inserts a labeled text input AFTER the given anchor
+  // node's parent (so e.g. an input next to the user-type select).
+  // ensurePasswordInput is the same shape but type="password".
+  function ensureTextInput(form, opts) {
+    var existing = form.querySelector('#' + opts.id);
+    if (existing) return existing;
+    var container = document.createElement('div');
+    container.className = 'form-floating mb-2';
+    var input = document.createElement('input');
+    input.type = opts.type || 'text';
+    input.id = opts.id;
+    input.name = opts.name;
+    input.className = 'form-control';
+    input.placeholder = opts.label;
+    if (opts.autocomplete) input.setAttribute('autocomplete', opts.autocomplete);
+    if (opts.maxLength) input.setAttribute('maxlength', String(opts.maxLength));
+    if (opts.required) input.setAttribute('required', 'required');
+    var lab = document.createElement('label');
+    lab.htmlFor = opts.id;
+    lab.textContent = opts.label;
+    container.appendChild(input);
+    container.appendChild(lab);
+    if (opts.afterContainer && opts.afterContainer.parentNode) {
+      opts.afterContainer.parentNode.insertBefore(container, opts.afterContainer.nextSibling);
+    } else {
+      form.appendChild(container);
+    }
+    return input;
+  }
+
+  function ensureExtraRegisterFields(form) {
+    // Anchor: the user-type select's container (always first after our
+    // ensureUserTypeSelect inserts it). FirstName + LastName go right after
+    // it so the visual order matches OLD: User Type \xb7 First Name \xb7 Last Name \xb7
+    // [user name \xb7 email \xb7 password \xb7 confirm password].
+    var selectContainer = form.querySelector('#external-user-type');
+    selectContainer = selectContainer ? selectContainer.closest('.form-floating, .mb-2, .mb-3') : null;
+
+    var lastNameInput = ensureTextInput(form, {
+      id: 'external-last-name',
+      name: 'LastName',
+      label: 'Last Name',
+      autocomplete: 'family-name',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    var firstNameInput = ensureTextInput(form, {
+      id: 'external-first-name',
+      name: 'FirstName',
+      label: 'First Name',
+      autocomplete: 'given-name',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    // OLD parity: Firm Name input shown for the two attorney roles
+    // (Applicant Attorney = 3, Defense Attorney = 4). Hidden for the
+    // other roles. Backend ValidateRegistrationInput requires FirmName
+    // non-empty for attorney roles; submitting an attorney without a
+    // Firm Name would throw BusinessException.
+    var firmNameInput = ensureTextInput(form, {
+      id: 'external-firm-name',
+      name: 'FirmName',
+      label: 'Firm Name',
+      autocomplete: 'organization',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    function applyRoleVisibility() {
+      // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
+      // every role -- Patient, Adjuster (Claim Examiner), Patient Attorney
+      // (Applicant Attorney), Defense Attorney -- has FirstName + LastName
+      // columns and the OLD register form collects them for everyone. Only
+      // FirmName is attorney-only. Earlier NEW behavior hid First/Last for
+      // attorneys, leaving IdentityUser.Name + Surname null and breaking
+      // the welcome banner, the booking-form pre-fill, and the attorney
+      // lookup labels (all of which read those two fields).
+      var select = form.querySelector('#external-user-type');
+      var role = select ? Number(select.value || 1) : 1;
+      var isAttorney = role === 3 || role === 4;
+      var firstWrap = firstNameInput.closest('.form-floating, .mb-2, .mb-3');
+      var lastWrap = lastNameInput.closest('.form-floating, .mb-2, .mb-3');
+      var firmWrap = firmNameInput.closest('.form-floating, .mb-2, .mb-3');
+      if (firstWrap) firstWrap.style.display = '';
+      if (lastWrap) lastWrap.style.display = '';
+      if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+    }
+
+    var roleSelect = form.querySelector('#external-user-type');
+    if (roleSelect && !roleSelect.dataset.roleVisibilityHook) {
+      roleSelect.dataset.roleVisibilityHook = 'true';
+      roleSelect.addEventListener('change', applyRoleVisibility);
+    }
+    applyRoleVisibility();
+
+    // Confirm Password input after the existing password field. ABP renders
+    // password as #password (LeptonX) or input[type="password"]. Anchor on
+    // whichever is present.
+    var passwordInput = form.querySelector('#password, input[name="Input.Password"], input[type="password"]');
+    var passwordContainer = passwordInput
+      ? passwordInput.closest('.form-floating, .mb-2, .mb-3, .input-group')
+      : null;
+    if (passwordContainer && !form.querySelector('#external-confirm-password')) {
+      ensureTextInput(form, {
+        id: 'external-confirm-password',
+        name: 'ConfirmPassword',
+        label: 'Confirm Password',
+        type: 'password',
+        autocomplete: 'new-password',
+        required: true,
+        afterContainer: passwordContainer,
+      });
+    }
+
+    log('First/Last/Confirm Password injected.');
+    return { firstNameInput: firstNameInput, lastNameInput: lastNameInput };
+  }
+
+  // OLD parity (P:\PatientPortalOld\.../user-add.component.html:50-53):
+  // T&C paragraph below the submit button. Idempotent.
+  function ensureTermsBlock(form) {
+    if (form.querySelector('#external-signup-terms')) return;
+    var btn = form.querySelector('button[type="submit"], #register, .register-btn');
+    var anchor = btn ? (btn.closest('.form-floating, .mb-3, .mb-2') || btn) : null;
+    var div = document.createElement('div');
+    div.id = 'external-signup-terms';
+    div.className = 'small text-muted mt-3';
+    div.innerHTML =
+      'By clicking "Sign Up", you agree to our '
+      + '<a href="#" target="_blank" rel="noopener">terms of service and privacy policy</a>'
+      + '. We’ll occasionally send you account related emails.';
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(div, anchor.nextSibling);
+    } else {
+      form.appendChild(div);
+    }
+  }
+
+  // OLD parity: OLD's register form has only Email -- no separate User name.
+  // ABP's stock cshtml renders Input.UserName as a required field. Our custom
+  // submit endpoint (/api/public/external-signup/register) doesn't accept a
+  // username (it derives it server-side from the email). Hiding the visible
+  // field + dropping the client-side validation requirement is enough; the
+  // hidden input still sits in the form for ABP's PageModel binding (which
+  // we never reach, since the submit hooks short-circuit to fetch).
+  function hideUserNameField(form) {
+    var input = form.querySelector('#input-user-name, input[name="Input.UserName"]');
+    if (!input) return;
+    var container = input.closest('.form-floating, .mb-3, .mb-2');
+    if (container) container.style.display = 'none';
+  }
+
   // Read the AuthServer's `__tenant` cookie. ABP's tenant resolver writes this
   // cookie when the user clicks the top-of-page "switch" link and picks a
   // tenant. The cookie's value is the tenant id (GUID). Returns null if not
@@ -165,13 +341,16 @@
     return value || null;
   }
 
-  // 1.6 / W-REG-4 (2026-04-30): tenant resolution priority on /Account/Register.
+  // 1.6 / W-REG-4 (2026-04-30, revised 2026-05-06): tenant resolution priority
+  // on /Account/Register.
   //   1. ?__tenant=<TenantName> query string (highest -- invite links carry it)
-  //   2. __tenant cookie (next -- set by login or prior tenant-switch)
-  //   3. Nothing -> register is blocked with an inline error.
-  // The query string carries the tenant NAME (per S-6.1 invite-URL shape); the
-  // cookie carries the tenant ID (GUID). We need the GUID for the API call,
-  // so when only the name is in hand we resolve via GetTenantOptionsAsync.
+  //   2. URL subdomain `<slug>.localhost` (mirrors server's DomainTenantResolver)
+  //   3. __tenant cookie (set by login or prior tenant-switch)
+  //   4. Nothing -> register is blocked with an inline error.
+  // The query string and subdomain carry the tenant NAME; the cookie carries
+  // the tenant ID (GUID). We need the GUID for the API call, so when only the
+  // name is in hand we resolve via the public `resolve-tenant` endpoint
+  // (case-insensitive exact match on Tenant.Name).
   function readTenantFromQuery() {
     try {
       var params = new URLSearchParams(window.location.search);
@@ -191,6 +370,32 @@
       var params = new URLSearchParams(window.location.search);
       var raw = params.get(name);
       return raw ? raw.trim() : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // ADR-006 -- mirror server-side DomainTenantResolveContributor on the client.
+  // The server resolves tenant from the leftmost Host-header label (e.g.
+  // `falkinstein.localhost` -> Falkinstein tenant). Without this helper, a user
+  // who navigates directly to `http://<slug>.localhost:44368/Account/Register`
+  // sees the tenant in the rendered page but the submit JS rejects with
+  // "Tenant required" because it only inspects ?__tenant= and the cookie.
+  // Returns the slug or null for bare `localhost`, IPs, and reserved labels.
+  function readTenantFromSubdomain() {
+    try {
+      var host = window.location.hostname;
+      if (!host) return null;
+      // IPv4 / IPv6 -- no slug to extract.
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null;
+      if (host.indexOf(':') !== -1) return null;
+      var parts = host.split('.');
+      if (parts.length < 2) return null; // e.g. bare `localhost`
+      var slug = parts[0].trim();
+      if (!slug) return null;
+      var reserved = ['www', 'localhost'];
+      if (reserved.indexOf(slug.toLowerCase()) !== -1) return null;
+      return slug;
     } catch (_e) {
       return null;
     }
@@ -249,6 +454,22 @@
       return tenantContextCache;
     }
 
+    // URL subdomain is as authoritative as ?__tenant= -- the server's
+    // DomainTenantResolveContributor uses the same source. A stale cookie
+    // from a different tenant must not override the current URL's slug.
+    var tenantNameFromSubdomain = readTenantFromSubdomain();
+    if (tenantNameFromSubdomain) {
+      var resolvedSub = await resolveTenantIdByName(tenantNameFromSubdomain);
+      if (resolvedSub) {
+        tenantContextCache = resolvedSub;
+        return tenantContextCache;
+      }
+      // Slug present but no tenant matched -- block (do not fall back to
+      // cookie; the URL's intent must not be silently overridden).
+      tenantContextCache = { id: null, name: tenantNameFromSubdomain, invalid: true };
+      return tenantContextCache;
+    }
+
     var cookieValue = readTenantCookie();
     if (cookieValue) {
       tenantContextCache = { id: cookieValue, name: null };
@@ -294,6 +515,58 @@
     }
   }
 
+  /**
+   * Replace the register form with a success banner + two buttons:
+   * primary "Verify Email" (link to the existing ResendVerification page
+   * with autosend=1 so the verification email goes out on landing) and
+   * secondary "Sign In".
+   *
+   * Issue 1.4 (2026-05-12): the previous flow only offered Sign In and
+   * told users to verify after login. The new flow surfaces the verify
+   * step as the primary action so users don't have to log in first to
+   * receive the verification email. The autosend handshake delegates to
+   * the existing ResendVerification.cshtml.cs page model (which already
+   * enforces rate limits + the same surface for ResendEmailVerificationAsync).
+   */
+  function showSignupSuccess(form, email) {
+    // Issue #106b (2026-05-13) -- if a prior user is still cookie-authed
+    // at the AuthServer when this register completes, the next
+    // /connect/authorize from the new user's Sign In click would
+    // silently issue tokens for the prior user (because their Identity.
+    // ApplicationScheme cookie is still alive). Fire-and-forget GET to
+    // /Account/Logout BEFORE rendering the buttons clears every Identity
+    // scheme + the __tenant / XSRF-TOKEN cookies that ABP set. We use
+    // redirect:'manual' so the fetch does not follow the redirect to
+    // the SPA; the Set-Cookie headers from the 302 response are still
+    // applied by the browser, so the cookie cleanup takes effect.
+    try {
+      fetch('/Account/Logout', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
+        .catch(function () { /* best-effort */ });
+    } catch (e) { /* best-effort */ }
+    var safeEmail = String(email || '').replace(/[<>&"']/g, function (ch) {
+      switch (ch) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '"': return '&quot;';
+        default: return '&#39;';
+      }
+    });
+    var loginUrl = '/Account/Login?username=' + encodeURIComponent(email || '');
+    var verifyUrl = '/Account/ResendVerification?context=register&email='
+      + encodeURIComponent(email || '') + '&autosend=1';
+    form.innerHTML =
+      '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
+        '<strong>Account created.</strong>' +
+        '<div style="margin-top:0.25rem;">' +
+          'We created your account at <strong>' + safeEmail + '</strong>. ' +
+          'Verify your email and sign in to finish setup.' +
+        '</div>' +
+      '</div>' +
+      '<a href="' + verifyUrl + '" class="btn btn-primary" style="width:100%;margin-bottom:0.5rem;">Verify Email</a>' +
+      '<a href="' + loginUrl + '" class="btn btn-outline-secondary" style="width:100%;">Sign In</a>';
+  }
+
   async function submitExternalSignup(form) {
     if (isSubmitting) {
       log('Submit ignored. Request is already in-flight.');
@@ -311,17 +584,60 @@
       'input[name="Input.EmailAddress"]',
       'input[type="email"]',
     ]);
-    const password = getFirstValue(form, ['#password', 'input[name="Input.Password"]', 'input[type="password"]']);
+    // Look up password fields by stable id / name -- NEVER by
+    // `input[type="password"]`. LeptonX's "Show password" eye-icon
+    // (and many password-manager autofills) toggle the input's type
+    // to `text` for visibility; a type-based query would then miss
+    // the field entirely.
+    //
+    // 2026-05-13 fix: prior version used type="password" as the
+    // fallback for confirmPassword, which returned empty whenever the
+    // user (or their password manager) had toggled visibility on the
+    // Password field -- producing a spurious "Please confirm your
+    // password." error even though both fields were filled correctly.
+    const password = getFirstValue(form, [
+      '#password-input',
+      '#password',
+      'input[name="Input.Password"]',
+    ]);
+    const confirmPassword = getFirstValue(form, [
+      '#external-confirm-password',
+      'input[name="ConfirmPassword"]',
+      'input[name="Input.ConfirmPassword"]',
+    ]);
 
-    if (!username || !email || !password) {
-      notifyRegisterFailure(form, 'Please fill username, email and password.');
-      log('Validation failed before API call.', { usernamePresent: !!username, emailPresent: !!email, passwordPresent: !!password });
+    // OLD parity 2026-05-06: Username field is hidden and not part of the
+    // submit payload (server derives username from email). Validate
+    // email + password + confirm-password presence and equality.
+    if (!email || !password) {
+      notifyRegisterFailure(form, 'Please fill email and password.');
+      log('Validation failed before API call.', { emailPresent: !!email, passwordPresent: !!password });
+      return;
+    }
+    if (!confirmPassword) {
+      notifyRegisterFailure(form, 'Please confirm your password.');
+      log('Validation failed: confirmPassword empty.');
+      return;
+    }
+    if (confirmPassword !== password) {
+      notifyRegisterFailure(form, 'Passwords do not match.');
+      log('Validation failed: confirmPassword mismatch.');
       return;
     }
     clearInlineRegisterError(form);
 
-    const selectedRoleValue = Number((select && select.value) || 1);
-    const userType = Number.isFinite(selectedRoleValue) && selectedRoleValue > 0 ? selectedRoleValue : 1;
+    // 2026-05-13 (BUG-004 follow-up) -- with the leading disabled
+    // placeholder, an unsubmitted form has select.value === ''. Reject
+    // explicitly instead of silently coalescing to Patient(1); the
+    // user must consciously pick a role.
+    const rawSelectValue = select && select.value;
+    const selectedRoleValue = Number(rawSelectValue);
+    if (!rawSelectValue || !Number.isFinite(selectedRoleValue) || selectedRoleValue <= 0) {
+      notifyRegisterFailure(form, 'Please select a user type.');
+      log('Validation failed: no user type selected.');
+      return;
+    }
+    const userType = selectedRoleValue;
 
     // 1.6 (2026-04-30): tenant resolution priority is query > cookie. Cached
     // on init() so this is a fast path; null means we never resolved one.
@@ -336,15 +652,26 @@
     }
     const tenantId = ctx.id;
 
-    // Names are not collected on the register form. They are captured later
-    // on the booking form's patient/AA/DA/CE section. Submit null so the
-    // server stores nullable defaults rather than falsy fallbacks.
+    // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
+    // First Name + Last Name are collected for every role; Firm Name is
+    // additional for the two attorney roles (Applicant Attorney = 3,
+    // Defense Attorney = 4). Always send First / Last so the
+    // IdentityUser.Name / Surname columns never end up null -- the
+    // welcome banner, booking-form pre-fill, and attorney lookup all
+    // read those two fields.
+    const firstName = getFirstValue(form, ['#external-first-name', 'input[name="FirstName"]']);
+    const lastName = getFirstValue(form, ['#external-last-name', 'input[name="LastName"]']);
+    const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
+    const isAttorney = userType === 3 || userType === 4;
+
     const payload = {
       userType: userType,
-      firstName: null,
-      lastName: null,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      firmName: isAttorney ? (firmName || null) : null,
       email: email,
       password: password,
+      confirmPassword: confirmPassword,
       tenantId: tenantId,
     };
 
@@ -389,11 +716,17 @@
         return;
       }
 
-      // Do not forward stale OIDC query params after signup.
-      // Reusing previous state/nonce can break Angular OAuth flow.
-      const loginUrl = '/Account/Login';
-      log('Signup success. Redirecting to:', loginUrl);
-      window.location.assign(loginUrl);
+      // 2026-05-06 (Adrian, Option B): keep the user on the register page
+      // and show an in-place success banner with a manual "Sign In" link,
+      // instead of silently redirecting to /Account/Login. Reason: the
+      // register POST returns 204 with no body, so without a banner the
+      // user has no confirmation that anything happened. After clicking
+      // Sign In, ABP's login flow detects EmailConfirmed=false and routes
+      // to /Account/ConfirmUser, where the Verify button calls
+      // /api/account/send-email-confirmation-token -> our
+      // CaseEvaluationAccountEmailer override fires the email.
+      log('Signup success. Showing in-place success banner.');
+      showSignupSuccess(form, email);
     } catch (error) {
       log('Fetch threw error:', error);
       notifyRegisterFailure(form, 'Unable to register now. Please try again.');
@@ -488,6 +821,73 @@
 
     log('Enter key submit intercepted.');
     submitExternalSignup(form);
+  }
+
+  // 2026-05-13 (BUG-005) -- gate the Sign Up submit button on form
+  // validity. Required by OLD parity (button is disabled on a fresh
+  // load until every required field is filled). Inputs that should
+  // gate the submit: User Type select, First Name, Last Name, Email,
+  // Password, Confirm Password. We listen on input + change so the
+  // state is responsive to both typing and dropdown selection.
+  function ensureButtonDisabledBinding(form) {
+    if (!form || form.dataset.signUpDisabledBindingAttached === 'true') {
+      return;
+    }
+    var submitBtn =
+      form.querySelector('button#external-signup-submit') ||
+      form.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+      log('ensureButtonDisabledBinding: no submit button found.');
+      return;
+    }
+    form.dataset.signUpDisabledBindingAttached = 'true';
+
+    function getRequiredInputs() {
+      // Collect inputs each time the listener fires -- the register
+      // form's First Name / Last Name / Firm Name fields are injected
+      // dynamically, so the set isn't stable at init() time.
+      return Array.prototype.slice.call(
+        form.querySelectorAll('input[required], select[required]')
+      );
+    }
+
+    function updateButtonState() {
+      var inputs = getRequiredInputs();
+      if (inputs.length === 0) {
+        // Defensive: leave the button enabled if no required inputs
+        // are present (e.g. fields not yet injected); the submit
+        // handler still re-validates.
+        submitBtn.removeAttribute('disabled');
+        return;
+      }
+      var allFilled = inputs.every(function (input) {
+        var val = (input.value || '').trim();
+        if (val === '') return false;
+        // Reject the placeholder option ("") for required selects.
+        if (input.tagName === 'SELECT' && input.required && val === '') return false;
+        return true;
+      });
+      if (allFilled) {
+        submitBtn.removeAttribute('disabled');
+      } else {
+        submitBtn.setAttribute('disabled', 'disabled');
+      }
+    }
+
+    // Initial state: disabled until the user fills at least the
+    // currently-visible required inputs.
+    submitBtn.setAttribute('disabled', 'disabled');
+
+    // Delegate from the form so dynamically-added fields are covered
+    // without needing to re-bind every time ensureExtraRegisterFields
+    // mutates the DOM.
+    form.addEventListener('input', updateButtonState);
+    form.addEventListener('change', updateButtonState);
+
+    // First pass right after attach, in case fields are already
+    // pre-filled (e.g. email prefill from query string).
+    updateButtonState();
+    log('Sign Up button disabled-binding attached.');
   }
 
   function patchNativeFormSubmit() {
@@ -638,11 +1038,12 @@
       setRegisterFormDisabled(form, true, true);
       return;
     }
-    var practiceLabel = ctx.name ? ('"' + ctx.name + '"') : 'the selected practice';
-    ensureExternalRegisterBanner(
-      form,
-      'Registering for ' + practiceLabel + '. To register at a different practice, use that practice\'s portal link.',
-      'info');
+    // 2026-05-06 (Adrian): the informational "Registering for {practice}.
+    // To register at a different practice, use that practice's portal link."
+    // banner is removed -- the practice context is already obvious from the
+    // subdomain in the URL bar, and OLD's register page has no equivalent
+    // affordance. The danger-level banners above (tenant missing / invalid)
+    // remain because they convey blocker state, not informational chrome.
     setRegisterFormDisabled(form, false, false);
   }
 
@@ -660,6 +1061,14 @@
     }
 
     var select = ensureUserTypeSelect(form);
+    ensureExtraRegisterFields(form);
+    ensureTermsBlock(form);
+    hideUserNameField(form);
+    // 2026-05-13 (BUG-005) -- wire Sign Up disabled-state to form
+    // validity. Must run AFTER ensureExtraRegisterFields so the
+    // First/Last/Firm Name inputs (added by that function) are in the
+    // DOM when the binding queries for required inputs.
+    ensureButtonDisabledBinding(form);
 
     // 1.6 (2026-04-30): tenant banner + email/role pre-fill from query string.
     // Run after the role dropdown is in the DOM so applyRolePrefill can find

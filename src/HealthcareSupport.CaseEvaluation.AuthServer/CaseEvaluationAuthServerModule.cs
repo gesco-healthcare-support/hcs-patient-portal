@@ -52,6 +52,8 @@ using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.AspNetCore.Authentication.Twitter;
 using Volo.Saas.Host;
 using Volo.Abp.OpenIddict;
+using Volo.Abp.OpenIddict.WildcardDomains;
+using Volo.Abp.MultiTenancy;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -73,7 +75,12 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(AbpAccountPublicWebImpersonationModule),
     typeof(AbpAspNetCoreSerilogModule),
     typeof(AbpAspNetCoreMvcUiLeptonXThemeModule),
-    typeof(CaseEvaluationEntityFrameworkCoreModule)
+    typeof(CaseEvaluationEntityFrameworkCoreModule),
+    // Phase 1.D follow-up (2026-05-08): DependsOn the Application module so
+    // the AuthServer's DI container can resolve IExternalAccountAppService
+    // (used by Pages/Account/ResendVerification.cshtml.cs to dispatch the
+    // verification email through the same path as the API host).
+    typeof(CaseEvaluationApplicationModule)
     )]
 public class CaseEvaluationAuthServerModule : AbpModule
 {
@@ -90,6 +97,22 @@ public class CaseEvaluationAuthServerModule : AbpModule
                 options.UseLocalServer();
                 options.UseAspNetCore();
             });
+        });
+
+        // ADR-006 (2026-05-05) -- subdomain tenant routing.
+        // Tells OpenIddict to accept redirect_uris and post_logout_redirect_uris
+        // matching the wildcard pattern http://{slug}.localhost so a single
+        // registered client (CaseEvaluation_App) covers every tenant subdomain.
+        // The "{0}" token is filled with the resolved tenant slug at request time.
+        // Per Volosoft Medium article cited in ADR-006 (sourced 2026-05-05).
+        PreConfigure<AbpOpenIddictWildcardDomainOptions>(options =>
+        {
+            options.EnableWildcardDomainSupport = true;
+            // Wildcard formats are matched against incoming redirect_uri values.
+            // Each registered RootUrl below is rewritten {0} -> tenant-slug at runtime.
+            options.WildcardDomainsFormat.Add("http://{0}.localhost:4200");
+            options.WildcardDomainsFormat.Add("http://{0}.localhost:44368");
+            options.WildcardDomainsFormat.Add("http://{0}.localhost:44327");
         });
 
         if (!hostingEnvironment.IsDevelopment())
@@ -151,6 +174,23 @@ public class CaseEvaluationAuthServerModule : AbpModule
                     typeof(AbpUiResource),
                     typeof(AccountResource)
                 );
+
+            // OLD-parity label overrides for stock ABP Razor pages. ABP's
+            // .cshtml uses IStringLocalizer<AbpUiResource> /
+            // IStringLocalizer<AccountResource> directly; our
+            // CaseEvaluationResource inherits from those, so keys defined
+            // there only win for derived-resource lookups (NOT for direct
+            // base-resource lookups in stock Razor). Inject overrides into
+            // the base resources themselves so e.g. AbpUi::Register
+            // resolves to "Sign Up" and AbpAccount::AlreadyRegistered
+            // resolves to "Already have an account?".
+            options.Resources
+                .Get<AbpUiResource>()
+                .AddVirtualJson("/Localization/AbpUiOverride");
+
+            options.Resources
+                .Get<AccountResource>()
+                .AddVirtualJson("/Localization/AccountOverride");
         });
 
         Configure<AbpBundlingOptions>(options =>
@@ -179,10 +219,27 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         if (hostingEnvironment.IsDevelopment())
         {
+            // Hot-reload of Domain.Shared / Domain physical files is only
+            // useful when the source tree is mounted next to the running
+            // host (i.e. `dotnet run` from src/...AuthServer). In Docker the
+            // source isn't copied/mounted, so ReplaceEmbeddedByPhysical
+            // would replace the embedded fileset with an EMPTY directory --
+            // nuking all localization JSON and surfacing literal keys
+            // (`AppName`, `Menu:Home`, `Enum:BookingStatus.8`, etc.) on
+            // every rendered page. Guard with Directory.Exists so the
+            // embedded fileset survives in Docker.
+            var sharedPath = Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}HealthcareSupport.CaseEvaluation.Domain.Shared", Path.DirectorySeparatorChar));
+            var domainPath = Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}HealthcareSupport.CaseEvaluation.Domain", Path.DirectorySeparatorChar));
             Configure<AbpVirtualFileSystemOptions>(options =>
             {
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}HealthcareSupport.CaseEvaluation.Domain.Shared", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}HealthcareSupport.CaseEvaluation.Domain", Path.DirectorySeparatorChar)));
+                if (Directory.Exists(sharedPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(sharedPath);
+                }
+                if (Directory.Exists(domainPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(domainPath);
+                }
             });
         }
 
@@ -208,9 +265,20 @@ public class CaseEvaluationAuthServerModule : AbpModule
         if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
         {
             var dataProtectionBuilder = context.Services.AddDataProtection().SetApplicationName("CaseEvaluation");
-            if (!hostingEnvironment.IsDevelopment())
+
+            // Persist DataProtection keys to Redis whenever a Redis connection is
+            // configured, in BOTH dev and prod. Reason: AuthServer + HttpApi.Host
+            // run as separate Docker containers (separate filesystems), so the
+            // default key store is per-container. ABP-Identity tokens (e.g.
+            // EmailConfirmation) generated by the API host fail validation
+            // when the AuthServer's confirm-email endpoint tries to decrypt
+            // them -- the request returns 403 with "Volo.Abp.Identity:InvalidToken".
+            // Redis-backed shared keys + matching SetApplicationName above make
+            // both processes interchangeable validators.
+            var redisConfig = configuration["Redis:Configuration"];
+            if (!string.IsNullOrWhiteSpace(redisConfig))
             {
-                var redis = ConnectionMultiplexer.Connect(configuration["Redis:Configuration"]!);
+                var redis = ConnectionMultiplexer.Connect(redisConfig);
                 dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, "CaseEvaluation-Protection-Keys");
             }
 
@@ -297,9 +365,13 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
         });
 
+        // 2026-05-12 (Issue 1.5) — light is the default for first-time
+        // visitors to AuthServer Razor pages (login / register / email
+        // confirmation). Users who explicitly toggle to dark still keep
+        // that choice via the LeptonX cookie.
         Configure<LeptonXThemeOptions>(options =>
         {
-            options.DefaultStyle = LeptonXStyleNames.System;
+            options.DefaultStyle = LeptonXStyleNames.Light;
         });
 
         Configure<AbpSecurityHeadersOptions>(options =>
@@ -307,7 +379,54 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.Headers["X-Frame-Options"] = "DENY";
         });
 
+        // 2026-05-13 -- map RegistrationDuplicateEmail to HTTP 400.
+        // Mirrors the same config in CaseEvaluationHttpApiHostModule.
+        // The /api/public/external-signup/register endpoint is loaded
+        // into BOTH the AuthServer host (port 44369) and the
+        // HttpApi.Host (port 44328) -- the SPA hits the AuthServer
+        // path during the register flow so BOTH host modules must
+        // contribute the same status-code remap.
+        Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
+        {
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+        });
+
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
+
+        ConfigureMultiTenancy();
+    }
+
+    /// <summary>
+    /// ADR-006 (2026-05-05) -- subdomain tenant routing.
+    ///
+    /// Clears ABP's default tenant resolver chain (CurrentUser, QueryString,
+    /// Route, Header, Cookie) and rebuilds it with only two contributors so
+    /// the URL is the SOLE source of tenant identity:
+    ///   1. CurrentUser  -- security default; must be first per ABP docs.
+    ///   2. Domain       -- "{slug}.localhost" pattern reads tenant from Host header.
+    ///
+    /// Dropping QueryString + Cookie + Header + Route prevents a knowledgeable
+    /// caller from sending ?__tenant=GUID and switching tenants from the URL
+    /// bar. This is HIPAA-relevant: see ADR-006 Context section.
+    /// </summary>
+    private void ConfigureMultiTenancy()
+    {
+        Configure<AbpTenantResolveOptions>(options =>
+        {
+            options.TenantResolvers.Clear();
+            options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            // ADR-007 (2026-05-11): HostAwareDomainTenantResolveContributor
+            // replaces the stock DomainTenantResolveContributor so the
+            // reserved subdomain "admin" maps to Host context instead of
+            // 404. The stock contributor sets context.TenantIdOrName from
+            // the host and ABP's MultiTenancyMiddleware throws 404 when
+            // the slug is not a registered tenant -- which broke the
+            // intended Host surface URL admin.localhost:44368.
+            options.TenantResolvers.Add(
+                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+        });
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
@@ -332,6 +451,13 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         app.UseCorrelationId();
         app.UseRouting();
+        // Issue #107 (2026-05-13) -- the silent-refresh wiring was ripped
+        // (broken on the @abp/ng.oauth interceptor; refresh-token rotation
+        // covers the access_token-renewal use case without an iframe).
+        // The path-scoped X-Frame-Options / CSP override that previously
+        // lived here is gone with it; the global "X-Frame-Options: DENY"
+        // now applies to every path, restoring clickjacking protection
+        // across the whole AuthServer surface.
         app.MapAbpStaticAssets();
         app.UseAbpStudioLink();
         app.UseAbpSecurityHeaders();

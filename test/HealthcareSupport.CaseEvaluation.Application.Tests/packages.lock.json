@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "FluentValidation": {
+        "type": "Direct",
+        "requested": "[12.1.1, )",
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.14.1, )",
@@ -84,6 +90,11 @@
           "Castle.Core": "4.4.0"
         }
       },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.0",
+        "contentHash": "flxspiBs0G/0GMp7IK2J2ijV9bTG6hEwFc/z6ekHqB6nwRJ4Ry2yLdx+TkbCUYFCl4XhABkAwomeKbT6zM2Zlg=="
+      },
       "DiffEngine": {
         "type": "Transitive",
         "resolved": "11.3.0",
@@ -91,6 +102,22 @@
         "dependencies": {
           "EmptyFiles": "4.4.0",
           "System.Management": "6.0.1"
+        }
+      },
+      "DocumentFormat.OpenXml": {
+        "type": "Transitive",
+        "resolved": "3.5.1",
+        "contentHash": "zxdOf5VVCe/uNklbRhj8dVBzQGj3DoqkUuqOp9cAZVuN8mNYDjof1lvSQA2OQNr8Ptc9d7pbA7Azq/ReaI3FpA==",
+        "dependencies": {
+          "DocumentFormat.OpenXml.Framework": "3.5.1"
+        }
+      },
+      "DocumentFormat.OpenXml.Framework": {
+        "type": "Transitive",
+        "resolved": "3.5.1",
+        "contentHash": "U5txtc3ORno73xQx9Lf2gWzfaSZnZwKHfLkTAslhlew9lxe5XbUiCt0dY1fHeAf8yRqszUAe5i/+xLC9R/Xfsw==",
+        "dependencies": {
+          "System.IO.Packaging": "10.0.2"
         }
       },
       "Duende.IdentityModel": {
@@ -112,6 +139,14 @@
         "type": "Transitive",
         "resolved": "2.7.15",
         "contentHash": "7Ill/5hdR/JiK7Dv6LpWF7rcbT8eygzrW1lSfunju915i+yE8lF/c4bBVTnl08g/9SLevcbkv5M6VoSjnXRKSw=="
+      },
+      "MailKit": {
+        "type": "Transitive",
+        "resolved": "4.16.0",
+        "contentHash": "trJ82DOpAmo8i1jO1vNE+dGn4mPRyeYfy4swRcAGgMJhPoI1Kohf4OFJJf0+YIj4iUxgxPn8W+ht7e7KiYzSjg==",
+        "dependencies": {
+          "MimeKit": "4.16.0"
+        }
       },
       "Microsoft.AspNetCore.Authorization": {
         "type": "Transitive",
@@ -464,10 +499,31 @@
           "Newtonsoft.Json": "13.0.3"
         }
       },
+      "MimeKit": {
+        "type": "Transitive",
+        "resolved": "4.16.0",
+        "contentHash": "X0LFxeM4gPRIhODyY/HYS9b+zRZ7y//v59rFzgS6wLxcPuZThnMtNZHtrr0fjLyRRkg3gqJBtvW36XfUzZ7Djw==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.6.2",
+          "System.Security.Cryptography.Pkcs": "10.0.0"
+        }
+      },
       "MiniExcel": {
         "type": "Transitive",
         "resolved": "1.41.4",
         "contentHash": "fQwTTA2awWICM4xqjkldGTkAEr+U8TfncNdd7CCdQIMo3khCXoFkA1F080Ts8el7oeuRNhRauYjQs8aU0Z6v9Q=="
+      },
+      "Minio": {
+        "type": "Transitive",
+        "resolved": "6.0.5",
+        "contentHash": "AK3JIDZnFZg2Hpkqo6vlzyiEC4OifG+jQbuqpAtXePnIo49G4pNn27THh3DI8s4o84b/MMBQF+n1DEwBNenxsg==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Logging": "9.0.4",
+          "System.IO.Hashing": "9.0.4",
+          "System.Reactive": "6.0.1"
+        }
       },
       "Newtonsoft.Json": {
         "type": "Transitive",
@@ -556,6 +612,11 @@
         "resolved": "8.6.3",
         "contentHash": "xRlcE+1FidqIfZ7zxBT6klSblJ/7MAJq1x5yvYoLnwNhs8Xc2gp3Srf8wHG2NpFxVBqrldc3svhkMPJjSzTmzw=="
       },
+      "QuestPDF": {
+        "type": "Transitive",
+        "resolved": "2026.2.4",
+        "contentHash": "fajBdRJFr3hu2Mr6mEVsXjvVKD9Q/Q6hfPEUMpV/xlwxWdFebmpGdi0FLQTApMvpapy72v9dvcGuk7e7NQmQyQ=="
+      },
       "Riok.Mapperly": {
         "type": "Transitive",
         "resolved": "4.3.1",
@@ -595,6 +656,16 @@
         "resolved": "6.0.0",
         "contentHash": "lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.4",
+        "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
+      },
+      "System.IO.Packaging": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
+      },
       "System.Linq.Dynamic.Core": {
         "type": "Transitive",
         "resolved": "1.6.7",
@@ -607,6 +678,11 @@
         "dependencies": {
           "System.CodeDom": "10.0.0"
         }
+      },
+      "System.Reactive": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "rHaWtKDwCi9qJ3ObKo8LHPMuuwv33YbmQi7TcUK1C264V3MFnOr5Im7QgCTdLniztP3GJyeiSg5x8NqYJFqRmg=="
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
@@ -876,6 +952,15 @@
           "Volo.Abp.Validation": "10.0.2"
         }
       },
+      "Volo.Abp.BlobStoring.Minio": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "MxKJyJc00DBCT9r0hnqfUGuxD+H2iKlMIFavHtDfOWTRH7JFGLU2lvJdN4VtJVfoiypQ8G62SDBRmfExJKRzsQ==",
+        "dependencies": {
+          "Minio": "6.0.5",
+          "Volo.Abp.BlobStoring": "10.0.2"
+        }
+      },
       "Volo.Abp.Caching": {
         "type": "Transitive",
         "resolved": "10.0.2",
@@ -1105,6 +1190,15 @@
           "Volo.Abp.Authorization.Abstractions": "10.0.2",
           "Volo.Abp.Localization": "10.0.2",
           "Volo.Abp.MultiTenancy": "10.0.2",
+          "Volo.Abp.Validation": "10.0.2"
+        }
+      },
+      "Volo.Abp.FluentValidation": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "zDtB3mVg5CaRwvqwv6tVKdYEYvBFxm/VCCXM2qwX95kCxWxD4a2xn8GVf16sC5LKyKmuQyQ7/8hQrtMlEXvHaA==",
+        "dependencies": {
+          "FluentValidation": "12.0.0",
           "Volo.Abp.Validation": "10.0.2"
         }
       },
@@ -1389,6 +1483,15 @@
         "contentHash": "Jm1D3A1u2ia9hBgyLNdO8J86vHdmMd24k2/pseKyxUOpnixg6yf7xCkp2RwNyVjHtDmEVieFKixYSAB0DDAnEQ==",
         "dependencies": {
           "Volo.Abp.Core": "10.0.2"
+        }
+      },
+      "Volo.Abp.MailKit": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "6vDb6dene0dUslI3ztTEdREqkcfKE3fjDYP5b0xKJDEBUm66g+f0goRpSmvPijKyNC2nDy6EqcmGmcvUFRYRgg==",
+        "dependencies": {
+          "MailKit": "4.13.0",
+          "Volo.Abp.Emailing": "10.0.2"
         }
       },
       "Volo.Abp.Mapperly": {
@@ -2014,6 +2117,7 @@
           "Volo.Abp.Account.Pro.Public.Application": "[10.0.2, )",
           "Volo.Abp.AuditLogging.Application": "[10.0.2, )",
           "Volo.Abp.FeatureManagement.Application": "[10.0.2, )",
+          "Volo.Abp.FluentValidation": "[10.0.2, )",
           "Volo.Abp.Gdpr.Application": "[10.0.2, )",
           "Volo.Abp.Identity.Pro.Application": "[10.0.2, )",
           "Volo.Abp.LanguageManagement.Application": "[10.0.2, )",
@@ -2049,15 +2153,20 @@
       "healthcaresupport.caseevaluation.domain": {
         "type": "Project",
         "dependencies": {
+          "DocumentFormat.OpenXml": "[3.3.0, )",
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
+          "MailKit": "[4.16.0, )",
+          "MimeKit": "[4.16.0, )",
           "PDFsharp-MigraDoc": "[6.2.4, )",
           "PdfSharp": "[6.2.4, )",
+          "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.1.0, )",
           "Stateless": "[5.20.1, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
+          "Volo.Abp.BlobStoring.Minio": "[10.0.2, )",
           "Volo.Abp.Caching": "[10.0.2, )",
           "Volo.Abp.Commercial.SuiteTemplates": "[10.0.2, )",
           "Volo.Abp.Emailing": "[10.0.2, )",
@@ -2065,6 +2174,7 @@
           "Volo.Abp.Gdpr.Domain": "[10.0.2, )",
           "Volo.Abp.Identity.Pro.Domain": "[10.0.2, )",
           "Volo.Abp.LanguageManagement.Domain": "[10.0.2, )",
+          "Volo.Abp.MailKit": "[10.0.2, )",
           "Volo.Abp.OpenIddict.Pro.Domain": "[10.0.2, )",
           "Volo.Abp.PermissionManagement.Domain.Identity": "[10.0.2, )",
           "Volo.Abp.PermissionManagement.Domain.OpenIddict": "[10.0.2, )",
@@ -2099,6 +2209,7 @@
       "healthcaresupport.caseevaluation.domain.tests": {
         "type": "Project",
         "dependencies": {
+          "DocumentFormat.OpenXml": "[3.5.1, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.TestBase": "[1.0.0, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",

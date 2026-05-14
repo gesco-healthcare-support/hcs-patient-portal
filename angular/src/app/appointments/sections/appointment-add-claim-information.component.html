@@ -1,0 +1,520 @@
+<!-- #121 phase T4 (2026-05-13) -- Claim Information section. Mirrors
+     OLD's appointment-add.component.html:285-596: Add button opens a
+     modal with cumulative-injury radio, dates, claim number, WCAB
+     office, ADJ#, body parts textarea, plus Insurance and Claim
+     Examiner sub-sections. Submitted injuries appear in a table below;
+     multi-injury per appointment supported.
+
+     The parent holds `injuryDrafts` and consumes it at submit time
+     (persistInjuryDraftsIfProvided + Bug C email fan-out resolver).
+     The section mutates the array in place via push / splice through
+     the Input by reference. -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="card-title mb-0 fw-bold">Claim Information</h5>
+    <button type="button" class="btn btn-primary btn-sm" (click)="openAddInjuryModal()">
+      Add
+      <i class="fa fa-plus ms-1"></i>
+    </button>
+  </div>
+  <div class="card-body">
+    @if (injuryDrafts.length === 0) {
+      <div class="text-secondary">No claim information added yet.</div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Date Of Injury</th>
+              <th>Claim Number</th>
+              <th>WCAB</th>
+              <th>Insurance Company</th>
+              <th>Claim Examiner</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (injury of injuryDrafts; track $index) {
+              <tr>
+                <td>
+                  @if (injury.isCumulativeInjury) {
+                    From: {{ injury.dateOfInjury }}
+                    <br />
+                    To: {{ injury.toDateOfInjury }}
+                  } @else {
+                    {{ injury.dateOfInjury }}
+                  }
+                </td>
+                <td>{{ injury.claimNumber }}</td>
+                <td>{{ injuryWcabOfficeName(injury.wcabOfficeId) }}</td>
+                <td>
+                  @if (injury.primaryInsurance.isActive) {
+                    {{ injury.primaryInsurance.name }}
+                  }
+                </td>
+                <td>
+                  @if (injury.claimExaminer.isActive) {
+                    {{ injury.claimExaminer.name }}
+                  }
+                </td>
+                <td class="text-end">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary me-2"
+                    (click)="openEditInjuryModal($index)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    (click)="removeInjury($index)"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+@if (isInjuryModalOpen) {
+  <div
+    class="modal fade show d-block"
+    tabindex="-1"
+    role="dialog"
+    style="background: rgba(0, 0, 0, 0.5)"
+  >
+    <div
+      class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"
+      role="document"
+    >
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Claim Information</h5>
+          <button
+            type="button"
+            class="btn-close"
+            aria-label="Close"
+            (click)="closeInjuryModal()"
+          ></button>
+        </div>
+        <div class="modal-body" [formGroup]="injuryForm">
+          <div class="row">
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-semibold">Cumulative Trauma Injury</label>
+              <div class="d-flex align-items-center gap-3">
+                <label class="form-check-label">
+                  <input
+                    type="radio"
+                    class="form-check-input me-1"
+                    formControlName="injuryCumulative"
+                    [value]="true"
+                    name="injuryCumulative"
+                  />
+                  Yes
+                </label>
+                <label class="form-check-label">
+                  <input
+                    type="radio"
+                    class="form-check-input me-1"
+                    formControlName="injuryCumulative"
+                    [value]="false"
+                    name="injuryCumulative"
+                  />
+                  No
+                </label>
+              </div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-semibold">
+                {{ injuryForm.get('injuryCumulative')?.value ? 'From Date' : 'Date Of Injury' }}
+                *
+              </label>
+              <input
+                type="date"
+                class="form-control"
+                [class.is-invalid]="
+                  injuryForm.get('injuryDateOfInjury')?.invalid &&
+                  injuryForm.get('injuryDateOfInjury')?.touched
+                "
+                formControlName="injuryDateOfInjury"
+                name="injuryDateOfInjury"
+              />
+            </div>
+            @if (injuryForm.get('injuryCumulative')?.value) {
+              <div class="col-md-2 mb-3">
+                <label class="form-label fw-semibold">To Date</label>
+                <input
+                  type="date"
+                  class="form-control"
+                  formControlName="injuryToDateOfInjury"
+                  name="injuryToDateOfInjury"
+                />
+              </div>
+            }
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-semibold">Claim Number *</label>
+              <input
+                type="text"
+                class="form-control"
+                [class.is-invalid]="
+                  injuryForm.get('injuryClaimNumber')?.invalid &&
+                  injuryForm.get('injuryClaimNumber')?.touched
+                "
+                maxlength="50"
+                formControlName="injuryClaimNumber"
+                name="injuryClaimNumber"
+              />
+            </div>
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-semibold">WCAB Office (Venue)</label>
+              <select
+                class="form-select"
+                formControlName="injuryWcabOfficeId"
+                name="injuryWcabOfficeId"
+              >
+                <option [ngValue]="null">Select</option>
+                @for (opt of wcabOfficeOptions; track opt.id) {
+                  <option [ngValue]="opt.id">{{ opt.displayName }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-semibold">ADJ#</label>
+              <input
+                type="text"
+                class="form-control"
+                maxlength="50"
+                formControlName="injuryWcabAdj"
+                name="injuryWcabAdj"
+              />
+            </div>
+            <div class="col-md-12 mb-3">
+              <label class="form-label fw-semibold">Body Parts *</label>
+              <textarea
+                class="form-control"
+                [class.is-invalid]="
+                  injuryForm.get('injuryBodyPartsSummary')?.invalid &&
+                  injuryForm.get('injuryBodyPartsSummary')?.touched
+                "
+                rows="2"
+                maxlength="500"
+                formControlName="injuryBodyPartsSummary"
+                name="injuryBodyPartsSummary"
+                placeholder="e.g. Lower back, right knee, left wrist"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 fw-bold">Insurance</h6>
+              <!--
+                Wave 2 #11 (2026-05-07): mirror OLD's <fieldset [disabled]="isAdjusterLogin">
+                wrap at appointment-add.component.html:378 of P:\PatientPortalOld. The CE
+                booker should not be able to toggle Insurance off; pre-filled values stay
+                visible (the @if below still renders). Parent computes
+                isInsuranceFieldsetDisabled (= isClaimExaminerRole && !isItAdmin).
+              -->
+              <fieldset
+                [disabled]="isInsuranceFieldsetDisabled"
+                class="form-check form-switch p-0 m-0 border-0"
+              >
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  id="injury-insurance-enabled"
+                  formControlName="injuryInsuranceEnabled"
+                  name="injuryInsuranceEnabled"
+                />
+                <label class="form-check-label" for="injury-insurance-enabled">Include</label>
+              </fieldset>
+            </div>
+            @if (injuryForm.get('injuryInsuranceEnabled')?.value) {
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Company Name *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryInsuranceName')?.invalid &&
+                        injuryForm.get('injuryInsuranceName')?.touched
+                      "
+                      maxlength="50"
+                      formControlName="injuryInsuranceName"
+                      name="injuryInsuranceName"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Attention</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="255"
+                      formControlName="injuryInsuranceAttention"
+                      name="injuryInsuranceAttention"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Phone Number</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="12"
+                      formControlName="injuryInsurancePhone"
+                      name="injuryInsurancePhone"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Fax</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="20"
+                      formControlName="injuryInsuranceFax"
+                      name="injuryInsuranceFax"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Street</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="255"
+                      formControlName="injuryInsuranceStreet"
+                      name="injuryInsuranceStreet"
+                    />
+                  </div>
+                  <div class="col-md-1 mb-2">
+                    <label class="form-label">STE</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="255"
+                      formControlName="injuryInsuranceSte"
+                      name="injuryInsuranceSte"
+                    />
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">City</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="50"
+                      formControlName="injuryInsuranceCity"
+                      name="injuryInsuranceCity"
+                    />
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">State</label>
+                    <select
+                      class="form-select"
+                      formControlName="injuryInsuranceStateId"
+                      name="injuryInsuranceStateId"
+                    >
+                      <option [ngValue]="null">Select</option>
+                      @for (s of injuryStateOptions; track s.id) {
+                        <option [ngValue]="s.id">{{ s.displayName }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">Zip</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="10"
+                      formControlName="injuryInsuranceZip"
+                      name="injuryInsuranceZip"
+                    />
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 fw-bold">Claim Examiner</h6>
+              <fieldset
+                [disabled]="isInsuranceFieldsetDisabled"
+                class="form-check form-switch p-0 m-0 border-0"
+              >
+                <input
+                  type="checkbox"
+                  class="form-check-input"
+                  id="injury-claim-examiner-enabled"
+                  formControlName="injuryClaimExaminerEnabled"
+                  name="injuryClaimExaminerEnabled"
+                />
+                <label class="form-check-label" for="injury-claim-examiner-enabled">Include</label>
+              </fieldset>
+            </div>
+            @if (injuryForm.get('injuryClaimExaminerEnabled')?.value) {
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Name *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerName')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerName')?.touched
+                      "
+                      maxlength="50"
+                      formControlName="injuryClaimExaminerName"
+                      name="injuryClaimExaminerName"
+                      placeholder="NAME"
+                      [readonly]="isClaimExaminerReadOnly"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Email *</label>
+                    <input
+                      type="email"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerEmail')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerEmail')?.touched
+                      "
+                      maxlength="50"
+                      formControlName="injuryClaimExaminerEmail"
+                      name="injuryClaimExaminerEmail"
+                      placeholder="EMAIL"
+                      [readonly]="isClaimExaminerReadOnly"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Phone Number *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerPhone')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerPhone')?.touched
+                      "
+                      maxlength="12"
+                      formControlName="injuryClaimExaminerPhone"
+                      name="injuryClaimExaminerPhone"
+                      placeholder="PHONE NUMBER"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Fax *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerFax')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerFax')?.touched
+                      "
+                      maxlength="20"
+                      formControlName="injuryClaimExaminerFax"
+                      name="injuryClaimExaminerFax"
+                      placeholder="FAX"
+                    />
+                  </div>
+                  <div class="col-md-3 mb-2">
+                    <label class="form-label">Street *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerStreet')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerStreet')?.touched
+                      "
+                      maxlength="255"
+                      formControlName="injuryClaimExaminerStreet"
+                      name="injuryClaimExaminerStreet"
+                      placeholder="STREET"
+                    />
+                  </div>
+                  <div class="col-md-1 mb-2">
+                    <label class="form-label">STE</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      maxlength="50"
+                      formControlName="injuryClaimExaminerSte"
+                      name="injuryClaimExaminerSte"
+                      placeholder="STE"
+                    />
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">City *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerCity')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerCity')?.touched
+                      "
+                      maxlength="50"
+                      formControlName="injuryClaimExaminerCity"
+                      name="injuryClaimExaminerCity"
+                      placeholder="CITY"
+                    />
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">State *</label>
+                    <select
+                      class="form-select"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerStateId')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerStateId')?.touched
+                      "
+                      formControlName="injuryClaimExaminerStateId"
+                      name="injuryClaimExaminerStateId"
+                    >
+                      <option [ngValue]="null">Select</option>
+                      @for (s of injuryStateOptions; track s.id) {
+                        <option [ngValue]="s.id">{{ s.displayName }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <label class="form-label">Zip *</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      [class.is-invalid]="
+                        injuryForm.get('injuryClaimExaminerZip')?.invalid &&
+                        injuryForm.get('injuryClaimExaminerZip')?.touched
+                      "
+                      maxlength="10"
+                      formControlName="injuryClaimExaminerZip"
+                      name="injuryClaimExaminerZip"
+                    />
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+        <div class="modal-footer flex-column align-items-stretch">
+          @if (injuryModalError) {
+            <div class="alert alert-danger w-100 mb-2 py-2" role="alert">
+              {{ injuryModalError }}
+            </div>
+          }
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" (click)="closeInjuryModal()">
+              Close
+            </button>
+            <button type="button" class="btn btn-primary" (click)="saveInjuryModal()">
+              {{ injuryEditingIndex >= 0 ? 'Save' : 'Add' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

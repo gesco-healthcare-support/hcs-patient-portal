@@ -42,1280 +42,146 @@
       <div class="alert alert-info mb-3">{{ 'AbpUi::Loading' | abpLocalization }}...</div>
     }
 
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0 fw-bold">Appointment Details</h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentType' | abpLocalization }} *
-            </label>
-            <abp-lookup-select
-              cid="appointment-appointment-type-id"
-              formControlName="appointmentTypeId"
-              [getFn]="getAppointmentTypeLookup"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::PanelNumber' | abpLocalization }}</label>
-            <input
-              formControlName="panelNumber"
-              class="form-control"
-              maxlength="50"
-              [class.is-invalid]="isFieldInvalid('panelNumber')"
+    <!-- #121 phase T7 (2026-05-13): Appointment Details (Schedule)
+         card. Extracted to <app-appointment-add-schedule>. The 5
+         FormControls (appointmentTypeId, panelNumber, locationId,
+         appointmentDate, appointmentTime) plus the hidden
+         doctorAvailabilityId stay on the parent form. Parent owns
+         availableDateKeys / availableSlotsByDate caches,
+         appointmentTimeOptions, the cascade subscriptions
+         (appointmentTypeId/locationId/appointmentDate/appointmentTime
+         valueChanges), and the slot-fetch HTTP roundtrip. The child
+         binds [formGroup]="form" so formControlName resolves at the
+         parent scope. Location-select valueChange and the Clear-date
+         button are surfaced as outputs. -->
+    <app-appointment-add-schedule
+      [form]="form"
+      [checkForAppointmentTypeSelected]="checkForAppointmentTypeSelected"
+      [isAvailableDatesLoading]="isAvailableDatesLoading"
+      [appointmentTimeOptions]="appointmentTimeOptions"
+      [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+      [getAppointmentTypeLookup]="getAppointmentTypeLookup"
+      [getLocationLookup]="getLocationLookup"
+      [markAppointmentDateDisabled]="markAppointmentDateDisabled"
+      [isAvailableAppointmentDate]="isAvailableAppointmentDate"
+      [isFieldInvalid]="isFieldInvalidBound"
+      (locationSelected)="onLocationSelected($event)"
+      (appointmentDateCleared)="clearAppointmentDate()"
+    />
+
+    <!-- #121 phase T6 (2026-05-13): Patient Demographics + Address card.
+         Extracted to <app-appointment-add-patient-demographics>. All
+         23 FormControls stay on the parent's form FormGroup; child
+         binds [formGroup]="form". Patient picker (change) and email
+         (input) raise events; parent still owns the patient-lookup
+         HTTP roundtrips and currentPatientProfile state. -->
+    <app-appointment-add-patient-demographics
+      [form]="form"
+      [isExternalUserNonPatient]="isExternalUserNonPatient"
+      [isItAdmin]="isItAdmin"
+      [patientListCache]="patientListCache"
+      [patientLoadMessage]="patientLoadMessage"
+      [dobMinDate]="dobMinDate"
+      [dobMaxDate]="dobMaxDate"
+      [getStateLookup]="getStateLookup"
+      [getAppointmentLanguageLookup]="getAppointmentLanguageLookup"
+      [isFieldInvalid]="isFieldInvalidBound"
+      (patientSelected)="onPatientSelected($event)"
+      (patientEmailChanged)="onPatientEmailInputChanged()"
+    />
+
+    <!-- #121 phase T3 (2026-05-13): Employer Details. Extracted to
+         <app-appointment-add-employer-details>. The 7 FormControls
+         remain on the parent form; child binds [formGroup]="form". -->
+    <app-appointment-add-employer-details [form]="form" [getStateLookup]="getStateLookup" />
+
+    <!-- #121 phase T5 (2026-05-13): shared
+         <app-appointment-add-attorney-section> renders both AA + DA
+         cards from the SAME template parameterized by role. Parent
+         retains visibility gates (shouldShow*Section), the form, the
+         lookup, and the readonly-condition computation.
+
+         W2-7 layout: side-by-side cards (col-md-6 each) inside a
+         single row so the booker fills both in parallel.
+
+         B11 (2026-05-06): hide both when the booker is a Claim Examiner.
+         IT Admin booking-on-behalf still sees the cards. -->
+    @if (shouldShowApplicantAttorneySection() || shouldShowDefenseAttorneySection()) {
+      <div class="row">
+        @if (shouldShowApplicantAttorneySection()) {
+          <div class="col-12 col-md-6">
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="applicant"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="isApplicantAttorney && !isItAdmin"
+              [isFieldInvalid]="isFieldInvalidBound"
             />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Location' | abpLocalization }} *</label>
-            <abp-lookup-select
-              cid="appointment-location-id"
-              formControlName="locationId"
-              [getFn]="getLocationLookup"
-              (valueChange)="onLocationSelected($event)"
-            ></abp-lookup-select>
-          </div>
-
-          <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentDate' | abpLocalization }} *
-            </label>
-            <div class="input-group">
-              <input
-                readonly
-                class="form-control"
-                formControlName="appointmentDate"
-                [class.is-invalid]="isFieldInvalid('appointmentDate')"
-                ngbDatepicker
-                #appointmentDatePicker="ngbDatepicker"
-                [displayMonths]="2"
-                [markDisabled]="markAppointmentDateDisabled"
-                [dayTemplate]="appointmentDateDayTpl"
-                (click)="appointmentDatePicker.open()"
-              />
-              <button
-                class="btn btn-outline-secondary"
-                type="button"
-                (click)="appointmentDatePicker.open()"
-              >
-                <i class="fa fa-calendar"></i>
-              </button>
-              @if (form.get('appointmentDate')?.value) {
-                <button
-                  class="btn btn-outline-secondary"
-                  type="button"
-                  (click)="clearAppointmentDate()"
-                >
-                  <i class="fa fa-times"></i>
-                </button>
-              }
-            </div>
-            <ng-template
-              #appointmentDateDayTpl
-              let-date="date"
-              let-currentMonth="currentMonth"
-              let-selected="selected"
-            >
-              <span
-                class="appointment-date-day"
-                [class.outside-month]="date.month !== currentMonth"
-                [class.selected-day]="selected"
-                [class.available-day]="
-                  date.month === currentMonth && !selected && isAvailableAppointmentDate(date)
-                "
-              >
-                {{ date.day }}
-              </span>
-            </ng-template>
-            @if (isAvailableDatesLoading) {
-              <small class="text-muted">Loading available dates...</small>
-            }
-            @if (!isAvailableDatesLoading && form.get('appointmentDate')?.value) {
-              <small class="text-muted">{{ minimumBookingRuleMessage }}</small>
-            }
-          </div>
-
-          <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">
-            <label class="form-label fw-semibold">Appointment Time *</label>
-            <select
-              class="form-select"
-              formControlName="appointmentTime"
-              [class.is-invalid]="isFieldInvalid('appointmentTime')"
-            >
-              <option [ngValue]="null">SELECT</option>
-              @for (slot of appointmentTimeOptions; track slot.value) {
-                <option [value]="slot.value">{{ slot.label }}</option>
-              }
-            </select>
-            @if (
-              form.get('appointmentDate')?.value &&
-              !isAvailableDatesLoading &&
-              appointmentTimeOptions.length === 0
-            ) {
-              <small class="text-danger">No available time slots for selected date.</small>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0 fw-bold">Patient Demographics</h5>
-      </div>
-      <div class="card-body">
-        @if (isExternalUserNonPatient) {
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Existing Patients</label>
-              <select
-                class="form-select"
-                formControlName="patientId"
-                (change)="onPatientSelected($any(form.get('patientId')?.value) ?? null)"
-              >
-                <option [ngValue]="null">None</option>
-                @for (patient of patientListCache; track patient.id) {
-                  <option [value]="patient.id">{{ patient.displayName }}</option>
-                }
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Patient Email *</label>
-              <input
-                type="email"
-                class="form-control"
-                placeholder="Enter email if patient is not selected from dropdown"
-                formControlName="email"
-                (input)="onPatientEmailInputChanged()"
-              />
-            </div>
-          </div>
-          @if (patientLoadMessage) {
-            <div class="alert alert-info mb-3" role="alert">{{ patientLoadMessage }}</div>
-          }
-        }
-        <div class="row">
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }} *</label>
-            <input class="form-control" formControlName="lastName" maxlength="50" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }} *</label>
-            <input class="form-control" formControlName="firstName" maxlength="50" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-            <input class="form-control" formControlName="middleName" maxlength="50" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
-            <div class="d-flex gap-3 pt-2">
-              @for (option of genderOptions; track option.key) {
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="radio"
-                    [id]="'gender-' + option.key"
-                    formControlName="genderId"
-                    [value]="option.value"
-                  />
-                  <label class="form-check-label" [for]="'gender-' + option.key">
-                    {{ '::Enum:Gender.' + option.value | abpLocalization }}
-                  </label>
-                </div>
-              }
-            </div>
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }} *</label>
-            <div class="input-group" validationTarget>
-              <input
-                readonly
-                id="appointment-patient-date-of-birth"
-                formControlName="dateOfBirth"
-                class="form-control"
-                ngbDatepicker
-                #dateOfBirthInput
-                #dateOfBirthDatepicker="ngbDatepicker"
-                (click)="dateOfBirthDatepicker.open()"
-                (keyup.space)="dateOfBirthDatepicker.open()"
-              />
-              @if (dateOfBirthInput.value) {
-                <div class="input-group-append">
-                  <button
-                    class="btn btn-link px-2"
-                    type="button"
-                    [title]="'AbpUi::Clear' | abpLocalization"
-                    (click)="
-                      dateOfBirthDatepicker.writeValue(null);
-                      dateOfBirthDatepicker.manualDateChange(null, true)
-                    "
-                  >
-                    <i class="fa fa-times" aria-hidden="true"></i>
-                  </button>
-                </div>
-              }
-            </div>
-          </div>
-          @if (!isExternalUserNonPatient) {
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }} *</label>
-              <input class="form-control" formControlName="email" maxlength="50" />
-            </div>
-          }
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::CellPhoneNumber' | abpLocalization }}
-            </label>
-            <input class="form-control" formControlName="cellPhoneNumber" maxlength="12" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input class="form-control mb-2" formControlName="phoneNumber" maxlength="20" />
-            <div class="d-flex gap-3">
-              @for (option of phoneNumberTypeOptions; track option.key) {
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="radio"
-                    [id]="'phone-type-' + option.key"
-                    formControlName="phoneNumberTypeId"
-                    [value]="option.value"
-                  />
-                  <label class="form-check-label" [for]="'phone-type-' + option.key">
-                    {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
-                  </label>
-                </div>
-              }
-            </div>
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::SocialSecurityNumber' | abpLocalization }}
-            </label>
-            <input class="form-control" formControlName="socialSecurityNumber" maxlength="20" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input class="form-control" formControlName="street" maxlength="255" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">Unit #</label>
-            <input class="form-control" formControlName="address" maxlength="100" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input class="form-control" formControlName="city" maxlength="50" />
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-            <abp-lookup-select
-              cid="appointment-patient-state-id"
-              formControlName="stateId"
-              [getFn]="getStateLookup"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input class="form-control" formControlName="zipCode" maxlength="15" />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentLanguage' | abpLocalization }}
-            </label>
-            <abp-lookup-select
-              cid="appointment-patient-language-id"
-              formControlName="appointmentLanguageId"
-              [getFn]="getAppointmentLanguageLookup"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">Do you need an interpreter?</label>
-            <div class="d-flex gap-3 pt-2">
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="radio"
-                  id="need-interpreter-yes"
-                  formControlName="needsInterpreter"
-                  [value]="true"
-                />
-                <label class="form-check-label" for="need-interpreter-yes">Yes</label>
-              </div>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="radio"
-                  id="need-interpreter-no"
-                  formControlName="needsInterpreter"
-                  [value]="false"
-                />
-                <label class="form-check-label" for="need-interpreter-no">No</label>
-              </div>
-            </div>
-            @if (form.get('needsInterpreter')?.value) {
-              <input
-                class="form-control mt-2"
-                formControlName="interpreterVendorName"
-                placeholder="Interpreter vendor / language details"
-              />
-            }
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-            <input class="form-control" formControlName="refferedBy" maxlength="50" />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0 fw-bold">Employer Details</h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Employer Name</label>
-            <input
-              class="form-control"
-              formControlName="employerName"
-              maxlength="255"
-              placeholder="EMPLOYER NAME"
-            />
-          </div>
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Occupation</label>
-            <input
-              class="form-control"
-              formControlName="employerOccupation"
-              maxlength="255"
-              placeholder="OCCUPATION"
-            />
-          </div>
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              formControlName="employerPhoneNumber"
-              maxlength="12"
-              placeholder="PHONE NUMBER"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              formControlName="employerStreet"
-              maxlength="255"
-              placeholder="STREET"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              formControlName="employerCity"
-              maxlength="255"
-              placeholder="CITY"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-            <abp-lookup-select
-              cid="appointment-employer-state-id"
-              formControlName="employerStateId"
-              [getFn]="getStateLookup"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              formControlName="employerZipCode"
-              maxlength="10"
-              placeholder="ZIP"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- W2-7: Applicant + Defense attorney sections side-by-side (col-md-6 each).
-         Mirrors OLD's appointment-add.component.html layout (lines 654 + 724),
-         where both attorney cards share a single row so the booker fills them
-         in parallel. -->
-    <div class="row">
-      <div class="col-12 col-md-6">
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="card-title mb-0 fw-bold">Applicant Attorney Details</h5>
-            <div class="form-check form-switch">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                id="applicant-attorney-enabled"
-                formControlName="applicantAttorneyEnabled"
-              />
-              <label class="form-check-label" for="applicant-attorney-enabled">Include</label>
-            </div>
-          </div>
-          @if (form.get('applicantAttorneyEnabled')?.value) {
-            <div class="card-body">
-              @if (!isApplicantAttorney) {
-                <div class="row mb-3">
-                  <div class="col-md-5">
-                    <label class="form-label fw-semibold">Applicant Attorney Email</label>
-                    <input
-                      type="email"
-                      class="form-control"
-                      placeholder="Enter email to load existing applicant attorney"
-                      [value]="applicantAttorneyEmailSearch"
-                      (input)="onApplicantAttorneyEmailSearch($event)"
-                    />
-                  </div>
-                  <div class="col-md-4 d-flex align-items-end">
-                    <button
-                      type="button"
-                      class="btn btn-outline-primary"
-                      [disabled]="!applicantAttorneyEmailSearch || isApplicantAttorneyLoading"
-                      (click)="loadApplicantAttorneyByEmail()"
-                    >
-                      Load Applicant Attorney
-                    </button>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label fw-semibold">Or select from list</label>
-                    <select
-                      class="form-select"
-                      formControlName="applicantAttorneyIdentityUserId"
-                      (change)="onApplicantAttorneySelected($any($event.target).value || null)"
-                    >
-                      <option [ngValue]="null">Select Applicant Attorney</option>
-                      @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                        <option [value]="opt.identityUserId">
-                          {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
-                        </option>
-                      }
-                    </select>
-                  </div>
-                </div>
-              }
-              <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">First Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyFirstName"
-                    placeholder="FIRST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Last Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyLastName"
-                    placeholder="LAST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Email</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyEmail"
-                    placeholder="EMAIL"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Firm Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyFirmName"
-                    placeholder="FIRM NAME"
-                    maxlength="50"
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label fw-semibold">Web Address</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyWebAddress"
-                    placeholder="WEB ADDRESS"
-                    maxlength="100"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Phone Number</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyPhoneNumber"
-                    placeholder="PHONE NUMBER"
-                    maxlength="20"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Fax</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyFaxNumber"
-                    placeholder="FAX"
-                    maxlength="19"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Street</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyStreet"
-                    placeholder="STREET"
-                    maxlength="255"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">City</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyCity"
-                    placeholder="CITY"
-                    maxlength="50"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">State</label>
-                  <abp-lookup-select
-                    cid="appointment-applicant-attorney-state-id"
-                    formControlName="applicantAttorneyStateId"
-                    [getFn]="getStateLookup"
-                  ></abp-lookup-select>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Zip Code</label>
-                  <input
-                    class="form-control"
-                    formControlName="applicantAttorneyZipCode"
-                    placeholder="ZIP"
-                    maxlength="10"
-                  />
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6">
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="card-title mb-0 fw-bold">Defense Attorney Details</h5>
-            <div class="form-check form-switch">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                id="defense-attorney-enabled"
-                formControlName="defenseAttorneyEnabled"
-              />
-              <label class="form-check-label" for="defense-attorney-enabled">Include</label>
-            </div>
-          </div>
-          @if (form.get('defenseAttorneyEnabled')?.value) {
-            <div class="card-body">
-              <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Defense Attorney Email</label>
-                  <input
-                    type="email"
-                    class="form-control"
-                    placeholder="Enter email to load existing defense attorney"
-                    [value]="defenseAttorneyEmailSearch"
-                    (input)="onDefenseAttorneyEmailSearch($event)"
-                  />
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                  <button
-                    type="button"
-                    class="btn btn-outline-primary"
-                    [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
-                    (click)="loadDefenseAttorneyByEmail()"
-                  >
-                    Load Defense Attorney
-                  </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select from list</label>
-                  <select
-                    class="form-select"
-                    formControlName="defenseAttorneyIdentityUserId"
-                    (change)="onDefenseAttorneySelected($any($event.target).value || null)"
-                  >
-                    <option [ngValue]="null">Select Defense Attorney</option>
-                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
-                      <option [value]="opt.identityUserId">
-                        {{ opt.email }} ({{ opt.firstName }} {{ opt.lastName }})
-                      </option>
-                    }
-                  </select>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">First Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyFirstName"
-                    placeholder="FIRST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Last Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyLastName"
-                    placeholder="LAST NAME"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Email</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyEmail"
-                    placeholder="EMAIL"
-                    readonly
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Firm Name</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyFirmName"
-                    placeholder="FIRM NAME"
-                    maxlength="50"
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label fw-semibold">Web Address</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyWebAddress"
-                    placeholder="WEB ADDRESS"
-                    maxlength="100"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Phone Number</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyPhoneNumber"
-                    placeholder="PHONE NUMBER"
-                    maxlength="20"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Fax</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyFaxNumber"
-                    placeholder="FAX"
-                    maxlength="19"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Street</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyStreet"
-                    placeholder="STREET"
-                    maxlength="255"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">City</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyCity"
-                    placeholder="CITY"
-                    maxlength="50"
-                  />
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">State</label>
-                  <abp-lookup-select
-                    cid="appointment-defense-attorney-state-id"
-                    formControlName="defenseAttorneyStateId"
-                    [getFn]="getStateLookup"
-                  ></abp-lookup-select>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label fw-semibold">Zip Code</label>
-                  <input
-                    class="form-control"
-                    formControlName="defenseAttorneyZipCode"
-                    placeholder="ZIP"
-                    maxlength="10"
-                  />
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-    </div>
-
-    <!-- W2-8 / Step 4.5: Claim Examiner Details card. Extracted from the per-injury
-         modal (where CE was a sub-card) into a top-level appointment-level card.
-         Name + Email only at this stage; remaining CE fields land when the full
-         CE entity is built. Submission integration follows in Step 5.1. -->
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold">Claim Examiner Details</h5>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="claim-examiner-enabled"
-            formControlName="claimExaminerEnabled"
-          />
-          <label class="form-check-label" for="claim-examiner-enabled">Include</label>
-        </div>
-      </div>
-      @if (form.get('claimExaminerEnabled')?.value) {
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Name</label>
-              <input
-                class="form-control"
-                formControlName="claimExaminerName"
-                placeholder="CLAIM EXAMINER NAME"
-              />
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Email</label>
-              <input
-                type="email"
-                class="form-control"
-                formControlName="claimExaminerEmail"
-                placeholder="CLAIM EXAMINER EMAIL"
-              />
-              @if (
-                form.get('claimExaminerEmail')?.touched &&
-                form.get('claimExaminerEmail')?.hasError('email')
-              ) {
-                <div class="text-danger small mt-1">Enter a valid email address.</div>
-              }
-              @if (
-                form.get('claimExaminerEmail')?.touched &&
-                form.get('claimExaminerEmail')?.hasError('required')
-              ) {
-                <div class="text-danger small mt-1">
-                  Email is required when Claim Examiner is included.
-                </div>
-              }
-            </div>
-          </div>
-        </div>
-      }
-    </div>
-
-    <!-- W2-8: Claim Information card. Mirrors OLD's appointment-add layout
-         (lines 285-596): Add button opens a modal with cumulative-injury radio,
-         dates, claim number, WCAB office, ADJ#, body parts textarea, plus
-         Insurance sub-section. Submitted injuries appear in a table below;
-         multi-injury per appointment supported. -->
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold">Claim Information</h5>
-        <button type="button" class="btn btn-primary btn-sm" (click)="openAddInjuryModal()">
-          Add
-          <i class="fa fa-plus ms-1"></i>
-        </button>
-      </div>
-      <div class="card-body">
-        @if (injuryDrafts.length === 0) {
-          <div class="text-secondary">No claim information added yet.</div>
-        } @else {
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Date Of Injury</th>
-                  <th>Claim Number</th>
-                  <th>WCAB</th>
-                  <th>Insurance Company</th>
-                  <th>Claim Examiner</th>
-                  <th class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (injury of injuryDrafts; track $index) {
-                  <tr>
-                    <td>
-                      @if (injury.isCumulativeInjury) {
-                        From: {{ injury.dateOfInjury }}
-                        <br />
-                        To: {{ injury.toDateOfInjury }}
-                      } @else {
-                        {{ injury.dateOfInjury }}
-                      }
-                    </td>
-                    <td>{{ injury.claimNumber }}</td>
-                    <td>{{ injuryWcabOfficeName(injury.wcabOfficeId) }}</td>
-                    <td>
-                      @if (injury.primaryInsurance.isActive) {
-                        {{ injury.primaryInsurance.name }}
-                      }
-                    </td>
-                    <td>
-                      @if (injury.claimExaminer.isActive) {
-                        {{ injury.claimExaminer.name }}
-                      }
-                    </td>
-                    <td class="text-end">
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-primary me-2"
-                        (click)="openEditInjuryModal($index)"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-danger"
-                        (click)="removeInjury($index)"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
           </div>
         }
-      </div>
-    </div>
-
-    @if (isInjuryModalOpen) {
-      <div
-        class="modal fade show d-block"
-        tabindex="-1"
-        role="dialog"
-        style="background: rgba(0, 0, 0, 0.5)"
-      >
-        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Claim Information</h5>
-              <button
-                type="button"
-                class="btn-close"
-                aria-label="Close"
-                (click)="closeInjuryModal()"
-              ></button>
-            </div>
-            <div class="modal-body">
-              <div class="row">
-                <div class="col-md-2 mb-3">
-                  <label class="form-label fw-semibold">Cumulative Trauma Injury</label>
-                  <div class="d-flex align-items-center gap-3">
-                    <label class="form-check-label">
-                      <input
-                        type="radio"
-                        class="form-check-input me-1"
-                        [(ngModel)]="injuryEditing.isCumulativeInjury"
-                        [ngModelOptions]="{ standalone: true }"
-                        [value]="true"
-                        name="injuryCumulative"
-                      />
-                      Yes
-                    </label>
-                    <label class="form-check-label">
-                      <input
-                        type="radio"
-                        class="form-check-input me-1"
-                        [(ngModel)]="injuryEditing.isCumulativeInjury"
-                        [ngModelOptions]="{ standalone: true }"
-                        [value]="false"
-                        name="injuryCumulative"
-                      />
-                      No
-                    </label>
-                  </div>
-                </div>
-                <div class="col-md-2 mb-3">
-                  <label class="form-label fw-semibold">
-                    {{ injuryEditing.isCumulativeInjury ? 'From Date' : 'Date Of Injury' }} *
-                  </label>
-                  <input
-                    type="date"
-                    class="form-control"
-                    [(ngModel)]="injuryEditing.dateOfInjury"
-                    [ngModelOptions]="{ standalone: true }"
-                    name="injuryDateOfInjury"
-                  />
-                </div>
-                @if (injuryEditing.isCumulativeInjury) {
-                  <div class="col-md-2 mb-3">
-                    <label class="form-label fw-semibold">To Date</label>
-                    <input
-                      type="date"
-                      class="form-control"
-                      [(ngModel)]="injuryEditing.toDateOfInjury"
-                      [ngModelOptions]="{ standalone: true }"
-                      name="injuryToDateOfInjury"
-                    />
-                  </div>
-                }
-                <div class="col-md-2 mb-3">
-                  <label class="form-label fw-semibold">Claim Number *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="50"
-                    [(ngModel)]="injuryEditing.claimNumber"
-                    [ngModelOptions]="{ standalone: true }"
-                    name="injuryClaimNumber"
-                  />
-                </div>
-                <div class="col-md-2 mb-3">
-                  <label class="form-label fw-semibold">WCAB Office (Venue)</label>
-                  <select
-                    class="form-select"
-                    [(ngModel)]="injuryEditing.wcabOfficeId"
-                    [ngModelOptions]="{ standalone: true }"
-                    name="injuryWcabOfficeId"
-                  >
-                    <option [ngValue]="null">Select</option>
-                    @for (opt of wcabOfficeOptions; track opt.id) {
-                      <option [ngValue]="opt.id">{{ opt.displayName }}</option>
-                    }
-                  </select>
-                </div>
-                <div class="col-md-2 mb-3">
-                  <label class="form-label fw-semibold">ADJ#</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="50"
-                    [(ngModel)]="injuryEditing.wcabAdj"
-                    [ngModelOptions]="{ standalone: true }"
-                    name="injuryWcabAdj"
-                  />
-                </div>
-                <div class="col-md-12 mb-3">
-                  <label class="form-label fw-semibold">Body Parts *</label>
-                  <textarea
-                    class="form-control"
-                    rows="2"
-                    maxlength="500"
-                    [(ngModel)]="injuryEditing.bodyPartsSummary"
-                    [ngModelOptions]="{ standalone: true }"
-                    name="injuryBodyPartsSummary"
-                    placeholder="e.g. Lower back, right knee, left wrist"
-                  ></textarea>
-                </div>
-              </div>
-
-              <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0 fw-bold">Insurance</h6>
-                  <div class="form-check form-switch">
-                    <input
-                      type="checkbox"
-                      class="form-check-input"
-                      id="injury-insurance-enabled"
-                      [(ngModel)]="injuryEditing.primaryInsurance.isActive"
-                      [ngModelOptions]="{ standalone: true }"
-                      name="injuryInsuranceEnabled"
-                    />
-                    <label class="form-check-label" for="injury-insurance-enabled">Include</label>
-                  </div>
-                </div>
-                @if (injuryEditing.primaryInsurance.isActive) {
-                  <div class="card-body">
-                    <div class="row">
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Company Name</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="50"
-                          [(ngModel)]="injuryEditing.primaryInsurance.name"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceName"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Attention</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.attention"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceAttention"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Phone Number</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="12"
-                          [(ngModel)]="injuryEditing.primaryInsurance.phoneNumber"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsurancePhone"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Fax</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="20"
-                          [(ngModel)]="injuryEditing.primaryInsurance.faxNumber"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceFax"
-                        />
-                      </div>
-                      <div class="col-md-3 mb-2">
-                        <label class="form-label">Street</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.street"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceStreet"
-                        />
-                      </div>
-                      <div class="col-md-1 mb-2">
-                        <label class="form-label">STE</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="255"
-                          [(ngModel)]="injuryEditing.primaryInsurance.insuranceNumber"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceSte"
-                        />
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">City</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="50"
-                          [(ngModel)]="injuryEditing.primaryInsurance.city"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceCity"
-                        />
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">State</label>
-                        <select
-                          class="form-select"
-                          [(ngModel)]="injuryEditing.primaryInsurance.stateId"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceStateId"
-                        >
-                          <option [ngValue]="null">Select</option>
-                          @for (s of injuryStateOptions; track s.id) {
-                            <option [ngValue]="s.id">{{ s.displayName }}</option>
-                          }
-                        </select>
-                      </div>
-                      <div class="col-md-2 mb-2">
-                        <label class="form-label">Zip</label>
-                        <input
-                          type="text"
-                          class="form-control"
-                          maxlength="10"
-                          [(ngModel)]="injuryEditing.primaryInsurance.zip"
-                          [ngModelOptions]="{ standalone: true }"
-                          name="injuryInsuranceZip"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                }
-              </div>
-            </div>
-            <div class="modal-footer flex-column align-items-stretch">
-              @if (injuryModalError) {
-                <div class="alert alert-danger w-100 mb-2 py-2" role="alert">
-                  {{ injuryModalError }}
-                </div>
-              }
-              <div class="d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-secondary" (click)="closeInjuryModal()">
-                  Close
-                </button>
-                <button type="button" class="btn btn-primary" (click)="saveInjuryModal()">
-                  {{ injuryEditingIndex >= 0 ? 'Save' : 'Add' }}
-                </button>
-              </div>
-            </div>
+        @if (shouldShowDefenseAttorneySection()) {
+          <div class="col-12 col-md-6">
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="defense"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="isDefenseAttorney && !isItAdmin"
+              [isFieldInvalid]="isFieldInvalidBound"
+            />
           </div>
-        </div>
+        }
       </div>
     }
 
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold">Additional Authorized User</h5>
-        <button type="button" class="btn btn-primary btn-sm" (click)="openAddAuthorizedUserModal()">
-          Add
-          <i class="fa fa-plus ms-1"></i>
-        </button>
-      </div>
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>User Role</th>
-                <th>Rights</th>
-                <th style="width: 110px">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (appointmentAuthorizedUsers.length === 0) {
-                <tr>
-                  <td colspan="5" class="text-muted text-center py-3">
-                    No additional authorized users.
-                  </td>
-                </tr>
-              } @else {
-                @for (row of appointmentAuthorizedUsers; track row.identityUserId; let i = $index) {
-                  <tr>
-                    <td>{{ row.firstName }} {{ row.lastName }}</td>
-                    <td>{{ row.email }}</td>
-                    <td>{{ row.userRole }}</td>
-                    <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
-                    <td>
-                      <button
-                        type="button"
-                        class="btn btn-link p-0 me-2"
-                        (click)="openEditAuthorizedUserModal(i)"
-                      >
-                        <i class="fa fa-pencil"></i>
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-link text-danger p-0"
-                        (click)="removeAuthorizedUser(i)"
-                      >
-                        <i class="fa fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <!-- #121 phase T4 (2026-05-13): Claim Information section.
+         Extracted to <app-appointment-add-claim-information>. List
+         + modal + 27-control FormGroup + lookups + cumulative-date
+         logic + insurance/CE conditional validators all live in the
+         child. Parent keeps injuryDrafts because submit consumes it. -->
+    <app-appointment-add-claim-information
+      [injuryDrafts]="injuryDrafts"
+      [isInsuranceFieldsetDisabled]="isInsuranceFieldsetDisabled"
+      [isClaimExaminerReadOnly]="isClaimExaminerRole && !isItAdmin"
+      [claimExaminerPrefill]="claimExaminerPrefillForInjuryModal"
+    />
+
+    <!-- #121 phase T2 (2026-05-13): "Additional Authorized User"
+         section. Extracted to <app-appointment-add-authorized-users>.
+         B11 (2026-05-06): Claim Examiner bookers (= OLD's Adjuster)
+         see no co-accessor table per OLD `showFormBaseOnRole` (OLD
+         HTML line 600); parent decides via shouldShowAuthorizedUserSection. -->
+    @if (shouldShowAuthorizedUserSection()) {
+      <app-appointment-add-authorized-users
+        [users]="appointmentAuthorizedUsers"
+        [userOptions]="externalAuthorizedUserOptions"
+      />
+    }
+
+    <!-- #121 phase T1 (2026-05-13): "Additional Details" custom-fields
+         section. Extracted to <app-appointment-add-custom-fields>. The
+         section renders inside the child only when the FormArray has at
+         least one row; parent does not need its own @if guard. -->
+    <app-appointment-add-custom-fields [customFieldsArray]="customFieldsArray" />
 
     <div class="d-flex justify-content-end gap-2 mt-4">
       <button type="button" class="btn btn-secondary" (click)="cancel()">
         {{ 'AbpUi::Cancel' | abpLocalization }}
       </button>
+      <!-- OLD parity 2026-05-06: bottom submit reads "Book an appointment"
+           verbatim like the top toolbar button (P:\PatientPortalOld\.../
+           appointment-add.component.html). The Save text + check icon
+           was the ABP default. -->
       <button type="submit" class="btn btn-primary">
-        <i class="fa fa-check me-1" [class.fa-spinner]="isSaving" [class.fa-pulse]="isSaving"></i>
-        {{ 'AbpUi::Save' | abpLocalization }}
+        <i
+          class="fa fa-paper-plane me-1"
+          [class.fa-spinner]="isSaving"
+          [class.fa-pulse]="isSaving"
+        ></i>
+        Book an appointment
       </button>
     </div>
   </form>
 
-  @if (isAuthorizedUserModalOpen) {
-    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              {{
-                authorizedUserModalMode === 'edit' ? 'Edit Authorized User' : 'Add Authorized User'
-              }}
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              aria-label="Close"
-              (click)="closeAuthorizedUserModal()"
-            ></button>
-          </div>
-          <div class="modal-body" [formGroup]="authorizedUserForm">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Email</label>
-                <select class="form-select" formControlName="identityUserId">
-                  <option [ngValue]="null">Select email</option>
-                  @for (option of externalAuthorizedUserOptions; track option.identityUserId) {
-                    <option [value]="option.identityUserId">{{ option.email }}</option>
-                  }
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">First Name</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.firstName ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Last Name</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.lastName ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">User Role</label>
-                <input
-                  class="form-control"
-                  [value]="selectedAuthorizedUser?.userRole ?? ''"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Rights</label>
-                <select class="form-select" formControlName="accessTypeId">
-                  @for (option of accessTypeOptions; track option.value) {
-                    <option [value]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-outline-secondary"
-              (click)="closeAuthorizedUserModal()"
-            >
-              Cancel
-            </button>
-            <button type="button" class="btn btn-primary" (click)="saveAuthorizedUserFromModal()">
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-backdrop fade show"></div>
-  }
+  <!-- #121 phase T2 (2026-05-13): authorized-user modal now lives
+       inside <app-appointment-add-authorized-users> above. -->
 </div>

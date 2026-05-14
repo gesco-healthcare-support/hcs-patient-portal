@@ -1,5 +1,23 @@
 /* You can add global styles to this file, and also import other style files */
 
+// Brand tokens (OLD parity palette + typography). Phase 19a; Phase 19b will
+// add LeptonX --lpx-* overrides that consume these.
+@use 'styles/brand';
+
+/* Issue 2.1 (2026-05-12) — SSN input redaction. The class is applied to
+ * the booking + profile + edit form's SSN input alongside ngx-mask's
+ * 000-00-0000 mask. CSS text-security renders each character as a disc
+ * regardless of the underlying value, so the on-screen view never
+ * exposes the SSN even though the FormControl carries the raw digits
+ * for submit. Supported across all modern browsers as of 2026
+ * (Chrome / Edge / Safari / Firefox 113+). The masked text on screen
+ * looks like *********** but the form value is still the 9 digits. */
+.app-ssn-redacted {
+  -webkit-text-security: disc;
+  -moz-text-security: disc;
+  text-security: disc;
+}
+
 :root .lpx-theme-dark {
   .abp-support {
     background-image: url('assets/images/getting-started/abp-support-white.svg');
@@ -82,6 +100,18 @@ html.externaluser-role {
   lpx-avatar + .lpx-menu-item-text {
     display: none !important;
   }
+
+  /* OLD parity: external users see only the SoCal © footer, not the
+     Lepton "Theme by Volosoft" / About / Privacy / Contact, and no
+     cookie banner. */
+  .lpx-footer-container,
+  .lpx-footer,
+  .lpx-footbar,
+  .lpx-footbar-container,
+  .lpx-footbar-copyright,
+  abp-gdpr-cookie-consent {
+    display: none !important;
+  }
 }
 
 /*
@@ -103,4 +133,20 @@ abp-confirmation .modal-content,
 abp-confirmation .toast,
 abp-confirmation .message {
   pointer-events: auto;
+}
+
+/*
+ * Wave 2 issue #12 (2026-05-07): abp-lookup-select wraps a native <select> but
+ * its built-in `input-validation-error` class lands only on `dirty && invalid`,
+ * which misses the common "submit without focusing this field" path. The
+ * widget also ships no border style for the class. We bind `[class.is-invalid]`
+ * manually on each instance using the existing `isFieldInvalid()` helper
+ * (touched || dirty + invalid) and style the inner select here so the
+ * Bootstrap `is-invalid` red border lands on the visible widget.
+ */
+abp-lookup-select.is-invalid select {
+  border-color: var(--bs-danger, #dc3545);
+}
+abp-lookup-select.is-invalid select:focus {
+  box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
 }

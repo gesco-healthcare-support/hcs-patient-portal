@@ -1,12 +1,21 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { AuthService, ConfigStateService, ListService, LocalizationPipe } from '@abp/ng.core';
+import {
+  AuthService,
+  ConfigStateService,
+  ListService,
+  LocalizationPipe,
+  RestService,
+} from '@abp/ng.core';
 import { NgxDatatableModule } from '@swimlane/ngx-datatable';
 import { Router } from '@angular/router';
 import { PageComponent } from '@abp/ng.components/page';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { NgxDatatableDefaultDirective, NgxDatatableListDirective } from '@abp/ng.theme.shared';
+import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { AppointmentViewService } from '../appointments/appointment/services/appointment.service';
 import { AppointmentDetailViewService } from '../appointments/appointment/services/appointment-detail.service';
+import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
+import { SsnMaskPipe } from '../shared/pipes/ssn-mask.pipe';
 
 @Component({
   selector: 'app-home',
@@ -20,12 +29,17 @@ import { AppointmentDetailViewService } from '../appointments/appointment/servic
     NgxDatatableListDirective,
     PageComponent,
     TopHeaderNavbarComponent,
+    FormsModule,
+    ReactiveFormsModule,
+    SsnMaskPipe,
   ],
   providers: [ListService, AppointmentViewService, AppointmentDetailViewService],
 })
 export class HomeComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly configState = inject(ConfigStateService);
+  private readonly restService = inject(RestService);
+  private readonly fb = inject(FormBuilder);
   protected list = inject(ListService);
   protected service = inject(AppointmentViewService);
   private readonly router = inject(Router);
@@ -34,7 +48,48 @@ export class HomeComponent implements OnInit {
     emptyMessage: 'No Data Available',
   };
 
+  // Quick + Advanced Search (OLD parity)
+  quickSearchText = '';
+  advancedSearchOpen = false;
+  advancedSearchForm = this.fb.group({
+    appointmentTypeId: [null as string | null],
+    confirmationNumber: [null as string | null],
+    locationId: [null as string | null],
+    appointmentStatus: [null as AppointmentStatusType | null],
+    claimNumber: [null as string | null],
+    dateOfInjury: [null as string | null],
+    dateOfBirth: [null as string | null],
+    socialSecurityNumber: [null as string | null],
+  });
+
+  advancedAppointmentTypeOptions: { id: string; displayName: string }[] = [];
+  advancedLocationOptions: { id: string; displayName: string }[] = [];
+  advancedAppointmentStatusOptions = [
+    { value: AppointmentStatusType.Pending, label: 'Pending' },
+    { value: AppointmentStatusType.Approved, label: 'Approved' },
+    { value: AppointmentStatusType.Rejected, label: 'Rejected' },
+    { value: AppointmentStatusType.NoShow, label: 'No Show' },
+    { value: AppointmentStatusType.CancelledNoBill, label: 'Cancelled-NoBill' },
+    { value: AppointmentStatusType.CancelledLate, label: 'Cancelled-Late' },
+    { value: AppointmentStatusType.RescheduledNoBill, label: 'Rescheduled-NoBill' },
+    { value: AppointmentStatusType.RescheduledLate, label: 'Rescheduled-Late' },
+    { value: AppointmentStatusType.CheckedIn, label: 'Checked-In' },
+    { value: AppointmentStatusType.CheckedOut, label: 'Checked-Out' },
+    { value: AppointmentStatusType.Billed, label: 'Billed' },
+  ];
+
+  get isPatientRole(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r) => r?.toLowerCase() === 'patient');
+  }
+
   ngOnInit(): void {
+    // Issue 1.1 (2026-05-12): anonymous redirect now lives in the
+    // CanMatchFn at app.routes.ts ':' route (see
+    // shared/auth/post-login-redirect.guard.ts). The CanMatchFn runs
+    // BEFORE this chunk downloads, so by the time we get here the user
+    // is authenticated. The prior in-component redirect (which caused
+    // the empty-home-shell flash for anon users) has been removed.
     if (!this.isPatientUser) {
       return;
     }
@@ -49,6 +104,67 @@ export class HomeComponent implements OnInit {
     // booker). Letting the server's S-NEW-2 visibility filter run unfiltered
     // returns the union of all involvement modes.
     this.service.hookToQuery();
+    this.loadAdvancedSearchLookups();
+  }
+
+  applyQuickSearch(): void {
+    this.service.filters = {
+      ...this.service.filters,
+      filterText: this.quickSearchText || null,
+    };
+    this.list.get();
+  }
+
+  resetQuickSearch(): void {
+    this.quickSearchText = '';
+    this.applyQuickSearch();
+  }
+
+  applyAdvancedSearch(): void {
+    const v = this.advancedSearchForm.value;
+    this.service.filters = {
+      ...this.service.filters,
+      filterText: v.confirmationNumber || this.quickSearchText || null,
+      appointmentTypeId: v.appointmentTypeId || null,
+      locationId: v.locationId || null,
+      appointmentStatus: v.appointmentStatus ?? null,
+    };
+    this.list.get();
+  }
+
+  resetAdvancedSearch(): void {
+    this.advancedSearchForm.reset();
+    this.service.filters = {} as any;
+    this.applyQuickSearch();
+  }
+
+  private loadAdvancedSearchLookups(): void {
+    this.restService
+      .request<any, { items: { id: string; displayName: string }[] }>(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/appointment-type-lookup',
+          params: { skipCount: 0, maxResultCount: 200 },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (res) => (this.advancedAppointmentTypeOptions = res?.items ?? []),
+        error: () => (this.advancedAppointmentTypeOptions = []),
+      });
+    this.restService
+      .request<any, { items: { id: string; displayName: string }[] }>(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/location-lookup',
+          params: { skipCount: 0, maxResultCount: 200 },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (res) => (this.advancedLocationOptions = res?.items ?? []),
+        error: () => (this.advancedLocationOptions = []),
+      });
   }
 
   get hasLoggedIn(): boolean {

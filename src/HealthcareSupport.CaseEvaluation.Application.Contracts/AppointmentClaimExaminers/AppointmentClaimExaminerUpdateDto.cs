@@ -11,8 +11,8 @@ public class AppointmentClaimExaminerUpdateDto : IHasConcurrencyStamp
     [StringLength(AppointmentClaimExaminerConsts.NameMaxLength)]
     public string? Name { get; set; }
 
-    [StringLength(AppointmentClaimExaminerConsts.ClaimExaminerNumberMaxLength)]
-    public string? ClaimExaminerNumber { get; set; }
+    [StringLength(AppointmentClaimExaminerConsts.SuiteMaxLength)]
+    public string? Suite { get; set; }
 
     [StringLength(AppointmentClaimExaminerConsts.EmailMaxLength)]
     public string? Email { get; set; }

@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgxMaskDirective } from 'ngx-mask';
 import {
   ConfigStateService,
   ListResultDto,
@@ -12,7 +13,6 @@ import {
 } from '@abp/ng.core';
 import type {
   AppointmentDto,
-  AppointmentSendBackInfoDto,
   AppointmentUpdateDto,
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
@@ -22,18 +22,15 @@ import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.e
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
-import { ToasterService } from '@abp/ng.theme.shared';
+import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
 import { firstValueFrom } from 'rxjs';
-import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { SendBackAppointmentModalComponent } from './send-back-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
-import { buildFlaggedFieldLookup } from '../send-back-fields';
 
-type TransitionAction = 'approve' | 'reject' | 'sendBack';
+type TransitionAction = 'approve' | 'reject';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -88,54 +85,71 @@ type DefenseAttorneyLookupResult = {
   concurrencyStamp?: string;
 };
 
+// #122 (2026-05-14): shape returned by AA load endpoints. Mirror of
+// applicant-attorney-details-for-booking + /{appointmentId}/applicant-attorney.
+type ApplicantAttorneyLookupResult = {
+  applicantAttorneyId?: string;
+  identityUserId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  firmName?: string;
+  webAddress?: string;
+  phoneNumber?: string;
+  faxNumber?: string;
+  street?: string;
+  city?: string;
+  stateId?: string;
+  zipCode?: string;
+};
+
 @Component({
   selector: 'app-appointment-view',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     ReactiveFormsModule,
     RouterLink,
     LocalizationPipe,
     PermissionDirective,
-    LookupSelectComponent,
+    AppLookupSelectComponent,
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
-    SendBackAppointmentModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
+    NgxMaskDirective,
   ],
   templateUrl: './appointment-view.component.html',
 })
 export class AppointmentViewComponent implements OnInit {
+  private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
-  private readonly toaster = inject(ToasterService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
-  selectedAction: TransitionAction | '' = '';
   approveModalVisible = false;
   rejectModalVisible = false;
-  sendBackModalVisible = false;
-  latestSendBackInfo: AppointmentSendBackInfoDto | null = null;
-  private readonly flaggedFieldLookup = buildFlaggedFieldLookup();
-  // W2-9: cache of flaggedFields[] as a Set<string> for O(1) canEdit() lookup.
-  // Reset to null whenever latestSendBackInfo changes (see maybeLoadLatestSendBackInfo).
-  private flaggedFieldsCache: Set<string> | null = null;
+
+  // B8 (2026-05-06): widen the DOB datepicker year range. Default
+  // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
+  // and `navigation="select"` the header shows year + month selects
+  // spanning the full configured range.
+  readonly dobMinDate: NgbDateStruct = { year: 1920, month: 1, day: 1 };
+  readonly dobMaxDate: NgbDateStruct = (() => {
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  })();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
   isLoading = true;
   isSaving = false;
   errorMessage = '';
   successMessage = '';
-  panelNumber = '';
-  readonly stateIdControl = new FormControl<string | null>(null);
-  readonly employerStateIdControl = new FormControl<string | null>(null);
   readonly genderOptions = genderOptions;
   readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
   readonly accessTypeOptions = [
@@ -147,99 +161,17 @@ export class AppointmentViewComponent implements OnInit {
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
   editingAuthorizedUserId: string | null = null;
-  authorizedUserDraft = {
-    identityUserId: null as string | null,
-    firstName: '',
-    lastName: '',
-    email: '',
-    userRole: '',
-    accessTypeId: 23,
-  };
+
+  // #122 (2026-05-14): IDs + concurrency stamps that live OUTSIDE the
+  // FormGroup -- they are not user-editable inputs, just metadata used at
+  // save time to detect existing-vs-new and to send the right HTTP verb.
   employerDetailId: string | null = null;
   employerDetailConcurrencyStamp: string | null = null;
-  patientForm = {
-    firstName: '',
-    lastName: '',
-    middleName: '',
-    email: '',
-    genderId: null as number | null,
-    // S-5.5: ngbDatepicker's ControlValueAccessor requires NgbDateStruct
-    // ({ year, month, day }) -- not an ISO string. Storing the raw API string
-    // here was leaving the date input blank on load. We now parse the API
-    // value into NgbDateStruct on load and the existing
-    // `formatDateOfBirthForApi` already handles the reverse direction on save.
-    dateOfBirth: null as { year: number; month: number; day: number } | string | null,
-    cellPhoneNumber: '',
-    phoneNumber: '',
-    phoneNumberTypeId: null as number | null,
-    socialSecurityNumber: '',
-    street: '',
-    address: '',
-    // S-5.5: the booking form persists apartment / unit numbers to
-    // `Patient.apptNumber` (PatientDto.apptNumber), but the view template's
-    // "Unit #" input was bound to `patientForm.address`. Add the field and
-    // wire it through both load and save so saved Unit # values surface.
-    apptNumber: '',
-    city: '',
-    stateId: null as string | null,
-    zipCode: '',
-    appointmentLanguageId: null as string | null,
-    needsInterpreter: false,
-    interpreterVendorName: '',
-    refferedBy: '',
-  };
-  employerForm = {
-    employerName: '',
-    occupation: '',
-    phoneNumber: '',
-    street: '',
-    city: '',
-    zipCode: '',
-  };
-  applicantAttorneyEnabled = true;
-  applicantAttorneyForm = {
-    applicantAttorneyId: null as string | null,
-    identityUserId: null as string | null,
-    firstName: '',
-    lastName: '',
-    email: '',
-    firmName: '',
-    webAddress: '',
-    phoneNumber: '',
-    faxNumber: '',
-    street: '',
-    city: '',
-    stateId: null as string | null,
-    zipCode: '',
-  };
-  readonly applicantAttorneyStateIdControl = new FormControl<string | null>(null);
-  applicantAttorneyEmailSearch = '';
+  applicantAttorneyId: string | null = null;
+  defenseAttorneyId: string | null = null;
+
   isApplicantAttorneyLoading = false;
   applicantAttorneyOptions: ExternalAuthorizedUserOption[] = [];
-
-  // S-5.4 (W-A-7): Defense Attorney section on the view page. Mirrors the AA
-  // section above 1:1 (same fields, same email-search + select-from-list flow,
-  // same state control, same readonly-on-pre-fill behavior). Only the labels and
-  // the API endpoints differ. Per Adrian: AA and DA must look identical on
-  // screen with only the labels changed.
-  defenseAttorneyEnabled = true;
-  defenseAttorneyForm = {
-    defenseAttorneyId: null as string | null,
-    identityUserId: null as string | null,
-    firstName: '',
-    lastName: '',
-    email: '',
-    firmName: '',
-    webAddress: '',
-    phoneNumber: '',
-    faxNumber: '',
-    street: '',
-    city: '',
-    stateId: null as string | null,
-    zipCode: '',
-  };
-  readonly defenseAttorneyStateIdControl = new FormControl<string | null>(null);
-  defenseAttorneyEmailSearch = '';
   isDefenseAttorneyLoading = false;
   defenseAttorneyOptions: ExternalAuthorizedUserOption[] = [];
 
@@ -248,6 +180,88 @@ export class AppointmentViewComponent implements OnInit {
   // booking form (appointment-add) supports add/edit/delete on these rows; the
   // view page surfaces them as a table only at MVP.
   injuryDetails: AppointmentInjuryDetailRow[] = [];
+
+  // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
+  // so future shared section components (e.g. <app-patient-demographics>) can
+  // drop in once both pages expose the same control surface. Save reads via
+  // `this.form.getRawValue()`; loads call `this.form.patchValue({...})`.
+  readonly form: FormGroup = this.fb.group({
+    // top-level
+    panelNumber: [''],
+    // patient (19 controls)
+    patientFirstName: [''],
+    patientLastName: [''],
+    patientMiddleName: [''],
+    patientEmail: [''],
+    patientGenderId: [null as number | null],
+    // S-5.5: ngbDatepicker's CVA needs NgbDateStruct; load helper converts
+    // ISO -> { year, month, day } on first patch.
+    patientDateOfBirth: [null as NgbDateStruct | string | null],
+    patientCellPhoneNumber: [''],
+    patientPhoneNumber: [''],
+    patientPhoneNumberTypeId: [null as number | null],
+    patientSocialSecurityNumber: [''],
+    patientStreet: [''],
+    patientAddress: [''],
+    patientApptNumber: [''], // "Unit #" -- view page only field
+    patientCity: [''],
+    patientStateId: [null as string | null],
+    patientZipCode: [''],
+    patientAppointmentLanguageId: [null as string | null],
+    patientNeedsInterpreter: [false],
+    patientInterpreterVendorName: [''],
+    patientRefferedBy: [''],
+    // employer (7 controls)
+    employerName: [''],
+    employerOccupation: [''],
+    employerPhoneNumber: [''],
+    employerStreet: [''],
+    employerCity: [''],
+    employerStateId: [null as string | null],
+    employerZipCode: [''],
+    // applicant attorney (14 controls + enabled toggle + email search)
+    applicantAttorneyEnabled: [true],
+    applicantAttorneyEmailSearch: [''],
+    applicantAttorneyIdentityUserId: [null as string | null],
+    applicantAttorneyFirstName: [''],
+    applicantAttorneyLastName: [''],
+    applicantAttorneyEmail: [''],
+    applicantAttorneyFirmName: [''],
+    applicantAttorneyWebAddress: [''],
+    applicantAttorneyPhoneNumber: [''],
+    applicantAttorneyFaxNumber: [''],
+    applicantAttorneyStreet: [''],
+    applicantAttorneyCity: [''],
+    applicantAttorneyStateId: [null as string | null],
+    applicantAttorneyZipCode: [''],
+    // defense attorney (mirror of AA)
+    defenseAttorneyEnabled: [true],
+    defenseAttorneyEmailSearch: [''],
+    defenseAttorneyIdentityUserId: [null as string | null],
+    defenseAttorneyFirstName: [''],
+    defenseAttorneyLastName: [''],
+    defenseAttorneyEmail: [''],
+    defenseAttorneyFirmName: [''],
+    defenseAttorneyWebAddress: [''],
+    defenseAttorneyPhoneNumber: [''],
+    defenseAttorneyFaxNumber: [''],
+    defenseAttorneyStreet: [''],
+    defenseAttorneyCity: [''],
+    defenseAttorneyStateId: [null as string | null],
+    defenseAttorneyZipCode: [''],
+  });
+
+  // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
+  // `form` because it represents draft state for a per-row append/edit
+  // operation that submits via its own POST/PUT, not via save().
+  readonly authorizedUserForm: FormGroup = this.fb.group({
+    identityUserId: [null as string | null],
+    firstName: [''],
+    lastName: [''],
+    email: [''],
+    userRole: [''],
+    accessTypeId: [23 as number],
+  });
 
   readonly getStateLookup = (input: LookupRequestDto) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>(
@@ -290,7 +304,10 @@ export class AppointmentViewComponent implements OnInit {
     this.appointmentService.getWithNavigationProperties(id).subscribe({
       next: (data) => {
         this.appointment = data;
-        this.panelNumber = data.appointment?.panelNumber ?? '';
+        this.form.patchValue(
+          { panelNumber: data.appointment?.panelNumber ?? '' },
+          { emitEvent: false },
+        );
         this.loadEmployerDetails(data.appointment?.id);
         this.bindApplicantAttorneyFromResponse(data);
         // S-5.4 (W-A-7): the AppointmentWithNavigationPropertiesDto does not
@@ -301,32 +318,39 @@ export class AppointmentViewComponent implements OnInit {
         this.loadInjuryDetails(data.appointment?.id);
         this.loadAppointmentAccessors(data.appointment?.id);
         const patient = data.patient;
-        this.patientForm = {
-          firstName: patient?.firstName ?? '',
-          lastName: patient?.lastName ?? '',
-          middleName: patient?.middleName ?? '',
-          email: patient?.email ?? '',
-          genderId: (patient?.genderId as number | undefined) ?? null,
-          // S-5.5: parse ISO date string into NgbDateStruct so the datepicker renders.
-          dateOfBirth: this.parseDateOfBirthFromApi(patient?.dateOfBirth),
-          cellPhoneNumber: patient?.cellPhoneNumber ?? '',
-          phoneNumber: patient?.phoneNumber ?? '',
-          phoneNumberTypeId: (patient?.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: patient?.socialSecurityNumber ?? '',
-          street: patient?.street ?? '',
-          address: patient?.address ?? '',
-          // S-5.5: load Unit # from the same field the booking form writes to.
-          apptNumber: patient?.apptNumber ?? '',
-          city: patient?.city ?? '',
-          stateId: patient?.stateId ?? null,
-          zipCode: patient?.zipCode ?? '',
-          appointmentLanguageId: patient?.appointmentLanguageId ?? null,
-          needsInterpreter: !!patient?.interpreterVendorName,
-          interpreterVendorName: patient?.interpreterVendorName ?? '',
-          refferedBy: patient?.refferedBy ?? '',
-        };
-        this.stateIdControl.setValue(patient?.stateId ?? null, { emitEvent: false });
-        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
+        this.form.patchValue(
+          {
+            patientFirstName: patient?.firstName ?? '',
+            patientLastName: patient?.lastName ?? '',
+            patientMiddleName: patient?.middleName ?? '',
+            patientEmail: patient?.email ?? '',
+            patientGenderId: (patient?.genderId as number | undefined) ?? null,
+            // S-5.5: parse ISO date string into NgbDateStruct so the datepicker renders.
+            patientDateOfBirth: this.parseDateOfBirthFromApi(patient?.dateOfBirth),
+            patientCellPhoneNumber: patient?.cellPhoneNumber ?? '',
+            patientPhoneNumber: patient?.phoneNumber ?? '',
+            patientPhoneNumberTypeId: (patient?.phoneNumberTypeId as number | undefined) ?? null,
+            patientSocialSecurityNumber: patient?.socialSecurityNumber ?? '',
+            patientStreet: patient?.street ?? '',
+            patientAddress: patient?.address ?? '',
+            patientApptNumber: patient?.apptNumber ?? '',
+            patientCity: patient?.city ?? '',
+            patientStateId: patient?.stateId ?? null,
+            patientZipCode: patient?.zipCode ?? '',
+            patientAppointmentLanguageId: patient?.appointmentLanguageId ?? null,
+            patientNeedsInterpreter: !!patient?.interpreterVendorName,
+            patientInterpreterVendorName: patient?.interpreterVendorName ?? '',
+            patientRefferedBy: patient?.refferedBy ?? '',
+          },
+          { emitEvent: false },
+        );
+        // #122 (2026-05-14): O5 strict-parity read-only gate. External roles
+        // (Patient / AA / DA / CE) see the form fields visually locked via
+        // form.disable(); internal staff edit freely. Server permission
+        // attributes remain authoritative on save.
+        if (this.isReadOnly) {
+          this.form.disable({ emitEvent: false });
+        }
         this.isLoading = false;
       },
       error: () => {
@@ -347,11 +371,10 @@ export class AppointmentViewComponent implements OnInit {
    * Patient -> /patients/me (W-B-2 fix, 2026-04-30: previously CE + internal
    * bookers fell through to /patients/me and got 404).
    *
-   * S-5.3b (W-VIEW-10): do NOT use this getter for read-only / canEdit gates.
-   * It returns true for internal admins, which incorrectly classifies them as
-   * external and locks them out of every field outside AwaitingMoreInfo. Use
-   * `isPatientUser` (which actually checks any-of-the-4-external-roles) and
-   * negate it to detect internal admins instead.
+   * S-5.3b (W-VIEW-10): do NOT use this getter for read-only gates. It
+   * returns true for internal admins, which incorrectly classifies them as
+   * external. Use `isPatientUser` (which actually checks any-of-the-4-external
+   * -roles) and negate it to detect internal admins instead.
    */
   get isExternalUserNonPatient(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
@@ -374,11 +397,11 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * W2-9: returns true if the current user holds any external role
-   * (Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
-   * Used by canEdit() to decide whether the read-only-by-default policy
-   * applies. Internal admins (anyone NOT in this set) bypass the gate
-   * entirely; the server's permission attributes remain authoritative.
+   * Returns true if the current user holds any external role (Patient,
+   * Applicant Attorney, Defense Attorney, Claim Examiner). Used by
+   * `isReadOnly` to decide whether view-page form fields are locked.
+   * Internal admins (anyone NOT in this set) edit freely; the server's
+   * permission attributes remain authoritative.
    */
   get isPatientUser(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
@@ -392,44 +415,23 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * W2-9: cached set of flagged field keys from the latest unresolved
-   * AppointmentSendBackInfo row. O(1) `.has(key)` lookup instead of
-   * O(n) Array.includes(). Cache is reset to null inside
-   * maybeLoadLatestSendBackInfo whenever latestSendBackInfo changes.
-   */
-  private get flaggedFieldsSet(): Set<string> {
-    if (!this.flaggedFieldsCache && this.latestSendBackInfo?.flaggedFields) {
-      this.flaggedFieldsCache = new Set(this.latestSendBackInfo.flaggedFields);
-    }
-    return this.flaggedFieldsCache ?? new Set();
-  }
-
-  /**
-   * W2-9: per-field read-only-edit-mode gate.
-   *  - Internal admin tier (anyone NOT in the 4 external roles): always editable;
-   *    server permission attributes (`Appointments.Edit` etc.) remain authoritative.
-   *  - External roles (Patient / Applicant Attorney / Defense Attorney /
-   *    Claim Examiner): read-only by default. Edit unlocks ONLY when
-   *    appointmentStatus = AwaitingMoreInfo AND `fieldName` is in the
-   *    latest unresolved SendBack info's flaggedFields list.
+   * Read-only gate for view-page form fields. Per O5 strict-parity decision
+   * (2026-05-04), OLD has no return-to-booker correction loop -- staff
+   * comments via `InternalUserComments` (approve) or `RejectionNotes`
+   * (reject) and the booker re-files from scratch on rejection. So:
    *
-   * Bind in HTML as `[disabled]="!canEdit('fieldKey')"` on every ngModel
-   * input/select/textarea. Field-key vocabulary matches `send-back-fields.ts`.
+   *  - Internal admin tier (anyone NOT in the 4 external roles): editable;
+   *    server permission attributes remain authoritative.
+   *  - External roles (Patient / AA / DA / CE): read-only on the view page.
+   *    Booking is the canonical create surface; edits to an existing
+   *    appointment are not part of the OLD-parity flow.
+   *
+   * #122 (2026-05-14): reactive forms toggle this gate at the FormGroup
+   * level via `form.disable()` in ngOnInit. The template no longer threads
+   * `[disabled]="isReadOnly"` through every input.
    */
-  canEdit(fieldName: string): boolean {
-    // S-5.3b (W-VIEW-10): internal admin = NOT in any of the 4 external roles
-    // (Patient / AA / DA / CE). The previous form combined isExternalUserNonPatient
-    // with !isPatientUser, but isExternalUserNonPatient returns true for admins
-    // (who lack the 'patient' role), so the AND collapsed to false for every admin
-    // and locked them out of every field outside AwaitingMoreInfo.
-    const isInternalAdmin = !this.isPatientUser;
-    if (isInternalAdmin) {
-      return true;
-    }
-    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
-      return false;
-    }
-    return this.flaggedFieldsSet.has(fieldName);
+  get isReadOnly(): boolean {
+    return this.isPatientUser;
   }
 
   // ----- W1-1 transition state-machine UI helpers -----
@@ -450,93 +452,35 @@ export class AppointmentViewComponent implements OnInit {
       return false;
     }
     const status = this.currentStatus;
-    const officeStatuses: AppointmentStatusType[] = [
-      AppointmentStatusType.Pending,
-      AppointmentStatusType.AwaitingMoreInfo,
-    ];
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      !this.isPatientUser && status !== undefined && officeStatuses.includes(status)
+      !this.isPatientUser && status === AppointmentStatusType.Pending
     );
   }
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending: approve | reject | sendBack
-   *  AwaitingMoreInfo: approve | reject  (sendBack would be redundant)
+   *  Pending: approve | reject  (OLD parity -- no send-back path)
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
-      return ['approve', 'reject', 'sendBack'];
-    }
-    if (status === AppointmentStatusType.AwaitingMoreInfo) {
       return ['approve', 'reject'];
     }
     return [];
   }
 
-  /**
-   * Booker mode: the appointment is in AwaitingMoreInfo and the current user
-   * is its creator. Server-side ownership enforcement is deferred (ledger);
-   * MVP relies on this UI gate plus the standard tenant filter.
-   */
-  get isResubmitMode(): boolean {
-    if (this.currentStatus !== AppointmentStatusType.AwaitingMoreInfo) {
-      return false;
-    }
-    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
-    const creatorId = this.appointment?.appointment?.creatorId;
-    return !!currentUserId && !!creatorId && currentUserId === creatorId;
-  }
-
-  /**
-   * Distinct sections containing flagged fields. Used to render the amber
-   * pills on the booker banner.
-   */
-  get flaggedSections(): { sectionId: string; sectionLabel: string }[] {
-    if (!this.latestSendBackInfo?.flaggedFields?.length) {
-      return [];
-    }
-    const seen = new Map<string, { sectionId: string; sectionLabel: string }>();
-    for (const key of this.latestSendBackInfo.flaggedFields) {
-      const meta = this.flaggedFieldLookup.get(key);
-      if (meta && !seen.has(meta.sectionId)) {
-        seen.set(meta.sectionId, { sectionId: meta.sectionId, sectionLabel: meta.sectionLabel });
-      }
-    }
-    return Array.from(seen.values());
-  }
-
-  /**
-   * Field-level labels for the "Specific fields flagged" banner subsection.
-   * Falls back to the raw key if the lookup misses (e.g. office flagged a
-   * field name we no longer recognise after a rename).
-   */
-  get flaggedFieldLabels(): string[] {
-    if (!this.latestSendBackInfo?.flaggedFields?.length) {
-      return [];
-    }
-    return this.latestSendBackInfo.flaggedFields.map((key) => {
-      const meta = this.flaggedFieldLookup.get(key);
-      return meta ? `${meta.sectionLabel}: ${meta.fieldLabel}` : key;
-    });
-  }
-
-  /** Triggered when the office clicks Submit on the action dropdown. */
-  dispatchAction(): void {
-    if (!this.appointment?.appointment?.id || !this.selectedAction) {
+  /** Triggered when the office clicks Approve or Reject in the toolbar. */
+  dispatchAction(action: TransitionAction): void {
+    if (!this.appointment?.appointment?.id) {
       return;
     }
-    switch (this.selectedAction) {
+    switch (action) {
       case 'approve':
         this.approveModalVisible = true;
         break;
       case 'reject':
         this.rejectModalVisible = true;
-        break;
-      case 'sendBack':
-        this.sendBackModalVisible = true;
         break;
     }
   }
@@ -545,16 +489,12 @@ export class AppointmentViewComponent implements OnInit {
    * Modal-success callback: refresh nav-properties + reset dropdown.
    *
    * S-7.2 (2.11): the modal hands us the post-transition `AppointmentDto`
-   * directly (the server response from Approve / Reject / SendBack /
-   * SaveAndResubmit). Patch `appointment.appointment` from that dto
-   * immediately so the status pill flips on the same change-detection cycle
-   * the modal closed in -- previously the user saw "Pending" for a few
-   * seconds while the follow-up `getWithNavigationProperties` round-trip
-   * resolved. We still re-fetch in the background to refresh nav-property
-   * snapshots (patient first/last name updates, last-modified-by, etc.).
+   * directly (the server response from Approve / Reject). Patch
+   * `appointment.appointment` from that dto immediately so the status pill
+   * flips on the same change-detection cycle the modal closed in. We still
+   * re-fetch in the background to refresh nav-property snapshots.
    */
   onActionSucceeded(dto: AppointmentDto): void {
-    this.selectedAction = '';
     if (this.appointment?.appointment && dto) {
       this.appointment.appointment = { ...this.appointment.appointment, ...dto };
     }
@@ -565,78 +505,10 @@ export class AppointmentViewComponent implements OnInit {
     this.appointmentService.getWithNavigationProperties(id).subscribe({
       next: (data) => {
         this.appointment = data;
-        this.maybeLoadLatestSendBackInfo(data.appointment?.id, data.appointment?.appointmentStatus);
       },
     });
   }
 
-  /**
-   * Booker calls this from the Save & Resubmit button. Awaits the standard
-   * save() chain (patient + appointment + employer + attorney upserts),
-   * then fires the SaveAndResubmit transition which auto-flips status to
-   * Pending and marks the latest send-back row resolved server-side.
-   *
-   * If save() fails the resubmit is skipped and the user sees save's error
-   * message. If save() succeeds but the transition fails, the changes
-   * persist (the booker effectively "saved") but the appointment stays in
-   * AwaitingMoreInfo so they can retry.
-   */
-  async saveAndResubmit(): Promise<void> {
-    const id = this.appointment?.appointment?.id;
-    if (!id || this.isSaving) {
-      return;
-    }
-    try {
-      await this.save();
-    } catch {
-      // save() populated errorMessage; abort the resubmit transition.
-      return;
-    }
-    this.isSaving = true;
-    try {
-      const dto = await firstValueFrom(this.appointmentService.saveAndResubmit(id));
-      this.toaster.success('::Appointment:Toast:Resubmitted');
-      this.latestSendBackInfo = null;
-      this.flaggedFieldsCache = null;
-      this.onActionSucceeded(dto);
-    } catch {
-      this.toaster.error('::Appointment:Toast:ResubmitFailed');
-      this.errorMessage =
-        'Saved your changes, but submitting back to the office failed. Please try again.';
-    } finally {
-      this.isSaving = false;
-    }
-  }
-
-  private maybeLoadLatestSendBackInfo(
-    appointmentId: string | undefined,
-    status: AppointmentStatusType | undefined,
-  ): void {
-    if (!appointmentId || status !== AppointmentStatusType.AwaitingMoreInfo) {
-      this.latestSendBackInfo = null;
-      this.flaggedFieldsCache = null;
-      return;
-    }
-    this.appointmentService.getLatestUnresolvedSendBackInfo(appointmentId).subscribe({
-      next: (info) => {
-        this.latestSendBackInfo = info;
-        this.flaggedFieldsCache = null;
-      },
-      error: () => {
-        this.latestSendBackInfo = null;
-        this.flaggedFieldsCache = null;
-      },
-    });
-  }
-
-  /**
-   * Returns a Promise that resolves after the full chain (patient PUT,
-   * appointment PUT, employer + attorney upserts) completes successfully,
-   * or rejects with the first failure. Returning a Promise (rather than
-   * void) lets saveAndResubmit() await this before firing the transition.
-   * Unawaited callers (the existing Save button) get fire-and-forget
-   * behavior identical to the original signature.
-   */
   save(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const selected = this.appointment?.appointment;
@@ -658,34 +530,38 @@ export class AppointmentViewComponent implements OnInit {
       this.successMessage = '';
       this.isSaving = true;
 
-      const dateOfBirth = this.formatDateOfBirthForApi(this.patientForm.dateOfBirth);
+      // #122 (2026-05-14): single source of truth -- getRawValue includes
+      // disabled controls so the payload shape stays identical whether or
+      // not isReadOnly disabled the form (and the server permission gate
+      // is authoritative anyway).
+      const raw = this.form.getRawValue();
+      const dateOfBirth = this.formatDateOfBirthForApi(raw.patientDateOfBirth);
       const patientPayload: PatientUpdateDto = {
-        firstName: this.patientForm.firstName,
-        lastName: this.patientForm.lastName,
-        middleName: this.patientForm.middleName || undefined,
-        email: this.patientForm.email,
-        genderId: (this.patientForm.genderId as any) ?? undefined,
+        firstName: raw.patientFirstName,
+        lastName: raw.patientLastName,
+        middleName: raw.patientMiddleName || undefined,
+        email: raw.patientEmail,
+        genderId: (raw.patientGenderId as any) ?? undefined,
         dateOfBirth: dateOfBirth ?? undefined,
-        phoneNumber: this.patientForm.phoneNumber || undefined,
-        socialSecurityNumber: this.patientForm.socialSecurityNumber || undefined,
-        address: this.patientForm.address || undefined,
-        city: this.patientForm.city || undefined,
-        zipCode: this.patientForm.zipCode || undefined,
-        refferedBy: this.patientForm.refferedBy || undefined,
-        cellPhoneNumber: this.patientForm.cellPhoneNumber || undefined,
-        phoneNumberTypeId: (this.patientForm.phoneNumberTypeId as any) ?? undefined,
-        street: this.patientForm.street || undefined,
-        interpreterVendorName: this.patientForm.needsInterpreter
-          ? this.patientForm.interpreterVendorName || undefined
+        phoneNumber: raw.patientPhoneNumber || undefined,
+        socialSecurityNumber: raw.patientSocialSecurityNumber || undefined,
+        address: raw.patientAddress || undefined,
+        city: raw.patientCity || undefined,
+        zipCode: raw.patientZipCode || undefined,
+        refferedBy: raw.patientRefferedBy || undefined,
+        cellPhoneNumber: raw.patientCellPhoneNumber || undefined,
+        phoneNumberTypeId: (raw.patientPhoneNumberTypeId as any) ?? undefined,
+        street: raw.patientStreet || undefined,
+        interpreterVendorName: raw.patientNeedsInterpreter
+          ? raw.patientInterpreterVendorName || undefined
           : undefined,
         // S-5.5: send the user-edited Unit # from the form, falling back to the
         // loaded value if the form was untouched (preserves prior preserve-only
         // behavior when the new field has no input).
-        apptNumber:
-          this.patientForm.apptNumber || this.appointment?.patient?.apptNumber || undefined,
+        apptNumber: raw.patientApptNumber || this.appointment?.patient?.apptNumber || undefined,
         othersLanguageName: this.appointment?.patient?.othersLanguageName ?? undefined,
-        stateId: this.stateIdControl.value ?? undefined,
-        appointmentLanguageId: this.patientForm.appointmentLanguageId ?? undefined,
+        stateId: raw.patientStateId ?? undefined,
+        appointmentLanguageId: raw.patientAppointmentLanguageId ?? undefined,
         identityUserId: selected.identityUserId,
         tenantId: this.appointment?.patient?.tenantId ?? undefined,
         concurrencyStamp: this.appointment?.patient?.concurrencyStamp,
@@ -707,24 +583,32 @@ export class AppointmentViewComponent implements OnInit {
         )
         .subscribe({
           next: (updatedPatient) => {
+            // R2 (2026-05-04): the backend AppointmentManager.UpdateAsync
+            // accepts ONLY the 14 fields below. isPatientAlreadyExist,
+            // internalUserComments, appointmentApproveDate, appointmentStatus
+            // are intentionally NOT on AppointmentUpdateDto -- they are set
+            // via dedicated transitions (Approve / Reject / SendBack-removed)
+            // and the EF entity preserves prior values across this update.
+            // Earlier the view sent those fields and TypeScript silently
+            // dropped them; the proxy regen now enforces strict shape.
             const payload: AppointmentUpdateDto = {
-              panelNumber: this.panelNumber || undefined,
+              panelNumber: raw.panelNumber || undefined,
               appointmentDate: selected.appointmentDate,
-              isPatientAlreadyExist: selected.isPatientAlreadyExist,
-              requestConfirmationNumber: selected.requestConfirmationNumber,
+              requestConfirmationNumber: selected.requestConfirmationNumber!,
               dueDate: selected.dueDate,
-              internalUserComments: selected.internalUserComments,
-              appointmentApproveDate: selected.appointmentApproveDate,
-              appointmentStatus: selected.appointmentStatus,
-              patientId: selected.patientId,
-              identityUserId: selected.identityUserId,
-              appointmentTypeId: selected.appointmentTypeId,
-              locationId: selected.locationId,
-              doctorAvailabilityId: selected.doctorAvailabilityId,
-              concurrencyStamp: selected.concurrencyStamp,
+              patientId: selected.patientId!,
+              identityUserId: selected.identityUserId!,
+              appointmentTypeId: selected.appointmentTypeId!,
+              locationId: selected.locationId!,
+              doctorAvailabilityId: selected.doctorAvailabilityId!,
+              concurrencyStamp: selected.concurrencyStamp ?? '',
+              patientEmail: selected.patientEmail,
+              applicantAttorneyEmail: selected.applicantAttorneyEmail,
+              defenseAttorneyEmail: selected.defenseAttorneyEmail,
+              claimExaminerEmail: selected.claimExaminerEmail,
             };
 
-            this.appointmentService.update(selected.id, payload).subscribe({
+            this.appointmentService.update(selected.id!, payload).subscribe({
               next: async (updated) => {
                 let savedClean = true;
                 try {
@@ -741,7 +625,10 @@ export class AppointmentViewComponent implements OnInit {
                   // form remains the canonical edit surface), so no inline
                   // upsert call here for injuries.
                   await this.upsertDefenseAttorneyDetails(updated.id);
-                  this.panelNumber = updated.panelNumber ?? '';
+                  this.form.patchValue(
+                    { panelNumber: updated.panelNumber ?? '' },
+                    { emitEvent: false },
+                  );
                   this.successMessage =
                     'Appointment, patient, employer, applicant attorney, and defense attorney details updated successfully.';
                 } catch {
@@ -774,38 +661,44 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   openUploadDocuments(): void {
-    this.router.navigateByUrl('/file-management');
-  }
-
-  openHelp(): void {
-    window.open('https://abp.io/docs/latest/getting-started', '_blank', 'noopener,noreferrer');
+    // The documents block is already embedded below on this view
+    // (<app-appointment-documents id="appointment-documents-anchor">). The
+    // button just scrolls it into view so the booker can click the upload
+    // input. The earlier '/file-management' target hit Volo's tenant-wide
+    // explorer which external roles cannot access (403). The per-appointment
+    // upload path (AppointmentDocumentsAppService.UploadStreamAsync) is
+    // already permission-granted to the four external roles via
+    // BookingBaselineGrants.
+    document
+      .getElementById('appointment-documents-anchor')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   openAddAuthorizedUserModal(): void {
     this.authorizedUserModalMode = 'create';
     this.editingAuthorizedUserId = null;
-    this.authorizedUserDraft = {
+    this.authorizedUserForm.reset({
       identityUserId: null,
       firstName: '',
       lastName: '',
       email: '',
       userRole: '',
       accessTypeId: 23,
-    };
+    });
     this.isAuthorizedUserModalOpen = true;
   }
 
   openEditAuthorizedUserModal(item: AppointmentAuthorizedUserRow): void {
     this.authorizedUserModalMode = 'edit';
     this.editingAuthorizedUserId = item.accessorId;
-    this.authorizedUserDraft = {
+    this.authorizedUserForm.reset({
       identityUserId: item.identityUserId,
       firstName: item.firstName,
       lastName: item.lastName,
       email: item.email,
       userRole: item.userRole,
       accessTypeId: item.accessTypeId,
-    };
+    });
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -813,27 +706,32 @@ export class AppointmentViewComponent implements OnInit {
     this.isAuthorizedUserModalOpen = false;
   }
 
-  onAuthorizedUserIdentityChange(identityUserId: string | null): void {
-    this.authorizedUserDraft.identityUserId = identityUserId;
+  onAuthorizedUserIdentityChange(): void {
+    const identityUserId = this.authorizedUserForm.get('identityUserId')?.value as string | null;
     const selected = this.externalAuthorizedUserOptions.find(
       (x) => x.identityUserId === identityUserId,
     );
-    this.authorizedUserDraft.firstName = selected?.firstName ?? '';
-    this.authorizedUserDraft.lastName = selected?.lastName ?? '';
-    this.authorizedUserDraft.email = selected?.email ?? '';
-    this.authorizedUserDraft.userRole = selected?.userRole ?? '';
+    this.authorizedUserForm.patchValue(
+      {
+        firstName: selected?.firstName ?? '',
+        lastName: selected?.lastName ?? '',
+        email: selected?.email ?? '',
+        userRole: selected?.userRole ?? '',
+      },
+      { emitEvent: false },
+    );
   }
 
   async saveAuthorizedUserFromModal(): Promise<void> {
     const appointmentId = this.appointment?.appointment?.id;
-    if (!appointmentId || !this.authorizedUserDraft.identityUserId) {
+    const draft = this.authorizedUserForm.getRawValue();
+    if (!appointmentId || !draft.identityUserId) {
       return;
     }
 
     const duplicate = this.appointmentAuthorizedUsers.some(
       (x) =>
-        x.identityUserId === this.authorizedUserDraft.identityUserId &&
-        x.accessorId !== this.editingAuthorizedUserId,
+        x.identityUserId === draft.identityUserId && x.accessorId !== this.editingAuthorizedUserId,
     );
     if (duplicate) {
       return;
@@ -841,8 +739,8 @@ export class AppointmentViewComponent implements OnInit {
 
     const body = {
       appointmentId,
-      identityUserId: this.authorizedUserDraft.identityUserId,
-      accessTypeId: this.authorizedUserDraft.accessTypeId,
+      identityUserId: draft.identityUserId,
+      accessTypeId: draft.accessTypeId,
     };
 
     if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserId) {
@@ -927,28 +825,11 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   loadApplicantAttorneyByEmail(): void {
-    const email = this.applicantAttorneyEmailSearch?.trim();
+    const email = (this.form.get('applicantAttorneyEmailSearch')?.value as string | null)?.trim();
     if (!email) return;
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<
-        any,
-        {
-          applicantAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-        } | null
-      >(
+      .request<any, ApplicantAttorneyLookupResult | null>(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -959,24 +840,7 @@ export class AppointmentViewComponent implements OnInit {
       .subscribe({
         next: (data) => {
           if (data) {
-            this.applicantAttorneyForm = {
-              applicantAttorneyId: data.applicantAttorneyId ?? null,
-              identityUserId: data.identityUserId,
-              firstName: data.firstName ?? '',
-              lastName: data.lastName ?? '',
-              email: data.email ?? '',
-              firmName: data.firmName ?? '',
-              webAddress: data.webAddress ?? '',
-              phoneNumber: data.phoneNumber ?? '',
-              faxNumber: data.faxNumber ?? '',
-              street: data.street ?? '',
-              city: data.city ?? '',
-              stateId: data.stateId ?? null,
-              zipCode: data.zipCode ?? '',
-            };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
-              emitEvent: false,
-            });
+            this.applyApplicantAttorneyLookup(data);
           }
           this.isApplicantAttorneyLoading = false;
         },
@@ -990,24 +854,7 @@ export class AppointmentViewComponent implements OnInit {
     if (!identityUserId) return;
     this.isApplicantAttorneyLoading = true;
     this.restService
-      .request<
-        any,
-        {
-          applicantAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-        } | null
-      >(
+      .request<any, ApplicantAttorneyLookupResult | null>(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -1018,24 +865,7 @@ export class AppointmentViewComponent implements OnInit {
       .subscribe({
         next: (data) => {
           if (data) {
-            this.applicantAttorneyForm = {
-              applicantAttorneyId: data.applicantAttorneyId ?? null,
-              identityUserId: data.identityUserId,
-              firstName: data.firstName ?? '',
-              lastName: data.lastName ?? '',
-              email: data.email ?? '',
-              firmName: data.firmName ?? '',
-              webAddress: data.webAddress ?? '',
-              phoneNumber: data.phoneNumber ?? '',
-              faxNumber: data.faxNumber ?? '',
-              street: data.street ?? '',
-              city: data.city ?? '',
-              stateId: data.stateId ?? null,
-              zipCode: data.zipCode ?? '',
-            };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
-              emitEvent: false,
-            });
+            this.applyApplicantAttorneyLookup(data);
           }
           this.isApplicantAttorneyLoading = false;
         },
@@ -1048,7 +878,7 @@ export class AppointmentViewComponent implements OnInit {
   // S-5.4: load DA details by email (used when the form is empty and the
   // viewer types an address into the search box). Mirrors AA's equivalent.
   loadDefenseAttorneyByEmail(): void {
-    const email = this.defenseAttorneyEmailSearch?.trim();
+    const email = (this.form.get('defenseAttorneyEmailSearch')?.value as string | null)?.trim();
     if (!email) return;
     this.isDefenseAttorneyLoading = true;
     this.restService
@@ -1101,23 +931,49 @@ export class AppointmentViewComponent implements OnInit {
       });
   }
 
+  // #122 (2026-05-14): consolidated AA-lookup -> form patch helper.
+  // Previously 4 nearly-identical assignment blocks (loadByEmail, onSelected,
+  // bindFromResponse, loadForCurrentUser) -- now one helper used by all.
+  private applyApplicantAttorneyLookup(data: ApplicantAttorneyLookupResult): void {
+    this.applicantAttorneyId = data.applicantAttorneyId ?? null;
+    this.form.patchValue(
+      {
+        applicantAttorneyIdentityUserId: data.identityUserId,
+        applicantAttorneyFirstName: data.firstName ?? '',
+        applicantAttorneyLastName: data.lastName ?? '',
+        applicantAttorneyEmail: data.email ?? '',
+        applicantAttorneyFirmName: data.firmName ?? '',
+        applicantAttorneyWebAddress: data.webAddress ?? '',
+        applicantAttorneyPhoneNumber: data.phoneNumber ?? '',
+        applicantAttorneyFaxNumber: data.faxNumber ?? '',
+        applicantAttorneyStreet: data.street ?? '',
+        applicantAttorneyCity: data.city ?? '',
+        applicantAttorneyStateId: data.stateId ?? null,
+        applicantAttorneyZipCode: data.zipCode ?? '',
+      },
+      { emitEvent: false },
+    );
+  }
+
   private applyDefenseAttorneyLookup(data: DefenseAttorneyLookupResult): void {
-    this.defenseAttorneyForm = {
-      defenseAttorneyId: data.defenseAttorneyId ?? null,
-      identityUserId: data.identityUserId,
-      firstName: data.firstName ?? '',
-      lastName: data.lastName ?? '',
-      email: data.email ?? '',
-      firmName: data.firmName ?? '',
-      webAddress: data.webAddress ?? '',
-      phoneNumber: data.phoneNumber ?? '',
-      faxNumber: data.faxNumber ?? '',
-      street: data.street ?? '',
-      city: data.city ?? '',
-      stateId: data.stateId ?? null,
-      zipCode: data.zipCode ?? '',
-    };
-    this.defenseAttorneyStateIdControl.setValue(data.stateId ?? null, { emitEvent: false });
+    this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+    this.form.patchValue(
+      {
+        defenseAttorneyIdentityUserId: data.identityUserId,
+        defenseAttorneyFirstName: data.firstName ?? '',
+        defenseAttorneyLastName: data.lastName ?? '',
+        defenseAttorneyEmail: data.email ?? '',
+        defenseAttorneyFirmName: data.firmName ?? '',
+        defenseAttorneyWebAddress: data.webAddress ?? '',
+        defenseAttorneyPhoneNumber: data.phoneNumber ?? '',
+        defenseAttorneyFaxNumber: data.faxNumber ?? '',
+        defenseAttorneyStreet: data.street ?? '',
+        defenseAttorneyCity: data.city ?? '',
+        defenseAttorneyStateId: data.stateId ?? null,
+        defenseAttorneyZipCode: data.zipCode ?? '',
+      },
+      { emitEvent: false },
+    );
   }
 
   private loadAppointmentAccessors(appointmentId?: string): void {
@@ -1182,8 +1038,8 @@ export class AppointmentViewComponent implements OnInit {
     const applicant = appAtt?.applicantAttorney;
     const identityUser = appAtt?.identityUser;
     if (applicant && identityUser) {
-      this.applicantAttorneyForm = {
-        applicantAttorneyId: applicant.id ?? null,
+      this.applyApplicantAttorneyLookup({
+        applicantAttorneyId: applicant.id ?? undefined,
         identityUserId: identityUser.id ?? '',
         firstName: identityUser.name ?? '',
         lastName: identityUser.surname ?? '',
@@ -1194,15 +1050,12 @@ export class AppointmentViewComponent implements OnInit {
         faxNumber: applicant.faxNumber ?? '',
         street: applicant.street ?? '',
         city: applicant.city ?? '',
-        stateId: applicant.stateId ?? null,
+        stateId: applicant.stateId ?? undefined,
         zipCode: applicant.zipCode ?? '',
-      };
-      this.applicantAttorneyStateIdControl.setValue(applicant.stateId ?? null, {
-        emitEvent: false,
       });
     } else {
       this.loadApplicantAttorneyDetails(data?.appointment?.id, () => {
-        if (this.isApplicantAttorney && !this.applicantAttorneyForm.identityUserId) {
+        if (this.isApplicantAttorney && !this.form.get('applicantAttorneyIdentityUserId')?.value) {
           this.loadApplicantAttorneyForCurrentUser();
         }
       });
@@ -1213,24 +1066,7 @@ export class AppointmentViewComponent implements OnInit {
     const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
     if (!currentUserId) return;
     this.restService
-      .request<
-        any,
-        {
-          applicantAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-        } | null
-      >(
+      .request<any, ApplicantAttorneyLookupResult | null>(
         {
           method: 'GET',
           url: '/api/app/appointments/applicant-attorney-details-for-booking',
@@ -1241,24 +1077,7 @@ export class AppointmentViewComponent implements OnInit {
       .subscribe({
         next: (data) => {
           if (data) {
-            this.applicantAttorneyForm = {
-              applicantAttorneyId: data.applicantAttorneyId ?? null,
-              identityUserId: data.identityUserId,
-              firstName: data.firstName ?? '',
-              lastName: data.lastName ?? '',
-              email: data.email ?? '',
-              firmName: data.firmName ?? '',
-              webAddress: data.webAddress ?? '',
-              phoneNumber: data.phoneNumber ?? '',
-              faxNumber: data.faxNumber ?? '',
-              street: data.street ?? '',
-              city: data.city ?? '',
-              stateId: data.stateId ?? null,
-              zipCode: data.zipCode ?? '',
-            };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
-              emitEvent: false,
-            });
+            this.applyApplicantAttorneyLookup(data);
           }
         },
       });
@@ -1271,24 +1090,7 @@ export class AppointmentViewComponent implements OnInit {
     }
 
     this.restService
-      .request<
-        any,
-        {
-          applicantAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-        } | null
-      >(
+      .request<any, ApplicantAttorneyLookupResult | null>(
         {
           method: 'GET',
           url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
@@ -1298,24 +1100,7 @@ export class AppointmentViewComponent implements OnInit {
       .subscribe({
         next: (data) => {
           if (data) {
-            this.applicantAttorneyForm = {
-              applicantAttorneyId: data.applicantAttorneyId ?? null,
-              identityUserId: data.identityUserId,
-              firstName: data.firstName ?? '',
-              lastName: data.lastName ?? '',
-              email: data.email ?? '',
-              firmName: data.firmName ?? '',
-              webAddress: data.webAddress ?? '',
-              phoneNumber: data.phoneNumber ?? '',
-              faxNumber: data.faxNumber ?? '',
-              street: data.street ?? '',
-              city: data.city ?? '',
-              stateId: data.stateId ?? null,
-              zipCode: data.zipCode ?? '',
-            };
-            this.applicantAttorneyStateIdControl.setValue(data.stateId ?? null, {
-              emitEvent: false,
-            });
+            this.applyApplicantAttorneyLookup(data);
           } else {
             onEmpty?.();
           }
@@ -1398,28 +1183,25 @@ export class AppointmentViewComponent implements OnInit {
     // IdentityUserId; the appointment-level DefenseAttorneyEmail column from
     // S-5.1 already captures unregistered DA emails for fan-out independent
     // of whether a join row exists).
-    if (
-      !appointmentId ||
-      !this.defenseAttorneyEnabled ||
-      !this.defenseAttorneyForm.identityUserId
-    ) {
+    const raw = this.form.getRawValue();
+    if (!appointmentId || !raw.defenseAttorneyEnabled || !raw.defenseAttorneyIdentityUserId) {
       return;
     }
 
     const body = {
-      defenseAttorneyId: this.defenseAttorneyForm.defenseAttorneyId ?? undefined,
-      identityUserId: this.defenseAttorneyForm.identityUserId,
-      firstName: this.defenseAttorneyForm.firstName,
-      lastName: this.defenseAttorneyForm.lastName,
-      email: this.defenseAttorneyForm.email,
-      firmName: this.defenseAttorneyForm.firmName || undefined,
-      webAddress: this.defenseAttorneyForm.webAddress || undefined,
-      phoneNumber: this.defenseAttorneyForm.phoneNumber || undefined,
-      faxNumber: this.defenseAttorneyForm.faxNumber || undefined,
-      street: this.defenseAttorneyForm.street || undefined,
-      city: this.defenseAttorneyForm.city || undefined,
-      stateId: this.defenseAttorneyStateIdControl.value ?? undefined,
-      zipCode: this.defenseAttorneyForm.zipCode || undefined,
+      defenseAttorneyId: this.defenseAttorneyId ?? undefined,
+      identityUserId: raw.defenseAttorneyIdentityUserId,
+      firstName: raw.defenseAttorneyFirstName,
+      lastName: raw.defenseAttorneyLastName,
+      email: raw.defenseAttorneyEmail,
+      firmName: raw.defenseAttorneyFirmName || undefined,
+      webAddress: raw.defenseAttorneyWebAddress || undefined,
+      phoneNumber: raw.defenseAttorneyPhoneNumber || undefined,
+      faxNumber: raw.defenseAttorneyFaxNumber || undefined,
+      street: raw.defenseAttorneyStreet || undefined,
+      city: raw.defenseAttorneyCity || undefined,
+      stateId: raw.defenseAttorneyStateId ?? undefined,
+      zipCode: raw.defenseAttorneyZipCode || undefined,
     };
 
     await firstValueFrom(
@@ -1435,28 +1217,25 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   private async upsertApplicantAttorneyDetails(appointmentId?: string): Promise<void> {
-    if (
-      !appointmentId ||
-      !this.applicantAttorneyEnabled ||
-      !this.applicantAttorneyForm.identityUserId
-    ) {
+    const raw = this.form.getRawValue();
+    if (!appointmentId || !raw.applicantAttorneyEnabled || !raw.applicantAttorneyIdentityUserId) {
       return;
     }
 
     const body = {
-      applicantAttorneyId: this.applicantAttorneyForm.applicantAttorneyId ?? undefined,
-      identityUserId: this.applicantAttorneyForm.identityUserId,
-      firstName: this.applicantAttorneyForm.firstName,
-      lastName: this.applicantAttorneyForm.lastName,
-      email: this.applicantAttorneyForm.email,
-      firmName: this.applicantAttorneyForm.firmName || undefined,
-      webAddress: this.applicantAttorneyForm.webAddress || undefined,
-      phoneNumber: this.applicantAttorneyForm.phoneNumber || undefined,
-      faxNumber: this.applicantAttorneyForm.faxNumber || undefined,
-      street: this.applicantAttorneyForm.street || undefined,
-      city: this.applicantAttorneyForm.city || undefined,
-      stateId: this.applicantAttorneyStateIdControl.value ?? undefined,
-      zipCode: this.applicantAttorneyForm.zipCode || undefined,
+      applicantAttorneyId: this.applicantAttorneyId ?? undefined,
+      identityUserId: raw.applicantAttorneyIdentityUserId,
+      firstName: raw.applicantAttorneyFirstName,
+      lastName: raw.applicantAttorneyLastName,
+      email: raw.applicantAttorneyEmail,
+      firmName: raw.applicantAttorneyFirmName || undefined,
+      webAddress: raw.applicantAttorneyWebAddress || undefined,
+      phoneNumber: raw.applicantAttorneyPhoneNumber || undefined,
+      faxNumber: raw.applicantAttorneyFaxNumber || undefined,
+      street: raw.applicantAttorneyStreet || undefined,
+      city: raw.applicantAttorneyCity || undefined,
+      stateId: raw.applicantAttorneyStateId ?? undefined,
+      zipCode: raw.applicantAttorneyZipCode || undefined,
     };
 
     await firstValueFrom(
@@ -1498,27 +1277,31 @@ export class AppointmentViewComponent implements OnInit {
 
         this.employerDetailId = employer.id;
         this.employerDetailConcurrencyStamp = employer.concurrencyStamp ?? null;
-        this.employerForm = {
-          employerName: employer.employerName ?? '',
-          occupation: employer.occupation ?? '',
-          phoneNumber: employer.phoneNumber ?? '',
-          street: employer.street ?? '',
-          city: employer.city ?? '',
-          zipCode: employer.zipCode ?? '',
-        };
-        this.employerStateIdControl.setValue(employer.stateId ?? null, { emitEvent: false });
+        this.form.patchValue(
+          {
+            employerName: employer.employerName ?? '',
+            employerOccupation: employer.occupation ?? '',
+            employerPhoneNumber: employer.phoneNumber ?? '',
+            employerStreet: employer.street ?? '',
+            employerCity: employer.city ?? '',
+            employerStateId: employer.stateId ?? null,
+            employerZipCode: employer.zipCode ?? '',
+          },
+          { emitEvent: false },
+        );
       });
   }
 
   private hasEmployerData(): boolean {
+    const raw = this.form.getRawValue();
     return !!(
-      this.employerForm.employerName ||
-      this.employerForm.occupation ||
-      this.employerForm.phoneNumber ||
-      this.employerForm.street ||
-      this.employerForm.city ||
-      this.employerStateIdControl.value ||
-      this.employerForm.zipCode
+      raw.employerName ||
+      raw.employerOccupation ||
+      raw.employerPhoneNumber ||
+      raw.employerStreet ||
+      raw.employerCity ||
+      raw.employerStateId ||
+      raw.employerZipCode
     );
   }
 
@@ -1527,15 +1310,16 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
+    const raw = this.form.getRawValue();
     const body = {
       appointmentId,
-      employerName: this.employerForm.employerName,
-      occupation: this.employerForm.occupation,
-      phoneNumber: this.employerForm.phoneNumber || undefined,
-      street: this.employerForm.street || undefined,
-      city: this.employerForm.city || undefined,
-      stateId: this.employerStateIdControl.value || undefined,
-      zipCode: this.employerForm.zipCode || undefined,
+      employerName: raw.employerName,
+      occupation: raw.employerOccupation,
+      phoneNumber: raw.employerPhoneNumber || undefined,
+      street: raw.employerStreet || undefined,
+      city: raw.employerCity || undefined,
+      stateId: raw.employerStateId || undefined,
+      zipCode: raw.employerZipCode || undefined,
       concurrencyStamp: this.employerDetailConcurrencyStamp ?? undefined,
     };
 
@@ -1555,7 +1339,7 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
-    if (!this.employerForm.employerName || !this.employerForm.occupation) {
+    if (!raw.employerName || !raw.employerOccupation) {
       return;
     }
 

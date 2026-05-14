@@ -63,6 +63,10 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
         if (!consoleAndAngularClientId.IsNullOrWhiteSpace())
         {
             var consoleAndAngularClientRootUrl = configurationSection["CaseEvaluation_App:RootUrl"]?.TrimEnd('/');
+            // Issue #107 (2026-05-13) -- silent-refresh wiring was ripped;
+            // the SilentRefreshUri config key is no longer read and the
+            // RedirectUris list contains only the SPA root.
+            var redirectUris = new List<string> { consoleAndAngularClientRootUrl! };
             await CreateOrUpdateApplicationAsync(
                 applicationType: OpenIddictConstants.ApplicationTypes.Web,
                 name: consoleAndAngularClientId!,
@@ -79,7 +83,7 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
                     "Impersonation"
                 },
                 scopes: commonScopes,
-                redirectUris: new List<string> { consoleAndAngularClientRootUrl! },
+                redirectUris: redirectUris,
                 postLogoutRedirectUris: new List<string> { consoleAndAngularClientRootUrl! },
                 clientUri: consoleAndAngularClientRootUrl,
                 logoUri: "/images/clients/angular.svg"

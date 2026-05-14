@@ -1,0 +1,230 @@
+<!-- #121 phase T6 (2026-05-13) -- Patient Demographics + Address card.
+     Parent owns all 23 FormControls; child binds [formGroup]="form"
+     so formControlName resolves to parent scope. Patient picker +
+     email-change handler raise events; parent retains the lookup
+     HTTP calls. genderOptions is imported locally for the radio
+     loop. dobMinDate / dobMaxDate / lookup fns / isFieldInvalid are
+     Inputs so the parent stays the source of truth. -->
+<div [formGroup]="form" class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0 fw-bold">Patient Demographics</h5>
+  </div>
+  <div class="card-body">
+    @if (isExternalUserNonPatient) {
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Existing Patients</label>
+          <select
+            class="form-select"
+            formControlName="patientId"
+            (change)="patientSelected.emit($any(form.get('patientId')?.value) ?? null)"
+          >
+            <option [ngValue]="null">None</option>
+            @for (patient of patientListCache; track patient.id) {
+              <option [value]="patient.id">{{ patient.displayName }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      @if (patientLoadMessage) {
+        <div class="alert alert-info mb-3" role="alert">{{ patientLoadMessage }}</div>
+      }
+    }
+    <div class="row">
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }} *</label>
+        <input class="form-control" formControlName="lastName" maxlength="50" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }} *</label>
+        <input class="form-control" formControlName="firstName" maxlength="50" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
+        <input class="form-control" formControlName="middleName" maxlength="50" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
+        <div class="d-flex gap-3 pt-2">
+          @for (option of genderOptions; track option.key) {
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                [id]="'gender-' + option.key"
+                formControlName="genderId"
+                [value]="option.value"
+              />
+              <label class="form-check-label" [for]="'gender-' + option.key">
+                {{ '::Enum:Gender.' + option.value | abpLocalization }}
+              </label>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }} *</label>
+        <div class="input-group" validationTarget>
+          <input
+            readonly
+            id="appointment-patient-date-of-birth"
+            formControlName="dateOfBirth"
+            class="form-control"
+            ngbDatepicker
+            #dateOfBirthInput
+            #dateOfBirthDatepicker="ngbDatepicker"
+            [minDate]="dobMinDate"
+            [maxDate]="dobMaxDate"
+            navigation="select"
+            (click)="dateOfBirthDatepicker.open()"
+            (keyup.space)="dateOfBirthDatepicker.open()"
+          />
+          @if (dateOfBirthInput.value) {
+            <div class="input-group-append">
+              <button
+                class="btn btn-link px-2"
+                type="button"
+                [title]="'AbpUi::Clear' | abpLocalization"
+                (click)="
+                  dateOfBirthDatepicker.writeValue(null);
+                  dateOfBirthDatepicker.manualDateChange(null, true)
+                "
+              >
+                <i class="fa fa-times" aria-hidden="true"></i>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }} *</label>
+        <input
+          type="email"
+          class="form-control"
+          formControlName="email"
+          maxlength="50"
+          [readonly]="!isExternalUserNonPatient && !isItAdmin"
+          (input)="isExternalUserNonPatient ? patientEmailChanged.emit() : null"
+        />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">
+          {{ '::CellPhoneNumber' | abpLocalization }}
+        </label>
+        <input class="form-control" formControlName="cellPhoneNumber" maxlength="12" />
+      </div>
+      <!-- OLD parity 2026-05-06: OLD's appointment-add form has a single
+           Phone Number field with no Work/Home type radio. The radio
+           that ABP added with the field is omitted to match. The
+           phoneNumberTypeId form control still exists in the
+           FormGroup so the API contract stays intact (defaults to
+           null, server treats as not specified). -->
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
+        <input class="form-control" formControlName="phoneNumber" maxlength="20" />
+      </div>
+
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">
+          {{ '::SocialSecurityNumber' | abpLocalization }}
+        </label>
+        <input
+          type="text"
+          class="form-control app-ssn-redacted"
+          formControlName="socialSecurityNumber"
+          mask="000-00-0000"
+          [dropSpecialCharacters]="true"
+          maxlength="11"
+          autocomplete="off"
+          inputmode="numeric"
+        />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+        <input class="form-control" formControlName="street" maxlength="255" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">Unit #</label>
+        <input class="form-control" formControlName="address" maxlength="100" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+        <input class="form-control" formControlName="city" maxlength="50" />
+      </div>
+
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+        <app-lookup-select
+          cid="appointment-patient-state-id"
+          formControlName="stateId"
+          [getFn]="getStateLookup"
+          [class.is-invalid]="isFieldInvalid('stateId')"
+        ></app-lookup-select>
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+        <input class="form-control" formControlName="zipCode" maxlength="15" />
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">
+          {{ '::AppointmentLanguage' | abpLocalization }}
+        </label>
+        <app-lookup-select
+          cid="appointment-patient-language-id"
+          formControlName="appointmentLanguageId"
+          [getFn]="getAppointmentLanguageLookup"
+          [class.is-invalid]="isFieldInvalid('appointmentLanguageId')"
+        ></app-lookup-select>
+      </div>
+      <div class="col-md-3 mb-3">
+        <!--
+          OLD parity (live audit 2026-05-07): the interpreter prompt
+          flips per role. Patient bookers see "Do you ..."; AA / DA /
+          Adjuster bookers see "Does the patient ..." since they are
+          booking on someone else's behalf. Mirrors OLD's html:209.
+        -->
+        <label class="form-label fw-semibold">
+          {{
+            isExternalUserNonPatient
+              ? 'Does the patient need an interpreter?'
+              : 'Do you need an interpreter?'
+          }}
+        </label>
+        <div class="d-flex gap-3 pt-2">
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="radio"
+              id="need-interpreter-yes"
+              formControlName="needsInterpreter"
+              [value]="true"
+            />
+            <label class="form-check-label" for="need-interpreter-yes">Yes</label>
+          </div>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="radio"
+              id="need-interpreter-no"
+              formControlName="needsInterpreter"
+              [value]="false"
+            />
+            <label class="form-check-label" for="need-interpreter-no">No</label>
+          </div>
+        </div>
+        @if (form.get('needsInterpreter')?.value) {
+          <input
+            class="form-control mt-2"
+            formControlName="interpreterVendorName"
+            placeholder="Interpreter vendor / language details"
+          />
+        }
+      </div>
+      <div class="col-md-3 mb-3">
+        <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
+        <input class="form-control" formControlName="refferedBy" maxlength="50" />
+      </div>
+    </div>
+  </div>
+</div>

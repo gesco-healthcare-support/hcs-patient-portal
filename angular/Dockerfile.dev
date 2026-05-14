@@ -1,0 +1,33 @@
+FROM node:20-alpine
+WORKDIR /app
+
+COPY package.json yarn.lock /app/
+RUN yarn install --frozen-lockfile
+
+COPY . /app
+
+# Add the dev-loop tools alongside the existing deps. Pin minor majors so a
+# routine `yarn upgrade` doesn't break the dev container.
+RUN yarn add --dev concurrently@8 browser-sync@3
+
+ARG NG_CONFIG=docker
+ENV NG_CONFIG=${NG_CONFIG}
+ENV CHOKIDAR_USEPOLLING=1
+
+# 2026-05-08: dev-entrypoint.sh used to be embedded inline as a `COPY <<'EOF'`
+# heredoc. That made the script bytes inherit this Dockerfile's line endings,
+# which meant a CRLF Dockerfile (Git's default `core.autocrlf=true` on Windows)
+# produced a script with `#!/bin/sh\r\n` and Linux failed to exec the
+# carriage-return-suffixed interpreter. The fix is to keep the script as a
+# real file and COPY it -- combined with the .gitattributes rule that pins
+# *.sh to LF, the script bytes are guaranteed Unix-clean regardless of which
+# host any teammate clones on. dynamic-env.json is bind-mounted by compose at
+# /app/dynamic-env.json (not in dist); the entrypoint copies it into dist
+# after yarn watch's first build and keeps re-copying every 3s in case
+# ng build wipes the output dir on incremental rebuilds.
+COPY dev-entrypoint.sh /app/dev-entrypoint.sh
+RUN chmod +x /app/dev-entrypoint.sh
+
+EXPOSE 80
+
+ENTRYPOINT ["/app/dev-entrypoint.sh"]

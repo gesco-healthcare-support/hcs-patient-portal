@@ -1,5 +1,7 @@
 import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
+import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
+import { redirectAuthedToHomeGuard } from './shared/auth/redirect-authed-to-home.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { STATE_ROUTES } from './states/state/state-routes';
 import { APPOINTMENT_TYPE_ROUTES } from './appointment-types/appointment-type/appointment-type-routes';
@@ -19,6 +21,13 @@ export const APP_ROUTES: Routes = [
   {
     path: '',
     pathMatch: 'full',
+    // Issue 1.1 (2026-05-12) -- canMatch (not canActivate) so the
+    // guard fires BEFORE the lazy HomeComponent chunk downloads.
+    // Anonymous / internal users get redirected via UrlTree without
+    // ever loading the home shell, eliminating the flash. External
+    // users continue to HomeComponent at /. See
+    // shared/auth/post-login-redirect.guard.ts for the three outcomes.
+    canMatch: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
   },
   {
@@ -26,6 +35,45 @@ export const APP_ROUTES: Routes = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
     canActivate: [authGuard, permissionGuard],
+  },
+  // Issue #105 (2026-05-13): the SPA register page is dead -- the live
+  // register flow lives on the AuthServer Razor page at port 44368, and
+  // legitimate users reach it via the invitation link emailed to them.
+  // Anonymous visitors who deep-link to /account/register get a 404
+  // rendered by RouteNotFoundComponent. Authenticated visitors are
+  // bounced to `/` via the CanMatchFn UrlTree return -- the redirect
+  // happens BEFORE the wildcard `account` route below can resolve,
+  // so ABP's stock register component is fully suppressed.
+  {
+    path: 'account/register',
+    canMatch: [redirectAuthedToHomeGuard],
+    loadComponent: () =>
+      import('./shared/auth/route-not-found.component').then((c) => c.RouteNotFoundComponent),
+  },
+  // 2026-05-06 -- OLD-parity URL alias. OLD emailed
+  // `/verify-email/{userId}?query={UUID}`; redirect such links to ABP's
+  // `/account/email-confirmation?userId&confirmationToken` so legacy links
+  // resolve. Token format is incompatible (OLD UUID vs NEW DataProtection)
+  // so verification itself will fail for genuinely-old codes; but the
+  // user-facing routing works.
+  {
+    path: 'verify-email/:userId',
+    loadComponent: () =>
+      import('./shared/auth/verify-email-redirect.component').then(
+        (c) => c.VerifyEmailRedirectComponent,
+      ),
+  },
+  // Issue 1.4 (2026-05-12) -- custom email-confirmation component that
+  // surfaces a Resend Verification button. Must be declared BEFORE the
+  // wildcard `path: 'account'` route below so Angular's first-match
+  // precedence picks this over ABP's stock component. Reference:
+  // https://docs.abp.io/en/abp/latest/UI/Angular/Component-Replacement
+  {
+    path: 'account/email-confirmation',
+    loadComponent: () =>
+      import('./shared/auth/custom-email-confirmation.component').then(
+        (c) => c.CustomEmailConfirmationComponent,
+      ),
   },
   {
     path: 'account',

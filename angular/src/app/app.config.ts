@@ -2,8 +2,12 @@ import {
   CHECK_AUTHENTICATION_STATE_FN_KEY,
   ConfigStateService,
   provideAbpCore,
+  ReplaceableComponentsService,
   withOptions,
 } from '@abp/ng.core';
+import { eAccountComponents } from '@volo/abp.ng.account/public';
+import { inject, provideAppInitializer } from '@angular/core';
+import { NoOpTenantBoxComponent } from './shared/components/no-op-tenant-box.component';
 import { clearOAuthStorage, provideAbpOAuth } from '@abp/ng.oauth';
 import { provideSettingManagementConfig } from '@abp/ng.setting-management/config';
 import { provideFeatureManagementConfig } from '@abp/ng.feature-management';
@@ -26,9 +30,15 @@ import { provideFileManagementConfig } from '@volo/abp.ng.file-management/config
 import { provideSaasConfig } from '@volo/abp.ng.saas/config';
 import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-management/config';
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
-import { HttpErrorComponent, provideThemeLeptonX } from '@volosoft/abp.ng.theme.lepton-x';
+import {
+  HttpErrorComponent,
+  provideThemeLeptonX,
+  withThemeLeptonXOptions,
+} from '@volosoft/abp.ng.theme.lepton-x';
+import { provideNgxMask } from 'ngx-mask';
+import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
-import { ApplicationConfig, Injector } from '@angular/core';
+import { ApplicationConfig, Injector, importProvidersFrom } from '@angular/core';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -80,8 +90,39 @@ export const appConfig: ApplicationConfig = {
     provideAccountAdminConfig(),
     provideAccountPublicConfig(),
     provideCommercialUiConfig(),
-    provideThemeLeptonX(),
+    // 2026-05-12 (Issue 1.5) — force light theme as the default for
+    // first-time visitors regardless of OS dark-mode preference.
+    // `defaultTheme: 'light'` sets the bootstrap default; `disableSystemOption`
+    // removes the "System" entry from the picker. Users who explicitly
+    // toggle to dark still have that choice persisted in LPX_THEME.
+    provideThemeLeptonX(
+      withThemeLeptonXOptions({
+        defaultTheme: 'light',
+        themeOptions: {
+          localStorageKey: 'LPX_THEME',
+          disableSystemOption: true,
+        },
+      }),
+    ),
+    // 2026-05-12 (Issue 1.5) — backfill returning users with stale
+    // localStorage['LPX_THEME'] = 'system'. Without this, users who
+    // loaded the SPA before the default was changed continue to follow
+    // their OS preference.
+    provideAppInitializer(() => {
+      if (typeof window === 'undefined') return;
+      const v = window.localStorage.getItem('LPX_THEME');
+      if (v === null || v === 'system') {
+        window.localStorage.setItem('LPX_THEME', 'light');
+      }
+    }),
     provideSideMenuLayout(),
+    // Issue 2.1 + 2.8 (2026-05-12) — ngx-mask drives the on-screen SSN
+    // redaction (`[hiddenInput]="true"` shows '*' while typing).
+    // @rxweb/reactive-form-validators adds named domain validators
+    // (socialSecurityNumber, conditional required, digit, etc.) on top
+    // of Angular's standard Validators.* set.
+    provideNgxMask(),
+    importProvidersFrom(RxReactiveFormsModule),
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {
@@ -119,5 +160,15 @@ export const appConfig: ApplicationConfig = {
     APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER,
     APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER,
     DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER,
+    // 2026-05-06 -- swap LeptonX TenantBox with an empty component on the
+    // SPA `/account/*` pages. Phase 1A is single-tenant; tenant resolves
+    // from the subdomain (ADR-006) so the switcher is unsafe to expose.
+    provideAppInitializer(() => {
+      const replaceable = inject(ReplaceableComponentsService);
+      replaceable.add({
+        key: eAccountComponents.TenantBox,
+        component: NoOpTenantBoxComponent,
+      });
+    }),
   ],
 };

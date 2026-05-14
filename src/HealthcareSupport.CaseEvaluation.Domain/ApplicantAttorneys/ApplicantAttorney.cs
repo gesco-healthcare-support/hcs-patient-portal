@@ -42,22 +42,27 @@ public class ApplicantAttorney : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Guid? StateId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    public Guid? IdentityUserId { get; set; }
+
+    [CanBeNull]
+    public virtual string? Email { get; set; }
 
     protected ApplicantAttorney()
     {
     }
 
-    public ApplicantAttorney(Guid id, Guid? stateId, Guid identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null)
+    public ApplicantAttorney(Guid id, Guid? stateId, Guid? identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null, string? email = null)
     {
         Id = id;
         Check.Length(firmName, nameof(firmName), ApplicantAttorneyConsts.FirmNameMaxLength, 0);
         Check.Length(firmAddress, nameof(firmAddress), ApplicantAttorneyConsts.FirmAddressMaxLength, 0);
         Check.Length(phoneNumber, nameof(phoneNumber), ApplicantAttorneyConsts.PhoneNumberMaxLength, 0);
+        Check.Length(email, nameof(email), ApplicantAttorneyConsts.EmailMaxLength, 0);
         FirmName = firmName;
         FirmAddress = firmAddress;
         PhoneNumber = phoneNumber;
         StateId = stateId;
         IdentityUserId = identityUserId;
+        Email = email;
     }
 }

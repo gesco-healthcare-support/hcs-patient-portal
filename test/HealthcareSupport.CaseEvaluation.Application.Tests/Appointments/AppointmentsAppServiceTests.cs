@@ -11,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Validation;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -57,10 +58,13 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.PatientId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator (#181) now fires before the
+        // AppService's manual UserFriendlyException check; AbpValidationException
+        // wins. Assertion checks the validator-produced ValidationErrors collection.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Patient");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Patient"));
     }
 
     [Fact]
@@ -69,12 +73,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.IdentityUserId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; its WithMessage
+        // produces "Booker (IdentityUser) is required."
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // ABP's L["..."] localizer inserts a space between CamelCase words, so
-        // the localized field label is "Identity User" rather than "IdentityUser".
-        ex.Message.ShouldContain("Identity User");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("IdentityUser"));
     }
 
     [Fact]
@@ -83,10 +87,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.AppointmentTypeId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Appointment type is required." (lowercase 'type').
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Appointment Type");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Appointment type"));
     }
 
     [Fact]
@@ -95,10 +101,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.LocationId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins.
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        ex.Message.ShouldContain("Location");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Location"));
     }
 
     [Fact]
@@ -107,13 +114,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         var input = BuildValidCreateDto();
         input.DoctorAvailabilityId = Guid.Empty;
 
-        var ex = await Should.ThrowAsync<UserFriendlyException>(
+        // 2026-05-13: AppointmentCreateDtoValidator wins; message is
+        // "Time slot is required." (the user-facing label the validator picked).
+        var ex = await Should.ThrowAsync<AbpValidationException>(
             async () => await _appointmentsAppService.CreateAsync(input));
 
-        // Note: the localized label for `L["DoctorAvailability"]` resolves to
-        // "Availability & Time Slots" (the user-facing display name), not a
-        // CamelCase-split of the key.
-        ex.Message.ShouldContain("Availability & Time Slots");
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage != null && e.ErrorMessage.Contains("Time slot"));
     }
 
     // =====================================================================
@@ -351,8 +357,12 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     {
         // Insert a scratch Available slot in TenantA (don't mutate Slot2 from
         // the shared seed). Then book it via the AppService.
+        // Phase 11b (G6 follow-up) -- BookingPolicyValidator now enforces
+        // [Today + leadTime, Today + maxTime] on CreateAsync. AppointmentType1
+        // ("TEST-IME-Eval") routes to the OTHER 60-day cap. Use Today + 7
+        // (>= leadTime 3, <= 60) and stagger across tests to keep slots distinct.
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 1, 10, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(7),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -372,11 +382,59 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         }
     }
 
+    // R2 (Phase 9, 2026-05-04): pin that AppointmentCreateDto.IsPatientAlreadyExist
+    // round-trips to the persisted Appointment row. Mirrors OLD
+    // AppointmentDomain.cs:210, 217 where the dedup outcome lands on the entity
+    // at booking time. The Angular booking form populates this from the
+    // PatientWithNavigationPropertiesDto.IsExisting flag.
+
+    [Fact]
+    public async Task CreateAsync_WhenInputHasIsPatientAlreadyExistTrue_PersistsTrue()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(8),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            input.IsPatientAlreadyExist = true;
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenInputOmitsIsPatientAlreadyExist_DefaultsToFalseOnEntity()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(9),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            // input.IsPatientAlreadyExist intentionally left at default (false)
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.IsPatientAlreadyExist.ShouldBeFalse();
+        }
+    }
+
     [Fact]
     public async Task CreateAsync_GeneratesConfirmationNumberInAFormat()
     {
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 2, 5, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(10),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -397,11 +455,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     public async Task CreateAsync_TwoSequentialCreates_ProduceIncreasingNumbers()
     {
         var scratchA = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(11),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
         var scratchB = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 3, 2, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(12),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 
@@ -429,7 +487,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // The Skip Fact below pins the divergence; this live Fact passes
         // either way the production code resolves it.
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
-            scratchDate: new DateTime(2027, 4, 7, 0, 0, 0, DateTimeKind.Utc),
+            scratchDate: DateTime.Today.AddDays(13),
             scratchFromTime: new TimeOnly(10, 0),
             scratchToTime: new TimeOnly(11, 0));
 

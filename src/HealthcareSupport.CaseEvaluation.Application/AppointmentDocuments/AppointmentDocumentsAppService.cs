@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -14,9 +16,12 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Local;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 using Volo.Abp.Users;
+using Volo.Abp.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
@@ -25,26 +30,84 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppointmentDocumentsAppService
 {
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly IBlobContainer<AppointmentDocumentsContainer> _blobContainer;
     private readonly ICurrentTenant _currentTenant;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly IAuthorizationService _authorizationService;
+    private readonly ILocalEventBus _localEventBus;
+    private readonly IdentityUserManager _userManager;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
+    // Issue #114 (2026-05-13) -- per-appointment access gate. Without it
+    // any same-tenant external party with AppointmentDocuments.Default
+    // could list / download documents on an appointment they were not a
+    // party to (only the IMultiTenant filter applied, which scopes by
+    // tenant, not by appointment-membership).
+    private readonly AppointmentReadAccessGuard _readAccessGuard;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
+        IRepository<AppointmentPacket, Guid> packetRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
         AppointmentDocumentManager documentManager,
         IBlobContainer<AppointmentDocumentsContainer> blobContainer,
         ICurrentTenant currentTenant,
         IBackgroundJobManager backgroundJobManager,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        ILocalEventBus localEventBus,
+        IdentityUserManager userManager,
+        IUnitOfWorkManager unitOfWorkManager,
+        AppointmentReadAccessGuard readAccessGuard)
     {
         _documentRepository = documentRepository;
+        _appointmentRepository = appointmentRepository;
         _documentManager = documentManager;
+        _packetRepository = packetRepository;
         _blobContainer = blobContainer;
         _currentTenant = currentTenant;
         _backgroundJobManager = backgroundJobManager;
         _authorizationService = authorizationService;
+        _localEventBus = localEventBus;
+        _userManager = userManager;
+        _unitOfWorkManager = unitOfWorkManager;
+        _readAccessGuard = readAccessGuard;
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- Blob save + UoW-rollback compensating delete.
+    /// Saves the blob to the configured container, then registers a
+    /// compensating delete on the current UnitOfWork's Failed event so
+    /// any subsequent entity-insert / -update / UoW-commit failure
+    /// triggers a best-effort blob cleanup. Required because once the
+    /// blob provider is MinIO (out-of-band from EF), the blob save no
+    /// longer shares the EF transaction the way DB-BLOB does, so a
+    /// failing entity write would otherwise leave an orphan object.
+    /// </summary>
+    private async Task SaveBlobWithRollbackAsync(string blobName, Stream content)
+    {
+        await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
+
+        var uow = _unitOfWorkManager.Current;
+        if (uow == null)
+        {
+            return;
+        }
+        uow.Failed += (_, _) =>
+        {
+            // Best-effort, sync-only: the Failed event is sync. Swallow
+            // any exception so the cleanup never masks the original
+            // failure. The entity row is the source of truth; if blob
+            // delete fails here it becomes a cleanup-job concern.
+            try
+            {
+                _blobContainer.DeleteAsync(blobName).GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+        };
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
@@ -54,6 +117,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         var queryable = await _documentRepository.GetQueryableAsync();
         var rows = queryable
             .Where(x => x.AppointmentId == appointmentId)
@@ -64,6 +128,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
+    [DisableValidation]
     public virtual async Task<AppointmentDocumentDto> UploadStreamAsync(
         Guid appointmentId,
         string documentName,
@@ -89,21 +154,25 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             throw new UserFriendlyException("File is empty.");
         }
 
+        // Issue #114 (2026-05-13): gate before any blob save so the
+        // user can't trigger a write at all if they're not a party.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
         // W2-11: magic-byte validation BEFORE any blob save. Browser-supplied
         // ContentType + extension are trivially spoofable; the file header
         // is part of the file itself. Limited to PDF/JPG/PNG to match the
         // packet merge path's supported formats.
         EnsureValidFileFormat(content, fileName);
 
-        var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        var blobName = $"{tenantSegment}/{appointmentId}/{Guid.NewGuid():N}";
-        await _blobContainer.SaveAsync(blobName, content, overrideExisting: false);
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(blobName, content);
 
         // W2-11: internal staff uploads land directly as Approved (matches
         // OLD's vInternalUser pre-set behaviour); external user uploads land
         // as Uploaded pending office review.
         var initialStatus = await IsInternalActorAsync()
-            ? DocumentStatus.Approved
+            ? DocumentStatus.Accepted
             : DocumentStatus.Uploaded;
 
         var entity = await _documentManager.CreateAsync(
@@ -116,14 +185,278 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             fileSize: fileSize,
             uploadedByUserId: CurrentUser.Id ?? Guid.Empty);
 
+        // Phase 14: this generic upload path is the ad-hoc / general
+        // document path (OLD's AppointmentNewDocuments table). NEW
+        // unifies via the IsAdHoc flag (Phase 1.6). Package + JDF
+        // uploads use the dedicated methods below.
+        entity.IsAdHoc = true;
         entity.Status = initialStatus;
-        if (initialStatus == DocumentStatus.Approved)
+        if (initialStatus == DocumentStatus.Accepted)
         {
             entity.ResponsibleUserId = CurrentUser.Id;
         }
         await _documentRepository.UpdateAsync(entity);
 
+        await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
+        {
+            AppointmentId = appointmentId,
+            AppointmentDocumentId = entity.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = true,
+            IsJointDeclaration = false,
+            UploadedByUserId = CurrentUser.Id,
+            OccurredAt = DateTime.UtcNow,
+        });
+
         return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(entity);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- package-document upload. Updates an
+    /// existing Pending row (created by
+    /// <c>PackageDocumentQueueHandler</c>) with the user-supplied
+    /// file. Mirrors OLD <c>AppointmentDocumentDomain.Update</c> at
+    /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:109-182.
+    /// Gates via <see cref="DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate"/>
+    /// + <see cref="DocumentUploadGate.EnsureNotImmutable"/>.
+    /// Internal users (any caller with the
+    /// <c>AppointmentDocuments.Approve</c> permission) auto-Accept;
+    /// external users land as Uploaded.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
+    [UnitOfWork]
+    [DisableValidation]
+    public virtual async Task<AppointmentDocumentDto> UploadPackageDocumentAsync(
+        Guid documentId,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content)
+    {
+        var document = await _documentRepository.GetAsync(documentId);
+        var appointment = await _appointmentRepository.GetAsync(document.AppointmentId);
+
+        // Issue #114 (2026-05-13): gate via the already-loaded appointment.
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        var isInternal = await IsInternalActorAsync();
+        DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
+        DocumentUploadGate.EnsureNotImmutable(document, isInternal);
+
+        await OverwriteUploadedFileAsync(document, fileName, contentType, fileSize, content, isInternal);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
+        {
+            AppointmentId = appointment.Id,
+            AppointmentDocumentId = document.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = false,
+            IsJointDeclaration = false,
+            UploadedByUserId = CurrentUser.Id,
+            OccurredAt = DateTime.UtcNow,
+        });
+
+        return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(document);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- AME Joint Declaration Form upload.
+    /// Creates a new <c>AppointmentDocument</c> row with
+    /// <c>IsJointDeclaration = true</c>. Gates: appointment Approved +
+    /// not past DueDate; AppointmentType is AME (or future AME-REVAL);
+    /// caller is the booking attorney. Mirrors OLD
+    /// <c>AppointmentJointDeclarationDomain</c>.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
+    [UnitOfWork]
+    [DisableValidation]
+    public virtual async Task<AppointmentDocumentDto> UploadJointDeclarationAsync(
+        Guid appointmentId,
+        string documentName,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new UserFriendlyException("File name is required.");
+        }
+        if (content == null || fileSize <= 0)
+        {
+            throw new UserFriendlyException("File is empty.");
+        }
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        // Issue #114 (2026-05-13): gate via the loaded appointment. The
+        // existing EnsureCreatorIsAttorney below is a separate domain rule
+        // (only the booking attorney may upload JDF); the read-access gate
+        // is the broader "are you a party to this appointment" check.
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
+        DocumentUploadGate.EnsureAme(appointment.AppointmentTypeId);
+
+        var roleNames = await ResolveCurrentUserRoleNamesAsync();
+        DocumentUploadGate.EnsureCreatorIsAttorney(appointment, CurrentUser.Id, roleNames);
+
+        EnsureValidFileFormat(content, fileName);
+
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var blobName = $"{tenantSegment}/{appointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(blobName, content);
+
+        var entity = await _documentManager.CreateAsync(
+            tenantId: _currentTenant.Id,
+            appointmentId: appointmentId,
+            documentName: string.IsNullOrWhiteSpace(documentName)
+                ? "Joint Declaration Form"
+                : documentName.Trim(),
+            fileName: fileName.Trim(),
+            blobName: blobName,
+            contentType: contentType,
+            fileSize: fileSize,
+            uploadedByUserId: CurrentUser.Id ?? Guid.Empty);
+
+        entity.IsJointDeclaration = true;
+        entity.Status = DocumentStatus.Uploaded; // attorney uploader; never internal here
+        await _documentRepository.UpdateAsync(entity);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
+        {
+            AppointmentId = appointmentId,
+            AppointmentDocumentId = entity.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = false,
+            IsJointDeclaration = true,
+            UploadedByUserId = CurrentUser.Id,
+            OccurredAt = DateTime.UtcNow,
+        });
+
+        return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(entity);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- anonymous upload via per-document
+    /// verification code (the link emailed to the patient at staff
+    /// approval time). Mirrors OLD <c>AppointmentDocumentDomain.GetValidation</c>
+    /// at <c>AppointmentDocumentDomain.cs</c>:64-75. Same upload-gate
+    /// semantics as <c>UploadPackageDocumentAsync</c> but with no
+    /// authenticated <c>CurrentUser</c>; the verification-code match
+    /// IS the authorization. Rate-limited at the HTTP layer (Phase 10
+    /// fixed-window limiter, partitioned by code).
+    /// </summary>
+    [AllowAnonymous]
+    [UnitOfWork]
+    [DisableValidation]
+    public virtual async Task<AppointmentDocumentDto> UploadByVerificationCodeAsync(
+        Guid documentId,
+        Guid verificationCode,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content)
+    {
+        var document = await _documentRepository.FindAsync(documentId);
+        DocumentUploadGate.EnsureVerificationCodeMatches(document!, verificationCode);
+        var appointment = await _appointmentRepository.GetAsync(document!.AppointmentId);
+        DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
+
+        // Anonymous = external by definition; never internal.
+        await OverwriteUploadedFileAsync(document, fileName, contentType, fileSize, content, isInternalUser: false);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
+        {
+            AppointmentId = appointment.Id,
+            AppointmentDocumentId = document.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = false,
+            IsJointDeclaration = document.IsJointDeclaration,
+            UploadedByUserId = null, // anonymous
+            OccurredAt = DateTime.UtcNow,
+        });
+
+        return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(document);
+    }
+
+    /// <summary>
+    /// Shared file-upload + entity-update path for package-doc and
+    /// verification-code upload paths. Saves the blob, overwrites the
+    /// document's file metadata, sets status (Uploaded for external,
+    /// Accepted for internal), clears <see cref="AppointmentDocument.RejectionReason"/>
+    /// (re-upload after rejection wipes the prior reason).
+    /// </summary>
+    private async Task OverwriteUploadedFileAsync(
+        AppointmentDocument document,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content,
+        bool isInternalUser)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new UserFriendlyException("File name is required.");
+        }
+        if (content == null || fileSize <= 0)
+        {
+            throw new UserFriendlyException("File is empty.");
+        }
+
+        EnsureValidFileFormat(content, fileName);
+
+        var tenantSegment = _currentTenant.Id?.ToString("N") ?? "host";
+        var newBlobName = $"{tenantSegment}/{document.AppointmentId:N}/{Guid.NewGuid():N}";
+        await SaveBlobWithRollbackAsync(newBlobName, content);
+
+        // Try to delete the placeholder/old blob if it was a real one
+        // (queued rows have a "(pending-upload)" placeholder; skip that).
+        if (!string.Equals(document.BlobName, "(pending-upload)", StringComparison.Ordinal))
+        {
+            try
+            {
+                await _blobContainer.DeleteAsync(document.BlobName);
+            }
+            catch
+            {
+                // entity row is the source of truth; orphan blob is
+                // a cleanup-job concern.
+            }
+        }
+
+        document.BlobName = newBlobName;
+        document.FileName = fileName.Trim();
+        document.ContentType = contentType;
+        document.FileSize = fileSize;
+        document.UploadedByUserId = CurrentUser.Id ?? Guid.Empty;
+        document.RejectionReason = null;
+        document.RejectedByUserId = null;
+        document.Status = isInternalUser ? DocumentStatus.Accepted : DocumentStatus.Uploaded;
+        if (isInternalUser)
+        {
+            document.ResponsibleUserId = CurrentUser.Id;
+        }
+        await _documentRepository.UpdateAsync(document);
+    }
+
+    private async Task<IReadOnlyCollection<string>> ResolveCurrentUserRoleNamesAsync()
+    {
+        if (!CurrentUser.Id.HasValue)
+        {
+            return Array.Empty<string>();
+        }
+        var user = await _userManager.GetByIdAsync(CurrentUser.Id.Value);
+        if (user == null)
+        {
+            return Array.Empty<string>();
+        }
+        var names = await _userManager.GetRolesAsync(user);
+        return names.ToArray();
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
@@ -134,6 +467,10 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new EntityNotFoundException(typeof(AppointmentDocument), id);
         }
+        // Issue #114 (2026-05-13): gate by the document's parent
+        // appointment so an external party can only download files on
+        // appointments they are a party to.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         var stream = await _blobContainer.GetAsync(entity.BlobName);
         if (stream == null)
         {
@@ -156,6 +493,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             return;
         }
+        // Issue #114 (2026-05-13): gate before deleting. Delete is
+        // permission-restricted (only IT Admin holds it today and is
+        // internal so passes by default), but defense-in-depth keeps the
+        // surface consistent if the permission ever leaks to an external
+        // role.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         try
         {
             await _blobContainer.DeleteAsync(entity.BlobName);
@@ -172,11 +515,30 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     public virtual async Task<AppointmentDocumentDto> ApproveAsync(Guid id)
     {
         var entity = await _documentRepository.GetAsync(id);
-        entity.Status = DocumentStatus.Approved;
+        // Issue #114 (2026-05-13): Approve is internal-only via permission
+        // and internal callers pass the gate unconditionally, but we
+        // still call it so the surface is uniform.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
+        entity.Status = DocumentStatus.Accepted;
         entity.RejectionReason = null;
         entity.RejectedByUserId = null;
         entity.ResponsibleUserId = CurrentUser.Id;
         await _documentRepository.UpdateAsync(entity);
+
+        // Phase 14: publish Eto for the per-feature email handler
+        // (Phase 14b) so the uploader gets the OLD-parity
+        // PatientDocumentAccepted email.
+        await _localEventBus.PublishAsync(new AppointmentDocumentAcceptedEto
+        {
+            AppointmentId = entity.AppointmentId,
+            AppointmentDocumentId = entity.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = entity.IsAdHoc,
+            IsJointDeclaration = entity.IsJointDeclaration,
+            AcceptedByUserId = CurrentUser.Id ?? Guid.Empty,
+            OccurredAt = DateTime.UtcNow,
+        });
+
         return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(entity);
     }
 
@@ -189,12 +551,86 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             throw new UserFriendlyException("A rejection reason is required.");
         }
         var entity = await _documentRepository.GetAsync(id);
+        // Issue #114 (2026-05-13): see ApproveAsync — internal-only via
+        // permission, gate kept for uniformity.
+        await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
         entity.Status = DocumentStatus.Rejected;
         entity.RejectionReason = input.Reason.Trim();
         entity.RejectedByUserId = CurrentUser.Id;
         entity.ResponsibleUserId = CurrentUser.Id;
         await _documentRepository.UpdateAsync(entity);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentRejectedEto
+        {
+            AppointmentId = entity.AppointmentId,
+            AppointmentDocumentId = entity.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = entity.IsAdHoc,
+            IsJointDeclaration = entity.IsJointDeclaration,
+            RejectionNotes = entity.RejectionReason ?? string.Empty,
+            RejectedByUserId = CurrentUser.Id ?? Guid.Empty,
+            OccurredAt = DateTime.UtcNow,
+        });
+
         return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(entity);
+    }
+
+    [Authorize]
+    public virtual async Task<List<PatientPortalDocumentDto>> GetCombinedForAppointmentAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        // Issue #114 (2026-05-13): gate so external parties see the
+        // combined view only for appointments they belong to.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        // Uploaded documents.
+        var docQ = await _documentRepository.GetQueryableAsync();
+        var uploads = docQ
+            .Where(x => x.AppointmentId == appointmentId)
+            .ToList();
+
+        // Generated Patient packet (only when reached the Generated state).
+        var packetQ = await _packetRepository.GetQueryableAsync();
+        var packets = packetQ
+            .Where(x => x.AppointmentId == appointmentId
+                        && x.Kind == PacketKind.Patient
+                        && x.Status == PacketGenerationStatus.Generated)
+            .ToList();
+
+        var combined = new List<PatientPortalDocumentDto>(uploads.Count + packets.Count);
+
+        foreach (var u in uploads)
+        {
+            combined.Add(new PatientPortalDocumentDto
+            {
+                Id = u.Id,
+                Source = PatientPortalDocumentSource.Uploaded,
+                FileName = u.FileName ?? string.Empty,
+                ContentType = u.ContentType ?? string.Empty,
+                CreatedAt = u.CreationTime,
+                PacketKind = null,
+                UploadStatus = u.Status,
+            });
+        }
+
+        foreach (var p in packets)
+        {
+            combined.Add(new PatientPortalDocumentDto
+            {
+                Id = p.Id,
+                Source = PatientPortalDocumentSource.GeneratedPacket,
+                FileName = p.BlobName.Split('/').Last(),
+                ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                CreatedAt = p.GeneratedAt,
+                PacketKind = p.Kind,
+                UploadStatus = null,
+            });
+        }
+
+        return combined.OrderByDescending(x => x.CreatedAt).ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentPackets.Regenerate)]
@@ -204,6 +640,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // Issue #114 (2026-05-13): Regenerate is IT-Admin permission and
+        // they pass the gate unconditionally; keep the call for uniformity.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
         await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
         {
             AppointmentId = appointmentId,

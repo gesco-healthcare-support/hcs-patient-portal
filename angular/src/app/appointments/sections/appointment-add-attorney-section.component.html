@@ -1,0 +1,124 @@
+<!-- #121 phase T5 (2026-05-13) -- shared Applicant Attorney / Defense
+     Attorney card. Parent gates visibility via shouldShow*Section()
+     so the child renders unconditionally when mounted. The 12
+     FormControls live on the parent's `form`; child binds
+     [formGroup]="form" so formControlName resolves at parent scope.
+     Section-specific prefix + readonly + ids come from Inputs. -->
+<div [formGroup]="form" class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="card-title mb-0 fw-bold">{{ headingText }}</h5>
+    <div class="form-check form-switch">
+      <input
+        class="form-check-input"
+        type="checkbox"
+        [id]="checkboxId"
+        [formControlName]="prefix + 'Enabled'"
+      />
+      <label class="form-check-label" [for]="checkboxId">Include</label>
+    </div>
+  </div>
+  @if (form.get(prefix + 'Enabled')?.value) {
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Name *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'FirstName'"
+            placeholder="ATTORNEY NAME"
+            [class.is-invalid]="isFieldInvalid(prefix + 'FirstName')"
+          />
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Email *</label>
+          <input
+            type="email"
+            class="form-control"
+            [formControlName]="prefix + 'Email'"
+            placeholder="ATTORNEY EMAIL"
+            [readonly]="isReadOnly"
+            [class.is-invalid]="isFieldInvalid(prefix + 'Email')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Firm Name *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'FirmName'"
+            placeholder="FIRM NAME"
+            maxlength="50"
+            [class.is-invalid]="isFieldInvalid(prefix + 'FirmName')"
+          />
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Web Address</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'WebAddress'"
+            placeholder="WEB ADDRESS"
+            maxlength="100"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Phone Number *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'PhoneNumber'"
+            placeholder="PHONE NUMBER"
+            maxlength="20"
+            [class.is-invalid]="isFieldInvalid(prefix + 'PhoneNumber')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Fax *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'FaxNumber'"
+            placeholder="FAX"
+            maxlength="19"
+            [class.is-invalid]="isFieldInvalid(prefix + 'FaxNumber')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Street *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'Street'"
+            placeholder="STREET"
+            maxlength="255"
+            [class.is-invalid]="isFieldInvalid(prefix + 'Street')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">City *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'City'"
+            placeholder="CITY"
+            maxlength="50"
+            [class.is-invalid]="isFieldInvalid(prefix + 'City')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">State *</label>
+          <app-lookup-select
+            [cid]="stateSelectCid"
+            [formControlName]="prefix + 'StateId'"
+            [getFn]="getStateLookup"
+            [class.is-invalid]="isFieldInvalid(prefix + 'StateId')"
+          ></app-lookup-select>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Zip *</label>
+          <input
+            class="form-control"
+            [formControlName]="prefix + 'ZipCode'"
+            placeholder="ZIP"
+            maxlength="10"
+            [class.is-invalid]="isFieldInvalid(prefix + 'ZipCode')"
+          />
+        </div>
+      </div>
+    </div>
+  }
+</div>

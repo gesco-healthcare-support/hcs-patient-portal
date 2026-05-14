@@ -1,0 +1,66 @@
+// Brand tokens -- ground truth from OLD Patient Portal at P:\PatientPortalOld
+//
+// Phase 19a (CSS variables + typography only).
+// Phase 19b will map these onto LeptonX's --lpx-* variables and customize the
+// AuthServer login layout.
+//
+// All values verified 2026-05-03 against:
+//   P:\PatientPortalOld\patientappointment-portal\src\assets\theme\css\demo.css
+//   P:\PatientPortalOld\patientappointment-portal\src\index.html
+//   P:\PatientPortalOld\patientappointment-portal\src\styles.css
+//   P:\PatientPortalOld\patientappointment-portal\src\app\components\login\login\login.component.html
+
+:root {
+  // -- Color palette (verbatim OLD hex values) ---------------------------------
+  --brand-primary: #055495; // links, primary actions, hover-active
+  --brand-primary-hover: #005494; // primary button hover
+  --brand-accent: #9dc13b; // form-field icons, success-ish accent
+  --brand-button-active: #006ffc; // active button state
+  --brand-link: #00a2dc; // edit / inline link color
+  --brand-error: #fe5a5b; // delete / error color
+
+  --brand-sidebar-bg: #0a4778; // sidenav background (level 0)
+  --brand-sidebar-bg-2: #0a3354; // sidenav nested level 1
+  --brand-sidebar-bg-3: #0b3a60; // sidenav nested level 2
+
+  // -- Form control surfaces --------------------------------------------------
+  --brand-input-bg: #f4f4f4;
+  --brand-input-border: #cccccc;
+
+  // -- Typography colors ------------------------------------------------------
+  --brand-text-primary: #333333;
+  --brand-text-secondary: #666666;
+  --brand-text-muted: #969696;
+  --brand-divider: #eeeeee;
+
+  // -- Typography stack -------------------------------------------------------
+  // OLD loads Roboto from Google Fonts in index.html; weights 300 / 400 / 500 /
+  // 700 / 900. We match the same family so labels, buttons, and form text read
+  // identically. LeptonX default font is overridden here.
+  --brand-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --brand-font-size-xs: 12px;
+  --brand-font-size-sm: 13px;
+  --brand-font-size-base: 14px; // labels and body copy
+  --brand-font-size-md: 16px; // form fields (most pages)
+  --brand-font-size-lg: 18px; // login form fields
+  --brand-font-size-button: 22px; // primary login button
+
+  // -- Layout dimensions ------------------------------------------------------
+  --brand-sidebar-width: 282px; // dashboard layout sidenav width
+  --brand-sidebar-width-collapsed: 70px;
+  --brand-navbar-height: 86px; // top bar height (dashboard layout)
+
+  // -- Logo + asset slots -----------------------------------------------------
+  // Filled at runtime by Phase 19b BrandingService once tenant config is live.
+  // Placeholder paths point at NEW assets folder so the page renders during dev.
+  --brand-logo-header-url: url('/assets/images/header-logo.png');
+  --brand-logo-collapsed-url: url('/assets/images/fav-logo.png');
+  --brand-logo-login-url: url('/assets/images/Doctor.png');
+  --brand-login-bg-url: url('/assets/images/login-bg.jpg');
+
+  // -- Tenant-overridable identity strings ------------------------------------
+  // These are CSS-side fallbacks. Real values come from BrandingAppService and
+  // are surfaced through Angular bindings; these only render if the service
+  // hasn't loaded yet.
+  --brand-clinic-name: 'Patient Portal';
+}

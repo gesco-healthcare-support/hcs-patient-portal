@@ -11,7 +11,32 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- OLD-verbatim email-template HTML bodies. Embedded so they travel
+         with the assembly (no filesystem path coupling at runtime).
+         Loaded via EmailBodyResources.LoadBody at seed time and at any
+         future migration that re-applies bodies on existing tenants. -->
+    <EmbeddedResource Include="NotificationTemplates\EmailBodies\*.html" />
+
+    <!-- OLD-verbatim packet DOCX templates (Phase 1A.2). Three actively
+         used templates copied byte-identical from OLD's
+         wwwroot/Documents/documentBluePrint/. Embedded so the renderer
+         ships with its own templates and never depends on a filesystem
+         layout. Loaded via EmbeddedTemplateResources.LoadTemplate keyed
+         on PacketKind. -->
+    <EmbeddedResource Include="AppointmentDocuments\Templates\Resources\*.docx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="QuestPDF" Version="2026.2.4" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
     <PackageReference Include="Volo.Abp.Emailing" Version="10.0.2" />
+    <PackageReference Include="Volo.Abp.MailKit" Version="10.0.2" />
+    <!-- 2026-05-11: Pin MailKit + MimeKit ahead of the transitive 4.13.0 that
+         Volo.Abp.MailKit 10.0.2 brings in. 4.13.0 has two moderate CVEs
+         (GHSA-9j88-vvj5-vhgr STARTTLS injection, GHSA-g7hc-96xr-gvvx CRLF
+         in MimeKit). Patched at MailKit 4.16.0 / MimeKit 4.15.1. -->
+    <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="MimeKit" Version="4.16.0" />
     <PackageReference Include="Volo.Abp.Caching" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.PermissionManagement.Domain.Identity" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.PermissionManagement.Domain.OpenIddict" Version="10.0.2" />
@@ -20,6 +45,12 @@
     <PackageReference Include="Volo.Abp.FeatureManagement.Domain" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.SettingManagement.Domain" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.BlobStoring.Database.Domain" Version="10.0.2" />
+    <!-- 2026-05-13: MinIO blob provider for document storage. Replaces the
+         DB-BLOB default for the seven per-feature document containers (see
+         CaseEvaluationDomainModule.ConfigureBlobStoring). MinIO is the
+         chosen blob store across dev + prod; AWS / S3 are explicitly out
+         of scope (Adrian, 2026-05-13). -->
+    <PackageReference Include="Volo.Abp.BlobStoring.Minio" Version="10.0.2" />
     <PackageReference Include="Stateless" Version="5.20.1" />
     <PackageReference Include="PdfSharp" Version="6.2.4" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />

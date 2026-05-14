@@ -1,0 +1,60 @@
+# Phase 2 (2026-05-11) + Issue (2026-05-12) -- Gotenberg sidecar with full
+# Microsoft font coverage. Two layers:
+#
+#   1) ttf-mscorefonts-installer (Debian contrib) supplies Arial, Times New
+#      Roman, Courier New, Georgia, Impact, Verdana, Comic Sans MS, etc.
+#      via the Microsoft Core Fonts EULA's web-redistributable path.
+#
+#   2) Cleartype + icon fonts (Calibri / Calibri Light / Cambria / Cambria
+#      Math / Consolas / Segoe UI / Wingdings / Symbol / Footlight MT Light
+#      / Arial Narrow) are NOT in ttf-mscorefonts -- they ship with Windows
+#      and Office. The 2026-05-12 packet-pagination investigation showed
+#      the templates use these fonts, and LibreOffice falls back to
+#      Carlito (Calibri sub), Caladea (Cambria sub), and generic
+#      sans/serif/mono for the rest. The substitutes are metric-similar
+#      but not pixel-identical; the per-line drift accumulates to push
+#      content onto extra (mostly-empty) pages -- about 20% of every
+#      generated PDF was wasted on overflow pages.
+#
+#      Fix: COPY the real .ttf files from a host that has Windows + Office
+#      installed (./fonts/, gitignored) into /usr/local/share/fonts/. The
+#      end result: LibreOffice paginates with the same font metrics Word
+#      used when the templates were authored, eliminating overflow.
+#
+# Reference: https://gotenberg.dev/docs/customize/fonts
+# Pinned to a minor-version-bounded base image so font installation
+# stays reproducible. Bump cautiously -- font behavior can change between
+# LibreOffice versions inside Gotenberg.
+
+FROM gotenberg/gotenberg:8
+
+USER root
+
+# Layer 1: enable Debian contrib, accept the MS Core Fonts EULA non-
+# interactively, install the installer + fontconfig, prune apt.
+RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
+ && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
+      | debconf-set-selections \
+ && apt-get install -y --no-install-recommends \
+      ttf-mscorefonts-installer \
+      fontconfig \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+# Layer 2: copy host-supplied Cleartype + icon fonts. Source files live
+# under docker/fonts/ in the repo, copied there from the build host's
+# Windows installation. Files are NOT redistributed via this image --
+# they exist only in the local build cache.
+COPY ./docker/fonts/*.ttf  /usr/local/share/fonts/
+COPY ./docker/fonts/*.TTF  /usr/local/share/fonts/
+COPY ./docker/fonts/*.ttc  /usr/local/share/fonts/
+
+# Refresh the fontconfig cache so LibreOffice sees the new fonts on its
+# next conversion request rather than after a process restart. Then
+# log which target fonts are now visible so a failed install is loud.
+RUN fc-cache -f -v > /dev/null \
+ && echo "=== Verifying target fonts now present ===" \
+ && fc-list | grep -iE 'calibri|cambria|consolas|segoe|wingdings|symbol|footlight|arial narrow' | sort -u
+
+USER gotenberg

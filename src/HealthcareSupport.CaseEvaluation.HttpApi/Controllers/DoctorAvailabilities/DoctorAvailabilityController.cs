@@ -87,7 +87,7 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
 
     [HttpDelete]
     [Route("by-date")]
-    public virtual Task DeleteByDateAsync([FromQuery] DoctorAvailabilityDeleteByDateInputDto input)
+    public virtual Task<DoctorAvailabilityBulkDeleteResultDto> DeleteByDateAsync([FromQuery] DoctorAvailabilityDeleteByDateInputDto input)
     {
         return _doctorAvailabilitiesAppService.DeleteByDateAsync(input);
     }
@@ -97,5 +97,12 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
     public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto> input)
     {
         return _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
+    }
+
+    [HttpGet]
+    [Route("lookup")]
+    public virtual Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync([FromQuery] GetDoctorAvailabilityLookupInput input)
+    {
+        return _doctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync(input);
     }
 }

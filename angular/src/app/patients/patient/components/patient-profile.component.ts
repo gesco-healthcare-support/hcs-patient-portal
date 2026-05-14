@@ -27,6 +27,7 @@ import {
   NgbTimeAdapter,
   NgbNavModule,
 } from '@ng-bootstrap/ng-bootstrap';
+import { NgxMaskDirective } from 'ngx-mask';
 
 @Component({
   selector: 'app-patient-profile',
@@ -43,6 +44,7 @@ import {
     AutofocusDirective,
     NgbDatepickerModule,
     NgbNavModule,
+    NgxMaskDirective,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },
@@ -233,6 +235,9 @@ export class PatientProfileComponent implements OnInit {
           this.selected = response;
           this.form.patchValue({
             ...response.patient,
+            dateOfBirth: this.normalizePatientDateOfBirth(
+              response.patient.dateOfBirth as unknown as string | null,
+            ),
           });
         });
     }
@@ -265,5 +270,20 @@ export class PatientProfileComponent implements OnInit {
       return d.toISOString().split('T')[0];
     }
     return null;
+  }
+
+  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1900) return null;
+    const today = new Date();
+    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
+      return null;
+    }
+    return value;
   }
 }

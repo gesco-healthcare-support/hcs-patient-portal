@@ -34,9 +34,23 @@
     <RestoreLockedMode>false</RestoreLockedMode>
   </PropertyGroup>
 
-  <!-- Scriban 6.6.0 override: resolves NU1902 CVE warnings from transitive
-       Scriban 6.3.0 dependency (ABP uses Scriban for text templating).
-       7.x has breaking API changes that ABP hasn't validated. -->
+  <!-- Scriban 7.1.0: required to clear NuGetAudit NU1902/1903/1904 alerts on
+       6.x (the 6.x line accumulated several high+critical CVE advisories
+       in 2026). ABP 10.0.2 was compiled against Scriban 6.3.0 and 7.x
+       changed Scriban.Parsing.ParserOptions to a different value-type
+       layout, so any code path that hits Volo.Abp.TextTemplating.Scriban
+       throws System.TypeLoadException at runtime. We avoid that by NOT
+       routing email through ABP's Scriban-based AccountEmailer:
+         - Registration verification email is sent by our own
+           UserRegisteredEmailHandler via INotificationDispatcher -> our
+           NotificationTemplateRenderer (no Scriban).
+         - The /Account/ConfirmUser "Verify" button is hijacked by
+           wwwroot/global-scripts.js to call
+           /api/public/external-signup/resend-verification, which fires
+           the same handler -bypassing ABP's send-email-confirmation-token.
+       Other ABP-emailing paths (Forgot Password, Change Email, etc.) still
+       hit Scriban and will 500 until we either upgrade ABP past 10.x or
+       override those AccountEmailer methods too. -->
   <ItemGroup>
     <PackageReference Include="Scriban" Version="7.1.0" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x

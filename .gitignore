@@ -278,6 +278,10 @@ tempkey.jwk
 
 # Claude Code context cache
 .claude/context/
+.claude/settings.local.json
+
+# OLD app document extractions (pandoc + mammoth output, npm node_modules)
+.claude/old-extracted/
 
 # Environment files
 .env
@@ -292,6 +296,10 @@ NuGet.Config
 
 # Docker compose env (contains passwords)
 docker/.env
+
+# 2026-05-12: docker/fonts/*.ttf are committed for now. They power the
+# Gotenberg packet-PDF renderer (see docker/Dockerfile.gotenberg-fonts).
+# Will be removed and replaced with a font-mount step before hosting.
 
 # Logs directory
 Logs/
@@ -311,3 +319,17 @@ temp.md
 
 # Local execution scratch of the worktree setup plan (not for commit)
 /WORKTREE_SETUP_PLAN.md
+# Phase 2 cleanup (2026-05-11): exclude runtime artifacts from Playwright MCP,
+# .NET test runs, and ad-hoc dev scratch so they cannot pollute git status or
+# Claude's read scope. Each path produced 1k+ files / 24+ MB of churn before
+# being deleted; the gitignore entries below stop them from coming back.
+.playwright-mcp/
+test-results/
+tests/**/test-results/
+tmp/
+
+# T0 baseline captures for the #121 appointment-add decomposition; per-phase
+# only, not source of truth. The plan doc at
+# docs/plans/2026-05-13-appointment-add-component-decomposition.md is
+# authoritative.
+tests/baseline/
