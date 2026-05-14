@@ -30,6 +30,7 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | [BUG-014](bugs/BUG-014-hardcoded-email-urls.md) | medium | open | Hardcoded SPA/AuthServer URLs in email templates |
 | [BUG-015](bugs/BUG-015-dynamic-env-unused.md) | medium | open | dynamic-env.json never read by SPA |
 | [BUG-016](bugs/BUG-016-openiddict-subdomain.md) | medium | open | OpenIddict RedirectUris missing subdomain wildcards |
+| [BUG-018](bugs/BUG-018-smtp-misleading-error.md) | medium | open | SMTP rate-limit logged as misleading "Configure ACS credentials" |
 
 ## Seed gotchas
 
@@ -51,6 +52,9 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | [OBS-7](bugs/OBS-7-stub.md) | stub | (needs rehydration) |
 | [OBS-8](bugs/OBS-8-firmname-aa-da-only.md) | open | Firm Name AA/DA-only visibility matrix |
 | [OBS-9](bugs/OBS-9-port-pinning-env.md) | superseded | Two-stack port-pinning attempt |
+| [OBS-10](bugs/OBS-10-appointment-types-vs-plan.md) | open | Appointment types seeded vs plan expectation (Re-Eval/Consultation missing) |
+| [OBS-11](bugs/OBS-11-base64-format-exception-logs.md) | open | Repeated Base-64 FormatException log noise during packet generation |
+| [OBS-12](bugs/OBS-12-reschedule-cancel-ui-gap.md) | open | Reschedule + Cancellation UI not built (gated on W3) |
 
 ---
 
