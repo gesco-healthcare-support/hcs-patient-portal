@@ -22,7 +22,7 @@ import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.e
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
 import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
@@ -112,7 +112,7 @@ type ApplicantAttorneyLookupResult = {
     RouterLink,
     LocalizationPipe,
     PermissionDirective,
-    LookupSelectComponent,
+    AppLookupSelectComponent,
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,

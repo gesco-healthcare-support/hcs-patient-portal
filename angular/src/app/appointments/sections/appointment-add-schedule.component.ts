@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { Observable } from 'rxjs';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
@@ -63,7 +63,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     CommonModule,
     ReactiveFormsModule,
     LocalizationPipe,
-    LookupSelectComponent,
+    AppLookupSelectComponent,
     NgbDatepickerModule,
   ],
   templateUrl: './appointment-add-schedule.component.html',

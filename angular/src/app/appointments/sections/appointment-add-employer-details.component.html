@@ -55,14 +55,14 @@
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-        <abp-lookup-select
+        <app-lookup-select
           cid="appointment-employer-state-id"
           formControlName="employerStateId"
           [getFn]="getStateLookup"
           [class.is-invalid]="
             form.get('employerStateId')?.invalid && form.get('employerStateId')?.touched
           "
-        ></abp-lookup-select>
+        ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
