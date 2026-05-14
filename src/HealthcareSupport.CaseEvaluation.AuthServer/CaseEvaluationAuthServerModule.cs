@@ -379,6 +379,20 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.Headers["X-Frame-Options"] = "DENY";
         });
 
+        // 2026-05-13 -- map RegistrationDuplicateEmail to HTTP 400.
+        // Mirrors the same config in CaseEvaluationHttpApiHostModule.
+        // The /api/public/external-signup/register endpoint is loaded
+        // into BOTH the AuthServer host (port 44369) and the
+        // HttpApi.Host (port 44328) -- the SPA hits the AuthServer
+        // path during the register flow so BOTH host modules must
+        // contribute the same status-code remap.
+        Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
+        {
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+        });
+
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
 
         ConfigureMultiTenancy();

@@ -480,4 +480,21 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string RegistrationRoleNotAllowed =
         "CaseEvaluation:Registration.RoleNotAllowedForPublicSignup";
+
+    /// <summary>
+    /// 2026-05-13 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
+    /// when the submitted email already maps to an existing
+    /// <c>IdentityUser</c>. Replaces the prior throw that echoed the
+    /// literal input email back (user-enumeration leak in a
+    /// HIPAA-sensitive context). The message resolves to a generic
+    /// "if-this-is-new-you-will-get-an-email" string, regardless of
+    /// whether the account exists. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c> via
+    /// <c>AbpExceptionHttpStatusCodeOptions</c> -- ABP's default 403 for
+    /// <c>BusinessException</c> would be semantically wrong (validation
+    /// failure, not authorization). Localization key
+    /// <c>Registration:DuplicateEmail</c>.
+    /// </summary>
+    public const string RegistrationDuplicateEmail =
+        "CaseEvaluation:Registration.DuplicateEmail";
 }

@@ -108,8 +108,18 @@ export class CustomEmailConfirmationComponent implements OnInit {
     }
 
     try {
+      // 2026-05-13 (BUG-006) -- ABP 10.0.2's stock Account module
+      // exposes the email-confirmation action at
+      // /api/account/confirm-email. The previous URL
+      // /api/account/verify-email returned 405 Method Not Allowed,
+      // blocking every first-login for freshly-registered external
+      // users. (Note: ABP also exposes
+      // /api/account/verify-email-confirmation-token, but that
+      // endpoint only VALIDATES the token without flipping
+      // EmailConfirmed -- it returns Task<bool>. confirm-email is the
+      // one that actually applies the confirmation.)
       await firstValueFrom(
-        this.http.post(`${environment.apis.default.url}/api/account/verify-email`, {
+        this.http.post(`${environment.apis.default.url}/api/account/confirm-email`, {
           userId: this.userId,
           token: this.confirmationToken,
         }),

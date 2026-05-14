@@ -101,12 +101,12 @@
         </div>
         <div class="col-md-3 mb-3">
           <label class="form-label fw-semibold">State *</label>
-          <abp-lookup-select
+          <app-lookup-select
             [cid]="stateSelectCid"
             [formControlName]="prefix + 'StateId'"
             [getFn]="getStateLookup"
             [class.is-invalid]="isFieldInvalid(prefix + 'StateId')"
-          ></abp-lookup-select>
+          ></app-lookup-select>
         </div>
         <div class="col-md-3 mb-3">
           <label class="form-label fw-semibold">Zip *</label>

@@ -131,6 +131,18 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             options.Headers["X-Frame-Options"] = "DENY";
         });
+
+        // 2026-05-13 -- map domain error codes that ABP would otherwise
+        // route to its default HTTP status (403 for BusinessException) to
+        // the semantically-correct 4xx client-error status. Currently:
+        //   RegistrationDuplicateEmail -> 400 Bad Request (validation
+        //   failure, not authorization -- closes BUG-003).
+        Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
+        {
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+        });
     }
 
     /// <summary>
@@ -320,6 +332,27 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                                 AutoReplenishment = true,
                             });
                     }
+                    if (IsExternalSignupRegisterPath(httpContext))
+                    {
+                        // 2026-05-13 -- rate-limit the anonymous register
+                        // endpoint so the BUG-001 fix (generic error
+                        // message that no longer echoes the input email)
+                        // is not still brute-forceable as an enumeration
+                        // oracle via timing or response-byte differentials.
+                        // Partition by client IP since this endpoint is
+                        // anonymous (no JWT sub).
+                        var key = ResolveExternalSignupPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"signup:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
                     return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
                 });
         });
@@ -333,6 +366,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
     /// <summary>Phase 14b: path prefix matched by the document-upload-by-code limiter.</summary>
     public const string DocumentUploadByCodePathPrefix = "/api/public/appointment-documents";
+
+    /// <summary>2026-05-13: full path matched by the register rate limiter.</summary>
+    public const string ExternalSignupRegisterPath = "/api/public/external-signup/register";
 
     /// <summary>
     /// True when the request targets one of the password-reset endpoints
@@ -364,6 +400,40 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             return false;
         }
         return httpContext.Request.Path.Value?.Contains("/upload-by-code/", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- true when the request targets the anonymous
+    /// external-signup register endpoint
+    /// (<see cref="ExternalSignupRegisterPath"/>). Only POST is matched
+    /// (a future GET on the same path -- e.g. for client-side checks --
+    /// would not be brute-forceable in the same way).
+    /// </summary>
+    internal static bool IsExternalSignupRegisterPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (!HttpMethods.IsPost(httpContext.Request.Method))
+        {
+            return false;
+        }
+        return httpContext.Request.Path.Equals(
+            ExternalSignupRegisterPath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- partition key for the external-signup register
+    /// limiter. Anonymous endpoint -- partition by client IP (and a
+    /// "global" fallback if the connection has no remote IP, e.g.
+    /// in some test harnesses).
+    /// </summary>
+    internal static string ResolveExternalSignupPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
     }
 
     /// <summary>

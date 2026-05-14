@@ -155,12 +155,12 @@
 
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-        <abp-lookup-select
+        <app-lookup-select
           cid="appointment-patient-state-id"
           formControlName="stateId"
           [getFn]="getStateLookup"
           [class.is-invalid]="isFieldInvalid('stateId')"
-        ></abp-lookup-select>
+        ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
@@ -170,12 +170,12 @@
         <label class="form-label fw-semibold">
           {{ '::AppointmentLanguage' | abpLocalization }}
         </label>
-        <abp-lookup-select
+        <app-lookup-select
           cid="appointment-patient-language-id"
           formControlName="appointmentLanguageId"
           [getFn]="getAppointmentLanguageLookup"
           [class.is-invalid]="isFieldInvalid('appointmentLanguageId')"
-        ></abp-lookup-select>
+        ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
         <!--
