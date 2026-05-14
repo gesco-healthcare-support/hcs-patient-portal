@@ -42,15 +42,57 @@ catch (Exception ex)
 ```
 The inner exception type / SMTP status code is not surfaced in the message; the operator has to read the stack trace below to find the real cause.
 
-## Recommended fix
-1. Distinguish SMTP failure categories before logging:
-   - `SmtpCommandException` with status 4.5.127 / 4.7.x → rate-limit, retry after delay
-   - `SmtpCommandException` with status 5.7.x → authentication / configuration
-   - `SocketException` / `IOException` → network / connectivity
-   - other → unknown
-2. Emit a more accurate log per category. The current "Configure ACS credentials" line should only fire for the auth/config category.
-3. Implement an automatic retry with backoff for rate-limit failures (currently the job is dropped with "will not retry until Attempts policy is raised"). EXO's `4.5.127` is documented as a transient throttle; a 30-60s backoff + 3-5 retries would recover automatically.
-4. Optionally surface a metric / alert when rate-limit warnings exceed a threshold per hour.
+## Recommended fix (Adrian's directive 2026-05-14)
+
+**Primary fix: proactive throttle at 2-3 emails/second; never drop a send.**
+
+Adrian's spec: every email must eventually be delivered, but the outbound rate must stay under the M365 burst-protection threshold (per [[OBS-13]] our SMTP host `mail.securemailprotocol.com` is an M365 reseller and inherits EXO's per-mailbox limits).
+
+Concrete design:
+
+1. **Token-bucket rate limiter in front of `IEmailSender`.** Use
+   `System.Threading.RateLimiting.TokenBucketRateLimiter` (built into
+   .NET 7+):
+   - `TokensPerPeriod = 1`
+   - `ReplenishmentPeriod = TimeSpan.FromMilliseconds(400)` (= ~2.5 emails/sec)
+   - `TokenLimit = 3` (small burst budget)
+   - `QueueLimit = int.MaxValue` (never drop — queue indefinitely)
+   - `AutoReplenishment = true`
+
+   Wrap the existing `_emailSender.SendAsync(...)` calls in `SendAppointmentEmailJob.cs:94` and `:146` so every send must acquire a token first. The rate limiter is a singleton DI service.
+
+2. **Categorize SMTP failures and only retry transient ones.** In the
+   catch block:
+   - `SmtpCommandException` with code `4.5.127` or `4.7.x` →
+     **transient rate-limit / throttle**; let the job throw so ABP's
+     `BackgroundJobOptions` retry policy picks it up with backoff.
+   - `SmtpCommandException` with code `5.x.x` → **permanent failure**
+     (bad recipient, auth error). Log as error, do not retry.
+   - `SocketException` / `IOException` / timeout → **transient
+     connectivity**; throw to trigger retry.
+   - Other → log as warning, throw to retry up to default attempts.
+
+3. **Replace misleading log strings.** Lines 104 and 156 currently say
+   `Configure ACS credentials to deliver`. Change to a category-specific
+   message:
+   - rate-limit: `SMTP rate-limited by provider; job will retry after backoff.`
+   - auth/permanent: `SMTP delivery permanently failed; check credentials or recipient address.`
+   - connectivity: `SMTP connectivity failure; job will retry.`
+
+4. **Background-job retry policy**: ensure `AbpBackgroundJobOptions`
+   for `SendAppointmentEmailArgs` has `MaxTryCount` ≥ 10 with
+   exponential backoff (current default has been documented as
+   "Job will not retry until Attempts policy is raised" — confirm the
+   policy is raised).
+
+5. **Observability** (optional but useful): emit a metric (`smtp.sent`,
+   `smtp.throttled`, `smtp.permanent_failure`) so the operator can see
+   throughput + rate-limit incidence.
+
+## Adrian's directive verbatim (2026-05-14)
+> "I will want to send emails slower, like 2-3 emails per second but
+> all the emails must be sent. so this is the prefered option:
+> Throttle in the app"
 
 ## Workaround used this session
 None. We accepted the temporary rate-limit and continued workflows that don't depend on email verification, planning to re-test email delivery after the EXO rate window cleared.
