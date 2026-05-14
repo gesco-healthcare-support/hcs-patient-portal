@@ -300,11 +300,11 @@
 
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-              <abp-lookup-select
+              <app-lookup-select
                 cid="appointment-view-state-id"
                 formControlName="patientStateId"
                 [getFn]="getStateLookup"
-              ></abp-lookup-select>
+              ></app-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
@@ -314,11 +314,11 @@
               <label class="form-label fw-semibold">
                 {{ '::AppointmentLanguage' | abpLocalization }}
               </label>
-              <abp-lookup-select
+              <app-lookup-select
                 cid="appointment-view-language-id"
                 formControlName="patientAppointmentLanguageId"
                 [getFn]="getAppointmentLanguageLookup"
-              ></abp-lookup-select>
+              ></app-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Do you need an interpreter?</label>
@@ -397,11 +397,11 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-              <abp-lookup-select
+              <app-lookup-select
                 cid="appointment-view-employer-state-id"
                 formControlName="employerStateId"
                 [getFn]="getStateLookup"
-              ></abp-lookup-select>
+              ></app-lookup-select>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
@@ -531,11 +531,11 @@
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">State</label>
-                <abp-lookup-select
+                <app-lookup-select
                   cid="appointment-view-applicant-attorney-state-id"
                   formControlName="applicantAttorneyStateId"
                   [getFn]="getStateLookup"
-                ></abp-lookup-select>
+                ></app-lookup-select>
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Zip Code</label>
@@ -675,11 +675,11 @@
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">State</label>
-                <abp-lookup-select
+                <app-lookup-select
                   cid="appointment-view-defense-attorney-state-id"
                   formControlName="defenseAttorneyStateId"
                   [getFn]="getStateLookup"
-                ></abp-lookup-select>
+                ></app-lookup-select>
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Zip Code</label>

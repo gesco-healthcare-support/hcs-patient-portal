@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { PagedResultDto } from '@abp/ng.core';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 import { Observable } from 'rxjs';
 
@@ -40,7 +40,7 @@ import { Observable } from 'rxjs';
 @Component({
   selector: 'app-appointment-add-attorney-section',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, LookupSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, AppLookupSelectComponent],
   templateUrl: './appointment-add-attorney-section.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

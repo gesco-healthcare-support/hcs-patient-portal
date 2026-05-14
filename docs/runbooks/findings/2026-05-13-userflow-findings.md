@@ -458,3 +458,102 @@ None yet. The OBS-1 inventory above is candidate content for updating
 `docs/parity/wave-1-parity/external-user-registration.md` once Adrian
 confirms whether the DateOfBirth / PhoneNumber gap is a doc error or a
 real missing-form-field bug.
+
+---
+
+## Post-fix testing notes (2026-05-14 continuation)
+
+After PR #197 merged, resumed walking the Patient flow. New blocker
+surfaced on the very next step.
+
+### [BUG-007] BLOCKER: appointment-add dropdowns (Appointment Type / Location / AA State / DA State) render with no options despite lookup APIs returning data
+
+```
+Severity: blocker
+Role: Patient (also affects Applicant Attorney / Defense Attorney /
+      Clinic Staff / admin -- everyone who opens /appointments/add)
+Flow: external-user-appointment-request (-> internal booking flow too)
+Component: angular/src/app/appointments/sections/appointment-add-schedule.component.html
+           (and the attorney + employer section components for State
+           dropdowns). The shared dependency is @volo/abp.commercial.ng.ui's
+           `abp-lookup-select` -- but the regression is local: pre-#121
+           the same form populated the dropdowns from the same APIs.
+
+Steps to reproduce:
+  1. Sign in as a Patient at falkinstein.localhost:44368 (after
+     verifying email per the fixed flow in PR #197).
+  2. From /home click "Book Appointment". Lands on
+     /appointments/add?type=1.
+  3. Inspect the Appointment Type dropdown.
+
+Expected (per OLD parity + lookup endpoints returning data):
+  - GET /api/app/appointments/appointment-type-lookup returns
+    {"totalCount":6,"items":[{id,displayName}*6]} -> dropdown shows
+    6 options + the leading "-" placeholder.
+  - GET /api/app/appointments/location-lookup returns
+    {"totalCount":2,"items":[...]} -> dropdown shows 2 options.
+  - Applicant Attorney + Defense Attorney "State *" dropdowns also
+    populate from /api/app/patients/state-lookup (50 US states are
+    seeded; verified in DB).
+
+Actual (current NEW behaviour):
+  - Network: GET /api/app/appointments/appointment-type-lookup -> 200,
+    body has 6 items. (Verified via browser_network_request.)
+  - Network: GET /api/app/appointments/location-lookup -> 200, body
+    has 2 items.
+  - Network: GET /api/app/patients/state-lookup -> 200, body has 50
+    items.
+  - DOM: <abp-lookup-select cid="appointment-appointment-type-id">
+    renders only `<option value="0: undefined">-</option>`. innerHTML
+    contains the empty-option marker + an Angular comment node, no
+    @for-rendered items.
+  - Patient Demographics State dropdown DOES render all 50 states (so
+    `abp-lookup-select` is not universally broken; only the schedule +
+    attorney-section instances are dead).
+  - Booking is impossible: Appointment Type + Location are required
+    fields, and an empty value cannot be submitted.
+
+Evidence:
+  - Screenshot: tests/screenshots/2026-05-13/post-fix-register-verify-login/06-appointment-add-empty-dropdowns.png
+  - innerHTML of the broken select (via browser_evaluate):
+    `<select class="form-select form-control ng-untouched ng-pristine ng-valid" id="appointment-appointment-type-id"><option value="0: undefined">-</option><!----></select>`
+  - No console errors -- silent template-binding failure.
+
+OLD source: P:\PatientPortalOld\patientappointment-portal\src\app\components\appointment-request\appointments\add\appointment-add.component.html
+  (OLD populated AppointmentType + Location from the same lookups; the
+  dropdowns rendered options on load.)
+NEW source (suspect):
+  - angular/src/app/appointments/sections/appointment-add-schedule.component.html
+    (lines 17-22 + 35-41 -- both `abp-lookup-select` bindings)
+  - angular/src/app/appointments/sections/appointment-add-schedule.component.ts
+    (the @Input getAppointmentTypeLookup / getLocationLookup --
+    confirm they actually receive the parent's function or get a stale
+    reference)
+  - angular/src/app/appointments/sections/appointment-add-attorney-section.component.html
+    (the State select inside AA / DA sections is also empty)
+  - PR #121 (refactor: appointment-add 7-section decomposition) is the
+    likely cause -- pre-decomposition the dropdowns worked.
+Parity doc: docs/parity/wave-1-parity/external-user-appointment-request.md
+
+Suggested fix scope (for the fix worktree):
+  - Diff the schedule / attorney section components against the pre-#121
+    parent appointment-add.component.* and identify what was lost when
+    the bindings moved out of the parent. The most likely class of
+    regression: `@Input getFn` is provided as an unbound arrow that
+    captures stale `this`, OR the section's OnInit doesn't trigger
+    the lookup load, OR ChangeDetectionStrategy.OnPush is in play and
+    the parent isn't poking change detection after items arrive.
+  - The Patient Demographics State dropdown (which works) is the
+    reference implementation for `abp-lookup-select` in this app --
+    its binding pattern should be the template.
+  - Once fixed: walk Patient -> Book Appointment with a fresh seed
+    (AppointmentTypes + Locations are already present; need to
+    re-create the 64 Doctor availabilities that were wiped on
+    2026-05-12 per Part 12 of the runbook, otherwise the date picker
+    will also be empty downstream).
+
+Note: this blocks every external-user flow that depends on
+/appointments/add -- Patient, AA (book-on-behalf), and internal
+admin/Clinic Staff (book for a patient). Recommend prioritising over
+non-booking flows.
+```

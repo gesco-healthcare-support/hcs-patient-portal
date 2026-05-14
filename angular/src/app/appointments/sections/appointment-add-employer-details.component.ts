@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 import { Observable } from 'rxjs';
 
@@ -23,7 +23,7 @@ import { Observable } from 'rxjs';
 @Component({
   selector: 'app-appointment-add-employer-details',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe, LookupSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe, AppLookupSelectComponent],
   templateUrl: './appointment-add-employer-details.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
