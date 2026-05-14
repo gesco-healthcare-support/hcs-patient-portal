@@ -440,7 +440,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             var existingUser = await _userManager.FindByEmailAsync(input.Email);
             if (existingUser != null)
             {
-                throw new UserFriendlyException(L["Email address is already used: {0}", input.Email]);
+                // 2026-05-13 -- generic message, no email echo (BUG-001
+                // -- user-enumeration leak). UserFriendlyException is
+                // used (not BusinessException) because BusinessException's
+                // auto-localization via MapCodeNamespace is documented
+                // as not resolving in this codebase -- see
+                // AppointmentsAppService.EnsureCanReadAppointmentAsync.
+                // UserFriendlyException passes its message argument
+                // through verbatim. The error code is still carried so
+                // CaseEvaluationAuthServerModule + HttpApi.HostModule can
+                // remap to HTTP 400 via AbpExceptionHttpStatusCodeOptions
+                // (BUG-003 -- prior 403 was semantically wrong).
+                throw new UserFriendlyException(
+                    message: L["Registration:DuplicateEmail"],
+                    code: CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail);
             }
 
             var user = new IdentityUser(

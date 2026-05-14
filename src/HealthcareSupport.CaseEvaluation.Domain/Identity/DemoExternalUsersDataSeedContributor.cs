@@ -131,24 +131,16 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
                     phoneNumber: phone);
             }
 
-            // Issue #119 (2026-05-13) -- seed the 4 real-inbox external
-            // users into every tenant. Currently Phase 1A only ships
-            // Falkinstein so this effectively adds them to Falkinstein;
-            // when a second tenant lands, each gets its own copy with
-            // the same role mapping. They live alongside the synthetic
-            // @<slug>.test users above so a tester can sign in as
-            // either flavour depending on whether they need inbox checks.
-            foreach (var (email, roleName, first, last, phone) in InboxedExternalUsers)
-            {
-                await EnsureUserWithRoleAsync(
-                    email: email,
-                    userName: email,
-                    roleName: roleName,
-                    tenantId: tenantId,
-                    firstName: first,
-                    lastName: last,
-                    phoneNumber: phone);
-            }
+            // 2026-05-13 (SEED-1) -- the four @gesco.com real-inbox
+            // identities are NO LONGER seeded automatically. Per Adrian
+            // they are intended for end-to-end real-user tests (the
+            // tester registers them self-service from the form so the
+            // verification email actually fires and lands in the real
+            // inbox). The InboxedExternalUsers array constant (above)
+            // is preserved as the canonical email->role mapping for
+            // tests and docs that need it; only the seed-side loop has
+            // been removed. Issue #119 reverted on the seeding side;
+            // the constant itself is kept for self-service tests.
         }
     }
 
