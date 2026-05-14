@@ -56,6 +56,7 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | [OBS-11](bugs/OBS-11-base64-format-exception-logs.md) | open | Repeated Base-64 FormatException log noise during packet generation |
 | [OBS-12](bugs/OBS-12-reschedule-cancel-ui-gap.md) | open | Reschedule + Cancellation UI not built (gated on W3) |
 | [OBS-13](bugs/OBS-13-smtp-host-is-m365-reseller.md) | open | `securemailprotocol.com` is an M365 reseller; inherits EXO rate limits |
+| [OBS-14](bugs/OBS-14-auth-vs-api-email-split.md) | open | AuthServer handles auth-emails; API host handles appointment-emails (architectural split) |
 
 ---
 
