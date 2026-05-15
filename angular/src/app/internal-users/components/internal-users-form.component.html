@@ -1,0 +1,203 @@
+<div class="container-fluid py-4 px-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="mb-0 fw-bold">Create Internal User</h2>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="goBack()">
+      Back to home
+    </button>
+  </div>
+
+  <p class="text-muted">
+    Create an account for a new clinic staff member or staff supervisor. The new user receives an
+    email with a one-time temporary password and is required to choose a new password on first sign
+    in. Only IT Admin can create internal users.
+  </p>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="iu-tenant" class="form-label fw-semibold">
+              Tenant
+              <span class="text-danger">*</span>
+            </label>
+            <select id="iu-tenant" class="form-select" formControlName="tenantId">
+              <option value="" disabled>
+                @if (tenantsLoading()) {
+                  Loading tenants...
+                } @else if (tenants().length === 0) {
+                  No tenants available
+                } @else {
+                  Select a tenant
+                }
+              </option>
+              @for (option of tenants(); track option.id) {
+                <option [value]="option.id">{{ option.displayName }}</option>
+              }
+            </select>
+            @if (form.get('tenantId')?.touched && form.get('tenantId')?.hasError('required')) {
+              <div class="text-danger small mt-1">Tenant is required.</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="iu-role" class="form-label fw-semibold">
+              Role
+              <span class="text-danger">*</span>
+            </label>
+            <select id="iu-role" class="form-select" formControlName="roleName">
+              <option value="" disabled>Select a role</option>
+              @for (option of roleOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            @if (form.get('roleName')?.touched && form.get('roleName')?.hasError('required')) {
+              <div class="text-danger small mt-1">Role is required.</div>
+            }
+            <div class="form-text">
+              External roles (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) are
+              created via Invite External User; IT Admin self-creation is not allowed.
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label for="iu-first-name" class="form-label fw-semibold">
+              First name
+              <span class="text-danger">*</span>
+            </label>
+            <input
+              id="iu-first-name"
+              type="text"
+              class="form-control"
+              formControlName="firstName"
+              autocomplete="off"
+              maxlength="64"
+            />
+            @if (form.get('firstName')?.touched && form.get('firstName')?.hasError('required')) {
+              <div class="text-danger small mt-1">First name is required.</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="iu-last-name" class="form-label fw-semibold">
+              Last name
+              <span class="text-danger">*</span>
+            </label>
+            <input
+              id="iu-last-name"
+              type="text"
+              class="form-control"
+              formControlName="lastName"
+              autocomplete="off"
+              maxlength="64"
+            />
+            @if (form.get('lastName')?.touched && form.get('lastName')?.hasError('required')) {
+              <div class="text-danger small mt-1">Last name is required.</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="iu-email" class="form-label fw-semibold">
+              Email
+              <span class="text-danger">*</span>
+            </label>
+            <input
+              id="iu-email"
+              type="email"
+              class="form-control"
+              formControlName="email"
+              placeholder="staff@clinic.example"
+              autocomplete="off"
+              maxlength="256"
+            />
+            @if (form.get('email')?.touched && form.get('email')?.hasError('required')) {
+              <div class="text-danger small mt-1">Email is required.</div>
+            }
+            @if (form.get('email')?.touched && form.get('email')?.hasError('email')) {
+              <div class="text-danger small mt-1">Enter a valid email address.</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="iu-phone" class="form-label fw-semibold">Phone (optional)</label>
+            <input
+              id="iu-phone"
+              type="tel"
+              class="form-control"
+              formControlName="phoneNumber"
+              autocomplete="off"
+              maxlength="20"
+            />
+          </div>
+        </div>
+
+        @if (errorMessage()) {
+          <div class="alert alert-danger mt-3" role="alert">
+            {{ errorMessage() }}
+          </div>
+        }
+
+        <div class="mt-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary" [disabled]="isSubmitting()">
+            @if (isSubmitting()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+              Creating user...
+            } @else {
+              Create user
+            }
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            (click)="resetForm()"
+            [disabled]="isSubmitting()"
+          >
+            Reset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  @if (result(); as r) {
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-success text-white">
+        <h4 class="mb-0 fw-bold">User created</h4>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="text-muted small">Tenant</div>
+            <div class="fw-semibold">{{ r.tenantName }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Email</div>
+            <div class="fw-semibold">{{ r.email }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Role</div>
+            <div class="fw-semibold">{{ r.roleName }}</div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          @if (r.welcomeEmailQueued) {
+            <div class="alert alert-success mb-0" role="status">
+              <strong>Welcome email queued.</strong>
+              The temporary password is on its way to
+              <strong>{{ r.email }}</strong>
+              . The user will be asked to change their password on first sign in.
+            </div>
+          } @else {
+            <div class="alert alert-warning mb-0" role="alert">
+              <strong>Welcome email failed to queue.</strong>
+              The user account was created successfully, but the email did not reach the outbound
+              queue. Use the ABP Identity admin page to reset the password and hand-deliver the
+              credentials.
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>
