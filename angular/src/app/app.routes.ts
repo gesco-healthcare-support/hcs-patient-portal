@@ -149,4 +149,17 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard, permissionGuard],
     data: { requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser' },
   },
+  // 2026-05-15 -- IT Admin internal-user creation. Gated by the
+  // CaseEvaluation.InternalUsers.Create permission (host-scoped); the
+  // AppService re-validates server-side. Non-IT-Admin roles receive a
+  // 403 page from the permissionGuard instead of seeing the form.
+  {
+    path: 'internal-users',
+    loadComponent: () =>
+      import('./internal-users/components/internal-users-form.component').then(
+        (c) => c.InternalUsersFormComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.InternalUsers.Create' },
+  },
 ];

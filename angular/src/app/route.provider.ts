@@ -49,5 +49,18 @@ function configureRoutes() {
       layout: eLayoutType.application,
       requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
     },
+    // 2026-05-15 -- IT Admin internal-user creation. Sibling to
+    // Invite External User under the same User Management parent;
+    // visibility gated by the new InternalUsers.Create permission
+    // (host-scoped, granted to IT Admin only per OLD parity).
+    {
+      path: '/internal-users',
+      name: '::Menu:InternalUsers',
+      parentName: '::Menu:UserManagement',
+      iconClass: 'fas fa-user-plus',
+      order: 2,
+      layout: eLayoutType.application,
+      requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
+    },
   ]);
 }
