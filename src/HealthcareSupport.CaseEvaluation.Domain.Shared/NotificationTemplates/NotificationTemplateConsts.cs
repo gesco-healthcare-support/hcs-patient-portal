@@ -174,6 +174,20 @@ public static class NotificationTemplateConsts
         public const string InviteExternalUser = "InviteExternalUser";
 
         /// <summary>
+        /// 2026-05-15 -- welcome email for a newly-created internal user
+        /// (Clinic Staff / Staff Supervisor). Dispatched by
+        /// <c>InternalUsersAppService.CreateAsync</c> immediately after
+        /// the IdentityUser row + role assignment commit. Body carries
+        /// the auto-generated temporary password verbatim (the only
+        /// channel the password ever leaves the server through); the
+        /// user is forced to change it on first login via
+        /// <c>ShouldChangePasswordOnNextLogin = true</c>. Variables:
+        /// UserName, LoginUserName, Password, RoleName, TenantName,
+        /// PortalUrl.
+        /// </summary>
+        public const string InternalUserCreated = "InternalUserCreated";
+
+        /// <summary>
         /// All 59 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
@@ -215,6 +229,9 @@ public static class NotificationTemplateConsts
 
             // 2026-05-15 -- admin-issued external-user invitation.
             InviteExternalUser,
+
+            // 2026-05-15 -- IT Admin internal-user welcome email.
+            InternalUserCreated,
         };
     }
 }

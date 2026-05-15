@@ -245,6 +245,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // the create-invite endpoint itself.
         yield return Default("UserManagement");
         yield return $"{Group}.UserManagement.InviteExternalUser";
+
+        // 2026-05-15 -- IT Admin (host-scoped) creates new internal users
+        // (Clinic Staff / Staff Supervisor). The permission is
+        // MultiTenancySides.Host so it lives in the host pass; Staff
+        // Supervisor + Clinic Staff intentionally do NOT receive it
+        // (OLD parity: only IT Admin creates internal accounts).
+        yield return Default("InternalUsers");
+        yield return $"{Group}.InternalUsers.Create";
     }
 
     /// <summary>
