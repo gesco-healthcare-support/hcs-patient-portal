@@ -639,6 +639,13 @@
     }
     const userType = selectedRoleValue;
 
+    // 2026-05-15 -- if an inviteToken is present, carry it through on the
+    // submit payload. Server re-validates + atomically marks the invitation
+    // accepted; uses the server-resolved email + role (so even if the user
+    // tampers with the disabled fields, the registration runs against the
+    // server's authoritative values).
+    const inviteToken = readQueryParam('inviteToken');
+
     // 1.6 (2026-04-30): tenant resolution priority is query > cookie. Cached
     // on init() so this is a fast path; null means we never resolved one.
     const ctx = await resolveTenantContext();
@@ -673,6 +680,9 @@
       password: password,
       confirmPassword: confirmPassword,
       tenantId: tenantId,
+      // 2026-05-15 -- pass the invite token through to the server, which
+      // re-validates + uses its values as authoritative.
+      inviteToken: inviteToken || null,
     };
 
     isSubmitting = true;
@@ -1020,6 +1030,173 @@
     });
   }
 
+  // 2026-05-15 -- one-time-use invitation token handling. When a user
+  // clicks an invite email link, the URL carries `?inviteToken=<raw>`.
+  // The token validates against the server (one DB row hashed at rest),
+  // and on success the form prefills + locks the email + role. On the
+  // four documented error codes (InviteInvalid / InviteExpired /
+  // InviteAlreadyAccepted) we render a friendly banner + hide the form.
+  //
+  // Server is the source of truth -- even if a user opens devtools and
+  // edits the prefilled fields, the AppService re-validates the token
+  // at submit time and uses the server-resolved values (so a tampered
+  // email/role cannot register as someone else).
+  const inviteErrorCodes = {
+    invalid: 'CaseEvaluation:Invitation.InviteInvalid',
+    expired: 'CaseEvaluation:Invitation.InviteExpired',
+    alreadyAccepted: 'CaseEvaluation:Invitation.InviteAlreadyAccepted',
+  };
+
+  function renderInviteBanner(form, message, level) {
+    var existing = form.querySelector('#external-invite-banner');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'external-invite-banner';
+      form.prepend(existing);
+    }
+    var role = level === 'success' ? 'status' : 'alert';
+    var ariaLive = level === 'success' ? 'polite' : 'assertive';
+    var levelClass = level === 'danger' ? 'alert alert-danger'
+      : level === 'success' ? 'alert alert-success'
+      : 'alert alert-info';
+    existing.className = levelClass + ' mt-2';
+    existing.setAttribute('role', role);
+    existing.setAttribute('aria-live', ariaLive);
+    existing.innerHTML = message;
+    existing.style.display = '';
+  }
+
+  function setEmailRoleLocked(form, email, userTypeValue) {
+    var emailFields = ['#input-email-address', 'input[name="Input.EmailAddress"]', 'input[type="email"]'];
+    for (var i = 0; i < emailFields.length; i++) {
+      var input = form.querySelector(emailFields[i]);
+      if (input) {
+        input.value = email;
+        input.setAttribute('readonly', 'readonly');
+        input.classList.add('form-control-plaintext');
+      }
+    }
+    var roleSelect = form.querySelector('#external-user-type');
+    if (roleSelect) {
+      roleSelect.value = String(userTypeValue);
+      roleSelect.setAttribute('disabled', 'disabled');
+      // Carry the value in a hidden input so the disabled select's value
+      // is still submitted (disabled controls are not posted).
+      var hidden = form.querySelector('#external-user-type-hidden');
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.id = 'external-user-type-hidden';
+        hidden.name = 'ExternalUserTypeLocked';
+        form.appendChild(hidden);
+      }
+      hidden.value = String(userTypeValue);
+    }
+    // Hide the FirmName field if locked role is not an attorney; show it
+    // (and mark required) when role is Applicant Attorney (3) or
+    // Defense Attorney (4).
+    var firmInput = form.querySelector('#external-firm-name');
+    var firmWrap = firmInput ? firmInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    var isAttorney = userTypeValue === 3 || userTypeValue === 4;
+    if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+  }
+
+  function renderInviteAlreadyAcceptedBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation has already been used.</strong>'
+      + '<div class="mt-1">If that was you, <a href="/Account/Login" class="alert-link">sign in here</a>.</div>'
+      + '<div class="mt-1 small">If you did not register with this invitation, contact the clinic to request a new link.</div>',
+      'info');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function renderInviteExpiredBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation has expired.</strong>'
+      + '<div class="mt-1">Contact the clinic to request a new invitation link.</div>',
+      'danger');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function renderInviteInvalidBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation link is invalid.</strong>'
+      + '<div class="mt-1">Contact the clinic to request a new invitation link.</div>',
+      'danger');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function dispatchInviteErrorBanner(form, errorCode) {
+    if (errorCode === inviteErrorCodes.alreadyAccepted) {
+      renderInviteAlreadyAcceptedBanner(form);
+    } else if (errorCode === inviteErrorCodes.expired) {
+      renderInviteExpiredBanner(form);
+    } else {
+      // Includes invalid + any unexpected 4xx (defensive default).
+      renderInviteInvalidBanner(form);
+    }
+  }
+
+  async function applyInviteTokenPrefill(form) {
+    var rawToken = readQueryParam('inviteToken');
+    if (!rawToken) {
+      return false;
+    }
+
+    var validateUrl = new URL('/api/public/external-signup/validate-invite', externalSignupApiBaseUrl);
+    validateUrl.searchParams.set('token', rawToken);
+
+    try {
+      var response = await fetch(validateUrl.toString(), {
+        method: 'GET',
+        credentials: 'include',
+        mode: 'cors',
+      });
+
+      if (response.status === 200) {
+        var body = await response.json();
+        setEmailRoleLocked(form, body.email, Number(body.userType));
+        renderInviteBanner(
+          form,
+          '<strong>You’ve been invited to register at ' + escapeHtml(body.tenantName) + '.</strong>'
+          + '<div class="mt-1">Your role is <strong>' + escapeHtml(body.roleName) + '</strong>. Set a password below to finish registration.</div>',
+          'success');
+        return true;
+      }
+
+      // Non-200: try to read the error code from the BusinessException
+      // body so we can render the right banner.
+      var errCode = null;
+      try {
+        var errBody = await response.json();
+        errCode = errBody && errBody.error && errBody.error.code;
+      } catch (_e) {
+        // Malformed error body -- treat as invalid.
+      }
+      dispatchInviteErrorBanner(form, errCode);
+      return true;
+    } catch (e) {
+      log('Invite validate fetch failed:', e);
+      renderInviteInvalidBanner(form);
+      return true;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[<>&"']/g, function (ch) {
+      switch (ch) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '"': return '&quot;';
+        default: return '&#39;';
+      }
+    });
+  }
+
   async function applyTenantBanner(form) {
     var ctx = await resolveTenantContext();
     if (!ctx) {
@@ -1070,13 +1247,18 @@
     // DOM when the binding queries for required inputs.
     ensureButtonDisabledBinding(form);
 
-    // 1.6 (2026-04-30): tenant banner + email/role pre-fill from query string.
-    // Run after the role dropdown is in the DOM so applyRolePrefill can find
-    // it. Banner application is async (network-bound) so we fire-and-forget;
-    // submit is gated independently via resolveTenantContext().
-    applyTenantBanner(form);
-    applyEmailPrefill(form);
-    applyRolePrefill(select);
+    // 2026-05-15 -- if `?inviteToken=X` is present, the invite-token
+    // branch takes precedence: it prefills + locks email + role and
+    // renders a success / error banner. When inviteToken is absent
+    // (anonymous self-register), the tenant banner + email/role
+    // prefill fall through to their existing query-string handling.
+    applyInviteTokenPrefill(form).then(function (handled) {
+      if (!handled) {
+        applyTenantBanner(form);
+        applyEmailPrefill(form);
+        applyRolePrefill(select);
+      }
+    });
   }
 
   attachGlobalHooks();
