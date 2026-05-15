@@ -49,6 +49,36 @@
     console.log.apply(console, args);
   }
 
+  // 2026-05-15 -- ABP-localization lookup helper for client-side strings.
+  // The AuthServer bundle exposes `window.abp.localization` on every Razor
+  // page (loaded via /libs/abp/core/abp.js). When the resource is missing
+  // or ABP hasn't bootstrapped yet, returns the English fallback so the
+  // page still renders sensibly. ABP 10.x exposes BOTH a callable
+  // `getResource('Name')(key)` API and a `values['Name'][key]` object
+  // map; we try the callable first since it is the supported public path
+  // and falls back to the object map for older bundles.
+  function L(key, fallback) {
+    try {
+      if (typeof window.abp !== 'undefined' && window.abp.localization) {
+        if (typeof window.abp.localization.getResource === 'function') {
+          var res = window.abp.localization.getResource('CaseEvaluation');
+          if (typeof res === 'function') {
+            var resolved = res(key);
+            if (resolved && resolved !== key) return resolved;
+          }
+        }
+        var values = window.abp.localization.values
+          && window.abp.localization.values['CaseEvaluation'];
+        if (values && values[key]) {
+          return values[key];
+        }
+      }
+    } catch (_e) {
+      // Fall through to the English default.
+    }
+    return fallback;
+  }
+
   // W-B-1 (2026-04-30): inline error surface so the user sees registration
   // failures even when the browser auto-dismisses alert() (Playwright
   // headless, some browser hardening modes). Always render alongside alert.
@@ -296,24 +326,195 @@
     return { firstNameInput: firstNameInput, lastNameInput: lastNameInput };
   }
 
-  // OLD parity (P:\PatientPortalOld\.../user-add.component.html:50-53):
-  // T&C paragraph below the submit button. Idempotent.
+  // 2026-05-15 -- OLD parity for the T&C acceptance gate. OLD registration
+  // (P:\PatientPortalOld\patientappointment-portal\src\app\components\user\users\add\user-add.component.html:50-53
+  // + term-and-condition.component.{ts,html}) required the user to tick a
+  // checkbox and view a modal before the Sign Up button became enabled.
+  // The prior passive disclaimer + dead `href="#"` link was replaced with a
+  // real checkbox row + Bootstrap modal. Submit gating is handled by the
+  // existing `ensureButtonDisabledBinding` (the checkbox is `required` so
+  // it joins the `input[required]` set automatically).
+  //
+  // OLD persisted nothing about acceptance; we match that. The checkbox is
+  // a transient client-side gate; the server has no AcceptTerms requirement.
+  // A defensive double-check in submitExternalSignup catches DevTools
+  // tampering (`required` removed in console -> still rejected client-side).
+  //
+  // The T&C body is sourced from the `Account:Terms:Body` localization key
+  // so legal copy can be updated without a code redeploy. The body is HTML
+  // by design; it is set via innerHTML on the modal body. The string never
+  // carries user input -- the value comes only from the resource file.
   function ensureTermsBlock(form) {
     if (form.querySelector('#external-signup-terms')) return;
+
     var btn = form.querySelector('button[type="submit"], #register, .register-btn');
     var anchor = btn ? (btn.closest('.form-floating, .mb-3, .mb-2') || btn) : null;
-    var div = document.createElement('div');
-    div.id = 'external-signup-terms';
-    div.className = 'small text-muted mt-3';
-    div.innerHTML =
-      'By clicking "Sign Up", you agree to our '
-      + '<a href="#" target="_blank" rel="noopener">terms of service and privacy policy</a>'
-      + '. We’ll occasionally send you account related emails.';
+
+    var titleText = L('Account:Terms:Title', 'Terms and Conditions');
+    var checkboxLabelText = L('Account:Terms:CheckboxLabel', 'I have read and accept the');
+    var linkText = L('Account:Terms:LinkLabel', 'Terms and Conditions');
+    var closeText = L('Account:Terms:Close', 'Close');
+    var bodyHtml = L(
+      'Account:Terms:Body',
+      '<p>By creating an account, you agree to the Patient Appointment Portal Terms of Use and Privacy Policy.</p>',
+    );
+
+    // Build the checkbox row programmatically so the link's click handler
+    // is bound via addEventListener (cleaner than an inline `onclick` and
+    // avoids CSP issues with inline handlers).
+    var wrapper = document.createElement('div');
+    wrapper.id = 'external-signup-terms';
+    wrapper.className = 'form-check mt-3 mb-2';
+
+    var checkbox = document.createElement('input');
+    checkbox.id = 'external-signup-terms-checkbox';
+    checkbox.name = 'AcceptTerms';
+    checkbox.type = 'checkbox';
+    checkbox.required = true;
+    checkbox.className = 'form-check-input';
+
+    var label = document.createElement('label');
+    label.htmlFor = checkbox.id;
+    label.className = 'form-check-label';
+    // Plain text + a single anchor for the modal trigger. Build child
+    // nodes by hand so no string gets injected as HTML.
+    label.appendChild(document.createTextNode(checkboxLabelText + ' '));
+
+    var link = document.createElement('a');
+    link.id = 'external-signup-terms-link';
+    link.href = '#';
+    link.textContent = linkText;
+    link.setAttribute('role', 'button');
+    link.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      showTermsModal();
+    });
+    label.appendChild(link);
+
+    label.appendChild(document.createTextNode('.'));
+
+    wrapper.appendChild(checkbox);
+    wrapper.appendChild(label);
+
+    // Place the row ABOVE the Sign Up button so the reading order is:
+    // form fields -> T&C row -> Sign Up button. This matches OLD layout.
     if (anchor && anchor.parentNode) {
-      anchor.parentNode.insertBefore(div, anchor.nextSibling);
+      anchor.parentNode.insertBefore(wrapper, anchor);
     } else {
-      form.appendChild(div);
+      form.appendChild(wrapper);
     }
+
+    // Lazy-build the modal; idempotent so re-invocations are safe.
+    ensureTermsModal(titleText, bodyHtml, closeText);
+
+    log('T&C checkbox + modal injected.');
+  }
+
+  // Builds (once) the Bootstrap 5 modal that the T&C link opens. The modal
+  // chrome is created via createElement; the body's innerHTML is the
+  // `Account:Terms:Body` localization-resource value (trusted by source).
+  // Four close paths are wired up: the ✕ icon, the Close button, the
+  // Escape key, and a backdrop click. Bootstrap's own modal API handles
+  // these by default when `data-bs-dismiss` is on the buttons, but we set
+  // them explicitly so the manual fallback (when Bootstrap JS is missing)
+  // still works.
+  function ensureTermsModal(titleText, bodyHtml, closeText) {
+    if (document.getElementById('external-signup-terms-modal')) return;
+
+    var modal = document.createElement('div');
+    modal.id = 'external-signup-terms-modal';
+    modal.className = 'modal fade';
+    modal.tabIndex = -1;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'external-signup-terms-modal-title');
+
+    modal.innerHTML = ''
+      + '<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">'
+      +   '<div class="modal-content">'
+      +     '<div class="modal-header">'
+      +       '<h5 class="modal-title" id="external-signup-terms-modal-title"></h5>'
+      +       '<button type="button" id="external-signup-terms-modal-x" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>'
+      +     '</div>'
+      +     '<div class="modal-body" id="external-signup-terms-modal-body"></div>'
+      +     '<div class="modal-footer">'
+      +       '<button type="button" id="external-signup-terms-modal-close" class="btn btn-secondary" data-bs-dismiss="modal"></button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
+
+    document.body.appendChild(modal);
+
+    // Substitute content programmatically. Title + close-label as text
+    // (cannot carry markup); body as HTML (designed to).
+    modal.querySelector('#external-signup-terms-modal-title').textContent = titleText;
+    modal.querySelector('#external-signup-terms-modal-body').innerHTML = bodyHtml;
+    modal.querySelector('#external-signup-terms-modal-close').textContent = closeText;
+
+    // Manual-fallback close handlers (also fire when Bootstrap JS is
+    // missing). Bootstrap's data-bs-dismiss attribute above wires the
+    // primary path when present.
+    modal.querySelector('#external-signup-terms-modal-x')
+      .addEventListener('click', hideTermsModal);
+    modal.querySelector('#external-signup-terms-modal-close')
+      .addEventListener('click', hideTermsModal);
+
+    // Backdrop click (clicking outside the dialog) closes. When Bootstrap
+    // is active it ALSO handles this; the duplicate is harmless.
+    modal.addEventListener('click', function (ev) {
+      if (ev.target === modal) hideTermsModal();
+    });
+
+    // Esc key closes when the modal is open. The listener is attached
+    // once at module scope (in ensureTermsModal which runs once) so we
+    // do not stack handlers if the user re-opens the modal.
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && modal.classList.contains('show')) {
+        hideTermsModal();
+      }
+    });
+  }
+
+  // Shows the modal. Prefers Bootstrap's API (animation, focus trap, ARIA
+  // live region setup) when present; otherwise falls back to a manual
+  // class-and-backdrop dance.
+  function showTermsModal() {
+    var modal = document.getElementById('external-signup-terms-modal');
+    if (!modal) return;
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      var instance = window.bootstrap.Modal.getOrCreateInstance(modal);
+      instance.show();
+      return;
+    }
+    // Manual fallback.
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    modal.removeAttribute('aria-hidden');
+    document.body.classList.add('modal-open');
+    if (!document.getElementById('external-signup-terms-backdrop')) {
+      var backdrop = document.createElement('div');
+      backdrop.id = 'external-signup-terms-backdrop';
+      backdrop.className = 'modal-backdrop fade show';
+      document.body.appendChild(backdrop);
+    }
+  }
+
+  // Hides the modal. Symmetric counterpart to showTermsModal.
+  function hideTermsModal() {
+    var modal = document.getElementById('external-signup-terms-modal');
+    if (!modal) return;
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      var instance = window.bootstrap.Modal.getOrCreateInstance(modal);
+      instance.hide();
+      return;
+    }
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    var backdrop = document.getElementById('external-signup-terms-backdrop');
+    if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
   }
 
   // OLD parity: OLD's register form has only Email -- no separate User name.
@@ -513,6 +714,21 @@
       form.style.opacity = '';
       form.style.pointerEvents = '';
     }
+
+    // 2026-05-15 -- when re-enabling, the unconditional removeAttribute
+    // above leaves the Sign Up button enabled regardless of form
+    // validity. That defeats ensureButtonDisabledBinding's gate
+    // (originally for BUG-005; now also gating the T&C checkbox).
+    // Fire a bubbling input event so the binding re-evaluates and
+    // restores the right disabled-state for the current form contents.
+    if (!disabled) {
+      try {
+        form.dispatchEvent(new Event('input', { bubbles: true }));
+      } catch (_e) {
+        // IE-compat path -- this branch is unreachable in our Chromium
+        // dev stack but keeps the function safe across user agents.
+      }
+    }
   }
 
   /**
@@ -624,6 +840,28 @@
       log('Validation failed: confirmPassword mismatch.');
       return;
     }
+
+    // 2026-05-15 -- defensive T&C re-check at submit time. The Sign Up
+    // button is already disabled while the checkbox is unchecked
+    // (ensureButtonDisabledBinding), but a user could remove `required`
+    // via DevTools to bypass the gate. The disabled-state binding is the
+    // primary UX path; this is the belt-and-braces layer that surfaces
+    // an inline error if the unticked checkbox slips through. Server
+    // has no AcceptTerms requirement (OLD parity), so this is the only
+    // line of enforcement.
+    var termsCheckbox = form.querySelector('#external-signup-terms-checkbox');
+    if (termsCheckbox && !termsCheckbox.checked) {
+      notifyRegisterFailure(
+        form,
+        L(
+          'Account:Terms:RequiredBeforeSubmit',
+          'Please accept the Terms and Conditions before signing up.',
+        ),
+      );
+      log('Validation failed: T&C checkbox unchecked at submit time.');
+      return;
+    }
+
     clearInlineRegisterError(form);
 
     // 2026-05-13 (BUG-004 follow-up) -- with the leading disabled
@@ -843,9 +1081,16 @@
     if (!form || form.dataset.signUpDisabledBindingAttached === 'true') {
       return;
     }
+    // 2026-05-15 -- selector chain mirrors onDocumentClick so the binding
+    // actually finds ABP's stock Register button (id="register" with
+    // type="button"; not a real submit). Without #register / .register-btn
+    // here, this function returned early and the button was never
+    // disabled -- the BUG-005 fix was a no-op for the as-rendered form.
     var submitBtn =
       form.querySelector('button#external-signup-submit') ||
-      form.querySelector('button[type="submit"]');
+      form.querySelector('button[type="submit"]') ||
+      form.querySelector('button#register') ||
+      form.querySelector('button.register-btn');
     if (!submitBtn) {
       log('ensureButtonDisabledBinding: no submit button found.');
       return;
@@ -871,6 +1116,15 @@
         return;
       }
       var allFilled = inputs.every(function (input) {
+        // 2026-05-15 -- checkboxes carry value="on" whether or not they
+        // are checked, so the (input.value || '').trim() heuristic below
+        // would always return true for them. Evaluate `checked` instead
+        // so the required T&C checkbox actually gates the Sign Up
+        // button. Non-required checkboxes (if any are ever added) skip
+        // this gate by design.
+        if (input.type === 'checkbox') {
+          return input.required ? input.checked : true;
+        }
         var val = (input.value || '').trim();
         if (val === '') return false;
         // Reject the placeholder option ("") for required selects.
