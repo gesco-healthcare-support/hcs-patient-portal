@@ -10,6 +10,22 @@ import { AppointmentPendingCountService } from './appointments/services/appointm
 import { SessionIdentityWatcherService } from './shared/auth/session-identity-watcher.service';
 import { performFullLogout } from './shared/auth/full-logout';
 
+const AUTH_SERVER_PORT = '44368';
+
+/**
+ * Build the AuthServer Razor /Account/Login URL on the same tenant
+ * subdomain as the current SPA request. The host (e.g.
+ * `falkinstein.localhost`) is preserved verbatim; only the port is
+ * swapped to the AuthServer's 44368 and the path is `/Account/Login`.
+ * Used after the AuthServer logout handshake clears the SPA tokens
+ * (see `handleAuthServerLogoutHandshake` in `AppComponent`).
+ */
+function buildAuthServerLoginUrl(): string {
+  const scheme = window.location.protocol;
+  const host = window.location.hostname;
+  return `${scheme}//${host}:${AUTH_SERVER_PORT}/Account/Login`;
+}
+
 @Component({
   selector: 'app-root',
   template: `
@@ -55,9 +71,12 @@ export class AppComponent implements OnInit, OnDestroy {
    * tokens until they expire even though the AuthServer cookie is
    * gone -- the original user-visible bug Adrian flagged.
    *
-   * AuthService.logout() drives the underlying angular-oauth2-oidc
-   * client to clear the state; we then strip the query param so a
-   * page reload doesn't repeat the cleanup.
+   * 2026-05-15 -- after performFullLogout finishes, navigate to the
+   * AuthServer Razor Login page (not the SPA `/account/login`, which
+   * was deleted along with the rest of the SPA auth routes). We build
+   * the URL from the current SPA host so the tenant subdomain is
+   * preserved (e.g. http://falkinstein.localhost:4200/?logout=true ->
+   * http://falkinstein.localhost:44368/Account/Login).
    */
   private handleAuthServerLogoutHandshake(): void {
     if (typeof window === 'undefined') {
@@ -67,16 +86,8 @@ export class AppComponent implements OnInit, OnDestroy {
     if (params.get('logout') !== 'true') {
       return;
     }
-    // Issue #106a (2026-05-13) -- delegate to performFullLogout so the
-    // SPA matches the AuthServer's cookie cleanup. Prior implementation
-    // called AuthService.logout() directly which clears only OAuth keys;
-    // leftover __tenant + XSRF-TOKEN cookies could leak the previous
-    // user's tenant into the next registration. Also fixes the stray
-    // navigateByUrl('/login') -- the SPA route is '/account/login'.
     void performFullLogout(this.injector).then(() => {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-      this.router.navigateByUrl('/account/login');
+      window.location.replace(buildAuthServerLoginUrl());
     });
   }
 
