@@ -165,6 +165,15 @@ public static class NotificationTemplateConsts
         public const string AppointmentRequestedUnregistered = "AppointmentRequestedUnregistered";
 
         /// <summary>
+        /// 2026-05-15 -- admin-issued invitation email. Body renders a
+        /// branded "Dr. &lt;tenant&gt; invited you to register as
+        /// &lt;role&gt;" CTA pointing at the AuthServer register page
+        /// with the one-time-use invite token. Variables: PatientFullName
+        /// (best-effort), RoleName, TenantName, URL, ExpiresAt.
+        /// </summary>
+        public const string InviteExternalUser = "InviteExternalUser";
+
+        /// <summary>
         /// All 59 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
@@ -203,6 +212,9 @@ public static class NotificationTemplateConsts
 
             // Phase 2.A (Category 2, 2026-05-08) -- per-recipient appointment-requested templates.
             AppointmentRequestedOffice, AppointmentRequestedRegistered, AppointmentRequestedUnregistered,
+
+            // 2026-05-15 -- admin-issued external-user invitation.
+            InviteExternalUser,
         };
     }
 }

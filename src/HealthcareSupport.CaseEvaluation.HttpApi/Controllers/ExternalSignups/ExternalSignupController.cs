@@ -68,6 +68,22 @@ public class ExternalSignupController : AbpController
     }
 
     /// <summary>
+    /// 2026-05-15 -- anonymous validator for the AuthServer JS overlay on
+    /// <c>/Account/Register?inviteToken=...</c>. Hashes the raw token,
+    /// looks up the Invitation row, returns the resolved email + role +
+    /// tenant for prefill. On 4xx, the overlay renders one of three
+    /// friendly banners based on the BusinessException error code
+    /// (InviteInvalid / InviteExpired / InviteAlreadyAccepted).
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet]
+    [Route("validate-invite")]
+    public virtual Task<InvitationValidationDto> ValidateInviteAsync([FromQuery] string token)
+    {
+        return _externalSignupAppService.ValidateInviteAsync(token);
+    }
+
+    /// <summary>
     /// Dev-only test helper. The AppService gates on hostEnvironment.IsDevelopment;
     /// the controller is otherwise public so a developer can hit the endpoint
     /// from Postman / curl without authenticating. Intentionally NOT exposed in

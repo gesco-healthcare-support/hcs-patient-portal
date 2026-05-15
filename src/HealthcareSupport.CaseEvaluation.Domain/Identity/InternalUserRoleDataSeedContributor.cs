@@ -239,6 +239,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // Patient Packet PDF.
         yield return Default("UserSignatures");
         yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // 2026-05-15 -- admin-issued invitation for new external users.
+        // Default parent gates menu visibility; InviteExternalUser gates
+        // the create-invite endpoint itself.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
     }
 
     /// <summary>
@@ -304,6 +310,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // they are responsible for include a stamped image (per OLD parity).
         yield return Default("UserSignatures");
         yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // 2026-05-15 -- supervisor invites external users (Patient,
+        // Applicant Attorney, Defense Attorney, Claim Examiner) so
+        // recipients can self-register on the tenant portal.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
     }
 
     /// <summary>
@@ -370,6 +382,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // that could upload via the My-Profile page.
         yield return Default("UserSignatures");
         yield return $"{Group}.UserSignatures.ManageOwn";
+
+        // 2026-05-15 -- front-desk clinic staff is the most common
+        // inviter (intake phone calls from prospective patients).
+        // Same grant shape as the other two internal roles -- the
+        // server gate is the same permission for all three.
+        yield return Default("UserManagement");
+        yield return $"{Group}.UserManagement.InviteExternalUser";
     }
 
 }

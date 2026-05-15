@@ -20,6 +20,7 @@ using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -57,6 +58,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<CustomFieldValue> CustomFieldValues { get; set; } = null!;
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
     public DbSet<NotificationTemplateType> NotificationTemplateTypes { get; set; } = null!;
+    public DbSet<Invitation> Invitations { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
@@ -517,6 +519,24 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
             b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // 2026-05-15: per-tenant invitation rows. Mirror of the
+        // CaseEvaluationDbContext config so the tenant-only DB context
+        // builds the same table shape. TokenHash is unique-indexed.
+        builder.Entity<Invitation>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Invitations", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(Invitation.TenantId));
+            b.Property(x => x.Email).IsRequired().HasMaxLength(InvitationConsts.EmailMaxLength);
+            b.Property(x => x.UserType).IsRequired();
+            b.Property(x => x.TokenHash).IsRequired().HasMaxLength(InvitationConsts.TokenHashLength);
+            b.Property(x => x.ExpiresAt).IsRequired();
+            b.Property(x => x.AcceptedAt);
+            b.Property(x => x.AcceptedByUserId);
+            b.Property(x => x.InvitedByUserId).IsRequired();
+            b.HasIndex(x => x.TokenHash).IsUnique();
         });
     }
 }

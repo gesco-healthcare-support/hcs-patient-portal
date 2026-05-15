@@ -1,7 +1,12 @@
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
 /// <summary>
-/// External-user role enum for the public registration flow.
+/// External-user role enum for the public registration + invitation flows.
+/// Moved to Domain.Shared 2026-05-15 because the <see cref="Invitations.Invitation"/>
+/// domain entity references it; the prior Application.Contracts location
+/// blocked Domain from reading the type. Same namespace + same numeric
+/// values so consumers in Application + AppService + Angular proxy keep
+/// their existing using directives + wire payloads unchanged.
 ///
 /// <para>OLD parity (Phase 8, 2026-05-03; <c>Roles.cs:14-17</c>) defines four
 /// external roles: Patient, Adjuster, PatientAttorney (renamed

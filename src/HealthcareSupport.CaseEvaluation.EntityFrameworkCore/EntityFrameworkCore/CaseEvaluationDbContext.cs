@@ -16,6 +16,7 @@ using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.DoctorPreferredLocations;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -60,6 +61,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<DocumentPackage> DocumentPackages { get; set; } = null!;
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
     public DbSet<NotificationTemplateType> NotificationTemplateTypes { get; set; } = null!;
+    public DbSet<Invitation> Invitations { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
@@ -650,6 +652,28 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
             b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // 2026-05-15: per-tenant invitation rows. TokenHash is the
+        // primary lookup key + uniquely indexed so two simultaneous
+        // issuances cannot collide (256-bit token entropy makes a
+        // natural collision astronomically unlikely, but the unique
+        // index is cheap defense). Email and InvitedByUserId carry
+        // audit information; AcceptedAt + AcceptedByUserId are nullable
+        // until the recipient completes registration.
+        builder.Entity<Invitation>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Invitations", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(Invitation.TenantId));
+            b.Property(x => x.Email).IsRequired().HasMaxLength(InvitationConsts.EmailMaxLength);
+            b.Property(x => x.UserType).IsRequired();
+            b.Property(x => x.TokenHash).IsRequired().HasMaxLength(InvitationConsts.TokenHashLength);
+            b.Property(x => x.ExpiresAt).IsRequired();
+            b.Property(x => x.AcceptedAt);
+            b.Property(x => x.AcceptedByUserId);
+            b.Property(x => x.InvitedByUserId).IsRequired();
+            b.HasIndex(x => x.TokenHash).IsUnique();
         });
     }
 }
