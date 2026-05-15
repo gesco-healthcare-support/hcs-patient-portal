@@ -299,6 +299,22 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
+    /// 2026-05-15 -- internal staff issue invitations for new external
+    /// users to register on the tenant portal. Single nested perm
+    /// (<c>InviteExternalUser</c>) under the <c>UserManagement</c>
+    /// parent so future invite-management actions (revoke, resend,
+    /// invitation-history view) can grow as siblings without
+    /// renumbering. Granted to IT Admin, Staff Supervisor, and Clinic
+    /// Staff per the role-seeder; external roles intentionally never
+    /// receive this permission.
+    /// </summary>
+    public static class UserManagement
+    {
+        public const string Default = GroupName + ".UserManagement";
+        public const string InviteExternalUser = Default + ".InviteExternalUser";
+    }
+
+    /// <summary>
     /// Phase A (2026-05-05) -- per-user signature image upload, replicating
     /// OLD's <c>User.SignatureAWSFilePath</c> profile feature. Internal
     /// staff (Clinic Staff / Staff Supervisor / IT Admin) only;

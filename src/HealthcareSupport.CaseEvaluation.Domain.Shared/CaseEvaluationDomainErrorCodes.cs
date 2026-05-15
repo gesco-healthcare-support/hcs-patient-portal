@@ -116,6 +116,35 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 
     /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the supplied invite token does not hash to any persisted
+    /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
+    /// terminal so a tampered URL does not leak whether the token shape
+    /// is valid. Localization key
+    /// <c>Invitation:InviteInvalid</c>.
+    /// </summary>
+    public const string InviteInvalid = "CaseEvaluation:Invitation.InviteInvalid";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the invitation row exists but its <c>ExpiresAt</c> is in
+    /// the past. Recipient is shown a friendly "request a new link"
+    /// message. Localization key <c>Invitation:InviteExpired</c>.
+    /// </summary>
+    public const string InviteExpired = "CaseEvaluation:Invitation.InviteExpired";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the invitation has already been accepted (one-time-use
+    /// enforcement). The friendly UX prompts the recipient to sign in
+    /// if it was them, otherwise to contact the clinic in case the
+    /// link was intercepted. Localization key
+    /// <c>Invitation:InviteAlreadyAccepted</c>.
+    /// </summary>
+    public const string InviteAlreadyAccepted =
+        "CaseEvaluation:Invitation.InviteAlreadyAccepted";
+
+    /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
     /// <c>AvailableDate</c> falls inside the per-tenant

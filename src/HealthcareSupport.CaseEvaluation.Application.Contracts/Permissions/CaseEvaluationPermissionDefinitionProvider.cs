@@ -164,6 +164,18 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         userSignaturesPermission.AddChild(
             CaseEvaluationPermissions.UserSignatures.ManageOwn,
             L("Permission:UserSignatures.ManageOwn"));
+
+        // 2026-05-15 -- admin invite for new external users. The parent
+        // Default lets future invite-management surfaces (revoke,
+        // resend, history) share the same menu visibility gate without
+        // re-mapping every role-seeder; the child InviteExternalUser
+        // gates the create-invite endpoint itself.
+        var userManagementPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.UserManagement.Default,
+            L("Permission:UserManagement"));
+        userManagementPermission.AddChild(
+            CaseEvaluationPermissions.UserManagement.InviteExternalUser,
+            L("Permission:UserManagement.InviteExternalUser"));
     }
 
     private static LocalizableString L(string name)
