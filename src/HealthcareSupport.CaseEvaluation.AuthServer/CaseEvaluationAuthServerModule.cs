@@ -386,10 +386,36 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // HttpApi.Host (port 44328) -- the SPA hits the AuthServer
         // path during the register flow so BOTH host modules must
         // contribute the same status-code remap.
+        //
+        // 2026-05-15 -- mirror the six InternalUser:* codes too. The
+        // /api/app/internal-users/* endpoints currently live on
+        // HttpApi.Host only, but the controller registration would
+        // be picked up by AuthServer too if/when the AppService
+        // module is loaded there; keeping the status-code map in
+        // sync avoids the BUG-003 class of "403 vs 400" inconsistency.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
             options.Map(
                 CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserRoleMissing,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserCreateFailed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserRoleAssignFailed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
                 System.Net.HttpStatusCode.BadRequest);
         });
 

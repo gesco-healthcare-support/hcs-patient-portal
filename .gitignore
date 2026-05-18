@@ -24,6 +24,12 @@ bld/
 
 # Visual Studio 2015 cache/options directory
 .vs/
+
+# C# Dev Kit / Roslyn language service cache (auto-regenerated)
+*.csproj.lscache
+
+# Local audit scratch (screenshots, snapshots) - not for repo
+docs/audits/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 

@@ -256,6 +256,23 @@ internal static class EmailSubjects
         "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment request has been cancelled";
 
     /// <summary>
+    /// 2026-05-15 -- admin-issued invite email. ##TenantName## is the
+    /// per-tenant clinic display name; the dispatcher substitutes it
+    /// in both subject and body before send.
+    /// </summary>
+    public const string InviteExternalUser =
+        "You have been invited to register at ##TenantName##";
+
+    /// <summary>
+    /// 2026-05-15 -- welcome email for a newly-created internal user.
+    /// Fixes OLD's literal-string subject typo (<c>"Welcome to socal"</c>)
+    /// by substituting the per-tenant clinic name. ##TenantName## is
+    /// resolved by the dispatcher at render time.
+    /// </summary>
+    public const string InternalUserCreated =
+        "Welcome to ##TenantName##";
+
+    /// <summary>
     /// Single source of truth for the per-code subject lookup. The seed
     /// contributor and any future migration walk this map; codes without
     /// an entry fall back to a stub subject.
@@ -310,5 +327,11 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.AppointmentRescheduleRequestApproved] = AppointmentRescheduleRequestApproved,
             [NotificationTemplateConsts.Codes.AppointmentRescheduleRequestRejected] = AppointmentRescheduleRequestRejected,
             [NotificationTemplateConsts.Codes.ClinicalStaffCancellation] = ClinicalStaffCancellation,
+
+            // 2026-05-15 -- admin-issued invitation.
+            [NotificationTemplateConsts.Codes.InviteExternalUser] = InviteExternalUser,
+
+            // 2026-05-15 -- IT Admin internal-user welcome email.
+            [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
         };
 }

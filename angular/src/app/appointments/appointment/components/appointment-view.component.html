@@ -142,6 +142,7 @@
                 type="text"
                 class="form-control form-control-sm"
                 formControlName="panelNumber"
+                [class.is-invalid]="isFieldInvalid('panelNumber')"
                 maxlength="50"
               />
             </div>
@@ -173,15 +174,27 @@
           <div class="row g-3">
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientLastName" />
+              <input
+                class="form-control"
+                formControlName="patientLastName"
+                [class.is-invalid]="isFieldInvalid('patientLastName')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientFirstName" />
+              <input
+                class="form-control"
+                formControlName="patientFirstName"
+                [class.is-invalid]="isFieldInvalid('patientFirstName')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientMiddleName" />
+              <input
+                class="form-control"
+                formControlName="patientMiddleName"
+                [class.is-invalid]="isFieldInvalid('patientMiddleName')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
@@ -210,6 +223,7 @@
                   readonly
                   id="appointment-patient-date-of-birth"
                   formControlName="patientDateOfBirth"
+                  [class.is-invalid]="isFieldInvalid('patientDateOfBirth')"
                   class="form-control"
                   ngbDatepicker
                   #dateOfBirthInput
@@ -241,17 +255,30 @@
               <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }}</label>
               <!-- Email is server-immutable post-creation; keep native readonly so
                    the input stays visually locked even for internal admins. -->
-              <input class="form-control" formControlName="patientEmail" readonly />
+              <input
+                class="form-control"
+                formControlName="patientEmail"
+                readonly
+                [class.is-invalid]="isFieldInvalid('patientEmail')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">
                 {{ '::CellPhoneNumber' | abpLocalization }}
               </label>
-              <input class="form-control" formControlName="patientCellPhoneNumber" />
+              <input
+                class="form-control"
+                formControlName="patientCellPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('patientCellPhoneNumber')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-              <input class="form-control mb-2" formControlName="patientPhoneNumber" />
+              <input
+                class="form-control mb-2"
+                formControlName="patientPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('patientPhoneNumber')"
+              />
               <div class="d-flex gap-3">
                 @for (option of phoneNumberTypeOptions; track option.key) {
                   <div class="form-check">
@@ -278,6 +305,7 @@
                 type="text"
                 class="form-control app-ssn-redacted"
                 formControlName="patientSocialSecurityNumber"
+                [class.is-invalid]="isFieldInvalid('patientSocialSecurityNumber')"
                 mask="000-00-0000"
                 [dropSpecialCharacters]="true"
                 maxlength="11"
@@ -287,15 +315,27 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientStreet" />
+              <input
+                class="form-control"
+                formControlName="patientStreet"
+                [class.is-invalid]="isFieldInvalid('patientStreet')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">Unit #</label>
-              <input class="form-control" formControlName="patientApptNumber" />
+              <input
+                class="form-control"
+                formControlName="patientApptNumber"
+                [class.is-invalid]="isFieldInvalid('patientApptNumber')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientCity" />
+              <input
+                class="form-control"
+                formControlName="patientCity"
+                [class.is-invalid]="isFieldInvalid('patientCity')"
+              />
             </div>
 
             <div class="col-md-3 mb-3">
@@ -308,7 +348,11 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientZipCode" />
+              <input
+                class="form-control"
+                formControlName="patientZipCode"
+                [class.is-invalid]="isFieldInvalid('patientZipCode')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">
@@ -345,12 +389,20 @@
                 </div>
               </div>
               @if (form.get('patientNeedsInterpreter')?.value) {
-                <input class="form-control mt-2" formControlName="patientInterpreterVendorName" />
+                <input
+                  class="form-control mt-2"
+                  formControlName="patientInterpreterVendorName"
+                  [class.is-invalid]="isFieldInvalid('patientInterpreterVendorName')"
+                />
               }
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-              <input class="form-control" formControlName="patientRefferedBy" />
+              <input
+                class="form-control"
+                formControlName="patientRefferedBy"
+                [class.is-invalid]="isFieldInvalid('patientRefferedBy')"
+              />
             </div>
           </div>
         </div>
@@ -367,6 +419,7 @@
               <input
                 class="form-control"
                 formControlName="employerName"
+                [class.is-invalid]="isFieldInvalid('employerName')"
                 placeholder="EMPLOYER NAME"
               />
             </div>
@@ -375,6 +428,7 @@
               <input
                 class="form-control"
                 formControlName="employerOccupation"
+                [class.is-invalid]="isFieldInvalid('employerOccupation')"
                 placeholder="OCCUPATION"
               />
             </div>
@@ -383,17 +437,28 @@
               <input
                 class="form-control"
                 formControlName="employerPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('employerPhoneNumber')"
                 placeholder="PHONE NUMBER"
               />
             </div>
 
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-              <input class="form-control" formControlName="employerStreet" placeholder="STREET" />
+              <input
+                class="form-control"
+                formControlName="employerStreet"
+                placeholder="STREET"
+                [class.is-invalid]="isFieldInvalid('employerStreet')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-              <input class="form-control" formControlName="employerCity" placeholder="CITY" />
+              <input
+                class="form-control"
+                formControlName="employerCity"
+                placeholder="CITY"
+                [class.is-invalid]="isFieldInvalid('employerCity')"
+              />
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
@@ -405,7 +470,12 @@
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-              <input class="form-control" formControlName="employerZipCode" placeholder="ZIP" />
+              <input
+                class="form-control"
+                formControlName="employerZipCode"
+                placeholder="ZIP"
+                [class.is-invalid]="isFieldInvalid('employerZipCode')"
+              />
             </div>
           </div>
         </div>
@@ -471,21 +541,37 @@
             <div class="row g-3">
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">First Name</label>
-                <input class="form-control" formControlName="applicantAttorneyFirstName" readonly />
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyFirstName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFirstName')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Last Name</label>
-                <input class="form-control" formControlName="applicantAttorneyLastName" readonly />
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyLastName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyLastName')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Email</label>
-                <input class="form-control" formControlName="applicantAttorneyEmail" readonly />
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyEmail"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyEmail')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Firm Name</label>
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyFirmName"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFirmName')"
                   placeholder="FIRM NAME"
                 />
               </div>
@@ -494,6 +580,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyWebAddress"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyWebAddress')"
                   placeholder="WEB ADDRESS"
                 />
               </div>
@@ -502,6 +589,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyPhoneNumber"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyPhoneNumber')"
                   placeholder="PHONE NUMBER"
                 />
               </div>
@@ -510,6 +598,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyFaxNumber"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFaxNumber')"
                   placeholder="FAX"
                 />
               </div>
@@ -518,6 +607,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyStreet"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyStreet')"
                   placeholder="STREET"
                 />
               </div>
@@ -526,6 +616,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyCity"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyCity')"
                   placeholder="CITY"
                 />
               </div>
@@ -542,6 +633,7 @@
                 <input
                   class="form-control"
                   formControlName="applicantAttorneyZipCode"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyZipCode')"
                   placeholder="ZIP"
                 />
               </div>
@@ -615,21 +707,37 @@
             <div class="row g-3">
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">First Name</label>
-                <input class="form-control" formControlName="defenseAttorneyFirstName" readonly />
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyFirstName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFirstName')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Last Name</label>
-                <input class="form-control" formControlName="defenseAttorneyLastName" readonly />
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyLastName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyLastName')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Email</label>
-                <input class="form-control" formControlName="defenseAttorneyEmail" readonly />
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyEmail"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyEmail')"
+                />
               </div>
               <div class="col-md-3 mb-3">
                 <label class="form-label fw-semibold">Firm Name</label>
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyFirmName"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFirmName')"
                   placeholder="FIRM NAME"
                 />
               </div>
@@ -638,6 +746,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyWebAddress"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyWebAddress')"
                   placeholder="WEB ADDRESS"
                 />
               </div>
@@ -646,6 +755,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyPhoneNumber"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyPhoneNumber')"
                   placeholder="PHONE NUMBER"
                 />
               </div>
@@ -654,6 +764,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyFaxNumber"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFaxNumber')"
                   placeholder="FAX"
                 />
               </div>
@@ -662,6 +773,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyStreet"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyStreet')"
                   placeholder="STREET"
                 />
               </div>
@@ -670,6 +782,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyCity"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyCity')"
                   placeholder="CITY"
                 />
               </div>
@@ -686,6 +799,7 @@
                 <input
                   class="form-control"
                   formControlName="defenseAttorneyZipCode"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyZipCode')"
                   placeholder="ZIP"
                 />
               </div>

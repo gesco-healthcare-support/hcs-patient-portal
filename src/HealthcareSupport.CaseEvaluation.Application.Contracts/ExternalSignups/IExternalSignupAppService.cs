@@ -24,13 +24,28 @@ public interface IExternalSignupAppService : IApplicationService
     Task<LookupDto<Guid>?> ResolveTenantByNameAsync(string name);
 
     /// <summary>
-    /// D.2 (2026-04-30): admin-side external-user invite. Builds a
-    /// tenant-specific `/Account/Register` URL and enqueues an invite email
-    /// via Hangfire. Returns the URL in the response so the admin can copy
-    /// + paste it manually (the dev-stack NullEmailSender swallows email
-    /// silently until ACS credentials land per S-5.7).
+    /// 2026-05-15 (revised) -- admin-side external-user invite. Generates
+    /// a 32-byte cryptographic random token, stores its SHA256 hash in
+    /// the <c>Invitation</c> table with a 7-day TTL, dispatches the
+    /// <c>InviteExternalUser</c> notification template, and returns the
+    /// constructed URL (including the raw token) so the admin can also
+    /// copy + paste it manually.
+    /// AppService gated by
+    /// <c>CaseEvaluation.UserManagement.InviteExternalUser</c> permission;
+    /// granted to IT Admin + Staff Supervisor + Clinic Staff.
     /// </summary>
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
+
+    /// <summary>
+    /// 2026-05-15 -- anonymous endpoint that validates a raw invite
+    /// token against the persisted <c>Invitation</c> row and returns the
+    /// resolved email + role for the JS overlay on
+    /// <c>/Account/Register</c> to prefill (and lock) the form fields.
+    /// Throws <c>BusinessException(InviteInvalid | InviteExpired |
+    /// InviteAlreadyAccepted)</c> on validation failure so the overlay
+    /// can render the appropriate friendly banner.
+    /// </summary>
+    Task<InvitationValidationDto> ValidateInviteAsync(string token);
 
     /// <summary>
     /// Dev-only test helper: flip <c>EmailConfirmed=true</c> on the user

@@ -164,6 +164,32 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         userSignaturesPermission.AddChild(
             CaseEvaluationPermissions.UserSignatures.ManageOwn,
             L("Permission:UserSignatures.ManageOwn"));
+
+        // 2026-05-15 -- admin invite for new external users. The parent
+        // Default lets future invite-management surfaces (revoke,
+        // resend, history) share the same menu visibility gate without
+        // re-mapping every role-seeder; the child InviteExternalUser
+        // gates the create-invite endpoint itself.
+        var userManagementPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.UserManagement.Default,
+            L("Permission:UserManagement"));
+        userManagementPermission.AddChild(
+            CaseEvaluationPermissions.UserManagement.InviteExternalUser,
+            L("Permission:UserManagement.InviteExternalUser"));
+
+        // 2026-05-15 -- IT Admin internal-user creation. Host-side only
+        // (MultiTenancySides.Host): IT Admin lives at admin.localhost,
+        // Staff Supervisor + Clinic Staff intentionally do not receive
+        // this permission per OLD parity. The new user is created
+        // INSIDE the tenant carried on the input DTO (CurrentTenant
+        // switch inside the AppService).
+        var internalUsersPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.InternalUsers.Default,
+            L("Permission:InternalUsers"),
+            MultiTenancySides.Host);
+        internalUsersPermission.AddChild(
+            CaseEvaluationPermissions.InternalUsers.Create,
+            L("Permission:InternalUsers.Create"));
     }
 
     private static LocalizableString L(string name)

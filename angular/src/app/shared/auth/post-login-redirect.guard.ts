@@ -22,7 +22,8 @@ import { hasOnlyExternalRoles } from './external-user-roles';
 // UrlTree).
 //
 // Three outcomes:
-//   - Anonymous     -> AuthService.navigateToLogin() + UrlTree(/account/login)
+//   - Anonymous     -> AuthService.navigateToLogin() (redirects out of SPA);
+//                      return false to cancel the in-SPA navigation
 //   - Internal user -> UrlTree(/dashboard)
 //   - External user -> true (HomeComponent loads at /)
 
@@ -36,14 +37,16 @@ export const postLoginRedirectGuard: CanMatchFn = () => {
     roles?: string[] | null;
   } | null;
 
-  // Anonymous: redirect to the AuthServer login flow before the
-  // HomeComponent chunk ever downloads. AuthService.navigateToLogin
-  // issues an OAuth authorize request which redirects out of the SPA;
-  // the UrlTree is the in-SPA fallback when navigateToLogin is a no-op
-  // (e.g. SSR / no window).
+  // Anonymous: kick off the OAuth challenge which redirects the browser
+  // out of the SPA to the AuthServer Razor login page on the same tenant
+  // subdomain (port 44368). 2026-05-15 -- the SPA's own /account/login
+  // route was deleted along with the rest of the SPA auth tree, so we
+  // can't return a UrlTree as a fallback. Return false to cancel the
+  // in-SPA navigation; the redirect that navigateToLogin already issued
+  // takes the browser to AuthServer before the cancel matters.
   if (!currentUser || !currentUser.isAuthenticated) {
     auth.navigateToLogin();
-    return router.parseUrl('/account/login');
+    return false;
   }
 
   const roles = currentUser.roles ?? [];

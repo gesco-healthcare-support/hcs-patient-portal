@@ -116,6 +116,101 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 
     /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the supplied invite token does not hash to any persisted
+    /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
+    /// terminal so a tampered URL does not leak whether the token shape
+    /// is valid. Localization key
+    /// <c>Invitation:InviteInvalid</c>.
+    /// </summary>
+    public const string InviteInvalid = "CaseEvaluation:Invitation.InviteInvalid";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the invitation row exists but its <c>ExpiresAt</c> is in
+    /// the past. Recipient is shown a friendly "request a new link"
+    /// message. Localization key <c>Invitation:InviteExpired</c>.
+    /// </summary>
+    public const string InviteExpired = "CaseEvaluation:Invitation.InviteExpired";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
+    /// when the invitation has already been accepted (one-time-use
+    /// enforcement). The friendly UX prompts the recipient to sign in
+    /// if it was them, otherwise to contact the clinic in case the
+    /// link was intercepted. Localization key
+    /// <c>Invitation:InviteAlreadyAccepted</c>.
+    /// </summary>
+    public const string InviteAlreadyAccepted =
+        "CaseEvaluation:Invitation.InviteAlreadyAccepted";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when the IT Admin requests a role outside the
+    /// <c>{Clinic Staff, Staff Supervisor}</c> allow-list. Defense in depth:
+    /// the SPA form's dropdown only lists the two creatable roles, but a
+    /// tampered request body could try any role name; this gate forbids
+    /// the request before any DB write. Localization key
+    /// <c>Invitation</c>-style: <c>InternalUser:InvalidRole</c>.
+    /// </summary>
+    public const string InternalUserInvalidRole =
+        "CaseEvaluation:InternalUser.InvalidRole";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when the requested role exists in the allow-list but has not been
+    /// seeded into the tenant's <c>AbpRoles</c> table. Operationally a
+    /// data-seed bug (the role seeder should have run for every tenant);
+    /// surfaces as a 400 so the operator can re-seed instead of seeing a
+    /// raw 500. Localization key <c>InternalUser:RoleMissing</c>.
+    /// </summary>
+    public const string InternalUserRoleMissing =
+        "CaseEvaluation:InternalUser.RoleMissing";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when an <c>IdentityUser</c> with the same email already exists in
+    /// the target tenant. Message is intentionally generic (no email
+    /// echo) so the response does not leak which addresses are
+    /// registered (HIPAA pattern, same as ExternalSignup). Localization
+    /// key <c>InternalUser:DuplicateEmail</c>.
+    /// </summary>
+    public const string InternalUserDuplicateEmail =
+        "CaseEvaluation:InternalUser.DuplicateEmail";
+
+    /// <summary>
+    /// 2026-05-15 -- raised when <c>IdentityUserManager.CreateAsync</c>
+    /// returns a failed <c>IdentityResult</c>. Most commonly a password-
+    /// policy violation (the auto-generated password is built to satisfy
+    /// the defaults, so this is exceptional). Joined error descriptions
+    /// surface via <c>BusinessException.WithData("Errors", ...)</c>.
+    /// Localization key <c>InternalUser:CreateFailed</c>.
+    /// </summary>
+    public const string InternalUserCreateFailed =
+        "CaseEvaluation:InternalUser.CreateFailed";
+
+    /// <summary>
+    /// 2026-05-15 -- raised when <c>IdentityUserManager.AddToRoleAsync</c>
+    /// returns a failed <c>IdentityResult</c> AFTER the user row was
+    /// created. The AppService deletes the newly-created user before
+    /// throwing so we do not leave an orphan account with no role.
+    /// Localization key <c>InternalUser:RoleAssignFailed</c>.
+    /// </summary>
+    public const string InternalUserRoleAssignFailed =
+        "CaseEvaluation:InternalUser.RoleAssignFailed";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when the input DTO's <c>TenantId</c> is empty. IT Admin is host-
+    /// scoped (admin.localhost), so <c>CurrentTenant.Id</c> is null at
+    /// call time; the form's tenant picker is the source of truth for
+    /// which tenant the new user belongs to. Localization key
+    /// <c>InternalUser:TenantRequired</c>.
+    /// </summary>
+    public const string InternalUserTenantRequired =
+        "CaseEvaluation:InternalUser.TenantRequired";
+
+    /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
     /// <c>AvailableDate</c> falls inside the per-tenant

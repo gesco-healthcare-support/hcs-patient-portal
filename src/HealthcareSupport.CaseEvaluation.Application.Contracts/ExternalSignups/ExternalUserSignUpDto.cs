@@ -80,4 +80,21 @@ public class ExternalUserSignUpDto
     public string? FirmEmail { get; set; }
 
     public Guid? TenantId { get; set; }
+
+    /// <summary>
+    /// 2026-05-15 -- optional one-time invitation token. When supplied,
+    /// the AppService re-validates the token against the persisted
+    /// <c>Invitation</c> row, ignores the form's <see cref="Email"/> +
+    /// <see cref="UserType"/> (uses the server-resolved values from the
+    /// invitation), and atomically marks the invitation accepted in
+    /// the same transaction as the user create. When absent, the
+    /// AppService falls through to the anonymous self-register path
+    /// (existing behavior preserved).
+    ///
+    /// <para>The token is Base64-URL encoded (~43 chars). Length cap of
+    /// 64 defends against random URL fuzzing without a DB roundtrip.</para>
+    /// </summary>
+    [CanBeNull]
+    [StringLength(64)]
+    public string? InviteToken { get; set; }
 }

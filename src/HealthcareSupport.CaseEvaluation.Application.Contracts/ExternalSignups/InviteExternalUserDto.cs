@@ -3,14 +3,23 @@ using System.ComponentModel.DataAnnotations;
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
 /// <summary>
-/// D.2 (2026-04-30): admin-side invite request for an external user. The
-/// invite is link-only (no token, no expiry) -- the caller receives a
-/// tenant-specific `/Account/Register?__tenant=&amp;email=&amp;role=` URL that the
-/// recipient opens to self-register. Internal roles (admin / Staff Supervisor
-/// / Clinic Staff / Doctor) are intentionally NOT invitable here -- they are
-/// created by tenant admins via ABP's Identity > Users page so external users
-/// can never see internal-role registration paths even if a malformed URL
-/// were crafted.
+/// Admin-side request to invite an external user to register on the
+/// current tenant portal. Internal roles (admin, IT Admin, Staff
+/// Supervisor, Clinic Staff) call this; the AppService gate is
+/// permission-based (<c>CaseEvaluation.UserManagement.InviteExternalUser</c>).
+///
+/// <para>2026-05-15 -- the invite produces a one-time-use, 7-day-TTL
+/// token. The recipient receives a URL of the form
+/// <c>{authServerBaseUrl}/Account/Register?inviteToken=&lt;raw-token&gt;</c>.
+/// The JS overlay on the register page validates the token, prefills
+/// + locks email + role, and atomically marks the invitation accepted
+/// when the recipient completes registration.</para>
+///
+/// <para>Internal roles (admin, IT Admin, Staff Supervisor, Clinic Staff,
+/// Doctor) are intentionally NOT invitable here: the
+/// <see cref="ExternalUserType"/> enum value is constrained to the four
+/// external roles, and the AppService re-validates server-side. A
+/// tampered URL cannot register as an internal role.</para>
 /// </summary>
 public class InviteExternalUserDto
 {
@@ -20,26 +29,10 @@ public class InviteExternalUserDto
     public string Email { get; set; } = null!;
 
     /// <summary>
-    /// Restricted to the four external roles: Patient, ApplicantAttorney,
-    /// DefenseAttorney, ClaimExaminer. Validated server-side; any other
-    /// value (including internal role names) returns 400.
+    /// External role the invitation grants. Restricted to the four
+    /// external roles: Patient, ApplicantAttorney, DefenseAttorney,
+    /// ClaimExaminer. The AppService rejects any other value with 400.
     /// </summary>
     [Required]
     public ExternalUserType UserType { get; set; }
-}
-
-/// <summary>
-/// D.2 (2026-04-30): response shape for the invite endpoint. Includes the
-/// constructed register URL so the admin can copy + paste it manually until
-/// real SMTP credentials land (every dev-stack invite returns this URL even
-/// after the email is enqueued, so the admin has a fallback when the send
-/// fails silently). Gated to Development environment via a banner in the UI.
-/// </summary>
-public class InviteExternalUserResultDto
-{
-    public string InviteUrl { get; set; } = null!;
-    public bool EmailEnqueued { get; set; }
-    public string Email { get; set; } = null!;
-    public string RoleName { get; set; } = null!;
-    public string TenantName { get; set; } = null!;
 }

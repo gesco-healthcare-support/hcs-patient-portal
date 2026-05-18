@@ -2,12 +2,9 @@ import {
   CHECK_AUTHENTICATION_STATE_FN_KEY,
   ConfigStateService,
   provideAbpCore,
-  ReplaceableComponentsService,
   withOptions,
 } from '@abp/ng.core';
-import { eAccountComponents } from '@volo/abp.ng.account/public';
-import { inject, provideAppInitializer } from '@angular/core';
-import { NoOpTenantBoxComponent } from './shared/components/no-op-tenant-box.component';
+import { provideAppInitializer } from '@angular/core';
 import { clearOAuthStorage, provideAbpOAuth } from '@abp/ng.oauth';
 import { provideSettingManagementConfig } from '@abp/ng.setting-management/config';
 import { provideFeatureManagementConfig } from '@abp/ng.feature-management';
@@ -160,15 +157,5 @@ export const appConfig: ApplicationConfig = {
     APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER,
     APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER,
     DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER,
-    // 2026-05-06 -- swap LeptonX TenantBox with an empty component on the
-    // SPA `/account/*` pages. Phase 1A is single-tenant; tenant resolves
-    // from the subdomain (ADR-006) so the switcher is unsafe to expose.
-    provideAppInitializer(() => {
-      const replaceable = inject(ReplaceableComponentsService);
-      replaceable.add({
-        key: eAccountComponents.TenantBox,
-        component: NoOpTenantBoxComponent,
-      });
-    }),
   ],
 };

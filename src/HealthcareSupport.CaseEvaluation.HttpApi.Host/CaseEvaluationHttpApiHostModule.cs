@@ -134,13 +134,38 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
         // 2026-05-13 -- map domain error codes that ABP would otherwise
         // route to its default HTTP status (403 for BusinessException) to
-        // the semantically-correct 4xx client-error status. Currently:
-        //   RegistrationDuplicateEmail -> 400 Bad Request (validation
-        //   failure, not authorization -- closes BUG-003).
+        // the semantically-correct 4xx client-error status.
+        //
+        // 2026-05-15 -- also map the six InternalUser:* error codes from
+        // the IT-Admin internal-user-creation flow. Without these, the
+        // BusinessException default of 403 surfaces as "Forbidden" on
+        // every duplicate-email or invalid-role response, which is
+        // semantically wrong (the caller IS authorized to use the
+        // endpoint; the input is invalid). Same pattern that closes
+        // BUG-003 for RegistrationDuplicateEmail.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
             options.Map(
                 CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserRoleMissing,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserCreateFailed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserRoleAssignFailed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
                 System.Net.HttpStatusCode.BadRequest);
         });
     }

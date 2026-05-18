@@ -6,7 +6,11 @@ using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
+using HealthcareSupport.CaseEvaluation.Invitations;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -48,6 +52,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // D.2 (2026-04-30): wired for the admin invite endpoint.
     private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    // 2026-05-15: tokenized invite flow. Manager owns token gen + hash +
+    // accept; dispatcher routes the email through the per-tenant
+    // InviteExternalUser NotificationTemplate (same path as
+    // ResetPassword / PasswordChange).
+    private readonly InvitationManager _invitationManager;
+    private readonly INotificationDispatcher _notificationDispatcher;
     // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
     // gate on EnvironmentName so they cannot be invoked in production.
     private readonly IHostEnvironment _hostEnvironment;
@@ -77,7 +87,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
         IHostEnvironment hostEnvironment,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        InvitationManager invitationManager,
+        INotificationDispatcher notificationDispatcher)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -98,6 +110,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _backgroundJobManager = backgroundJobManager;
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
+        _invitationManager = invitationManager;
+        _notificationDispatcher = notificationDispatcher;
     }
 
     /// <summary>
@@ -423,6 +437,27 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [AllowAnonymous]
     public virtual async Task RegisterAsync(ExternalUserSignUpDto input)
     {
+        Check.NotNull(input, nameof(input));
+
+        // 2026-05-15 -- when an InviteToken is present, the server is the
+        // source of truth for Email + UserType. Validate the token first
+        // (throws InviteInvalid / InviteExpired / InviteAlreadyAccepted on
+        // failure) and overwrite the input so the rest of the register
+        // path runs against the server-resolved values. A tampered form
+        // (different email or role than the invitation) cannot register
+        // as a different identity.
+        Invitation? acceptedInvitation = null;
+        if (!string.IsNullOrWhiteSpace(input.InviteToken))
+        {
+            acceptedInvitation = await _invitationManager.ValidateAsync(input.InviteToken);
+            input.Email = acceptedInvitation.Email;
+            input.UserType = acceptedInvitation.UserType;
+            // Force the tenant context too, so the register path runs
+            // under the invitation's tenant regardless of any
+            // ?__tenant= or cookie context on the request.
+            input.TenantId = acceptedInvitation.TenantId;
+        }
+
         // Phase 8 (2026-05-03) -- OLD-parity validation:
         //   - ConfirmPassword must equal Password (UserDomain.cs:88)
         //   - FirmName required for ApplicantAttorney AND DefenseAttorney
@@ -551,6 +586,18 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // and immediately see the appointments that named them, without anyone
             // having to re-enter their details.
             await AutoLinkAppointmentsForUserAsync(user, input.UserType);
+
+            // 2026-05-15 -- mark the invitation accepted in the same UoW
+            // as the user create. AcceptAsync re-runs ValidateAsync inside
+            // the transaction; the aggregate's ConcurrencyStamp wins
+            // races between two simultaneous accepts (second writer gets
+            // AbpDbConcurrencyException which surfaces as 500 -- acceptable
+            // because the user row is already created and the second
+            // recipient will just need to sign in).
+            if (acceptedInvitation != null && !string.IsNullOrWhiteSpace(input.InviteToken))
+            {
+                await _invitationManager.AcceptAsync(input.InviteToken, user.Id);
+            }
 
             // 2026-05-06 (Adrian directive): the verification email is NOT sent
             // when the user submits the register form. Instead the SPA shows a
@@ -743,25 +790,21 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
-    /// D.2 (2026-04-30): admin-side invite for an external user. Restricted
-    /// to internal-tier callers via role-based authorization (admin OR
-    /// Staff Supervisor at tenant scope; IT Admin at host scope). Builds a
-    /// tenant-specific `/Account/Register?__tenant=&lt;Name&gt;&amp;email=&lt;email&gt;&amp;
-    /// role=&lt;roleName&gt;` URL using the `AuthServerBaseUrl` setting (S-6.1)
-    /// and enqueues an invite email via the same Hangfire pipeline as 6.1's
-    /// fan-out. Returns the URL in the response so the admin can copy and
-    /// paste it manually -- the dev-stack swallows email silently when SMTP
-    /// is unconfigured (S-5.7), and a Mailtrap-class sandbox will not
-    /// deliver to real inboxes either, so showing the URL is non-negotiable
-    /// for the demo flow.
+    /// 2026-05-15 (revised) -- admin-side invite for an external user.
+    /// Replaces the prior unbounded-URL pattern with a one-time-use,
+    /// 7-day-TTL token (see <see cref="InvitationManager"/>). The URL
+    /// is <c>{authServerBaseUrl}/Account/Register?inviteToken=&lt;raw&gt;</c>;
+    /// the AuthServer JS overlay validates the token, prefills + locks
+    /// the email + role on the register form, and re-validates server-
+    /// side at submit time.
     ///
-    /// Internal roles (admin, Staff Supervisor, Clinic Staff, Doctor, IT
-    /// Admin) are intentionally NOT invitable through this surface -- the
-    /// `UserType` enum constrains the choice to the four external roles, and
-    /// the JS overlay (1.6) further filters the role dropdown so a tampered
-    /// URL with `?role=admin` cannot register as admin.
+    /// <para>Authorization is permission-based:
+    /// <c>CaseEvaluation.UserManagement.InviteExternalUser</c> -- granted
+    /// to IT Admin, Staff Supervisor, and Clinic Staff via the
+    /// internal-role seeder. External roles never receive this
+    /// permission so a tampered URL cannot register as internal.</para>
     /// </summary>
-    [Authorize(Roles = "admin,Staff Supervisor,IT Admin")]
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
     public virtual async Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input)
     {
         if (input == null || string.IsNullOrWhiteSpace(input.Email))
@@ -795,45 +838,111 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 L["AuthServer base URL is not configured. Set CaseEvaluation.Notifications.AuthServerBaseUrl."]);
         }
 
+        // CurrentUser is guaranteed set (perm-gated AppService).
+        var invitedByUserId = CurrentUser.Id ?? Guid.Empty;
+        var normalizedEmail = input.Email.Trim().ToLowerInvariant();
+
+        var (invitation, rawToken) = await _invitationManager.IssueAsync(
+            tenantId: tenantId.Value,
+            email: normalizedEmail,
+            userType: input.UserType,
+            invitedByUserId: invitedByUserId);
+
         var inviteUrl = BuildInviteUrl(
             authServerBaseUrl: authServerBaseUrl.TrimEnd('/'),
-            tenantName: tenantName,
-            email: input.Email.Trim(),
-            roleName: roleName);
+            rawToken: rawToken);
 
-        var emailEnqueued = false;
+        // Dispatch through the per-tenant InviteExternalUser
+        // NotificationTemplate. Failure is logged (by the dispatcher) but
+        // does NOT bubble: the admin can always copy + share the inviteUrl
+        // manually when SMTP is degraded.
         try
         {
-            var subject = $"You have been invited to register at {tenantName}";
-            var body = BuildInviteHtml(tenantName, roleName, inviteUrl);
-            await _backgroundJobManager.EnqueueAsync(new SendAppointmentEmailArgs
-            {
-                To = input.Email.Trim(),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true,
-                Context = $"Invite/{roleName}/{tenantId.Value}",
-                Role = MapToRecipientRole(input.UserType),
-                IsRegistered = false,
-                TenantName = tenantName,
-            });
-            emailEnqueued = true;
+            await _notificationDispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: normalizedEmail,
+                        role: MapToRecipientRole(input.UserType),
+                        isRegistered: false),
+                },
+                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt),
+                contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
         }
         catch (Exception)
         {
-            // Email enqueue failure does not block the response; the admin
-            // can still copy the URL manually. The Hangfire pipeline logs
-            // the failure separately; we surface it via the bool flag.
-            emailEnqueued = false;
+            // Swallowed by design -- the dispatcher logs its own failures
+            // and the admin always sees the inviteUrl in the response.
         }
 
         return new InviteExternalUserResultDto
         {
             InviteUrl = inviteUrl,
-            EmailEnqueued = emailEnqueued,
-            Email = input.Email.Trim(),
+            Email = normalizedEmail,
             RoleName = roleName,
             TenantName = tenantName,
+            ExpiresAt = invitation.ExpiresAt,
+        };
+    }
+
+    /// <summary>
+    /// 2026-05-15 -- anonymous validation endpoint for the JS overlay on
+    /// <c>/Account/Register</c>. Throws <c>BusinessException</c> with one
+    /// of <c>InviteInvalid</c> / <c>InviteExpired</c> /
+    /// <c>InviteAlreadyAccepted</c> when the token is unusable; the
+    /// overlay renders the appropriate banner per error code.
+    /// </summary>
+    [AllowAnonymous]
+    public virtual async Task<InvitationValidationDto> ValidateInviteAsync(string token)
+    {
+        var invitation = await _invitationManager.ValidateAsync(token);
+
+        // Resolve the tenant display name in host context (Tenant rows
+        // are host-scoped; the invitation row's TenantId tells us which).
+        var tenantId = invitation.TenantId
+            ?? throw new BusinessException(CaseEvaluationDomainErrorCodes.InviteInvalid);
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId)
+            ?? throw new BusinessException(CaseEvaluationDomainErrorCodes.InviteInvalid);
+
+        return new InvitationValidationDto
+        {
+            Email = invitation.Email,
+            UserType = invitation.UserType,
+            RoleName = ToRoleName(invitation.UserType),
+            TenantName = tenantName,
+            ExpiresAt = invitation.ExpiresAt,
+        };
+    }
+
+    /// <summary>
+    /// Variable bag for the <c>InviteExternalUser</c> NotificationTemplate.
+    /// Tokens are referenced in
+    /// <c>src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/InviteExternalUser.html</c>
+    /// as <c>##TenantName##</c>, <c>##RoleName##</c>, <c>##URL##</c>,
+    /// <c>##ExpiresAt##</c>. <c>##PatientFullName##</c> is left blank --
+    /// we do not collect a name at invite time.
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?> BuildInvitationVariables(
+        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc)
+    {
+        // Format expiry as a short human-readable UTC date so all tenants
+        // see the same calendar day regardless of viewer locale; the
+        // recipient does not need timezone precision to know "this link
+        // works through Tuesday".
+        var expiresAtLabel = expiresAtUtc.ToString("MMMM d, yyyy");
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["TenantName"] = tenantName,
+            ["RoleName"] = roleName,
+            ["URL"] = inviteUrl,
+            ["ExpiresAt"] = expiresAtLabel,
+            ["PatientFullName"] = string.Empty,
+            // Defensive zero-fills for tokens the per-tenant edit UI may
+            // reference even when the dispatcher doesn't supply them.
+            ["PatientFirstName"] = string.Empty,
+            ["PatientLastName"] = string.Empty,
+            ["PatientEmail"] = string.Empty,
         };
     }
 
@@ -866,33 +975,21 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
     }
 
-    private static string BuildInviteUrl(string authServerBaseUrl, string tenantName, string email, string roleName)
+    /// <summary>
+    /// Builds the AuthServer register URL that carries the one-time
+    /// invite token. Format:
+    /// <c>{authServerBaseUrl}/Account/Register?inviteToken={url-encoded-raw-token}</c>.
+    /// The base URL already includes the tenant subdomain (e.g.
+    /// <c>http://falkinstein.localhost:44368</c>) per the
+    /// <c>Notifications.AuthServerBaseUrl</c> setting; the JS overlay
+    /// reads the token, validates it via
+    /// <c>/api/public/external-signup/validate-invite</c>, and prefills
+    /// the register form from the validation response (no email or role
+    /// query params required).
+    /// </summary>
+    private static string BuildInviteUrl(string authServerBaseUrl, string rawToken)
     {
-        var query = new System.Text.StringBuilder("?");
-        query.Append("__tenant=").Append(WebUtility.UrlEncode(tenantName)).Append('&');
-        query.Append("email=").Append(WebUtility.UrlEncode(email)).Append('&');
-        query.Append("role=").Append(WebUtility.UrlEncode(roleName));
-        return $"{authServerBaseUrl}/Account/Register{query}";
-    }
-
-    private static string BuildInviteHtml(string tenantName, string roleName, string inviteUrl)
-    {
-        var encodedUrl = WebUtility.HtmlEncode(inviteUrl);
-        var encodedTenant = WebUtility.HtmlEncode(tenantName);
-        var encodedRole = WebUtility.HtmlEncode(roleName);
-        return
-            "<html><body style=\"font-family: Arial, sans-serif; color: #333;\">" +
-            "<h2 style=\"color: #0d6efd;\">You have been invited to register</h2>" +
-            $"<p><strong>{encodedTenant}</strong> has invited you to register a portal account as <strong>{encodedRole}</strong>.</p>" +
-            "<p>Use the button below to open the registration page. The tenant and your email are pre-filled; pick a password and submit to finish.</p>" +
-            "<p style=\"margin-top: 20px;\">" +
-            $"<a href=\"{encodedUrl}\" style=\"background:#0d6efd;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;\">" +
-            $"Register at {encodedTenant}" +
-            "</a></p>" +
-            "<p style=\"color:#888;font-size:0.85em;\">If the button does not work, copy and paste this link into your browser:<br>" +
-            $"<a href=\"{encodedUrl}\">{encodedUrl}</a></p>" +
-            "<hr><p style=\"color: #888; font-size: 0.85em;\">If you were not expecting this invitation, you can safely ignore this email.</p>" +
-            "</body></html>";
+        return $"{authServerBaseUrl}/Account/Register?inviteToken={WebUtility.UrlEncode(rawToken)}";
     }
 
     private Guid? ResolveTenantId(Guid? requestedTenantId)
