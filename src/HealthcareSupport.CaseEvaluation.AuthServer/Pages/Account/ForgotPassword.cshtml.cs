@@ -37,8 +37,8 @@ namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 public class ForgotPasswordModel : AbpPageModel
 {
     [BindProperty]
-    [Required]
-    [EmailAddress]
+    [Required(ErrorMessage = "Enter your email.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
     [StringLength(256)]
     public string? Email { get; set; }
 

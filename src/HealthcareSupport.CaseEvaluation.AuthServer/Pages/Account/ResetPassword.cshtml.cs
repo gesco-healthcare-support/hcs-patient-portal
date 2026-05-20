@@ -32,8 +32,11 @@ namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 /// confirmation email through the <c>PasswordChange</c> notification
 /// template -- the user gets two emails in sequence: the reset-link
 /// email and the confirmation email after their password is changed.
-/// We set <c>TempData["SuccessMessage"]</c> and redirect to
-/// <c>/Account/Login</c> so the next page can render a banner.</para>
+/// We redirect to <c>/Account/Login?flash=password-updated</c> so the
+/// Login page renders the canonical "Password updated. Sign in with
+/// your new password." banner. The query-string flash survives the
+/// OpenIddict authorize redirect chain in a way that TempData does
+/// not (proposed-copy.md decision 7, locked 2026-05-18).</para>
 /// </summary>
 public class ResetPasswordModel : AbpPageModel
 {
@@ -47,14 +50,14 @@ public class ResetPasswordModel : AbpPageModel
     public string? ReturnUrl { get; set; }
 
     [BindProperty]
-    [Required]
+    [Required(ErrorMessage = "Enter a new password.")]
     [StringLength(128, MinimumLength = 6)]
     public string? Password { get; set; }
 
     [BindProperty]
-    [Required]
+    [Required(ErrorMessage = "Enter the password again.")]
     [StringLength(128, MinimumLength = 6)]
-    [Compare(nameof(Password), ErrorMessage = "The password and confirmation password do not match.")]
+    [Compare(nameof(Password), ErrorMessage = "Passwords don't match.")]
     public string? ConfirmPassword { get; set; }
 
     public string? ErrorMessage { get; set; }
@@ -75,8 +78,7 @@ public class ResetPasswordModel : AbpPageModel
         if (UserId == Guid.Empty || string.IsNullOrWhiteSpace(ResetToken))
         {
             return RedirectToForgotWithError(
-                "Your reset link is missing required information. " +
-                "Please request a new password reset email.");
+                "That reset link doesn't work anymore. Request a new one below.");
         }
         return Page();
     }
@@ -103,7 +105,7 @@ public class ResetPasswordModel : AbpPageModel
             when (ex.Code == CaseEvaluationDomainErrorCodes.ResetPasswordTokenInvalid)
         {
             return RedirectToForgotWithError(
-                "Your reset link is invalid or has expired. Please request a new one.");
+                "That reset link doesn't work anymore. Request a new one below.");
         }
         catch (UserFriendlyException ex)
         {
@@ -125,9 +127,15 @@ public class ResetPasswordModel : AbpPageModel
             return Page();
         }
 
-        TempData["SuccessMessage"] =
-            "Your password has been reset. Please sign in with your new password.";
-        return RedirectToPage("./Login", new { returnUrl = ReturnUrl });
+        // Flash banner contract: Login.cshtml.cs reads ?flash= and renders
+        // a one-shot alert above the form. TempData would not survive the
+        // OpenIddict authorize redirect chain (decision 7).
+        var loginUrl = "~/Account/Login?flash=password-updated";
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            loginUrl += $"&ReturnUrl={Uri.EscapeDataString(ReturnUrl)}";
+        }
+        return LocalRedirect(loginUrl);
     }
 
     private IActionResult RedirectToForgotWithError(string message)

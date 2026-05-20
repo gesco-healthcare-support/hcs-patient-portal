@@ -14,13 +14,16 @@ namespace HealthcareSupport.CaseEvaluation.Pages.Account;
 /// <c>/Account/ResendVerification</c>. Two contexts feed users here:
 ///
 /// <list type="bullet">
-///   <item><b>Post-register:</b> after ABP's stock register page creates
-///         the account and auto-fires the first verification email, the
+///   <item><b>Post-register:</b> after
+///         <see cref="HealthcareSupport.CaseEvaluation.ExternalSignups.IExternalSignupAppService.RegisterAsync"/>
+///         creates the account and auto-fires the first verification
+///         email (B-4 / Application/Emailing wiring, 2026-05-18), the
 ///         user lands here with <c>?context=register&amp;email=...</c>
 ///         so they can re-fire the email if it didn't arrive.</item>
-///   <item><b>Login-blocked:</b> when login fails because the email is
-///         not yet confirmed, the user is bounced here with
-///         <c>?context=login&amp;email=...</c>.</item>
+///   <item><b>Login-blocked:</b> when an unverified-email login is
+///         intercepted by <c>Pages/Account/Login.cshtml.cs</c> (B-3),
+///         the user clicks the "Resend verification" affordance which
+///         links here with <c>?context=login&amp;email=...</c>.</item>
 /// </list>
 ///
 /// <para>POSTing the form invokes
@@ -46,8 +49,8 @@ public class ResendVerificationModel : AbpPageModel
     /// the query string on GET, posted back as a hidden form field on POST.
     /// </summary>
     [BindProperty(SupportsGet = true)]
-    [Required]
-    [EmailAddress]
+    [Required(ErrorMessage = "Enter your email.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
     [StringLength(256)]
     public string? Email { get; set; }
 
@@ -143,36 +146,17 @@ public class ResendVerificationModel : AbpPageModel
     }
 
     /// <summary>
-    /// View helper: heading text per <see cref="Context"/>. Internal so
-    /// unit tests can verify the per-context copy contract.
+    /// View helper: page heading. Context-independent after the
+    /// 2026-05-18 copy rewrite (proposed-copy.md 2.3).
     /// </summary>
-    public string GetHeading()
-    {
-        return Context switch
-        {
-            "register" => "Welcome! Please verify your email",
-            "login" => "Verify your email to sign in",
-            _ => "Verify your email",
-        };
-    }
+    public string GetHeading() => "Verify your email";
 
     /// <summary>
-    /// View helper: body intro text per <see cref="Context"/>.
+    /// View helper: page intro. Context-independent after the
+    /// 2026-05-18 copy rewrite (proposed-copy.md 2.3). The email field
+    /// is pre-filled below, so the intro stays short and stops repeating
+    /// the address.
     /// </summary>
-    public string GetIntro()
-    {
-        return Context switch
-        {
-            "register" =>
-                "Your account was created successfully. We sent a verification link to your email. " +
-                "Click the link to confirm your address and finish setting up your account. " +
-                "If you did not receive the email, request a new one below.",
-            "login" =>
-                "Your email is not yet verified. Click the link we sent to confirm your address, " +
-                "or request a new verification email below if the original is lost or expired.",
-            _ =>
-                "Request a new email-verification link. The link will be sent to the address below " +
-                "if it matches an unverified account.",
-        };
-    }
+    public string GetIntro() =>
+        "Click the link we sent to verify your address. Didn't get it? Resend below.";
 }

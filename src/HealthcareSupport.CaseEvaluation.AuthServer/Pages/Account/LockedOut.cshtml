@@ -1,0 +1,43 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.LockedOutModel
+@{
+    ViewData["Title"] = "Account locked";
+}
+@*
+    Custom Razor view for /Account/LockedOut. Filesystem precedence
+    overrides the stock AbpAccountPublicWeb RCL page so this view + its
+    PageModel substitute for the stock pair. Layout mirrors the existing
+    ResetPassword / ForgotPassword overrides.
+
+    Behaviour: shows a plain-language "account locked" message picking
+    the failed-attempts cause (the only path that reaches this redirect
+    today; admin-locks would route differently if ever surfaced). The
+    duration matches the configured lockout policy
+    (CaseEvaluationSettingDefinitionProvider: 10 attempts / 1 hour).
+    A precise unlock timestamp is intentionally omitted -- the framework
+    redirect does not carry userId so we cannot look up the per-user
+    LockoutEnd from AspNetUsers without an extra round-trip; the duration
+    is enough for the user to know when to try again.
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">Account locked</h1>
+
+        <p class="text-center mt-3" role="alert">
+            Too many failed sign-in attempts. Try again in 1 hour.
+        </p>
+
+        <p class="text-center mt-2">
+            If this wasn't you, contact the clinic.
+        </p>
+
+        <hr class="my-4" />
+
+        <p class="text-center">
+            <a href="~/Account/Login">&larr; Back to sign-in</a>
+        </p>
+
+    </div>
+</div>

@@ -20,6 +20,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Volo.Abp;
+using Volo.Abp.Account.Emailing;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
@@ -67,6 +68,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // to host context; the filter still applies and excludes tenant rows.
     // IDataFilter.Disable<IMultiTenant> turns the filter off entirely.
     private readonly IDataFilter _dataFilter;
+    // 2026-05-18 (B-4): canonical ABP IAccountEmailer is the framework
+    // contract for sending account-related links. Project's
+    // CaseEvaluationAccountEmailer implements this and -- after the
+    // 2026-05-18 relocation from AuthServer/Emailing/ to
+    // Application/Emailing/ -- is registered in BOTH the AuthServer's
+    // DI container AND the HttpApi.Host's DI container. Used in
+    // RegisterAsync to auto-send the verification email on successful
+    // registration.
+    private readonly IAccountEmailer _accountEmailer;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -89,7 +99,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
         InvitationManager invitationManager,
-        INotificationDispatcher notificationDispatcher)
+        INotificationDispatcher notificationDispatcher,
+        IAccountEmailer accountEmailer)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -112,6 +123,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _dataFilter = dataFilter;
         _invitationManager = invitationManager;
         _notificationDispatcher = notificationDispatcher;
+        _accountEmailer = accountEmailer;
     }
 
     /// <summary>
@@ -599,18 +611,56 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 await _invitationManager.AcceptAsync(input.InviteToken, user.Id);
             }
 
-            // 2026-05-06 (Adrian directive): the verification email is NOT sent
-            // when the user submits the register form. Instead the SPA shows a
-            // post-register page with a "Send verification email" button; the
-            // email fires only when the user clicks that button (or when a
-            // blocked-login error nudges them to resend). The trigger flows
-            // through ABP's stock account flow into our IAccountEmailer override
-            // (CaseEvaluationAccountEmailer.SendEmailConfirmationLinkAsync),
-            // which dispatches the UserRegistered template through the same
-            // template renderer + Hangfire queue used by every other email.
-            // This lets registration finish silently if the user closes the
-            // tab and removes the wasted SMTP send for users who never click
-            // through.
+            // 2026-05-18 (B-4, Adrian directive reverses 2026-05-06):
+            // auto-send the verification email on successful registration.
+            // Routes through the project's IAccountEmailer override
+            // (CaseEvaluationAccountEmailer), which after the B-1 fix
+            // builds {AuthServerBaseUrl}/Account/EmailConfirmation,
+            // substitutes the per-tenant UserRegistered NotificationTemplate,
+            // and enqueues a Hangfire SendAppointmentEmailJob.
+            //
+            // Cross-host DI: CaseEvaluationAccountEmailer was relocated
+            // from the AuthServer project to the Application project
+            // 2026-05-18 (B-4 v5) so its [Dependency(ReplaceServices)] +
+            // [ExposeServices(typeof(IAccountEmailer))] attributes
+            // register the override in BOTH the AuthServer and the
+            // HttpApi.Host DI containers. Before that move, calling
+            // IAccountEmailer from this AppService (which runs under
+            // HttpApi.Host for /api/public/external-signup/register)
+            // resolved to the stock framework AccountEmailer and
+            // threw System.TypeLoadException on Scriban 7.1.0 (CVE pin).
+            //
+            // No try/catch: ABP's UoW interceptor relies on exception
+            // propagation to trigger rollback. IBackgroundJobManager.EnqueueAsync
+            // (inside CaseEvaluationAccountEmailer.DispatchAsync) writes
+            // to Hangfire's SQL tables in this same UoW transaction
+            // (effectively the outbox pattern), so the job row is
+            // atomic with the user-create row -- both commit or both
+            // rollback. The actual SMTP send happens in a separate
+            // Hangfire worker process with its own retry + dead-letter
+            // handling. If we wrap this in try/catch+swallow, a
+            // Hangfire/Redis/settings outage would create an orphan
+            // user with no verification path.
+            //
+            // appName="MVC" matches the AppUrlOptions config B-1 set on
+            // Applications["MVC"].Urls[AccountUrlNames.EmailConfirmation].
+            // The IAccountEmailer override ignores the parameter at
+            // runtime (hardcodes URL via AuthServerBaseUrl setting), but
+            // "MVC" is the right intent for any future framework code
+            // that consults IAppUrlProvider.
+            //
+            // See docs/plans/2026-05-18-auto-send-verification-at-registration.md
+            // for the v1->v5 design evolution (v5 = current).
+            if (!string.IsNullOrWhiteSpace(user.Email))
+            {
+                var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                await _accountEmailer.SendEmailConfirmationLinkAsync(
+                    user,
+                    confirmationToken,
+                    appName: "MVC",
+                    returnUrl: null,
+                    returnUrlHash: null);
+            }
         }
     }
 

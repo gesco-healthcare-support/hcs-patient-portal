@@ -40,13 +40,7 @@
         @if (Model.RequestSubmitted)
         {
             <div class="alert alert-success mt-3" role="status" aria-live="polite">
-                <strong>Request received.</strong>
-                <p class="mb-0">
-                    If the address below matches an unverified account, a new
-                    verification email is on its way. Check your inbox (and
-                    spam folder) in the next few minutes. You can request
-                    another email after 60 seconds if it does not arrive.
-                </p>
+                Sent. Check your inbox and spam folder. You can resend after 60 seconds.
             </div>
         }
 
@@ -64,21 +58,18 @@
                        class="form-control"
                        autocomplete="email"
                        inputmode="email"
-                       aria-describedby="resend-verification-intro email-helper"
+                       aria-describedby="resend-verification-intro"
                        required />
-                <span asp-validation-for="Email" class="text-danger"></span>
-                <small id="email-helper" class="form-text text-muted">
-                    Enter the email you used to register. We'll send a fresh
-                    verification link to it.
-                </small>
+                @* Drop class= -- audit FL2 / RPL2; see ForgotPassword.cshtml for rationale. *@
+                <span asp-validation-for="Email"></span>
             </div>
 
             <div class="d-grid gap-2 mt-4">
                 <button id="resend-verification-submit"
                         type="submit"
                         class="btn btn-primary btn-lg"
-                        title="Send verification email">
-                    Send verification email
+                        title="Resend verification">
+                    Resend verification
                 </button>
             </div>
         </form>
@@ -111,7 +102,7 @@
 
             btn.disabled = true;
             btn.setAttribute('aria-disabled', 'true');
-            btn.innerText = 'Send verification email (' + remaining + 's)';
+            btn.innerText = 'Resend verification (' + remaining + 's)';
 
             var interval = setInterval(function () {
                 remaining = remaining - 1;
@@ -122,7 +113,7 @@
                     btn.innerText = originalLabel;
                     return;
                 }
-                btn.innerText = 'Send verification email (' + remaining + 's)';
+                btn.innerText = 'Resend verification (' + remaining + 's)';
             }, 1000);
         })();
     </script>

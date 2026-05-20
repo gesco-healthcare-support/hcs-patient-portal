@@ -243,8 +243,8 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
 
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        var portalBaseUrl = await ResolvePortalBaseUrlAsync();
-        var verifyUrl = BuildEmailConfirmationUrl(portalBaseUrl, user.Id, token);
+        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
+        var verifyUrl = BuildEmailConfirmationUrl(authServerBaseUrl, user.Id, token);
 
         try
         {
@@ -353,37 +353,22 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     }
 
     /// <summary>
-    /// Phase 1.D: per-tenant SPA base URL the verify-link points at. Falls
-    /// back to the dev Falkinstein subdomain when the
-    /// <c>Notifications.PortalBaseUrl</c> setting is unset. Mirrors the
-    /// resolver in <c>CaseEvaluationAccountEmailer</c> so both paths land
-    /// on the same SPA host.
+    /// Phase 1.D: AuthServer-hosted verify URL shape:
+    /// <c>{base}/Account/EmailConfirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
+    /// Lands on the project's custom Razor PageModel
+    /// <c>HealthcareSupport.CaseEvaluation.Pages.Account.EmailConfirmationModel</c>
+    /// which processes the token server-side and 302's to
+    /// <c>/Account/Login?flash=email-verified</c>. Same shape as
+    /// <c>CaseEvaluationAccountEmailer.BuildEmailConfirmationUrl</c>.
+    /// Internal for unit-test coverage. 2026-05-18 -- repointed from
+    /// the deleted SPA route <c>/account/email-confirmation</c>; see
+    /// docs/plans/2026-05-18-fix-verification-email-url.md.
     /// </summary>
-    private async Task<string> ResolvePortalBaseUrlAsync()
-    {
-        var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return "http://falkinstein.localhost:4200";
-        }
-        return configured.TrimEnd('/');
-    }
-
-    /// <summary>
-    /// Phase 1.D: SPA-hosted verify URL shape:
-    /// <c>{base}/account/email-confirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
-    /// Same shape as <c>CaseEvaluationAccountEmailer.BuildEmailConfirmationUrl</c>;
-    /// the SPA route registered by ABP's <c>@volo/abp.ng.account/public</c>
-    /// package consumes both query params identically regardless of which
-    /// pipeline produced the link.
-    /// Internal for unit-test coverage.
-    /// </summary>
-    internal static string BuildEmailConfirmationUrl(string portalBaseUrl, Guid userId, string confirmationToken)
+    internal static string BuildEmailConfirmationUrl(string authServerBaseUrl, Guid userId, string confirmationToken)
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append(portalBaseUrl);
-        sb.Append("/account/email-confirmation");
+        sb.Append(authServerBaseUrl);
+        sb.Append("/Account/EmailConfirmation");
         sb.Append("?userId=").Append(userId.ToString());
         sb.Append("&confirmationToken=").Append(WebUtility.UrlEncode(confirmationToken));
         return sb.ToString();
@@ -475,8 +460,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     {
         if (!string.Equals(password, confirmPassword, StringComparison.Ordinal))
         {
-            throw new UserFriendlyException(
-                "Password and confirm password do not match");
+            throw new UserFriendlyException("Passwords don't match.");
         }
     }
 
