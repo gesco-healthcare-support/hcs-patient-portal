@@ -246,12 +246,18 @@ public class BookingSubmissionEmailHandler :
 
         // Resolve the URLs once per dispatch -- both are tenant-scoped
         // settings that don't change per-recipient.
-        var portalBaseUrl = await ResolveSettingAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
-            DefaultPortalBaseUrl);
-        var authServerBaseUrl = await ResolveSettingAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl,
-            DefaultAuthServerBaseUrl);
+        // BUG-014 (Task A): compose tenant subdomain into the base URL so
+        // tenant-less env-var values become <tenant>.localhost:<port>.
+        var portalBaseUrl = TenantUrlComposer.ComposeForTenant(
+            await ResolveSettingAsync(
+                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
+                DefaultPortalBaseUrl),
+            _currentTenant.Name)!;
+        var authServerBaseUrl = TenantUrlComposer.ComposeForTenant(
+            await ResolveSettingAsync(
+                CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl,
+                DefaultAuthServerBaseUrl),
+            _currentTenant.Name)!;
 
         // Build the booker name + patient name once -- both are stable
         // across all recipient variants and used by every template body.

@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
@@ -28,6 +29,7 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly ISettingProvider _settingProvider;
+    private readonly ICurrentTenant _currentTenant;
 
     public DocumentEmailContextResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -35,7 +37,8 @@ public class DocumentEmailContextResolver : ITransientDependency
         IRepository<AppointmentDocument, Guid> documentRepository,
         IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        ISettingProvider settingProvider)
+        ISettingProvider settingProvider,
+        ICurrentTenant currentTenant)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -43,6 +46,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         _injuryDetailRepository = injuryDetailRepository;
         _identityUserRepository = identityUserRepository;
         _settingProvider = settingProvider;
+        _currentTenant = currentTenant;
     }
 
     /// <summary>
@@ -78,8 +82,14 @@ public class DocumentEmailContextResolver : ITransientDependency
             document = await _documentRepository.FindAsync(appointmentDocumentId.Value);
         }
 
-        var portalUrl = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+        // BUG-014 (Task A): compose tenant subdomain into the tenant-less
+        // base URL from Settings__CaseEvaluation__Notifications__PortalBaseUrl.
+        // Resolver is called from email handlers that enter tenant scope via
+        // _currentTenant.Change(eventData.TenantId), so .Name is reliable here.
+        var portalUrl = TenantUrlComposer.ComposeForTenant(
+            await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl),
+            _currentTenant.Name);
 
         return new DocumentEmailContext
         {

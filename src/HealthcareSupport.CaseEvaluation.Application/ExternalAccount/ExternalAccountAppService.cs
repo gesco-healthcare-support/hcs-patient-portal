@@ -430,7 +430,15 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         {
             return DefaultAuthServerBaseUrl;
         }
-        return configured.TrimEnd('/');
+        // BUG-014 (Task A, Option 4 hybrid): this AppService serves
+        // anonymous endpoints (password reset / external signup) so
+        // ICurrentTenant.Name is unreliable here. Phase 1A hardcodes
+        // "Falkinstein" because the single demo tenant is Falkinstein and
+        // the SettingDefinition default const above already has falkinstein
+        // baked in. TODO Phase 1B: resolve tenant from user.TenantId
+        // (looked up by email earlier in the caller) via ITenantStore.
+        // See docs/plans/2026-05-20-task-a-config-driven-email-urls.md.
+        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), "Falkinstein")!;
     }
 
     /// <summary>
