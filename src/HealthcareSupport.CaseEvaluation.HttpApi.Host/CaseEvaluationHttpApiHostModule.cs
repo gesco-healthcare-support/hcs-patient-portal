@@ -215,8 +215,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<AppUrlOptions>(options =>
         {
             options.Applications["Angular"].RootUrl = configuration["App:AngularUrl"];
-            options.Applications["Angular"].Urls[AccountUrlNames.PasswordReset] = "account/reset-password";
-            options.Applications["Angular"].Urls[AccountUrlNames.EmailConfirmation] = "account/email-confirmation";
+            // 2026-05-18 -- confirmation + reset URLs are hosted by the
+            // AuthServer Razor pages (custom overrides under Pages/Account/),
+            // not the SPA. Repointed from the deleted SPA routes. Mirrors
+            // the same config in CaseEvaluationAuthServerModule. See
+            // docs/plans/2026-05-18-fix-verification-email-url.md.
+            options.Applications["MVC"].Urls[AccountUrlNames.PasswordReset] = "Account/ResetPassword";
+            options.Applications["MVC"].Urls[AccountUrlNames.EmailConfirmation] = "Account/EmailConfirmation";
         });
     }
 

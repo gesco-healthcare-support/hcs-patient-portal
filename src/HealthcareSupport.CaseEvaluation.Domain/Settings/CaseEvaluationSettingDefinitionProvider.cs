@@ -83,6 +83,29 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         {
             emailConfirmRequired.DefaultValue = "true";
         }
+
+        // Lockout policy (Adrian decision 2026-05-18, proposed-copy.md
+        // section 2.9): bump ABP defaults from 5 attempts / 5 minutes
+        // to 10 attempts / 1 hour. The LockedOut Razor page hardcodes
+        // "Try again in 1 hour" so keep these in sync if the policy
+        // ever changes.
+        //
+        // ABP setting keys:
+        //   "Abp.Identity.Lockout.MaxFailedAccessAttempts" (integer count)
+        //   "Abp.Identity.Lockout.LockoutDuration" (seconds)
+        var maxFailedAttempts = context.GetOrNull(
+            IdentitySettingNames.Lockout.MaxFailedAccessAttempts);
+        if (maxFailedAttempts != null)
+        {
+            maxFailedAttempts.DefaultValue = "10";
+        }
+
+        var lockoutDuration = context.GetOrNull(
+            IdentitySettingNames.Lockout.LockoutDuration);
+        if (lockoutDuration != null)
+        {
+            lockoutDuration.DefaultValue = "3600";
+        }
     }
 
     private static void Define(ISettingDefinitionContext context, string name, string defaultValue)
