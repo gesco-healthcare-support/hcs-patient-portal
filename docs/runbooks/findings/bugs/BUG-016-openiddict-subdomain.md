@@ -2,11 +2,40 @@
 id: BUG-016
 title: OpenIddict client RedirectUris missing subdomain wildcards
 severity: medium
-status: open
+status: fixed-by-redesign
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app (the underlying ABP option was already wired by ADR-006 work; verified 2026-05-19)
 found: 2026-05-14
 flow: oauth-login
-component: DbMigrator (OpenIddict client seed)
+component: src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs:103-111
 ---
+
+> **Fixed by wiring `AbpOpenIddictWildcardDomainOptions` (ADR-006 work).**
+> The DB seed still stores only `["http://localhost:4200"]`, but the
+> AuthServer module's `PreConfigureServices` enables wildcard-domain
+> validation:
+>
+> ```csharp
+> PreConfigure<AbpOpenIddictWildcardDomainOptions>(options =>
+> {
+>     options.EnableWildcardDomainSupport = true;
+>     options.WildcardDomainsFormat.Add("http://{0}.localhost:4200");
+>     options.WildcardDomainsFormat.Add("http://{0}.localhost:44368");
+>     options.WildcardDomainsFormat.Add("http://{0}.localhost:44327");
+> });
+> ```
+>
+> Every `redirect_uri` matching `http://{slug}.localhost:<port>` is
+> accepted at runtime; the registered client doesn't need per-tenant
+> entries. Verified 2026-05-19 by clearing the SPA session, hitting
+> `http://falkinstein.localhost:4200/`, completing the OAuth bounce,
+> and observing the code-issue redirect back to
+> `http://falkinstein.localhost:4200/?code=...`. No `invalid_request`
+> from OpenIddict.
+>
+> No additional seed change required. Documenting the DB-direct seed
+> override below for future tenants whose subdomain format ever falls
+> outside the `{slug}.localhost:<port>` shape.
 
 # BUG-016 — OpenIddict missing subdomain RedirectUris
 

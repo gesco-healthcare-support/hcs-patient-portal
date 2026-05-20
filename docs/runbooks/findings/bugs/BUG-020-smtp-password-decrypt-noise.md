@@ -2,11 +2,26 @@
 id: BUG-020
 title: SMTP password plaintext from appsettings.secrets.json fails ABP decrypt round-trip; noisy logs
 severity: medium
-status: open
+status: fixed
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app
 found: 2026-05-14 confirmed on fresh-DB rebuild
 flow: notification-emails
-component: src/HealthcareSupport.CaseEvaluation.Domain/CaseEvaluationDomainModule.cs (settings definition wiring)
+component: src/HealthcareSupport.CaseEvaluation.Domain/Settings/CaseEvaluationSettingDefinitionProvider.cs (settings definition wiring)
 ---
+
+> **Fixed 2026-05-19**: Option A. In
+> `CaseEvaluationSettingDefinitionProvider.cs` after the lockout-policy
+> block, fetch the ABP-default `Abp.Mailing.Smtp.Password` definition via
+> `context.GetOrNull(...)` and flip `IsEncrypted = false`. Verified by
+> triggering a Forgot Password send after API restart: log shows only
+> the `SendAppointmentEmailJob: delivered (...)` line with no
+> "Failed to decrypt" / `FormatException` pair. OBS-11 also closed by
+> the same flip (same root cause). Production deployments that want
+> at-rest encryption should pre-encrypt the value via
+> `IStringEncryptionService.Encrypt` and re-flip `IsEncrypted` in a
+> host-only override; single-source plaintext keeps the dev stack
+> simpler.
 
 # BUG-020 — `Abp.Mailing.Smtp.Password` decrypt round-trip throws on plaintext config value
 

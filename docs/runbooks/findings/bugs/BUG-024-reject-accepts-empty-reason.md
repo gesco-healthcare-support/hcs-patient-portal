@@ -2,11 +2,43 @@
 id: BUG-024
 title: Reject-appointment endpoint accepts empty rejectionNotes; UI requires it, server does not
 severity: medium
-status: open
+status: fixed
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app
 found: 2026-05-14 hardening R2.15
 flow: appointment-rejection
-component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs (Reject method or DTO)
+component: src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/RejectAppointmentInput.cs + CaseEvaluationHttpApiHostModule.cs + AppointmentManager.cs
 ---
+
+> **Fixed 2026-05-19**. The DTO field was named `Reason` (not
+> `RejectionNotes` -- likely renamed between the bug-filing and now)
+> and it was nullable with only `[StringLength(2000)]`. Applied:
+>
+> ```csharp
+> [Required]
+> [StringLength(500, MinimumLength = 5)]
+> public string Reason { get; set; } = null!;
+> ```
+>
+> 500 mirrors the UI's 0/500 counter; 5-char minimum keeps drive-by
+> submissions like "x" out of the audit trail.
+>
+> **Same commit:** the `AppointmentInvalidTransition` 403→400 mapping
+> flagged at the bottom of this doc landed in
+> `CaseEvaluationHttpApiHostModule.cs` (now mapped to
+> `HttpStatusCode.BadRequest`) and the throw site in
+> `AppointmentManager.cs:206` now uses the new
+> `CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition`
+> const instead of the raw string literal.
+>
+> All three cases verified live via `fetch` from the logged-in SPA
+> (token read from `localStorage.access_token`):
+> - empty `reason`: HTTP 400, `"The Reason field is required."` +
+>   `"min length of 5 and max length of 500"`
+> - `reason: "no"`: HTTP 400, `"min length of 5 and max length of 500"`
+> - reject on an already-Approved appointment with a valid reason:
+>   HTTP 400, code `CaseEvaluation:AppointmentInvalidTransition`,
+>   data `{from: 2, trigger: 2}`
 
 # BUG-024 - Reject endpoint has no server-side validation on rejectionNotes
 

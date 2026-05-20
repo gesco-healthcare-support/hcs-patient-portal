@@ -2,11 +2,38 @@
 id: BUG-013
 title: /Account/ConfirmUser Verify button blocked by CORS + missing antiforgery token
 severity: high
-status: open
+status: fixed-by-redesign
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app (PR-set #200-#204 delivered the redesign; verified 2026-05-19)
 found: 2026-05-14
 flow: external-user-registration -> verify-email
 component: AuthServer module CORS config + /Account/ConfirmUser.cshtml.js
 ---
+
+> **Fixed by architectural redesign (not the two-layer fix below).**
+> The unverified-email flow was reworked in the B-3 batch
+> (proposed-copy.md section 2.4, delivered via PR-set #200-#204):
+>
+> - `/Account/ConfirmUser` is now a one-line `RedirectToPage` that
+>   302s straight to `/Account/Login`. The Verify button + the XHR to
+>   `/api/account/send-email-confirmation-token` no longer exist.
+> - The unverified-email error case is absorbed into the Login page.
+>   A failed sign-in with `EmailConfirmed = false` renders the alert
+>   *"Email or password is incorrect, or your email isn't verified."*
+>   alongside a "Resend verification" link that posts to
+>   `/api/public/external-signup/resend-verification` -- our own
+>   non-Scriban handler.
+>
+> Verified 2026-05-19 with Playwright: navigated to
+> `/Account/ConfirmUser` (302 -> Login), submitted unverified
+> credentials, observed the alert + Resend link, no CORS preflight,
+> no `/api/account/send-email-confirmation-token` request in either
+> container's logs.
+>
+> The CORS env-var extension and antiforgery-token attachment the
+> earlier doc recommends are no longer needed: the offending
+> endpoint is unreachable from any UI. Documenting both fixes here
+> for context in case BUG-013-style CORS issues surface elsewhere.
 
 # BUG-013 — AuthServer Verify button blocked by 2 layers
 

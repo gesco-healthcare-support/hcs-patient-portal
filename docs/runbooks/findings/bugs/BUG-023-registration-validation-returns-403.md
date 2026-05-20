@@ -2,11 +2,27 @@
 id: BUG-023
 title: ConfirmPasswordMismatch + FirmNameRequiredForAttorney return HTTP 403 instead of 400
 severity: medium
-status: open
+status: fixed
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app
 found: 2026-05-14 hardening R2.2 + R2.3
 flow: registration-validation
 component: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs (AbpExceptionHttpStatusCodeOptions mapping)
 ---
+
+> **Fixed 2026-05-19**: added `RegistrationConfirmPasswordMismatch`
+> and `RegistrationFirmNameRequired` (the actual const name -- the
+> earlier doc said `...ForAttorney` which doesn't exist) to the
+> 400-mapping list in `CaseEvaluationHttpApiHostModule.cs`. Same
+> commit also maps `InternalUserTenantMismatch` (added 2026-05-19
+> for the tenant-admin internal-user flow) so it returns 400 too.
+> Verified with `curl` against `/api/public/external-signup/register`:
+> both branches now return **HTTP 400**.
+>
+> Note: the response body's localized `message:` field still surfaces
+> "An internal error occurred during your request!" -- ABP's default
+> when the localizer can't resolve the code namespace. That's BUG-009
+> territory (BusinessException auto-localization gap), not BUG-023.
 
 # BUG-023 - Two registration validation errors return 403 (same pattern as BUG-003)
 

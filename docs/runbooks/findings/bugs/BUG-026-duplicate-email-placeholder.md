@@ -2,11 +2,21 @@
 id: BUG-026
 title: Registration "DuplicateEmail" message renders literal "{0}" instead of substituting the email
 severity: low
-status: open
+status: fixed
+fixed: 2026-05-19
+fixed-on: feat/replicate-old-app (post-merge with main)
 found: 2026-05-19
 flow: external-user-registration
 component: src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs:501-503 + Localization/CaseEvaluation/en.json:458
 ---
+
+> **Fixed 2026-05-19**: applied Option A (remove placeholder). Final
+> wording uses the OWASP A07:2021 anti-enumeration pattern from
+> BUG-001 verbatim: *"If this email is new, you will receive a
+> verification message shortly. If it is already registered, sign
+> in instead or reset your password."* No throw-site change needed.
+> Verified live via the AuthServer Register page with the toast
+> rendering cleanly and no `{0}` in the page body.
 
 # BUG-026 — `{0}` placeholder unfilled in DuplicateEmail message
 
