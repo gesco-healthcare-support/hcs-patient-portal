@@ -1,15 +1,37 @@
 ---
-status: draft
+status: draft (decisions resolved 2026-05-20; see readiness check)
 issue: doctor-invariant-enforcement
 owner: AdrianG
 created: 2026-05-15
+updated: 2026-05-20
 approach: code + tdd (TDD on the AppService guards, code-only on the
   migration, test-after on the SPA error rendering)
 sequence: 1 of 7 (slot-generation + doctor-invariant series)
 branch: create a new branch off `feat/replicate-old-app`. PR back to
   `feat/replicate-old-app`. Do not merge to `main` until Adrian
   reviews the full series.
+readiness-check: docs/plans/SlotGenerationRework/_2026-05-20-doctor-invariant-readiness-check.md
 ---
+
+> **2026-05-20 decisions locked** (see readiness-check for full context):
+> - **Q1 (Option C):** the dependent-bucket probe in `DeleteAsync` checks ONLY
+>   the three operational tenant-scope entities — `DoctorAvailability`,
+>   `Appointment`, and `DoctorPreferredLocation` (with `IsActive == true`).
+>   Host-scope M2M tables (`DoctorLocation`, `DoctorAppointmentType`) are
+>   dropped from the probe; their `HasQueryFilter(x => !x.Doctor.IsDeleted)`
+>   already hides orphans from every app query.
+> - **Q2 (Option A):** `DoctorPreferredLocation` count filters by
+>   `x.DoctorId == id && x.IsActive` to avoid the "soft-delete forever
+>   blocked" trap (the entity is never hard-deleted in the normal flow).
+> - **Q3 (Option C-then-A, affects Phase 2 only):** the parallel-worktree
+>   docker work the other session is doing is orthogonal to this plan's
+>   Phase 2 `obj/` race fix; coordinate first, default to dropping the
+>   Phase 2 bundle if no easy answer.
+>
+> Six mechanical drift items also resolved (test-file name, error-codes
+> insertion point, en.json section absence, AbpExceptionHttpStatusCodeOptions
+> block moved to lines 151-194, reference-migration syntax confirmed,
+> no migration-name collision). See readiness check for the full diff.
 
 # Doctor-invariant enforcement: one Doctor per tenant (permanent)
 
@@ -229,18 +251,21 @@ Notes:
   row does not block a new create; the operator workflow is
   "delete then re-create" if the profile metadata is wrong.
 
-**DeleteAsync (lines 106-110).** Wire up four count probes.
-Inject four additional repos (kept narrow; we don't pull domain
+**DeleteAsync (lines 106-110).** Wire up three count probes against
+operational tenant-scope data only (per Q1 Option C decision
+2026-05-20: host-scope M2M tables `DoctorLocation` and
+`DoctorAppointmentType` are dropped from the probe; their
+`HasQueryFilter(x => !x.Doctor.IsDeleted)` already hides orphans).
+Inject three additional repos (kept narrow; we don't pull domain
 managers since the guard is pure existence):
 
 ```csharp
 protected IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
 protected IRepository<Appointment, Guid> _appointmentRepository;
 protected IRepository<DoctorPreferredLocation, Guid> _doctorPreferredLocationRepository;
-protected IRepository<DoctorAppointmentType> _doctorAppointmentTypeRepository;
 ```
 
-Constructor adds the four parameters; existing constructor lines
+Constructor adds the three parameters; existing constructor lines
 stay. Body of `DeleteAsync`:
 
 ```csharp
@@ -253,9 +278,18 @@ public virtual async Task DeleteAsync(Guid id)
     // still exist would leave the tenant with a "ghost calendar"
     // (active slots / appointments with no parent doctor profile).
     // Each probe scopes to the current tenant via ABP's IMultiTenant
-    // filter; DoctorAppointmentType is host-scoped but filters
-    // through the Doctor join, which the IsDeleted check already
-    // pins to the calling tenant.
+    // filter automatically.
+    //
+    // 2026-05-20 (Q1 Option C, Q2 Option A): host-scope M2M tables
+    // (DoctorLocation, DoctorAppointmentType) are intentionally NOT
+    // probed -- they are pure profile metadata, already hidden from
+    // every app query by HasQueryFilter(x => !x.Doctor.IsDeleted),
+    // and blocking delete on them would add friction with no
+    // integrity payoff. DoctorPreferredLocation IS probed but only
+    // for IsActive=true rows; inactive rows are audit-preserved
+    // history (the entity is never hard-deleted in the normal flow,
+    // so counting them would create a "soft-delete forever blocked"
+    // trap).
     var availabilityCount = await _doctorAvailabilityRepository.CountAsync();
     if (availabilityCount > 0)
     {
@@ -268,18 +302,11 @@ public virtual async Task DeleteAsync(Guid id)
         ThrowDependentsExist("Appointment", appointmentCount);
     }
 
-    var preferredLocationCount = await _doctorPreferredLocationRepository
-        .CountAsync(x => x.DoctorId == id);
-    if (preferredLocationCount > 0)
+    var activePreferredLocationCount = await _doctorPreferredLocationRepository
+        .CountAsync(x => x.DoctorId == id && x.IsActive);
+    if (activePreferredLocationCount > 0)
     {
-        ThrowDependentsExist("DoctorPreferredLocation", preferredLocationCount);
-    }
-
-    var doctorAppointmentTypeCount = await _doctorAppointmentTypeRepository
-        .CountAsync(x => x.DoctorId == id);
-    if (doctorAppointmentTypeCount > 0)
-    {
-        ThrowDependentsExist("DoctorAppointmentType", doctorAppointmentTypeCount);
+        ThrowDependentsExist("DoctorPreferredLocation", activePreferredLocationCount);
     }
 
     await _doctorRepository.DeleteAsync(id);
@@ -295,12 +322,14 @@ private static void ThrowDependentsExist(string entity, long count)
 ```
 
 Notes:
-- `DoctorAvailability.AnyAsync()` and `Appointment.AnyAsync()` are
-  tenant-scoped automatically. They do not need a Doctor predicate
-  because the tenant IS the doctor.
-- `DoctorAppointmentType` and `DoctorPreferredLocation` ARE
-  host-scoped tables (the doctor's M2M collections), so the
-  `x.DoctorId == id` predicate is correct.
+- `DoctorAvailability.CountAsync()` and `Appointment.CountAsync()` are
+  tenant-scoped automatically via ABP's IMultiTenant filter. They do
+  not need a Doctor predicate because the tenant IS the doctor.
+- `DoctorPreferredLocation` is tenant-scoped (`IMultiTenant`) AND
+  needs a Doctor predicate -- the entity carries DoctorId because
+  EF requires it on a join entity even though it is functionally
+  derivable from TenantId in the one-doctor-per-tenant model
+  (per PARITY-FLAG-NEW-006).
 - We surface count (not just existence) so the SPA error message
   can read "Cannot delete: 5 appointment(s) remain".
 
@@ -441,27 +470,30 @@ This is the only doc-comment touch -- not a refactor.
 
 ## Test plan (TDD where it pays)
 
-### `test/HealthcareSupport.CaseEvaluation.Application.Tests/Doctors/DoctorsAppServiceTests.cs`
+### `test/HealthcareSupport.CaseEvaluation.Application.Tests/Doctors/DoctorApplicationTests.cs`
 
-Existing test class. Add five new `[Fact]` tests (TDD: write the
-test first, watch it fail with the unguarded `CreateAsync`/
-`DeleteAsync`, ship the guard, watch it pass):
+Existing test class is `DoctorsAppServiceTests<TStartupModule>` (abstract
+generic, ABP Suite scaffold pattern). New tests go in the concrete
+subclass that already lives in this file. Add six new `[Fact]` tests
+(TDD: write the test first, watch it fail with the unguarded
+`CreateAsync`/`DeleteAsync`, ship the guard, watch it pass):
 
 | # | Test | Acceptance |
 |---|------|------------|
 | 1 | `CreateAsync_WhenTenantAlreadyHasDoctor_Throws` | Seed one Doctor in TenantA. Second `CreateAsync` throws `BusinessException` with code `DoctorOnePerTenantViolated`. |
 | 2 | `CreateAsync_WhenTenantHasOnlySoftDeletedDoctor_Succeeds` | Seed one Doctor in TenantA, soft-delete it. Second `CreateAsync` succeeds. |
-| 3 | `DeleteAsync_WithNoDependents_Succeeds` | Seed one Doctor. No availabilities, no appointments. `DeleteAsync(id)` returns; Doctor is soft-deleted. |
+| 3 | `DeleteAsync_WithNoDependents_Succeeds` | Seed one Doctor. No availabilities, no appointments, no preferred locations. `DeleteAsync(id)` returns; Doctor is soft-deleted. |
 | 4 | `DeleteAsync_WithDoctorAvailability_Throws` | Seed one Doctor + one `DoctorAvailability`. `DeleteAsync(id)` throws with code `DoctorCannotDeleteWithDependents` and `WithData("entity", "DoctorAvailability")`. |
 | 5 | `DeleteAsync_WithAppointment_Throws` | Seed one Doctor + one Appointment chain (Patient + IdentityUser + AppointmentType + Location + DoctorAvailability + Appointment). `DeleteAsync(id)` throws with `entity="Appointment"`. |
+| 6 | `DeleteAsync_WithActiveDoctorPreferredLocation_Throws` | Seed one Doctor + one `DoctorPreferredLocation` with `IsActive=true`. `DeleteAsync(id)` throws with `entity="DoctorPreferredLocation"`. |
+| 7 | `DeleteAsync_WithOnlyInactivePreferredLocation_Succeeds` | Seed one Doctor + one `DoctorPreferredLocation` with `IsActive=false`. `DeleteAsync(id)` returns successfully (audit-history rows do not block delete). |
 
-Skip-tag a 6th test that requires the M2M seeding helper that
-does not yet exist in the test base:
+Tests 1-5 cover the original plan; tests 6-7 cover the Q2 Option A
+decision (filter `DoctorPreferredLocation` count by `IsActive`).
 
-```csharp
-[Fact(Skip = "Pending DoctorAppointmentType test-seed helper -- see plan 7 (tests + hardening)")]
-public async Task DeleteAsync_WithDoctorAppointmentType_Throws() { /* ... */ }
-```
+No tests for `DoctorLocation` or `DoctorAppointmentType` -- per
+Q1 Option C those are intentionally NOT probed, so there is no
+guard behavior to assert against.
 
 ### Manual UI verification
 
