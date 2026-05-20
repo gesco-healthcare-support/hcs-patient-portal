@@ -2,8 +2,19 @@
 id: OBS-11
 title: Repeated System.FormatException (Base-64) in api logs during packet generation
 severity: observation
+status: resolved-via-bug-020
+fixed: 2026-05-19
 found: 2026-05-14 during Workflow B approval flow
 ---
+
+> **Resolved 2026-05-19 via BUG-020 fix.** Same root cause: ABP's default
+> `Abp.Mailing.Smtp.Password` setting definition declared `IsEncrypted=true`
+> while the Docker dev stack provides the password as plaintext. Every
+> read through `ISettingProvider` triggered a `Convert.FromBase64String`
+> on the plaintext value, throwing `FormatException`. The
+> `SettingDefinitionProvider` now overrides `IsEncrypted=false`, so the
+> base-64 decode never runs. The noise that this observation flagged is
+> gone from API logs.
 
 # OBS-11 — Base-64 FormatException log noise during packet generation
 
