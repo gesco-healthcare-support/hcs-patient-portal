@@ -4,19 +4,28 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
-import { RestService } from '@abp/ng.core';
+import { ConfigStateService, RestService } from '@abp/ng.core';
 
 /**
- * IT-Admin-only form for creating a new internal user (Clinic Staff or
- * Staff Supervisor). Hits POST /api/app/internal-users on submit.
- * Auto-generated temporary password is emailed to the new user via
+ * Internal-user creation form, reachable by host IT Admin (at
+ * admin.localhost) and by per-tenant `admin` users on their own
+ * subdomain. Hits POST /api/app/internal-users on submit. The
+ * auto-generated temporary password is emailed to the new user via
  * INotificationDispatcher (Hangfire queue); the password is NEVER
  * shown in the response or in this UI -- the email is the only
  * channel it leaves the server through.
  *
- * Tenant resolution: IT Admin is host-scoped (admin.localhost), so
- * the form carries a tenant picker dropdown populated from
- * GET /api/app/internal-users/tenants.
+ * Tenant resolution:
+ *   - Host caller (IT Admin): no `currentTenant.id`. Render the
+ *     dropdown as an editable picker fed by
+ *     GET /api/app/internal-users/tenants so the IT Admin chooses
+ *     which tenant the new user lands in.
+ *   - Tenant caller (tenant admin): `currentTenant.id` is set.
+ *     Render the dropdown as a single-option, disabled select
+ *     pre-filled with the current tenant's name. The reactive form
+ *     still carries the id so the existing payload shape is
+ *     unchanged; the server-side gate in InternalUsersAppService
+ *     rejects mismatched tenant ids defensively.
  *
  * Server-side enforcement of role allow-list (Clinic Staff, Staff
  * Supervisor) is authoritative; this component's dropdown only shows
@@ -32,6 +41,7 @@ export class InternalUsersFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly restService = inject(RestService);
   private readonly router = inject(Router);
+  private readonly configState = inject(ConfigStateService);
 
   // Server-side allow-list (must mirror InternalUsersAppService.CreatableRoleNames).
   // Order matches the OLD UI's dropdown order.
@@ -53,6 +63,11 @@ export class InternalUsersFormComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly tenantsLoading = signal<boolean>(true);
   readonly tenants = signal<Array<{ id: string; displayName: string }>>([]);
+  // 2026-05-19 -- true when the form is being rendered for a tenant
+  // admin (current session already has a tenant). The dropdown is
+  // disabled in this branch so the user can see which tenant they
+  // are operating in but cannot pick a different one.
+  readonly tenantLocked = signal<boolean>(false);
   readonly result = signal<{
     email: string;
     firstName: string;
@@ -63,9 +78,23 @@ export class InternalUsersFormComponent implements OnInit {
   } | null>(null);
 
   async ngOnInit(): Promise<void> {
-    // Populate the tenant dropdown on mount. The endpoint runs in host
-    // context and returns every active tenant; the form's `tenantId`
-    // control is required so the user has to make an explicit choice.
+    // Branch on session scope: tenant admins are pre-bound to their
+    // own tenant, host IT Admins choose from the full tenant list.
+    const tenantFromSession = this.currentTenantFromSession();
+    if (tenantFromSession) {
+      // Tenant admin path: single-option list, disabled dropdown,
+      // form pre-filled with the tenant id we already know.
+      this.tenants.set([tenantFromSession]);
+      this.tenantLocked.set(true);
+      this.form.patchValue({ tenantId: tenantFromSession.id });
+      this.form.get('tenantId')?.disable({ emitEvent: false });
+      this.tenantsLoading.set(false);
+      return;
+    }
+
+    // Host IT Admin path: hit the tenant lookup endpoint to populate
+    // the picker. `tenantId` stays required so the submit is blocked
+    // until an explicit choice is made.
     try {
       const response = await firstValueFrom(
         this.restService.request<
@@ -93,6 +122,23 @@ export class InternalUsersFormComponent implements OnInit {
     } finally {
       this.tenantsLoading.set(false);
     }
+  }
+
+  /**
+   * Read the current ABP tenant from ConfigStateService. Returns null
+   * when the SPA is rendering on the host (admin.localhost) -- the
+   * `currentTenant.id` field is absent there. Mirrors the shape used
+   * in `appointment-add.component.ts` / `home.component.ts`.
+   */
+  private currentTenantFromSession(): { id: string; displayName: string } | null {
+    const ct = this.configState.getOne('currentTenant') as
+      | { id?: string; name?: string }
+      | null
+      | undefined;
+    if (!ct?.id) {
+      return null;
+    }
+    return { id: ct.id, displayName: ct.name ?? ct.id };
   }
 
   async onSubmit(): Promise<void> {
@@ -182,6 +228,11 @@ export class InternalUsersFormComponent implements OnInit {
       roleName: '',
       phoneNumber: '',
     });
+    // `form.reset()` re-enables disabled controls. Re-apply the lock so
+    // the tenant-admin branch keeps the dropdown visually pinned.
+    if (this.tenantLocked()) {
+      this.form.get('tenantId')?.disable({ emitEvent: false });
+    }
     this.result.set(null);
     this.errorMessage.set(null);
   }

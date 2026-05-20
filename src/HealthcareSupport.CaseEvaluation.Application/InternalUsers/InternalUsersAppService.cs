@@ -121,10 +121,35 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                 .WithData("AllowedRoles", string.Join(", ", CreatableRoleNames));
         }
 
-        // 2. Validate tenant is supplied. IT Admin is host-scoped, so
-        //    CurrentTenant.Id is null; the form's tenant picker is the
-        //    only authoritative source for the target tenant.
-        if (input.TenantId == Guid.Empty)
+        // 2. Resolve the target tenant id. There are three legitimate
+        //    branches:
+        //      a) Host caller (IT Admin) with a non-empty input.TenantId
+        //         -- use it as-is; the tenant picker on the form is the
+        //         source of truth.
+        //      b) Tenant caller (tenant admin) with empty input.TenantId
+        //         -- default to CurrentTenant.Id. The SPA pre-fills the
+        //         disabled picker with this value already; sending empty
+        //         is the documented "let the server fill it" signal.
+        //      c) Tenant caller (tenant admin) with non-empty input.TenantId
+        //         that matches CurrentTenant.Id -- accept (form sent the
+        //         pre-fill back). Mismatched ids are rejected because a
+        //         tenant admin must not create users in another tenant.
+        //    The remaining illegitimate shape (host caller with empty
+        //    input.TenantId) is still rejected via TenantRequired.
+        var resolvedTenantId = input.TenantId;
+        if (CurrentTenant.Id.HasValue)
+        {
+            if (resolvedTenantId == Guid.Empty)
+            {
+                resolvedTenantId = CurrentTenant.Id.Value;
+            }
+            else if (resolvedTenantId != CurrentTenant.Id.Value)
+            {
+                throw new BusinessException(
+                    CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch);
+            }
+        }
+        else if (resolvedTenantId == Guid.Empty)
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.InternalUserTenantRequired);
@@ -132,7 +157,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
 
         // 3. Resolve the tenant display name in host context (Tenant
         //    rows are host-scoped per Volo SaaS).
-        var tenantName = await ResolveTenantNameAsync(input.TenantId);
+        var tenantName = await ResolveTenantNameAsync(resolvedTenantId);
         if (string.IsNullOrWhiteSpace(tenantName))
         {
             throw new BusinessException(
@@ -142,8 +167,10 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         // 4. Switch to the target tenant context for the remainder of
         //    the flow. Role lookup, duplicate-email check, and user
         //    create all run under this scope so the IdentityUser row
-        //    is owned by the tenant (not the host).
-        using (CurrentTenant.Change(input.TenantId))
+        //    is owned by the tenant (not the host). For a tenant-admin
+        //    caller this is the same id as the surrounding CurrentTenant;
+        //    for an IT Admin caller this switches host -> target tenant.
+        using (CurrentTenant.Change(resolvedTenantId))
         {
             // 4a. Confirm the role exists in the tenant. Seeded by
             //     InternalUserRoleDataSeedContributor; if missing, it

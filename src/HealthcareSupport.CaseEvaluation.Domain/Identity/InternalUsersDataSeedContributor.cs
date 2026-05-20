@@ -36,19 +36,22 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     public const string ItAdminEmail = "it.admin@hcs.test";
 
     /// <summary>
-    /// 2026-05-06 -- additional per-tenant admin emails seeded for the
-    /// end-to-end demo scripts. These get the same `admin` role as
-    /// `admin@&lt;tenantSlug&gt;.test` and the same password. They are
-    /// intended for the appointment-lifecycle test plan where two human
-    /// testers each need their own admin account in the same tenant
-    /// (Falkinstein) so they can independently book + approve / reject
-    /// appointments without trampling each other's session state.
-    /// Development-gated like the rest of the seeder.
+    /// 2026-05-19 -- additional per-tenant seeded users for the demo
+    /// scripts. Each entry pairs an email with the tenant-scoped role to
+    /// assign. Replaces the previous flat `ExtraTenantAdminEmails` array
+    /// (which hard-coded the `admin` role) so role assignment is
+    /// expressive enough to seed Staff Supervisor / Clinic Staff demo
+    /// accounts directly. Development-gated like the rest of the seeder.
+    ///
+    /// The demo accounts are the ones used by Adrian's hardening test
+    /// runs; renaming or removing one here will leave any prior DB rows
+    /// untouched -- the seeder is idempotent only for the emails it
+    /// still lists.
     /// </summary>
-    public static readonly string[] ExtraTenantAdminEmails =
+    public static readonly (string Email, string RoleName)[] ExtraSeededUsers =
     {
-        "SoftwareOne@evaluators.com",
-        "SoftwareTwo@evaluators.com",
+        ("stafsuper1@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
+        ("clistaff1@gesco.com",  InternalUserRoleDataSeedContributor.ClinicStaffRoleName),
     };
 
     private readonly IdentityUserManager _userManager;
@@ -142,19 +145,20 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     tenantId: tenantId);
             }
 
-            // 2026-05-06 (Adrian directive): also seed the extra demo
-            // admin emails into every tenant. Idempotent -- if an
-            // already-registered external user happens to share the same
-            // email, EnsureUserWithRoleAsync will leave the row alone and
-            // just add the admin role. (For the test plan we delete the
-            // matching external rows beforehand via the dev API so the
-            // seeder creates a fresh admin user.)
-            foreach (var extraEmail in ExtraTenantAdminEmails)
+            // 2026-05-19 (replaces 2026-05-06): also seed the extra demo
+            // accounts that Adrian uses for hardening test runs. Each
+            // entry carries an explicit role so the seed can produce
+            // Staff Supervisor + Clinic Staff demo logins directly
+            // instead of routing them through the `admin` role.
+            // Idempotent -- existing rows (including legacy
+            // SoftwareOne/Two@evaluators.com seeded prior to 2026-05-19)
+            // are not touched here; cleanup is a separate manual step.
+            foreach (var (extraEmail, extraRoleName) in ExtraSeededUsers)
             {
                 await EnsureUserWithRoleAsync(
                     email: extraEmail,
                     userName: extraEmail,
-                    roleName: "admin",
+                    roleName: extraRoleName,
                     tenantId: tenantId);
             }
         }
@@ -299,8 +303,10 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             "supervisor" => ("Staff", "Supervisor"),
             "staff" => ("Clinic", "Staff"),
             "it.admin" => ("IT", "Administrator"),
-            "softwareone" => ("Software", "One"),
-            "softwaretwo" => ("Software", "Two"),
+            // 2026-05-19 -- demo accounts for the hardening test plan.
+            // Names are synthetic (.claude/rules/test-data.md).
+            "stafsuper1" => ("Patrick", "O'Neal"),
+            "clistaff1" => ("Rachel", "Kim"),
             _ => ("Test", "User"),
         };
     }
@@ -320,8 +326,11 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             "supervisor" => "555-010-0002",
             "staff" => "555-010-0003",
             "it.admin" => "555-010-0004",
-            "softwareone" => "555-010-0005",
-            "softwaretwo" => "555-010-0006",
+            // 2026-05-19 -- demo accounts. Numbers were 0005/0006 for
+            // the prior SoftwareOne/Two seed; reused here so any test
+            // fixtures keyed on those numbers keep working.
+            "stafsuper1" => "555-010-0005",
+            "clistaff1" => "555-010-0006",
             _ => "555-010-0099",
         };
     }

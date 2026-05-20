@@ -211,6 +211,17 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:InternalUser.TenantRequired";
 
     /// <summary>
+    /// 2026-05-19 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when a tenant-scoped caller (CurrentTenant.Id != null) passes a
+    /// non-empty <c>input.TenantId</c> that does not match their own
+    /// tenant. Prevents a tenant admin from creating users inside
+    /// another tenant by hand-crafting an API call. Localization key
+    /// <c>InternalUser:TenantMismatch</c>.
+    /// </summary>
+    public const string InternalUserTenantMismatch =
+        "CaseEvaluation:InternalUser.TenantMismatch";
+
+    /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
     /// <c>AvailableDate</c> falls inside the per-tenant
@@ -562,19 +573,6 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string RegistrationFirmNameRequired =
         "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
-
-    /// <summary>
-    /// 2026-05-06 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
-    /// when <c>UserType</c> is anything other than <c>Patient</c>. The
-    /// public register form is Patient-only per
-    /// <c>project_external-registration-role</c> memory; non-Patient
-    /// external accounts are admin-provisioned through the invite flow.
-    /// Defense-in-depth against tampered clients (the SPA already removed
-    /// the User Type dropdown). Localization key
-    /// <c>Registration:RoleNotAllowedForPublicSignup</c>.
-    /// </summary>
-    public const string RegistrationRoleNotAllowed =
-        "CaseEvaluation:Registration.RoleNotAllowedForPublicSignup";
 
     /// <summary>
     /// 2026-05-13 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
