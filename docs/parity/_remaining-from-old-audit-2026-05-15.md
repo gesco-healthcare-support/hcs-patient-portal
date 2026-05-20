@@ -1,6 +1,7 @@
 ---
 title: Remaining work to port from OLD Patient Portal — 2026-05-15 snapshot
 date: 2026-05-15
+last-triage: 2026-05-20 (targeted refresh of sections touched by PRs #201-#204, #207, BUG-023 / BUG-024 fixes, brand rename)
 author: Claude / Adrian
 scope: Cross-cutting gap analysis comparing every OLD feature against current NEW implementation
 status: snapshot (point-in-time)
@@ -11,6 +12,22 @@ sources:
   - W:\patient-portal\main\src\ (NEW backend, ~59,000 LOC C#)
   - W:\patient-portal\main\angular\src\app\ (NEW frontend, 66 components / ~9,900 LOC)
   - W:\patient-portal\main\docs\parity\wave-1-parity\ (43 existing audit docs)
+refresh-log:
+  - 2026-05-20: sections 2.A (AME role gate -> OBS-23; 6 booking
+    validators -> OBS-24; 1 injury-duplicate verified Implemented;
+    accessor-add at booking flipped to intentional deviation),
+    2.B (external-user field masking -> verified Implemented),
+    2.C, 2.D (BUG-027 filed + fixed), 2.E, 2.EE (RoleAppointmentType
+    -> OBS-23), 2.G (attachmentLink not implemented; magic-link
+    still TO VERIFY -- needs docker), 2.H (Cascade JDF docs verified
+    Implemented with intentional parity for non-ad-hoc JDF), 2.I
+    (ResponsibleUserId on ad-hoc -> intentional deviation), 2.K
+    (auto-create accessor + role-consistency both flipped: one to
+    deviation, one to OBS-24 V6), 2.U, 2.V, 2.BB, 10.B, 10.D refreshed
+    against current code on feat/replicate-old-app. Section 3 access
+    matrix rows for AME / AME-REVAL also flipped to "No -- see
+    OBS-23". Sections not listed here are still at the 2026-05-15
+    baseline.
 ---
 
 # Remaining work to port from OLD Patient Portal
@@ -104,17 +121,17 @@ yet started.
 | Slot transitions: External → Reserved, Internal → Booked | AppointmentDomain.Add | **Mostly implemented** | NEW marks slot Booked directly (no Reserved-then-Booked two-step per OLD); confirm parity intent |
 | Re-Request form (after rejection, same confirmation #) | AppointmentDomain.AddValidation `IsReRequestForm` | **Implemented** (ResubmitAsync in NEW backend inventory) | |
 | Revolution form / REVAL pre-load (load original via confirmation #) | Project Overview §3.7 + Postman flag `isRevolutionForm` | **Implemented** per audit (CreateRevalAsync) | Verify behavior matches OLD's TempAppointmentInjuryDetails staging buffer pattern |
-| AME / AME-REVAL booking restricted to Attorneys (PARole+DARole) | Project Overview §3.3 matrix | **TO VERIFY** | Search for AME role gate; if absent, file new audit |
-| Accessor add at booking time (auto-create account if email not in User) | AppointmentAccessorDomain.Add | **TO VERIFY** — NEW has AppointmentAccessorsAppService but the auto-account-creation with random `{4chars}@{4chars}` password is OLD-specific | Decide if NEW should auto-create accessor accounts or send invite |
+| AME / AME-REVAL booking restricted to Attorneys (PARole+DARole) | Project Overview §3.3 matrix | **Not implemented** — see OBS-23 (filed 2026-05-20). Patient / Claim Examiner can POST AME bookings via direct API. Recommend A: small AppService gate. | |
+| Accessor add at booking time (auto-create account if email not in User) | AppointmentAccessorDomain.Add | **Not implemented (intentional deviation)** — NEW uses tokenized invite (PR #202) instead of random-password auto-create. See `OBS-24` discussion + audit row in section 2.K. | |
 | Accessor account: random password = `{4chars}@{4chars}` | OLD code | **Documented as security debt** | OLD-pattern security weakness; carry-over decision pending |
 | AccessTypeId (View=23 / Edit=24) controls accessor permissions | AppointmentAccessor.AccessTypeId | **Implemented** (AppointmentAccessRules.CanRead per audit) | |
-| Booking date < DOB validation | AppointmentDomain.CommonValidation | **TO VERIFY** | Spot-check NEW validators |
-| Injury date validation (≤ today; ≥ DOB) | AppointmentInjuryDetailDomain.AddValidation | **TO VERIFY** | |
-| Per-injury duplicate check (AppointmentId, ClaimNumber, DateOfInjury) | AppointmentInjuryDetailDomain.AddValidation | **TO VERIFY** | |
-| Cumulative trauma injury date-range (From + To) | AppointmentInjuryDetailDomain | **TO VERIFY** — NEW entity has InjuryDate; not clear if cumulative range supported | Check entity for `ToDateOfInjury` field |
-| Stakeholder email uniqueness (no duplicates patient/AA/DA/CE) | AppointmentDomain.CommonValidation | **TO VERIFY** | |
-| Accessor role consistency (email in User must match accessor.RoleId) | AppointmentAccessorDomain.AddValidation | **TO VERIFY** | |
-| Same-day reschedule time gate (today ≥ slot.AvailableDate ⇒ now-hour must be < FromTime) | AppointmentDomain.UpdateValidation | **TO VERIFY** | |
+| Booking date < DOB validation | AppointmentDomain.CommonValidation | **Not implemented** — see OBS-24 V1 (2026-05-20) | |
+| Injury date validation (≤ today; ≥ DOB) | AppointmentInjuryDetailDomain.AddValidation | **Not implemented** — see OBS-24 V2 + V3 (2026-05-20) | |
+| Per-injury duplicate check (AppointmentId, ClaimNumber, DateOfInjury) | AppointmentInjuryDetailDomain.AddValidation | **Implemented** — verified 2026-05-20. `AppointmentInjuryDetailManager.CreateAsync` lines 41-48 + UpdateAsync lines 82-91 enforce the tuple uniqueness. | |
+| Cumulative trauma injury date-range (From + To) | AppointmentInjuryDetailDomain | **Partial** — entity has `ToDateOfInjury`; no enforcement that ToDate > FromDate or that it's set when `IsCumulativeInjury=true`. See OBS-24 V4 (2026-05-20). | |
+| Stakeholder email uniqueness (no duplicates patient/AA/DA/CE) | AppointmentDomain.CommonValidation | **Not implemented** — see OBS-24 V5 (2026-05-20) | |
+| Accessor role consistency (email in User must match accessor.RoleId) | AppointmentAccessorDomain.AddValidation | **Not implemented** — see OBS-24 V6 (2026-05-20) | |
+| Same-day reschedule time gate (today ≥ slot.AvailableDate ⇒ now-hour must be < FromTime) | AppointmentDomain.UpdateValidation | **Not implemented** — see OBS-24 V7 (2026-05-20) | |
 
 ### 2.B Appointment view / detail
 
@@ -123,7 +140,7 @@ yet started.
 | Confirmation-number lookup endpoint | OLD `Appointments.search` + Home component | **Implemented** (GetByConfirmationNumberAsync) | |
 | Eager-load full graph (Patient + Attorneys + Injuries + BodyParts + Insurance + Examiners + Employer + Custom Fields + Accessors) | AppointmentDomain.Get(id) | **Implemented** per audit | Verify all child collections returned |
 | External user access rules: read access to creator OR accessor OR matching-email-on-AA/DA/CE/Patient | AppointmentDomain implicit by query joins | **Implemented** (AppointmentAccessRules.CanRead per audit; verified in R1 hardening 2026-05-14) | |
-| External users masked from internal fields (InternalUserComments, RejectionNotes when not own rejected, ResponsibleUser) | OLD by view-projection | **TO VERIFY** for InternalUserComments — was the security audit done? | Check DTO; ensure not echoed back to non-internal callers |
+| External users masked from internal fields (InternalUserComments, RejectionNotes when not own rejected, ResponsibleUser) | OLD by view-projection | **Implemented** — verified 2026-05-20. `InternalUserComments` masked via `ExternalUserDtoFilter.MaskInternalFields` in `AppointmentsAppService.GetAsync` + `GetWithNavigationPropertiesAsync`. `RejectionNotes` and `PrimaryResponsibleUserId` are NOT exposed on `AppointmentDto` at all (entity-only fields; Mapperly auto-mapper skips them). | |
 | Patient self-view of own appointments by Patient.IdentityUserId | OLD | **Implemented** | |
 
 ### 2.C Appointment approval / rejection
@@ -131,11 +148,11 @@ yet started.
 | Item | OLD source | NEW status | Notes |
 |---|---|---|---|
 | ApproveAsync endpoint | AppointmentDomain.Update with status=Approved + IsInternalUserUpdateStatus | **Implemented** (Phase 12) | |
-| RejectAsync endpoint with rejectionNotes (required server-side) | Same | **Implemented** but BUG-024 (open): rejection accepts empty notes server-side | See `docs/runbooks/findings/bugs/BUG-024-reject-accepts-empty-reason.md` |
+| RejectAsync endpoint with rejectionNotes (required server-side) | Same | **Implemented** (BUG-024 fixed 2026-05-19 via commit `5da5c31`) | Empty/whitespace rejection notes now throw 400 with `AppointmentRejectionReasonRequired` |
 | Responsible Team Member dropdown + persistence | Project Overview §3.13 verbatim | **Implemented** (PrimaryResponsibleUserId persisted via approve endpoint per current code) | UI may not yet pick from full clinic-staff list |
 | Different doc-packet emails: patient receives package; responsible internal user receives "internal" packet | Project Overview §3.13 verbatim | **Partially implemented** | Patient packet, attorney/CE packet implemented; internal-user "responsible team member" filled packet separately TBD |
 | Patient-match notice on approve (manual link override) | Project Overview §3.12 | **Not implemented** | Backend + UI absent |
-| Re-approving already-approved → 403/state-machine error | OLD allows; NEW throws AppointmentInvalidTransition | **Implemented** | Status code maps to 403 (BUG-024-related; should be 400 per BUG-023 pattern) |
+| Re-approving already-approved → 400/state-machine error | OLD allows; NEW throws AppointmentInvalidTransition | **Implemented** (BUG-024 second half fixed 2026-05-19 via `5da5c31`) | Status code now 400 (was 403 per legacy BUG-023 pattern) |
 | Audit log entry on approve (FieldName=AppointmentStatusId, Old=Pending, New=Approved) | AppointmentChangeLogDomain.ChangeLogs | **TO VERIFY** — ABP `[Audited]` may or may not capture this in a shape the UI expects | Audit doc says deferred; mapping to OLD DTO not done |
 
 ### 2.D Reschedule (request + approval)
@@ -147,7 +164,7 @@ yet started.
 | Approve reschedule creates NEW Appointment row with same RequestConfirmationNumber + cascade-copies all child entities | Project Overview §3.10 verbatim | **Mostly implemented** (Phase 17 ApproveRescheduleAsync + AppointmentRescheduleCloner) | Cascade-copy of CustomFieldValues, Accessors, JointDeclaration history per OLD — confirm coverage |
 | Reschedule outcome bucket (Late vs NoBill manually selected by supervisor) | Project Overview §3.8 | **Implemented** | |
 | Slot transitions: new slot Available → Reserved on submit; old slot Booked stays until approve; old → Available + new → Booked on approve; new → Available on reject | AppointmentChangeRequestDomain.Update | **Mostly implemented** | Spot-test reject path releases the new slot |
-| ReScheduleReason required (server-side) | Domain validation | **TO VERIFY** — same gap pattern as BUG-024 might apply | |
+| ReScheduleReason required (server-side) | Domain validation | **Implemented** (BUG-027 fixed 2026-05-20). Whitespace-only payloads now caught at AppService boundary with HTTP 400, matching cancellation path. | |
 | Admin reschedule (supervisor modifies date before approval) with `AdminReScheduleReason` field | AppointmentChangeRequestDomain.Update isAdminReschedule | **TO VERIFY** | OLD column exists; NEW DTO has `RescheduleOutcome` but admin-modify-date flow not obviously wired |
 | Reschedule lead-time + max-time enforcement (with `IsBeyodLimit=true` admin override) | AppointmentChangeRequestDomain.AddValidation | **Partial** | |
 | Document upload on reschedule (AppointmentChangeRequestDocuments) | OLD has dedicated child entity | **Not implemented** in NEW — change requests have no doc-upload surface | File audit if needed |
@@ -158,7 +175,7 @@ yet started.
 |---|---|---|---|
 | RequestCancellationAsync (external user submits) | AppointmentChangeRequestDomain.Add | **Implemented** (Phase 15) | |
 | `AppointmentCancelTime` cutoff check (days before slot) | AppointmentChangeRequestDomain.AddValidation | **Implemented** — verify against vSystemParameter default of 1 day | |
-| CancellationReason required (server-side) | Domain validation | **TO VERIFY** (BUG-024 pattern; may apply here too) | |
+| CancellationReason required (server-side) | Domain validation | **Implemented** — verified 2026-05-20. `AppointmentChangeRequestsAppService.cs:60-63` has the correct `input == null OR IsNullOrWhiteSpace(input.Reason)` gate. | |
 | Approve cancellation: status → CancelledNoBill OR CancelledLate (manual selection) | Project Overview §3.8 verbatim | **Implemented** (Phase 17) | |
 | Slot release on approval (Booked → Available) | OLD implicit | **Implemented** per audit | |
 | Reject cancellation: revert appointment to Approved | OLD | **Implemented** | |
@@ -193,7 +210,7 @@ yet started.
 | Reminder cadence (T-7 / T-3 / T-1 or single cutoff) | OLD scheduler job | **Mostly implemented** — PackageDocumentReminderJob exists | MVP fires once; T-7/T-3/T-1 cadence is post-MVP |
 | Document upload size cap | OLD client-side 10 MB only | **BUG-025 open: no server-side cap, only Kestrel default ~30 MB** | See bug file; recommend 10 MB cap to match OLD |
 | Content-type allowlist (PDF, DOCX, PNG, JPG) | OLD client-side "word only" | **Not implemented** | File new audit OR BUG-025b |
-| `attachmentLink` (HTML hyperlink for emails) | OLD AppointmentDocuments.AttachmentLink | **TO VERIFY** | |
+| `attachmentLink` (HTML hyperlink for emails) | OLD AppointmentDocuments.AttachmentLink | **Not implemented** — verified 2026-05-20. `grep AttachmentLink` returns no matches anywhere in NEW src. NEW emails use signed-URL pattern instead. | Likely accepted deviation; document in `_parity-flags.md` |
 
 ### 2.H Document upload — Joint Declaration Form (JDF, AME-only)
 
@@ -204,7 +221,7 @@ yet started.
 | Booking-attorney-only upload | Same | **Implemented** | |
 | Auto-cancel job (Hangfire) when JDF missing N days before DueDate | OLD scheduler job + Project Overview §3.9 verbatim | **Implemented** (JointDeclarationAutoCancelJob) | |
 | Per-document accept/reject | OLD AppointmentJointDeclarationDomain.Update | **Implemented** per audit | |
-| Cascade JDF documents into next-appointment on reschedule | OLD AppointmentRescheduleCloner | **TO VERIFY** | |
+| Cascade JDF documents into next-appointment on reschedule | OLD AppointmentRescheduleCloner | **Implemented (parity preserved)** — verified 2026-05-20. `AppointmentRescheduleCloner.CloneAdHocDocumentFor` line 436 carries forward `IsJointDeclaration` flag on ad-hoc-flagged docs. Per OLD line 526, JDF non-ad-hoc docs intentionally stay on source row. NEW matches. | |
 | JDF rejection email (with remaining count) | OLD PatientDocumentRejected (+RemainingDocs) template | **Template seeded; handler unwired** | |
 
 ### 2.I Document upload — ad-hoc / new documents (AppointmentNewDocuments)
@@ -212,7 +229,7 @@ yet started.
 | Item | OLD source | NEW status | Notes |
 |---|---|---|---|
 | Ad-hoc upload endpoint (no VerificationCode, no DocumentPackageId) | OLD AppointmentNewDocumentDomain.Add | **Implemented** (IsAdHoc flag) | |
-| ResponsibleUserId set on add | OLD | **TO VERIFY** | |
+| ResponsibleUserId set on add | OLD | **Mostly implemented (intentional deviation)** — verified 2026-05-20. NEW only sets `ResponsibleUserId` when an internal-staff member is the uploader (initialStatus=Accepted) or on accept/reject review. External uploads stay null until review. OLD set it on every add; NEW's semantic ("responsible = who reviewed it") is arguably more correct. | Document in `_parity-flags.md` if explicit deviation log is preferred |
 | Internal-user fast-path (auto-accept) | OLD | **Implemented** | |
 | Email PatientNewDocumentUploaded / Accepted / Rejected | OLD templates | **Mostly implemented**; subjects unified | |
 | OLD's parallel `AppointmentNewDocuments` table — keep or unify with AppointmentDocuments? | Schema | **NEW unified into single AppointmentDocument entity with IsAdHoc flag** | Accepted deviation; document in `_parity-flags.md` |
@@ -237,10 +254,10 @@ yet started.
 | Item | OLD source | NEW status | Notes |
 |---|---|---|---|
 | CRUD endpoints | OLD AppointmentAccessorsController | **Implemented** | |
-| Auto-create accessor user account on first add | OLD AppointmentAccessorDomain.Add | **TO VERIFY** | Likely not implemented; NEW may require pre-existing user |
+| Auto-create accessor user account on first add | OLD AppointmentAccessorDomain.Add | **Not implemented (intentional deviation)** — NEW uses tokenized invite flow (PR #202 + Invitation entity). Auto-creating accounts with random `{4chars}@{4chars}` passwords was an OLD security weakness; invite-token replacement is a deliberate improvement. | Document in `_parity-flags.md` if explicit deviation log is preferred |
 | Send AccessorAppointmentBooked email | OLD template | **Implemented** | |
 | AccessTypeId = 23 (View) vs 24 (Edit) | OLD AccessType lookup | **Implemented** as `AccessTypeId` field | Verify NEW honors Edit-only restriction |
-| Accessor email role-consistency check | OLD validation | **TO VERIFY** | |
+| Accessor email role-consistency check | OLD validation | **Not implemented** — see OBS-24 V6 (2026-05-20) | |
 
 ### 2.L Internal appointment notes (Notes entity, OLD)
 
@@ -370,22 +387,26 @@ yet started.
 
 ### 2.U Internal user management (IT-Admin CRUD)
 
+(Section refreshed 2026-05-20 after PR #203 + commit `a2efb9c`.)
+
 | Item | OLD source | NEW status | Notes |
 |---|---|---|---|
-| Add internal user with random password emailed | OLD UserDomain.AddInternalUser | **NOT STARTED** — grep returned no `InternalUserAppService` or `CreateInternalUserAsync` | High-priority gap; ABP Identity provides building blocks but no Patient Portal-specific AppService |
-| Auto-verify internal users (skip email-confirmation step) | OLD | **NOT STARTED** | |
-| Edit internal user (role, contact, active) | OLD | **NOT STARTED** in app-level surface; ABP Identity admin pages work for raw user editing but no role-aware Patient Portal screen | |
-| Soft-delete via StatusId | OLD | **NOT STARTED** in NEW (ABP ISoftDelete) | |
-| List filtered by IsExternalUser=false | OLD | **NOT STARTED** | |
-| Welcome email with credentials (plaintext OLD pattern; security debt) | OLD AddInternalUser template | **NOT STARTED** | Audit `it-admin-user-management.md` documents the gap |
-| UI: `/users` admin route with list + add + edit modal | OLD | **NOT STARTED** | |
+| Add internal user with random password emailed | OLD UserDomain.AddInternalUser | **Implemented** (PR #203, `InternalUsersAppService.CreateAsync`) | Both IT Admin (host scope, can pick tenant) and tenant admin (tenant scope, auto-filled) |
+| Auto-verify internal users (skip email-confirmation step) | OLD | **Implemented** | EmailConfirmed=true set on create |
+| Edit internal user (role, contact, active) | OLD | **TO VERIFY** — Create + List paths shipped; edit/deactivate UI may still be ABP-default | |
+| Soft-delete via StatusId | OLD | **TO VERIFY** (ABP ISoftDelete) | |
+| List filtered by IsExternalUser=false | OLD | **Implemented** (List uses IsExternalUser extension prop) | |
+| Welcome email with credentials (plaintext OLD pattern; security debt) | OLD AddInternalUser template | **Implemented as invite-token email** (no plaintext password) | NEW deviates from OLD's plaintext-credential pattern by intent (security improvement) |
+| UI: `/users` admin route with list + add + edit modal | OLD | **Mostly implemented** — list + create modal shipped; edit UI uses ABP Identity admin | |
 
 ### 2.V External user management
+
+(Section refreshed 2026-05-20 after PR #202 + `Invitation` entity ship.)
 
 | Item | OLD source | NEW status | Notes |
 |---|---|---|---|
 | External user self-registration | OLD UserDomain.AddExternalUser | **Implemented** (Phase 8 ExternalSignupAppService) | |
-| `/users/invite` flow (IT-Admin invites external users) | NEW addition (no OLD equiv per inventory) | **Implemented** | NEW improvement over OLD |
+| `/users/invite` flow (IT-Admin invites external users) | NEW addition (no OLD equiv per inventory) | **Implemented via tokenized invite** (PR #202) | Invitation entity + migration `20260515183211_Added_Invitations` + InvitationManager. Token-based email link; no plaintext password emitted |
 | Block external user (flip IsActive) | OLD UserDomain.Update | **TO VERIFY** — ABP Identity admin can deactivate; verify Patient Portal UI surfaces this | |
 | `IsAccessor` flag on external user | OLD Users.IsAccessor | **Implemented** as extension prop per audit | |
 | `IsVerified` flag (OLD) ↔ `EmailConfirmed` (NEW) | OLD Users.IsVerified ↔ ABP IdentityUser | **Implemented** with mapping | |
@@ -480,8 +501,8 @@ Plus NEW-specific jobs:
 | Email-confirmation sent | OLD | **Implemented** | |
 | Generic duplicate-email error (no echo of email; HIPAA-safe) | NEW security hardening | **Implemented** (PR #197) | |
 | Rate-limit on /external-signup/register (5/hr/IP → 429) | NEW security hardening | **Implemented** (PR #197) | |
-| HTTP 400 (not 403) on validation errors | OLD returns mixed; NEW BUG-023 still open | **Partial — ConfirmPasswordMismatch + FirmNameRequiredForAttorney still 403** | See BUG-023 file; one-line fix |
-| Terms & Conditions checkbox + modal | OLD term-and-condition.component | **NOT STARTED** | grep confirmed; no T&C in NEW Angular |
+| HTTP 400 (not 403) on validation errors | OLD returns mixed; NEW | **Implemented** (BUG-023 fixed 2026-05-19 via commit `25a50c6` + `d5d95d1`) | Const name corrected to `ConfirmPasswordMismatch`; HTTP 400 mapping added in HttpApi.Host module |
+| Terms & Conditions checkbox + modal | OLD term-and-condition.component | **Implemented** on AuthServer Razor (PR #204, commit `39477af`) | Modal appears during registration; SPA path retired |
 | Patient defaults on signup: Gender=Male, DOB=Today, PhoneNumberType=Home (hardcoded) | NEW ExternalSignupAppService | **Implemented as workaround** | Decide: prompt for real values or keep hardcoded |
 | OLD bug: duplicate `PatientAttorney` check | OLD | **Fixed in NEW** | |
 | OLD bug: dead `FirmName` assignment | OLD | **Fixed in NEW** | |
@@ -513,7 +534,7 @@ Plus NEW-specific jobs:
 |---|---|---|---|
 | 7 OLD roles: ITAdmin / StaffSupervisor / ClinicStaff / Patient / Adjuster / PatientAttorney / DefenseAttorney | OLD Roles table | **All 7 in NEW** (Adjuster→ClaimExaminer; Doctor role removed) | |
 | `RoleUserType` (Role × Internal/External) | OLD | **Replaced by ABP role properties / IsExternalUser extension prop** | Accepted deviation |
-| `RoleAppointmentType` (which roles can request which appt types — only attorneys can request AME) | OLD | **TO VERIFY** | OLD permission table; NEW relies on backend gate |
+| `RoleAppointmentType` (which roles can request which appt types — only attorneys can request AME) | OLD | **Not implemented** — see OBS-23 (filed 2026-05-20). NEW has no backend gate. | OLD permission table; NEW would need a small AppService check or a per-tenant policy table |
 | `RolePermission` (Role × ApplicationModule with CanView/Add/Edit/Delete) | OLD | **Replaced by ABP PermissionDefinitionProvider** | |
 | `ApplicationModule` hierarchy (parent/child modules) | OLD | **Mapped to NEW permission tree** (44 constants) | Verify all OLD modules covered |
 | `ApplicationObject` permissions | OLD | **Mapped to NEW permission Default/Create/Edit/Delete children** | |
@@ -833,9 +854,9 @@ status against NEW permissions:
 |---|---|---|---|
 | Registration / Login / Forgot / Manage Profile | All external roles | ABP Identity built-in | Yes |
 | Appointment Request (PQME) | Patient + Adjuster + AA + DA | `Appointments.Create` | Yes (no per-type role gate) |
-| Appointment Request (AME) | AA + DA only | `Appointments.Create` + AME-type-role gate | **AME role gate TO VERIFY** |
+| Appointment Request (AME) | AA + DA only | `Appointments.Create` + AME-type-role gate | **No -- see OBS-23 (2026-05-20)** |
 | Appointment Request (PQME-REVAL) | All external | `Appointments.Create` + REVAL flow | Yes |
-| Appointment Request (AME-REVAL) | AA + DA only | Same | **AME role gate TO VERIFY** |
+| Appointment Request (AME-REVAL) | AA + DA only | Same | **No -- see OBS-23 (2026-05-20)** |
 | View Appointment Request | Appointment Owner | Access rules | Yes |
 | Upload Package Documents | Patient + Owner | `AppointmentDocuments.Default` | Yes |
 | Upload Joint Declaration | Owner (attorney) | JDF rules | Yes |
@@ -893,8 +914,11 @@ status against NEW permissions:
 
 ### 10.B Branding (32 hardcoded items in OLD)
 
+(Section refreshed 2026-05-20: brand rename complete.)
+
 - Audit `_branding.md` documents the migration plan (8-step Phase 1)
 - NEW has `_brand.scss` with 26 brand tokens — pixel-perfect color/font match (per CLAUDE.md Primary Mission)
+- "Appointment Portal" brand rename shipped (commit `f9d73de feat(brand): rename to "Appointment Portal" across SPA + AuthServer + emails`)
 - Gap: Tenant override layer for logo / clinic name / phone / email / fax (Phase 1 ongoing per `_branding.md`)
 
 ### 10.C i18n / Localization
@@ -905,10 +929,12 @@ status against NEW permissions:
 
 ### 10.D HIPAA / PHI hygiene
 
+(Section refreshed 2026-05-20: BUG-023 closed.)
+
 - All test data must be synthetic (per CLAUDE.md hipaa.md rule)
 - NEW additions: rate limiting on registration, generic duplicate-email message, no echo of input
-- Gap: BUG-023 (validation errors return 403 instead of 400) — confusion not leakage but UX
-- Gap: BUG-025 (no document upload size cap) — DoS risk
+- ~~Gap: BUG-023 (validation errors return 403 instead of 400)~~ — FIXED 2026-05-19 (commits `25a50c6` + `d5d95d1`)
+- Gap: BUG-025 (no document upload size cap) — DoS risk, still open
 - Open: content-type allowlist on document uploads (recommend PDF/DOCX/PNG/JPG)
 
 ### 10.E Test data conventions
