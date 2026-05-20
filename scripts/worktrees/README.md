@@ -1,6 +1,6 @@
 # Worktree helper scripts
 
-Automation for the Patient Portal git-worktree workflow. Manages persistent worktrees (`main`, `development`, `staging`) and ad-hoc feature worktrees under `W:\patient-portal\` (= `C:\src\patient-portal\`).
+Automation for the Appointment Portal git-worktree workflow. Manages persistent worktrees (`main`, `development`, `staging`) and ad-hoc feature worktrees under `W:\patient-portal\` (= `C:\src\patient-portal\`).
 
 The intended runtime is **`docker compose up -d`** inside any worktree. Host ports and URL env vars are parameterised in `docker-compose.yml` (see `docs/runbooks/DOCKER-DEV.md`); per-worktree overrides live in each worktree's gitignored `.env`.
 

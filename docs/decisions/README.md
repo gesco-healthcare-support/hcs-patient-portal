@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 This directory captures significant architectural and technical decisions for the
-CaseEvaluation Patient Portal. Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+CaseEvaluation Appointment Portal. Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 and records the context, decision, consequences, and alternatives considered.
 
 ## How to Add a New ADR

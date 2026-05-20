@@ -6,7 +6,7 @@
 
 ## Context
 
-The Patient Portal manages IME (Independent Medical Examination) appointments for
+The Appointment Portal manages IME (Independent Medical Examination) appointments for
 workers' compensation cases. The business model is that each doctor operates as an
 independent practice. Gesco (the company) onboards each doctor as a separate client.
 
