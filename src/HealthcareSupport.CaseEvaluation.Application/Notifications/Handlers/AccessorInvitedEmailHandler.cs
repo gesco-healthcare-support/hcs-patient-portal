@@ -158,7 +158,10 @@ public class AccessorInvitedEmailHandler :
         {
             return DefaultAuthServerBaseUrl;
         }
-        return configured.TrimEnd('/');
+        // BUG-014 (Task A): prepend tenant subdomain so the tenant-less base
+        // URL from Settings__CaseEvaluation__Notifications__AuthServerBaseUrl
+        // becomes <tenant>.localhost:<port>. No-op on already-prefixed URLs.
+        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), _currentTenant.Name)!;
     }
 
     /// <summary>

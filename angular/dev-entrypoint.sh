@@ -4,6 +4,44 @@ DIST=/app/dist/CaseEvaluation/browser
 INDEX="$DIST/index.html"
 ENV_SRC=/app/dynamic-env.json
 
+# BUG-015 (Task B, 2026-05-20): write runtime config to $ENV_SRC from
+# container env vars. Replaces the previous bind-mount of
+# docker/dynamic-env.json (tracked-in-repo with hardcoded canonical URLs).
+# The existing concurrently second-process below copies this into $DIST
+# after ng build's first iteration; the existing ensure_dynamic_env loop
+# re-copies if ng watch ever clobbers it.
+NG_PORT_VALUE="${NG_PORT:-4200}"
+AUTH_PORT_VALUE="${AUTH_PORT:-44368}"
+API_PORT_VALUE="${API_PORT:-44327}"
+cat > "$ENV_SRC" <<EOF
+{
+  "production": false,
+  "application": {
+    "baseUrl": "http://localhost:${NG_PORT_VALUE}",
+    "name": "CaseEvaluation",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "http://localhost:${AUTH_PORT_VALUE}/",
+    "redirectUri": "http://localhost:${NG_PORT_VALUE}",
+    "clientId": "CaseEvaluation_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone CaseEvaluation",
+    "requireHttps": false
+  },
+  "apis": {
+    "default": {
+      "url": "http://localhost:${API_PORT_VALUE}",
+      "rootNamespace": "HealthcareSupport.CaseEvaluation"
+    },
+    "AbpAccountPublic": {
+      "url": "http://localhost:${AUTH_PORT_VALUE}",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}
+EOF
+
 ensure_dynamic_env() {
   while true; do
     if [ -f "$ENV_SRC" ] && [ -d "$DIST" ] && [ ! -f "$DIST/dynamic-env.json" ]; then

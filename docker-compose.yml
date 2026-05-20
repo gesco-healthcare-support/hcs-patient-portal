@@ -159,6 +159,16 @@ services:
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      # BUG-014 (Task A, 2026-05-20) -- App__AngularUrl supplies the SPA URL
+      # to CaseEvaluationSettingDefinitionProvider (via IConfiguration) as
+      # the tenant-less default for the Notifications.PortalBaseUrl setting.
+      # AuthServer:Authority (already env-var-driven below) supplies the
+      # default for Notifications.AuthServerBaseUrl. TenantUrlComposer at
+      # the resolve site prepends `${tenant}.` from ICurrentTenant.Name.
+      # (Earlier attempt: Settings:* env-var prefix. Blocked because Docker
+      # drops env-var names with literal dots; ABP's flat-key lookup needs
+      # `Settings:CaseEvaluation.Notifications.*` which env vars can't express.)
+      App__AngularUrl: "http://localhost:${NG_PORT:-4200}"
       # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
       BlobStoring__Minio__Endpoint: "minio:9000"
       BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
@@ -219,6 +229,16 @@ services:
       ConnectionStrings__Default: "Server=sql-server;Database=${DB_NAME:-CaseEvaluation};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       Redis__Configuration: redis
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
+      # BUG-014 (Task A, 2026-05-20) -- App__AngularUrl supplies the SPA URL
+      # to CaseEvaluationSettingDefinitionProvider (via IConfiguration) as
+      # the tenant-less default for the Notifications.PortalBaseUrl setting.
+      # AuthServer:Authority (already env-var-driven below) supplies the
+      # default for Notifications.AuthServerBaseUrl. TenantUrlComposer at
+      # the resolve site prepends `${tenant}.` from ICurrentTenant.Name.
+      # (Earlier attempt: Settings:* env-var prefix. Blocked because Docker
+      # drops env-var names with literal dots; ABP's flat-key lookup needs
+      # `Settings:CaseEvaluation.Notifications.*` which env vars can't express.)
+      App__AngularUrl: "http://localhost:${NG_PORT:-4200}"
       # Phase 2 (2026-05-11) -- Gotenberg sidecar for DOCX -> PDF
       # conversion in the packet pipeline. Service name resolves via
       # Docker's internal DNS; CaseEvaluationDomainModule reads this
@@ -283,6 +303,15 @@ services:
       dockerfile: Dockerfile.dev
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
+    environment:
+      # BUG-015 (Task B, 2026-05-20): per-stack port values passed into
+      # the container so dev-entrypoint.sh's heredoc can write a
+      # dynamic-env.json that reflects THIS stack's URLs (not canonical
+      # baked defaults). Compose-level interpolation defaults match the
+      # canonical ports.
+      NG_PORT: "${NG_PORT:-4200}"
+      AUTH_PORT: "${AUTH_PORT:-44368}"
+      API_PORT: "${API_PORT:-44327}"
     # browser-sync listens on container port 80 (set in Dockerfile.dev's
     # entrypoint), so port mapping host:4200 -> container:80 stays intact.
     ports:
@@ -296,9 +325,9 @@ services:
       - ./angular/tsconfig.json:/app/tsconfig.json:ro
       - ./angular/tsconfig.app.json:/app/tsconfig.app.json:ro
       - ./angular/package.json:/app/package.json:ro
-      # dynamic-env.json sits at /app in dev; the entrypoint copies it
-      # into dist/CaseEvaluation/browser after each rebuild.
-      - ./docker/dynamic-env.json:/app/dynamic-env.json:ro
+      # BUG-015 (Task B, 2026-05-20): docker/dynamic-env.json bind-mount
+      # removed; the entrypoint heredoc now writes /app/dynamic-env.json
+      # from container env vars at startup.
     depends_on:
       api:
         condition: service_healthy

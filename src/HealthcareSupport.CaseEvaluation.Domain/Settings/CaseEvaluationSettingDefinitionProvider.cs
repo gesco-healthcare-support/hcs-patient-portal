@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Localization;
+using Microsoft.Extensions.Configuration;
 using Volo.Abp.Identity.Settings;
 using Volo.Abp.Localization;
 using Volo.Abp.Settings;
@@ -13,6 +14,21 @@ namespace HealthcareSupport.CaseEvaluation.Settings;
 /// </summary>
 public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
 {
+    private readonly IConfiguration _configuration;
+
+    // BUG-014 (Task A, 2026-05-20) -- IConfiguration injected so the
+    // PortalBaseUrl + AuthServerBaseUrl defaults can be sourced from
+    // App:AngularUrl + AuthServer:Authority. Both are already env-var-driven
+    // in docker-compose.yml (App__AngularUrl, AuthServer__Authority). The
+    // Settings:* config-prefix mechanism was tried first but blocked because
+    // Docker silently drops env-var names with literal dots, and ABP's
+    // flat-key lookup (`Configuration[$"Settings:{settingName}"]`) requires
+    // those dots in the env-var name to express the setting key.
+    public CaseEvaluationSettingDefinitionProvider(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
     public override void Define(ISettingDefinitionContext context)
     {
         // Booking policy
@@ -36,21 +52,24 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // Notifications policy
         Define(context, CaseEvaluationSettings.NotificationsPolicy.CcEmailAddresses, defaultValue: "");
         Define(context, CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, defaultValue: "");
-        // 2026-05-06 -- PortalBaseUrl default targets the Falkinstein subdomain so
-        // tenant-scoped requests (email-confirmation, change-request links, etc.)
-        // land on the right tenant context out of the box. Override per-tenant
-        // once Phase 1B multi-tenant URL routing ships.
-        Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl, defaultValue: "http://falkinstein.localhost:4200");
+        // BUG-014 (Task A, 2026-05-20) -- default sourced from App:AngularUrl
+        // so docker-compose can override via App__AngularUrl env var.
+        // Tenant-less here; TenantUrlComposer at the email-rendering site
+        // prepends `<tenant>.` from ICurrentTenant.Name. Literal fallback
+        // preserves the 2026-05-06 Falkinstein-targeted behavior when
+        // App:AngularUrl is absent (e.g. non-Docker dev paths).
+        var portalDefault = _configuration["App:AngularUrl"]?.TrimEnd('/')
+            ?? "http://falkinstein.localhost:4200";
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl, defaultValue: portalDefault);
         // S-6.1: AuthServer base URL for tenant-pre-filled register links in
         // "register as [role]" emails sent to non-registered parties.
-        // 2026-05-07 (Wave 3 #17.1): default flipped from
-        // "https://localhost:44368" to the Falkinstein subdomain on HTTP so
-        // the AuthServer Razor pages -- which the Docker compose binds to
-        // 127.0.0.1:44368 plain HTTP -- are reachable from email links in
-        // dev/Phase 1A. Override per-tenant once Phase 1B HTTPS dev wiring
-        // ships. The non-tenant-aware "https://localhost:44368" stranded
-        // recipients on a host that did not respond.
-        Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: "http://falkinstein.localhost:44368");
+        // BUG-014 (Task A, 2026-05-20) -- default sourced from
+        // AuthServer:Authority (already env-var-driven via AuthServer__Authority
+        // in docker-compose.yml). See PortalBaseUrl above for the rationale
+        // and the TenantUrlComposer chain.
+        var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/')
+            ?? "http://falkinstein.localhost:44368";
+        Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: authServerDefault);
 
         // W2-10: 10 reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e) + appointment-day).
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors, defaultValue: "30,60,75,85,90");
