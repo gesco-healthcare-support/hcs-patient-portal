@@ -143,10 +143,21 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // semantically wrong (the caller IS authorized to use the
         // endpoint; the input is invalid). Same pattern that closes
         // BUG-003 for RegistrationDuplicateEmail.
+        //
+        // 2026-05-19 -- closes BUG-023 (Registration confirm-password +
+        // firm-name validators were returning 403) and adds the new
+        // InternalUserTenantMismatch code from the tenant-admin
+        // internal-user creation flow to the same 400 mapping list.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
             options.Map(
                 CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired,
                 System.Net.HttpStatusCode.BadRequest);
 
             options.Map(
@@ -166,6 +177,9 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 System.Net.HttpStatusCode.BadRequest);
             options.Map(
                 CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch,
                 System.Net.HttpStatusCode.BadRequest);
         });
     }
