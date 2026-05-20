@@ -115,3 +115,82 @@ body {
     background-color: var(--lpx-color-primary-hover);
     border-color: var(--lpx-color-primary-hover);
 }
+
+/* ---------------------------------------------------------------------------
+ * Auth-shell logo crop fix (2026-05-19).
+ *
+ * LeptonX default:
+ *     .lpx-login-brand-text .lpx-brand-logo.lpx-login-logo {
+ *         width: 4.8em; height: 4.8em;        // square container
+ *         background-size: auto 4.8em;        // image scaled to height
+ *         background-position: left center;   // anchored left
+ *     }
+ *
+ * The theme assumes a square brand-icon. Our --lpx-logo asset is the
+ * OLD-parity wordmark (header-logo.png, 170x43 px, ~3.95:1). The
+ * default rule clips ~75 percent of the wordmark off the right edge
+ * because the container width is pinned to one height-equivalent.
+ *
+ * Override widens the container to the image's aspect-scaled width
+ * (4.8em * 170/43 ~= 19em) and uses background-size:contain so a
+ * future logo swap with different proportions also renders cleanly.
+ * background-position:center keeps the asset centered if proportions
+ * ever drift away from a near-fit.
+ *
+ * Selector specificity matches LeptonX's (3 classes); global-styles.css
+ * is appended to the AuthServer style bundle (CaseEvaluationAuthServer
+ * Module ConfigureServices) AFTER the LeptonX sheet, so cascade
+ * source-order gives our declarations the win without !important.
+ *
+ * Applies on every auth page (Login / Register / ForgotPassword /
+ * ResetPassword / ResendVerification / LoggedOut / AccessDenied /
+ * LockedOut / EmailConfirmation / ConfirmUser) because all share the
+ * same LeptonX shell.
+ * ------------------------------------------------------------------------ */
+.lpx-login-brand-text .lpx-brand-logo.lpx-login-logo {
+    width: 19em;
+    background-size: contain;
+    background-position: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * Validation-message styling (2026-05-19).
+ *
+ * The project's custom Razor pages render field validation via
+ * <span asp-validation-for="X"></span>. The TagHelper sets
+ * class="field-validation-valid" on success and
+ * class="field-validation-error" on failure. Setting a class= attribute
+ * in source would trigger ASP.NET Core's AddClass() merge path which
+ * wraps the value in ClassAttributeHtmlContent; its ToString() leaks
+ * the FQN type name into the rendered class attribute (audit findings
+ * FL2 / RPL2 2026-05-18). Solution is to leave the source span class-
+ * attribute-free and style the error class here instead of the legacy
+ * approach of seeding class="text-danger" alongside the TagHelper.
+ *
+ * Bootstrap's --bs-danger CSS variable keeps the colour token aligned
+ * with whatever danger colour the rest of the layout uses; --lpx-color-
+ * error from the project palette is the canonical OLD-parity value if
+ * a redirect is ever needed (#fe5a5b).
+ * ------------------------------------------------------------------------ */
+.account-card .field-validation-error,
+.lpx-login-card .field-validation-error,
+span.field-validation-error {
+    color: var(--bs-danger, var(--lpx-color-error, #dc3545));
+    display: inline-block;
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Register page -- hide the redundant "Already have an account? Sign in"
+ * heading (2026-05-19). The framework's stock Register.cshtml puts an
+ * h5 link at the top of the card pointing back at /Account/Login.
+ * Adrian's directive: drop both that heading and the post-success
+ * "Sign in" button (the latter handled in global-scripts.js
+ * showSignupSuccess). :has() targets the framework's specific h5 so we
+ * do not accidentally hide unrelated h5 elements.
+ * ------------------------------------------------------------------------ */
+.account-module-form > h5:has(a[href="/Account/Login"]) {
+    display: none;
+}
+

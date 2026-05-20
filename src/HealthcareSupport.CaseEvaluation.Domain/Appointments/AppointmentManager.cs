@@ -203,7 +203,7 @@ public class AppointmentManager : DomainService
 
         if (!machine.CanFire(trigger))
         {
-            throw new BusinessException("CaseEvaluation:AppointmentInvalidTransition")
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition)
                 .WithData("from", fromStatus)
                 .WithData("trigger", trigger);
         }

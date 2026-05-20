@@ -44,12 +44,7 @@ using Volo.Abp.VirtualFileSystem;
 using Volo.Abp.Account;
 using Volo.Abp.Account.Web;
 using Volo.Abp.Account.Public.Web;
-using Volo.Abp.Account.Public.Web.ExternalProviders;
 using Volo.Abp.Account.Public.Web.Impersonation;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Google;
-using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
-using Microsoft.AspNetCore.Authentication.Twitter;
 using Volo.Saas.Host;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.OpenIddict.WildcardDomains;
@@ -248,8 +243,17 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.Applications["MVC"].RootUrl = configuration["App:SelfUrl"];
             options.RedirectAllowedUrls.AddRange(configuration["App:RedirectAllowedUrls"]?.Split(',') ?? Array.Empty<string>());
             options.Applications["Angular"].RootUrl = configuration["App:AngularUrl"];
-            options.Applications["Angular"].Urls[AccountUrlNames.PasswordReset] = "account/reset-password";
-            options.Applications["Angular"].Urls[AccountUrlNames.EmailConfirmation] = "account/email-confirmation";
+            // 2026-05-18 -- confirmation + reset URLs are hosted by the
+            // AuthServer Razor pages (custom overrides under Pages/Account/),
+            // not the SPA. Repointed from the deleted SPA routes
+            // (/account/email-confirmation, /account/reset-password). The
+            // project's IAccountEmailer override builds URLs explicitly
+            // via Notifications.AuthServerBaseUrl setting, so this
+            // AppUrlOptions config is defensive: any future framework code
+            // calling IAppUrlProvider for the "MVC" app gets a working URL.
+            // See docs/plans/2026-05-18-fix-verification-email-url.md.
+            options.Applications["MVC"].Urls[AccountUrlNames.PasswordReset] = "Account/ResetPassword";
+            options.Applications["MVC"].Urls[AccountUrlNames.EmailConfirmation] = "Account/EmailConfirmation";
         });
 
         Configure<AbpBackgroundJobOptions>(options =>
@@ -314,49 +318,13 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.IsDynamicClaimsEnabled = true;
         });
 
-        context.Services.AddAuthentication()
-        .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
-        {
-            options.ClaimActions.MapJsonKey(AbpClaimTypes.Picture, "picture");
-        })
-        .WithDynamicOptions<GoogleOptions, GoogleHandler>(
-            GoogleDefaults.AuthenticationScheme,
-            options =>
-            {
-                options.WithProperty(x => x.ClientId);
-                options.WithProperty(x => x.ClientSecret, isSecret: true);
-            }
-        )
-        .AddMicrosoftAccount(MicrosoftAccountDefaults.AuthenticationScheme, options =>
-        {
-            //Personal Microsoft accounts as an example.
-            options.AuthorizationEndpoint = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
-            options.TokenEndpoint = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
-
-            options.ClaimActions.MapCustomJson("picture", _ => "https://graph.microsoft.com/v1.0/me/photo/$value");
-            options.SaveTokens = true;
-        })
-        .WithDynamicOptions<MicrosoftAccountOptions, MicrosoftAccountHandler>(
-            MicrosoftAccountDefaults.AuthenticationScheme,
-            options =>
-            {
-                options.WithProperty(x => x.ClientId);
-                options.WithProperty(x => x.ClientSecret, isSecret: true);
-            }
-        )
-        .AddTwitter(TwitterDefaults.AuthenticationScheme, options =>
-        {
-            options.ClaimActions.MapJsonKey(AbpClaimTypes.Picture, "profile_image_url_https");
-            options.RetrieveUserDetails = true;
-        })
-        .WithDynamicOptions<TwitterOptions, TwitterHandler>(
-            TwitterDefaults.AuthenticationScheme,
-            options =>
-            {
-                options.WithProperty(x => x.ConsumerKey);
-                options.WithProperty(x => x.ConsumerSecret, isSecret: true);
-            }
-        );
+        // External auth providers (Google / Microsoft / Twitter) removed
+        // 2026-05-19. Their AddXxx + WithDynamicOptions blocks were wired
+        // with per-tenant dynamic ClientId / Secret but never populated;
+        // the buttons surfaced empty and risked break-on-tenant-enable
+        // without testing. Twitter is now X with a changed OAuth flow
+        // anyway. Reintroduce only after a deliberate per-tenant
+        // configuration story lands. Audit finding D-13 (final-findings.md).
 
         context.Services.Configure<AbpAccountOptions>(options =>
         {

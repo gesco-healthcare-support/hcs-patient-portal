@@ -177,16 +177,17 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.UserManagement.InviteExternalUser,
             L("Permission:UserManagement.InviteExternalUser"));
 
-        // 2026-05-15 -- IT Admin internal-user creation. Host-side only
-        // (MultiTenancySides.Host): IT Admin lives at admin.localhost,
-        // Staff Supervisor + Clinic Staff intentionally do not receive
-        // this permission per OLD parity. The new user is created
-        // INSIDE the tenant carried on the input DTO (CurrentTenant
-        // switch inside the AppService).
+        // 2026-05-19 (extension of 2026-05-15): now `MultiTenancySides.Both`
+        // so the per-tenant static `admin` role can also create internal
+        // users inside its own tenant. IT Admin (host scope) keeps the
+        // same grant via the host pass in InternalUserRoleDataSeedContributor;
+        // tenant admin gets the grant in the per-tenant pass. The
+        // AppService disambiguates host vs tenant by checking
+        // CurrentTenant.Id when the input DTO carries Guid.Empty.
         var internalUsersPermission = myGroup.AddPermission(
             CaseEvaluationPermissions.InternalUsers.Default,
             L("Permission:InternalUsers"),
-            MultiTenancySides.Host);
+            MultiTenancySides.Both);
         internalUsersPermission.AddChild(
             CaseEvaluationPermissions.InternalUsers.Create,
             L("Permission:InternalUsers.Create"));

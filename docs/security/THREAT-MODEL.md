@@ -4,7 +4,7 @@
 
 > For known security vulnerabilities and remediation status, see [Security Issues](../issues/SECURITY.md).
 
-STRIDE-based threat model for the four main components of the CaseEvaluation Patient Portal. This document describes the security architecture; it does not list specific bugs (see linked issue file for that).
+STRIDE-based threat model for the four main components of the CaseEvaluation Appointment Portal. This document describes the security architecture; it does not list specific bugs (see linked issue file for that).
 
 **Last verified:** 2026-04-13
 **Method:** code-inspect + existing SECURITY.md findings

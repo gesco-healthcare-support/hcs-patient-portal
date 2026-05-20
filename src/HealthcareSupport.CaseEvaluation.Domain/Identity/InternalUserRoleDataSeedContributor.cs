@@ -22,9 +22,13 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 ///  - Clinic Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
 ///                       (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
 ///
-/// External role permission grants are deferred -- the existing
-/// ExternalUserRoleDataSeedContributor seeds the role names per tenant; admins assign
-/// permissions on first use.
+/// External role permission grants are wired through the sister
+/// <see cref="ExternalUserRoleDataSeedContributor"/> (Phase 1A,
+/// 2026-05-06): the four external roles -- Patient, Claim Examiner,
+/// Applicant Attorney, Defense Attorney -- get the same
+/// <c>BookingBaselineGrants</c> set at seed time. Per-record ownership
+/// filtering at the AppService layer is the only protection between
+/// the four roles (audit D-18 tracks the follow-up review).
 ///
 /// NOTE: Permission strings are hardcoded as literals (mirroring the constants in
 /// `Application.Contracts/Permissions/CaseEvaluationPermissions.cs`) because the Domain
@@ -79,6 +83,17 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
                 await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorGrants());
                 await GrantAllAsync(ClinicStaffRoleName, ClinicStaffGrants());
+
+                // 2026-05-19 -- tenant `admin` (Volo SaaS static admin) gets
+                // CaseEvaluation.InternalUsers + .Create implicitly because
+                // ABP auto-grants every tenant-side permission (including
+                // MultiTenancySides.Both) to the static admin role. An
+                // explicit GrantAllAsync(TenantAdminRoleName, ...) here
+                // collides with the auto-grant on second-run (unique-index
+                // violation on AbpPermissionGrants). If we ever need to
+                // grant tenant-admin a permission that ABP does NOT
+                // auto-grant, add an idempotent guard around SetAsync
+                // rather than reintroducing the unconditional call.
             }
         }
     }
@@ -247,12 +262,23 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.UserManagement.InviteExternalUser";
 
         // 2026-05-15 -- IT Admin (host-scoped) creates new internal users
-        // (Clinic Staff / Staff Supervisor). The permission is
-        // MultiTenancySides.Host so it lives in the host pass; Staff
-        // Supervisor + Clinic Staff intentionally do NOT receive it
-        // (OLD parity: only IT Admin creates internal accounts).
+        // (Clinic Staff / Staff Supervisor). 2026-05-19: the permission is
+        // now MultiTenancySides.Both because the per-tenant `admin` role
+        // also creates internal users in its own tenant (granted in the
+        // per-tenant pass). Staff Supervisor + Clinic Staff still do NOT
+        // receive this grant -- creating new users stays an admin-tier
+        // power per OLD parity.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
+
+        // 2026-05-19 -- IT Admin can create new tenants from the Volo
+        // SaaS Tenants page (/saas/tenants). Host Admin (admin@abp.io)
+        // already gets this implicitly as the ABP superuser. The Volo
+        // permission name "Saas.Tenants[.Create]" is fixed by the Volo
+        // SaaS module; we just opt IT Admin in. Tenant admin does NOT
+        // receive this grant -- tenant creation stays a host-side power.
+        yield return "Saas.Tenants";
+        yield return "Saas.Tenants.Create";
     }
 
     /// <summary>

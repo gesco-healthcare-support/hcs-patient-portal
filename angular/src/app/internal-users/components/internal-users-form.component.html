@@ -9,7 +9,12 @@
   <p class="text-muted">
     Create an account for a new clinic staff member or staff supervisor. The new user receives an
     email with a one-time temporary password and is required to choose a new password on first sign
-    in. Only IT Admin can create internal users.
+    in.
+    @if (tenantLocked()) {
+      The new user is added to your own tenant; tenant admins cannot create users in other tenants.
+    } @else {
+      As IT Admin you can pick any tenant from the dropdown below.
+    }
   </p>
 
   <div class="card border-0 shadow-sm">
@@ -35,6 +40,11 @@
                 <option [value]="option.id">{{ option.displayName }}</option>
               }
             </select>
+            @if (tenantLocked()) {
+              <div class="form-text">
+                Locked to your tenant. Only IT Admin can pick a different tenant.
+              </div>
+            }
             @if (form.get('tenantId')?.touched && form.get('tenantId')?.hasError('required')) {
               <div class="text-danger small mt-1">Tenant is required.</div>
             }

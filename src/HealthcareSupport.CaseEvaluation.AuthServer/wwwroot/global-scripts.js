@@ -170,7 +170,7 @@
     // disabled "Select" leading option.
     const placeholderOption = document.createElement('option');
     placeholderOption.value = '';
-    placeholderOption.textContent = 'Select a user type';
+    placeholderOption.textContent = 'Select your role';
     placeholderOption.disabled = true;
     placeholderOption.selected = true;
     select.appendChild(placeholderOption);
@@ -184,8 +184,9 @@
 
     const label = document.createElement('label');
     label.htmlFor = 'external-user-type';
-    // OLD parity (P:\PatientPortalOld\.../user-add.component.html:14): "User Type"
-    label.textContent = 'User Type';
+    // OLD parity (P:\PatientPortalOld\.../user-add.component.html:14): "User Type",
+    // sentence-cased per 2026-05-18 copy rules (proposed-copy.md 2.2).
+    label.textContent = 'User type';
 
     container.appendChild(select);
     container.appendChild(label);
@@ -247,7 +248,7 @@
     var lastNameInput = ensureTextInput(form, {
       id: 'external-last-name',
       name: 'LastName',
-      label: 'Last Name',
+      label: 'Last name',
       autocomplete: 'family-name',
       maxLength: 50,
       afterContainer: selectContainer,
@@ -256,7 +257,7 @@
     var firstNameInput = ensureTextInput(form, {
       id: 'external-first-name',
       name: 'FirstName',
-      label: 'First Name',
+      label: 'First name',
       autocomplete: 'given-name',
       maxLength: 50,
       afterContainer: selectContainer,
@@ -270,7 +271,7 @@
     var firmNameInput = ensureTextInput(form, {
       id: 'external-firm-name',
       name: 'FirmName',
-      label: 'Firm Name',
+      label: 'Firm name',
       autocomplete: 'organization',
       maxLength: 50,
       afterContainer: selectContainer,
@@ -314,7 +315,7 @@
       ensureTextInput(form, {
         id: 'external-confirm-password',
         name: 'ConfirmPassword',
-        label: 'Confirm Password',
+        label: 'Confirm password',
         type: 'password',
         autocomplete: 'new-password',
         required: true,
@@ -356,7 +357,7 @@
     var closeText = L('Account:Terms:Close', 'Close');
     var bodyHtml = L(
       'Account:Terms:Body',
-      '<p>By creating an account, you agree to the Patient Appointment Portal Terms of Use and Privacy Policy.</p>',
+      '<p>By creating an account, you agree to the Appointment Portal Terms of Use and Privacy Policy.</p>',
     );
 
     // Build the checkbox row programmatically so the link's click handler
@@ -768,19 +769,17 @@
         default: return '&#39;';
       }
     });
-    var loginUrl = '/Account/Login?username=' + encodeURIComponent(email || '');
     var verifyUrl = '/Account/ResendVerification?context=register&email='
       + encodeURIComponent(email || '') + '&autosend=1';
     form.innerHTML =
       '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
         '<strong>Account created.</strong>' +
         '<div style="margin-top:0.25rem;">' +
-          'We created your account at <strong>' + safeEmail + '</strong>. ' +
-          'Verify your email and sign in to finish setup.' +
+          'We sent a verification link to <strong>' + safeEmail + '</strong>. ' +
+          'Click the link to sign in.' +
         '</div>' +
       '</div>' +
-      '<a href="' + verifyUrl + '" class="btn btn-primary" style="width:100%;margin-bottom:0.5rem;">Verify Email</a>' +
-      '<a href="' + loginUrl + '" class="btn btn-outline-secondary" style="width:100%;">Sign In</a>';
+      '<a href="' + verifyUrl + '" class="btn btn-primary" style="width:100%;">Resend verification</a>';
   }
 
   async function submitExternalSignup(form) {
@@ -826,17 +825,17 @@
     // submit payload (server derives username from email). Validate
     // email + password + confirm-password presence and equality.
     if (!email || !password) {
-      notifyRegisterFailure(form, 'Please fill email and password.');
+      notifyRegisterFailure(form, 'Enter your email and password.');
       log('Validation failed before API call.', { emailPresent: !!email, passwordPresent: !!password });
       return;
     }
     if (!confirmPassword) {
-      notifyRegisterFailure(form, 'Please confirm your password.');
+      notifyRegisterFailure(form, 'Confirm your password.');
       log('Validation failed: confirmPassword empty.');
       return;
     }
     if (confirmPassword !== password) {
-      notifyRegisterFailure(form, 'Passwords do not match.');
+      notifyRegisterFailure(form, "Passwords don't match.");
       log('Validation failed: confirmPassword mismatch.');
       return;
     }
@@ -871,7 +870,7 @@
     const rawSelectValue = select && select.value;
     const selectedRoleValue = Number(rawSelectValue);
     if (!rawSelectValue || !Number.isFinite(selectedRoleValue) || selectedRoleValue <= 0) {
-      notifyRegisterFailure(form, 'Please select a user type.');
+      notifyRegisterFailure(form, 'Select your role.');
       log('Validation failed: no user type selected.');
       return;
     }
@@ -969,15 +968,18 @@
       // instead of silently redirecting to /Account/Login. Reason: the
       // register POST returns 204 with no body, so without a banner the
       // user has no confirmation that anything happened. After clicking
-      // Sign In, ABP's login flow detects EmailConfirmed=false and routes
-      // to /Account/ConfirmUser, where the Verify button calls
-      // /api/account/send-email-confirmation-token -> our
-      // CaseEvaluationAccountEmailer override fires the email.
+      // Sign In, ABP's login flow detects EmailConfirmed=false and the
+      // Login page (B-3 redesign, proposed-copy.md 2.4) surfaces an
+      // alert + a "Resend verification" link that fires
+      // /api/public/external-signup/resend-verification through our
+      // own non-Scriban handler. The legacy /Account/ConfirmUser page
+      // now 302s to /Account/Login -- the Verify button + CORS surface
+      // it carried (BUG-013) are gone.
       log('Signup success. Showing in-place success banner.');
       showSignupSuccess(form, email);
     } catch (error) {
       log('Fetch threw error:', error);
-      notifyRegisterFailure(form, 'Unable to register now. Please try again.');
+      notifyRegisterFailure(form, "Couldn't register. Try again.");
     } finally {
       isSubmitting = false;
     }

@@ -3,7 +3,7 @@ paths:
   - "src/**/*.cs"
   - "src/**/*.csproj"
 ---
-# ASP.NET / ABP Conventions — Patient Portal
+# ASP.NET / ABP Conventions — Appointment Portal
 
 - .NET 10 with ABP Commercial 10.0.2
 - EF Core for data access; Riok.Mapperly for object mapping (NOT AutoMapper)

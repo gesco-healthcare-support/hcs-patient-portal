@@ -18,7 +18,6 @@ import {
 import { provideIdentityConfig } from '@volo/abp.ng.identity/config';
 import { provideCommercialUiConfig } from '@volo/abp.commercial.ng.ui/config';
 import { provideAccountAdminConfig } from '@volo/abp.ng.account/admin/config';
-import { provideAccountPublicConfig } from '@volo/abp.ng.account/public/config';
 import { provideGdprConfig, withCookieConsentOptions } from '@volo/abp.ng.gdpr/config';
 import { provideAuditLoggingConfig } from '@volo/abp.ng.audit-logging/config';
 import { provideLanguageManagementConfig } from '@volo/abp.ng.language-management/config';
@@ -85,7 +84,10 @@ export const appConfig: ApplicationConfig = {
     provideSettingManagementConfig(),
     provideFeatureManagementConfig(),
     provideAccountAdminConfig(),
-    provideAccountPublicConfig(),
+    // Note (2026-05-19): the Account Public provider was removed from
+    // app.config because it registered SPA /account/* routes that were
+    // deleted 2026-05-15. Auth UI is hosted entirely on the AuthServer
+    // Razor pages now.
     provideCommercialUiConfig(),
     // 2026-05-12 (Issue 1.5) — force light theme as the default for
     // first-time visitors regardless of OS dark-mode preference.

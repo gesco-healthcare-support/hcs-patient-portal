@@ -59,9 +59,9 @@
       },
       "Scriban": {
         "type": "Direct",
-        "requested": "[7.1.0, )",
-        "resolved": "7.1.0",
-        "contentHash": "8paijHmWYO7zxSRNLlbDzzaFT7By827wIgdOrAg9q64+XasUYK8RCT3Y4mbISxeQ3iNdaK7wGeDmT2GWRtqRBQ=="
+        "requested": "[7.2.0, )",
+        "resolved": "7.2.0",
+        "contentHash": "GiAuu6bCPVWJeMMK8AkJMCNX+wyqt2qgiKjVAPLvRWxzBwpDJjLhJltVP034tsZUHOkBtdfA/Otrny+n3NelBw=="
       },
       "Stateless": {
         "type": "Direct",
@@ -1494,7 +1494,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",

@@ -4,7 +4,7 @@
 
 ---
 
-This guide walks through the most common development tasks in the Patient Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation documented in `.claude/discovery/reference-pattern.md`.
+This guide walks through the most common development tasks in the Appointment Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation documented in `.claude/discovery/reference-pattern.md`.
 
 ## How to Add a New Entity
 

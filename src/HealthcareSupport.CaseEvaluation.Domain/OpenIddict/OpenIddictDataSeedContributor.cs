@@ -74,9 +74,13 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
                 consentType: OpenIddictConstants.ConsentTypes.Implicit,
                 displayName: "Console Test / Angular Application",
                 secret: null,
+                // Password (ROPC) grant removed 2026-05-19 (audit D-14).
+                // Deprecated in OAuth 2.1; no client uses it (SPA uses
+                // AuthorizationCode+PKCE, Razor uses cookie-auth, Swagger
+                // uses AuthorizationCode). LinkLogin + Impersonation are
+                // Pro features the SaaS-Host admin panel uses.
                 grantTypes: new List<string> {
                     OpenIddictConstants.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.GrantTypes.Password,
                     OpenIddictConstants.GrantTypes.ClientCredentials,
                     OpenIddictConstants.GrantTypes.RefreshToken,
                     "LinkLogin",

@@ -83,6 +83,54 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         {
             emailConfirmRequired.DefaultValue = "true";
         }
+
+        // Lockout policy (Adrian decision 2026-05-18, proposed-copy.md
+        // section 2.9): bump ABP defaults from 5 attempts / 5 minutes
+        // to 10 attempts / 1 hour. The LockedOut Razor page hardcodes
+        // "Try again in 1 hour" so keep these in sync if the policy
+        // ever changes.
+        //
+        // ABP setting keys:
+        //   "Abp.Identity.Lockout.MaxFailedAccessAttempts" (integer count)
+        //   "Abp.Identity.Lockout.LockoutDuration" (seconds)
+        var maxFailedAttempts = context.GetOrNull(
+            IdentitySettingNames.Lockout.MaxFailedAccessAttempts);
+        if (maxFailedAttempts != null)
+        {
+            maxFailedAttempts.DefaultValue = "10";
+        }
+
+        var lockoutDuration = context.GetOrNull(
+            IdentitySettingNames.Lockout.LockoutDuration);
+        if (lockoutDuration != null)
+        {
+            lockoutDuration.DefaultValue = "3600";
+        }
+
+        // BUG-020 (2026-05-19) -- ABP's Volo.Abp.Emailing module declares
+        // "Abp.Mailing.Smtp.Password" with IsEncrypted=true by default.
+        // Every read through ISettingProvider calls
+        // SettingEncryptionService.Decrypt, which Convert.FromBase64String's
+        // the raw value. The Docker dev stack passes a plaintext password
+        // via docker/appsettings.secrets.json (Settings:Abp.Mailing.Smtp.Password),
+        // so the Base64 decode throws FormatException on every send. ABP's
+        // catch block falls back to the raw plaintext (delivery still
+        // succeeds), but the warning + stack trace pollute logs on every
+        // SendAppointmentEmailJob invocation. Flipping IsEncrypted=false
+        // here makes the setting honor the plaintext shape we already use
+        // for the dev SMTP relay and silences OBS-11 base-64 warnings.
+        //
+        // Production deployments that genuinely want the password encrypted
+        // at rest should pre-encrypt the value via
+        // IStringEncryptionService.Encrypt and either flip this back to
+        // IsEncrypted=true via a host-only override or move the secret to
+        // a managed secret store (key vault / docker secret). Single-source
+        // is better than mixed; the demo stack standardizes on plaintext.
+        var smtpPassword = context.GetOrNull("Abp.Mailing.Smtp.Password");
+        if (smtpPassword != null)
+        {
+            smtpPassword.IsEncrypted = false;
+        }
     }
 
     private static void Define(ISettingDefinitionContext context, string name, string defaultValue)

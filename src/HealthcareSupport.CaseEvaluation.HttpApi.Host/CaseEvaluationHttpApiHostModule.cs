@@ -143,10 +143,21 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // semantically wrong (the caller IS authorized to use the
         // endpoint; the input is invalid). Same pattern that closes
         // BUG-003 for RegistrationDuplicateEmail.
+        //
+        // 2026-05-19 -- closes BUG-023 (Registration confirm-password +
+        // firm-name validators were returning 403) and adds the new
+        // InternalUserTenantMismatch code from the tenant-admin
+        // internal-user creation flow to the same 400 mapping list.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
             options.Map(
                 CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired,
                 System.Net.HttpStatusCode.BadRequest);
 
             options.Map(
@@ -166,6 +177,18 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 System.Net.HttpStatusCode.BadRequest);
             options.Map(
                 CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // BUG-024 follow-up (2026-05-19) -- the appointment state-machine
+            // throws this on every illegal transition (Approve from Approved,
+            // Reject from Rejected, etc). Same family as BUG-003 / BUG-023:
+            // input violates a precondition; HTTP 400 fits the semantic, not
+            // 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
                 System.Net.HttpStatusCode.BadRequest);
         });
     }
@@ -215,8 +238,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<AppUrlOptions>(options =>
         {
             options.Applications["Angular"].RootUrl = configuration["App:AngularUrl"];
-            options.Applications["Angular"].Urls[AccountUrlNames.PasswordReset] = "account/reset-password";
-            options.Applications["Angular"].Urls[AccountUrlNames.EmailConfirmation] = "account/email-confirmation";
+            // 2026-05-18 -- confirmation + reset URLs are hosted by the
+            // AuthServer Razor pages (custom overrides under Pages/Account/),
+            // not the SPA. Repointed from the deleted SPA routes. Mirrors
+            // the same config in CaseEvaluationAuthServerModule. See
+            // docs/plans/2026-05-18-fix-verification-email-url.md.
+            options.Applications["MVC"].Urls[AccountUrlNames.PasswordReset] = "Account/ResetPassword";
+            options.Applications["MVC"].Urls[AccountUrlNames.EmailConfirmation] = "Account/EmailConfirmation";
         });
     }
 

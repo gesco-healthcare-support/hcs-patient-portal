@@ -116,6 +116,20 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 
     /// <summary>
+    /// Raised by <c>AppointmentManager.FireTransition</c> when the
+    /// caller requests a status transition that is not legal from the
+    /// appointment's current state (e.g. Approve from Approved, or
+    /// Reject from Rejected). Carries WithData("from", currentStatus)
+    /// + WithData("trigger", requestedTrigger) for the SPA to surface
+    /// a contextual message. Mapped to HTTP 400 (BUG-024 follow-up,
+    /// 2026-05-19) because it is a client-input validation failure,
+    /// not an authorization failure -- the caller IS allowed to use
+    /// the endpoint, but the state machine rejects the request.
+    /// </summary>
+    public const string AppointmentInvalidTransition =
+        "CaseEvaluation:AppointmentInvalidTransition";
+
+    /// <summary>
     /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
     /// when the supplied invite token does not hash to any persisted
     /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
@@ -209,6 +223,17 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string InternalUserTenantRequired =
         "CaseEvaluation:InternalUser.TenantRequired";
+
+    /// <summary>
+    /// 2026-05-19 -- raised by <c>InternalUsersAppService.CreateAsync</c>
+    /// when a tenant-scoped caller (CurrentTenant.Id != null) passes a
+    /// non-empty <c>input.TenantId</c> that does not match their own
+    /// tenant. Prevents a tenant admin from creating users inside
+    /// another tenant by hand-crafting an API call. Localization key
+    /// <c>InternalUser:TenantMismatch</c>.
+    /// </summary>
+    public const string InternalUserTenantMismatch =
+        "CaseEvaluation:InternalUser.TenantMismatch";
 
     /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
@@ -562,19 +587,6 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string RegistrationFirmNameRequired =
         "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
-
-    /// <summary>
-    /// 2026-05-06 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
-    /// when <c>UserType</c> is anything other than <c>Patient</c>. The
-    /// public register form is Patient-only per
-    /// <c>project_external-registration-role</c> memory; non-Patient
-    /// external accounts are admin-provisioned through the invite flow.
-    /// Defense-in-depth against tampered clients (the SPA already removed
-    /// the User Type dropdown). Localization key
-    /// <c>Registration:RoleNotAllowedForPublicSignup</c>.
-    /// </summary>
-    public const string RegistrationRoleNotAllowed =
-        "CaseEvaluation:Registration.RoleNotAllowedForPublicSignup";
 
     /// <summary>
     /// 2026-05-13 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>

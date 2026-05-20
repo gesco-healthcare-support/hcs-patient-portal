@@ -339,3 +339,10 @@ tmp/
 # docs/plans/2026-05-13-appointment-add-component-decomposition.md is
 # authoritative.
 tests/baseline/
+
+# 2026-05-19: ad-hoc Playwright snapshots + Claude scratch prompts. These
+# escape .playwright-mcp/ when saved to the repo root, and .claude/prompts/
+# holds session HANDOFF + PR-body scratch that should stay local.
+/claim-modal.yml
+/*.png
+.claude/prompts/

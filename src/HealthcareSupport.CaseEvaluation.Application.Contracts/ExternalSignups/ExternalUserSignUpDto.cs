@@ -5,8 +5,13 @@ using JetBrains.Annotations;
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
 /// <summary>
-/// Public registration input. Phase 8 (2026-05-03) extends the original
-/// minimal DTO with three OLD-parity fields:
+/// Public registration input. Carries the user's account credentials
+/// (<c>Email</c>, <c>Password</c>, <c>ConfirmPassword</c>), the chosen
+/// <c>UserType</c>, optional <c>FirstName</c> / <c>LastName</c>, the
+/// attorney-only <c>FirmName</c> / <c>FirmEmail</c>, and the resolved
+/// <c>TenantId</c>.
+///
+/// <para>OLD-parity fields per Phase 8 (2026-05-03):</para>
 /// <list type="bullet">
 ///   <item><c>ConfirmPassword</c> -- OLD <c>UserDomain.cs:88</c> requires
 ///         match for ExternalUser; NEW validates equally.</item>
@@ -17,12 +22,16 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 ///         <c>EmailId.ToLower()</c>; NEW accepts an explicit value or
 ///         auto-derives when not provided.</item>
 /// </list>
-/// All three persist to the IdentityUser extension props registered in
-/// Phase 2.4 (<c>CaseEvaluationModuleExtensionConfigurator</c>).
+///
+/// <para><c>FirmName</c> + <c>FirmEmail</c> persist to the IdentityUser
+/// extension properties registered in Phase 2.4
+/// (<c>CaseEvaluationModuleExtensionConfigurator</c>);
+/// <c>FirstName</c> / <c>LastName</c> map to the stock IdentityUser
+/// <c>Name</c> / <c>Surname</c> columns.</para>
 /// </summary>
 public class ExternalUserSignUpDto
 {
-    [Required]
+    [Required(ErrorMessage = "Select your role.")]
     public ExternalUserType UserType { get; set; }
 
     // B17 (2026-05-07): OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85)
@@ -39,12 +48,12 @@ public class ExternalUserSignUpDto
     [StringLength(128)]
     public string? LastName { get; set; }
 
-    [Required]
-    [EmailAddress]
+    [Required(ErrorMessage = "Enter your email.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
     [StringLength(256)]
     public string Email { get; set; } = null!;
 
-    [Required]
+    [Required(ErrorMessage = "Enter a password.")]
     [StringLength(128, MinimumLength = 6)]
     public string Password { get; set; } = null!;
 
@@ -54,7 +63,7 @@ public class ExternalUserSignUpDto
     /// AppService rejects the registration with
     /// <c>RegistrationConfirmPasswordMismatch</c> on mismatch.
     /// </summary>
-    [Required]
+    [Required(ErrorMessage = "Confirm your password.")]
     [StringLength(128, MinimumLength = 6)]
     public string ConfirmPassword { get; set; } = null!;
 

@@ -19,7 +19,7 @@ export const environment = {
   production: false,
   application: {
     baseUrl,
-    name: 'CaseEvaluation',
+    name: 'Appointment Portal',
   },
   oAuthConfig,
   apis: {

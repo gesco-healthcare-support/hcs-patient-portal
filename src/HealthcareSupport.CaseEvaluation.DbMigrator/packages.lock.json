@@ -34,9 +34,9 @@
       },
       "Scriban": {
         "type": "Direct",
-        "requested": "[7.1.0, )",
-        "resolved": "7.1.0",
-        "contentHash": "8paijHmWYO7zxSRNLlbDzzaFT7By827wIgdOrAg9q64+XasUYK8RCT3Y4mbISxeQ3iNdaK7wGeDmT2GWRtqRBQ=="
+        "requested": "[7.2.0, )",
+        "resolved": "7.2.0",
+        "contentHash": "GiAuu6bCPVWJeMMK8AkJMCNX+wyqt2qgiKjVAPLvRWxzBwpDJjLhJltVP034tsZUHOkBtdfA/Otrny+n3NelBw=="
       },
       "Serilog.Extensions.Logging": {
         "type": "Direct",
@@ -2468,7 +2468,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Account.Pro.Admin.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application.Contracts": "[10.0.2, )",
@@ -2495,7 +2495,7 @@
           "PDFsharp-MigraDoc": "[6.2.4, )",
           "PdfSharp": "[6.2.4, )",
           "QuestPDF": "[2026.2.4, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "Stateless": "[5.20.1, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
@@ -2523,7 +2523,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",
@@ -2546,7 +2546,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.0, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.EntityFrameworkCore": "[10.0.2, )",

@@ -50,20 +50,25 @@ namespace HealthcareSupport.CaseEvaluation.Emailing;
 /// job, sending via SMTP. The AuthServer never opens an SMTP socket
 /// itself.</para>
 ///
-/// <para><b>URL construction:</b> verification + reset links always
-/// point at the SPA host (port 4200) regardless of the <c>appName</c>
-/// argument ABP passes -- the SPA is where the
-/// <c>/account/email-confirmation</c> and <c>/account/reset-password</c>
-/// pages live (registered in <c>app.routes.ts</c>). Base URL comes
-/// from the per-tenant <c>Notifications.PortalBaseUrl</c> setting,
-/// defaulting to <c>http://falkinstein.localhost:4200</c> for the
-/// Phase 1A demo tenant.</para>
+/// <para><b>URL construction (2026-05-18):</b> verification + reset
+/// links point at the AuthServer Razor pages (port 44368) regardless
+/// of the <c>appName</c> argument ABP passes. The AuthServer hosts
+/// <c>/Account/EmailConfirmation</c> (custom override added 2026-05-18)
+/// and <c>/Account/ResetPassword</c> (custom override added Phase 10
+/// 2026-05-03) for the click-from-email landing surface. Base URL
+/// comes from the per-tenant
+/// <c>Notifications.AuthServerBaseUrl</c> setting, defaulting to
+/// <c>http://falkinstein.localhost:44368</c> for the Phase 1A demo
+/// tenant. The prior SPA-route targets (<c>/account/email-confirmation</c>
+/// and <c>/account/reset-password</c>) were 404 after the SPA's
+/// <c>/account/*</c> routes were deleted 2026-05-15; see
+/// docs/plans/2026-05-18-fix-verification-email-url.md.</para>
 /// </summary>
 [Dependency(ReplaceServices = true)]
 [ExposeServices(typeof(IAccountEmailer))]
 public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependency
 {
-    private const string DefaultPortalBaseUrl = "http://falkinstein.localhost:4200";
+    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
 
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly IBackgroundJobManager _backgroundJobManager;
@@ -94,8 +99,8 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
 
-        var portalBaseUrl = await ResolvePortalBaseUrlAsync();
-        var url = BuildEmailConfirmationUrl(portalBaseUrl, user.Id, confirmationToken);
+        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
+        var url = BuildEmailConfirmationUrl(authServerBaseUrl, user.Id, confirmationToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
@@ -113,8 +118,8 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
 
-        var portalBaseUrl = await ResolvePortalBaseUrlAsync();
-        var url = BuildPasswordResetUrl(portalBaseUrl, user.Id, resetToken);
+        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
+        var url = BuildPasswordResetUrl(authServerBaseUrl, user.Id, resetToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
@@ -189,13 +194,13 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         });
     }
 
-    private async Task<string> ResolvePortalBaseUrlAsync()
+    private async Task<string> ResolveAuthServerBaseUrlAsync()
     {
         var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
         if (string.IsNullOrWhiteSpace(configured))
         {
-            return DefaultPortalBaseUrl;
+            return DefaultAuthServerBaseUrl;
         }
         return configured.TrimEnd('/');
     }
@@ -255,34 +260,43 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     }
 
     /// <summary>
-    /// Builds the SPA-hosted email-confirmation URL:
-    /// <c>{base}/account/email-confirmation?userId={guid}&amp;confirmationToken={url-encoded}</c>.
-    /// Mirrors the URL shape the SPA's
-    /// <c>@volo/abp.ng.account/public</c> email-confirmation route
-    /// expects, identical to the URL emitted by our
-    /// <c>UserRegisteredEmailHandler</c>. Internal so unit tests can
-    /// verify the encoding behavior.
+    /// Builds the AuthServer-hosted email-confirmation URL:
+    /// <c>{authServerBaseUrl}/Account/EmailConfirmation?userId={guid}&amp;confirmationToken={url-encoded}</c>.
+    /// Lands on the project's custom Razor PageModel
+    /// <see cref="HealthcareSupport.CaseEvaluation.Pages.Account.EmailConfirmationModel"/>
+    /// which processes the token server-side and 302's to
+    /// <c>/Account/Login?flash=email-verified</c>. Internal so unit
+    /// tests can verify the encoding behavior.
+    /// 2026-05-18 -- repointed from the deleted SPA route
+    /// <c>/account/email-confirmation</c>; see
+    /// docs/plans/2026-05-18-fix-verification-email-url.md.
     /// </summary>
-    internal static string BuildEmailConfirmationUrl(string portalBaseUrl, Guid userId, string token)
+    internal static string BuildEmailConfirmationUrl(string authServerBaseUrl, Guid userId, string token)
     {
         var sb = new StringBuilder();
-        sb.Append(portalBaseUrl);
-        sb.Append("/account/email-confirmation");
+        sb.Append(authServerBaseUrl);
+        sb.Append("/Account/EmailConfirmation");
         sb.Append("?userId=").Append(userId.ToString());
         sb.Append("&confirmationToken=").Append(WebUtility.UrlEncode(token));
         return sb.ToString();
     }
 
     /// <summary>
-    /// Builds the SPA-hosted password-reset URL:
-    /// <c>{base}/account/reset-password?userId={guid}&amp;resetToken={url-encoded}</c>.
-    /// SPA route registered by ABP's account-public Angular package.
+    /// Builds the AuthServer-hosted password-reset URL:
+    /// <c>{authServerBaseUrl}/Account/ResetPassword?userId={guid}&amp;resetToken={url-encoded}</c>.
+    /// Lands on the project's custom Razor PageModel
+    /// <see cref="HealthcareSupport.CaseEvaluation.Pages.Account.ResetPasswordModel"/>
+    /// (Phase 10 2026-05-03). 2026-05-18 -- repointed from the deleted
+    /// SPA route <c>/account/reset-password</c>; this path was dead-letter
+    /// before today because the project's ForgotPassword flow uses
+    /// <c>ExternalAccountAppService.BuildResetUrl</c> directly. Fixed
+    /// alongside the email-confirmation repoint for symmetry.
     /// </summary>
-    internal static string BuildPasswordResetUrl(string portalBaseUrl, Guid userId, string token)
+    internal static string BuildPasswordResetUrl(string authServerBaseUrl, Guid userId, string token)
     {
         var sb = new StringBuilder();
-        sb.Append(portalBaseUrl);
-        sb.Append("/account/reset-password");
+        sb.Append(authServerBaseUrl);
+        sb.Append("/Account/ResetPassword");
         sb.Append("?userId=").Append(userId.ToString());
         sb.Append("&resetToken=").Append(WebUtility.UrlEncode(token));
         return sb.ToString();
