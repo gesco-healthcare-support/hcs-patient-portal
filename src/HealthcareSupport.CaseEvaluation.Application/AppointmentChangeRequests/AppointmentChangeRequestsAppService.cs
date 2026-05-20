@@ -85,7 +85,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
-        if (input == null)
+        if (input == null || string.IsNullOrWhiteSpace(input.ReScheduleReason))
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["ReScheduleReason"]]);
         }
