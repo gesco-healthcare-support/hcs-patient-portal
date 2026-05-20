@@ -45,18 +45,29 @@
        The 7.x line changed Scriban.Parsing.ParserOptions to a different
        value-type layout vs 6.3.0, so any code path that hits
        Volo.Abp.TextTemplating.Scriban throws System.TypeLoadException at
-       runtime. We avoid that by NOT routing email through ABP's
-       Scriban-based AccountEmailer:
-         - Registration verification email is sent by our own
-           UserRegisteredEmailHandler via INotificationDispatcher -> our
-           NotificationTemplateRenderer (no Scriban).
+       runtime. The app avoids that by routing every email surface
+       through non-Scriban paths:
+         - Registration verification email: our own
+           UserRegisteredEmailHandler via INotificationDispatcher ->
+           TemplateVariableSubstitutor (##Var## placeholders, no Scriban).
          - The /Account/ConfirmUser "Verify" button is hijacked by
            wwwroot/global-scripts.js to call
            /api/public/external-signup/resend-verification, which fires
            the same handler -bypassing ABP's send-email-confirmation-token.
-       Other ABP-emailing paths (Forgot Password, Change Email, etc.) still
-       hit Scriban and will 500 until we either upgrade ABP past 10.x or
-       override those AccountEmailer methods too. -->
+         - ABP's IAccountEmailer (Forgot Password, Reset Password,
+           Change Email, 2FA email codes) is replaced wholesale by
+           CaseEvaluationAccountEmailer (added 2026-05-06) via
+           [Dependency(ReplaceServices = true)] +
+           [ExposeServices(typeof(IAccountEmailer))], so those flows
+           dispatch through SendAppointmentEmailArgs + Hangfire instead
+           of the Scriban renderer. Verified live on 2026-05-19 with
+           Scriban 7.2.0: Forgot Password renders + delivers, no
+           TypeLoadException, no Scriban errors in either container's
+           logs.
+       If a future flow needs ABP's Scriban-backed template engine
+       directly (ITemplateRenderer), expect TypeLoadException to return
+       and plan to either upgrade ABP past 10.x or render through the
+       same TemplateVariableSubstitutor pipeline. -->
   <ItemGroup>
     <PackageReference Include="Scriban" Version="7.2.0" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
