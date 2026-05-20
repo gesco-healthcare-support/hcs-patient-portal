@@ -968,10 +968,13 @@
       // instead of silently redirecting to /Account/Login. Reason: the
       // register POST returns 204 with no body, so without a banner the
       // user has no confirmation that anything happened. After clicking
-      // Sign In, ABP's login flow detects EmailConfirmed=false and routes
-      // to /Account/ConfirmUser, where the Verify button calls
-      // /api/account/send-email-confirmation-token -> our
-      // CaseEvaluationAccountEmailer override fires the email.
+      // Sign In, ABP's login flow detects EmailConfirmed=false and the
+      // Login page (B-3 redesign, proposed-copy.md 2.4) surfaces an
+      // alert + a "Resend verification" link that fires
+      // /api/public/external-signup/resend-verification through our
+      // own non-Scriban handler. The legacy /Account/ConfirmUser page
+      // now 302s to /Account/Login -- the Verify button + CORS surface
+      // it carried (BUG-013) are gone.
       log('Signup success. Showing in-place success banner.');
       showSignupSuccess(form, email);
     } catch (error) {
