@@ -4,7 +4,7 @@ paths:
   - "angular/**/*.html"
   - "angular/**/*.scss"
 ---
-# Angular Conventions — Patient Portal
+# Angular Conventions — Appointment Portal
 
 - Angular 20 with standalone components (no NgModules)
 - Use Angular signals for state management
