@@ -37,6 +37,20 @@ These three sets of records drive the booking form's slot picker + location drop
 
 **Strict parity with OLD.** OLD is single-doctor-per-deploy; the Doctor entity exists but the user "doctor" role does NOT (cleanup task #7).
 
+## Invariant: one doctor per tenant (permanent)
+
+OLD is single-doctor-per-deploy. NEW maps that to ABP multi-tenancy: **exactly one `Doctor` row per tenant, for the lifetime of the tenant.** This is the product invariant, not a Phase 1 simplification — there will never be a tenant with two doctors. A future "group practice" product would be a different application.
+
+Consequences:
+
+- `DoctorAvailability` deliberately has **no FK to `Doctor`**. Tenant scope identifies the doctor. Do not add a `DoctorId` column.
+- `DoctorPreferredLocation` and `DoctorAppointmentType` keep `DoctorId` in their composite keys only because EF requires a join-entity column; the value is functionally derivable from `TenantId`.
+- `DoctorTenantAppService.CreateAsync` (override on `SaasTenantAppService`) is the ONLY supported path to create a Doctor row. It runs atomically with tenant provisioning.
+- `DoctorsAppService.CreateAsync` should reject any call that would produce a second `Doctor` row in the current tenant scope. Today this guard is NOT enforced — see Gap row "One-doctor-per-tenant invariant" below.
+- `DoctorsAppService.DeleteAsync` should refuse to delete the only Doctor in a non-empty tenant. Today this guard is NOT enforced.
+
+See `PARITY-FLAG-NEW-006` in `_parity-flags.md`.
+
 ## OLD behavior (binding)
 
 ### Slot generation (`DoctorsAvailabilityDomain.Add`)
@@ -149,6 +163,7 @@ Staff Supervisor toggles which `AppointmentType` rows the doctor accepts. Bookin
 | Slot picker filter: by location + type + Available | OLD: stored proc `spm.spDoctorsAvailabilitiesLookups` | NEW: ADDED 2026-05-03 | **Add `GetDoctorAvailabilityLookupAsync`** | B | [IMPLEMENTED 2026-05-03 - pending testing] -- new method on `IDoctorAvailabilitiesAppService`; filter: LocationId required, AppointmentTypeId optional (loose-or-strict per OLD), `BookingStatus.Available`, AvailableDate >= today + `SystemParameter.AppointmentLeadTime`. Open to any authenticated user (booking form needs read access). |
 | Read endpoint authorization | -- | NEW: `GetListAsync` had only `[Authorize]` (any authenticated) | **Tighten to `.Default`** | I | [IMPLEMENTED 2026-05-03 - pending testing] -- now `[Authorize(DoctorAvailabilities.Default)]` matching all other read endpoints. |
 | Permissions: ManageAvailability / BulkGenerate / BulkDelete | -- | NEW: standard CRUD only | **Add fine-grained gates** | I | [DESCOPED 2026-05-03 - Phase 7b follow-up] -- existing Edit / Delete keys cover all current use cases. Splitting into bulk-specific gates is incremental and not blocking. |
+| One-doctor-per-tenant invariant enforcement | OLD: implicit (one Doctor row per deploy, app provisioning seeds it) | NEW: `DoctorTenantAppService` creates the Doctor when tenant is created, but `DoctorsAppService.CreateAsync` and `DeleteAsync` are still exposed without invariant guards | **Add invariant checks**: (1) `DoctorsAppService.CreateAsync` throws if a Doctor already exists for `CurrentTenant.Id`. (2) `DoctorsAppService.DeleteAsync` throws if the tenant has any `DoctorAvailability`, `Appointment`, `DoctorPreferredLocation`, or `DoctorAppointmentType` rows depending on this doctor. (3) Database: add `CREATE UNIQUE INDEX IX_AppEntity_Doctors_TenantId ON AppEntity_Doctors(TenantId) WHERE TenantId IS NOT NULL AND IsDeleted = 0` as a backstop. (4) `DoctorTenantAppService.CreateAsync` should be the only Doctor-creation entry point in normal operation. | B | [NEEDS IMPLEMENTATION 2026-05-15] -- see `PARITY-FLAG-NEW-006`. Tracked as a P1 gap in `docs/parity/_remaining-from-old-audit-2026-05-15.md`. |
 | Soft delete via `StatusId` | OLD | NEW: ABP `ISoftDelete` | None -- use ABP's | -- | [IMPLEMENTED prior] |
 | Pure helpers extracted for unit testing | -- | -- | **Extract `HasInFlightStatus`, `ComputeNumberOfSlotsPerDay`, `IsValidSlotTimeRange`, `IsValidSlotDateRange`** | C | [IMPLEMENTED 2026-05-03 - pending testing] -- internal-static helpers added; 16 pure unit tests cover boundary cases (zero / negative / inverted / boundary times). |
 
