@@ -30,26 +30,26 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:926.</summary>
     public const string PatientAppointmentPending =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been Pending.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been Pending.";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:940.</summary>
     public const string PatientAppointmentApproveReject =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Approve or Reject New Appointment Request";
+        "Appointment Portal - ##EmailSubjectIdentity## - Approve or Reject New Appointment Request";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:957.</summary>
     public const string PatientAppointmentApprovedInternal =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been approved successfully.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been approved successfully.";
 
     /// <summary>
     /// OLD <c>AppointmentDomain.cs</c>:970. Same string as the Internal-side
     /// variant -- OLD uses identical subject for both branches.
     /// </summary>
     public const string PatientAppointmentApprovedExt =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been approved successfully.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been approved successfully.";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:985.</summary>
     public const string PatientAppointmentRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been rejected by our clinic staff.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment request has been rejected by our clinic staff.";
 
     /// <summary>
     /// OLD <c>UserAuthenticationDomain.cs</c>:209.
@@ -57,7 +57,7 @@ internal static class EmailSubjects
     /// <c>CaseEvaluationAccountEmailer.SendPasswordResetLinkAsync</c>.
     /// </summary>
     public const string ResetPassword =
-        "Patient Appointment Portal - Reset Password";
+        "Appointment Portal - Reset Password";
 
     /// <summary>
     /// OLD <c>UserDomain.cs</c>:337 / <c>UserAuthenticationDomain.cs</c>:313.
@@ -84,19 +84,19 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:993. Decision 4 fixes the OLD bug surfacing rejection notes on a check-in event.</summary>
     public const string PatientAppointmentCheckedIn =
-        "Patient Appointment Portal - Your appointment has been checked in - ##AppointmentRequestConfirmationNumber##";
+        "Appointment Portal - Your appointment has been checked in - ##AppointmentRequestConfirmationNumber##";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:1005. Decision 4 same RejectionNotes-skip as CheckedIn.</summary>
     public const string PatientAppointmentCheckedOut =
-        "Patient Appointment Portal - Your appointment has been checked out - ##AppointmentRequestConfirmationNumber##";
+        "Appointment Portal - Your appointment has been checked out - ##AppointmentRequestConfirmationNumber##";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:1017. Decision 5 internal staff only.</summary>
     public const string PatientAppointmentNoShow =
-        "Patient Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## marked No-Show";
+        "Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## marked No-Show";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:1030.</summary>
     public const string PatientAppointmentCancelledNoBill =
-        "Patient Appointment Portal - Your appointment has been cancelled - ##AppointmentRequestConfirmationNumber##";
+        "Appointment Portal - Your appointment has been cancelled - ##AppointmentRequestConfirmationNumber##";
 
     // ----------------------------------------------------------------------
     // Phase 6.C (Category 6, 2026-05-08): document-flow subjects.
@@ -109,39 +109,39 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:258.</summary>
     public const string PatientDocumentAccepted =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:275.</summary>
     public const string PatientDocumentRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:291.</summary>
     public const string PatientDocumentUploaded =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:340 -- ad-hoc-document accept variant. Same subject as the package variant; only the template body differs.</summary>
     public const string PatientNewDocumentAccepted =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:362.</summary>
     public const string PatientNewDocumentRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:378.</summary>
     public const string PatientNewDocumentUploaded =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:976. OLD's "Joint Agreement Letter Uploaded Accepted" wording is fixed.</summary>
     public const string JointAgreementLetterAccepted =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Accepted.";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:987.</summary>
     public const string JointAgreementLetterUploaded =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Uploaded.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Uploaded.";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:994. OLD's "Uploaded Rejected" wording is fixed.</summary>
     public const string JointAgreementLetterRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Rejected.";
 
     /// <summary>Office mailbox subject when a new request lands.</summary>
     public const string AppointmentRequestedOffice =
@@ -206,11 +206,11 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentJointDeclarationDomain.cs</c>:235. Same subject string as PatientDocumentAccepted; only the body differs.</summary>
     public const string PatientDocumentAcceptedRemainingDocs =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
 
     /// <summary>OLD <c>AppointmentJointDeclarationDomain.cs</c>:257. Same subject string as PatientDocumentRejected; only the body differs.</summary>
     public const string PatientDocumentRejectedRemainingDocs =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
 
     // ----------------------------------------------------------------------
     // Phase 3 (Category 3, 2026-05-10): change-request flow subjects.
@@ -229,31 +229,31 @@ internal static class EmailSubjects
 
     /// <summary>OLD has no explicit cancel-submit subject (NEW-only -- OLD did not email on cancel submit).</summary>
     public const string AppointmentCancelledRequest =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Cancellation request received";
+        "Appointment Portal - ##EmailSubjectIdentity## - Cancellation request received";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:744. Typo-fixed to capitalize first word.</summary>
     public const string AppointmentCancelledRequestApproved =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Cancellation request has been accepted";
+        "Appointment Portal - ##EmailSubjectIdentity## - Cancellation request has been accepted";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:752 (commented out). NEW-only.</summary>
     public const string AppointmentCancelledRequestRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Cancellation request has been rejected";
+        "Appointment Portal - ##EmailSubjectIdentity## - Cancellation request has been rejected";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:760. Typo "Your have" fixed.</summary>
     public const string AppointmentRescheduleRequest =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - You have successfully requested a reschedule";
+        "Appointment Portal - ##EmailSubjectIdentity## - You have successfully requested a reschedule";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:709 or :723 selected by ##ApprovedSubjectQualifier## (Cat 3 Adrian Decision: single template, variable-driven copy).</summary>
     public const string AppointmentRescheduleRequestApproved =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - ##ApprovedSubjectQualifier##";
+        "Appointment Portal - ##EmailSubjectIdentity## - ##ApprovedSubjectQualifier##";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:735.</summary>
     public const string AppointmentRescheduleRequestRejected =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Your reschedule request has been rejected";
+        "Appointment Portal - ##EmailSubjectIdentity## - Your reschedule request has been rejected";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:658.</summary>
     public const string ClinicalStaffCancellation =
-        "Patient Appointment Portal - ##EmailSubjectIdentity## - Appointment request has been cancelled";
+        "Appointment Portal - ##EmailSubjectIdentity## - Appointment request has been cancelled";
 
     /// <summary>
     /// 2026-05-15 -- admin-issued invite email. ##TenantName## is the

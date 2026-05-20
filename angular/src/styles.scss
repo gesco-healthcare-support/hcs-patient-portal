@@ -150,3 +150,17 @@ abp-lookup-select.is-invalid select {
 abp-lookup-select.is-invalid select:focus {
   box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
 }
+
+/*
+ * 2026-05-19: LeptonX pins the .lpx-brand-name container to width: 160px,
+ * which clips brand text longer than ~17 characters (text-overflow:
+ * ellipsis). Our brand "Appointment Portal" is 161px wide -- 1px over.
+ * Bumping to width: auto with a generous max-width lets the full name
+ * render while still constraining against pathological long names.
+ * Brand-logo wrapper is 240px and the name starts at left:58px, so up
+ * to 182px of text fits before the wrapper's hard edge.
+ */
+.lpx-brand-name {
+  width: auto !important;
+  max-width: 182px;
+}
