@@ -181,6 +181,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch,
                 System.Net.HttpStatusCode.BadRequest);
+
+            // BUG-024 follow-up (2026-05-19) -- the appointment state-machine
+            // throws this on every illegal transition (Approve from Approved,
+            // Reject from Rejected, etc). Same family as BUG-003 / BUG-023:
+            // input violates a precondition; HTTP 400 fits the semantic, not
+            // 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
+                System.Net.HttpStatusCode.BadRequest);
         });
     }
 

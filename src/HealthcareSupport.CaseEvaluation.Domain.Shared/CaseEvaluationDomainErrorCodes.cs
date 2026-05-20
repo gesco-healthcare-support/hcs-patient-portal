@@ -116,6 +116,20 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 
     /// <summary>
+    /// Raised by <c>AppointmentManager.FireTransition</c> when the
+    /// caller requests a status transition that is not legal from the
+    /// appointment's current state (e.g. Approve from Approved, or
+    /// Reject from Rejected). Carries WithData("from", currentStatus)
+    /// + WithData("trigger", requestedTrigger) for the SPA to surface
+    /// a contextual message. Mapped to HTTP 400 (BUG-024 follow-up,
+    /// 2026-05-19) because it is a client-input validation failure,
+    /// not an authorization failure -- the caller IS allowed to use
+    /// the endpoint, but the state machine rejects the request.
+    /// </summary>
+    public const string AppointmentInvalidTransition =
+        "CaseEvaluation:AppointmentInvalidTransition";
+
+    /// <summary>
     /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
     /// when the supplied invite token does not hash to any persisted
     /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
