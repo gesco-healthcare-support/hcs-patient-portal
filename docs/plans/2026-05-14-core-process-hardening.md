@@ -87,7 +87,7 @@ Adrian's directive 2026-05-14: the priority is making the **core booking process
 
 | # | Action | Time |
 | --- | --- | --- |
-| P0 | Register SoftwareThree (Patient), SoftwareFour (AA), SoftwareFive (DA), SoftwareSix (CE). Verify each via emailed link. | ~10 min |
+| P0 | Register SoftwareThree (Patient), SoftwareFour (AA), SoftwareFive (DA), SoftwareSix (CE) via the SPA. Then SQL-update `EmailConfirmed=1` for each (Adrian's directive 2026-05-14: skip the email-link verification flow for bulk setup; real verify-link flow is still tested in scenarios 1.11/1.12). | ~5 min |
 | P1 | Admin UI: grant SoftwareOne + SoftwareTwo additional roles (Clinic Staff + Staff Supervisor on top of existing admin). | ~3 min |
 | P2 | Supervisor UI: seed doctor availabilities for AME, QME, Deposition, Re-Eval (using existing types) across June + July + August 2026. 15-min slot intervals. Aim for 1000+ slots across types. | ~10 min |
 
