@@ -139,7 +139,14 @@ public class AppointmentApprovalValidatorUnitTests
     public void EnsureRejectable_NullOrWhitespaceReason_Throws(string? reason)
     {
         var appointment = NewAppointment(AppointmentStatusType.Pending);
-        var input = new RejectAppointmentInput { Reason = reason };
+        // BUG-024 (2026-05-19) made RejectAppointmentInput.Reason
+        // non-nullable + [Required] so the model binder filters these
+        // values before the validator runs in production. The validator
+        // still defends against null/whitespace at the domain layer
+        // (defense in depth), and this test exercises that path by
+        // forcing the value past the type system with null-forgiving
+        // assignment.
+        var input = new RejectAppointmentInput { Reason = reason! };
 
         var ex = Should.Throw<BusinessException>(
             () => AppointmentApprovalValidator.EnsureRejectable(appointment, input));
