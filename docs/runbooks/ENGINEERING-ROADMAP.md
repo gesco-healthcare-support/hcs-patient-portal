@@ -240,7 +240,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 ### Task 7 — Walk the 18 wired email flows on real SMTP
 
 **Effort:** 1-2 days  
-**Plan:** `docs/plans/2026-05-19-hardening-suite-revision.md` (status: in-progress) — the rewritten `docs/runbooks/HARDENING-TEST-SUITE.md` is the script to follow.  
+**Plan:** the rewritten `docs/runbooks/HARDENING-TEST-SUITE.md` is the script to follow. (Its driving plan doc shipped + was removed 2026-05-20; the runbook itself is now the source of truth.)  
 **Output:** any bugs surfaced get filed under `docs/runbooks/findings/bugs/`.
 
 ---
@@ -270,7 +270,6 @@ The status report has the full breakdown. Engineering scopes for the items most 
 These can land in any order alongside the slot chain — no overlap with the slot-rework file set:
 - **BUG-008**, **BUG-014/15**, **BUG-018**, **BUG-025** — isolated files
 - `docs/plans/2026-05-15-invite-external-user.md` — already shipped via PR #202; just needs frontmatter `status: shipped`
-- `docs/plans/2026-05-19-hardening-suite-revision.md` — docs-only, depends only on the shipped seed-swap
 
 Inside the slot chain itself, **Phases 5 and 6 (gen UI + picker UI)** could land on parallel sub-branches off the merged Phase 4 proxy — disjoint Angular trees. Only worth doing if you ever get a second pair of hands.
 
