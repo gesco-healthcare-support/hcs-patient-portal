@@ -96,6 +96,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHealthChecks(context);
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
+        ConfigureUploadLimits(context);
         ConfigureMultiTenancy();
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
@@ -197,6 +198,23 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
                 System.Net.HttpStatusCode.BadRequest);
+
+            // BUG-025 (2026-05-21) -- file-too-large rejection from the
+            // AppointmentDocuments upload path. 413 is RFC 7231's
+            // canonical status for "request entity too large". Distinct
+            // from 400 (empty file, just below) so the SPA can branch
+            // the user-facing message without parsing the body.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge,
+                System.Net.HttpStatusCode.RequestEntityTooLarge);
+
+            // BUG-025 follow-up (2026-05-21) -- empty-file rejection
+            // (zero-byte or missing stream). Client-input validation
+            // failure; HTTP 400, same shape as the other input-validator
+            // codes above.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty,
+                System.Net.HttpStatusCode.BadRequest);
         });
     }
 
@@ -238,6 +256,39 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     private static void ConfigureHealthChecks(ServiceConfigurationContext context)
     {
         context.Services.AddCaseEvaluationHealthChecks();
+    }
+
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- defense-in-depth size caps on
+    /// multipart/form-data uploads.
+    ///
+    /// <para>The AppointmentDocuments AppService enforces
+    /// <see cref="HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentsAppService.MaxFileSizeBytes"/>
+    /// (10 MB) at the application layer. That check fires only after
+    /// the request body is buffered, so this method configures the
+    /// framework-layer caps (Kestrel + FormOptions) at 12 MB -- a 2 MB
+    /// buffer above the 10 MB AppService cap so multipart boundary
+    /// headers plus small request overhead don't trip the framework's
+    /// raw 413 before the AppService's localized
+    /// <c>BusinessException</c> + <c>data.MaxBytes</c> /
+    /// <c>data.ActualBytes</c> can fire. Uploads above 12 MB get a
+    /// framework 413 with no localized message; uploads between 10 MB
+    /// and 12 MB get the friendly localized 413 with data so the SPA
+    /// can render "max 10 MB" + the actual size.</para>
+    /// </summary>
+    private static void ConfigureUploadLimits(ServiceConfigurationContext context)
+    {
+        const long FrameworkCapBytes = 12L * 1024 * 1024;
+
+        context.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+        {
+            options.Limits.MaxRequestBodySize = FrameworkCapBytes;
+        });
+
+        context.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = FrameworkCapBytes;
+        });
     }
 
     private void ConfigureUrls(IConfiguration configuration)
