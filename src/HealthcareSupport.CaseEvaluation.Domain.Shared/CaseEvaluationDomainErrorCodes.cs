@@ -130,6 +130,19 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:AppointmentInvalidTransition";
 
     /// <summary>
+    /// 2026-05-21 (OBS-23) -- raised by
+    /// <c>AppointmentsAppService.CreateAsync</c> when a non-attorney
+    /// external user (Patient or Claim Examiner) attempts to create
+    /// an AME or AME-REVAL appointment. Mirrors OLD's
+    /// <c>RoleAppointmentType</c> join restriction; NEW uses a
+    /// hardcoded attorney allow-list since the join table was not
+    /// ported. Mapped to HTTP 400. Localization key
+    /// <c>Appointment:AmeRequiresAttorneyRole</c>.
+    /// </summary>
+    public const string AppointmentAmeRequiresAttorneyRole =
+        "CaseEvaluation:Appointment.AmeRequiresAttorneyRole";
+
+    /// <summary>
     /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
     /// when the supplied invite token does not hash to any persisted
     /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
