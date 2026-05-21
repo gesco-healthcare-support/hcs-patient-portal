@@ -54,21 +54,22 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         Define(context, CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, defaultValue: "");
         // BUG-014 (Task A, 2026-05-20) -- default sourced from App:AngularUrl
         // so docker-compose can override via App__AngularUrl env var.
-        // Tenant-less here; TenantUrlComposer at the email-rendering site
-        // prepends `<tenant>.` from ICurrentTenant.Name. Literal fallback
-        // preserves the 2026-05-06 Falkinstein-targeted behavior when
-        // App:AngularUrl is absent (e.g. non-Docker dev paths).
-        var portalDefault = _configuration["App:AngularUrl"]?.TrimEnd('/')
-            ?? "http://falkinstein.localhost:4200";
+        // Tenant-less here; IAccountUrlBuilder at the email-rendering site
+        // prepends `<tenant>.` from the explicit tenantId argument.
+        // BUG-029 v3 fix (2026-05-21) -- hardcoded "http://falkinstein.localhost:..."
+        // fallbacks removed. If neither the DB setting nor the env var is set,
+        // IAccountUrlBuilder.ResolveAndComposeAsync throws a clear "set the
+        // App__... env var" error instead of silently emitting Falkinstein
+        // URLs from a Test Clinic stack.
+        var portalDefault = _configuration["App:AngularUrl"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl, defaultValue: portalDefault);
         // S-6.1: AuthServer base URL for tenant-pre-filled register links in
         // "register as [role]" emails sent to non-registered parties.
         // BUG-014 (Task A, 2026-05-20) -- default sourced from
         // AuthServer:Authority (already env-var-driven via AuthServer__Authority
-        // in docker-compose.yml). See PortalBaseUrl above for the rationale
-        // and the TenantUrlComposer chain.
-        var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/')
-            ?? "http://falkinstein.localhost:44368";
+        // in docker-compose.yml). See PortalBaseUrl above for the rationale.
+        // BUG-029 v3 fix (2026-05-21) -- hardcoded fallback removed (see above).
+        var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: authServerDefault);
 
         // W2-10: 10 reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e) + appointment-day).
@@ -152,7 +153,7 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         }
     }
 
-    private static void Define(ISettingDefinitionContext context, string name, string defaultValue)
+    private static void Define(ISettingDefinitionContext context, string name, string? defaultValue)
     {
         // Localization keys live in `Domain.Shared/Localization/CaseEvaluation/en.json`.
         // Naming convention: `Setting:<setting-name>` for DisplayName and

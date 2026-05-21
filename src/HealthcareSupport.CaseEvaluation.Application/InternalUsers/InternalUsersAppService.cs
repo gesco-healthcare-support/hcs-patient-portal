@@ -82,26 +82,27 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly INotificationDispatcher _notificationDispatcher;
-    private readonly ISettingProvider _settingProvider;
     private readonly IDataFilter _dataFilter;
     private readonly ILogger<InternalUsersAppService> _logger;
+    // BUG-029 v3 fix (2026-05-21): centralized tenant-aware URL composition.
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public InternalUsersAppService(
         IdentityUserManager userManager,
         IdentityRoleManager roleManager,
         IRepository<Tenant, Guid> tenantRepository,
         INotificationDispatcher notificationDispatcher,
-        ISettingProvider settingProvider,
         IDataFilter dataFilter,
-        ILogger<InternalUsersAppService> logger)
+        ILogger<InternalUsersAppService> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _tenantRepository = tenantRepository;
         _notificationDispatcher = notificationDispatcher;
-        _settingProvider = settingProvider;
         _dataFilter = dataFilter;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [Authorize(CaseEvaluationPermissions.InternalUsers.Create)]
@@ -254,11 +255,10 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                     .WithData("Errors", string.Join("; ", roleResult.Errors.Select(e => e.Description)));
             }
 
-            // 4g. Resolve the portal URL the email links to. Per-tenant
-            //     setting, falls back to the SPA's documented dev URL
-            //     when unset (same pattern ExternalAccountAppService
-            //     uses for the reset / verify URLs).
-            var portalUrl = await ResolvePortalBaseUrlAsync();
+            // 4g. Resolve the portal URL the email links to. BUG-029 v3
+            //     (2026-05-21): now via IAccountUrlBuilder so the
+            //     tenant subdomain is always prepended.
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(resolvedTenantId);
 
             // 4h. Dispatch welcome email via the same path
             //     ResetPassword / InviteExternalUser use. Failure to
@@ -361,23 +361,11 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         }
     }
 
-    /// <summary>
-    /// Resolves the SPA base URL the welcome email's CTA button links to.
-    /// Falls back to the Phase 1A Falkinstein subdomain when the
-    /// per-tenant <c>Notifications.PortalBaseUrl</c> setting is unset --
-    /// mirrors <c>ExternalAccountAppService.ResolvePortalBaseUrlAsync</c>
-    /// so both flows land on the same SPA host.
-    /// </summary>
-    private async Task<string> ResolvePortalBaseUrlAsync()
-    {
-        var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return "http://falkinstein.localhost:4200";
-        }
-        return configured.TrimEnd('/');
-    }
+    // BUG-029 v3 fix (2026-05-21): ResolvePortalBaseUrlAsync removed; the
+    // call site uses IAccountUrlBuilder.BuildPortalRootUrlAsync directly.
+    // The "http://falkinstein.localhost:4200" hardcoded fallback is gone --
+    // missing App__AngularUrl env var now throws a clear error instead of
+    // silently emitting the demo tenant URL.
 
     private async Task<bool> TrySendWelcomeEmailAsync(
         IdentityUser user,

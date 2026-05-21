@@ -52,29 +52,29 @@ public class AccessorInvitedEmailHandler :
     // tenant subdomain on plain HTTP (the Docker-exposed AuthServer port).
     // Defensive fallback when ABP setting subsystem returns null for
     // AuthServerBaseUrl. Override per-tenant in /setting-management.
-    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
+    // BUG-029 v3 fix (2026-05-21): DefaultAuthServerBaseUrl removed.
 
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IdentityUserManager _userManager;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AccessorInvitedEmailHandler> _logger;
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public AccessorInvitedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IdentityUserManager userManager,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<AccessorInvitedEmailHandler> logger)
+        ILogger<AccessorInvitedEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _userManager = userManager;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -109,8 +109,11 @@ public class AccessorInvitedEmailHandler :
             // instead of echoing a plaintext temp password. Standard ABP
             // Identity flow; the link expires per IdentityOptions.Tokens.
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-            var setupUrl = BuildAccountSetupUrl(authServerBaseUrl, eventData.InvitedUserId, resetToken);
+            // BUG-029 v3 fix (2026-05-21): tenant-aware setup URL via the
+            // builder; the URL shape matches BuildPasswordResetUrl
+            // ({base}/Account/ResetPassword?userId=...&resetToken=...).
+            var setupUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
+                eventData.TenantId!.Value, eventData.InvitedUserId, resetToken);
 
             var recipients = new[]
             {
@@ -150,19 +153,8 @@ public class AccessorInvitedEmailHandler :
         }
     }
 
-    private async Task<string> ResolveAuthServerBaseUrlAsync()
-    {
-        var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return DefaultAuthServerBaseUrl;
-        }
-        // BUG-014 (Task A): prepend tenant subdomain so the tenant-less base
-        // URL from Settings__CaseEvaluation__Notifications__AuthServerBaseUrl
-        // becomes <tenant>.localhost:<port>. No-op on already-prefixed URLs.
-        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), _currentTenant.Name)!;
-    }
+    // BUG-029 v3 fix (2026-05-21): ResolveAuthServerBaseUrlAsync removed;
+    // URL composition lives in IAccountUrlBuilder.
 
     /// <summary>
     /// Maps the Eto's free-text role name (set by
@@ -188,24 +180,7 @@ public class AccessorInvitedEmailHandler :
         };
     }
 
-    /// <summary>
-    /// Builds the AuthServer setup URL the invited user clicks from the
-    /// email. Same query-string contract as ExternalAccountAppService's
-    /// password-reset flow: <c>{base}/Account/ResetPassword?userId={guid}
-    /// &amp;resetToken={url-encoded-token}</c>. The user lands on the
-    /// AuthServer Razor page, sets a new password, and is then redirected
-    /// to the SPA. Internal for unit-test coverage.
-    /// </summary>
-    internal static string BuildAccountSetupUrl(
-        string authServerBaseUrl,
-        Guid userId,
-        string resetToken)
-    {
-        var builder = new StringBuilder();
-        builder.Append(authServerBaseUrl);
-        builder.Append("/Account/ResetPassword");
-        builder.Append("?userId=").Append(userId.ToString());
-        builder.Append("&resetToken=").Append(WebUtility.UrlEncode(resetToken));
-        return builder.ToString();
-    }
+    // BUG-029 v3 fix (2026-05-21): BuildAccountSetupUrl static helper
+    // moved into IAccountUrlBuilder.BuildPasswordResetUrlAsync (same
+    // shape; matches ExternalAccountAppService's reset URL contract).
 }
