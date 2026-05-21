@@ -5,13 +5,13 @@ version: 2
 # docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md
 # for the policy.
 #
-# Version-update PRs remain disabled via open-pull-requests-limit: 0
-# until ABP Commercial supports Angular 20.3+. Security advisories (configured
-# in repo settings, independent of this file) flow into the integration branch
-# regardless of the limit.
-#
-# When ABP catches up: raise the limit to 5/3 here. The integration-branch
-# policy stays in place independently.
+# TEMPORARY: open-pull-requests-limit raised from 0 to 5/3 to let Dependabot
+# re-raise four PRs orphaned by the previous target-branch change
+# (originals #169, #170, #172, #205). Once their replacements land in
+# chore/dependency-updates, the limits will be reset to 0 via a follow-up PR
+# to honor the ABP Commercial / Angular 20.3+ constraint. Security advisories
+# (configured in repo settings, independent of this file) flow into the
+# integration branch regardless of the limit.
 
 updates:
   - package-ecosystem: "nuget"
@@ -19,7 +19,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     labels: ["dependencies", "backend"]
     target-branch: "chore/dependency-updates"
 
@@ -28,7 +28,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
     target-branch: "chore/dependency-updates"
 
@@ -37,7 +37,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
     labels: ["dependencies", "backend"]
     target-branch: "chore/dependency-updates"
 
@@ -45,6 +45,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 3
     labels: ["dependencies", "ci"]
     target-branch: "chore/dependency-updates"
