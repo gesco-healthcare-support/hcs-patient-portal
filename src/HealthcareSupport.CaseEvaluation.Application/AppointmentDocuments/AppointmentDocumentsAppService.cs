@@ -29,6 +29,18 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 [Authorize]
 public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppointmentDocumentsAppService
 {
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- per-document upload cap (10 MB). Mirrors
+    /// the <c>UserSignatureAppService.MaxFileSizeBytes</c> pattern. The
+    /// AppService check fires AFTER the request body is buffered, so
+    /// Kestrel <c>Limits.MaxRequestBodySize</c> and
+    /// <c>FormOptions.MultipartBodyLengthLimit</c> are configured in
+    /// <c>CaseEvaluationHttpApiHostModule</c> at 12 MB to give this
+    /// localized check room to fire with a friendly message rather
+    /// than the raw framework 413.
+    /// </summary>
+    public const long MaxFileSizeBytes = 10L * 1024 * 1024;
+
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
@@ -151,8 +163,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
         if (content == null || fileSize <= 0)
         {
-            throw new UserFriendlyException("File is empty.");
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
+        EnsureFileSizeWithinLimit(fileSize);
 
         // Issue #114 (2026-05-13): gate before any blob save so the
         // user can't trigger a write at all if they're not a party.
@@ -288,8 +301,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
         if (content == null || fileSize <= 0)
         {
-            throw new UserFriendlyException("File is empty.");
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
+        EnsureFileSizeWithinLimit(fileSize);
 
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
 
@@ -405,8 +419,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         }
         if (content == null || fileSize <= 0)
         {
-            throw new UserFriendlyException("File is empty.");
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
+        EnsureFileSizeWithinLimit(fileSize);
 
         EnsureValidFileFormat(content, fileName);
 
@@ -653,6 +668,25 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private async Task<bool> IsInternalActorAsync()
     {
         return await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.AppointmentDocuments.Approve);
+    }
+
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- enforce the per-document upload size cap.
+    /// Throws <see cref="BusinessException"/> with
+    /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge"/>
+    /// carrying <c>MaxBytes</c> and <c>ActualBytes</c> data so the SPA can
+    /// render a friendly message + the HTTP-status mapping in
+    /// <c>CaseEvaluationHttpApiHostModule</c> resolves to 413 Payload Too
+    /// Large.
+    /// </summary>
+    private static void EnsureFileSizeWithinLimit(long fileSize)
+    {
+        if (fileSize > MaxFileSizeBytes)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)
+                .WithData("MaxBytes", MaxFileSizeBytes)
+                .WithData("ActualBytes", fileSize);
+        }
     }
 
     private static void EnsureValidFileFormat(Stream stream, string fileName)
