@@ -8,7 +8,7 @@ name: Commitlint
 
 on:
   pull_request:
-    branches: [main, development, staging, production]
+    branches: [main, development, staging, production, chore/dependency-updates]
 
 permissions:
   contents: read

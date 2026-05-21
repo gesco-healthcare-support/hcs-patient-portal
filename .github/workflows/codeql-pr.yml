@@ -7,7 +7,7 @@ name: CodeQL (PR)
 
 on:
   pull_request:
-    branches: [main, development, staging, production]
+    branches: [main, development, staging, production, chore/dependency-updates]
 
 concurrency:
   group: codeql-pr-${{ github.ref }}
