@@ -169,6 +169,13 @@ services:
       # drops env-var names with literal dots; ABP's flat-key lookup needs
       # `Settings:CaseEvaluation.Notifications.*` which env vars can't express.)
       App__AngularUrl: "http://localhost:${NG_PORT:-4200}"
+      # BUG-028 (2026-05-20) -- per-stack OpenIddict wildcard formats so
+      # the AuthServer accepts tenant-subdomain redirect_uris on whichever
+      # port set this stack is running. Main stack defaults to canonical
+      # ports; parallel worktrees override via NG_PORT/AUTH_PORT/API_PORT.
+      App__WildcardDomainsFormat__0: "http://{0}.localhost:${NG_PORT:-4200}"
+      App__WildcardDomainsFormat__1: "http://{0}.localhost:${AUTH_PORT:-44368}"
+      App__WildcardDomainsFormat__2: "http://{0}.localhost:${API_PORT:-44327}"
       # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
       BlobStoring__Minio__Endpoint: "minio:9000"
       BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
