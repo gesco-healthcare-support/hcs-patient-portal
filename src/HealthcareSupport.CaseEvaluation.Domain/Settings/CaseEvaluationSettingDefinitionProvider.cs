@@ -56,11 +56,10 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // so docker-compose can override via App__AngularUrl env var.
         // Tenant-less here; IAccountUrlBuilder at the email-rendering site
         // prepends `<tenant>.` from the explicit tenantId argument.
-        // BUG-029 v3 fix (2026-05-21) -- hardcoded "http://falkinstein.localhost:..."
-        // fallbacks removed. If neither the DB setting nor the env var is set,
-        // IAccountUrlBuilder.ResolveAndComposeAsync throws a clear "set the
-        // App__... env var" error instead of silently emitting Falkinstein
-        // URLs from a Test Clinic stack.
+        // Hardcoded "http://falkinstein.localhost:..." fallback removed: if
+        // neither the DB setting nor the env var is set, the builder throws
+        // a clear "set the App__... env var" error at first send instead of
+        // silently emitting Falkinstein URLs from a non-Falkinstein stack.
         var portalDefault = _configuration["App:AngularUrl"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl, defaultValue: portalDefault);
         // S-6.1: AuthServer base URL for tenant-pre-filled register links in
@@ -68,7 +67,7 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // BUG-014 (Task A, 2026-05-20) -- default sourced from
         // AuthServer:Authority (already env-var-driven via AuthServer__Authority
         // in docker-compose.yml). See PortalBaseUrl above for the rationale.
-        // BUG-029 v3 fix (2026-05-21) -- hardcoded fallback removed (see above).
+        // Hardcoded fallback removed (see above).
         var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: authServerDefault);
 

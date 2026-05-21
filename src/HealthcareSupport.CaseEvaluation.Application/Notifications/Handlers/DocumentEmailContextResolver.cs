@@ -28,7 +28,7 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
-    // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition.
+    // Tenant-aware URL composition via the centralized builder.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DocumentEmailContextResolver(
@@ -80,11 +80,10 @@ public class DocumentEmailContextResolver : ITransientDependency
             document = await _documentRepository.FindAsync(appointmentDocumentId.Value);
         }
 
-        // BUG-029 v3 fix (2026-05-21): route through IAccountUrlBuilder.
-        // Tenant comes from the appointment row's TenantId (the
-        // source of truth) rather than _currentTenant.Name (which is
-        // null inside the Change(eventData.TenantId) scope opened by
-        // the calling handlers).
+        // Route through IAccountUrlBuilder. Tenant comes from the
+        // appointment row's TenantId (the source of truth) rather than
+        // _currentTenant.Name (which is null inside the
+        // Change(eventData.TenantId) scope opened by the calling handlers).
         var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(appointment.TenantId);
 
         return new DocumentEmailContext

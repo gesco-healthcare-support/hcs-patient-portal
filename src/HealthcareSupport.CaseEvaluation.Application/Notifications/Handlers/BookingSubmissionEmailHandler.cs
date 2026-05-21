@@ -243,10 +243,10 @@ public class BookingSubmissionEmailHandler :
             return;
         }
 
-        // Resolve the URLs once per dispatch via IAccountUrlBuilder
-        // (BUG-029 v3 fix 2026-05-21). The builder pulls tenant Name
-        // from the explicit eventData.TenantId rather than the
-        // unreliable _currentTenant.Name (null inside Change scopes).
+        // Resolve the URLs once per dispatch via IAccountUrlBuilder. The
+        // builder pulls tenant Name from the explicit eventData.TenantId
+        // rather than the unreliable _currentTenant.Name (null inside the
+        // Change(tenantId) scope opened by the calling handler).
         var portalBaseUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
         var authServerBaseUrl = await _accountUrlBuilder.BuildAuthServerRootUrlAsync(eventData.TenantId);
 

@@ -219,8 +219,10 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         });
     }
 
-    // BUG-029 v3 fix (2026-05-21): ResolveAuthServerBaseUrlAsync moved into
-    // IAccountUrlBuilder (host-scoped Notifications/AccountUrlBuilder.cs).
+    // ResolveAuthServerBaseUrlAsync moved into IAccountUrlBuilder so URL
+    // composition reads the tenant name from an explicit tenantId argument
+    // instead of ambient ICurrentTenant.Name (which is null inside the
+    // Change(tenantId) scopes opened by Register / Reset / Invite).
 
     private static IReadOnlyDictionary<string, object?> BuildLinkVariables(IdentityUser user, string url)
     {

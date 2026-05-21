@@ -153,8 +153,9 @@ public class AccessorInvitedEmailHandler :
         }
     }
 
-    // BUG-029 v3 fix (2026-05-21): ResolveAuthServerBaseUrlAsync removed;
-    // URL composition lives in IAccountUrlBuilder.
+    // ResolveAuthServerBaseUrlAsync removed; URL composition lives in
+    // IAccountUrlBuilder, which reads the tenant name from an explicit
+    // tenantId argument instead of ambient ICurrentTenant.Name.
 
     /// <summary>
     /// Maps the Eto's free-text role name (set by

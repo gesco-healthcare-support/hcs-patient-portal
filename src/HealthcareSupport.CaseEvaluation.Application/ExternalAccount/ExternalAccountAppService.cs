@@ -427,10 +427,10 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         vars["imageInByte"] = string.Empty;
     }
 
-    // BUG-029 v3 fix (2026-05-21): ResolveAuthServerBaseUrlAsync removed.
-    // The hardcoded "Falkinstein" workaround it carried (TODO Phase 1B)
-    // is now actually fixed: IAccountUrlBuilder resolves the tenant name
-    // from the explicit tenantId argument passed by the caller.
+    // ResolveAuthServerBaseUrlAsync removed. The hardcoded "Falkinstein"
+    // workaround it carried is now actually fixed: IAccountUrlBuilder
+    // resolves the tenant name from the explicit tenantId argument the
+    // caller derives from user.TenantId.
 
     /// <summary>
     /// Trims + lowercases the inbound email so reverse lookups match the
