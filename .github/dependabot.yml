@@ -1,9 +1,17 @@
 version: 2
 
-# Version-update PRs are disabled (limit: 0) until ABP Commercial supports Angular 20.3+.
-# Dependabot security alerts remain active — they are configured in repo settings,
-# independent of this file.
-# Re-enable by restoring open-pull-requests-limit to 5/3 when ABP catches up.
+# All version-update PRs target the long-lived chore/dependency-updates
+# integration branch, NOT main. See
+# docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md
+# for the policy.
+#
+# Version-update PRs remain disabled via open-pull-requests-limit: 0
+# until ABP Commercial supports Angular 20.3+. Security advisories (configured
+# in repo settings, independent of this file) flow into the integration branch
+# regardless of the limit.
+#
+# When ABP catches up: raise the limit to 5/3 here. The integration-branch
+# policy stays in place independently.
 
 updates:
   - package-ecosystem: "nuget"
@@ -13,7 +21,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 0
     labels: ["dependencies", "backend"]
-    target-branch: "main"
+    target-branch: "chore/dependency-updates"
 
   - package-ecosystem: "npm"
     directory: "/angular"
@@ -22,7 +30,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 0
     labels: ["dependencies", "frontend"]
-    target-branch: "main"
+    target-branch: "chore/dependency-updates"
 
   - package-ecosystem: "npm"
     directory: "/src/HealthcareSupport.CaseEvaluation.AuthServer"
@@ -31,7 +39,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 0
     labels: ["dependencies", "backend"]
-    target-branch: "main"
+    target-branch: "chore/dependency-updates"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -39,4 +47,4 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 0
     labels: ["dependencies", "ci"]
-    target-branch: "main"
+    target-branch: "chore/dependency-updates"
