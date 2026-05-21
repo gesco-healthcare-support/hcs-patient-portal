@@ -3,6 +3,8 @@ status: draft
 issue: slot-rework-phase-1-schema
 owner: AdrianG
 created: 2026-05-15
+revised: 2026-05-20 (drift check + locked decisions baked in -- see
+  `_2026-05-20-slot-phase-1-readiness-check.md`)
 approach: code + tdd (TDD on entity construction + mapper output;
   code-only on the migration and DbContext config)
 sequence: 2 of 7 (slot-generation + doctor-invariant series)
@@ -11,6 +13,15 @@ depends-on: 2026-05-15-doctor-invariant-enforcement.md (plan 1 must
 branch: create a new branch off `feat/replicate-old-app`. PR back
   to `feat/replicate-old-app`. Do not merge to `main` until
   plans 2 through 7 are merged together.
+decisions-locked-2026-05-20:
+  Q1 (constructor parameter order): A -- breaking change, no
+    [Obsolete] shim; compiler surfaces every call site.
+  Q2 (backfill soft-deleted slots): A -- include them in the
+    INSERT so a future un-soft-delete preserves type semantics.
+    The join's HasQueryFilter mirrors the parent's soft-delete
+    so backfilled rows on soft-deleted slots stay hidden.
+  Q4 (Mapperly converter): A -- try the default [MapProperty]
+    first; only add the manual converter if source-gen warns.
 ---
 
 # Slot rework Phase 1: Capacity + multi-type schema
@@ -163,6 +174,19 @@ surface; plan 6 (booking-form picker) reads `Capacity`; plan 7
     per-service named volumes in docker-compose) ships as the
     first work item of this plan. See "Pre-flight: fix the
     docker bind-mount obj/ race" section below for details.
+
+    **Status as of 2026-05-20 (readiness-check D5):** the
+    Doctor invariant readiness check Q3 was locked as "C then
+    A" -- coordinate with the other session about parallel-
+    worktree docker FIRST, then default to dropping this pre-
+    flight bundle if they touch `Directory.Build.props` or
+    relocate `obj/`. If the other session ships their fix
+    BEFORE this plan starts, this pre-flight is OPTIONAL --
+    re-verify a cold `docker compose up -d --build` reaches
+    port 44368 and 44327 within 3 minutes, and skip the
+    Directory.Build.props edits entirely. If the other session
+    has NOT shipped by the time this plan starts, the pre-
+    flight section below applies as written.
 
 ## Pre-flight: fix the docker bind-mount obj/ race
 
@@ -766,12 +790,26 @@ endpoint; the admin list filter does not need it.
 
 ### 6. `src/HealthcareSupport.CaseEvaluation.Domain/DoctorAvailabilities/IDoctorAvailabilityRepository.cs`
 
-Drop `appointmentTypeId` from the four method signatures. Plan 3
-adds a NEW signature on `IAppointmentRepository` for the active-
-count probe; this repo stays unchanged otherwise.
+(Corrected 2026-05-20 from readiness-check D1.) The interface
+carries `appointmentTypeId` on TWO method signatures only:
+`GetListWithNavigationPropertiesAsync` and `GetCountAsync`.
+(`GetWithNavigationPropertiesAsync(Guid id, ...)` and
+`GetListAsync(...)` already lack it.) Drop the parameter from
+those two signatures.
 
-Update each method's parameter list. Update every call site
-(only `DoctorAvailabilitiesAppService` and the EF repo impl).
+Mirror the change in the EF Core repository:
+- `EfCoreDoctorAvailabilityRepository.GetListWithNavigationPropertiesAsync`
+- `EfCoreDoctorAvailabilityRepository.GetCountAsync`
+- The shared
+  `ApplyFilter(IQueryable<DoctorAvailabilityWithNavigationProperties>, ..., Guid? appointmentTypeId)`
+  overload at line 52 -- drop the `appointmentTypeId` parameter
+  and the trailing `WhereIf(appointmentTypeId != null && ..., ...)`
+  clause.
+- The flat `ApplyFilter(IQueryable<DoctorAvailability>, ...)`
+  overload at line 57 already lacks `appointmentTypeId`.
+
+Plan 3 adds a NEW signature on `IAppointmentRepository` for the
+active-count probe; this repo stays unchanged otherwise.
 
 ### 7. `src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore/EntityFrameworkCore/CaseEvaluationDbContext.cs`
 
@@ -1049,6 +1087,14 @@ the shape so the compile passes.
 
 ### 10. Mappers (`src/HealthcareSupport.CaseEvaluation.Application/CaseEvaluationApplicationMappers.cs`)
 
+(2026-05-20 from readiness-check D4.) The existing
+`DoctorAvailability*` mappers use bare `[Mapper]` instead of the
+project convention `[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]`.
+Do NOT change the attribute form in this PR; a separate cleanup
+PR can align all mappers to the convention. Mixing the
+convention upgrade with the schema rework would broaden the
+diff and risk surfacing latent unrelated mapping gaps.
+
 Update the existing partial classes so Mapperly produces the
 new shape. Three changes:
 
@@ -1098,6 +1144,18 @@ the filter (admin list path) or move to a list-overlap check
 (no admin list site needs the filter today; the booking-form
 picker site is plan 3).
 
+Specific call sites to update (added 2026-05-20 from readiness-
+check D3):
+
+- **Admin list path** -- `DoctorAvailabilitiesAppService.GetListAsync`
+  at lines 55-56 currently passes `input.AppointmentTypeId` into
+  `GetCountAsync` and `GetListWithNavigationPropertiesAsync`.
+  After `GetDoctorAvailabilitiesInput.AppointmentTypeId` is
+  removed (section 9e) and the repo signatures lose the param
+  (section 6), simply DROP the argument from both calls. No
+  overlap-check filter is added here; the admin list does not
+  need one today.
+
 In `DoctorAvailabilitiesAppService.GeneratePreviewAsync`,
 update the slot preview construction at line 264-275 to set
 `AppointmentTypeIds = item.AppointmentTypeIds`. The conflict
@@ -1105,22 +1163,36 @@ detection logic stays IDENTICAL in this plan (no semantic
 change; the rework lands in plan 3).
 
 In `DoctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync`
-(line 374-411), the existing loose-or-strict mode logic:
+(line 374-411), the existing loose-or-strict mode logic lives
+INSIDE the `if (input.AppointmentTypeId.HasValue) { ... }`
+guard at line 398-405. (Corrected 2026-05-20 from readiness-
+check D2.) PRESERVE the guard; only swap the inner `Where`:
 
 ```csharp
-query = query.Where(x => x.AppointmentTypeId == null || x.AppointmentTypeId == typeId);
+// Current (line 398-405):
+if (input.AppointmentTypeId.HasValue)
+{
+    var typeId = input.AppointmentTypeId.Value;
+    query = query.Where(x => x.AppointmentTypeId == null || x.AppointmentTypeId == typeId);
+}
 ```
 
 becomes:
 
 ```csharp
-query = query.Where(x =>
-    !x.AppointmentTypes.Any()
-    || x.AppointmentTypes.Any(at => at.AppointmentTypeId == typeId));
+if (input.AppointmentTypeId.HasValue)
+{
+    var typeId = input.AppointmentTypeId.Value;
+    query = query.Where(x =>
+        !x.AppointmentTypes.Any()
+        || x.AppointmentTypes.Any(at => at.AppointmentTypeId == typeId));
+}
 ```
 
 The semantics is preserved: empty set = any type accepted;
-non-empty set = type must be in the set.
+non-empty set = type must be in the set. Callers that omit
+`AppointmentTypeId` still see all available slots
+(unfiltered-by-type lookup).
 
 In `DoctorAvailabilitiesAppService.CreateAsync` and
 `UpdateAsync`, update the call to the manager to pass the new

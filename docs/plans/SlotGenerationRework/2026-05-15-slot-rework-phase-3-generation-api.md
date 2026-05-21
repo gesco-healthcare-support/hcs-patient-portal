@@ -3,6 +3,8 @@ status: draft
 issue: slot-rework-phase-3-generation-api
 owner: AdrianG
 created: 2026-05-15
+revised: 2026-05-20 (drift check + locked decisions baked in -- see
+  `_2026-05-20-slot-phase-3-readiness-check.md`)
 approach: tdd (generation math is pure functions on input shape;
   TDD pays the most here) + code (the persistence wave and
   preview projection are orchestration)
@@ -11,6 +13,15 @@ depends-on: 2026-05-15-slot-rework-phase-2-domain-logic.md
 branch: create a new branch off `feat/replicate-old-app`. PR back
   to `feat/replicate-old-app`. Do not merge to `main` until plans
   2 through 7 are merged together.
+decisions-locked-2026-05-20:
+  Q1 (route URLs): keep existing `/preview` endpoint (rename
+    parameter type only); add new sibling `/create-range`. No
+    URL breakage; descriptive verb-noun naming.
+  Q2 (generation cap): 5,000 slots per call. Covers a full year
+    of dense scheduling; well within SQL Server transaction norms.
+  Q3 (error messages): use `L["Key"]` translation system, NOT
+    hardcoded English. Matches every other validation error in
+    the codebase.
 ---
 
 # Slot rework Phase 3: multi-type / multi-weekday / multi-range
@@ -353,32 +364,35 @@ public virtual async Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePrevi
     return previewList;
 }
 
-private static void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto input)
+private void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto input)
 {
+    // (2026-05-20 from readiness-check Q3: validation messages use the
+    // L["..."] translation system; matches every other validation error
+    // in the codebase. Required localization keys are listed below.)
     Check.NotNull(input, nameof(input));
     if (input.LocationId == Guid.Empty)
     {
-        throw new UserFriendlyException("Location is required.");
+        throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
     }
     if (input.AppointmentDurationMinutes <= 0)
     {
-        throw new UserFriendlyException("Appointment duration must be greater than zero.");
+        throw new UserFriendlyException(L["DoctorAvailability:DurationMustBeGreaterThanZero"]);
     }
     if (input.Capacity < 1)
     {
-        throw new UserFriendlyException("Capacity must be at least 1.");
+        throw new UserFriendlyException(L["DoctorAvailability:CapacityMustBeAtLeastOne"]);
     }
     if (input.ToDate.Date < input.FromDate.Date)
     {
-        throw new UserFriendlyException("To date must be greater than or equal to from date.");
+        throw new UserFriendlyException(L["DoctorAvailability:ToDateBeforeFromDate"]);
     }
     if (input.FromDate.Date < DateTime.Today)
     {
-        throw new UserFriendlyException("Cannot generate slots for past dates.");
+        throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
     }
     if (input.TimeRanges == null || input.TimeRanges.Count == 0)
     {
-        throw new UserFriendlyException("At least one time range is required.");
+        throw new UserFriendlyException(L["DoctorAvailability:AtLeastOneTimeRangeRequired"]);
     }
 
     // Per-range validation.
@@ -387,13 +401,15 @@ private static void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto i
         if (range.ToTime <= range.FromTime)
         {
             throw new UserFriendlyException(
-                $"Time range {range.FromTime}-{range.ToTime} must have FromTime < ToTime.");
+                L["DoctorAvailability:TimeRangeFromMustBeBeforeTo",
+                  range.FromTime, range.ToTime]);
         }
         var duration = range.AppointmentDurationMinutes ?? input.AppointmentDurationMinutes;
         if (duration <= 0)
         {
             throw new UserFriendlyException(
-                $"Time range {range.FromTime}-{range.ToTime}: duration must be > 0.");
+                L["DoctorAvailability:TimeRangeDurationMustBePositive",
+                  range.FromTime, range.ToTime]);
         }
     }
 
@@ -406,7 +422,9 @@ private static void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto i
         if (sortedRanges[i].FromTime < sortedRanges[i - 1].ToTime)
         {
             throw new UserFriendlyException(
-                $"Time ranges overlap: {sortedRanges[i - 1].FromTime}-{sortedRanges[i - 1].ToTime} and {sortedRanges[i].FromTime}-{sortedRanges[i].ToTime}.");
+                L["DoctorAvailability:TimeRangesOverlap",
+                  sortedRanges[i - 1].FromTime, sortedRanges[i - 1].ToTime,
+                  sortedRanges[i].FromTime, sortedRanges[i].ToTime]);
         }
     }
 
@@ -415,13 +433,11 @@ private static void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto i
     {
         if (input.SelectedDays.Any(d => d < 0 || d > 6))
         {
-            throw new UserFriendlyException(
-                "SelectedDays must contain values between 0 (Sunday) and 6 (Saturday).");
+            throw new UserFriendlyException(L["DoctorAvailability:SelectedDayOutOfRange"]);
         }
         if (input.SelectedDays.Distinct().Count() != input.SelectedDays.Count)
         {
-            throw new UserFriendlyException(
-                "SelectedDays must not contain duplicates.");
+            throw new UserFriendlyException(L["DoctorAvailability:SelectedDaysDuplicate"]);
         }
     }
 }
@@ -473,6 +489,23 @@ private static List<DoctorAvailabilitySlotPreviewDto> ExpandToSlotPreviews(
 ```
 
 #### 3b. Add `CreateRangeAsync`
+
+(2026-05-20 from readiness-check D2.) Add `IUnitOfWorkManager`
+to the constructor + readonly field; add `using Volo.Abp.Uow;`
+to the file's import block:
+
+```csharp
+// Class field, alongside the existing 7 injected fields:
+protected IUnitOfWorkManager _unitOfWorkManager;
+
+// Constructor parameter (last):
+IUnitOfWorkManager unitOfWorkManager)  // added 2026-05-20 for CreateRangeAsync transaction
+
+// Constructor body:
+_unitOfWorkManager = unitOfWorkManager;
+```
+
+The transaction-wrapped method body:
 
 ```csharp
 [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Create)]
@@ -538,25 +571,73 @@ SPA stops rendering the "Time" column on the per-day row; plan
 
 `src/HealthcareSupport.CaseEvaluation.HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs`
 
-Add the new route:
+(2026-05-20 from readiness-check D1.) Keep the existing
+`preview` route URL -- only its parameter type changes (was
+`List<DoctorAvailabilityGenerateInputDto>`, now a single DTO).
+Add `create-range` as a NEW sibling route. Keeping `preview`
+avoids URL churn for Swagger docs and any saved API tests.
+
+Update the existing route at line 95-100 from list-shape to
+single-DTO:
 
 ```csharp
-[HttpPost("create-range")]
-public virtual Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsync(
-    DoctorAvailabilityGenerateInputDto input)
-    => _doctorAvailabilitiesAppService.CreateRangeAsync(input);
-```
-
-Update the existing `generate-preview` route -- the parameter
-shape changed from `List<DoctorAvailabilityGenerateInputDto>` to
-a single DTO:
-
-```csharp
-[HttpPost("generate-preview")]
+[HttpPost]
+[Route("preview")]
 public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(
     DoctorAvailabilityGenerateInputDto input)
-    => _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
+{
+    return _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
+}
 ```
+
+Add the new persistence route immediately after:
+
+```csharp
+[HttpPost]
+[Route("create-range")]
+public virtual Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsync(
+    DoctorAvailabilityGenerateInputDto input)
+{
+    return _doctorAvailabilitiesAppService.CreateRangeAsync(input);
+}
+```
+
+Note: this project's existing controllers use the
+`[HttpPost]` + `[Route(...)]` two-attribute style rather than
+`[HttpPost("...")]`. Match the existing style for consistency.
+
+### 5b. Localization keys (2026-05-20 from readiness-check Q3)
+
+Add these keys to `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json`:
+
+```jsonc
+"DoctorAvailability:DurationMustBeGreaterThanZero":
+  "Appointment duration must be greater than zero.",
+"DoctorAvailability:CapacityMustBeAtLeastOne":
+  "Capacity must be at least 1.",
+"DoctorAvailability:ToDateBeforeFromDate":
+  "To date must be greater than or equal to from date.",
+"DoctorAvailability:CannotGenerateForPastDates":
+  "Cannot generate slots for past dates.",
+"DoctorAvailability:AtLeastOneTimeRangeRequired":
+  "At least one time range is required.",
+"DoctorAvailability:TimeRangeFromMustBeBeforeTo":
+  "Time range {0}-{1} must have FromTime < ToTime.",
+"DoctorAvailability:TimeRangeDurationMustBePositive":
+  "Time range {0}-{1}: duration must be > 0.",
+"DoctorAvailability:TimeRangesOverlap":
+  "Time ranges overlap: {0}-{1} and {2}-{3}.",
+"DoctorAvailability:SelectedDayOutOfRange":
+  "SelectedDays must contain values between 0 (Sunday) and 6 (Saturday).",
+"DoctorAvailability:SelectedDaysDuplicate":
+  "SelectedDays must not contain duplicates.",
+"DoctorAvailability:GenerationCountExceedsLimit":
+  "This generation would produce more than {0} slots. Split into smaller batches."
+```
+
+The `L["The {0} field is required.", L["Location"]]` pattern
+already exists in the codebase and reuses the existing
+`Location` localization label.
 
 ### 6. Auto-proxy regeneration
 
@@ -673,19 +754,64 @@ direct callers.
 **Risk: `CreateRangeAsync` transaction holds a long lock under
 high-row counts.** Mitigated by limiting input -- the
 AppService should reject inputs that would generate more than
-N slots (decision: N = 1000). Add to ValidateGenerationInput:
+N slots. (2026-05-20 from readiness-check Q2: N = 5,000.
+Covers a full year of dense scheduling; well within SQL Server
+transaction norms.) Add to `ValidateGenerationInput`:
 
 ```csharp
 var expected = EstimateSlotCount(input);
-if (expected > 1000)
+if (expected > 5000)
 {
     throw new UserFriendlyException(
-        "This generation would produce more than 1,000 slots. Split into smaller batches.");
+        L["DoctorAvailability:GenerationCountExceedsLimit", 5000]);
 }
 ```
 
-`EstimateSlotCount` is a pure helper computing date-count *
-range-count * (range.duration / range.duration) cheaply.
+Add the localization key to `Domain.Shared/Localization/CaseEvaluation/en.json`:
+
+```jsonc
+"DoctorAvailability:GenerationCountExceedsLimit":
+  "This generation would produce more than {0} slots. Split into smaller batches."
+```
+
+(2026-05-20 from readiness-check D4: the original plan body's
+formula `range.duration / range.duration` was incorrect -- it
+always evaluated to 1. Corrected helper below counts allowed
+calendar days * sum-over-ranges-of (range-minutes / slot-duration).)
+
+```csharp
+private static int EstimateSlotCount(DoctorAvailabilityGenerateInputDto input)
+{
+    if (input.TimeRanges == null || input.TimeRanges.Count == 0)
+    {
+        return 0;
+    }
+    var dayCount = 0;
+    for (var day = input.FromDate.Date; day <= input.ToDate.Date; day = day.AddDays(1))
+    {
+        if (input.SelectedDays == null
+            || input.SelectedDays.Count == 0
+            || input.SelectedDays.Contains((int)day.DayOfWeek))
+        {
+            dayCount++;
+        }
+    }
+    var slotsPerDay = input.TimeRanges.Sum(range =>
+    {
+        var duration = range.AppointmentDurationMinutes ?? input.AppointmentDurationMinutes;
+        if (duration <= 0)
+        {
+            return 0;
+        }
+        var minutes = (range.ToTime - range.FromTime).TotalMinutes;
+        return (int)Math.Floor(minutes / duration);
+    });
+    return dayCount * slotsPerDay;
+}
+```
+
+The check runs BEFORE expansion so we never allocate a
+large preview list to discover it's too big.
 
 **Risk: race between preview and create-range.** Two admins
 generating slots for the same date may both see "no conflict"

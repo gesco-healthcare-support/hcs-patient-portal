@@ -100,14 +100,37 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // registered client (CaseEvaluation_App) covers every tenant subdomain.
         // The "{0}" token is filled with the resolved tenant slug at request time.
         // Per Volosoft Medium article cited in ADR-006 (sourced 2026-05-05).
+        //
+        // 2026-05-20 (Option A fix): the wildcard format list is now driven
+        // by the `App:WildcardDomainsFormat` config section so parallel-
+        // worktree stacks on offset ports (e.g. 4230/44398/44357) can
+        // override the main stack's canonical ports without recompiling.
+        // The docker-compose.yml passes the ports through as env vars; the
+        // hardcoded list below remains as the dev fallback when the config
+        // section is empty.
         PreConfigure<AbpOpenIddictWildcardDomainOptions>(options =>
         {
             options.EnableWildcardDomainSupport = true;
-            // Wildcard formats are matched against incoming redirect_uri values.
-            // Each registered RootUrl below is rewritten {0} -> tenant-slug at runtime.
-            options.WildcardDomainsFormat.Add("http://{0}.localhost:4200");
-            options.WildcardDomainsFormat.Add("http://{0}.localhost:44368");
-            options.WildcardDomainsFormat.Add("http://{0}.localhost:44327");
+            var configuredFormats = configuration
+                .GetSection("App:WildcardDomainsFormat")
+                .Get<string[]>();
+            if (configuredFormats != null && configuredFormats.Length > 0)
+            {
+                foreach (var format in configuredFormats)
+                {
+                    if (!string.IsNullOrWhiteSpace(format))
+                    {
+                        options.WildcardDomainsFormat.Add(format);
+                    }
+                }
+            }
+            else
+            {
+                // Dev fallback (running outside docker on canonical ports).
+                options.WildcardDomainsFormat.Add("http://{0}.localhost:4200");
+                options.WildcardDomainsFormat.Add("http://{0}.localhost:44368");
+                options.WildcardDomainsFormat.Add("http://{0}.localhost:44327");
+            }
         });
 
         if (!hostingEnvironment.IsDevelopment())

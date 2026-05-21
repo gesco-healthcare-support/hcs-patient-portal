@@ -333,6 +333,7 @@ temp.md
 test-results/
 tests/**/test-results/
 tmp/
+.hardening-run/
 
 # T0 baseline captures for the #121 appointment-add decomposition; per-phase
 # only, not source of truth. The plan doc at

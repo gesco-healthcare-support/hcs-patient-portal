@@ -3,6 +3,8 @@ status: draft
 issue: slot-rework-phase-2-domain-logic
 owner: AdrianG
 created: 2026-05-15
+revised: 2026-05-20 (drift check + locked decisions baked in -- see
+  `_2026-05-20-slot-phase-2-readiness-check.md`)
 approach: tdd (pure domain logic + AppService validators) + code
   (event-handler edits where the test would re-test ABP plumbing)
 sequence: 3 of 7 (slot-generation + doctor-invariant series)
@@ -11,6 +13,21 @@ depends-on: 2026-05-15-slot-rework-phase-1-schema.md (Capacity +
 branch: create a new branch off `feat/replicate-old-app`. PR back
   to `feat/replicate-old-app`. Do not merge to `main` until plans
   2 through 7 are merged together.
+decisions-locked-2026-05-20:
+  Q1 (Phase 16 "user-hold" UX): A -- accept the UX change. Under
+    capacity-aware booking, "slot held while pending" is a UI hint
+    computed from active-count, not a stored status. The capacity
+    gate's row-lock closes concurrent-booking races.
+  Q2 (Phase21 down-migration): A -- no-op Down is acceptable.
+    Worst-case rollback is "every slot looks bookable" (active-count
+    probe also reverts); the rollback path is "revert the commit",
+    not "downgrade a production DB mid-feature."
+  Q3 (IUnitOfWorkManager injection): A -- explicit constructor
+    injection with a dated comment. Declarative [UnitOfWork]
+    attribute equivalent is rejected for readability.
+  Q5 (bulk GetActiveCountsForSlotsAsync): A -- ship single-id +
+    bulk variants together in this PR. Lookup endpoint is the
+    natural bulk consumer; deferring fragments the rework.
 ---
 
 # Slot rework Phase 2: capacity-aware booking domain logic
@@ -299,8 +316,10 @@ private async Task ValidateDoctorAvailabilityForBooking(
                 doctorAvailability.AppointmentTypes.Select(at => at.AppointmentTypeId)));
     }
 
-    // Arms 4 + 5 (location match + date-component match) stay
-    // from the OLD code at line 813-828; preserve them verbatim.
+    // Arms 4, 5, and 6 (location match + date match + time-range
+    // match) stay from the existing code at line 815-834; preserve
+    // them verbatim. (Line numbers corrected 2026-05-20 from
+    // readiness-check D1.)
     if (doctorAvailability.LocationId != input.LocationId)
     {
         throw new UserFriendlyException(
@@ -405,7 +424,89 @@ public class SlotCascadeHandler :
 Remove the injected `_availabilityRepository` and
 `_appointmentRepository` fields; remove the helper methods
 `ApplySlotStatusAsync` and `MapToSlotStatus`. The class is now
-log-only.
+log-only. Both helpers are private and have no external
+consumers (verified 2026-05-20 in readiness-check D6).
+
+### 7b. `src/HealthcareSupport.CaseEvaluation.Application/AppointmentChangeRequests/AppointmentChangeRequestsAppService.Approval.cs` (CRITICAL -- added 2026-05-20 from readiness-check D2)
+
+Delete `ReleaseSlotIfReservedAsync` (lines 458-470) and its two
+call sites (lines 316, 385). Under the new "Reserved = manually
+closed by doctor's-admin" semantic, an unrelated change-request
+approval flow must NOT flip a manually-closed slot back to
+Available.
+
+Before:
+
+```csharp
+// Admin-override case: the user-picked slot was held in
+// Reserved by Phase 16's submit. The supervisor abandoned it
+// -- release back to Available. The cascade handler does not
+// know about an abandoned reserved slot so we flip directly.
+if (isAdminOverride && changeRequest.NewDoctorAvailabilityId.HasValue)
+{
+    await ReleaseSlotIfReservedAsync(changeRequest.NewDoctorAvailabilityId.Value);
+}
+```
+
+After: delete the block entirely. Under capacity-aware booking,
+the user-picked slot was never put into Reserved by submit (the
+SlotCascadeHandler stub no longer writes Reserved). Capacity-
+aware booking handles concurrent claims via the active-count
+probe; abandonment leaves no residue to release.
+
+Risk if missed: silent bug where admins close a slot, an
+unrelated change-request approval flips it back to Available,
+and the next patient books into a "closed" slot.
+
+### 7c. `src/HealthcareSupport.CaseEvaluation.Domain/Notifications/Jobs/JointDeclarationAutoCancelJob.cs` (added 2026-05-20 from readiness-check D5)
+
+Update the stale comment at lines 158-161:
+
+```csharp
+// - Publishing AppointmentStatusChangedEto manually
+//     fires the downstream notification + audit handlers
+//     identically to the supervisor-cancel path.
+//     Slot mutation no longer happens here; capacity-aware
+//     booking treats the slot's BookingStatusId as a manual-
+//     close override only. (2026-05-15 -- slot rework plan 3.)
+```
+
+Behaviour is unchanged; the job still publishes the ETO.
+
+### 7d. `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md` (added 2026-05-20 from readiness-check D4)
+
+Rewrite Business Rule #4 to reflect the capacity-aware model.
+Today it incorrectly says "CreateAsync sets the slot to Booked"
+-- the actual flip lived in SlotCascadeHandler (which is now a
+log-only stub) and the AppService no longer writes
+BookingStatusId at all.
+
+Proposed text:
+
+> **4. Slot booking is capacity-aware.** `CreateAsync` does not
+> mutate the slot's `BookingStatusId`. The slot remains
+> `Available` until the doctor's-admin manually closes it
+> (`BookingStatusId = Reserved`). Whether a slot is bookable is
+> determined by `ValidateDoctorAvailabilityForBooking`'s
+> capacity-aware predicate: `Reserved` blocks immediately;
+> capacity exhausted (`active count >= Capacity`) blocks with
+> `AppointmentBookingSlotFull`; non-empty `AppointmentTypes`
+> set + requested type not in set blocks with
+> `AppointmentBookingSlotTypeMismatch`.
+
+Also update Known Gotcha #4 if needed to reflect that
+post-creation mutators for `InternalUserComments`,
+`AppointmentApproveDate`, and `IsPatientAlreadyExist` still
+have no domain producer; that part remains true.
+
+### 7e. `src/HealthcareSupport.CaseEvaluation.Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` `HasInFlightStatus` helper (added 2026-05-20 from readiness-check D3)
+
+LEAVE AS-IS. The helper at lines 420-423 returns true for both
+`Reserved` and `Booked`. After Phase21 backfill, no slot has
+`Booked` anymore, so the Booked arm becomes dead code -- but
+trimming it would widen the diff and add risk for zero
+functional gain. A separate cleanup PR after Phase 2 ships can
+remove the dead arm.
 
 ### 8. `DoctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync`
 
