@@ -72,11 +72,23 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
             tenantId,
             allowNullTenant: true);
 
-    private Task<string> ResolveAuthServerBaseUrlInternalAsync(Guid tenantId) =>
-        ResolveAndComposeAsync(
+    private Task<string> ResolveAuthServerBaseUrlInternalAsync(Guid tenantId)
+    {
+        // The compiler enforces non-null; explicit guard also rejects
+        // default(Guid). Without this, a default(Guid) silently flows
+        // into the tenant lookup and triggers EntityNotFoundException
+        // -- correct behavior but generic, harder to trace.
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "tenantId must not be Guid.Empty; auth-URL composition requires a real tenant.",
+                nameof(tenantId));
+        }
+        return ResolveAndComposeAsync(
             CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl,
             tenantId,
             allowNullTenant: false);
+    }
 
     private async Task<string> ResolveAndComposeAsync(
         string settingName,
@@ -112,7 +124,14 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
             ? await ResolveTenantNameAsync(tenantId.Value)
             : null;
 
-        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), tenantName)!;
+        var composed = TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), tenantName)!;
+        // Diagnostic for tenant-URL composition issues. Debug-level so
+        // it's filtered out of prod logs by default; flip the namespace
+        // to Debug in appsettings to surface it when investigating.
+        _logger.LogDebug(
+            "AccountUrlBuilder: setting={Setting} configured={Configured} tenantId={TenantId} tenantName={TenantName} composed={Composed}",
+            settingName, configured, tenantId, tenantName, composed);
+        return composed;
     }
 
     private async Task<string?> ResolveTenantNameAsync(Guid tenantId)
