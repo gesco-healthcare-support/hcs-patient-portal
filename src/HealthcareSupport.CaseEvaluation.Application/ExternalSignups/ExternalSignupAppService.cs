@@ -77,6 +77,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // RegisterAsync to auto-send the verification email on successful
     // registration.
     private readonly IAccountEmailer _accountEmailer;
+    // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition. The invite
+    // URL is built via this service rather than concatenating the raw
+    // setting value, so the tenant subdomain is always present.
+    private readonly Notifications.IAccountUrlBuilder _accountUrlBuilder;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -100,7 +104,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IDataFilter dataFilter,
         InvitationManager invitationManager,
         INotificationDispatcher notificationDispatcher,
-        IAccountEmailer accountEmailer)
+        IAccountEmailer accountEmailer,
+        Notifications.IAccountUrlBuilder accountUrlBuilder)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -124,6 +129,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _invitationManager = invitationManager;
         _notificationDispatcher = notificationDispatcher;
         _accountEmailer = accountEmailer;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     /// <summary>
@@ -880,14 +886,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             throw new UserFriendlyException(L["Could not resolve tenant name for invite."]);
         }
 
-        var authServerBaseUrl = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
-        if (string.IsNullOrWhiteSpace(authServerBaseUrl))
-        {
-            throw new UserFriendlyException(
-                L["AuthServer base URL is not configured. Set CaseEvaluation.Notifications.AuthServerBaseUrl."]);
-        }
-
         // CurrentUser is guaranteed set (perm-gated AppService).
         var invitedByUserId = CurrentUser.Id ?? Guid.Empty;
         var normalizedEmail = input.Email.Trim().ToLowerInvariant();
@@ -898,9 +896,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             userType: input.UserType,
             invitedByUserId: invitedByUserId);
 
-        var inviteUrl = BuildInviteUrl(
-            authServerBaseUrl: authServerBaseUrl.TrimEnd('/'),
-            rawToken: rawToken);
+        // BUG-029 v3 fix (2026-05-21): invite URL now routes through
+        // IAccountUrlBuilder, which composes the tenant subdomain.
+        // The prior `BuildInviteUrl(authServerBaseUrl, rawToken)` static
+        // concatenated the raw setting value with the path and dropped
+        // the tenant prefix.
+        var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(
+            tenantId.Value, rawToken);
 
         // Dispatch through the per-tenant InviteExternalUser
         // NotificationTemplate. Failure is logged (by the dispatcher) but
@@ -1025,22 +1027,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
     }
 
-    /// <summary>
-    /// Builds the AuthServer register URL that carries the one-time
-    /// invite token. Format:
-    /// <c>{authServerBaseUrl}/Account/Register?inviteToken={url-encoded-raw-token}</c>.
-    /// The base URL already includes the tenant subdomain (e.g.
-    /// <c>http://falkinstein.localhost:44368</c>) per the
-    /// <c>Notifications.AuthServerBaseUrl</c> setting; the JS overlay
-    /// reads the token, validates it via
-    /// <c>/api/public/external-signup/validate-invite</c>, and prefills
-    /// the register form from the validation response (no email or role
-    /// query params required).
-    /// </summary>
-    private static string BuildInviteUrl(string authServerBaseUrl, string rawToken)
-    {
-        return $"{authServerBaseUrl}/Account/Register?inviteToken={WebUtility.UrlEncode(rawToken)}";
-    }
+    // BUG-029 v3 fix (2026-05-21): BuildInviteUrl helper removed.
+    // Invite URL composition lives in IAccountUrlBuilder (single
+    // source of truth for tenant-prefixed account URLs).
 
     private Guid? ResolveTenantId(Guid? requestedTenantId)
     {
