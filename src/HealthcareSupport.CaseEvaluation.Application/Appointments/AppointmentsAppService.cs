@@ -628,6 +628,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected appointment type does not exist."]);
         }
 
+        // OBS-23 (2026-05-21) -- AME / AME-REVAL booking is restricted
+        // to attorneys (Applicant Attorney + Defense Attorney) for
+        // external callers. Internal staff bypass via
+        // BookingFlowRoles.IsInternalUserCaller. Mirrors OLD's
+        // RoleAppointmentType join; NEW uses a hardcoded allow-list
+        // since that join table was not ported.
+        var bookingCallerRoles = CurrentUser.Roles ?? Array.Empty<string>();
+        if (!BookingFlowRoles.IsInternalUserCaller(bookingCallerRoles)
+            && BookingFlowRoles.IsAmeAppointmentType(appointmentType.Name)
+            && !BookingFlowRoles.IsAttorneyCaller(bookingCallerRoles))
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole);
+        }
+
         var location = await _locationRepository.FindAsync(input.LocationId);
         if (location == null)
         {

@@ -121,7 +121,7 @@ yet started.
 | Slot transitions: External → Reserved, Internal → Booked | AppointmentDomain.Add | **Mostly implemented** | NEW marks slot Booked directly (no Reserved-then-Booked two-step per OLD); confirm parity intent |
 | Re-Request form (after rejection, same confirmation #) | AppointmentDomain.AddValidation `IsReRequestForm` | **Implemented** (ResubmitAsync in NEW backend inventory) | |
 | Revolution form / REVAL pre-load (load original via confirmation #) | Project Overview §3.7 + Postman flag `isRevolutionForm` | **Implemented** per audit (CreateRevalAsync) | Verify behavior matches OLD's TempAppointmentInjuryDetails staging buffer pattern |
-| AME / AME-REVAL booking restricted to Attorneys (PARole+DARole) | Project Overview §3.3 matrix | **Not implemented** — see OBS-23 (filed 2026-05-20). Patient / Claim Examiner can POST AME bookings via direct API. Recommend A: small AppService gate. | |
+| AME / AME-REVAL booking restricted to Attorneys (PARole+DARole) | Project Overview §3.3 matrix | **Implemented** — OBS-23 fixed 2026-05-21. AppService gate + 11 unit tests + live-verified HTTP 400 on Patient AME booking attempt. | |
 | Accessor add at booking time (auto-create account if email not in User) | AppointmentAccessorDomain.Add | **Not implemented (intentional deviation)** — NEW uses tokenized invite (PR #202) instead of random-password auto-create. See `OBS-24` discussion + audit row in section 2.K. | |
 | Accessor account: random password = `{4chars}@{4chars}` | OLD code | **Documented as security debt** | OLD-pattern security weakness; carry-over decision pending |
 | AccessTypeId (View=23 / Edit=24) controls accessor permissions | AppointmentAccessor.AccessTypeId | **Implemented** (AppointmentAccessRules.CanRead per audit) | |
@@ -534,7 +534,7 @@ Plus NEW-specific jobs:
 |---|---|---|---|
 | 7 OLD roles: ITAdmin / StaffSupervisor / ClinicStaff / Patient / Adjuster / PatientAttorney / DefenseAttorney | OLD Roles table | **All 7 in NEW** (Adjuster→ClaimExaminer; Doctor role removed) | |
 | `RoleUserType` (Role × Internal/External) | OLD | **Replaced by ABP role properties / IsExternalUser extension prop** | Accepted deviation |
-| `RoleAppointmentType` (which roles can request which appt types — only attorneys can request AME) | OLD | **Not implemented** — see OBS-23 (filed 2026-05-20). NEW has no backend gate. | OLD permission table; NEW would need a small AppService check or a per-tenant policy table |
+| `RoleAppointmentType` (which roles can request which appt types — only attorneys can request AME) | OLD | **Partial -- AME gate implemented (OBS-23 fixed 2026-05-21)**. Other role-type combinations are not policy-driven (e.g., PQME is currently open to all external roles, matching OLD's effective behaviour). Per-tenant policy table is deferred. | |
 | `RolePermission` (Role × ApplicationModule with CanView/Add/Edit/Delete) | OLD | **Replaced by ABP PermissionDefinitionProvider** | |
 | `ApplicationModule` hierarchy (parent/child modules) | OLD | **Mapped to NEW permission tree** (44 constants) | Verify all OLD modules covered |
 | `ApplicationObject` permissions | OLD | **Mapped to NEW permission Default/Create/Edit/Delete children** | |
@@ -854,9 +854,9 @@ status against NEW permissions:
 |---|---|---|---|
 | Registration / Login / Forgot / Manage Profile | All external roles | ABP Identity built-in | Yes |
 | Appointment Request (PQME) | Patient + Adjuster + AA + DA | `Appointments.Create` | Yes (no per-type role gate) |
-| Appointment Request (AME) | AA + DA only | `Appointments.Create` + AME-type-role gate | **No -- see OBS-23 (2026-05-20)** |
+| Appointment Request (AME) | AA + DA only | `Appointments.Create` + AME-type-role gate | **Yes -- OBS-23 fixed 2026-05-21** |
 | Appointment Request (PQME-REVAL) | All external | `Appointments.Create` + REVAL flow | Yes |
-| Appointment Request (AME-REVAL) | AA + DA only | Same | **No -- see OBS-23 (2026-05-20)** |
+| Appointment Request (AME-REVAL) | AA + DA only | Same | **Yes -- OBS-23 fixed 2026-05-21** |
 | View Appointment Request | Appointment Owner | Access rules | Yes |
 | Upload Package Documents | Patient + Owner | `AppointmentDocuments.Default` | Yes |
 | Upload Joint Declaration | Owner (attorney) | JDF rules | Yes |

@@ -190,6 +190,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
                 System.Net.HttpStatusCode.BadRequest);
+
+            // OBS-23 (2026-05-21) -- non-attorney external users blocked
+            // from creating AME / AME-REVAL appointments. Client-input
+            // policy violation; HTTP 400, not 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
+                System.Net.HttpStatusCode.BadRequest);
         });
     }
 

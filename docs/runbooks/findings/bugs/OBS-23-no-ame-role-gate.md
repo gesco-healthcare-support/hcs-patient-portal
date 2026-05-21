@@ -2,15 +2,41 @@
 id: OBS-23
 title: No server-side gate prevents non-attorney external users from requesting AME / AME-REVAL appointments
 severity: medium (auth-policy gap; not data exfiltration)
-status: open
+status: fixed
+fixed: 2026-05-21
+fixed-on: fix/ame-role-gate
 found: 2026-05-20 (triage of `_remaining-from-old-audit-2026-05-15.md` AME-role-gate items: lines 112, 525, 845, 847)
 flow: appointment-booking
-component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs CreateAsync (line ~600+)
+component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs CreateAsync (line ~640)
 related:
   - OLD `RoleAppointmentType` permission table (P:\PatientPortalOld OLD-side maps Role -> allowed AppointmentTypeIds)
   - Project Overview §3.3 (matrix of which role can request which type)
   - Audit doc rows: line 112, 525, 845, 847
 ---
+
+> **Fixed 2026-05-21.** Plan at `docs/plans/2026-05-21-ame-role-gate.md`.
+> Added two helpers to `BookingFlowRoles` (`IsAttorneyCaller`,
+> `IsAmeAppointmentType`). Inserted a 5-line gate in
+> `AppointmentsAppService.CreateAsync` immediately after the
+> appointment type is resolved. Added new error code
+> `AppointmentAmeRequiresAttorneyRole`, en.json localization key
+> `Appointment:AmeRequiresAttorneyRole`, and HTTP 400 mapping in
+> `CaseEvaluationHttpApiHostModule`. 11 new unit tests, all
+> passing (20 total in `BookingFlowRolesUnitTests`).
+>
+> **Live-verified on `replicate-old-app` stack 2026-05-21:** logged
+> in as `patient1@gesco.com` (Patient role), POST to
+> `/api/app/appointments` with AME type returned **HTTP 400** with
+> `errorCode = "CaseEvaluation:Appointment.AmeRequiresAttorneyRole"`.
+> The gate fires correctly. Note: the response `message` field falls
+> back to "An internal error occurred during your request!" because
+> the BusinessException-without-inline-message localization
+> resolution does not pull from en.json in this codebase (same
+> behaviour as the existing `BookingDateInsideLeadTime` /
+> `AppointmentInvalidTransition` codes -- not unique to OBS-23). The
+> SPA renders user-facing messages from the `code` field, so the
+> en.json key serves direct-API consumers + documentation.
+
 
 # OBS-23 - Patient / Claim Examiner can book AME appointments via direct API call
 
