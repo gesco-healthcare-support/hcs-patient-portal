@@ -2,11 +2,16 @@
 id: SEED-3
 title: Only AME has seeded doctor-availability slots in the June test window; QME/Deposition/Record Review/SMR have none
 severity: seed-gap
-status: open
+status: resolved-by-runbook
+last-replayed: 2026-05-21
 found: 2026-05-14 hardening Phase 3.17
 flow: booking-form-slot-fetch
 component: SQL-seeded inline (per SEED-2 follow-up: DemoDoctorDataSeedContributor still missing)
 ---
+
+> **2026-05-21 replay outcome: resolved-by-runbook.** Phase 0 of the hardening suite (`POST /api/app/doctor-availabilities` from stafsuper1) now seeds all 6 active appointment types equally (5 slots per type at Demo Clinic North, 2026-05-25..05-29 weekdays, 09:00-09:30). Phase 3 (5 bookings) successfully resolved a slot for each of AME / QME / Panel QME / Record Review / Deposition. The "Phase 0 staff-supervisor-driven generation" path documented in HARDENING-TEST-SUITE.md is the canonical bootstrap until SEED-2's `DemoDoctorDataSeedContributor` lands; the runbook + the test suite together close this seed gap operationally.
+>
+> Leaving status as `resolved-by-runbook` (not `fixed`) because no code change shipped -- the resolution is operational. A future code-side fix (auto-seed contributor) would let this be marked `fixed` properly.
 
 # SEED-3 - Non-AME appointment types have no seeded slots in the test window
 

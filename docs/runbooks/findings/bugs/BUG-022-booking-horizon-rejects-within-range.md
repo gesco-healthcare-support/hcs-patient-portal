@@ -2,11 +2,43 @@
 id: BUG-022
 title: BookingDatePastMaxHorizon thrown for slot well within configured horizon
 severity: medium
-status: open
+status: fixed
+last-replayed: 2026-05-21
 found: 2026-05-14 hardening Phase 3.17
 flow: booking-policy
 component: src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentBookingValidators.cs + BookingPolicyValidator.cs
 ---
+
+> **2026-05-21 replay outcome: fixed.** Tested both sides of the
+> 60-day QME horizon boundary against current code:
+>
+> Setup:
+> - Tenant: Falkinstein. `AppSystemParameters.AppointmentMaxTimePQME = 60`.
+> - Today: 2026-05-21. QME horizon ends 2026-07-20.
+> - Seeded slot A at 2026-07-15 (55d ahead, **within** horizon).
+> - Seeded slot B at 2026-07-25 (65d ahead, **past** horizon).
+>
+> Booking POST `/api/app/appointments` against the QME type:
+>
+> | Slot | Status | Body |
+> |---|---|---|
+> | 55d (within) | **200** | A00006 created |
+> | 65d (past) | 403 | `code: BookingDatePastMaxHorizon`, `data.maxTimeDays: 60` |
+>
+> The validator (`AppointmentBookingValidators.IsSlotWithinMaxTime`
+> + `ResolveMaxTimeDaysForType`) correctly distinguishes within-vs-past.
+> The original symptom (rejection of within-horizon slots) does not
+> reproduce on the current code. Closing as fixed.
+>
+> Note: the rejection returns 403 (not 400) -- this is the broader
+> [[BUG-023]] pattern (business-rule rejections using 403 status code).
+> Tracked separately under BUG-023; not a BUG-022 issue.
+>
+> Side observation: the within-horizon 55d slot booking by stafsuper1
+> returned `appointmentStatus: 2` with `appointmentApproveDate: null`
+> -- third instance of [[BUG-030]] confirmed (internal-staff auto-
+> approve missing ApproveDate). Not new evidence; BUG-030 already
+> open.
 
 # BUG-022 - BookingPolicyValidator rejects dates that are within the configured horizon
 
