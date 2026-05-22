@@ -17,19 +17,21 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
 
-# Restore NuGet packages once, baked into the image. Subsequent dotnet watch
-# runs reuse the cached packages without re-restoring on every container start.
+# Restore NuGet packages once, baked into the image. The entrypoint runs a
+# fresh restore on every container start to pick up any bind-mounted csproj
+# changes, but the image cache makes that fast.
 RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 
-# Pre-build so the first watch run starts faster. dotnet watch will rebuild
-# incrementally on file changes after that.
+# Pre-build so the first container start has a working binary already in the
+# image; the entrypoint's run step then just re-validates and launches.
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
     -c Debug --no-restore
 
-# DOTNET_USE_POLLING_FILE_WATCHER=1 is required when source is bind-mounted
-# from a Windows / WSL2 host because inotify doesn't propagate over the
-# Docker Desktop bridge. Compose sets this; default here belt-and-suspenders.
-ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+# OBS-22 (2026-05-22): dropped `dotnet watch` + the
+# DOTNET_USE_POLLING_FILE_WATCHER env var. The bind-mount / inotify bridge on
+# Docker Desktop for Windows (GH issues #8694, #15171) drifted silent often
+# enough that the workflow had become "edit -> docker compose restart anyway."
+# Single non-watching run is simpler and matches the actual iteration pattern.
 ENV ASPNETCORE_URLS=http://+:8080
 
 EXPOSE 8080
@@ -45,7 +47,6 @@ ENTRYPOINT ["sh", "-c", "\
   find src -name 'project.assets.json' -delete 2>/dev/null; \
   find src -name '*.nuget.g.props' -delete 2>/dev/null; \
   find src -name '*.nuget.g.targets' -delete 2>/dev/null; \
-  # Single serial restore avoids the parallel-write race that produces\
-  # 'file already exists' on .nuget.g.props during dotnet watch's restore.\
+  # Serial restore (no parallelism) -- belt-and-suspenders even without watch.\
   dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
-  exec dotnet watch run --non-interactive --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
+  exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
