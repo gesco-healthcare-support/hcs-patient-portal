@@ -617,4 +617,36 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string RegistrationDuplicateEmail =
         "CaseEvaluation:Registration.DuplicateEmail";
+
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- raised by
+    /// <c>AppointmentDocumentsAppService.EnsureFileSizeWithinLimit</c>
+    /// when an upload exceeds <c>MaxFileSizeBytes</c> (10 MB). Carries
+    /// <c>WithData("MaxBytes", ...)</c> and
+    /// <c>WithData("ActualBytes", ...)</c> so the SPA can render a
+    /// friendly "file too large" message with both numbers. Mapped to
+    /// HTTP 413 Payload Too Large in
+    /// <c>CaseEvaluationHttpApiHostModule</c> via
+    /// <c>AbpExceptionHttpStatusCodeOptions</c> -- 413 is the RFC 7231
+    /// canonical status for size-exceeded; ABP's default 403 for
+    /// <c>BusinessException</c> would be semantically wrong (size, not
+    /// authorization, is the issue). Localization key
+    /// <c>AppointmentDocument:FileTooLarge</c>.
+    /// </summary>
+    public const string AppointmentDocumentFileTooLarge =
+        "CaseEvaluation:AppointmentDocument.FileTooLarge";
+
+    /// <summary>
+    /// BUG-025 follow-up (2026-05-21) -- localized replacement for the
+    /// previously-hardcoded <c>"File is empty."</c> string at three
+    /// upload sites in <c>AppointmentDocumentsAppService</c>. Raised
+    /// when the request supplies a zero-byte stream or
+    /// <c>fileSize &lt;= 0</c>. Mapped to HTTP 400 Bad Request --
+    /// distinct from <see cref="AppointmentDocumentFileTooLarge"/>
+    /// (which is 413) so the SPA can branch the user-facing message
+    /// without parsing the body. Localization key
+    /// <c>AppointmentDocument:FileEmpty</c>.
+    /// </summary>
+    public const string AppointmentDocumentFileEmpty =
+        "CaseEvaluation:AppointmentDocument.FileEmpty";
 }

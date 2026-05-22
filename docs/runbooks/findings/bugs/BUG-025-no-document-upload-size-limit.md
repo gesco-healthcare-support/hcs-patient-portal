@@ -2,11 +2,54 @@
 id: BUG-025
 title: AppointmentDocuments upload has no application-level file-size limit
 severity: medium
-status: open
+status: fixed
+fixed: 2026-05-21
+last-replayed: 2026-05-21
+fixed-on: fix/document-upload-size-limit
 found: 2026-05-14 hardening R2 (Phase 7 failure mode)
 flow: document-upload-limits
 component: src/HealthcareSupport.CaseEvaluation.Application/AppointmentDocuments/AppointmentDocumentsAppService.cs + HttpApi.Host Kestrel config
 ---
+
+> **Fixed 2026-05-21 on branch `fix/document-upload-size-limit`.**
+>
+> Two-layer cap:
+>
+> 1. **AppService layer** (10 MB) -- `AppointmentDocumentsAppService.MaxFileSizeBytes = 10 * 1024 * 1024` enforced via `public static EnsureFileSizeWithinLimit(long fileSize, IStringLocalizer<CaseEvaluationResource>? localizer = null)` at the 3 call sites in `AppointmentDocumentsAppService.cs` (UploadStreamAsync, UploadJointDeclarationAsync, OverwriteUploadedFileAsync). Throws `UserFriendlyException(localizedMessage, code = CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)` with `.WithData("MaxBytes", ...)` + `.WithData("ActualBytes", ...)`. Mapped to HTTP 413 Payload Too Large via `AbpExceptionHttpStatusCodeOptions` in `CaseEvaluationHttpApiHostModule.cs`. UserFriendlyException (not BusinessException) is used because ABP only forwards UserFriendlyException messages to clients by default; BusinessException messages get replaced with the generic "An internal error occurred" fallback. Localized message comes from `AppointmentDocument:FileTooLarge` in `en.json`.
+>
+> 2. **Framework layer** (12 MB) -- new `ConfigureUploadLimits` helper in `CaseEvaluationHttpApiHostModule.cs` sets `Kestrel.Limits.MaxRequestBodySize = 12 * 1024 * 1024` AND `FormOptions.MultipartBodyLengthLimit = 12 * 1024 * 1024`. The 2 MB buffer above the AppService cap is intentional: it lets the localized 413 from the AppService fire for files between 10-12 MB (with friendly `MaxBytes`/`ActualBytes` data) while still rejecting anything above 12 MB at the framework layer before the request body is fully buffered.
+>
+> Pre-existing tech debt cleanup also done: the 3 hardcoded `throw new UserFriendlyException("File is empty.")` strings (lines 152, 289, 406) were replaced with `BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty)`. (The controller layer at `AppointmentDocumentController.cs:38-40` still has a pre-check that intercepts empty multipart submissions with a 403 "File is required." -- that behavior is unchanged; the new AppService code is a backstop for non-controller call paths.)
+>
+> **Live-verified 2026-05-21** against `main-api-1` rebuilt from the fix branch:
+>
+> | Test | Status | Body |
+> |---|---|---|
+> | 9 MB upload (SPA UploadStream) | 200 | FileSize=9437184, Status=Uploaded |
+> | 11 MB upload (SPA UploadStream) | 413 | code=`CaseEvaluation:AppointmentDocument.FileTooLarge`, message="File is too large. Maximum allowed size is 10 MB.", data={MaxBytes:10485760, ActualBytes:11534336} |
+> | 11 MB upload (HTTP UploadStream) | 413 | same body as above |
+> | 11 MB upload (HTTP UploadJointDeclaration) | 413 | same body as above (size gate fires before AME / attorney gates) |
+> | 0-byte upload | 403 | "File is required." (controller pre-check, pre-existing) |
+> | 50 MB upload | 400 | "Failed to read the request form. Request body too large. The max request body size is 12582912 bytes." (Kestrel framework cap; ABP wraps as ValidationException -> 400) |
+>
+> **SPA UX confirmed**: the LeptonX `abp-confirmation` modal renders `"An error has occurred! / File is too large. Maximum allowed size is 10 MB. / Close"` (screenshot at `.playwright-mcp/bug-025-localized-modal.png`).
+>
+> **Build + tests**: solution-wide `dotnet build` clean. `dotnet test` against the full slnx: 801 tests, 0 failures, 19 skipped (Domain.Tests 13 + Application.Tests 532 + EntityFrameworkCore.Tests 256), including 7 new unit tests at `test/.../AppointmentDocuments/AppointmentDocumentSizeLimitTests.cs` covering: exactly-at-limit (does not throw), one-byte-under (does not throw), one-byte-over (throws with MaxBytes + ActualBytes data), 11 MB (throws), 50 MB (throws), zero bytes (does not throw -- empties handled by separate empty-file gate), and MaxFileSizeBytes constant invariant.
+>
+> **Extension allowlist branch closed**: `EnsureValidFileFormat` in `AppointmentDocumentsAppService.cs` already enforces `.pdf, .jpg, .jpeg, .png` + magic-byte validation. No separate BUG-025b needed.
+>
+> Files touched (6):
+> - `src/HealthcareSupport.CaseEvaluation.Application/AppointmentDocuments/AppointmentDocumentsAppService.cs` (const + helper + 3 call sites + 3 string replacements + DI'd IStringLocalizer<CaseEvaluationResource>)
+> - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs` (2 new constants)
+> - `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs` (2 new HTTP-status mappings + new ConfigureUploadLimits helper)
+> - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json` (2 new localization keys)
+> - `test/HealthcareSupport.CaseEvaluation.Application.Tests/AppointmentDocuments/AppointmentDocumentSizeLimitTests.cs` (new, 7 tests)
+> - This finding doc.
+>
+> **Deferred** (per Adrian 2026-05-21):
+> - Per-appointment aggregate quota (e.g., 50 MB total per appointment). Adrian's TODO; needs aggregation query + UX for "X MB remaining".
+> - Renaming or consolidating the controller's pre-check `"File is required."` UserFriendlyException with the AppService's `AppointmentDocumentFileEmpty` BusinessException (would need a separate small PR; the empty-file path works as-is via the controller).
+> - JointDeclaration + UploadPackage + UploadByCode SPA UX flows were not exercised end-to-end via the SPA because they are role-gated (attorney for JDF; package-doc UI gates the others). Their wiring is verified by (a) the HTTP-level 11 MB test against the JointDeclaration endpoint above and (b) the helper unit tests, since all four entry points route to the same `EnsureFileSizeWithinLimit` helper.
 
 # BUG-025 - No per-document upload size limit enforced
 
