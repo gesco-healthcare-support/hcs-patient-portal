@@ -144,48 +144,13 @@ public class ExternalAccountAppServiceUnitTests
     // ExternalAccountAppService.BuildResetUrl
     // ------------------------------------------------------------------
 
-    [Fact]
-    public void BuildResetUrl_NoReturnUrl_BuildsBaseQuery()
-    {
-        var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
-        var token = "raw-token-with-special-chars+/=";
-
-        var url = ExternalAccountAppService.BuildResetUrl(
-            authServerBaseUrl: "https://localhost:44368",
-            userId: userId,
-            resetToken: token,
-            returnUrl: null);
-
-        url.ShouldStartWith("https://localhost:44368/Account/ResetPassword?userId=11111111-2222-3333-4444-555555555555");
-        url.ShouldContain("&resetToken=");
-        // Token is URL-encoded so '+' / '/' / '=' do not corrupt the query.
-        url.ShouldNotContain("token-with-special-chars+/=");
-    }
-
-    [Fact]
-    public void BuildResetUrl_WithReturnUrl_AppendsEncodedReturnUrl()
-    {
-        var url = ExternalAccountAppService.BuildResetUrl(
-            authServerBaseUrl: "https://localhost:44368",
-            userId: Guid.Empty,
-            resetToken: "abc",
-            returnUrl: "https://app/page?x=1&y=2");
-
-        url.ShouldContain("&returnUrl=");
-        url.ShouldNotContain("https://app/page?x=1&y=2");
-    }
-
-    [Fact]
-    public void BuildResetUrl_EmptyReturnUrl_DoesNotAppendReturnUrlSegment()
-    {
-        var url = ExternalAccountAppService.BuildResetUrl(
-            authServerBaseUrl: "https://localhost:44368",
-            userId: Guid.Empty,
-            resetToken: "abc",
-            returnUrl: "");
-
-        url.ShouldNotContain("returnUrl");
-    }
+    // BUG-029 v3 fix (2026-05-21): the three BuildResetUrl_* tests
+    // previously here covered a private static helper on
+    // ExternalAccountAppService that has moved into IAccountUrlBuilder.
+    // The reset-URL shape (URL-encoded token) is now tested in
+    // AccountUrlBuilderTests.BuildPasswordResetUrlAsync_*. The
+    // returnUrl-append logic is now inline at the call site
+    // (one line; not worth a dedicated test).
 
     // ------------------------------------------------------------------
     // ExternalAccountAppService.IsTokenFailure

@@ -44,24 +44,25 @@ public class DocumentRejectedEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DocumentRejectedEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DocumentRejectedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IRepository<AppointmentDocument, Guid> documentRepository,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<DocumentRejectedEmailHandler> logger)
+        ILogger<DocumentRejectedEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _documentRepository = documentRepository;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -164,9 +165,9 @@ public class DocumentRejectedEmailHandler :
         Guid appointmentId,
         int remainingCount)
     {
-        var portalUrl = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
-        var url = $"{portalUrl?.TrimEnd('/')}/appointments/view/{appointmentId:N}";
+        // BUG-029 v3 fix (2026-05-21).
+        var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(_currentTenant.Id);
+        var url = $"{portalUrl.TrimEnd('/')}/appointments/view/{appointmentId:N}";
         return new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
         {
             ["RemainingDocumentCount"] = remainingCount,

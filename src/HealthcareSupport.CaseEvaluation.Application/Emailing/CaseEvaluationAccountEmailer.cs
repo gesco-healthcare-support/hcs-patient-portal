@@ -68,25 +68,29 @@ namespace HealthcareSupport.CaseEvaluation.Emailing;
 [ExposeServices(typeof(IAccountEmailer))]
 public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependency
 {
-    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
+    // BUG-029 v3 fix (2026-05-21): the prior DefaultAuthServerBaseUrl const
+    // hardcoded the Falkinstein tenant + port 44368 in source, breaking
+    // parallel-worktree stacks and silently masking missing env vars.
+    // URL composition now routes through IAccountUrlBuilder which throws
+    // a clear error if the App__SelfUrl env var is missing.
 
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ICurrentTenant _currentTenant;
-    private readonly ISettingProvider _settingProvider;
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
     private readonly ILogger<CaseEvaluationAccountEmailer> _logger;
 
     public CaseEvaluationAccountEmailer(
         INotificationTemplateRepository templateRepository,
         IBackgroundJobManager backgroundJobManager,
         ICurrentTenant currentTenant,
-        ISettingProvider settingProvider,
+        IAccountUrlBuilder accountUrlBuilder,
         ILogger<CaseEvaluationAccountEmailer> logger)
     {
         _templateRepository = templateRepository;
         _backgroundJobManager = backgroundJobManager;
         _currentTenant = currentTenant;
-        _settingProvider = settingProvider;
+        _accountUrlBuilder = accountUrlBuilder;
         _logger = logger;
     }
 
@@ -99,8 +103,13 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
 
-        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-        var url = BuildEmailConfirmationUrl(authServerBaseUrl, user.Id, confirmationToken);
+        // BUG-029 v3 fix (2026-05-21): tenant comes from user.TenantId (the
+        // user-being-emailed is the source of truth for which tenant)
+        // rather than _currentTenant.Name (which is null inside the
+        // CurrentTenant.Change(tenantId) scope opened by RegisterAsync).
+        EnsureUserHasTenant(user);
+        var url = await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(
+            user.TenantId!.Value, user.Id, confirmationToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
@@ -118,14 +127,30 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
 
-        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-        var url = BuildPasswordResetUrl(authServerBaseUrl, user.Id, resetToken);
+        EnsureUserHasTenant(user);
+        var url = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
+            user.TenantId!.Value, user.Id, resetToken);
 
         await DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
             recipient: user.Email ?? string.Empty,
             variables: BuildLinkVariables(user, url),
             contextTag: $"AccountEmailer/PasswordResetLink/{user.Id}");
+    }
+
+    private static void EnsureUserHasTenant(IdentityUser user)
+    {
+        if (!user.TenantId.HasValue)
+        {
+            // External user without a tenant is a code bug: every
+            // external account is tenant-scoped in this codebase.
+            // Hard-fail rather than emitting a host-scope URL the
+            // AuthServer Razor pages can't resolve a user against.
+            throw new InvalidOperationException(
+                $"CaseEvaluationAccountEmailer: cannot build a tenant-aware " +
+                $"URL for user {user.Id} because user.TenantId is null. " +
+                "External users must always belong to a tenant.");
+        }
     }
 
     public virtual async Task SendEmailSecurityCodeAsync(IdentityUser user, string code)
@@ -194,19 +219,10 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         });
     }
 
-    private async Task<string> ResolveAuthServerBaseUrlAsync()
-    {
-        var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return DefaultAuthServerBaseUrl;
-        }
-        // BUG-014 (Task A): prepend tenant subdomain so the tenant-less base
-        // URL from Settings__CaseEvaluation__Notifications__AuthServerBaseUrl
-        // becomes <tenant>.localhost:<port>. No-op on already-prefixed URLs.
-        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), _currentTenant.Name)!;
-    }
+    // ResolveAuthServerBaseUrlAsync moved into IAccountUrlBuilder so URL
+    // composition reads the tenant name from an explicit tenantId argument
+    // instead of ambient ICurrentTenant.Name (which is null inside the
+    // Change(tenantId) scopes opened by Register / Reset / Invite).
 
     private static IReadOnlyDictionary<string, object?> BuildLinkVariables(IdentityUser user, string url)
     {
@@ -262,46 +278,8 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
         return string.Empty;
     }
 
-    /// <summary>
-    /// Builds the AuthServer-hosted email-confirmation URL:
-    /// <c>{authServerBaseUrl}/Account/EmailConfirmation?userId={guid}&amp;confirmationToken={url-encoded}</c>.
-    /// Lands on the project's custom Razor PageModel
-    /// <see cref="HealthcareSupport.CaseEvaluation.Pages.Account.EmailConfirmationModel"/>
-    /// which processes the token server-side and 302's to
-    /// <c>/Account/Login?flash=email-verified</c>. Internal so unit
-    /// tests can verify the encoding behavior.
-    /// 2026-05-18 -- repointed from the deleted SPA route
-    /// <c>/account/email-confirmation</c>; see
-    /// docs/plans/2026-05-18-fix-verification-email-url.md.
-    /// </summary>
-    internal static string BuildEmailConfirmationUrl(string authServerBaseUrl, Guid userId, string token)
-    {
-        var sb = new StringBuilder();
-        sb.Append(authServerBaseUrl);
-        sb.Append("/Account/EmailConfirmation");
-        sb.Append("?userId=").Append(userId.ToString());
-        sb.Append("&confirmationToken=").Append(WebUtility.UrlEncode(token));
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Builds the AuthServer-hosted password-reset URL:
-    /// <c>{authServerBaseUrl}/Account/ResetPassword?userId={guid}&amp;resetToken={url-encoded}</c>.
-    /// Lands on the project's custom Razor PageModel
-    /// <see cref="HealthcareSupport.CaseEvaluation.Pages.Account.ResetPasswordModel"/>
-    /// (Phase 10 2026-05-03). 2026-05-18 -- repointed from the deleted
-    /// SPA route <c>/account/reset-password</c>; this path was dead-letter
-    /// before today because the project's ForgotPassword flow uses
-    /// <c>ExternalAccountAppService.BuildResetUrl</c> directly. Fixed
-    /// alongside the email-confirmation repoint for symmetry.
-    /// </summary>
-    internal static string BuildPasswordResetUrl(string authServerBaseUrl, Guid userId, string token)
-    {
-        var sb = new StringBuilder();
-        sb.Append(authServerBaseUrl);
-        sb.Append("/Account/ResetPassword");
-        sb.Append("?userId=").Append(userId.ToString());
-        sb.Append("&resetToken=").Append(WebUtility.UrlEncode(token));
-        return sb.ToString();
-    }
+    // BUG-029 v3 fix (2026-05-21): the BuildEmailConfirmationUrl /
+    // BuildPasswordResetUrl static helpers moved into IAccountUrlBuilder.
+    // Removing them deletes 40+ lines that were duplicated logic across
+    // several files; the new service is the single source of truth.
 }

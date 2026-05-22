@@ -34,24 +34,25 @@ public class DueDateDocumentIncompleteEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DueDateDocumentIncompleteEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DueDateDocumentIncompleteEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<DueDateDocumentIncompleteEmailHandler> logger)
+        ILogger<DueDateDocumentIncompleteEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -91,8 +92,8 @@ public class DueDateDocumentIncompleteEmailHandler :
                 return;
             }
 
-            var portalUrl = await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            // BUG-029 v3 fix (2026-05-21).
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
 
             var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
             {

@@ -28,8 +28,8 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
-    private readonly ISettingProvider _settingProvider;
-    private readonly ICurrentTenant _currentTenant;
+    // Tenant-aware URL composition via the centralized builder.
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DocumentEmailContextResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -37,16 +37,14 @@ public class DocumentEmailContextResolver : ITransientDependency
         IRepository<AppointmentDocument, Guid> documentRepository,
         IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
-        ISettingProvider settingProvider,
-        ICurrentTenant currentTenant)
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _documentRepository = documentRepository;
         _injuryDetailRepository = injuryDetailRepository;
         _identityUserRepository = identityUserRepository;
-        _settingProvider = settingProvider;
-        _currentTenant = currentTenant;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     /// <summary>
@@ -82,14 +80,11 @@ public class DocumentEmailContextResolver : ITransientDependency
             document = await _documentRepository.FindAsync(appointmentDocumentId.Value);
         }
 
-        // BUG-014 (Task A): compose tenant subdomain into the tenant-less
-        // base URL from Settings__CaseEvaluation__Notifications__PortalBaseUrl.
-        // Resolver is called from email handlers that enter tenant scope via
-        // _currentTenant.Change(eventData.TenantId), so .Name is reliable here.
-        var portalUrl = TenantUrlComposer.ComposeForTenant(
-            await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl),
-            _currentTenant.Name);
+        // Route through IAccountUrlBuilder. Tenant comes from the
+        // appointment row's TenantId (the source of truth) rather than
+        // _currentTenant.Name (which is null inside the
+        // Change(eventData.TenantId) scope opened by the calling handlers).
+        var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(appointment.TenantId);
 
         return new DocumentEmailContext
         {
