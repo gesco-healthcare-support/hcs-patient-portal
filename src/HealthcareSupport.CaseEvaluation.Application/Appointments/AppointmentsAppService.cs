@@ -1036,6 +1036,24 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return;
         }
 
+        // BUG-012 (2026-05-22): server-side required-FirmName guard for
+        // the appointment-view/edit save path. Mirrors the
+        // ValidateRegistrationInput attorney check in
+        // ExternalSignupAppService. The Angular reactive form
+        // (appointment-add + appointment-view) now also enforces this
+        // via Validators.required, but the server stays authoritative.
+        // UserFriendlyException so the localized message reaches the
+        // SPA toast unmodified (see BUG-014 / BUG-025 notes -- a plain
+        // BusinessException gets its Message replaced by ABP's generic
+        // "An internal error occurred" fallback).
+        if (string.IsNullOrWhiteSpace(input.FirmName))
+        {
+            throw new UserFriendlyException(
+                message: L["Appointment:AttorneyFirmNameRequired"],
+                code: CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
+                .WithData("AttorneyRole", "ApplicantAttorney");
+        }
+
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)
         {
@@ -1207,6 +1225,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
         {
             return;
+        }
+
+        // BUG-012 (2026-05-22): mirror of the AA upsert guard above.
+        if (string.IsNullOrWhiteSpace(input.FirmName))
+        {
+            throw new UserFriendlyException(
+                message: L["Appointment:AttorneyFirmNameRequired"],
+                code: CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
+                .WithData("AttorneyRole", "DefenseAttorney");
         }
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);

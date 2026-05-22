@@ -295,6 +295,14 @@
       if (firstWrap) firstWrap.style.display = '';
       if (lastWrap) lastWrap.style.display = '';
       if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+      // BUG-012 (2026-05-22): toggle the required attribute alongside
+      // visibility so ensureButtonDisabledBinding (which gates on
+      // input[required]) includes Firm Name in its check for attorney
+      // roles and ignores it for non-attorney roles where the field is
+      // hidden. Without this, an attorney role could submit with an
+      // empty Firm Name and would only learn it was required via the
+      // server's localized 400 banner.
+      if (firmNameInput) firmNameInput.required = isAttorney;
     }
 
     var roleSelect = form.querySelector('#external-user-type');
@@ -1355,6 +1363,11 @@
     var firmWrap = firmInput ? firmInput.closest('.form-floating, .mb-2, .mb-3') : null;
     var isAttorney = userTypeValue === 3 || userTypeValue === 4;
     if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+    // BUG-012 (2026-05-22): mirror the required-attribute toggle from
+    // applyRoleVisibility so the invite-flow path (which locks email +
+    // role and bypasses the role-select change event) also gates submit
+    // on Firm Name for attorney roles.
+    if (firmInput) firmInput.required = isAttorney;
   }
 
   function renderInviteAlreadyAcceptedBanner(form) {

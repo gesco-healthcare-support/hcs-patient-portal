@@ -160,6 +160,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired,
                 System.Net.HttpStatusCode.BadRequest);
+            // BUG-012 (2026-05-22): the appointment-flow attorney FirmName
+            // guard. Same shape + same 400 as the registration variant.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired,
+                System.Net.HttpStatusCode.BadRequest);
 
             options.Map(
                 CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,

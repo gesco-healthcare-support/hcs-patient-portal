@@ -602,6 +602,27 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Registration.FirmNameRequiredForAttorney";
 
     /// <summary>
+    /// BUG-012 (2026-05-22) -- raised by
+    /// <c>AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync</c>
+    /// and
+    /// <c>AppointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync</c>
+    /// when the appointment-view/edit save submits an attorney section
+    /// with an empty Firm Name. Companion to
+    /// <see cref="RegistrationFirmNameRequired"/> but scoped to the
+    /// booking flow rather than account registration -- attorneys on an
+    /// appointment must carry the same OLD <c>UserDomain.cs:272</c>
+    /// firm-name requirement. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c> via
+    /// <c>AbpExceptionHttpStatusCodeOptions</c>. Carries
+    /// <c>WithData("AttorneyRole", "ApplicantAttorney" or "DefenseAttorney")</c>
+    /// so the SPA can branch the field-highlight without parsing the
+    /// message. Localization key
+    /// <c>Appointment:AttorneyFirmNameRequired</c>.
+    /// </summary>
+    public const string AppointmentAttorneyFirmNameRequired =
+        "CaseEvaluation:Appointment.AttorneyFirmNameRequired";
+
+    /// <summary>
     /// 2026-05-13 -- raised by <c>ExternalSignupAppService.RegisterAsync</c>
     /// when the submitted email already maps to an existing
     /// <c>IdentityUser</c>. Replaces the prior throw that echoed the

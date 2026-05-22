@@ -280,6 +280,45 @@ export class AppointmentViewComponent implements OnInit {
     return !!control && control.invalid && control.touched;
   }
 
+  /**
+   * BUG-012 (2026-05-22) -- conditional `Validators.required` on the
+   * AA / DA section's non-email fields, gated by that section's
+   * `Enabled` toggle. Direct port of
+   * `appointment-add.component.ts.applyConditionalAttorneySectionValidators`;
+   * see the comment there for OLD parity and the "Mandatory Fields"
+   * submit-modal rationale. Email is intentionally NOT in the list --
+   * email validators live on the initial form-control declaration
+   * (Validators.email + Validators.maxLength(50)).
+   */
+  private applyConditionalAttorneySectionValidators(
+    prefix: 'applicantAttorney' | 'defenseAttorney',
+    required: boolean,
+  ): void {
+    const suffixes: Array<{ name: string; maxLength: number }> = [
+      { name: 'FirstName', maxLength: 50 },
+      { name: 'FirmName', maxLength: 50 },
+      { name: 'PhoneNumber', maxLength: 20 },
+      { name: 'FaxNumber', maxLength: 19 },
+      { name: 'Street', maxLength: 255 },
+      { name: 'City', maxLength: 50 },
+      { name: 'StateId', maxLength: 0 },
+      { name: 'ZipCode', maxLength: 10 },
+    ];
+    for (const { name, maxLength } of suffixes) {
+      const control = this.form.get(prefix + name);
+      if (!control) continue;
+      const validators = [];
+      if (required) {
+        validators.push(Validators.required);
+      }
+      if (maxLength > 0) {
+        validators.push(Validators.maxLength(maxLength));
+      }
+      control.setValidators(validators);
+      control.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
   // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
   // `form` because it represents draft state for a per-row append/edit
   // operation that submits via its own POST/PUT, not via save().
@@ -321,6 +360,32 @@ export class AppointmentViewComponent implements OnInit {
     );
 
   ngOnInit(): void {
+    // BUG-012 (2026-05-22): conditional required-validator wiring on
+    // AA/DA section fields. Mirror of appointment-add.component.ts:454-484.
+    // The view/edit form previously declared FirmName + 7 other section
+    // fields with maxLength validators only -- so saving an existing
+    // appointment with empty Firm Name silently succeeded client-side,
+    // and the backend's UpsertApplicantAttorneyForAppointmentAsync did
+    // not enforce it either. The matching server-side guard is added in
+    // AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync.
+    this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalAttorneySectionValidators('applicantAttorney', !!enabled);
+    });
+    this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
+      this.applyConditionalAttorneySectionValidators('defenseAttorney', !!enabled);
+    });
+    // Apply once at construction for the initial enabled state (both
+    // toggles default to true above; the data-load subscriber below
+    // flips them when the loaded record's join row is missing).
+    this.applyConditionalAttorneySectionValidators(
+      'applicantAttorney',
+      !!this.form.get('applicantAttorneyEnabled')?.value,
+    );
+    this.applyConditionalAttorneySectionValidators(
+      'defenseAttorney',
+      !!this.form.get('defenseAttorneyEnabled')?.value,
+    );
+
     this.loadExternalAuthorizedUsers();
 
     const id = this.route.snapshot.paramMap.get('id');
