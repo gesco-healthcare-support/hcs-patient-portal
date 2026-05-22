@@ -2,11 +2,26 @@
 id: OBS-21
 title: claimE1@gesco.com verification email click did not flip EmailConfirmed
 severity: low
-status: needs-repro
+status: superseded-by-bug-029
 found: 2026-05-19
+last-replayed: 2026-05-21
 flow: external-user-registration
 component: AuthServer Pages/Account/EmailConfirmation.cshtml.cs | mail delivery
 ---
+
+> **2026-05-21 replay outcome:** root cause identified as [[BUG-029]]
+> -- the verification email URL for any invited user (including claimE1)
+> has `host=localhost` (no tenant subdomain). Clicking the inbox link
+> as-is hits `EmailConfirmation` without a resolved tenant, so
+> `UserManager.FindByIdAsync` returns null and the page shows
+> "verification link doesn't work anymore" without updating
+> `EmailConfirmed`. The earlier hypotheses (mail-client wrap, token
+> decode, stale link) are obsolete; the right primary is BUG-029.
+> Closing this finding as superseded; track the fix under BUG-029.
+> Workaround: host-swap `localhost` -> `<tenant>.localhost` and
+> click; same token, EmailConfirmed flips to 1.
+> Replay: 2026-05-21 hardening HRD-P1.B.2; claime1 verified via the
+> host-swap path (`EmailConfirmed=1`, userId `14eaa925-...-3a215dd42c08`).
 
 # Symptom
 

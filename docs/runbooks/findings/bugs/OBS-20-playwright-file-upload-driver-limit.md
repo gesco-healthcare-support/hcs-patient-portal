@@ -2,10 +2,37 @@
 id: OBS-20
 title: Playwright DataTransfer file injection doesn't trigger Angular doc-upload pipeline
 severity: observation
-status: driver-limitation
+status: workaround-available
+last-replayed: 2026-05-21
 found: 2026-05-14 hardening Phase 7.1
 flow: document-upload (driver)
 ---
+
+> **2026-05-21 replay: workaround now available via MCP's `browser_file_upload` tool.**
+> The Playwright MCP server exposes a dedicated file-upload tool that
+> binds to the real file-chooser dialog rather than synthesizing a
+> DataTransfer event. Verified 2026-05-21 against A00001's upload UI:
+>
+> 1. Click "File" picker button -> Playwright detects "File chooser"
+>    modal state.
+> 2. Call `mcp__plugin_playwright_playwright__browser_file_upload`
+>    with `paths: [<file under W:/patient-portal/main/.playwright-mcp/>]`.
+>    The MCP tool refuses paths OUTSIDE its allowed-roots
+>    (`W:/patient-portal/main` + `W:/patient-portal/main/.playwright-mcp`),
+>    so the file must be staged in one of those directories first.
+> 3. Confirmation: `input[type="file"].files.length === 1` AND the
+>    previously-disabled "Upload" button becomes enabled.
+> 4. Click "Upload" -> `POST /api/app/appointments/{id}/documents`
+>    fires (verified in DevTools Network panel).
+>
+> The driver limitation noted on 2026-05-14 was specific to using
+> DataTransfer alone; the MCP tool bypasses it. Phase 7 of the suite
+> is now scriptable via Playwright MCP.
+>
+> Separately, clistaff1's upload against A00001 returned **403 Forbidden**
+> from the server -- a permission gap sibling of [[BUG-031]] (clinic
+> staff lacks the document-upload permission on appointments they
+> don't own). That's a separate finding; the driver itself works.
 
 # OBS-20 - Playwright driver limit on file upload
 
