@@ -21,7 +21,7 @@
     "@abp/ng.core": "~10.0.2",
     "@abp/ng.feature-management": "~10.0.2",
     "@abp/ng.oauth": "~10.0.2",
-    "@abp/ng.setting-management": "~10.0.2",
+    "@abp/ng.setting-management": "~10.1.1",
     "@abp/ng.theme.shared": "~10.0.2",
     "@angular/animations": "~20.3.19",
     "@angular/common": "~20.3.19",
