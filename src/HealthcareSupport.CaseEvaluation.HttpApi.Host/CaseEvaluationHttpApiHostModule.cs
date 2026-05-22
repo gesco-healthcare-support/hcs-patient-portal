@@ -199,23 +199,31 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
                 System.Net.HttpStatusCode.BadRequest);
 
-            // BUG-025 (2026-05-21) -- file-too-large rejection from the
-            // AppointmentDocuments upload path. 413 is RFC 7231's
-            // canonical status for "request entity too large". Distinct
-            // from 400 (empty file, just below) so the SPA can branch
-            // the user-facing message without parsing the body.
-            options.Map(
-                CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge,
-                System.Net.HttpStatusCode.RequestEntityTooLarge);
-
-            // BUG-025 follow-up (2026-05-21) -- empty-file rejection
-            // (zero-byte or missing stream). Client-input validation
-            // failure; HTTP 400, same shape as the other input-validator
-            // codes above.
-            options.Map(
-                CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty,
-                System.Net.HttpStatusCode.BadRequest);
+            // BUG-025 (2026-05-21) -- AppointmentDocuments upload size
+            // rejections. Extracted to a named static helper so unit
+            // tests can verify the mappings without booting the full
+            // host (see CaseEvaluationHttpApiHostModuleTests).
+            MapAppointmentDocumentErrorCodes(options);
         });
+    }
+
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- HTTP-status mappings for the
+    /// AppointmentDocuments upload path. <c>FileTooLarge</c> -> 413
+    /// (RFC 7231 canonical "request entity too large"; distinct from
+    /// 400 so the SPA can branch the user-facing message without
+    /// parsing the body). <c>FileEmpty</c> -> 400 (client-input
+    /// validation failure, same shape as the other input-validator
+    /// codes mapped above).
+    /// </summary>
+    internal static void MapAppointmentDocumentErrorCodes(Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions options)
+    {
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge,
+            System.Net.HttpStatusCode.RequestEntityTooLarge);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty,
+            System.Net.HttpStatusCode.BadRequest);
     }
 
     /// <summary>
@@ -276,7 +284,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// and 12 MB get the friendly localized 413 with data so the SPA
     /// can render "max 10 MB" + the actual size.</para>
     /// </summary>
-    private static void ConfigureUploadLimits(ServiceConfigurationContext context)
+    internal static void ConfigureUploadLimits(ServiceConfigurationContext context)
     {
         const long FrameworkCapBytes = 12L * 1024 * 1024;
 

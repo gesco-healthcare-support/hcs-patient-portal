@@ -206,9 +206,9 @@ public class ExternalAccountAppServiceUnitTests
     // Helpers
     // ------------------------------------------------------------------
 
-    private static IdentityUser NewUser(bool emailConfirmed, bool isActive)
+    private static Volo.Abp.Identity.IdentityUser NewUser(bool emailConfirmed, bool isActive)
     {
-        var user = new IdentityUser(
+        var user = new Volo.Abp.Identity.IdentityUser(
             id: Guid.NewGuid(),
             userName: "test@example.com",
             email: "test@example.com",
