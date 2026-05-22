@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Localization;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Authorization;
@@ -58,6 +60,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     // party to (only the IMultiTenant filter applied, which scopes by
     // tenant, not by appointment-membership).
     private readonly AppointmentReadAccessGuard _readAccessGuard;
+    private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -71,7 +74,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         ILocalEventBus localEventBus,
         IdentityUserManager userManager,
         IUnitOfWorkManager unitOfWorkManager,
-        AppointmentReadAccessGuard readAccessGuard)
+        AppointmentReadAccessGuard readAccessGuard,
+        IStringLocalizer<CaseEvaluationResource> localizer)
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
@@ -85,6 +89,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _userManager = userManager;
         _unitOfWorkManager = unitOfWorkManager;
         _readAccessGuard = readAccessGuard;
+        _localizer = localizer;
     }
 
     /// <summary>
@@ -165,7 +170,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize);
+        EnsureFileSizeWithinLimit(fileSize, _localizer);
 
         // Issue #114 (2026-05-13): gate before any blob save so the
         // user can't trigger a write at all if they're not a party.
@@ -303,7 +308,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize);
+        EnsureFileSizeWithinLimit(fileSize, _localizer);
 
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
 
@@ -421,7 +426,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
-        EnsureFileSizeWithinLimit(fileSize);
+        EnsureFileSizeWithinLimit(fileSize, _localizer);
 
         EnsureValidFileFormat(content, fileName);
 
@@ -672,18 +677,37 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     /// <summary>
     /// BUG-025 (2026-05-21) -- enforce the per-document upload size cap.
-    /// Throws <see cref="BusinessException"/> with
+    /// Throws <see cref="BusinessException"/> carrying
     /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge"/>
-    /// carrying <c>MaxBytes</c> and <c>ActualBytes</c> data so the SPA can
-    /// render a friendly message + the HTTP-status mapping in
-    /// <c>CaseEvaluationHttpApiHostModule</c> resolves to 413 Payload Too
-    /// Large.
+    /// as the code plus <c>MaxBytes</c> + <c>ActualBytes</c> data so the SPA
+    /// can branch programmatically. <paramref name="localizer"/> resolves
+    /// the human-readable message via key
+    /// <c>AppointmentDocument:FileTooLarge</c> in
+    /// <c>CaseEvaluationResource</c>; pass <c>null</c> in unit tests --
+    /// the throw still happens, the SPA-facing UX text is simply suppressed.
+    /// Mapped to HTTP 413 Payload Too Large by
+    /// <c>CaseEvaluationHttpApiHostModule</c>'s
+    /// <c>AbpExceptionHttpStatusCodeOptions</c>.
     /// </summary>
-    private static void EnsureFileSizeWithinLimit(long fileSize)
+    public static void EnsureFileSizeWithinLimit(
+        long fileSize,
+        IStringLocalizer<CaseEvaluationResource>? localizer = null)
     {
         if (fileSize > MaxFileSizeBytes)
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)
+            // UserFriendlyException (not BusinessException) is used because
+            // ABP only sends UserFriendlyException messages to clients by
+            // default; BusinessException messages get replaced with the
+            // generic "An internal error occurred" fallback unless
+            // SendExceptionsDetailsToClients=true (which would also leak
+            // unrelated internal exception details). Same pattern as
+            // UserSignatureAppService.
+            var message = localizer != null
+                ? localizer["AppointmentDocument:FileTooLarge"].Value
+                : "File is too large.";
+            throw new UserFriendlyException(
+                    message: message,
+                    code: CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge)
                 .WithData("MaxBytes", MaxFileSizeBytes)
                 .WithData("ActualBytes", fileSize);
         }
