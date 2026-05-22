@@ -214,6 +214,16 @@ public class AppointmentManager : DomainService
         {
             appointment.AppointmentApproveDate = DateTime.UtcNow;
         }
+        else if (trigger == AppointmentTransitionTrigger.Reject)
+        {
+            // Symmetric companion-field write for Reject -- mirrors the
+            // Approve branch's stamp. Without this the reason flows in
+            // via the parameter and emits on the StatusChangedEto but
+            // never reaches the entity, leaving RejectionNotes NULL in
+            // the database after a /reject call.
+            appointment.RejectionNotes = reason;
+            appointment.RejectedById = actingUserId;
+        }
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
