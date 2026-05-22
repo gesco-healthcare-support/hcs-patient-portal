@@ -26,7 +26,6 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
-using Volo.Abp.Settings;
 using Volo.Saas.Tenants;
 using Microsoft.Extensions.Hosting;
 using Volo.Abp.MultiTenancy;
@@ -50,8 +49,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly DefenseAttorneyManager _defenseAttorneyManager;
     private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     private readonly AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
-    // D.2 (2026-04-30): wired for the admin invite endpoint.
-    private readonly ISettingProvider _settingProvider;
     private readonly IBackgroundJobManager _backgroundJobManager;
     // 2026-05-15: tokenized invite flow. Manager owns token gen + hash +
     // accept; dispatcher routes the email through the per-tenant
@@ -98,7 +95,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         DefenseAttorneyManager defenseAttorneyManager,
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager,
-        ISettingProvider settingProvider,
         IBackgroundJobManager backgroundJobManager,
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
@@ -122,7 +118,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _defenseAttorneyManager = defenseAttorneyManager;
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _appointmentDefenseAttorneyManager = appointmentDefenseAttorneyManager;
-        _settingProvider = settingProvider;
         _backgroundJobManager = backgroundJobManager;
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;

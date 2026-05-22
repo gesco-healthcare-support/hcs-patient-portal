@@ -128,9 +128,14 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
         // Diagnostic for tenant-URL composition issues. Debug-level so
         // it's filtered out of prod logs by default; flip the namespace
         // to Debug in appsettings to surface it when investigating.
-        _logger.LogDebug(
-            "AccountUrlBuilder: setting={Setting} configured={Configured} tenantId={TenantId} tenantName={TenantName} composed={Composed}",
-            settingName, configured, tenantId, tenantName, composed);
+        // IsEnabled guard short-circuits MEL message-template binding when
+        // Debug is off, even though all five args are cheap field reads.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "AccountUrlBuilder: setting={Setting} configured={Configured} tenantId={TenantId} tenantName={TenantName} composed={Composed}",
+                settingName, configured, tenantId, tenantName, composed);
+        }
         return composed;
     }
 
