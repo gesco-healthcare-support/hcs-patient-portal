@@ -2,9 +2,14 @@
 id: OBS-12
 title: Reschedule + Cancellation UI not built for Patient detail view (per parity audit)
 severity: observation
+status: deferred
+deferred-to: W3
 found: 2026-05-14 during Workflow E
+resolved: 2026-05-22
 flow: appointment-change-request
 ---
+
+> **Resolution 2026-05-22 (deferred to W3).** Verified absence: grep across `angular/src/app/appointments` for `Request Reschedule` / `Request Cancellation` / `requestReschedule` / `requestCancellation` returns zero matches -- buttons genuinely not present in any template. This is intentional per the existing parity audit (Wave 3 gates the change-request feature). The Supervisor-dashboard "Pending Change Requests" tile placeholder remains and will be wired when W3 ships. No action needed; the W3 workstream will produce its own design docs when scoped.
 
 # OBS-12 — Reschedule + Cancellation UI status
 
