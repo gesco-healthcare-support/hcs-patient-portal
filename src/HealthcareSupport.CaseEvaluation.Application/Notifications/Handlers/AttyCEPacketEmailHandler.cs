@@ -62,24 +62,25 @@ public class AttyCEPacketEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AttyCEPacketEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public AttyCEPacketEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<AttyCEPacketEmailHandler> logger)
+        ILogger<AttyCEPacketEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -121,10 +122,11 @@ public class AttyCEPacketEmailHandler :
                 return;
             }
 
-            var portalUrl = ctx.PortalBaseUrl ?? await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            // BUG-029 v3 fix (2026-05-21).
+            var portalUrl = ctx.PortalBaseUrl
+                ?? await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
 
-            var documentUploadUrl = $"{portalUrl?.TrimEnd('/')}/appointments/view/{eventData.AppointmentId:N}";
+            var documentUploadUrl = $"{portalUrl.TrimEnd('/')}/appointments/view/{eventData.AppointmentId:N}";
 
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,

@@ -43,24 +43,25 @@ public class DocumentAcceptedEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DocumentAcceptedEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition.
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DocumentAcceptedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IRepository<AppointmentDocument, Guid> documentRepository,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<DocumentAcceptedEmailHandler> logger)
+        ILogger<DocumentAcceptedEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _documentRepository = documentRepository;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -171,9 +172,9 @@ public class DocumentAcceptedEmailHandler :
         Guid appointmentId,
         int remainingCount)
     {
-        var portalUrl = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
-        var url = $"{portalUrl?.TrimEnd('/')}/appointments/view/{appointmentId:N}";
+        // BUG-029 v3 fix (2026-05-21): tenant-aware portal URL via builder.
+        var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(_currentTenant.Id);
+        var url = $"{portalUrl.TrimEnd('/')}/appointments/view/{appointmentId:N}";
         return new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
         {
             ["RemainingDocumentCount"] = remainingCount,

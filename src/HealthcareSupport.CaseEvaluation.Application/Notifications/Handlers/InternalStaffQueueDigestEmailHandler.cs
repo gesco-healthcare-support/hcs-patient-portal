@@ -28,20 +28,21 @@ public class InternalStaffQueueDigestEmailHandler :
     ITransientDependency
 {
     private readonly INotificationDispatcher _dispatcher;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<InternalStaffQueueDigestEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public InternalStaffQueueDigestEmailHandler(
         INotificationDispatcher dispatcher,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<InternalStaffQueueDigestEmailHandler> logger)
+        ILogger<InternalStaffQueueDigestEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -54,8 +55,8 @@ public class InternalStaffQueueDigestEmailHandler :
 
         using (_currentTenant.Change(eventData.TenantId))
         {
-            var portalUrl = await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            // BUG-029 v3 fix (2026-05-21).
+            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
 
             var recipients = new List<NotificationRecipient>
             {

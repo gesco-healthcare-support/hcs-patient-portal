@@ -43,30 +43,29 @@ namespace HealthcareSupport.CaseEvaluation.ExternalAccount;
 [RemoteService(IsEnabled = false)]
 public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAccountAppService
 {
-    // 2026-05-07 (Wave 3 #17.1): default flipped to the Phase 1A Falkinstein
-    // tenant subdomain on plain HTTP (the Docker-exposed AuthServer port). Used
-    // only when ABP setting subsystem returns null for AuthServerBaseUrl --
-    // defensive fallback. Override per-tenant in /setting-management.
-    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
+    // BUG-029 v3 fix (2026-05-21): DefaultAuthServerBaseUrl const removed.
+    // Tenant-aware URL composition lives in IAccountUrlBuilder; missing
+    // App__SelfUrl env var now throws a clear error instead of silently
+    // emitting "http://falkinstein.localhost:44368".
 
     private readonly IdentityUserManager _userManager;
-    private readonly ISettingProvider _settingProvider;
     private readonly INotificationDispatcher _dispatcher;
     private readonly IDistributedCache _cache;
     private readonly ILogger<ExternalAccountAppService> _logger;
+    private readonly Notifications.IAccountUrlBuilder _accountUrlBuilder;
 
     public ExternalAccountAppService(
         IdentityUserManager userManager,
-        ISettingProvider settingProvider,
         INotificationDispatcher dispatcher,
         IDistributedCache cache,
-        ILogger<ExternalAccountAppService> logger)
+        ILogger<ExternalAccountAppService> logger,
+        Notifications.IAccountUrlBuilder accountUrlBuilder)
     {
         _userManager = userManager;
-        _settingProvider = settingProvider;
         _dispatcher = dispatcher;
         _cache = cache;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     // Phase 1.D rate-limit constants (Adrian Decision 3, 2026-05-08): tighter
@@ -98,8 +97,24 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-        var resetUrl = BuildResetUrl(authServerBaseUrl, user.Id, token, input.ReturnUrl);
+        // BUG-029 v3 fix (2026-05-21): tenant-aware reset URL via the
+        // user's TenantId (source of truth), then append returnUrl
+        // separately because IAccountUrlBuilder owns base + 3 standard
+        // params; per-flow extras (returnUrl) layer on top.
+        if (!user.TenantId.HasValue)
+        {
+            // External user without a tenant is a code bug.
+            _logger.LogWarning(
+                "ExternalAccountAppService.SendPasswordResetCodeAsync: user {UserId} has no TenantId; skipping send.",
+                user.Id);
+            return;
+        }
+        var resetUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
+            user.TenantId.Value, user.Id, token);
+        if (!string.IsNullOrWhiteSpace(input.ReturnUrl))
+        {
+            resetUrl += "&returnUrl=" + WebUtility.UrlEncode(input.ReturnUrl);
+        }
 
         // Phase 1.B (Category 1, 2026-05-08): dispatch the ResetPassword template
         // through the per-tenant NotificationTemplate path. Body is the seeded
@@ -243,8 +258,17 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
 
         var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        var authServerBaseUrl = await ResolveAuthServerBaseUrlAsync();
-        var verifyUrl = BuildEmailConfirmationUrl(authServerBaseUrl, user.Id, token);
+        // BUG-029 v3 fix (2026-05-21): tenant-aware verify URL via the
+        // user's TenantId.
+        if (!user.TenantId.HasValue)
+        {
+            _logger.LogWarning(
+                "ExternalAccountAppService.ResendEmailVerificationAsync: user {UserId} has no TenantId; skipping send.",
+                user.Id);
+            return;
+        }
+        var verifyUrl = await _accountUrlBuilder.BuildEmailConfirmationUrlAsync(
+            user.TenantId.Value, user.Id, token);
 
         try
         {
@@ -352,27 +376,8 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
     }
 
-    /// <summary>
-    /// Phase 1.D: AuthServer-hosted verify URL shape:
-    /// <c>{base}/Account/EmailConfirmation?userId={guid}&amp;confirmationToken={url-encoded-token}</c>.
-    /// Lands on the project's custom Razor PageModel
-    /// <c>HealthcareSupport.CaseEvaluation.Pages.Account.EmailConfirmationModel</c>
-    /// which processes the token server-side and 302's to
-    /// <c>/Account/Login?flash=email-verified</c>. Same shape as
-    /// <c>CaseEvaluationAccountEmailer.BuildEmailConfirmationUrl</c>.
-    /// Internal for unit-test coverage. 2026-05-18 -- repointed from
-    /// the deleted SPA route <c>/account/email-confirmation</c>; see
-    /// docs/plans/2026-05-18-fix-verification-email-url.md.
-    /// </summary>
-    internal static string BuildEmailConfirmationUrl(string authServerBaseUrl, Guid userId, string confirmationToken)
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.Append(authServerBaseUrl);
-        sb.Append("/Account/EmailConfirmation");
-        sb.Append("?userId=").Append(userId.ToString());
-        sb.Append("&confirmationToken=").Append(WebUtility.UrlEncode(confirmationToken));
-        return sb.ToString();
-    }
+    // BUG-029 v3 fix (2026-05-21): BuildEmailConfirmationUrl static helper
+    // moved into IAccountUrlBuilder. The Service now owns this shape.
 
     /// <summary>
     /// Phase 1.B/1.C variable bag for the ResetPassword and PasswordChange
@@ -422,24 +427,10 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         vars["imageInByte"] = string.Empty;
     }
 
-    private async Task<string> ResolveAuthServerBaseUrlAsync()
-    {
-        var configured = await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl);
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return DefaultAuthServerBaseUrl;
-        }
-        // BUG-014 (Task A, Option 4 hybrid): this AppService serves
-        // anonymous endpoints (password reset / external signup) so
-        // ICurrentTenant.Name is unreliable here. Phase 1A hardcodes
-        // "Falkinstein" because the single demo tenant is Falkinstein and
-        // the SettingDefinition default const above already has falkinstein
-        // baked in. TODO Phase 1B: resolve tenant from user.TenantId
-        // (looked up by email earlier in the caller) via ITenantStore.
-        // See docs/plans/2026-05-20-task-a-config-driven-email-urls.md.
-        return TenantUrlComposer.ComposeForTenant(configured.TrimEnd('/'), "Falkinstein")!;
-    }
+    // ResolveAuthServerBaseUrlAsync removed. The hardcoded "Falkinstein"
+    // workaround it carried is now actually fixed: IAccountUrlBuilder
+    // resolves the tenant name from the explicit tenantId argument the
+    // caller derives from user.TenantId.
 
     /// <summary>
     /// Trims + lowercases the inbound email so reverse lookups match the
@@ -472,32 +463,10 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         }
     }
 
-    /// <summary>
-    /// Builds the AuthServer reset URL the user clicks from the email.
-    /// Format: <c>{base}/Account/ResetPassword?userId={guid}&amp;resetToken={url-encoded-token}</c>
-    /// (matches ABP Pro's built-in ResetPassword Razor page query-string
-    /// contract). When <paramref name="returnUrl"/> is supplied it is
-    /// appended verbatim so the AuthServer can chain the user back to
-    /// the page they came from after a successful reset.
-    /// Internal for unit-test coverage.
-    /// </summary>
-    internal static string BuildResetUrl(
-        string authServerBaseUrl,
-        Guid userId,
-        string resetToken,
-        string? returnUrl)
-    {
-        var builder = new System.Text.StringBuilder();
-        builder.Append(authServerBaseUrl);
-        builder.Append("/Account/ResetPassword");
-        builder.Append("?userId=").Append(userId.ToString());
-        builder.Append("&resetToken=").Append(WebUtility.UrlEncode(resetToken));
-        if (!string.IsNullOrWhiteSpace(returnUrl))
-        {
-            builder.Append("&returnUrl=").Append(WebUtility.UrlEncode(returnUrl));
-        }
-        return builder.ToString();
-    }
+    // BUG-029 v3 fix (2026-05-21): BuildResetUrl static helper moved into
+    // IAccountUrlBuilder.BuildPasswordResetUrlAsync. The returnUrl param
+    // is now appended at the call site (single use; not worth widening
+    // the central builder's contract for it).
 
     /// <summary>
     /// Heuristic: ABP Identity's ResetPasswordAsync surfaces token failures

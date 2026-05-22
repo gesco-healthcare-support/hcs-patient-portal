@@ -67,15 +67,14 @@ public class BookingSubmissionEmailHandler :
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly CcRecipientAppender _ccAppender;
     private readonly IdentityUserManager _userManager;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<BookingSubmissionEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition.
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
-    // Phase 2.A defaults (Adrian Decision A 2026-05-08): same fallbacks the
-    // CaseEvaluationAccountEmailer uses, kept in sync so per-tenant URL
-    // overrides are read from one settings surface.
-    private const string DefaultPortalBaseUrl = "http://falkinstein.localhost:4200";
-    private const string DefaultAuthServerBaseUrl = "http://falkinstein.localhost:44368";
+    // BUG-029 v3 fix (2026-05-21): Phase 2.A hardcoded Falkinstein
+    // fallbacks removed. IAccountUrlBuilder throws a clear error if
+    // App__SelfUrl / App__AngularUrl env var is missing.
 
     /// <summary>
     /// OLD :945 -- internal-staff recipients for the
@@ -98,9 +97,9 @@ public class BookingSubmissionEmailHandler :
         IRepository<Patient, Guid> patientRepository,
         CcRecipientAppender ccAppender,
         IdentityUserManager userManager,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<BookingSubmissionEmailHandler> logger)
+        ILogger<BookingSubmissionEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -110,9 +109,9 @@ public class BookingSubmissionEmailHandler :
         _patientRepository = patientRepository;
         _ccAppender = ccAppender;
         _userManager = userManager;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -244,20 +243,12 @@ public class BookingSubmissionEmailHandler :
             return;
         }
 
-        // Resolve the URLs once per dispatch -- both are tenant-scoped
-        // settings that don't change per-recipient.
-        // BUG-014 (Task A): compose tenant subdomain into the base URL so
-        // tenant-less env-var values become <tenant>.localhost:<port>.
-        var portalBaseUrl = TenantUrlComposer.ComposeForTenant(
-            await ResolveSettingAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
-                DefaultPortalBaseUrl),
-            _currentTenant.Name)!;
-        var authServerBaseUrl = TenantUrlComposer.ComposeForTenant(
-            await ResolveSettingAsync(
-                CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl,
-                DefaultAuthServerBaseUrl),
-            _currentTenant.Name)!;
+        // Resolve the URLs once per dispatch via IAccountUrlBuilder. The
+        // builder pulls tenant Name from the explicit eventData.TenantId
+        // rather than the unreliable _currentTenant.Name (null inside the
+        // Change(tenantId) scope opened by the calling handler).
+        var portalBaseUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
+        var authServerBaseUrl = await _accountUrlBuilder.BuildAuthServerRootUrlAsync(eventData.TenantId);
 
         // Build the booker name + patient name once -- both are stable
         // across all recipient variants and used by every template body.
@@ -470,13 +461,8 @@ public class BookingSubmissionEmailHandler :
     /// <summary>
     /// Phase 2.A: tenant setting fallback. Reads via
     /// <see cref="ISettingProvider"/>; falls back to the documented
-    /// dev-stack default when the setting is unset.
-    /// </summary>
-    private async Task<string> ResolveSettingAsync(string settingKey, string defaultValue)
-    {
-        var configured = await _settingProvider.GetOrNullAsync(settingKey);
-        return string.IsNullOrWhiteSpace(configured) ? defaultValue : configured!;
-    }
+    // BUG-029 v3 fix (2026-05-21): ResolveSettingAsync helper removed.
+    // URL resolution + tenant composition lives in IAccountUrlBuilder.
 
     /// <summary>
     /// Phase 2.A: human-friendly booker name. Pulls from the

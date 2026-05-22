@@ -34,22 +34,23 @@ public class PatientPacketEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PatientPacketEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public PatientPacketEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<PatientPacketEmailHandler> logger)
+        ILogger<PatientPacketEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -79,10 +80,11 @@ public class PatientPacketEmailHandler :
                 return;
             }
 
-            var portalUrl = ctx.PortalBaseUrl ?? await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            // BUG-029 v3 fix (2026-05-21).
+            var portalUrl = ctx.PortalBaseUrl
+                ?? await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
 
-            var documentUploadUrl = $"{portalUrl?.TrimEnd('/')}/appointments/view/{eventData.AppointmentId:N}";
+            var documentUploadUrl = $"{portalUrl.TrimEnd('/')}/appointments/view/{eventData.AppointmentId:N}";
 
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,

@@ -50,26 +50,27 @@ public class PackageDocumentReminderEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly CcRecipientAppender _ccAppender;
-    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PackageDocumentReminderEmailHandler> _logger;
+    // BUG-029 v3 fix (2026-05-21).
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public PackageDocumentReminderEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         CcRecipientAppender ccAppender,
-        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
-        ILogger<PackageDocumentReminderEmailHandler> logger)
+        ILogger<PackageDocumentReminderEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _ccAppender = ccAppender;
-        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -116,8 +117,11 @@ public class PackageDocumentReminderEmailHandler :
                 recipients,
                 contextTagForLogging: $"PackageDocumentReminder/{eventData.AppointmentId}");
 
-            var portalUrl = ctx.PortalBaseUrl ?? await _settingProvider.GetOrNullAsync(
-                CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl);
+            // BUG-029 v3 fix (2026-05-21): context-provided URL first
+            // (already tenant-composed by DocumentEmailContextResolver),
+            // fall back to the builder which composes the same way.
+            var portalUrl = ctx.PortalBaseUrl
+                ?? await _accountUrlBuilder.BuildPortalRootUrlAsync(eventData.TenantId);
 
             var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
