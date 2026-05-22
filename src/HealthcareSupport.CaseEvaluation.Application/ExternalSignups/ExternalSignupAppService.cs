@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Invitations;
+using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -14,6 +15,7 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -78,6 +80,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // URL is built via this service rather than concatenating the raw
     // setting value, so the tenant subdomain is always present.
     private readonly Notifications.IAccountUrlBuilder _accountUrlBuilder;
+    // BUG-012 (2026-05-22): typed CaseEvaluationResource localizer for the
+    // static ValidateRegistrationInput helper. The base class L property is
+    // an instance-only IStringLocalizer; the validator stays `internal static`
+    // (tests bypass DI), so we pass this through as an optional parameter --
+    // tests call with null + assert against the English fallback string.
+    private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -101,7 +109,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         InvitationManager invitationManager,
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
-        Notifications.IAccountUrlBuilder accountUrlBuilder)
+        Notifications.IAccountUrlBuilder accountUrlBuilder,
+        IStringLocalizer<CaseEvaluationResource> localizer)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -125,6 +134,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _notificationDispatcher = notificationDispatcher;
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
+        _localizer = localizer;
     }
 
     /// <summary>
@@ -476,7 +486,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         //   - FirmName required for ApplicantAttorney AND DefenseAttorney
         //     (OLD-bug-fix on UserDomain.cs:272 which checked PatientAttorney
         //     twice; intent was both attorney roles)
-        ValidateRegistrationInput(input);
+        ValidateRegistrationInput(input, _localizer);
 
         var tenantId = ResolveTenantId(input.TenantId);
         var roleName = ToRoleName(input.UserType);
@@ -1081,9 +1091,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     ///         <c>UserDomain.cs:272</c> which checked PatientAttorney
     ///         twice).</item>
     /// </list>
-    /// Internal so unit tests can verify without standing up ABP.
+    /// Internal so unit tests can verify without standing up ABP. Tests
+    /// call with <paramref name="localizer"/>=null + assert against the
+    /// English fallback strings below; production caller passes the
+    /// AppService's injected <c>_localizer</c> so the SPA banner shows the
+    /// localized text rather than the generic "An internal error occurred"
+    /// ABP fallback (BUG-012, mirrors the BUG-014 / BUG-025 fix pattern).
     /// </summary>
-    internal static void ValidateRegistrationInput(ExternalUserSignUpDto input)
+    internal static void ValidateRegistrationInput(
+        ExternalUserSignUpDto input,
+        IStringLocalizer<CaseEvaluationResource>? localizer = null)
     {
         Check.NotNull(input, nameof(input));
         Check.NotNullOrWhiteSpace(input.Email, nameof(input.Email));
@@ -1092,12 +1109,34 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         if (!string.Equals(input.Password, input.ConfirmPassword, StringComparison.Ordinal))
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
+            // BUG-012 (2026-05-22): UserFriendlyException so the localized
+            // message reaches the SPA banner. BusinessException with code
+            // alone gets its Message replaced by ABP's generic fallback
+            // (documented in this codebase at
+            // AppointmentReadAccessGuard.cs:161-167 and at the
+            // RegistrationDuplicateEmail call site in RegisterAsync). UFE
+            // inherits from BusinessException, so the HTTP-status mapping
+            // for the code still applies (400 BadRequest via
+            // CaseEvaluationHttpApiHostModule + CaseEvaluationAuthServerModule).
+            var mismatchMessage = localizer != null
+                ? localizer["Registration:ConfirmPasswordMismatch"].Value
+                : "Password and confirm password do not match.";
+            throw new UserFriendlyException(
+                message: mismatchMessage,
+                code: CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch);
         }
 
         if (IsAttorneyRole(input.UserType) && string.IsNullOrWhiteSpace(input.FirmName))
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
+            // BUG-012 (2026-05-22): same UFE pattern as above. WithData
+            // carries the UserType so a future per-role-tailored banner can
+            // be added in the SPA without parsing the message string.
+            var firmRequiredMessage = localizer != null
+                ? localizer["Registration:FirmNameRequiredForAttorney"].Value
+                : "Firm name is required for attorney roles.";
+            throw new UserFriendlyException(
+                    message: firmRequiredMessage,
+                    code: CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired)
                 .WithData("UserType", input.UserType.ToString());
         }
     }
