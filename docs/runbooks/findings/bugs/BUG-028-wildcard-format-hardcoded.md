@@ -2,7 +2,8 @@
 id: BUG-028
 title: AuthServer WildcardDomainsFormat hardcoded to main-stack ports; offset-port stack login is broken
 severity: high (blocks login on the parallel-worktree stack)
-status: open
+status: fixed
+fixed: 2026-05-22 (verified via live probes after fix shipped in c73d789)
 found: 2026-05-20 (hardening-test slice on `replicate-old-app` stack)
 flow: authentication / OpenIddict authorization-code redirect validation
 component: src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs:103-111
@@ -11,6 +12,7 @@ related:
   - Task A (5cdae28) -- per-stack backend URL config; missed this file
   - Task B (76348fd) -- per-stack SPA dynamic-env; covered SPA side
   - Task D (39c4c33) -- parallel-stack verification; did not exercise SPA login
+  - c73d789 (the Option A fix below; landed on feat/replicate-old-app, since merged to main via PR #222)
 ---
 
 # BUG-028 - WildcardDomainsFormat hardcoded; replicate-old-app login broken
@@ -169,3 +171,62 @@ This finding is the blocker for Phase 1.A.1 and beyond on
 4. Same probe on main stack: expect `4200 / 44368 / 44327`.
 5. Run the full hardening slice (Phase 0 through 6.1) on both stacks
    in parallel. Both should reach `Phase 6.1 PASS`.
+
+## Fix verified (2026-05-22)
+
+Fix shipped in commit `c73d789 fix(auth-server): drive OpenIddict
+wildcard formats from config` (Option A above), landed on
+`feat/replicate-old-app` and reached `main` via PR #222.
+
+`CaseEvaluationAuthServerModule.PreConfigureServices` now reads the
+wildcard format list from the `App:WildcardDomainsFormat` config
+section, falling back to the canonical-port hardcoded list when the
+section is empty (dev/canonical-stack convenience).
+`docker-compose.yml` passes `${NG_PORT}` / `${AUTH_PORT}` / `${API_PORT}`
+through as `App__WildcardDomainsFormat__0..2`, so each worktree's
+`.env` controls its own format list.
+
+### Live verification (replicate-old-app stack)
+
+| Probe | Expected per the symptom above | Actual on 2026-05-22 |
+|---|---|---|
+| `GET /connect/authorize?...&redirect_uri=http%3A%2F%2Ffalkinstein.localhost%3A4230` (bare) | 400 invalid_request ID2043 | **302 redirect (accepted)** |
+| Same with PKCE (real SPA shape) | 400 invalid_request ID2043 | **302 redirect (accepted)** |
+| Counter-probe: `redirect_uri=:4200` on replicate AuthServer | (sanity) 400 invalid_request | **400 invalid_request ID2043** (correctly rejected -- wildcard now scoped to 4230/44398/44357) |
+| Follow the 302 chain | (n/a) | Lands on `/Account/Login?ReturnUrl=...` with `<title>Sign in &#124; Appointment Portal</title>` |
+| `docker exec ... env &#124; grep WildcardDomainsFormat` | env vars present | All three present with offset-port values |
+| Perl byte-grep AuthServer DLL for `App:WildcardDomainsFormat` | (n/a) | UTF-16 hit, count=1 (new code path in running binary) |
+
+End-to-end positives captured earlier on the same stack:
+- Full OIDC code-flow + PKCE login as `admin@falkinstein.test`
+  succeeded (token issued, invite endpoint reachable, JSON returned).
+- Email-confirmation click-through via Chrome DevTools landed at
+  `/Account/Login?flash=email-verified` -- another end-to-end positive
+  through the same redirect-URI validation handler.
+
+### Match-algorithm cross-check (from upstream ABP source)
+
+`Volo.Abp.OpenIddict.WildcardDomains.AbpValidateClientRedirectUri.HandleAsync`
+calls `CheckWildcardDomainAsync(context.RedirectUri)`, which iterates
+`WildcardDomainsFormat`, builds each pattern via
+`domainFormat.Replace("{0}", "*")`, then calls
+`UrlHelpers.IsSubdomainOf(url, pattern)`:
+
+```csharp
+return subdomain.IsAbsoluteUri
+       && domain.IsAbsoluteUri
+       && subdomain.Scheme == domain.Scheme
+       && subdomain.Port == domain.Port
+       && subdomain.Host.EndsWith($".{domain.Host}", StringComparison.Ordinal);
+```
+
+Ports must be exactly equal -- which is what the original bug was, and
+what the config-driven format list now correctly satisfies on both
+stacks (canonical and offset).
+
+### Follow-up (out of scope here)
+
+The doc above describes "Option B" (a typed `StackUrlOptions` resolver
+shared by SPA + AuthServer + API + email URL builder). Not in scope for
+this close-out. Capture as a future iteration if/when a fourth consumer
+of the per-stack URL contract appears.

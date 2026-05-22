@@ -133,6 +133,22 @@ public class CaseEvaluationAuthServerModule : AbpModule
             }
         });
 
+        // Tighten refresh-token rotation. OpenIddict 7.x defaults to a
+        // 30-second RefreshTokenReuseLeeway window during which a
+        // redeemed refresh token can still be reused, to tolerate
+        // distributed clients firing concurrent refresh requests. That
+        // same window also lets a stolen refresh token be replayed once
+        // for ~30 s before OpenIddict's cascade-revocation kicks in.
+        // Shortening the leeway to 2 s preserves the legitimate
+        // concurrent-retry path (network blips during refresh
+        // round-trips) while shrinking the stolen-token replay window
+        // to a level only a near-real-time attacker can hit. Aligns
+        // with RFC 6749 Section 10.4 intent.
+        PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
+        {
+            serverBuilder.SetRefreshTokenReuseLeeway(TimeSpan.FromSeconds(2));
+        });
+
         if (!hostingEnvironment.IsDevelopment())
         {
             PreConfigure<AbpOpenIddictAspNetCoreOptions>(options =>
