@@ -29,6 +29,7 @@ import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
+import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 
 type TransitionAction = 'approve' | 'reject';
 
@@ -280,44 +281,11 @@ export class AppointmentViewComponent implements OnInit {
     return !!control && control.invalid && control.touched;
   }
 
-  /**
-   * BUG-012 (2026-05-22) -- conditional `Validators.required` on the
-   * AA / DA section's non-email fields, gated by that section's
-   * `Enabled` toggle. Direct port of
-   * `appointment-add.component.ts.applyConditionalAttorneySectionValidators`;
-   * see the comment there for OLD parity and the "Mandatory Fields"
-   * submit-modal rationale. Email is intentionally NOT in the list --
-   * email validators live on the initial form-control declaration
-   * (Validators.email + Validators.maxLength(50)).
-   */
-  private applyConditionalAttorneySectionValidators(
-    prefix: 'applicantAttorney' | 'defenseAttorney',
-    required: boolean,
-  ): void {
-    const suffixes: Array<{ name: string; maxLength: number }> = [
-      { name: 'FirstName', maxLength: 50 },
-      { name: 'FirmName', maxLength: 50 },
-      { name: 'PhoneNumber', maxLength: 20 },
-      { name: 'FaxNumber', maxLength: 19 },
-      { name: 'Street', maxLength: 255 },
-      { name: 'City', maxLength: 50 },
-      { name: 'StateId', maxLength: 0 },
-      { name: 'ZipCode', maxLength: 10 },
-    ];
-    for (const { name, maxLength } of suffixes) {
-      const control = this.form.get(prefix + name);
-      if (!control) continue;
-      const validators = [];
-      if (required) {
-        validators.push(Validators.required);
-      }
-      if (maxLength > 0) {
-        validators.push(Validators.maxLength(maxLength));
-      }
-      control.setValidators(validators);
-      control.updateValueAndValidity({ emitEvent: false });
-    }
-  }
+  // BUG-012 Sub-bug 2 (2026-05-22) -- the previous private
+  // applyConditionalAttorneySectionValidators method moved to
+  // ../../shared/attorney-section-validators.ts so it can be shared
+  // with appointment-add.component.ts. The ngOnInit block above now
+  // uses the `wireAttorneySectionToggle` convenience wrapper.
 
   // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
   // `form` because it represents draft state for a per-row append/edit
@@ -368,23 +336,10 @@ export class AppointmentViewComponent implements OnInit {
     // and the backend's UpsertApplicantAttorneyForAppointmentAsync did
     // not enforce it either. The matching server-side guard is added in
     // AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync.
-    this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      this.applyConditionalAttorneySectionValidators('applicantAttorney', !!enabled);
-    });
-    this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      this.applyConditionalAttorneySectionValidators('defenseAttorney', !!enabled);
-    });
-    // Apply once at construction for the initial enabled state (both
-    // toggles default to true above; the data-load subscriber below
-    // flips them when the loaded record's join row is missing).
-    this.applyConditionalAttorneySectionValidators(
-      'applicantAttorney',
-      !!this.form.get('applicantAttorneyEnabled')?.value,
-    );
-    this.applyConditionalAttorneySectionValidators(
-      'defenseAttorney',
-      !!this.form.get('defenseAttorneyEnabled')?.value,
-    );
+    // Subscription + initial-apply in one call per section -- see
+    // ./shared/attorney-section-validators.ts for the helper's contract.
+    wireAttorneySectionToggle(this.form, 'applicantAttorney');
+    wireAttorneySectionToggle(this.form, 'defenseAttorney');
 
     this.loadExternalAuthorizedUsers();
 
