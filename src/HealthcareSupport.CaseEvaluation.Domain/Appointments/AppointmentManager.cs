@@ -39,6 +39,15 @@ public class AppointmentManager : DomainService
         Check.Length(panelNumber, nameof(panelNumber), AppointmentConsts.PanelNumberMaxLength);
         EnsureAppointmentDateNotInPast(appointmentDate);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
+        if (appointmentStatus == AppointmentStatusType.Approved)
+        {
+            // Companion-field stamp when an aggregate is created already
+            // in Approved state (internal-user fast-path -- office-side
+            // booker is implicitly the approver). Symmetric with the
+            // transition-time stamp in ApplyTransitionAsync's Approve
+            // branch.
+            appointment.AppointmentApproveDate = DateTime.UtcNow;
+        }
         return await _appointmentRepository.InsertAsync(appointment);
     }
 
