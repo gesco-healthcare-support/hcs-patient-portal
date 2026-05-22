@@ -1,5 +1,8 @@
 using System.Net;
+using System.Security.Claims;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.RateLimiting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -113,5 +116,127 @@ public class CaseEvaluationHttpApiHostModuleTests
         var buffer = actualCap - appServiceCap;
         buffer.ShouldBeGreaterThanOrEqualTo(2L * 1024 * 1024,
             "framework cap should be >= 2 MB above the AppService cap so the localized 413 wins");
+    }
+
+    // ------------------------------------------------------------------
+    // BUG-035 fix -- partition-key resolvers for the password-reset
+    // rate limiter. Per-account (email) is the OWASP-recommended
+    // primary control; per-IP is the secondary cap.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_PreferStashedBodyEmailOverEverythingElse()
+    {
+        // Arrange -- stash an email like the body-peek middleware would,
+        // and also set conflicting query/sub/IP signals to prove the
+        // stash wins.
+        var ctx = new DefaultHttpContext();
+        ctx.Items[PasswordResetEmailPeekMiddleware.ContextItemKey] = "primary@example.test";
+        ctx.Request.QueryString = new QueryString("?email=different-from-stash@example.test");
+        ctx.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "user-guid") }));
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.1");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        key.ShouldBe("email:primary@example.test");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_FallBackToQueryWhenStashIsMissing()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.QueryString = new QueryString("?email=Query@Example.test");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        // Email lowercased + trimmed at the query layer too, so different
+        // casings end up in the same bucket.
+        key.ShouldBe("email:query@example.test");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_FallBackToJwtSubWhenStashAndQueryAreMissing()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "abc-123") }));
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.1");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        key.ShouldBe("sub:abc-123");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_FallBackToIpWhenNothingElseResolves()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        key.ShouldBe("ip:203.0.113.42");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_FallBackToGlobalWhenIpUnknown()
+    {
+        // Last-resort: no body, no query, no JWT, no IP. The limiter
+        // still needs a deterministic key.
+        var ctx = new DefaultHttpContext();
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        key.ShouldBe("global");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetEmailPartitionKey_EmptyStashedValueFallsThroughToNextSource()
+    {
+        // Edge case: the middleware stashed an empty string. Treat as
+        // "no email available" and continue down the precedence chain.
+        var ctx = new DefaultHttpContext();
+        ctx.Items[PasswordResetEmailPeekMiddleware.ContextItemKey] = "   ";
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.2");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetEmailPartitionKey(ctx);
+
+        key.ShouldBe("ip:10.0.0.2");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetIpPartitionKey_PrefixesIpAddress()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.7");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetIpPartitionKey(ctx);
+
+        key.ShouldBe("ip:198.51.100.7");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetIpPartitionKey_FallBackToGlobalWhenIpMissing()
+    {
+        var ctx = new DefaultHttpContext();
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetIpPartitionKey(ctx);
+
+        key.ShouldBe("global");
+    }
+
+    [Fact]
+    public void ResolvePasswordResetIpPartitionKey_IgnoresBodyAndJwtSub()
+    {
+        // The IP secondary limiter must be purely IP-based -- otherwise
+        // it would inherit the same shared-bucket gap the BUG-035 fix
+        // is solving on the primary partition.
+        var ctx = new DefaultHttpContext();
+        ctx.Items[PasswordResetEmailPeekMiddleware.ContextItemKey] = "should-be-ignored@example.test";
+        ctx.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "should-be-ignored") }));
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.3");
+
+        var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetIpPartitionKey(ctx);
+
+        key.ShouldBe("ip:10.0.0.3");
     }
 }
