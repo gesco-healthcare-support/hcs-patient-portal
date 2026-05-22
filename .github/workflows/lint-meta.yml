@@ -6,7 +6,7 @@ name: Lint Meta
 
 on:
   pull_request:
-    branches: [main, development, staging, production, chore/dependency-updates]
+    branches: [main, development, staging, production, chore/dependency-updates, 'feat/**', 'fix/**']
 
 permissions:
   contents: read

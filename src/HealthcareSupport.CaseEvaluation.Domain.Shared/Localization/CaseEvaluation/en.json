@@ -221,6 +221,8 @@
     "UserSignature:FileTooLarge": "Signature image must be 1 MB or smaller.",
     "UserSignature:UnsupportedFormat": "Only PNG, JPG, and JPEG signature images are accepted.",
     "UserSignature:NotFound": "No signature has been uploaded yet.",
+    "AppointmentDocument:FileEmpty": "The selected file is empty.",
+    "AppointmentDocument:FileTooLarge": "File is too large. Maximum allowed size is 10 MB.",
     "DoctorAvailability:CannotUpdateBookedOrReserved": "This slot cannot be modified because it has been reserved or booked. Cancel or reschedule the linked appointment first.",
     "DoctorAvailability:CannotBulkDeleteWithBookedSlots": "Cannot delete all slots for this date and location because one or more slots are reserved or booked.",
     "DoctorAvailability:CannotDeleteReferenced": "This slot cannot be deleted because it is referenced by an existing appointment or change request.",

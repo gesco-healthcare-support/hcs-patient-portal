@@ -1,7 +1,7 @@
 name: Documentation Check
 on:
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, development, staging, production, chore/dependency-updates, 'feat/**', 'fix/**']
 
 jobs:
   doc-check:
