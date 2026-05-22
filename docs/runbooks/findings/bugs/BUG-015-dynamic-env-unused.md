@@ -3,41 +3,71 @@ id: BUG-015
 title: dynamic-env.json is documented but never read by the SPA
 severity: medium
 status: fixed-by-redesign
-last-replayed: 2026-05-21
+fixed: 2026-05-22
+last-replayed: 2026-05-22
+fixed-on: feat/parallel-worktree-stacks (merged via #208)
 found: 2026-05-14
 flow: angular-spa-bootstrap
-component: angular/src/main.ts (pre-bootstrap async IIFE -- different fix path than the original APP_INITIALIZER recommendation)
+component: angular/src/app/app.config.ts (missing APP_INITIALIZER)
 ---
 
-> **2026-05-21 replay outcome: fixed.** Task B (2026-05-20, commit
-> 76348fd on `feat/parallel-worktree-stacks`) implemented the runtime-
-> config load via a pre-bootstrap async IIFE in `main.ts` (NOT the
-> originally-recommended `APP_INITIALIZER` in `app.config.ts` --
-> the IIFE approach was chosen because `provideAppInitializer` runs
-> AFTER `provideAbpCore({ environment })` captures the environment by
-> reference, making mutation too late).
+> **Fixed-by-redesign 2026-05-22** -- commit `76348fd`
+> (`feat(angular): runtime dynamic-env.json load via pre-bootstrap fetch`,
+> merged via #208 on `feat/parallel-worktree-stacks`) landed the
+> runtime-config load with a **better approach than the recommended
+> APP_INITIALIZER**: a pre-bootstrap async IIFE in `angular/src/main.ts`.
 >
-> Verified 2026-05-21 against main stack:
-> 1. `performance.getEntriesByType('resource')` shows 2 fetches of
->    `http://falkinstein.localhost:4200/dynamic-env.json` during SPA
->    bootstrap (durations 70ms + 6ms; HTTP 200, content-type
->    `application/json`).
-> 2. Response body contains the runtime config:
->    `oAuthConfig.issuer = "http://localhost:44368/"`,
->    `apis.default.url = "http://localhost:44327"`,
->    `application.baseUrl = "http://localhost:4200"`.
-> 3. These values are env-var-driven via the `dev-entrypoint.sh`
->    heredoc that writes `dynamic-env.json` from `NG_PORT` /
->    `AUTH_PORT` / `API_PORT` container env at startup, so different
->    worktrees get different runtime URLs from the same built Angular
->    image.
+> **Why async IIFE instead of `APP_INITIALIZER` / `provideAppInitializer`?**
+> ABP's `provideAbpCore({ environment })` captures the imported
+> `environment` reference at provider-array construction time -- which
+> happens *before* `bootstrapApplication()` starts running, so any
+> APP_INITIALIZER mutation would fire too late to influence ABP's
+> captured copy. The IIFE mutates `environment` BEFORE
+> `bootstrapApplication()` is even called, guaranteeing ABP (and the
+> OAuth client, and the HTTP clients) see the merged values. This is
+> the canonical solution for runtime-config-into-provider-factories
+> scenarios per the Angular ecosystem -- see Lucas Arcuri / ITNEXT
+> writeups and Angular issue #45970 ("lazy init for standalone").
 >
-> Side observation: the URLs in the loaded config have NO tenant
-> subdomain prefix (`localhost:44368` not `falkinstein.localhost:44368`).
-> That is the same root cause as [[BUG-029]] (URL composition expects
-> `TenantUrlComposer` to prepend the tenant at runtime). The fact
-> that `dynamic-env.json` IS loaded means BUG-015 itself is closed;
-> the URL-composition concern lives in [[BUG-029]].
+> **Recommended-fix audit** (every item from the original report below):
+>
+> | Item | Status |
+> |---|---|
+> | 1. `APP_INITIALIZER` that fetches `/dynamic-env.json` before bootstrap | Done **with smarter approach**: pre-bootstrap async IIFE in `angular/src/main.ts:19-46`. Same `Object.assign(environment, json)` mutation, but runs before provider-array construction so ABP-captured references pick up the merged values |
+> | 2. Merge loaded JSON into mutable `environment` singleton | Done -- `Object.assign(environment, await res.json())` |
+> | 3. Keep `environment.docker.ts` as fallback for missing/404 | Done -- `console.warn` fallback on non-2xx + try/catch on fetch failure; bootstrap continues regardless |
+> | 4. Update `MAIN-WORKTREE-USERFLOW-TESTING.md` to describe the feature | Moot -- the doc has no `dynamic-env` mention currently (the "phantom feature" description was already removed in a prior commit); nothing to correct |
+>
+> **Infra wiring** (also part of the redesign, not in the original report):
+>
+> - `angular/dev-entrypoint.sh` writes `/app/dynamic-env.json` from
+>   container env vars (`NG_PORT`, `AUTH_PORT`, `API_PORT`) via heredoc
+>   at startup. The `ensure_dynamic_env` background loop keeps the file
+>   present in `dist/CaseEvaluation/browser/` even if `ng watch` clobbers
+>   it on a rebuild.
+> - `docker-compose.yml` angular service gained `NG_PORT`, `AUTH_PORT`,
+>   `API_PORT` env-var block; the prior `docker/dynamic-env.json`
+>   bind-mount (with hardcoded canonical URLs) was removed.
+>
+> **Live-verified 2026-05-22** against `main-angular-1` on the running stack:
+>
+> | Probe | Result |
+> |---|---|
+> | Container has `/app/dynamic-env.json` heredoc-templated | OK (NG=4200, AUTH=44368, API=44327) |
+> | `GET http://falkinstein.localhost:4200/dynamic-env.json` | HTTP 200, `Content-Type: application/json`, 663 bytes |
+> | `GET http://admin.localhost:4200/dynamic-env.json` | HTTP 200 (tenant-agnostic file, served at SPA root) |
+> | SPA fetches it at boot (Playwright network log) | Entry #39 in the session: `GET .../dynamic-env.json => 200 OK` |
+> | **Merged values reach the OIDC client** | Served `issuer: "http://localhost:44368/"` -> runtime `iss` claim is `"http://falkinstein.localhost:44368/"`. The **port 44368** matches the heredoc-generated JSON (not anything in `environment.docker.ts`), proving the merge actually mutated the live env. The `falkinstein.` subdomain was prepended by `tenant-bootstrap.ts` post-merge. |
+>
+> The last row is the strongest evidence: the runtime OIDC port came
+> from the JSON file, not from the build-time `environment.docker.ts`
+> baked-in default. If the IIFE merge weren't working, the runtime
+> issuer would have shown whatever port `environment.docker.ts` carries.
+>
+> Architecture references:
+> - `angular/src/main.ts:19-46` (pre-bootstrap async IIFE with try/catch + console.warn fallback)
+> - `angular/dev-entrypoint.sh:13-43` (heredoc from container env vars + `ensure_dynamic_env` background loop)
+> - `docker-compose.yml` angular service env block (`NG_PORT`, `AUTH_PORT`, `API_PORT`)
 
 # BUG-015 — dynamic-env.json never loaded
 
@@ -45,7 +75,7 @@ component: angular/src/main.ts (pre-bootstrap async IIFE -- different fix path t
 medium (blocks any-environment SPA testing; makes runtime config impossible)
 
 ## Status
-**Open** — for fix session.
+**Fixed-by-redesign** — see top quote block.
 
 ## Symptom
 The Angular SPA always uses the URLs baked into `environment.docker.ts` at `ng build` time. The bind-mounted `/app/dynamic-env.json` (also exposed at the SPA's root via `/dynamic-env.json` HTTP path) is NEVER read by the SPA. The docker entrypoint copies the file into `dist/CaseEvaluation/browser/` after each rebuild — suggesting an intent to load it at runtime — but no Angular code does so.
