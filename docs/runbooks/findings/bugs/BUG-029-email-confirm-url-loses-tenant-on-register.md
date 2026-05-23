@@ -86,7 +86,7 @@ POST `/api/app/external-signup/invite-external-user` returns 200 with body:
 
 ```json
 {
-  "inviteUrl": "http://localhost:44368/Account/Register?inviteToken=ed_WCUMI4haqdlm6VfpCXSKFlDOvd_HJJr1rrekoFOI",
+  "inviteUrl": "http://localhost:44368/Account/Register?inviteToken=<REDACTED-example-token>",
   "email": "defatty1@gesco.com",
   "roleName": "Defense Attorney",
   "tenantName": "Falkinstein",
