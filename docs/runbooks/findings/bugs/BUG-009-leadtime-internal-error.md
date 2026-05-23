@@ -10,6 +10,25 @@ component: Application/Appointments/AppointmentAppService.cs + Domain.Shared/Loc
 
 # BUG-009 — Generic "internal error" message for BookingDateInsideLeadTime
 
+> **Verification 2026-05-22: OPEN (confidence 75%). Root cause in this doc is wrong -- see below.**
+>
+> The original hypothesis ("BusinessException auto-localization gap") is **incorrect**. The localization side is wired correctly:
+> - Constant exists: `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs:261` -- `AppointmentBookingDateInsideLeadTime = "CaseEvaluation:Appointment.BookingDateInsideLeadTime"`
+> - Localization key resolves: `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json:229` -- `"The selected appointment date is too soon. Choose a date at least {0} day(s) from today."`
+> - Throw site is correct shape: `BookingPolicyValidator.cs:68-69` throws `new BusinessException(...AppointmentBookingDateInsideLeadTime).WithData("leadTimeDays", result.ThresholdDays)`
+>
+> **The actual gap is in the HTTP layer.** `CaseEvaluationHttpApiHostModule.cs:152-207` maps 11 error codes to non-default HTTP status codes, but **neither `AppointmentBookingDateInsideLeadTime` nor its sibling `AppointmentBookingDatePastMaxHorizon` is mapped.** Default ABP `BusinessException` -> HTTP 403, which the SPA renders as a generic "internal error" toast.
+>
+> This is the **same root cause** that BUG-022 (booking-horizon-rejects-within-range), BUG-024 (reject-accepts-empty-reason), and BUG-025 (document-upload-size-limit) already fixed: missing `options.Map(..., BadRequest)` entry in `AbpExceptionHttpStatusCodeOptions`.
+>
+> **Action: FIX, do not close.** Add two `options.Map(..., BadRequest)` lines for `AppointmentBookingDateInsideLeadTime` and `AppointmentBookingDatePastMaxHorizon` alongside the BUG-024 / OBS-23 entries. ~5-minute change. Update this doc's "Suspected root cause" -- the localization key is fine; the missing HTTP status mapping is the actual cause. Then live-verify by booking a date inside lead time and confirming HTTP 400 + localized message in the SPA toast.
+>
+> Cited files:
+> - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs` (lines 252-275)
+> - `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json` (line 229)
+> - `src/HealthcareSupport.CaseEvaluation.Application/Appointments/BookingPolicyValidator.cs` (lines 67-72)
+> - `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs` (lines 152-207 -- gap is here)
+
 ## Severity
 medium
 

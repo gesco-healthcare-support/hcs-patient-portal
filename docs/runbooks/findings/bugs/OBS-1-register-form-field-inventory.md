@@ -2,9 +2,13 @@
 id: OBS-1
 title: Register form field inventory (OLD vs NEW)
 severity: observation
+status: documented
 found: 2026-05-13
+resolved: 2026-05-22
 flow: external-user-registration
 ---
+
+> **Resolution 2026-05-22.** Field inventory is canonical for the NEW `/Account/Register` form and matches the running OLD app. The discrepancy with the parity audit (`DateOfBirth` + `PhoneNumber` listed as required in both OLD and NEW) was traced to the audit describing **entity-required** columns, not form-required fields. The audit has been amended with a clarifying footnote (see `docs/parity/wave-1-parity/external-user-registration.md`). Future test plans should treat this file as the source of truth for what appears on the register page.
 
 # OBS-1 — Register form field inventory
 

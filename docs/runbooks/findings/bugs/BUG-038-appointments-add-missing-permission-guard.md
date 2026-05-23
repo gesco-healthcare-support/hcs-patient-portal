@@ -1,11 +1,42 @@
 ---
-id: OBS-18
-title: /appointments/add route uses only [authGuard] - no role/permission check; defense-in-depth gap
-severity: observation
+id: BUG-038
+title: /appointments/add route is missing permissionGuard; any authenticated user can reach the booking form
+severity: low
+status: open
 found: 2026-05-14 hardening Phase 3.15 (raised by Adrian)
+promoted-from: OBS-18 (2026-05-22)
 flow: booking-route-guard
-component: angular/src/app/app.routes.ts:148-151
+component: angular/src/app/app.routes.ts:113-117 (path/lineno corrected from doc; was 148-151)
 ---
+
+# BUG-038 - /appointments/add reachable by ANY authenticated user (defense-in-depth gap)
+
+> **Promoted from OBS-18 on 2026-05-22.** Server-side authorization is in place (`AppointmentsAppService.CreateAsync` at `src/.../Application/Appointments/AppointmentsAppService.cs:534-536` carries both `[Authorize]` and `[Authorize(CaseEvaluationPermissions.Appointments.Create)]`, with the same pattern at lines 544-545 and 561-562). So the *security* posture is OK -- POST `/api/app/appointments` 403s for users without the Create permission. The remaining gap is **defense-in-depth UX**: deep-linking to `/appointments/add` renders the SPA form for any authenticated user, then the submit fails with a 403, which is a poor UX vs. the consistent 403-page treatment every other create route gets via `permissionGuard`. Promoting to a tracked-bug so it goes through RPE / a focused fix session.
+>
+> **Verified code state (2026-05-22):** `angular/src/app/app.routes.ts:113-117`:
+> ```typescript
+> {
+>   path: 'appointments/add',
+>   loadComponent: () => Promise.resolve(AppointmentAddComponent),
+>   canActivate: [authGuard],   // <-- no permissionGuard, no data: { requiredPolicy }
+> },
+> ```
+> Adjacent routes that do it correctly:
+> - `users/invite` at lines 144-151: `canActivate: [authGuard, permissionGuard]` + `data: { requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser' }`.
+> - `internal-users` at lines 156-163: `canActivate: [authGuard, permissionGuard]` + `data: { requiredPolicy: 'CaseEvaluation.InternalUsers.Create' }`.
+>
+> **Suggested fix shape (single-file edit):**
+> ```typescript
+> {
+>   path: 'appointments/add',
+>   loadComponent: () => Promise.resolve(AppointmentAddComponent),
+>   canActivate: [authGuard, permissionGuard],
+>   data: { requiredPolicy: 'CaseEvaluation.Appointments.Create' },
+> },
+> ```
+> Matches the pattern of every other create-page route. Trivial; one-line addition + the data clause.
+>
+> **Out-of-scope question to consider in the fix session:** which roles actually hold `CaseEvaluation.Appointments.Create`? If internal staff also hold it (per [[OBS-19]]'s observation that internal staff *can* book), they'll continue to reach the external form via deep-link even after this fix -- which is what OBS-19 separately worries about. The route fix is correct in isolation; the internal-vs-external booking UX split is a separate concern.
 
 # OBS-18 - /appointments/add reachable by ANY authenticated user
 

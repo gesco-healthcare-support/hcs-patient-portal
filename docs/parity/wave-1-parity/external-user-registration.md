@@ -49,6 +49,8 @@ Form fields (external user, per role):
 | FirmName | -- | required | Attorney-only validation in `UserDomain.CommonValidation` |
 | FirmEmail | -- | auto-populated | Set to `EmailId.ToLower()` in `UserDomain.Add` |
 
+> **NOTE (2026-05-22, per [[OBS-1]]):** `DateOfBirth` and `PhoneNumber` in the table above are **entity-required** (DB columns on the User aggregate) but are **NOT on the visible registration form** in either OLD or NEW. They are captured post-registration via the profile/onboarding flow. This table conflates form-required and entity-required; treat the two `DateOfBirth` and `PhoneNumber` rows as "entity required; collected later". The authoritative inventory of fields visible on the register page lives in `docs/runbooks/findings/bugs/OBS-1-register-form-field-inventory.md`.
+
 NOTE: OLD uses role name "Patient Attorney" -- in NEW, this role is renamed **Applicant Attorney** per `_old-docs-index.md` naming overrides.
 
 ### Backend flow (`POST /api/Users` -> `UserDomain.Add`)

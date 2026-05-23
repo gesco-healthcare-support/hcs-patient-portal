@@ -1,12 +1,21 @@
 ---
-id: OBS-15
-title: Cumulative-trauma "Yes" radio click via JS doesn't persist IsCumulativeInjury or ToDateOfInjury
-severity: observation
+id: BUG-036
+title: Cumulative trauma flag and ToDateOfInjury not persisting on booking submit
+severity: medium
+status: open
 found: 2026-05-14 hardening Phase 3.6
+promoted-from: OBS-15 (2026-05-22)
 flow: booking-claim-information-modal
+component: angular/src/app/appointments/sections/appointment-add-claim-information.component.ts
 ---
 
-# OBS-15 — Cumulative trauma flag possibly not saving
+# BUG-036 — Cumulative trauma flag + ToDateOfInjury not persisting
+
+> **Promoted from OBS-15 on 2026-05-22.** Originally filed as an observation under the "driver-artifact most likely" theory. Promoting to a tracked bug so a session-A/B pass picks it up. The fix path is trivial if confirmed real; the cost of finding out via live repro is small.
+>
+> **Verification 2026-05-22 (code-side, partial):** the suspicious serializer line cited below exists exactly as described -- `src/.../appointment-add-claim-information.component.ts:282` reads `isCumulativeInjury: v.injuryCumulative === true`. The strict-equality on a value that may arrive as the string `"true"` (HTML radio default) instead of boolean `true` is a known Angular hazard. Whether the FormControl actually carries a string or a boolean depends on `[value]` binding semantics in this exact reactive-forms setup, which I haven't traced end-to-end. Live repro by a human is still the deciding test.
+>
+> **Suggested fix shape if confirmed:** loosen line 282 to `Boolean(v.injuryCumulative)` or `v.injuryCumulative == true` (==, not ===). Apply the same coercion at the matching `isActive: v.injuryInsuranceEnabled === true` line (~290) which has the identical pattern.
 
 ## Symptom
 In Phase 3.6 (cumulative-trauma single-injury booking), the Playwright driver:
