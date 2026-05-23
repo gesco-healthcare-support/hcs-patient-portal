@@ -7,9 +7,10 @@ ENV_SRC=/app/dynamic-env.json
 # BUG-015 (Task B, 2026-05-20): write runtime config to $ENV_SRC from
 # container env vars. Replaces the previous bind-mount of
 # docker/dynamic-env.json (tracked-in-repo with hardcoded canonical URLs).
-# The existing concurrently second-process below copies this into $DIST
-# after ng build's first iteration; the existing ensure_dynamic_env loop
-# re-copies if ng watch ever clobbers it.
+# OBS-22 (2026-05-22): with `ng build --watch` removed, the build step below
+# runs once. The ensure_dynamic_env background loop is kept as a defensive
+# measure so dist always has a current dynamic-env.json if anything ever
+# clears dist between build and serve.
 NG_PORT_VALUE="${NG_PORT:-4200}"
 AUTH_PORT_VALUE="${AUTH_PORT:-44368}"
 API_PORT_VALUE="${API_PORT:-44327}"
@@ -51,12 +52,15 @@ ensure_dynamic_env() {
   done
 }
 
-# Background loop keeps dynamic-env.json present in dist even if ng build
-# clears it on a rebuild.
+# Background loop keeps dynamic-env.json present in dist as a defensive
+# measure if anything ever clears it.
 ensure_dynamic_env &
 
-# Run the watch + serve pair. concurrently keeps both alive in the foreground
-# so docker treats their exit as the container's exit.
+# OBS-22 (2026-05-22): single-shot build then serve. Previously this ran
+# `ng build --watch` + browser-sync via `concurrently`; the watcher drifted
+# silent over Docker Desktop bind mounts on Windows often enough that the
+# iteration pattern had collapsed to "edit -> docker compose restart angular."
+# Removing the watcher matches the actual workflow with no UX loss.
 #
 # 2026-05-06: explicitly pass --configuration ${NG_CONFIG:-docker} instead of
 # yarn-watch's hardcoded "development". Reason: the angular.json "development"
@@ -65,9 +69,7 @@ ensure_dynamic_env &
 # only listen on plain http in dev, so the SPA's OIDC client fails to fetch
 # /.well-known/openid-configuration on bootstrap. The "docker" configuration
 # carries the http-only environment.docker.ts via fileReplacements.
-exec npx concurrently -k -n watch,serve -c blue,green \
-  "npx ng build --watch --configuration ${NG_CONFIG:-docker}" \
-  "until [ -f \"$INDEX\" ]; do sleep 1; done; \
-   cp \"$ENV_SRC\" \"$DIST/dynamic-env.json\" 2>/dev/null || true; \
-   npx browser-sync start --server \"$DIST\" --files \"$DIST/**/*\" \
-     --no-ui --no-open --no-notify --port 80 --host 0.0.0.0 --single"
+npx ng build --configuration "${NG_CONFIG:-docker}"
+cp "$ENV_SRC" "$DIST/dynamic-env.json" 2>/dev/null || true
+exec npx browser-sync start --server "$DIST" --files "$DIST/**/*" \
+  --no-ui --no-open --no-notify --port 80 --host 0.0.0.0 --single
