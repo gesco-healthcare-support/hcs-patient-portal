@@ -11,11 +11,13 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -66,8 +68,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // Issue #114 (2026-05-13) -- shared read-gate, used by both this
     // AppService and AppointmentDocumentsAppService.
     protected AppointmentReadAccessGuard _readAccessGuard;
+    // BUG-012 Sub-bug 1 (2026-05-22): typed CaseEvaluationResource
+    // localizer so the new internal-static EnsureAttorneyFirmNamePresent
+    // helper (testable without DI) can pull the localized message via
+    // its optional localizer parameter. Mirror of the BUG-025 pattern.
+    protected IStringLocalizer<CaseEvaluationResource> _localizer;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -92,6 +99,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _customFieldValueRepository = customFieldValueRepository;
         _readAccessGuard = readAccessGuard;
+        _localizer = localizer;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -1040,7 +1048,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // EnsureAttorneyFirmNamePresent (private helper below). Same
         // UserFriendlyException semantics as ExternalSignupAppService's
         // ValidateRegistrationInput attorney check.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney");
+        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney", _localizer);
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)
@@ -1113,13 +1121,26 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// BusinessException) is deliberate per the BUG-014 / BUG-025
     /// pattern -- ABP suppresses BusinessException messages to the
     /// generic fallback, UFE messages pass through.
+    ///
+    /// <para>BUG-012 Sub-bug 1 (2026-05-22) -- <c>internal static</c> +
+    /// optional localizer parameter so unit tests can call directly
+    /// (pass null localizer + assert against the English fallback
+    /// string). Mirrors the
+    /// <see cref="AppointmentDocuments.AppointmentDocumentsAppService.EnsureFileSizeWithinLimit"/>
+    /// pattern from BUG-025.</para>
     /// </summary>
-    private void EnsureAttorneyFirmNamePresent(string? firmName, string attorneyRole)
+    internal static void EnsureAttorneyFirmNamePresent(
+        string? firmName,
+        string attorneyRole,
+        IStringLocalizer<CaseEvaluationResource>? localizer = null)
     {
         if (string.IsNullOrWhiteSpace(firmName))
         {
+            var message = localizer != null
+                ? localizer["Appointment:AttorneyFirmNameRequired"].Value
+                : "Firm Name is required for the attorney section.";
             throw new UserFriendlyException(
-                    message: L["Appointment:AttorneyFirmNameRequired"],
+                    message: message,
                     code: CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
                 .WithData("AttorneyRole", attorneyRole);
         }
@@ -1239,7 +1260,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted; see
         // the AA upsert above + EnsureAttorneyFirmNamePresent below.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney");
+        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney", _localizer);
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)
