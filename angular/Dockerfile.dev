@@ -6,13 +6,12 @@ RUN yarn install --frozen-lockfile
 
 COPY . /app
 
-# Add the dev-loop tools alongside the existing deps. Pin minor majors so a
-# routine `yarn upgrade` doesn't break the dev container.
-RUN yarn add --dev concurrently@8 browser-sync@3
+# Add browser-sync for serving the built dist over HTTP with live-reload-on-
+# rebuild semantics (handy when you re-run `ng build` inside the container).
+RUN yarn add --dev browser-sync@3
 
 ARG NG_CONFIG=docker
 ENV NG_CONFIG=${NG_CONFIG}
-ENV CHOKIDAR_USEPOLLING=1
 
 # 2026-05-08: dev-entrypoint.sh used to be embedded inline as a `COPY <<'EOF'`
 # heredoc. That made the script bytes inherit this Dockerfile's line endings,
@@ -21,10 +20,14 @@ ENV CHOKIDAR_USEPOLLING=1
 # carriage-return-suffixed interpreter. The fix is to keep the script as a
 # real file and COPY it -- combined with the .gitattributes rule that pins
 # *.sh to LF, the script bytes are guaranteed Unix-clean regardless of which
-# host any teammate clones on. dynamic-env.json is bind-mounted by compose at
-# /app/dynamic-env.json (not in dist); the entrypoint copies it into dist
-# after yarn watch's first build and keeps re-copying every 3s in case
-# ng build wipes the output dir on incremental rebuilds.
+# host any teammate clones on. dynamic-env.json is written by the entrypoint
+# from container env vars into /app, then copied into dist after `ng build`
+# completes. The background `ensure_dynamic_env` loop keeps a copy in dist as
+# a defensive measure in case dist is ever cleared.
+#
+# OBS-22 (2026-05-22): `ng build --watch` + `CHOKIDAR_USEPOLLING=1` removed.
+# Container now does a one-shot `ng build`; iterating on source means
+# `docker compose restart angular`.
 COPY dev-entrypoint.sh /app/dev-entrypoint.sh
 RUN chmod +x /app/dev-entrypoint.sh
 

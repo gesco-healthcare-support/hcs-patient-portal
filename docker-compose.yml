@@ -129,16 +129,15 @@ services:
   authserver:
     build:
       context: .
-      # Dockerfile.dev runs `dotnet watch run` so source edits hot-reload.
+      # Dockerfile.dev runs `dotnet run` (single-shot, no watcher) after a
+      # fresh restore. Iterate on source via `docker compose restart
+      # authserver` -- the bind-mounted source is picked up on restart.
+      # OBS-22 (2026-05-22): watcher removed after repeated bind-mount /
+      # inotify drift on Windows hosts.
       dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile.dev
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
-      # Polling watcher OOMs by walking every file each poll. Inotify works
-      # through Docker Desktop bind mounts on recent versions (gRPC FUSE /
-      # VirtioFS); fall back to polling only if a future host fails to
-      # deliver events.
-      DOTNET_USE_POLLING_FILE_WATCHER: "0"
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
@@ -184,18 +183,21 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
-      # Bind source for hot-reload.
+      # Bind source so each `docker compose restart authserver` rebuilds
+      # against the latest host edits.
       - ./src:/app/src
       - ./Directory.Build.props:/app/Directory.Build.props:ro
       - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx:ro
-      # `dotnet watch` sets the content root to the project folder. ASP.NET
-      # only loads appsettings.secrets.json from the content root, so bind
-      # the real secrets file at BOTH the legacy /app path (used by the
-      # eventual published image) AND the content-root path (used in dev).
+      # `dotnet run --project src/.../AuthServer.csproj` sets the content
+      # root to the project folder. ASP.NET only loads appsettings.secrets.json
+      # from the content root, so bind the real secrets file at BOTH the
+      # legacy /app path (used by the eventual published image) AND the
+      # content-root path (used in dev).
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
       - ./docker/appsettings.secrets.json:/app/src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json:ro
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
-      # test/ deliberately omitted so dotnet watch doesn't traverse it.
+      # test/ deliberately omitted -- not needed by the dotnet run target and
+      # would slow restore on every container restart.
     ports:
       - "127.0.0.1:${AUTH_PORT:-44368}:8080"
     depends_on:
@@ -210,8 +212,8 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      # First-boot inside dotnet watch needs to restore + build before
-      # the listener opens.
+      # First-boot needs to restore + build before the listener opens. A
+      # generous start_period covers cold containers on slow disks.
       start_period: 180s
 
   api:
@@ -221,7 +223,6 @@ services:
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
-      DOTNET_USE_POLLING_FILE_WATCHER: "0"
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
@@ -304,9 +305,11 @@ services:
   angular:
     build:
       context: ./angular
-      # Dockerfile.dev runs `ng build --watch` + browser-sync. The
-      # NG_CONFIG arg picks the angular.json configuration that ships
-      # http (not https) URLs for AuthServer + API in dev.
+      # Dockerfile.dev runs a one-shot `ng build` then serves dist with
+      # browser-sync. OBS-22 (2026-05-22): `--watch` removed; iterate on
+      # source via `docker compose restart angular`. The NG_CONFIG arg
+      # picks the angular.json configuration that ships http (not https)
+      # URLs for AuthServer + API in dev.
       dockerfile: Dockerfile.dev
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
@@ -324,9 +327,9 @@ services:
     ports:
       - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
-      # Bind source so file edits trigger ng build --watch. node_modules
-      # stays inside the image (anonymous volume) to avoid the slow
-      # Windows-host symlink-deep node_modules tree.
+      # Bind source so each `docker compose restart angular` rebuilds against
+      # the latest host edits. node_modules stays inside the image (anonymous
+      # volume) to avoid the slow Windows-host symlink-deep node_modules tree.
       - ./angular/src:/app/src
       - ./angular/angular.json:/app/angular.json:ro
       - ./angular/tsconfig.json:/app/tsconfig.json:ro
