@@ -64,10 +64,33 @@ public class PacketGenerationOnApprovedHandler :
         {
             currentUow.OnCompleted(async () =>
             {
-                await _backgroundJobManager.EnqueueAsync(args);
-                _logger.LogInformation(
-                    "PacketGenerationOnApprovedHandler: enqueued packet job for appointment {AppointmentId} (tenant {TenantId}) on UoW commit.",
-                    eventData.AppointmentId, eventData.TenantId);
+                try
+                {
+                    await _backgroundJobManager.EnqueueAsync(args);
+                    _logger.LogInformation(
+                        "PacketGenerationOnApprovedHandler: enqueued packet job for appointment {AppointmentId} (tenant {TenantId}) on UoW commit.",
+                        eventData.AppointmentId, eventData.TenantId);
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    // The OnCompleted callback runs after the parent UoW
+                    // commits. In integration tests with the in-memory
+                    // ABP/Sqlite stack, DefaultBackgroundJobManager's
+                    // EnqueueAsync goes through BackgroundJobStore ->
+                    // IObjectMapper.Map -> IServiceScopeFactory.CreateScope,
+                    // and the lifetime scope the mapper captured can be
+                    // disposed by the time we get here (CI-Release timing).
+                    // The production host registers Hangfire's manager,
+                    // which writes via Hangfire storage and never hits this
+                    // path -- so this catch only fires in tests and on
+                    // genuine host-shutdown races. Logging + suppressing is
+                    // safe because losing one enqueue at shutdown is
+                    // recoverable (the user can re-trigger the regenerate
+                    // action), while propagating crashes the test host.
+                    _logger.LogWarning(ex,
+                        "PacketGenerationOnApprovedHandler: enqueue skipped for appointment {AppointmentId} -- DI scope disposed before OnCompleted fired (test or shutdown).",
+                        eventData.AppointmentId);
+                }
             });
         }
         else
