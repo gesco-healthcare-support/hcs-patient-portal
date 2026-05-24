@@ -389,7 +389,14 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.RegeneratedAt).HasColumnName("RegeneratedAt");
             b.Property(x => x.ErrorMessage).HasColumnName("ErrorMessage").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.ErrorMessageMaxLength);
             b.HasIndex(x => x.AppointmentId);
-            b.HasIndex(x => new { x.TenantId, x.AppointmentId, x.Kind }).IsUnique();
+            // BUG-036: filter the unique index on IsDeleted = 0 so soft-deleted
+            // rows (e.g. AttyCE pruned by retention) do not block regenerate
+            // INSERTs of a fresh (TenantId, AppointmentId, Kind) row. Preserve
+            // the auto-added TenantId IS NOT NULL clause so host-side null
+            // tenant rows are still excluded by the unique constraint.
+            b.HasIndex(x => new { x.TenantId, x.AppointmentId, x.Kind })
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<AppointmentEmployerDetail>(b =>
