@@ -4,6 +4,7 @@ title: Rejection reason accepted by /api/app/appointments/{id}/reject (200) but 
 severity: medium
 status: fixed
 fixed: 2026-05-22 (live-verified both /reject routes; symmetric companion-field write added in AppointmentManager)
+last-replayed: 2026-05-23 (R3 replay confirmed: A00003 rejected with reason populated. NOTE the DTO field name is 'reason' not 'rejectionNotes' - runbook P5.3 spec needs the field-name correction)
 found: 2026-05-21 hardening HRD-P5.3
 flow: appointment-rejection
 component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs (ApplyTransitionAsync)

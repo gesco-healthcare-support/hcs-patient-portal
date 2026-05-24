@@ -3,7 +3,7 @@ id: OBS-20
 title: Playwright DataTransfer file injection doesn't trigger Angular doc-upload pipeline
 severity: observation
 status: workaround-available
-last-replayed: 2026-05-21
+last-replayed: 2026-05-23 (P7.1 + P7.2 both succeeded via browser_file_upload MCP tool - PNG by patient1 to A00001, PDF by appatty1 to A00002, both produced AppAppointmentDocuments rows with IsAdHoc=1)
 found: 2026-05-14 hardening Phase 7.1
 flow: document-upload (driver)
 ---

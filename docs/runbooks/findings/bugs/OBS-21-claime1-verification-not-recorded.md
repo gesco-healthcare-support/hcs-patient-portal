@@ -4,7 +4,7 @@ title: claimE1@gesco.com verification email click did not flip EmailConfirmed
 severity: low
 status: superseded-by-bug-029
 found: 2026-05-19
-last-replayed: 2026-05-21
+last-replayed: 2026-05-23 (R3 replay confirmed: claimE1 now verifies correctly after second-email click. BUG-029 fix is effective.)
 flow: external-user-registration
 component: AuthServer Pages/Account/EmailConfirmation.cshtml.cs | mail delivery
 ---
