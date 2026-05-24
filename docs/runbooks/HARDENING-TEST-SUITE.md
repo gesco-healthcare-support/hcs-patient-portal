@@ -1112,7 +1112,7 @@ As of 2026-05-19, the open list is:
 | BUG-018 | smtp-misleading-error | medium | Phase 1 + Phase 9.2 forgot-password |
 | BUG-020 | smtp-password-decrypt-noise | low | startup logs (Prereq) |
 | BUG-021 | ce-cannot-book | open-low (UX) | Phase 3.4 (CE booker) |
-| BUG-021 | login-tempdata-success-banner | medium | Phase 2 login (DUPLICATE ID; rename one) |
+| BUG-017 | login-tempdata-success-banner | medium | Phase 2 login (renamed from duplicate BUG-021 on 2026-05-24; see OBS-33) |
 | BUG-022 | booking-horizon-rejects-within-range | medium | R2.5 |
 | BUG-023 | registration-validation-returns-403 | medium | R2.2 + R2.3 + R2.10 + R2.11 |
 | BUG-024 | reject-accepts-empty-reason | medium | R2.12 |

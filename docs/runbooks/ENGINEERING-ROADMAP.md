@@ -136,7 +136,7 @@ Status of every BUG/OBS entry that was open at session start:
 | BUG-022 | medium | BookingDatePastMaxHorizon thrown for dates inside configured range | `AppointmentBookingValidators.cs` + `BookingPolicyValidator.cs` | **Defer — Slot rework Phase 3 rewrites this validator anyway** |
 | BUG-025 | medium | No document upload size + filetype limit | `Application/AppointmentDocuments/AppointmentDocumentsAppService.cs` + Kestrel/FormOptions | `Domain.Shared/AppointmentDocuments/AppointmentDocumentConsts.cs` already declares `MaxFileSizeBytes = 25 MB` but it's not enforced. Wire it + content-type allowlist (PDF/DOCX/PNG/JPG) |
 | BUG-021 (ce-cannot-book) | low | Datepicker all-disabled while slot fetch in flight | `appointment-add.component.ts:1057-1074 markAppointmentDateDisabled` | Show loading state or disable the trigger until `isAvailableDatesLoading` resolves |
-| BUG-021 (login-tempdata) | low | Stock Login.cshtml swallows TempData success banner | Stock RCL view (no local override) | Add local `Pages/Account/Login.cshtml` override (mirror ForgotPassword pattern) |
+| BUG-017 (login-tempdata) | low | Stock Login.cshtml swallows TempData success banner | Stock RCL view (no local override) | Add local `Pages/Account/Login.cshtml` override (mirror ForgotPassword pattern) |
 | OBS-21 | low | claimE1 verification click did not flip EmailConfirmed | AuthServer EmailConfirmation.cshtml.cs OR mail delivery | Reproduce; byte-compare API log URL vs email body |
 | OBS-22 | low | dotnet/ng watchers miss source edits via bind-mount on Windows | `Dockerfile.dev` files | Workaround: `docker compose restart`. Better fix bundled in Slot rework Phase 2 pre-flight |
 | OBS-15..19 | observation | Booking-flow UX / role-section visibility | `angular/src/app/appointments/` | All in the booking-flow neighborhood; fold into Slot Phases 4-5 where the picker is being rewritten anyway |
@@ -212,7 +212,7 @@ Task 1 (doctor invariant) → Phase 1 (schema) → Phase 2 (domain logic)
 **Effort:** 2-3 days  
 **Files + bugs:**
 - BUG-021 (ce-cannot-book): `appointment-add.component.ts:1057-1074`
-- BUG-021 (login-tempdata): new `src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/Account/Login.cshtml` override
+- BUG-017 (login-tempdata): new `src/HealthcareSupport.CaseEvaluation.AuthServer/Pages/Account/Login.cshtml` override
 - BUG-011: re-verify reproducibility post-PR-#201 first; if real, route to AuthServer Razor reset
 - BUG-014 + BUG-015 + BUG-016 form a family (URL config trio). BUG-016 already done; BUG-014/15 are still open and pair naturally
 - BUG-009 (lead-time localization): pairs with the existing `AbpExceptionHttpStatusCodeOptions` family — same one-line `options.Map` extension
