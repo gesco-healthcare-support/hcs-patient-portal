@@ -49,6 +49,16 @@ paths = [
   # T4_NullPatient, etc.) per the HIPAA "synthetic data only" rule. Whole
   # directory is test scaffolding.
   '''scripts[\\/]phases[\\/]Phase-.*\.ps1''',
+  # Bug/observation reports under docs/runbooks/findings/ embed example
+  # URLs (OAuth invite tokens, OpenID confirmation tokens, OOB codes) to
+  # document specific reproductions. Those tokens are synthetic from local
+  # dev tenants and high-entropy enough to trigger generic-api-key. Adrian
+  # is the only writer and these docs are intentional documentation; if a
+  # real secret ever slipped into a finding it would be caught at code-
+  # review time. Allowlist the folder rather than chasing individual
+  # fingerprints. 2026-05-23 added after BUG-029's invite-token example
+  # blocked every push from the repo.
+  '''docs[\\/]runbooks[\\/]findings[\\/].*\.md''',
 ]
 regexTarget = "match"
 regexes = [
