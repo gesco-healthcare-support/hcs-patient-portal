@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
@@ -213,7 +214,20 @@ public class GenerateAppointmentPacketJob :
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({DocxBytes} bytes DOCX -> {PdfBytes} bytes PDF); PacketGeneratedEto published.",
                 appointmentId, kind, docxBytes.Length, pdfBytes.Length);
         }
-        catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is ArgumentException)
+        // BUG-036 sub-bug 3 (defense-in-depth): include AbpDbConcurrencyException.
+        // EF Core 8+ misclassifies SqlException 2601 on batched INSERT as
+        // DbUpdateConcurrencyException (efcore #20649, #35043 won't-fix),
+        // which ABP rewraps as AbpDbConcurrencyException. Without this in
+        // the filter, future concurrency races (cross-tenant SQL ops,
+        // manual janitor scripts, contention on Update paths) would escape
+        // the catch, roll back the [UnitOfWork], and let Hangfire retry-
+        // storm the job. The filtered unique index (sub-bug 1) closes the
+        // primary trigger; this widening keeps the policy intact for
+        // future edge cases.
+        catch (Exception ex) when (ex is IOException
+                                   || ex is InvalidOperationException
+                                   || ex is ArgumentException
+                                   || ex is AbpDbConcurrencyException)
         {
             _logger.LogError(ex,
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} failed; marking Failed (no retry).",
