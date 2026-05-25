@@ -45,6 +45,11 @@ paths = [
   '''docker[\\/]appsettings\.secrets\.json$''',
   # Per-project appsettings.secrets.json files. Gitignored.
   '''[\\/]appsettings\.secrets\.json$''',
+  # BUG-029 follow-up (2026-05-22) -- bug runbook documents synthetic
+  # invitation-link tokens (`med_<base64>` format, never issued by a
+  # real session). Gitleaks' generic-api-key rule flags the
+  # high-entropy suffix; the file is documentation, not code.
+  '''docs[\\/]runbooks[\\/]findings[\\/]bugs[\\/]BUG-029.*\.md$''',
   # Data-seeding scripts use synthetic tenant/user keys (T1_P1,
   # T4_NullPatient, etc.) per the HIPAA "synthetic data only" rule. Whole
   # directory is test scaffolding.
@@ -70,4 +75,11 @@ regexes = [
   '''generate-your-own.*''',
   # Synthetic seeded-tenant keys: T1_P1, T2_AA1, T4_NullPatient, T5_DA2, etc.
   '''T\d+_[A-Za-z]+\d*''',
+  # BUG-029 follow-up (2026-05-22) -- synthetic invitation tokens in
+  # docs/runbooks/findings/bugs/BUG-029-*.md and related runbook docs
+  # use the `med_<base64-ish>` prefix to document one-time-use invite
+  # URLs. Gitleaks' generic-api-key rule flags the high-entropy
+  # remainder; the prefix + 32-char alphanumeric suffix is the
+  # documented synthetic format (no real session ever issues these).
+  '''med_[A-Za-z0-9_-]{30,}''',
 ]
