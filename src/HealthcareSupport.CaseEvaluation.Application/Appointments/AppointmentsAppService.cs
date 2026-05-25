@@ -116,10 +116,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds);
         var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds);
+        var dtoItems = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items);
+        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
+        // for external non-owners. See docs/plans/2026-05-25-ssn-role-visibility.md.
+        var isInternalForSsn = !IsExternalCaller();
+        foreach (var dtoItem in dtoItems)
+        {
+            ApplyPatientSsnVisibility(dtoItem, isInternalForSsn);
+        }
         return new PagedResultDto<AppointmentWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items)
+            Items = dtoItems
         };
     }
 
@@ -249,7 +257,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             (await _appointmentRepository.GetWithNavigationPropertiesAsync(id))!);
         // Phase 13b (2026-05-04) -- mask InternalUserComments for external
         // users so the field is not exposed via the API JSON payload.
-        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+        ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
+        // for external non-owners.
+        ApplyPatientSsnVisibility(dto, !IsExternalCaller());
+        return dto;
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
@@ -279,7 +291,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         await EnsureCanReadAppointmentAsync(appointment);
         var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
             (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
-        return ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+        ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
+        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
+        // for external non-owners.
+        ApplyPatientSsnVisibility(dto, !IsExternalCaller());
+        return dto;
     }
 
     /// <summary>
@@ -293,6 +309,23 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var roles = CurrentUser.Roles ?? Array.Empty<string>();
         return !BookingFlowRoles.IsInternalUserCaller(roles);
+    }
+
+    /// <summary>
+    /// F4-01 (2026-05-25) -- redacts the nested <see cref="PatientDto.SocialSecurityNumber"/>
+    /// on an appointment-with-nav DTO unless the caller is internal or
+    /// owns the patient record. See
+    /// <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
+    /// and docs/plans/2026-05-25-ssn-role-visibility.md.
+    /// </summary>
+    private void ApplyPatientSsnVisibility(AppointmentWithNavigationPropertiesDto dto, bool isInternalCaller)
+    {
+        if (dto?.Patient == null)
+        {
+            return;
+        }
+        var isOwner = CurrentUser.Id.HasValue && dto.Patient.IdentityUserId == CurrentUser.Id.Value;
+        HealthcareSupport.CaseEvaluation.Patients.SsnVisibility.RedactForCaller(dto.Patient, isInternalCaller, isOwner);
     }
 
     /// <summary>

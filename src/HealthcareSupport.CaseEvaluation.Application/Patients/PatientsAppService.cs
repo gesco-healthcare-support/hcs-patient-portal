@@ -22,6 +22,7 @@ using Volo.Abp.Domain.Entities;
 using Volo.Abp.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Appointments;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -73,10 +74,12 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         {
             var totalCount = await _patientRepository.GetCountAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId);
             var items = await _patientRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.Sorting, input.MaxResultCount, input.SkipCount);
+            var dtoItems = ObjectMapper.Map<List<PatientWithNavigationProperties>, List<PatientWithNavigationPropertiesDto>>(items);
+            ApplySsnVisibilityToList(dtoItems);
             return new PagedResultDto<PatientWithNavigationPropertiesDto>
             {
                 TotalCount = totalCount,
-                Items = ObjectMapper.Map<List<PatientWithNavigationProperties>, List<PatientWithNavigationPropertiesDto>>(items)
+                Items = dtoItems
             };
         }
     }
@@ -87,7 +90,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            ApplySsnVisibility(dto);
+            return dto;
         }
     }
 
@@ -97,7 +102,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            ApplySsnVisibility(dto);
+            return dto;
         }
     }
 
@@ -117,9 +124,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 maxResultCount: 1,
                 skipCount: 0);
             var existing = patients.FirstOrDefault();
-            return existing?.Patient != null
-                ? ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing)
-                : null;
+            if (existing?.Patient == null)
+            {
+                return null;
+            }
+            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
+            ApplySsnVisibility(dto);
+            return dto;
         }
     }
 
@@ -151,6 +162,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 // R2 (2026-05-04): email-fast-path resolved an existing patient.
                 var dtoExisting = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
                 dtoExisting.IsExisting = true;
+                ApplySsnVisibility(dtoExisting);
                 return dtoExisting;
             }
             // Audit closeout 2026-05-04 -- OLD-parity 3-of-6 dedup
@@ -210,6 +222,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                             // R2 (2026-05-04): 3-of-6 dedup matched an existing patient.
                             var dtoMatched = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(matchedWithNav);
                             dtoMatched.IsExisting = true;
+                            ApplySsnVisibility(dtoMatched);
                             return dtoMatched;
                         }
                     }
@@ -303,6 +316,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
 
             var dtoFinal = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(createdWithNav);
             dtoFinal.IsExisting = wasFound;
+            ApplySsnVisibility(dtoFinal);
             return dtoFinal;
         }
     }
@@ -360,7 +374,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     public virtual async Task<PatientWithNavigationPropertiesDto> GetMyProfileAsync()
     {
         var patientWithNav = await GetCurrentPatientWithNavigationAsync();
-        return ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(patientWithNav);
+        var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(patientWithNav);
+        // Caller is always the record owner here; the helper still applies for symmetry.
+        ApplySsnVisibility(dto);
+        return dto;
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Default)]
@@ -369,7 +386,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            return ObjectMapper.Map<Patient, PatientDto>(await _patientRepository.GetAsync(id));
+            var dto = ObjectMapper.Map<Patient, PatientDto>(await _patientRepository.GetAsync(id));
+            ApplySsnVisibility(dto);
+            return dto;
         }
     }
 
@@ -538,5 +557,50 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
 
         return current;
+    }
+
+    // F4-01 (2026-05-25) -- role-aware SSN redaction. Applied at every
+    // read-path return so external attorneys / claim examiners cannot see
+    // a full SSN they do not own. Internal staff and record owners get
+    // the full value. See docs/plans/2026-05-25-ssn-role-visibility.md.
+    private bool IsInternalCallerForSsn()
+    {
+        return BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+    }
+
+    private bool IsRecordOwnerForSsn(Guid patientIdentityUserId)
+    {
+        return CurrentUser.Id.HasValue && patientIdentityUserId == CurrentUser.Id.Value;
+    }
+
+    private void ApplySsnVisibility(PatientDto? dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.IdentityUserId));
+    }
+
+    private void ApplySsnVisibility(PatientWithNavigationPropertiesDto? dto)
+    {
+        if (dto?.Patient == null)
+        {
+            return;
+        }
+        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+    }
+
+    private void ApplySsnVisibilityToList(IEnumerable<PatientWithNavigationPropertiesDto> dtos)
+    {
+        var isInternal = IsInternalCallerForSsn();
+        foreach (var dto in dtos)
+        {
+            if (dto?.Patient == null)
+            {
+                continue;
+            }
+            SsnVisibility.RedactForCaller(dto, isInternal, IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+        }
     }
 }
