@@ -130,24 +130,29 @@ claim examiners) with a one-time tokenized link."
 
 ## What NOT to show on Tuesday
 
-- The Notification Templates UI -- doesn't exist yet (would need
-  editing 23 stub templates which is OBS-36 territory).
+- The Notification Templates UI -- doesn't exist yet.
 - The Reschedule flow -- W3 feature deferred.
 - Mass user creation / dashboard for tenants -- single-tenant
   (Falkinstein) demo only.
-- The actual rejection email content for AppointmentBooked /
-  AppointmentApproved / AppointmentRejected -- those templates are
-  STUBS that will render literally "Stub body for
-  AppointmentApproved" if a viewer opens the email. **Hide the
-  email tabs in the recipient's inbox during the demo.**
+
+## Email content note (2026-05-25 update)
+
+OBS-36's "23 stubs" framing was a row-count over the full
+`AppNotificationTemplates` table, not a behavioral assessment. Every
+template code actually invoked by the demo flows (registration,
+booking submit, approve, reject, document upload, packet generation,
+invite-external-user, password-reset) is backed by a real OLD-verbatim
+HTML body in `EmailBodies/*.html`. Inboxes during the demo render
+fully-formed emails. The 19 codes that DO fall back to the
+`Stub body for {code}` placeholder are either superseded legacy
+names that no handler invokes (e.g. `AppointmentBooked`,
+`AppointmentApproved`) or post-parity codes for features not in the
+Tuesday demo (e.g. `AccessorAppointmentBooked`).
 
 ## Known limitations to acknowledge if asked
 
 - "Emails are sent to real inboxes." (No mail-trap container in
   dev.) -- Use `@gesco.com` or `@example.test` synthetic addresses.
-- "Some notification template bodies still say 'Stub body for X'."
-  Per OBS-36: 23 of 64 templates are TODO. Demo flows that send
-  these emails will surface the stub text in the recipient's inbox.
 - "Reschedule + cancel features come in W3." -- Documented design,
   not a regression.
 
