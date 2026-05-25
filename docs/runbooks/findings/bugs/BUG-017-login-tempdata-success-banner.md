@@ -1,5 +1,5 @@
 ---
-id: BUG-021
+id: BUG-017
 title: Stock Login.cshtml does not render TempData[SuccessMessage]; post-reset banner missing
 severity: low
 status: open
@@ -8,7 +8,9 @@ flow: forgot-password / reset-password
 component: stock Volo.Abp.Account.Public.Web Login.cshtml (compiled into the RCL; no local override)
 ---
 
-# BUG-021 — Stock Login Razor page swallows `TempData["SuccessMessage"]`
+# BUG-017 — Stock Login Razor page swallows `TempData["SuccessMessage"]`
+
+> 2026-05-23: renamed from `BUG-021-login-tempdata-success-banner.md` to free `BUG-021` for the earlier-filed datepicker observation. See OBS-33.
 
 > **Verification 2026-05-22: FIXED (confidence 95%).**
 >

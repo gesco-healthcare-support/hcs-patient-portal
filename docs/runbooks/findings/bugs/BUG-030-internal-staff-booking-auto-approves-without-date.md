@@ -4,6 +4,7 @@ title: Internal-staff booking auto-approves on create but leaves AppointmentAppr
 severity: medium
 status: fixed
 fixed: 2026-05-22 (live-verified internal-staff path now stamps; external bookings still null)
+last-replayed: 2026-05-23 (R3 replay confirmed: A00005 created with Status=2 + AppointmentApproveDate populated)
 found: 2026-05-21 hardening HRD-P3.5
 flow: internal-staff-booking
 component: src/HealthcareSupport.CaseEvaluation.Domain/Appointments/AppointmentManager.cs (CreateAsync)

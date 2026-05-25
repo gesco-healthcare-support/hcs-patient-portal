@@ -4,7 +4,7 @@ title: AppointmentDocuments upload has no application-level file-size limit
 severity: medium
 status: fixed
 fixed: 2026-05-21
-last-replayed: 2026-05-21
+last-replayed: 2026-05-23 INITIALLY-misdiagnosed-as-regressed; ACTUALLY-working-as-designed -- the 15 MB test file exceeds both the AppService 10-MB cap AND the framework's 12-MB cap (CaseEvaluationHttpApiHostModule.ConfigureUploadLimits, line 271). Per the in-code documentation lines 252-267, uploads above 12 MB receive a framework-level 413 / ERR_CONNECTION_RESET without the localized AppService error. To verify the friendly AppService 413 path, upload a file between 10 MB and 12 MB. The 15-MB ERR_CONNECTION_RESET is the documented framework behavior.
 fixed-on: fix/document-upload-size-limit
 found: 2026-05-14 hardening R2 (Phase 7 failure mode)
 flow: document-upload-limits

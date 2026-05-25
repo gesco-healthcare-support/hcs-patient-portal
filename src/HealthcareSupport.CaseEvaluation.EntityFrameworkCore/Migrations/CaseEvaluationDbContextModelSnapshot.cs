@@ -924,7 +924,7 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("TenantId", "AppointmentId", "Kind")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
 
                     b.ToTable("AppAppointmentPackets", (string)null);
                 });

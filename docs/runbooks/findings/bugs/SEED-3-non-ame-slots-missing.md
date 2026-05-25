@@ -3,7 +3,7 @@ id: SEED-3
 title: Only AME has seeded doctor-availability slots in the June test window; QME/Deposition/Record Review/SMR have none
 severity: seed-gap
 status: resolved-by-runbook
-last-replayed: 2026-05-21
+last-replayed: 2026-05-23 (Phase 0 generated 115-116 Available slots per type x 2 locations = 696 total. SQL confirms equal counts across AME, QME, Panel QME, Deposition, Record Review, Supplemental Medical Report.)
 found: 2026-05-14 hardening Phase 3.17
 flow: booking-form-slot-fetch
 component: SQL-seeded inline (per SEED-2 follow-up: DemoDoctorDataSeedContributor still missing)

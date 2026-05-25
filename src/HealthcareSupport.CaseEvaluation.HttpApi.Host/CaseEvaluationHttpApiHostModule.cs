@@ -152,34 +152,16 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // internal-user creation flow to the same 400 mapping list.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
-            options.Map(
-                CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.RegistrationConfirmPasswordMismatch,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired,
-                System.Net.HttpStatusCode.BadRequest);
+            // BUG-012 Sub-bug 2 (2026-05-22): the 10 shared mappings
+            // moved into HealthcareSupport.CaseEvaluation.Exceptions.
+            // CaseEvaluationExceptionStatusCodeMappings; same set is
+            // invoked from CaseEvaluationAuthServerModule.
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapSharedRegistrationAndInternalUserCodes(options);
 
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserRoleMissing,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserCreateFailed,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserRoleAssignFailed,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
-                System.Net.HttpStatusCode.BadRequest);
+            // Host-specific: InternalUserTenantMismatch + the 4
+            // appointment state-machine codes below are HttpApi.Host
+            // only -- their controllers don't load into AuthServer.
             options.Map(
                 CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch,
                 System.Net.HttpStatusCode.BadRequest);

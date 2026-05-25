@@ -5,6 +5,7 @@ severity: medium
 status: fixed
 fixed: 2026-05-19
 fixed-on: feat/replicate-old-app
+last-replayed: 2026-05-23 (R3 replay confirmed: both error codes still return HTTP 400)
 found: 2026-05-14 hardening R2.2 + R2.3
 flow: registration-validation
 component: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs (AbpExceptionHttpStatusCodeOptions mapping)
