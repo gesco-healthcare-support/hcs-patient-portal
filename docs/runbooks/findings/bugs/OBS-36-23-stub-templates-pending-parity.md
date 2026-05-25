@@ -1,5 +1,5 @@
 ---
-id: OBS-27
+id: OBS-36
 title: 23 of 64 active DB-managed notification templates are TODO stubs with placeholder subject + body
 severity: observation
 status: open
@@ -8,7 +8,9 @@ flow: notification-templates
 component: AppNotificationTemplates DB rows + (per-template phases) parity feature work
 ---
 
-# OBS-27 - 23 stub templates pending parity
+# OBS-36 - 23 stub templates pending parity
+
+> 2026-05-24: renamed from `OBS-27-23-stub-templates-pending-parity.md` to free `OBS-27` for the invite-email-empty-greeting observation that main concurrently filed during the hardening run.
 
 ## Symptom
 
