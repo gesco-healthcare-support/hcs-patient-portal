@@ -4,6 +4,7 @@ title: OAuth refresh_token NOT revoked on rotation; replay attack possible
 severity: high
 status: fixed
 fixed: 2026-05-22 (live-verified replay window shrunk from 30s default to 2s)
+last-replayed: 2026-05-23 INITIALLY-misdiagnosed-as-regressed; ACTUALLY-working-as-designed -- my retest fired both refresh requests within ~1 second of rotation, well inside the 2-second RefreshTokenReuseLeeway window per CaseEvaluationAuthServerModule.cs:147-150. The leeway is the intentional fix vs OpenIddict's 30-second default. A correct retest requires waiting 3+ seconds between rotation and old-token reuse to verify the OLD token gets rejected.
 found: 2026-05-21 hardening HRD-P9.3
 flow: oauth-refresh-token
 component: src/HealthcareSupport.CaseEvaluation.AuthServer/CaseEvaluationAuthServerModule.cs (OpenIddict configuration)

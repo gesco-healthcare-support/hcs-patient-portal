@@ -122,7 +122,7 @@ The server-side enforcement is what makes the flow secure -- the client cannot b
 ### Cleanup carried in this PR
 
 - Delete `docs/plans/2026-05-14-forgot-password-fix.md` (merged via PR #201).
-- File `BUG-021-login-tempdata-success-banner.md` -- done in this same PR.
+- File `BUG-017-login-tempdata-success-banner.md` (originally filed as `BUG-021-...`; renamed on 2026-05-24 to resolve a duplicate-ID collision -- see OBS-33).
 
 ## What's out of scope (separate tickets)
 
