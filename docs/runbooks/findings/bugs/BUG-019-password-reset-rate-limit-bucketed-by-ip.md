@@ -1,5 +1,5 @@
 ---
-id: BUG-035
+id: BUG-019
 title: Password-reset rate limiter on /api/public/external-account/* falls through to per-IP partition when body-only email is supplied; one user can DoS reset for everyone behind same IP
 severity: high
 status: fixed
@@ -9,7 +9,9 @@ flow: password-reset-rate-limiting
 component: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs (ConfigurePasswordResetRateLimiter + ResolvePasswordResetEmailPartitionKey + ResolvePasswordResetIpPartitionKey) + src/HealthcareSupport.CaseEvaluation.HttpApi.Host/RateLimiting/PasswordResetEmailPeekMiddleware.cs
 ---
 
-# BUG-035 - Password-reset rate limit partitioned per-IP for anonymous SPA traffic
+# BUG-019 - Password-reset rate limit partitioned per-IP for anonymous SPA traffic
+
+> 2026-05-24: renamed from `BUG-035-password-reset-rate-limit-bucketed-by-ip.md` to free `BUG-035` for the lockout-never-fires finding that main concurrently filed during the hardening run (`BUG-035-lockout-never-fires.md`, ultimately reclassified as not-a-bug).
 
 ## Symptom
 
