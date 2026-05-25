@@ -20,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.RateLimiting;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using HealthcareSupport.CaseEvaluation.HealthChecks;
@@ -362,25 +363,46 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     }
 
     /// <summary>
-    /// Phase 10 (2026-05-03) -- ASP.NET Core fixed-window rate limiter
-    /// scoped to the password-reset surface
-    /// (<c>POST /api/public/external-account/send-password-reset-code</c>
-    /// and <c>POST /api/public/external-account/reset-password</c>).
+    /// Phase 10 (2026-05-03) + BUG-035 fix (2026-05-22) -- ASP.NET Core
+    /// rate limiter scoped to anonymous endpoints under
+    /// <c>/api/public/external-account</c> +
+    /// <c>/api/public/appointment-documents</c> +
+    /// <c>/api/public/external-signup/register</c>.
     ///
-    /// <para>Window: 1 hour. Permit: 5. Queue: 0 (over-limit returns 429
-    /// immediately rather than queueing). Partition key precedence:
-    /// optional <c>email</c> query-string override -> AuthN <c>sub</c>
-    /// claim -> client IP. Body-field partitioning is intentionally NOT
-    /// used because partitioners run before model binding and reading
-    /// the body here would require enabling rewindable request bodies
-    /// across the whole pipeline -- not worth the per-request cost when
-    /// IP partitioning already blocks the obvious abuse vector. Email
-    /// partitioning is enforced via <c>email</c> query string (used
-    /// only by tests).</para>
+    /// <para><b>Password-reset (dual-partition):</b> two chained
+    /// FixedWindow limiters per OWASP Forgot Password Cheat Sheet:
+    /// <list type="bullet">
+    /// <item><description>Primary: per-account 5/hour partitioned by the
+    /// <c>email</c> field of the JSON body (read by
+    /// <see cref="RateLimiting.PasswordResetEmailPeekMiddleware"/> and
+    /// stashed in <c>HttpContext.Items</c>). Fallback chain when the
+    /// stash is empty: <c>?email=</c> query -> JWT sub -> client IP.
+    /// </description></item>
+    /// <item><description>Secondary: per-IP 50/hour. Catches truly
+    /// abusive IPs without punishing NAT/CGNAT-shared users for one
+    /// neighbor's behavior (the BUG-035 footgun).</description></item>
+    /// </list>
+    /// Requests must pass BOTH partitions; either alone returns 429.
+    /// </para>
     ///
-    /// <para>This is a NEW addition vs OLD (OLD had no rate limiting on
-    /// forgot-password) -- accepted as a security fix that does not
-    /// change visible behavior. Cite:
+    /// <para><b>Other prefixes</b> (document-upload-by-code,
+    /// external-signup register) keep their existing single-layer
+    /// IP-based 5/hour buckets. Those weren't part of BUG-035.</para>
+    ///
+    /// <para>The middleware reads the body up to a 4 KB cap and
+    /// rewinds the stream so MVC's model binding still sees the
+    /// body. The original Phase 10 doc-comment claimed body
+    /// partitioning was "not worth the per-request cost" -- BUG-035
+    /// showed that calculation missed the shared-IP DoS vector. The
+    /// 4 KB read is negligible cost compared to the security gap it
+    /// closes.</para>
+    ///
+    /// <para>OnRejected emits <c>Retry-After</c> (OWASP API4
+    /// recommendation) so callers can compute wait time without
+    /// out-of-band knowledge of the window.</para>
+    ///
+    /// <para>Refs:
+    /// https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html ,
     /// https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit
     /// </para>
     /// </summary>
@@ -389,21 +411,34 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         context.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = (int)System.Net.HttpStatusCode.TooManyRequests;
-            // Global limiter strategy: every request is partitioned, but
-            // requests that do NOT match the password-reset prefix are
-            // routed into a no-op partition. This avoids needing the
-            // [EnableRateLimiting] attribute (which would force the HttpApi
-            // class library to take a Microsoft.AspNetCore.App framework
-            // reference) while still scoping the 5/hour budget exclusively
-            // to the password-reset surface.
-            options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
+
+            options.OnRejected = (rejectionContext, _) =>
+            {
+                // Emit Retry-After when the rejecting lease exposes it.
+                // FixedWindowRateLimiter does, so callers can wait the
+                // window without polling.
+                if (rejectionContext.Lease.TryGetMetadata(
+                        System.Threading.RateLimiting.MetadataName.RetryAfter,
+                        out var retryAfter))
+                {
+                    rejectionContext.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+                return System.Threading.Tasks.ValueTask.CompletedTask;
+            };
+
+            // BUG-035: per-account (per-email) primary limiter.
+            // 5/hour bucket per unique email keeps brute-force /
+            // mailbox-flooding capped at the OWASP-recommended level
+            // for password reset.
+            var perEmailLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
                 httpContext =>
                 {
                     if (IsPasswordResetPath(httpContext))
                     {
-                        var key = ResolvePasswordResetPartitionKey(httpContext);
+                        var key = ResolvePasswordResetEmailPartitionKey(httpContext);
                         return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                            partitionKey: $"pwd-reset:{key}",
+                            partitionKey: $"pwd-reset-email:{key}",
                             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                             {
                                 PermitLimit = 5,
@@ -456,6 +491,35 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     }
                     return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
                 });
+
+            // BUG-035: per-IP secondary limiter, generous threshold so
+            // NAT/CGNAT-shared users don't block each other under
+            // normal usage but a single IP can't fan out across 1000
+            // emails. Only applied to the password-reset prefix --
+            // other prefixes already have their own IP-based partitions.
+            var perIpSecondaryLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
+                httpContext =>
+                {
+                    if (IsPasswordResetPath(httpContext))
+                    {
+                        var key = ResolvePasswordResetIpPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"pwd-reset-ip:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 50,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited-secondary");
+                });
+
+            options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.CreateChained(
+                perEmailLimiter,
+                perIpSecondaryLimiter);
         });
     }
 
@@ -569,16 +633,34 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     }
 
     /// <summary>
-    /// Resolves the partition key for the password-reset rate limiter.
-    /// Precedence: optional <c>?email=</c> query (for tests) -> JWT
-    /// <c>sub</c> claim (caller already authenticated) -> client IP.
-    /// Falls back to <c>"global"</c> when none resolves so the policy
-    /// always has a deterministic key.
+    /// BUG-035 fix (2026-05-22) -- resolves the per-account
+    /// partition key for the password-reset primary limiter.
+    /// Precedence:
+    /// <list type="number">
+    /// <item><description>Email peeked from the JSON body by
+    /// <see cref="RateLimiting.PasswordResetEmailPeekMiddleware"/>
+    /// and stashed in <c>HttpContext.Items</c> -- the canonical
+    /// per-account control per OWASP Forgot Password Cheat Sheet.</description></item>
+    /// <item><description><c>?email=</c> query-string (kept for
+    /// backward-compatible test access).</description></item>
+    /// <item><description>JWT <c>sub</c> claim (only relevant when
+    /// the password-reset endpoint is called from an authenticated
+    /// context, e.g. self-service profile flows).</description></item>
+    /// <item><description>Client IP -- last-resort fallback for
+    /// requests where the body peek failed (malformed JSON, body
+    /// too large, etc).</description></item>
+    /// </list>
     /// Internal-static so unit tests can verify edge cases without
     /// standing up the middleware pipeline.
     /// </summary>
-    internal static string ResolvePasswordResetPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    internal static string ResolvePasswordResetEmailPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
+        if (httpContext.Items.TryGetValue(RateLimiting.PasswordResetEmailPeekMiddleware.ContextItemKey, out var stashed)
+            && stashed is string stashedEmail
+            && !string.IsNullOrWhiteSpace(stashedEmail))
+        {
+            return $"email:{stashedEmail}";
+        }
         var fromQuery = httpContext.Request.Query["email"].ToString();
         if (!string.IsNullOrWhiteSpace(fromQuery))
         {
@@ -589,6 +671,22 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             return $"sub:{sub}";
         }
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
+    }
+
+    /// <summary>
+    /// BUG-035 fix (2026-05-22) -- resolves the per-IP secondary
+    /// partition key for the password-reset rate limiter. Pure
+    /// IP-based; falls back to <c>"global"</c> when the IP isn't
+    /// resolvable.
+    /// </summary>
+    internal static string ResolvePasswordResetIpPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString();
         if (!string.IsNullOrWhiteSpace(ip))
         {
@@ -858,6 +956,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         app.UseUnitOfWork();
         app.UseDynamicClaims();
         app.UseAuthorization();
+
+        // BUG-035 fix (2026-05-22) -- peek the JSON body's `email` field
+        // for anonymous password-reset POSTs and stash it in
+        // HttpContext.Items so the rate-limiter partitioner can use it
+        // as the partition key. Must run before UseRateLimiter so the
+        // stash is available when the partitioner executes.
+        app.UseMiddleware<RateLimiting.PasswordResetEmailPeekMiddleware>();
 
         // Phase 10 (2026-05-03) -- enable rate limiter middleware so the
         // [EnableRateLimiting] attribute on the password-reset endpoints

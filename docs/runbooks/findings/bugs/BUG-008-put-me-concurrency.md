@@ -10,6 +10,21 @@ component: angular/src/app/patients/me + Application/Patients/PatientAppService.
 
 # BUG-008 — PUT /me concurrency stamp on submit retry
 
+> **Verification 2026-05-22: LIKELY FIXED by construction (confidence 75%). Needs live repro to close.**
+>
+> The broken pattern this bug described appears to be **structurally gone** in current code, though no targeted commit since 2026-05-13 cites BUG-008 by name. Evidence:
+>
+> - Server returns a fresh stamp: `PatientsAppService.UpdateMyProfileAsync` (`src/HealthcareSupport.CaseEvaluation.Application/Patients/PatientsAppService.cs:474-507`) calls `PatientManager.UpdateAsync`, which invokes `patient.SetConcurrencyStampIfNotNull(concurrencyStamp)` then `_patientRepository.UpdateAsync(patient)` (`src/.../Domain/Patients/PatientManager.cs:103-104`). The returned entity is `FullAuditedAggregateRoot<Guid>` (`Patient.cs:26`), and ABP's UoW regenerates `ConcurrencyStamp` on `SaveChanges`. Result is mapped to `PatientDto` (which itself implements `IHasConcurrencyStamp`, `PatientDto.cs:9,52`) and returned over the wire.
+> - SPA rehydrates on success: `patient-profile.component.ts:162-168` merges the response via `this.selected.patient = { ...this.selected.patient, ...updated }`, so the next submit at line 156 (`concurrencyStamp: this.selected.patient.concurrencyStamp`) reads the new stamp.
+> - No `If-Match`/ETag, but the pattern is the standard ABP "stamp in body" flow.
+>
+> **Residual concerns:**
+> - Original repro (page reload required) was never re-tested against the canonical-port stack.
+> - If the first submit fails with 409 *before* any successful response, `selected.patient` is never refreshed -- that subpath would still require a page reload. Worth confirming whether the SPA error handler rehydrates from the 409 response body.
+> - No automated regression test exists for the two-submit case.
+>
+> **Action: live-verify, then close.** Repro: login as Patient, edit profile, submit, edit again without reloading, submit. If both 200, close BUG-008 with `status: fixed-by-redesign` and add an Application-tier test asserting the response `concurrencyStamp` differs from the input stamp. If the second submit still 409s, treat as OPEN -- the suspect would be the spread-merge ordering or proxy-DTO key casing rather than missing server-side stamp regeneration.
+
 ## Severity
 medium
 

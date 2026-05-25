@@ -389,6 +389,16 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Create("Patients");
         yield return Edit("Patients");
 
+        // W2-8 -- the booking-add SPA fires a separate POST per injury
+        // draft (multi-injury support per OLD parity, see
+        // angular/src/app/appointments/appointment-add.component.ts:2438).
+        // Clinic Staff is the canonical phone-in booker so it needs the
+        // mutation grant alongside the existing Appointments / Patients
+        // mutations. Without this, the booking-add flow succeeds on the
+        // main appointment row but returns 403 on every auxiliary
+        // injury POST -- silently breaking multi-injury bookings.
+        yield return Create("AppointmentInjuryDetails");
+
         foreach (var entity in LookupReadEntities)
         {
             yield return Default(entity);
