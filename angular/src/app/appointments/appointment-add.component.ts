@@ -14,6 +14,7 @@ import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
+import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto } from '../proxy/appointments/models';
 import { BookingStatus } from '../proxy/enums/booking-status.enum';
@@ -455,14 +456,14 @@ export class AppointmentAddComponent {
     // checkbox.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
-      this.applyConditionalAttorneySectionValidators('applicantAttorney', !!enabled);
+      applyAttorneySectionValidators(this.form, 'applicantAttorney', !!enabled);
       if (!enabled) {
         this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
       }
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
-      this.applyConditionalAttorneySectionValidators('defenseAttorney', !!enabled);
+      applyAttorneySectionValidators(this.form, 'defenseAttorney', !!enabled);
       if (!enabled) {
         this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
       }
@@ -478,9 +479,9 @@ export class AppointmentAddComponent {
     const daInitialEnabled = !!this.form.get('defenseAttorneyEnabled')?.value;
     const ceInitialEnabled = !!this.form.get('claimExaminerEnabled')?.value;
     this.applyConditionalEmailValidator('applicantAttorneyEmail', aaInitialEnabled);
-    this.applyConditionalAttorneySectionValidators('applicantAttorney', aaInitialEnabled);
+    applyAttorneySectionValidators(this.form, 'applicantAttorney', aaInitialEnabled);
     this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
-    this.applyConditionalAttorneySectionValidators('defenseAttorney', daInitialEnabled);
+    applyAttorneySectionValidators(this.form, 'defenseAttorney', daInitialEnabled);
     this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
 
     // B11-followup (2026-05-07): the earlier "hide AA/DA for CE" auto-
@@ -539,47 +540,12 @@ export class AppointmentAddComponent {
     control.updateValueAndValidity({ emitEvent: false });
   }
 
-  /**
-   * OLD parity (live audit 2026-05-07): when the Applicant Attorney or
-   * Defense Attorney "Include" toggle is on, the OLD `Mandatory Fields`
-   * submit modal lists Name, Firm Name, Phone Number, Fax Number,
-   * Street, City, State, Zip as required for that section. NEW only
-   * required the email. Toggling the section off must strip those
-   * required validators (parallel to applyConditionalEmailValidator).
-   *
-   * Flips Validators.required on a fixed list of non-email field names
-   * keyed by the section's prefix (`applicantAttorney` / `defenseAttorney`).
-   * Email itself stays handled by applyConditionalEmailValidator.
-   */
-  private applyConditionalAttorneySectionValidators(
-    prefix: 'applicantAttorney' | 'defenseAttorney',
-    required: boolean,
-  ): void {
-    // Field-name suffix -> existing maxLength so we preserve format checks.
-    const suffixes: Array<{ name: string; maxLength: number }> = [
-      { name: 'FirstName', maxLength: 50 },
-      { name: 'FirmName', maxLength: 50 },
-      { name: 'PhoneNumber', maxLength: 20 },
-      { name: 'FaxNumber', maxLength: 19 },
-      { name: 'Street', maxLength: 255 },
-      { name: 'City', maxLength: 50 },
-      { name: 'StateId', maxLength: 0 },
-      { name: 'ZipCode', maxLength: 10 },
-    ];
-    for (const { name, maxLength } of suffixes) {
-      const control = this.form.get(prefix + name);
-      if (!control) continue;
-      const validators = [];
-      if (required) {
-        validators.push(Validators.required);
-      }
-      if (maxLength > 0) {
-        validators.push(Validators.maxLength(maxLength));
-      }
-      control.setValidators(validators);
-      control.updateValueAndValidity({ emitEvent: false });
-    }
-  }
+  // BUG-012 Sub-bug 2 (2026-05-22) -- the OLD-parity "Mandatory Fields"
+  // section-validator helper moved to ./shared/attorney-section-validators.ts
+  // so appointment-view.component.ts can share the implementation. See the
+  // exported `applyAttorneySectionValidators` + `ATTORNEY_SECTION_SUFFIXES`
+  // in that file. The call sites above retain their context-specific
+  // behavior (email-validator toggle + email-clear on disable).
 
   /**
    * W2-5: HTML helper -- returns true when the per-AppointmentType config

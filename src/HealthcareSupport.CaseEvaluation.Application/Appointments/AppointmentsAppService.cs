@@ -1036,6 +1036,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return;
         }
 
+        // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted to
+        // EnsureAttorneyFirmNamePresent (private helper below). Same
+        // UserFriendlyException semantics as ExternalSignupAppService's
+        // ValidateRegistrationInput attorney check.
+        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney");
+
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)
         {
@@ -1094,6 +1100,28 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         else
         {
             await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
+        }
+    }
+
+    /// <summary>
+    /// BUG-012 Sub-bug 2 (2026-05-22) -- single source for the
+    /// FirmName-required check on the appointment-flow Upsert AA/DA
+    /// path. Throws <see cref="UserFriendlyException"/> carrying
+    /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired"/>
+    /// + <c>WithData("AttorneyRole", ...)</c> so the SPA can highlight
+    /// the right section without parsing the message. UFE (not
+    /// BusinessException) is deliberate per the BUG-014 / BUG-025
+    /// pattern -- ABP suppresses BusinessException messages to the
+    /// generic fallback, UFE messages pass through.
+    /// </summary>
+    private void EnsureAttorneyFirmNamePresent(string? firmName, string attorneyRole)
+    {
+        if (string.IsNullOrWhiteSpace(firmName))
+        {
+            throw new UserFriendlyException(
+                    message: L["Appointment:AttorneyFirmNameRequired"],
+                    code: CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired)
+                .WithData("AttorneyRole", attorneyRole);
         }
     }
 
@@ -1208,6 +1236,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             return;
         }
+
+        // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted; see
+        // the AA upsert above + EnsureAttorneyFirmNamePresent below.
+        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney");
 
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
         if (appointment == null)

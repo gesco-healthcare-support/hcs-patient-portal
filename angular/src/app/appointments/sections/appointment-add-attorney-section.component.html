@@ -49,6 +49,17 @@
             maxlength="50"
             [class.is-invalid]="isFieldInvalid(prefix + 'FirmName')"
           />
+          <!-- BUG-012 (2026-05-22): inline feedback for the
+               server-and-client-required Firm Name. The .invalid-feedback
+               element is shown by Bootstrap automatically when its
+               sibling input carries .is-invalid. Mirrors the asterisk
+               in the label so the user knows WHY the field is flagged. -->
+          @if (
+            form.get(prefix + 'FirmName')?.hasError('required') &&
+            form.get(prefix + 'FirmName')?.touched
+          ) {
+            <div class="invalid-feedback d-block">Firm Name is required.</div>
+          }
         </div>
         <div class="col-md-6 mb-3">
           <label class="form-label fw-semibold">Web Address</label>

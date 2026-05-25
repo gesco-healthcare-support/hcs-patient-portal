@@ -29,6 +29,7 @@ import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
+import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 
 type TransitionAction = 'approve' | 'reject';
 
@@ -280,6 +281,12 @@ export class AppointmentViewComponent implements OnInit {
     return !!control && control.invalid && control.touched;
   }
 
+  // BUG-012 Sub-bug 2 (2026-05-22) -- the previous private
+  // applyConditionalAttorneySectionValidators method moved to
+  // ../../shared/attorney-section-validators.ts so it can be shared
+  // with appointment-add.component.ts. The ngOnInit block above now
+  // uses the `wireAttorneySectionToggle` convenience wrapper.
+
   // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
   // `form` because it represents draft state for a per-row append/edit
   // operation that submits via its own POST/PUT, not via save().
@@ -321,6 +328,19 @@ export class AppointmentViewComponent implements OnInit {
     );
 
   ngOnInit(): void {
+    // BUG-012 (2026-05-22): conditional required-validator wiring on
+    // AA/DA section fields. Mirror of appointment-add.component.ts:454-484.
+    // The view/edit form previously declared FirmName + 7 other section
+    // fields with maxLength validators only -- so saving an existing
+    // appointment with empty Firm Name silently succeeded client-side,
+    // and the backend's UpsertApplicantAttorneyForAppointmentAsync did
+    // not enforce it either. The matching server-side guard is added in
+    // AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync.
+    // Subscription + initial-apply in one call per section -- see
+    // ./shared/attorney-section-validators.ts for the helper's contract.
+    wireAttorneySectionToggle(this.form, 'applicantAttorney');
+    wireAttorneySectionToggle(this.form, 'defenseAttorney');
+
     this.loadExternalAuthorizedUsers();
 
     const id = this.route.snapshot.paramMap.get('id');

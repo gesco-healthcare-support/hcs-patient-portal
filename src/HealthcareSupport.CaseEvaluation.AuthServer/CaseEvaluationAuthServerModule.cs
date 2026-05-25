@@ -402,28 +402,14 @@ public class CaseEvaluationAuthServerModule : AbpModule
         // sync avoids the BUG-003 class of "403 vs 400" inconsistency.
         Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
         {
-            options.Map(
-                CaseEvaluationDomainErrorCodes.RegistrationDuplicateEmail,
-                System.Net.HttpStatusCode.BadRequest);
-
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserRoleMissing,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserCreateFailed,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserRoleAssignFailed,
-                System.Net.HttpStatusCode.BadRequest);
-            options.Map(
-                CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
-                System.Net.HttpStatusCode.BadRequest);
+            // BUG-012 Sub-bug 2 (2026-05-22): shared mappings extracted
+            // into HealthcareSupport.CaseEvaluation.Exceptions.
+            // CaseEvaluationExceptionStatusCodeMappings so the AuthServer
+            // host and the HttpApi.Host stay in sync without duplicating
+            // the option.Map(...) call list verbatim. Per BUG-003 both
+            // hosts must contribute the same status-code remap.
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapSharedRegistrationAndInternalUserCodes(options);
         });
 
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
