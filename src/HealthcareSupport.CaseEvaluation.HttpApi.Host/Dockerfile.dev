@@ -6,6 +6,7 @@ COPY NuGet.Config.template .
 RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
 
 COPY Directory.Build.props .
+COPY BannedSymbols.txt .
 COPY HealthcareSupport.CaseEvaluation.slnx .
 COPY src/ src/
 COPY test/ test/
