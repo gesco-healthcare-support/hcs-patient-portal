@@ -1,5 +1,5 @@
 ---
-id: BUG-037
+id: BUG-041
 title: Authorized User picker restricts to 2 pre-existing roles; OLD allowed free-text email for any role
 severity: medium
 status: open
@@ -9,7 +9,9 @@ flow: booking-authorized-users-modal
 component: src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs:309 + angular/src/app/appointments/sections/* additional-authorized-user UI
 ---
 
-# BUG-037 — Authorized User picker parity gap (NEW dropdown vs OLD free-text)
+# BUG-041 — Authorized User picker parity gap (NEW dropdown vs OLD free-text)
+
+> 2026-05-24: renamed from `BUG-037-authorized-user-picker-parity-gap.md` to free `BUG-037` for the clinic-staff-document-upload-403 bug that main concurrently filed during the hardening run (`BUG-037-clinic-staff-cannot-upload-documents.md`).
 
 > **Promoted from OBS-16 on 2026-05-22 after verifying OLD parity.** The OBS originally asked whether the narrow picker was intentional or over-restrictive. OLD-code review shows NEW's behavior is a real parity regression in expressiveness, distinct from the documented D-2 design decision.
 >

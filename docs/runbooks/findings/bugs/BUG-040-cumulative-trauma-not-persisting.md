@@ -1,5 +1,5 @@
 ---
-id: BUG-036
+id: BUG-040
 title: Cumulative trauma flag and ToDateOfInjury not persisting on booking submit
 severity: medium
 status: open
@@ -9,7 +9,9 @@ flow: booking-claim-information-modal
 component: angular/src/app/appointments/sections/appointment-add-claim-information.component.ts
 ---
 
-# BUG-036 — Cumulative trauma flag + ToDateOfInjury not persisting
+# BUG-040 — Cumulative trauma flag + ToDateOfInjury not persisting
+
+> 2026-05-24: renamed from `BUG-036-cumulative-trauma-not-persisting.md` to free `BUG-036` for the packet-generation soft-delete race that main concurrently filed and fixed (`BUG-036-packet-generation-silently-fails-for-some-appointments.md`).
 
 > **Promoted from OBS-15 on 2026-05-22.** Originally filed as an observation under the "driver-artifact most likely" theory. Promoting to a tracked bug so a session-A/B pass picks it up. The fix path is trivial if confirmed real; the cost of finding out via live repro is small.
 >
