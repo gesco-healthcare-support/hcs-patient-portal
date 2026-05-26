@@ -66,6 +66,7 @@ Per-topic briefings produced during the hardening pass:
 - [Container logs sweep](./container-logs-sweep.md)
 - [SPA bundle + load performance](./spa-load-perf.md)
 - [Screenshots of each demo page](./screenshots/) (7 PNGs)
+- [Open findings pocket answers (22 items audited)](./open-findings-pocket-answers.md)
 
 ## Top 5 audience-likely tangent questions + pocket answers
 
