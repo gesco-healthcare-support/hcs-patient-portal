@@ -57,6 +57,8 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   internalUserComments?: string | null;
   appointmentApproveDate?: string | null;
   appointmentStatus?: AppointmentStatusType;
+  rejectionNotes?: string | null;
+  rejectedById?: string | null;
   patientId?: string;
   identityUserId?: string;
   appointmentTypeId?: string;

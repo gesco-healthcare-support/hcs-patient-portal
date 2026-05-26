@@ -23,6 +23,19 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public AppointmentStatusType AppointmentStatus { get; set; }
 
+    /// <summary>
+    /// F4-02 (2026-05-26) -- rejection reason persisted by the reject
+    /// flow (<see cref="HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService"/>
+    /// reject path) and read back here so the patient and staff can
+    /// see WHY the appointment was rejected. OLD parity: the
+    /// PatientAppointmentRejected email template renders this value
+    /// via the <c>##RejectionNotes##</c> token.
+    /// </summary>
+    public string? RejectionNotes { get; set; }
+
+    /// <summary>F4-02 (2026-05-26) -- audit pair with RejectionNotes.</summary>
+    public Guid? RejectedById { get; set; }
+
     public Guid PatientId { get; set; }
 
     public Guid IdentityUserId { get; set; }
