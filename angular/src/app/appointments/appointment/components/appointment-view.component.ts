@@ -199,6 +199,14 @@ export class AppointmentViewComponent implements OnInit {
   readonly form: FormGroup = this.fb.group({
     // top-level
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
+    // F4-02 (2026-05-26) -- read-only display of staff outcomes. RejectionNotes
+    // surfaces the reason captured by the Reject modal so the patient (and
+    // staff later opening the rejected appointment) can see WHY. InternalUserComments
+    // is the approval-modal "Any comments?" textarea; server redacts it to null
+    // for external roles, so external viewers see the row hidden via the
+    // null-guard in the template.
+    rejectionNotes: [null as string | null],
+    internalUserComments: [null as string | null],
     // patient (19 controls)
     patientFirstName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
     patientLastName: [null as string | null, [Validators.required, Validators.maxLength(50)]],
@@ -354,7 +362,12 @@ export class AppointmentViewComponent implements OnInit {
       next: (data) => {
         this.appointment = data;
         this.form.patchValue(
-          { panelNumber: data.appointment?.panelNumber ?? '' },
+          {
+            panelNumber: data.appointment?.panelNumber ?? '',
+            // F4-02 (2026-05-26) -- surface server-side staff outcomes.
+            rejectionNotes: data.appointment?.rejectionNotes ?? null,
+            internalUserComments: data.appointment?.internalUserComments ?? null,
+          },
           { emitEvent: false },
         );
         this.loadEmployerDetails(data.appointment?.id);

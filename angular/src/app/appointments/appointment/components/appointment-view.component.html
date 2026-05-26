@@ -163,6 +163,32 @@
               </div>
             </div>
           </div>
+
+          <!--
+            F4-02 (2026-05-26) -- surface the staff outcome captured during
+            Approve / Reject. Status enum: 2=Approved, 3=Rejected. RejectionNotes
+            shows on Rejected; InternalUserComments shows on Approved. The
+            server-side ExternalUserDtoFilter nulls InternalUserComments for
+            external roles, so the *ngIf on truthy value hides the row for them.
+          -->
+          @if (
+            appointment.appointment?.appointmentStatus === 3 &&
+            appointment.appointment?.rejectionNotes
+          ) {
+            <div class="alert alert-danger mt-3 mb-0" role="alert">
+              <div class="fw-bold mb-1">Rejection Reason</div>
+              <div>{{ appointment.appointment?.rejectionNotes }}</div>
+            </div>
+          }
+          @if (
+            appointment.appointment?.appointmentStatus === 2 &&
+            appointment.appointment?.internalUserComments
+          ) {
+            <div class="alert alert-info mt-3 mb-0" role="alert">
+              <div class="fw-bold mb-1">Approval Comments</div>
+              <div>{{ appointment.appointment?.internalUserComments }}</div>
+            </div>
+          }
         </div>
       </div>
 
