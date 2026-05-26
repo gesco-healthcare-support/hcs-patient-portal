@@ -31,10 +31,12 @@ critical hardening complete. **Tuesday verdict: SHIP.**
 7. **Sign in as `stafsuper1@gesco.com` for Flow 2-5.** Do NOT sign
    in as the static `admin` role -- it auto-grants Delete on every
    appointment, one mis-click is unrecoverable.
-8. **Do NOT log in as `patient1` during the demo unless you intend
-   to immediately click Book Appointment.** The Patient nav menu
-   leaks Applicant Attorneys / Defense Attorneys / Doctor Management
-   items (per role-probe live findings).
+8. **Patient login is safe.** The `externaluser-role` body class
+   wired in `app.component.ts:101` + `styles.scss:73-92` hides the
+   sidebar for Patient/AA/DA/CE. Earlier "menu leak" claim was
+   based on DOM query, not visual state -- corrected in
+   `role-probe-live-findings.md` and screenshot
+   `screenshots/08-patient-home-visible.png`.
 
 ## Demo go/no-go status
 
@@ -109,10 +111,9 @@ Per-topic briefings produced during the hardening pass:
 
 ## Known surprises Adrian should know about but not surface unless asked
 
-- Patient nav menu exposes master-table CRUD UI (Applicant
-  Attorneys / Defense Attorneys / Doctor Management) -- pages
-  render but tables are empty (scope filter strips rows). Avoid
-  Patient login.
+- (CORRECTED) Patient nav menu items ARE in the DOM but the
+  sidebar is hidden by the `externaluser-role` body class. Patient
+  login is visually safe. See revised role-probe doc.
 - Dashboard "Billed This Month / No-Show / Cancelled This Week"
   cards show 0 (8 placeholder cards; feature ships in W3).
 - API container had one transient `Cannot allocate memory`

@@ -1,19 +1,40 @@
 ---
 title: Live role-permission probe findings
-date: 2026-05-25
-status: ready
+date: 2026-05-25 (revised same-day after deeper inspection)
+status: ready -- earlier "leak" claim CORRECTED
 audience: Adrian (presenter)
 ---
 
-# Live role probe findings (2026-05-25)
+# Live role probe findings (2026-05-25, REVISED)
 
-Logged in as `patient1@gesco.com` (Alex Patient) and walked the SPA
-to verify the permission-audit subagent's predictions against the
-running stack.
+## Correction (2026-05-26 02:12 PT)
 
-## Confirmed leaks in Patient's navigation menu
+The original document below claimed Patient sees a side-nav menu
+leak (Applicant Attorneys / Defense Attorneys / Doctor Management).
+**That was wrong** -- I queried the DOM and saw entries, but the
+entire sidebar is hidden via the `externaluser-role` body class
+wired in `app.component.ts:101-111` + `styles.scss:73-92`.
 
-Patient sees these nav items (and the underlying pages render):
+Live verification 2026-05-26 02:12 PT, logged in as patient1:
+
+| Element | DOM state | Visible? |
+|---|---|---|
+| body class | "lpx-theme-light **externaluser-role**" | -- |
+| Sidebar element | in DOM | NO (computed `display: none`) |
+| "Applicant Attorneys" link | in DOM | NO (`offsetParent: null`) |
+| "Defense Attorneys" link | in DOM | NO (`offsetParent: null`) |
+
+**Patient login during the Tuesday demo is safe.** The sidebar is
+hidden; only Home content (with Book Appointment, Book
+Re-evaluation, My Appointments table) is visible.
+
+The earlier nav-link extraction returned entries because
+`querySelectorAll` finds DOM elements regardless of CSS visibility.
+The actual user-facing view does not show the menu items.
+
+## Confirmed leaks in Patient's navigation menu (ORIGINAL CLAIM -- NOW INVALID)
+
+~~Patient sees these nav items (and the underlying pages render):~~
 
 | Nav item | URL | Page state | Demo risk |
 |---|---|---|---|
@@ -23,25 +44,15 @@ Patient sees these nav items (and the underlying pages render):
 | Applicant Attorneys | `/applicant-attorneys` | **LEAK** -- empty table (scope filter strips rows) but **"New Applicant Attorney" button is visible**. Patient could click and try to create. | **MEDIUM** -- visible during demo if Patient is logged in. |
 | Defense Attorneys | `/defense-attorneys` | Same as Applicant Attorneys -- master-table CRUD UI exposed to Patient. | **MEDIUM** -- same pattern. |
 
-## Decision: do not show Patient login during the Tuesday demo
+## Decision (REVISED): Patient login during demo is SAFE
 
-The Tuesday demo script Flow 1 is registration (just role-conditional
-firm name, no actual login). Flow 3 logs in as Clinic Staff. If
-audience asks "what does the Patient see?", verbal answer is safer
-than live click-through:
-
-> "The Patient lands on their own dashboard showing their 3
-> appointments. The current build exposes a few master-table menu
-> items to external roles -- visible but not actionable because the
-> AppService permission filters strip data. We're tightening the
-> nav-menu role guards as a polish item, but the data layer is safe
-> today."
+The sidebar hides automatically. Patient sees only the Home page
+with their 3 appointments. Demo as needed.
 
 ## Tactic for audience question
 
-If asked "can I see what a Patient sees?": switch to verbal walkthrough
-+ point to A00001/2/3 in the Clinic Staff appointment list ("the
-Patient sees those 3 rows scoped to themselves").
+If asked "what does the Patient see?": show it live or screenshot
+08-patient-home-visible.png. No menu items leak.
 
 ## Other live probes attempted
 
