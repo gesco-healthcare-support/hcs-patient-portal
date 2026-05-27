@@ -370,6 +370,20 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.RejectionRequiresNotes";
 
     /// <summary>
+    /// BUG-043 / T8 (2026-05-27) -- raised by
+    /// <c>AppointmentManager.ApplyTransitionAsync</c> on the Approve
+    /// trigger when the appointment has no Claim Information (injury
+    /// detail) rows. Defense-in-depth behind the client-side guard added
+    /// in T7: a direct API approve of an injury-less appointment is
+    /// rejected here so the requirement cannot be bypassed. Gated only on
+    /// the Pending->Approved transition (the create-as-Approved internal
+    /// fast-path attaches injuries after creation and is out of scope).
+    /// Localization key <c>Appointment:ApprovalRequiresInjuryDetail</c>.
+    /// </summary>
+    public const string AppointmentApprovalRequiresInjuryDetail =
+        "CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail";
+
+    /// <summary>
     /// Phase 11i (2026-05-04) -- raised by
     /// <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when an
     /// existing IdentityUser is found by email but already holds a role

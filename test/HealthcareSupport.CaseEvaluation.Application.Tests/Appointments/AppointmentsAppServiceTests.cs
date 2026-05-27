@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -800,6 +801,99 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             result.FirmName.ShouldBe("Shield Defense Group");
             result.Email.ShouldBe("dana.synthetic@test.local");
             result.IdentityUserId.ShouldBe(Guid.Empty);
+        }
+    }
+
+    // =====================================================================
+    // BUG-043 (T8): approval-time defense-in-depth. The Pending -> Approved
+    // transition is blocked unless the appointment carries at least one
+    // Claim Information (injury detail) row. Mirrors the client-side guard
+    // (T7) so a direct API approve cannot bypass the requirement. The gate
+    // lives in AppointmentManager.ApplyTransitionAsync's Approve branch --
+    // the single chokepoint both approve surfaces funnel through.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApproveAsync_Throws_WhenAppointmentHasNoInjuryDetail()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(42),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-NOINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var manager = GetRequiredService<AppointmentManager>();
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail);
+        }
+    }
+
+    [Fact]
+    public async Task ApproveAsync_Succeeds_WhenAppointmentHasInjuryDetail()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(49),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-WITHINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+            await injuryRepository.InsertAsync(
+                new AppointmentInjuryDetail(
+                    Guid.NewGuid(),
+                    appointment.Id,
+                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    claimNumber: "CLM-TEST-0001",
+                    isCumulativeInjury: false,
+                    bodyPartsSummary: "Lower back"),
+                autoSave: true);
+
+            var manager = GetRequiredService<AppointmentManager>();
+            var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
+
+            approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+        }
+    }
+
+    /// <summary>
+    /// Inserts a Pending appointment directly via the repository (bypassing
+    /// the AppService CreateAsync, whose internal-caller fast-path stamps
+    /// Approved in the always-allow test harness). Mirrors the
+    /// <c>new Appointment(...)</c> seeding precedent in
+    /// AppointmentApprovalValidatorUnitTests; reuses seeded FK targets so
+    /// the SQLite FK constraints are satisfied.
+    /// </summary>
+    private async Task<Appointment> InsertPendingAppointmentInTenantAAsync(
+        Guid doctorAvailabilityId,
+        DateTime appointmentDate,
+        string requestConfirmationNumber)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var appointment = new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: doctorAvailabilityId,
+                appointmentDate: appointmentDate,
+                requestConfirmationNumber: requestConfirmationNumber,
+                appointmentStatus: AppointmentStatusType.Pending);
+            return await _appointmentRepository.InsertAsync(appointment, autoSave: true);
         }
     }
 }
