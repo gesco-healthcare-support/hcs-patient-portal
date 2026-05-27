@@ -19,8 +19,10 @@ public class ApplicantAttorneyManager : DomainService
         _applicantAttorneyRepository = applicantAttorneyRepository;
     }
 
-    public virtual async Task<ApplicantAttorney> CreateAsync(Guid? stateId, Guid? identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null, string? webAddress = null, string? faxNumber = null, string? street = null, string? city = null, string? zipCode = null, string? email = null)
+    public virtual async Task<ApplicantAttorney> CreateAsync(Guid? stateId, Guid? identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null, string? webAddress = null, string? faxNumber = null, string? street = null, string? city = null, string? zipCode = null, string? email = null, string? firstName = null, string? lastName = null)
     {
+        Check.Length(firstName, nameof(firstName), ApplicantAttorneyConsts.FirstNameMaxLength, 0);
+        Check.Length(lastName, nameof(lastName), ApplicantAttorneyConsts.LastNameMaxLength, 0);
         Check.Length(firmName, nameof(firmName), ApplicantAttorneyConsts.FirmNameMaxLength);
         Check.Length(firmAddress, nameof(firmAddress), ApplicantAttorneyConsts.FirmAddressMaxLength);
         Check.Length(phoneNumber, nameof(phoneNumber), ApplicantAttorneyConsts.PhoneNumberMaxLength);
@@ -31,6 +33,8 @@ public class ApplicantAttorneyManager : DomainService
         Check.Length(zipCode, nameof(zipCode), ApplicantAttorneyConsts.ZipCodeMaxLength, 0);
         Check.Length(email, nameof(email), ApplicantAttorneyConsts.EmailMaxLength, 0);
         var applicantAttorney = new ApplicantAttorney(GuidGenerator.Create(), stateId, identityUserId, firmName, firmAddress, phoneNumber, email);
+        applicantAttorney.FirstName = firstName;
+        applicantAttorney.LastName = lastName;
         applicantAttorney.WebAddress = webAddress;
         applicantAttorney.FaxNumber = faxNumber;
         applicantAttorney.Street = street;
@@ -39,8 +43,10 @@ public class ApplicantAttorneyManager : DomainService
         return await _applicantAttorneyRepository.InsertAsync(applicantAttorney);
     }
 
-    public virtual async Task<ApplicantAttorney> UpdateAsync(Guid id, Guid? stateId, Guid? identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null, string? webAddress = null, string? faxNumber = null, string? street = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null, string? email = null)
+    public virtual async Task<ApplicantAttorney> UpdateAsync(Guid id, Guid? stateId, Guid? identityUserId, string? firmName = null, string? firmAddress = null, string? phoneNumber = null, string? webAddress = null, string? faxNumber = null, string? street = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null, string? email = null, string? firstName = null, string? lastName = null)
     {
+        Check.Length(firstName, nameof(firstName), ApplicantAttorneyConsts.FirstNameMaxLength, 0);
+        Check.Length(lastName, nameof(lastName), ApplicantAttorneyConsts.LastNameMaxLength, 0);
         Check.Length(firmName, nameof(firmName), ApplicantAttorneyConsts.FirmNameMaxLength);
         Check.Length(firmAddress, nameof(firmAddress), ApplicantAttorneyConsts.FirmAddressMaxLength);
         Check.Length(phoneNumber, nameof(phoneNumber), ApplicantAttorneyConsts.PhoneNumberMaxLength);
@@ -53,6 +59,8 @@ public class ApplicantAttorneyManager : DomainService
         var applicantAttorney = await _applicantAttorneyRepository.GetAsync(id);
         applicantAttorney.StateId = stateId;
         applicantAttorney.IdentityUserId = identityUserId;
+        applicantAttorney.FirstName = firstName;
+        applicantAttorney.LastName = lastName;
         applicantAttorney.FirmName = firmName;
         applicantAttorney.FirmAddress = firmAddress;
         applicantAttorney.PhoneNumber = phoneNumber;

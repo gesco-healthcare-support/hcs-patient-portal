@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
@@ -658,5 +660,71 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             PanelNumber = null,
             DueDate = null,
         };
+    }
+
+    // =====================================================================
+    // BUG-042 (T2): attorney name is stored on the master record so a
+    // booked attorney who never registered (IdentityUserId == null) still
+    // has a persisted First/Last name. Tests the domain managers directly.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApplicantAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
+    {
+        var manager = GetRequiredService<ApplicantAttorneyManager>();
+        var repository = GetRequiredService<IApplicantAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Stone & Associates",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "aria.synthetic@test.local",
+            firstName: "Aria",
+            lastName: "Stone");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Aria");
+            persisted.LastName.ShouldBe("Stone");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DefenseAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
+    {
+        var manager = GetRequiredService<DefenseAttorneyManager>();
+        var repository = GetRequiredService<IDefenseAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Shield Defense Group",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "dana.synthetic@test.local",
+            firstName: "Dana",
+            lastName: "Defense");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Dana");
+            persisted.LastName.ShouldBe("Defense");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
     }
 }

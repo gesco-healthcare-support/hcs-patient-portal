@@ -1108,7 +1108,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.City,
                 input.ZipCode,
                 input.ConcurrencyStamp,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
         else
         {
@@ -1123,7 +1125,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
 
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
@@ -1320,7 +1324,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.City,
                 input.ZipCode,
                 input.ConcurrencyStamp,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
         else
         {
@@ -1335,7 +1341,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
 
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
