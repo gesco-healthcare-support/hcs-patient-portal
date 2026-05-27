@@ -1096,32 +1096,17 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   private bindApplicantAttorneyFromResponse(data: any): void {
-    const appAtt = data?.appointmentApplicantAttorney;
-    const applicant = appAtt?.applicantAttorney;
-    const identityUser = appAtt?.identityUser;
-    if (applicant && identityUser) {
-      this.applyApplicantAttorneyLookup({
-        applicantAttorneyId: applicant.id ?? undefined,
-        identityUserId: identityUser.id ?? '',
-        firstName: identityUser.name ?? '',
-        lastName: identityUser.surname ?? '',
-        email: identityUser.email ?? '',
-        firmName: applicant.firmName ?? '',
-        webAddress: applicant.webAddress ?? '',
-        phoneNumber: applicant.phoneNumber ?? '',
-        faxNumber: applicant.faxNumber ?? '',
-        street: applicant.street ?? '',
-        city: applicant.city ?? '',
-        stateId: applicant.stateId ?? undefined,
-        zipCode: applicant.zipCode ?? '',
-      });
-    } else {
-      this.loadApplicantAttorneyDetails(data?.appointment?.id, () => {
-        if (this.isApplicantAttorney && !this.form.get('applicantAttorneyIdentityUserId')?.value) {
-          this.loadApplicantAttorneyForCurrentUser();
-        }
-      });
-    }
+    // BUG-042: always load via GET /{id}/applicant-attorney, which returns
+    // the authoritative STORED (booked) name -- preferring it over the
+    // linked IdentityUser. The previous nav-DTO branch sourced the name
+    // from the IdentityUser, so a registered attorney showed their account
+    // name instead of the booked name, and an unregistered attorney showed
+    // nothing. The endpoint now handles both cases uniformly.
+    this.loadApplicantAttorneyDetails(data?.appointment?.id, () => {
+      if (this.isApplicantAttorney && !this.form.get('applicantAttorneyIdentityUserId')?.value) {
+        this.loadApplicantAttorneyForCurrentUser();
+      }
+    });
   }
 
   private loadApplicantAttorneyForCurrentUser(): void {

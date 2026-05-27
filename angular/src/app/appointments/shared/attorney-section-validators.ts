@@ -24,6 +24,7 @@ export const ATTORNEY_SECTION_SUFFIXES: ReadonlyArray<{
   readonly maxLength: number;
 }> = [
   { name: 'FirstName', maxLength: 50 },
+  { name: 'LastName', maxLength: 50 },
   { name: 'FirmName', maxLength: 50 },
   { name: 'PhoneNumber', maxLength: 20 },
   { name: 'FaxNumber', maxLength: 19 },
