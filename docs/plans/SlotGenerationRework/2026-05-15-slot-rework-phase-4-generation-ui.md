@@ -8,13 +8,149 @@ approach: test-after (Angular components are visual; assert
 sequence: 5 of 7 (slot-generation + doctor-invariant series)
 depends-on: 2026-05-15-slot-rework-phase-3-generation-api.md
   (the proxy must surface the new multi-axis shape and the
-  CreateRangeAsync method)
+  CreateRangeAsync method). BLOCKED until Phases 1-3 ship +
+  proxy is regenerated: as of HEAD ad07947 (2026-05-27) the
+  proxy still has the OLD single-axis array shape and no
+  createRange. Do NOT start this plan before Phase 3 proxy regen.
 branch: create a new branch off `feat/replicate-old-app`. PR back
   to `feat/replicate-old-app`. Do not merge to `main` until plans
   2 through 7 are merged together.
 ---
 
 # Slot rework Phase 4: Angular generation UI
+
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below (including "Decision 3" and Open Question O-1).
+
+- **Multi-appointment-type selector: REUSE the existing multi-select lookup
+  pattern from the Doctor detail modal** (the AppointmentTypes / Locations
+  tabs in `doctors/doctor/components/doctor-detail.component`). Do NOT build a
+  new `app-multi-lookup-select` on `@ng-bootstrap`, and do NOT add
+  `@ng-bootstrap` or Angular Material as a new dependency. Mirror the existing
+  component so the look matches the rest of the ABP/LeptonX app.
+- **Capacity input per generated slot/range, default 3.** Internal staff can
+  change it; default shown is 3.
+- (List-page changes -- former sections 6-7 -- remain OUT OF SCOPE this wave,
+  as already marked superseded in the re-verification below. Capacity/types are
+  not surfaced on the admin list page in this wave.)
+
+## Re-verified 2026-05-27 (HEAD ad07947) -- NOTE: no prior readiness check existed; this is the first re-verification
+
+Status: **needs-refresh** (still valid in intent; several stale facts
+corrected, all SPA "from" states confirmed unchanged since 2026-05-15).
+This plan DEPENDS on Phases 1-3, which are NOT yet implemented as of
+HEAD ad07947 -- the proxy still has the OLD single-axis array shape.
+All proxy/DTO "from" states are confirmed and all "to" states are
+marked "verify after Phase 3 proxy regen."
+
+Changelog of edits (each with file:line evidence + confidence):
+
+1. **CONFIRMED (HIGH)** -- current generate component path matches:
+   `angular/src/app/doctor-availabilities/doctor-availability/components/doctor-availability-generate.component.ts`
+   exists, standalone, `ChangeDetectionStrategy.Default`, reactive
+   `fb.group` with NO FormArray, NO weekday checkboxes, NO capacity,
+   single `appointmentTypeId`, and a `slotMode` radio (`'dates'` /
+   `'weekdays'`) -- exactly the "from" state the plan rewrites
+   (verified component lines 46-60, 171-255).
+
+2. **CONFIRMED (HIGH)** -- `<app-multi-lookup-select>` does NOT exist;
+   no file matches `**/*multi-lookup*`. Plan's premise to CREATE it
+   holds. NOTE: a different shared component DOES exist --
+   `angular/src/app/shared/components/app-lookup-select.component.ts`
+   (a single-select wrapper extending ABP's `LookupSelectComponent`,
+   adds `markForCheck()`; BUG-007 fix). Plan section 1's NEW file
+   path `shared/components/multi-lookup-select.component.ts` does not
+   collide. See revised Decision 3 re: selector/import.
+
+3. **CORRECTED (HIGH)** -- proxy `generatePreview` currently takes an
+   ARRAY (`DoctorAvailabilityGenerateInputDto[]`) posting to
+   `/api/app/doctor-availabilities/preview`, and there is NO
+   `createRange` method yet (proxy service lines 50-56). Phase 3
+   (per its resolved readiness check `_2026-05-20-slot-phase-3-readiness-check.md`,
+   decision Q1=C) keeps the `preview` route and adds a NEW
+   `create-range` sibling. After regen the proxy method will be
+   `createRange(input: DoctorAvailabilityGenerateInputDto)` posting to
+   `/api/app/doctor-availabilities/create-range`, and `generatePreview`
+   becomes single-DTO. Plan body already assumes single-DTO + createRange;
+   marked "verify after Phase 3 proxy regen."
+
+4. **CORRECTED (HIGH)** -- current `DoctorAvailabilityGenerateInputDto`
+   (proxy models.ts lines 42-51) has NO `selectedDays`, `timeRanges`,
+   `appointmentTypeIds`, or `capacity`; it has single `fromTime`/`toTime`/
+   `appointmentTypeId`. These fields arrive via Phase 1 + Phase 3 regen.
+   Plan's `buildPayload()` shape is the post-regen target -- marked
+   "verify after Phase 3 proxy regen."
+
+5. **CORRECTED (HIGH)** -- `DoctorAvailabilityCreateRangeResultDto` does
+   NOT exist in proxy models yet. Phase 3 plan defines it with
+   `InsertedCount` + `SkippedConflictCount` (Phase 3 body lines 269-272).
+   Plan's `result.insertedCount` / `result.skippedConflictCount`
+   property reads match the camelCased proxy shape -- marked
+   "verify after Phase 3 proxy regen."
+
+6. **CORRECTED (HIGH)** -- section 7 (list page column swap) is based
+   on a FALSE assumption. The list HTML
+   `doctor-availability.component.html` does NOT render an
+   `appointmentType` column (`{{ row.appointmentType?.name }}` does not
+   exist). The list groups slots by date with columns Location /
+   AppointmentDate / AvailableSlot / BookedSlot / ReservedSlot /
+   TotalSlot / Action (verified lines 196-205). The inner expanded
+   table shows Location / TimeSlots / Status / Action (lines 247-250).
+   There is no per-row appointment-type cell to swap. Section 7
+   rewritten to: OPTIONAL -- only add Capacity/AppointmentTypes columns
+   if the grouped list is later denormalized; out of scope for this
+   plan as written. See revised section 7. ALSO section 6 is a no-op:
+   `appointmentType` returns zero grep matches in
+   `doctor-availability.abstract.service.ts` -- nothing to swap there
+   either. See revised section 6.
+
+7. **CONFIRMED (HIGH)** -- `@for`/`@if` control flow is the repo
+   convention (list HTML lines 135, 208, 241, 254, 263; app-lookup-select
+   line 58). Plan's `@for`/`@if` usage is correct. `*abpPermission` and
+   `*ngFor`-free templates confirmed.
+
+8. **CONFIRMED (HIGH)** -- `ToasterService` import from
+   `@abp/ng.theme.shared` is correct (used in
+   appointment-packet.component.ts:11, appointment-documents.component.ts:14).
+
+9. **CONFIRMED (MEDIUM)** -- detail component
+   `doctor-availability-detail.component.ts` is standalone, imports
+   ABP's `LookupSelectComponent` directly (not the app- wrapper); detail
+   HTML binds `formControlName="appointmentTypeId"` via `<abp-lookup-select>`
+   at line 99 (NOT line cited in plan). Detail abstract service
+   `doctor-availability-detail.abstract.service.ts` buildForm has
+   `appointmentTypeId: [appointmentTypeId ?? null, []]` at line 94 and NO
+   `capacity` control. Plan sections 4-5 edit targets confirmed; line
+   numbers updated.
+
+10. **FLAGGED RISK (MEDIUM)** -- `@ng-bootstrap/ng-bootstrap` is NOT a
+    direct dependency in `angular/package.json`; it is present
+    transitively (installed v19.0.1) via `@volo/abp.commercial.ng.ui`
+    `~10.0.2`. Decision 3 builds the multi-lookup around
+    `NgbTypeaheadModule` from this transitive dep. `NgbTypeaheadModule`
+    exists in ng-bootstrap 19, so it WILL compile, but relying on a
+    transitive peer is fragile. RECOMMENDATION: either add
+    `@ng-bootstrap/ng-bootstrap` as an explicit direct dependency, OR
+    avoid ng-bootstrap entirely and build the multi-select on Angular
+    Material `<mat-select multiple>` / `<mat-chip-grid>` (Material is
+    already a documented UI layer per root CLAUDE.md). See revised
+    Decision 3 + Open Question O-1.
+
+11. **FLAGGED (LOW)** -- Decision 2 / form: `selectedDays` as a
+    `FormGroup` keyed by numeric strings `0..6` with template
+    `[formControlName]="$index"` is valid (numeric keys match the
+    `@for` `$index`) but is a non-idiomatic pattern. Angular's
+    documented idiom for a fixed set of named controls is string
+    `formControlName`. Works as written; noted as a maintainability
+    flag, not a blocker. (Angular typed-forms + FormArray docs:
+    https://angular.dev/guide/forms/typed-forms ,
+    https://angular.dev/guide/forms/reactive-forms )
+
+12. **CONFIRMED (HIGH)** -- Angular `~20.3.19`, `@angular/forms`
+    `~20.3.19` (package.json lines 29-30). Plan's `@if`/`@for`,
+    standalone components, typed `fb.nonNullable.group`, and
+    `fb.array<FormGroup<...>>` are all supported in Angular 20.
 
 ## Goal
 
@@ -90,14 +226,32 @@ conflicts" become single-shot.
    "all weekdays" sentinel) -- saves bandwidth.
 
 3. **Multi-select appointment types**. The codebase does NOT
-   ship a generic multi-pick lookup component. Build a slim
-   wrapper `<app-multi-lookup-select>` (NEW file) that:
-   - Wraps `<ngb-typeahead>` for filterable lookup.
-   - Accepts the same `[getFn]` shape as
-     `<abp-lookup-select>`.
+   ship a generic multi-pick lookup component (verified
+   2026-05-27: no `**/*multi-lookup*` file). It DOES ship a
+   single-select `app-lookup-select` wrapper at
+   `shared/components/app-lookup-select.component.ts` (extends
+   ABP `LookupSelectComponent`, BUG-007 markForCheck fix) -- a
+   reference for the wrapper style, NOT a multi-pick.
+
+   Build a slim wrapper `<app-multi-lookup-select>` (NEW file) that:
+   - Accepts the same `[getFn]` shape as `<abp-lookup-select>`.
    - Models the value as `Guid[]`.
-   - Renders selected items as Bootstrap badges with an "x"
-     to remove.
+   - Renders selected items as removable chips/badges.
+
+   **2026-05-27 dependency flag (verify before build):**
+   `@ng-bootstrap/ng-bootstrap` is NOT a direct dependency in
+   `angular/package.json`; it is present transitively (installed
+   v19.0.1) via `@volo/abp.commercial.ng.ui ~10.0.2`. The TS code
+   below imports `NgbTypeaheadModule` -- this compiles against the
+   transitive dep but relies on @volo continuing to bundle
+   ng-bootstrap. Two options (decide via Open Question O-1):
+   - **A** -- Add `@ng-bootstrap/ng-bootstrap` as an explicit
+     direct dependency, then keep the `<ngb-typeahead>` approach
+     below. Lowest code churn.
+   - **B** -- Rebuild the wrapper on Angular Material
+     (`<mat-select multiple>` + `<mat-chip-grid>`), which root
+     CLAUDE.md already endorses as the NEW UI layer. Avoids the
+     transitive-peer risk; slightly more template work.
 
    The wrapper is built ONCE and reused in plan 5 if needed.
    The implementation is ~80 lines TS + 40 lines HTML.
@@ -719,8 +873,16 @@ multi-pick. Two small edits:
 
 - Add `<input type="number" min="1" formControlName="capacity">`
   to the form template.
-- Replace `<abp-lookup-select formControlName="appointmentTypeId">`
-  with `<app-multi-lookup-select formControlName="appointmentTypeIds">`.
+- Replace the existing `<abp-lookup-select
+  formControlName="appointmentTypeId">` (verified 2026-05-27 at
+  `doctor-availability-detail.component.html` lines 97-101, inside
+  the `ng-template` nav tab) with `<app-multi-lookup-select
+  formControlName="appointmentTypeIds">`. NOTE: the detail modal
+  imports ABP's `LookupSelectComponent` directly (not the
+  `app-lookup-select` wrapper); add `MultiLookupSelectComponent`
+  to the component's `imports` array. This edit depends on the
+  detail/update DTO carrying `appointmentTypeIds` + `capacity`
+  after Phase 1/3 -- verify after proxy regen.
 
 Update `doctor-availability-detail.abstract.service.ts` form-
 builder spec accordingly:
@@ -748,27 +910,30 @@ return {
 
 ### 6. `angular/src/app/doctor-availabilities/doctor-availability/services/doctor-availability.abstract.service.ts`
 
-If the list-view grouping uses `appointmentType` anywhere, swap
-to plural `appointmentTypes` and render as a comma-separated
-list of names. Grep
-`appointmentType` in the abstract service to confirm.
+**Verified 2026-05-27: NO-OP.** Grepping `appointmentType` in
+`doctor-availability.abstract.service.ts` returns zero matches --
+the list-view grouping does not reference appointment type at all.
+There is nothing to swap. This section is out of scope as written;
+see the superseded note in section 7.
 
 ### 7. `angular/src/app/doctor-availabilities/doctor-availability/components/doctor-availability.component.html` (list page)
 
-Update the column display for AppointmentType to render the
-new list. If the list page currently shows `{{ row.appointmentType?.name }}`,
-swap to:
+**SUPERSEDED 2026-05-27 -- the original assumption is false.**
+The list page does NOT render an `appointmentType` column. As of
+HEAD ad07947 the outer grouped table has columns Location /
+AppointmentDate / AvailableSlot / BookedSlot / ReservedSlot /
+TotalSlot / Action (verified lines 196-205), and the inner
+expanded slot table shows Location / TimeSlots / Status / Action
+(lines 247-250). There is no `{{ row.appointmentType?.name }}`
+binding to swap and no per-row appointment-type or capacity cell.
 
-```html
-@for (at of row.appointmentTypes; track at.id; let last = $last) {
-  {{ at.name }}{{ last ? '' : ', ' }}
-}
-@if (!row.appointmentTypes?.length) {
-  <span class="text-muted">{{ '::AnyType' | abpLocalization }}</span>
-}
-```
-
-Add a column for `Capacity` between BookingStatus and AppointmentTypes.
+Therefore this section's column-swap is a NO-OP against current
+source. It is OUT OF SCOPE for this plan. If, after Phase 1/3,
+the team wants the list to surface Capacity + AppointmentTypes
+per slot, that is a separate denormalization task on the inner
+expanded table (and a `WithNavigationPropertiesDto` shape change)
+-- not the simple swap originally described. Do not implement
+section 7 as written.
 
 ### 8. `angular/src/environments/en.json` (or wherever the en-localization JSON lives in the SPA's local copy)
 
@@ -841,6 +1006,36 @@ After ship:
    IsConflict=true in the preview (overlap with the just-
    created rows). Click Submit. Toast: "Inserted 0 slots.
    Skipped 80 due to conflicts."
+
+## Open questions (added 2026-05-27, need decisions before build)
+
+### O-1 -- multi-lookup component foundation: ng-bootstrap vs Material
+
+`@ng-bootstrap/ng-bootstrap` is a TRANSITIVE dep (v19.0.1 via
+`@volo/abp.commercial.ng.ui ~10.0.2`), not declared in
+`angular/package.json`. Decision 3 code imports `NgbTypeaheadModule`.
+
+- **A** -- Add `@ng-bootstrap/ng-bootstrap` as an explicit direct
+  dependency; keep the `<ngb-typeahead>` wrapper. Lowest churn,
+  matches the existing Bootstrap-flavored templates.
+- **B** -- Build the wrapper on Angular Material
+  (`<mat-select multiple>` + `<mat-chip-grid>`). Avoids the
+  implicit-peer risk; root CLAUDE.md endorses Material as the NEW
+  UI layer.
+
+Recommendation: **A** for visual consistency with the existing
+Bootstrap scaffold, OR **B** if the team is standardizing on
+Material going forward. Adrian to decide.
+
+### O-2 -- verify all proxy/DTO "to" states after Phase 3 regen
+
+Every `from`->`to` field name in `buildPayload()`, the
+`DoctorAvailabilityCreateRangeResultDto` property reads
+(`insertedCount`, `skippedConflictCount`), the single-DTO
+`generatePreview` / new `createRange` proxy methods, and the
+`DoctorAvailabilitySlotPreviewDto.capacity` / `.appointmentTypeIds`
+preview reads are POST-REGEN assumptions. Re-run a 5-minute proxy
+diff immediately after Phase 3 ships and before writing this UI.
 
 ## Risk and rollback
 

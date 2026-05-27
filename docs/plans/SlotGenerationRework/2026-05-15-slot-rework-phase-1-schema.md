@@ -5,6 +5,7 @@ owner: AdrianG
 created: 2026-05-15
 revised: 2026-05-20 (drift check + locked decisions baked in -- see
   `_2026-05-20-slot-phase-1-readiness-check.md`)
+re-verified: 2026-05-27 (HEAD ad07947 -- see changelog below)
 approach: code + tdd (TDD on entity construction + mapper output;
   code-only on the migration and DbContext config)
 sequence: 2 of 7 (slot-generation + doctor-invariant series)
@@ -22,6 +23,107 @@ decisions-locked-2026-05-20:
     so backfilled rows on soft-deleted slots stay hidden.
   Q4 (Mapperly converter): A -- try the default [MapProperty]
     first; only add the manual converter if source-gen warns.
+---
+
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below, INCLUDING the
+`decisions-locked-2026-05-20` Q2 backfill decision in the frontmatter.
+
+- **New-slot Capacity default = 3** (not 1). Set the `Capacity` column default
+  to 3; internal staff may override per slot during generation (Plan 3).
+- **NO data-preserving backfill -- the app is pre-deployment.** On merge,
+  existing `DoctorAvailability` rows (and dependent demo `Appointment` rows)
+  are wiped and reseeded fresh by `DbMigrator` under the new model. Therefore:
+  - DROP the migration `Up()` INSERT...SELECT that backfills the M2M
+    (`AppointmentTypeId` -> `AppointmentTypes`).
+  - DROP the `Capacity` backfill of existing rows.
+  - The 2026-05-20 readiness Q2 (backfill soft-deleted slots) and drift item
+    D5 are now MOOT -- ignore them.
+  - The migration only needs to: add the `DoctorAvailabilityAppointmentType`
+    M2M join table + the `Capacity` column (default 3), and drop the old single
+    `AppointmentTypeId` FK/column.
+- **Seed update:** wherever demo slots are seeded (`DbMigrator` seed
+  contributor), create them under the new model -- `Capacity = 3` + M2M
+  appointment types. (Implementation note for the executor.)
+
+## Re-verified 2026-05-27 (HEAD ad07947)
+
+~50 commits landed between the 2026-05-20 readiness bake and today
+(rejection-notes, SSN redaction, approve-date, packet unique-index,
+etc.). All domain/DTO/mapper/repo files for DoctorAvailabilities
+were re-read directly. Findings below; confidence is HIGH (every
+item was verified against current source).
+
+### CONFIRMED UNCHANGED (plan "from" snippets still accurate)
+
+| File | Evidence |
+|---|---|
+| `DoctorAvailability.cs` (46 lines) | `Guid? AppointmentTypeId` at line 30; constructor at line 36 with `Guid? appointmentTypeId`. No `Capacity`, no `AppointmentTypes` collection. |
+| `DoctorAvailabilityManager.cs` (46 lines) | `CreateAsync(Guid locationId, Guid? appointmentTypeId, ...)` line 23; `UpdateAsync` same shape line 32. |
+| `IDoctorAvailabilityRepository.cs` | Two methods carry `appointmentTypeId`: `GetListWithNavigationPropertiesAsync` (line 13) and `GetCountAsync` (line 15). D1 fix already baked in is CORRECT. |
+| `EfCoreDoctorAvailabilityRepository.cs` (74 lines) | `ApplyFilter(nav-props overload)` at line 52; flat overload at line 57. Both confirmed. |
+| `CaseEvaluationDbContext.cs` | DoctorAvailability config block at lines 189-200. `HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(SetNull)` at line 199. |
+| `AppService.GetListAsync` call site | Lines 55-56 pass `input.AppointmentTypeId` to `GetCountAsync` and `GetListWithNavigationPropertiesAsync`. D3 fix already baked in is CORRECT. |
+| `AppService.CreateAsync` | Line 188: `_doctorAvailabilityManager.CreateAsync(input.LocationId, input.AppointmentTypeId, ...)`. |
+| `AppService.UpdateAsync` | Line 210: `_doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeId, ...)`. |
+| `AppService.GeneratePreviewAsync` slot construction | Line 267: `AppointmentTypeId = item.AppointmentTypeId`. Plan's "set AppointmentTypeIds = item.AppointmentTypeIds" replacement applies. |
+| `AppService.GetDoctorAvailabilityLookupAsync` | Lines 398-405: `if (input.AppointmentTypeId.HasValue) { var typeId = ...; query = query.Where(x => x.AppointmentTypeId == null || x.AppointmentTypeId == typeId); }`. D2 fix baked in is CORRECT; guard is preserved in plan. |
+| `CaseEvaluationApplicationMappers.cs` | `DoctorAvailabilityToDoctorAvailabilityDtoMappers` at line 229; `DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper` at line 236. Both bare `[Mapper]`. D4 note baked in is CORRECT. |
+| All 11 originally-cited DTOs | `AppointmentTypeId : Guid?` present, no `Capacity`. Plan's "from" shape still matches. |
+
+### DRIFT FOUND AND FIXED IN THIS PASS
+
+**1. Migration baseline has advanced (section 8)**
+
+Readiness check (2026-05-20) said most-recent migration was
+`20260515183211_Added_Invitations`. Current state: the most recent
+migration is `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`
+(added since the readiness bake). The Phase20 name choice
+(`Phase20_DoctorAvailabilityCapacityAndTypeSet`) remains safe --
+no `Phase20_*` exists in the migrations folder. The
+`Phase##` numbering note in section 8 is updated to cite the
+current latest migration.
+
+**2. Backfill SQL excludes soft-deleted rows (CONTRADICTS locked Q2=A)**
+
+The migration `Up()` in section 8 contains:
+```sql
+WHERE da.[AppointmentTypeId] IS NOT NULL
+  AND da.[IsDeleted] = 0;
+```
+The locked decision Q2=A is "include ALL rows (including
+`IsDeleted = 1`) so a future un-soft-delete is lossless." The
+`AND da.[IsDeleted] = 0` filter directly contradicts this. The
+baking pass on 2026-05-20 corrected the prose but missed the SQL.
+Fixed below: the `IsDeleted` filter is removed from the INSERT.
+
+**3. Two new DTOs added after readiness check (section 9)**
+
+`DoctorAvailabilityBulkDeleteResultDto.cs` and
+`GetDoctorAvailabilityLookupInput.cs` were added after the
+readiness check. Neither was cited by the plan.
+
+- `DoctorAvailabilityBulkDeleteResultDto`: output DTO, no
+  `AppointmentTypeId`, no action needed.
+- `GetDoctorAvailabilityLookupInput`: has `AppointmentTypeId : Guid?`
+  as a SINGLE-TYPE booking picker input (Phase 7 parity). This
+  property is INTENTIONALLY kept as a single Guid? -- it is the
+  caller-supplied "what type is the patient booking?" signal that
+  drives the loose-or-strict predicate in
+  `GetDoctorAvailabilityLookupAsync`. Do NOT change it to
+  `List<Guid>` in this plan. Section 12's D2 replacement
+  (`query.Where(x => !x.AppointmentTypes.Any() || x.AppointmentTypes.Any(at => at.AppointmentTypeId == typeId))`)
+  reads this single `typeId` value unchanged.
+  Added a note in section 9 flagging these two files explicitly.
+
+### NO BLOCKING ISSUES FOUND
+
+All core assumptions hold. `DoctorAvailability` still has the
+single-FK shape the plan targets. No other feature landed code
+that touches the DoctorAvailability entity, repo, or mappers
+between 2026-05-20 and today.
+
 ---
 
 # Slot rework Phase 1: Capacity + multi-type schema
@@ -862,6 +964,10 @@ project's host-vs-tenant cascade convention -- see
 
 ### 8. EF Core migration: `Phase20_DoctorAvailabilityCapacityAndTypeSet`
 
+Migration baseline (re-verified 2026-05-27): most recent migration is
+`20260524012608_Packet_FilteredUniqueIndex_SoftDelete`. No `Phase20_*`
+exists; the name below is safe.
+
 Generate:
 
 ```bash
@@ -937,14 +1043,19 @@ public partial class Phase20_DoctorAvailabilityCapacityAndTypeSet : Migration
         // gets one join row. TenantId is mirrored from the parent slot.
         // Slots with AppointmentTypeId IS NULL stay with an empty set
         // (loose-mode parity).
+        //
+        // 2026-05-27 fix: intentionally includes soft-deleted rows
+        // (IsDeleted = 1). Locked decision Q2=A -- if a soft-deleted slot
+        // is later restored, its type assignment survives. The join table's
+        // HasQueryFilter(x => !x.DoctorAvailability.IsDeleted) keeps these
+        // rows invisible to EF queries until the parent is restored.
         migrationBuilder.Sql(@"
             INSERT INTO [AppEntity].[DoctorAvailabilityAppointmentType]
                 ([DoctorAvailabilityId], [AppointmentTypeId], [TenantId])
             SELECT
                 da.[Id], da.[AppointmentTypeId], da.[TenantId]
             FROM [AppEntity].[DoctorAvailabilities] da
-            WHERE da.[AppointmentTypeId] IS NOT NULL
-              AND da.[IsDeleted] = 0;
+            WHERE da.[AppointmentTypeId] IS NOT NULL;
         ");
 
         // 4. Drop the existing FK on DoctorAvailabilities.AppointmentTypeId,
@@ -1021,6 +1132,20 @@ local DB BEFORE editing the migration. If the name differs from
 the literal above, the `DropForeignKey` call must match exactly.
 
 ### 9. `src/HealthcareSupport.CaseEvaluation.Application.Contracts/DoctorAvailabilities/`
+
+Two files were added to this folder after the 2026-05-20 readiness check
+(re-verified 2026-05-27):
+
+- `DoctorAvailabilityBulkDeleteResultDto.cs` -- output-only DTO for the
+  partial-delete result. No `AppointmentTypeId`. No changes needed.
+- `GetDoctorAvailabilityLookupInput.cs` -- booking-form picker input.
+  Has `AppointmentTypeId : Guid?` as a SINGLE-TYPE signal ("what type
+  is the patient booking?"). This property is intentionally NOT changed
+  to `List<Guid>` -- it drives the loose-or-strict predicate in
+  `GetDoctorAvailabilityLookupAsync` (section 12) and maps to a single
+  requested type from the booking form. Keep it `Guid?`.
+
+The 11 files below are the ones this plan modifies.
 
 #### 9a. `DoctorAvailabilityCreateDto.cs`
 
