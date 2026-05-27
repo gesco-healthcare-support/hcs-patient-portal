@@ -113,6 +113,7 @@
             <app-appointment-add-attorney-section
               [form]="form"
               role="applicant"
+              [mandatory]="true"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="isApplicantAttorney && !isItAdmin"
               [isFieldInvalid]="isFieldInvalidBound"
@@ -124,6 +125,7 @@
             <app-appointment-add-attorney-section
               [form]="form"
               role="defense"
+              [mandatory]="true"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="isDefenseAttorney && !isItAdmin"
               [isFieldInvalid]="isFieldInvalidBound"
@@ -144,6 +146,11 @@
       [isClaimExaminerReadOnly]="isClaimExaminerRole && !isItAdmin"
       [claimExaminerPrefill]="claimExaminerPrefillForInjuryModal"
     />
+    @if (claimInformationMissing && injuryDrafts.length === 0) {
+      <div class="alert alert-danger py-2 mb-4" role="alert">
+        At least one Claim Information entry is required before booking.
+      </div>
+    }
 
     <!-- #121 phase T2 (2026-05-13): "Additional Authorized User"
          section. Extracted to <app-appointment-add-authorized-users>.

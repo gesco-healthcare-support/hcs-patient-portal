@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Enums;
 using Stateless;
 using System;
@@ -16,13 +17,18 @@ public class AppointmentManager : DomainService
 {
     protected IAppointmentRepository _appointmentRepository;
     protected ILocalEventBus _localEventBus;
+    // BUG-043 / T8 (2026-05-27) -- counts Claim Information rows to gate the
+    // Pending->Approved transition (see ApplyTransitionAsync).
+    protected IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
-        ILocalEventBus localEventBus)
+        ILocalEventBus localEventBus,
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository)
     {
         _appointmentRepository = appointmentRepository;
         _localEventBus = localEventBus;
+        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
     }
 
     public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
@@ -215,6 +221,24 @@ public class AppointmentManager : DomainService
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition)
                 .WithData("from", fromStatus)
                 .WithData("trigger", trigger);
+        }
+
+        if (trigger == AppointmentTransitionTrigger.Approve)
+        {
+            // BUG-043 / T8 (2026-05-27) -- defense-in-depth behind the
+            // client-side guard (T7): an appointment cannot be approved
+            // without at least one Claim Information (injury detail) row.
+            // Checked BEFORE the state machine fires so a failed gate
+            // leaves the status unchanged. Only the Pending->Approved
+            // transition is gated; the create-as-Approved internal
+            // fast-path attaches injuries after creation and is out of
+            // scope (see CreateAsync above + the T8 plan).
+            var injuryCount = await _appointmentInjuryDetailRepository.GetCountAsync(appointmentId: appointment.Id);
+            if (injuryCount < 1)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail)
+                    .WithData("appointmentId", appointment.Id);
+            }
         }
 
         machine.Fire(trigger);

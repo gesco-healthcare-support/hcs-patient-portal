@@ -510,15 +510,7 @@
       <div class="card border-0 shadow-sm mt-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
           <h4 class="mb-0 text-primary fw-bold">Applicant Attorney Details</h4>
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="view-applicant-attorney-enabled"
-              formControlName="applicantAttorneyEnabled"
-            />
-            <label class="form-check-label" for="view-applicant-attorney-enabled">Include</label>
-          </div>
+          <!-- BUG-044: applicant attorney is mandatory; no Include toggle. -->
         </div>
         @if (form.get('applicantAttorneyEnabled')?.value) {
           <div class="card-body">
@@ -678,15 +670,7 @@
       <div class="card border-0 shadow-sm mt-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
           <h4 class="mb-0 text-primary fw-bold">Defense Attorney Details</h4>
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="view-defense-attorney-enabled"
-              formControlName="defenseAttorneyEnabled"
-            />
-            <label class="form-check-label" for="view-defense-attorney-enabled">Include</label>
-          </div>
+          <!-- BUG-044: defense attorney is mandatory; no Include toggle. -->
         </div>
         @if (form.get('defenseAttorneyEnabled')?.value) {
           <div class="card-body">

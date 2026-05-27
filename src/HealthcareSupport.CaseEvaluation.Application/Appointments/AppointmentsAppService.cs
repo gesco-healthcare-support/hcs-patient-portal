@@ -1034,7 +1034,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var items = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
-        if (item?.ApplicantAttorney == null || item?.IdentityUser == null)
+        // BUG-042: return the attorney as soon as the master record exists.
+        // The IdentityUser is optional -- a booked attorney who never
+        // registered has no IdentityUser, but the booked name/firm/email
+        // still live on the master and must display.
+        if (item?.ApplicantAttorney == null)
         {
             return null;
         }
@@ -1044,10 +1048,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return new ApplicantAttorneyDetailsDto
         {
             ApplicantAttorneyId = a.Id,
-            IdentityUserId = u.Id,
-            FirstName = u.Name ?? string.Empty,
-            LastName = u.Surname ?? string.Empty,
-            Email = u.Email ?? string.Empty,
+            IdentityUserId = u?.Id ?? Guid.Empty,
+            // Prefer the stored (booked) name; fall back to the IdentityUser
+            // name only for legacy rows persisted before the name columns.
+            FirstName = a.FirstName ?? u?.Name ?? string.Empty,
+            LastName = a.LastName ?? u?.Surname ?? string.Empty,
+            Email = a.Email ?? u?.Email ?? string.Empty,
             FirmName = a.FirmName,
             WebAddress = a.WebAddress,
             PhoneNumber = a.PhoneNumber,
@@ -1108,7 +1114,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.City,
                 input.ZipCode,
                 input.ConcurrencyStamp,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
         else
         {
@@ -1123,7 +1131,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
 
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
@@ -1251,7 +1261,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
         var item = items.FirstOrDefault();
-        if (item?.DefenseAttorney == null || item?.IdentityUser == null)
+        // BUG-042: return the attorney as soon as the master record exists;
+        // the IdentityUser is optional (unregistered booked attorney).
+        if (item?.DefenseAttorney == null)
         {
             return null;
         }
@@ -1261,10 +1273,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return new DefenseAttorneyDetailsDto
         {
             DefenseAttorneyId = d.Id,
-            IdentityUserId = u.Id,
-            FirstName = u.Name ?? string.Empty,
-            LastName = u.Surname ?? string.Empty,
-            Email = u.Email ?? string.Empty,
+            IdentityUserId = u?.Id ?? Guid.Empty,
+            // Prefer the stored (booked) name; fall back to IdentityUser
+            // only for legacy rows persisted before the name columns.
+            FirstName = d.FirstName ?? u?.Name ?? string.Empty,
+            LastName = d.LastName ?? u?.Surname ?? string.Empty,
+            Email = d.Email ?? u?.Email ?? string.Empty,
             FirmName = d.FirmName,
             WebAddress = d.WebAddress,
             PhoneNumber = d.PhoneNumber,
@@ -1320,7 +1334,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.City,
                 input.ZipCode,
                 input.ConcurrencyStamp,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
         else
         {
@@ -1335,7 +1351,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 input.Street,
                 input.City,
                 input.ZipCode,
-                normalisedEmail);
+                normalisedEmail,
+                input.FirstName,
+                input.LastName);
         }
 
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);

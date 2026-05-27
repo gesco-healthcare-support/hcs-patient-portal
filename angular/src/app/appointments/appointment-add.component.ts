@@ -174,6 +174,10 @@ export class AppointmentAddComponent {
   // wiring all moved to AppointmentAddClaimInformationComponent.
   injuryDrafts: AppointmentInjuryDraft[] = [];
 
+  // BUG-043: set true when submit is attempted with no Claim Information,
+  // to drive the inline message on the Claim Information card.
+  claimInformationMissing = false;
+
   /**
    * #121 phase T4 (2026-05-13) -- computed Input passed to the
    * claim-information section. Returns name + email when the booker is
@@ -912,6 +916,17 @@ export class AppointmentAddComponent {
       return;
     }
 
+    // BUG-043: Claim Information is required for all appointment types
+    // (OLD parity -- OLD blocked submit when no injury detail existed).
+    // The per-claim modal validates each entry; this guards that at least
+    // one claim was added before the appointment can be booked.
+    if (this.injuryDrafts.length === 0) {
+      this.claimInformationMissing = true;
+      this.patientLoadMessage = 'Please add at least one Claim Information entry before saving.';
+      return;
+    }
+    this.claimInformationMissing = false;
+
     this.isSaving = true;
     try {
       const rawSubmit = this.form.getRawValue();
@@ -996,6 +1011,9 @@ export class AppointmentAddComponent {
 
   reset(): void {
     this.form.reset();
+    // BUG-044: both attorney sections are mandatory; form.reset() nulls the
+    // Enabled flags, so re-assert them to keep the required validators on.
+    this.form.patchValue({ applicantAttorneyEnabled: true, defenseAttorneyEnabled: true });
     this.updateLocationSelection(null);
     this.clearTimeSlots();
   }

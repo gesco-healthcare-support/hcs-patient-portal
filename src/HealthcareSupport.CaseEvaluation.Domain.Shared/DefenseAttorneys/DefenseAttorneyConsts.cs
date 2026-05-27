@@ -9,6 +9,8 @@ public static class DefenseAttorneyConsts
         return string.Format(DefaultSorting, withEntityName ? "DefenseAttorney." : string.Empty);
     }
 
+    public const int FirstNameMaxLength = 50;
+    public const int LastNameMaxLength = 50;
     public const int FirmNameMaxLength = 50;
     public const int FirmAddressMaxLength = 100;
     public const int WebAddressMaxLength = 100;

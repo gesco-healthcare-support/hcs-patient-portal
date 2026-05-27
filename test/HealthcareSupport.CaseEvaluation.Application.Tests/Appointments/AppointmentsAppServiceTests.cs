@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
@@ -658,5 +661,239 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             PanelNumber = null,
             DueDate = null,
         };
+    }
+
+    // =====================================================================
+    // BUG-042 (T2): attorney name is stored on the master record so a
+    // booked attorney who never registered (IdentityUserId == null) still
+    // has a persisted First/Last name. Tests the domain managers directly.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApplicantAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
+    {
+        var manager = GetRequiredService<ApplicantAttorneyManager>();
+        var repository = GetRequiredService<IApplicantAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Stone & Associates",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "aria.synthetic@test.local",
+            firstName: "Aria",
+            lastName: "Stone");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Aria");
+            persisted.LastName.ShouldBe("Stone");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DefenseAttorneyManager_CreateAsync_PersistsFirstAndLastName_WithoutIdentityUser()
+    {
+        var manager = GetRequiredService<DefenseAttorneyManager>();
+        var repository = GetRequiredService<IDefenseAttorneyRepository>();
+
+        var created = await manager.CreateAsync(
+            stateId: null,
+            identityUserId: null,
+            firmName: "Shield Defense Group",
+            firmAddress: null,
+            phoneNumber: null,
+            webAddress: null,
+            faxNumber: null,
+            street: null,
+            city: null,
+            zipCode: null,
+            email: "dana.synthetic@test.local",
+            firstName: "Dana",
+            lastName: "Defense");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var persisted = await repository.GetAsync(created.Id);
+            persisted.FirstName.ShouldBe("Dana");
+            persisted.LastName.ShouldBe("Defense");
+            persisted.IdentityUserId.ShouldBeNull();
+        }
+    }
+
+    // =====================================================================
+    // BUG-042 (T3): the appointment attorney getters return the stored
+    // (booked) name even when the attorney never registered (no
+    // IdentityUser). Previously the getter returned null in that case,
+    // leaving the section blank in the view.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetAppointmentApplicantAttorneyAsync_ReturnsStoredName_WhenAttorneyHasNoIdentityUser()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(28),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var createInput = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var appointment = await _appointmentsAppService.CreateAsync(createInput);
+
+            await _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointment.Id, new ApplicantAttorneyDetailsDto
+            {
+                ApplicantAttorneyId = null,
+                IdentityUserId = Guid.Empty,
+                FirstName = "Aria",
+                LastName = "Stone",
+                Email = "aria.synthetic@test.local",
+                FirmName = "Stone & Associates",
+            });
+
+            var result = await _appointmentsAppService.GetAppointmentApplicantAttorneyAsync(appointment.Id);
+
+            result.ShouldNotBeNull();
+            result!.FirstName.ShouldBe("Aria");
+            result.LastName.ShouldBe("Stone");
+            result.FirmName.ShouldBe("Stone & Associates");
+            result.Email.ShouldBe("aria.synthetic@test.local");
+            result.IdentityUserId.ShouldBe(Guid.Empty);
+        }
+    }
+
+    [Fact]
+    public async Task GetAppointmentDefenseAttorneyAsync_ReturnsStoredName_WhenAttorneyHasNoIdentityUser()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(35),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var createInput = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var appointment = await _appointmentsAppService.CreateAsync(createInput);
+
+            await _appointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(appointment.Id, new DefenseAttorneyDetailsDto
+            {
+                DefenseAttorneyId = null,
+                IdentityUserId = Guid.Empty,
+                FirstName = "Dana",
+                LastName = "Defense",
+                Email = "dana.synthetic@test.local",
+                FirmName = "Shield Defense Group",
+            });
+
+            var result = await _appointmentsAppService.GetAppointmentDefenseAttorneyAsync(appointment.Id);
+
+            result.ShouldNotBeNull();
+            result!.FirstName.ShouldBe("Dana");
+            result.LastName.ShouldBe("Defense");
+            result.FirmName.ShouldBe("Shield Defense Group");
+            result.Email.ShouldBe("dana.synthetic@test.local");
+            result.IdentityUserId.ShouldBe(Guid.Empty);
+        }
+    }
+
+    // =====================================================================
+    // BUG-043 (T8): approval-time defense-in-depth. The Pending -> Approved
+    // transition is blocked unless the appointment carries at least one
+    // Claim Information (injury detail) row. Mirrors the client-side guard
+    // (T7) so a direct API approve cannot bypass the requirement. The gate
+    // lives in AppointmentManager.ApplyTransitionAsync's Approve branch --
+    // the single chokepoint both approve surfaces funnel through.
+    // =====================================================================
+
+    [Fact]
+    public async Task ApproveAsync_Throws_WhenAppointmentHasNoInjuryDetail()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(42),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-NOINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var manager = GetRequiredService<AppointmentManager>();
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail);
+        }
+    }
+
+    [Fact]
+    public async Task ApproveAsync_Succeeds_WhenAppointmentHasInjuryDetail()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(49),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T8-WITHINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+            await injuryRepository.InsertAsync(
+                new AppointmentInjuryDetail(
+                    Guid.NewGuid(),
+                    appointment.Id,
+                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    claimNumber: "CLM-TEST-0001",
+                    isCumulativeInjury: false,
+                    bodyPartsSummary: "Lower back"),
+                autoSave: true);
+
+            var manager = GetRequiredService<AppointmentManager>();
+            var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
+
+            approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+        }
+    }
+
+    /// <summary>
+    /// Inserts a Pending appointment directly via the repository (bypassing
+    /// the AppService CreateAsync, whose internal-caller fast-path stamps
+    /// Approved in the always-allow test harness). Mirrors the
+    /// <c>new Appointment(...)</c> seeding precedent in
+    /// AppointmentApprovalValidatorUnitTests; reuses seeded FK targets so
+    /// the SQLite FK constraints are satisfied.
+    /// </summary>
+    private async Task<Appointment> InsertPendingAppointmentInTenantAAsync(
+        Guid doctorAvailabilityId,
+        DateTime appointmentDate,
+        string requestConfirmationNumber)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var appointment = new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: doctorAvailabilityId,
+                appointmentDate: appointmentDate,
+                requestConfirmationNumber: requestConfirmationNumber,
+                appointmentStatus: AppointmentStatusType.Pending);
+            return await _appointmentRepository.InsertAsync(appointment, autoSave: true);
+        }
     }
 }

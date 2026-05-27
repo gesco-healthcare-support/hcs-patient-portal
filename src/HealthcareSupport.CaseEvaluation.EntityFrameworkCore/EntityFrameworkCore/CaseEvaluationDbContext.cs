@@ -554,6 +554,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ApplicantAttorneys", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(ApplicantAttorney.TenantId));
+            b.Property(x => x.FirstName).HasColumnName(nameof(ApplicantAttorney.FirstName)).HasMaxLength(ApplicantAttorneyConsts.FirstNameMaxLength);
+            b.Property(x => x.LastName).HasColumnName(nameof(ApplicantAttorney.LastName)).HasMaxLength(ApplicantAttorneyConsts.LastNameMaxLength);
             b.Property(x => x.FirmName).HasColumnName(nameof(ApplicantAttorney.FirmName)).HasMaxLength(ApplicantAttorneyConsts.FirmNameMaxLength);
             b.Property(x => x.FirmAddress).HasColumnName(nameof(ApplicantAttorney.FirmAddress)).HasMaxLength(ApplicantAttorneyConsts.FirmAddressMaxLength);
             b.Property(x => x.WebAddress).HasColumnName(nameof(ApplicantAttorney.WebAddress)).HasMaxLength(ApplicantAttorneyConsts.WebAddressMaxLength);
@@ -580,6 +582,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DefenseAttorneys", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(DefenseAttorney.TenantId));
+            b.Property(x => x.FirstName).HasColumnName(nameof(DefenseAttorney.FirstName)).HasMaxLength(DefenseAttorneyConsts.FirstNameMaxLength);
+            b.Property(x => x.LastName).HasColumnName(nameof(DefenseAttorney.LastName)).HasMaxLength(DefenseAttorneyConsts.LastNameMaxLength);
             b.Property(x => x.FirmName).HasColumnName(nameof(DefenseAttorney.FirmName)).HasMaxLength(DefenseAttorneyConsts.FirmNameMaxLength);
             b.Property(x => x.FirmAddress).HasColumnName(nameof(DefenseAttorney.FirmAddress)).HasMaxLength(DefenseAttorneyConsts.FirmAddressMaxLength);
             b.Property(x => x.WebAddress).HasColumnName(nameof(DefenseAttorney.WebAddress)).HasMaxLength(DefenseAttorneyConsts.WebAddressMaxLength);

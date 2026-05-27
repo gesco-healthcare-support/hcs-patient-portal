@@ -51,6 +51,10 @@ export class AppointmentAddAttorneySectionComponent {
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
   @Input() isReadOnly = false;
+  /** BUG-044: when true, the section is required -- the "Include" toggle is
+   * hidden and the body always renders. The parent keeps `{prefix}Enabled`
+   * locked to true so the required validators stay applied. */
+  @Input() mandatory = false;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
 
   /** Field-name prefix used by every formControlName in this section's

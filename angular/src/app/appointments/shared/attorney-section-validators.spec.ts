@@ -18,7 +18,7 @@ describe('attorney-section-validators', () => {
   let form: FormGroup;
 
   /**
-   * Build a fresh form with all 8 suffix-fields + the Enabled toggle
+   * Build a fresh form with all 9 suffix-fields + the Enabled toggle
    * for both prefixes. Mirrors the per-prefix shape that the production
    * components declare.
    */
@@ -43,14 +43,23 @@ describe('attorney-section-validators', () => {
   });
 
   describe('ATTORNEY_SECTION_SUFFIXES', () => {
-    it('declares 8 entries -- matches OLD Mandatory Fields modal', () => {
-      expect(ATTORNEY_SECTION_SUFFIXES.length).toBe(8);
+    it('declares 9 entries -- OLD Mandatory Fields modal + split Last Name (BUG-042)', () => {
+      expect(ATTORNEY_SECTION_SUFFIXES.length).toBe(9);
     });
 
     it('includes FirmName with maxLength 50', () => {
       const firm = ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'FirmName');
       expect(firm).toBeDefined();
       expect(firm!.maxLength).toBe(50);
+    });
+
+    it('includes split FirstName + LastName, each maxLength 50 (BUG-042)', () => {
+      const first = ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'FirstName');
+      const last = ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'LastName');
+      expect(first).toBeDefined();
+      expect(first!.maxLength).toBe(50);
+      expect(last).toBeDefined();
+      expect(last!.maxLength).toBe(50);
     });
 
     it('declares StateId with maxLength 0 (select, no length check)', () => {
