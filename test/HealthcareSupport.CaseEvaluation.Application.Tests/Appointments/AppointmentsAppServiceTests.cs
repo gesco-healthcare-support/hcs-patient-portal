@@ -727,4 +727,79 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             persisted.IdentityUserId.ShouldBeNull();
         }
     }
+
+    // =====================================================================
+    // BUG-042 (T3): the appointment attorney getters return the stored
+    // (booked) name even when the attorney never registered (no
+    // IdentityUser). Previously the getter returned null in that case,
+    // leaving the section blank in the view.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetAppointmentApplicantAttorneyAsync_ReturnsStoredName_WhenAttorneyHasNoIdentityUser()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(28),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var createInput = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var appointment = await _appointmentsAppService.CreateAsync(createInput);
+
+            await _appointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(appointment.Id, new ApplicantAttorneyDetailsDto
+            {
+                ApplicantAttorneyId = null,
+                IdentityUserId = Guid.Empty,
+                FirstName = "Aria",
+                LastName = "Stone",
+                Email = "aria.synthetic@test.local",
+                FirmName = "Stone & Associates",
+            });
+
+            var result = await _appointmentsAppService.GetAppointmentApplicantAttorneyAsync(appointment.Id);
+
+            result.ShouldNotBeNull();
+            result!.FirstName.ShouldBe("Aria");
+            result.LastName.ShouldBe("Stone");
+            result.FirmName.ShouldBe("Stone & Associates");
+            result.Email.ShouldBe("aria.synthetic@test.local");
+            result.IdentityUserId.ShouldBe(Guid.Empty);
+        }
+    }
+
+    [Fact]
+    public async Task GetAppointmentDefenseAttorneyAsync_ReturnsStoredName_WhenAttorneyHasNoIdentityUser()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(35),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var createInput = BuildScratchCreateDto(scratchSlot.Id, scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15));
+            var appointment = await _appointmentsAppService.CreateAsync(createInput);
+
+            await _appointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(appointment.Id, new DefenseAttorneyDetailsDto
+            {
+                DefenseAttorneyId = null,
+                IdentityUserId = Guid.Empty,
+                FirstName = "Dana",
+                LastName = "Defense",
+                Email = "dana.synthetic@test.local",
+                FirmName = "Shield Defense Group",
+            });
+
+            var result = await _appointmentsAppService.GetAppointmentDefenseAttorneyAsync(appointment.Id);
+
+            result.ShouldNotBeNull();
+            result!.FirstName.ShouldBe("Dana");
+            result.LastName.ShouldBe("Defense");
+            result.FirmName.ShouldBe("Shield Defense Group");
+            result.Email.ShouldBe("dana.synthetic@test.local");
+            result.IdentityUserId.ShouldBe(Guid.Empty);
+        }
+    }
 }
