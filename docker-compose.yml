@@ -129,12 +129,12 @@ services:
   authserver:
     build:
       context: .
-      # Dockerfile.dev runs `dotnet run` (single-shot, no watcher) after a
-      # fresh restore. Iterate on source via `docker compose restart
-      # authserver` -- the bind-mounted source is picked up on restart.
-      # OBS-22 (2026-05-22): watcher removed after repeated bind-mount /
-      # inotify drift on Windows hosts.
-      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile.dev
+      # Multi-stage production Dockerfile: SDK build stage runs `dotnet publish`,
+      # final stage is the small aspnet runtime image with only the published
+      # output (~0.6 GB vs the old single-stage SDK Dockerfile.dev ~4.6 GB). No
+      # source is mounted, so to apply a backend code change, rebuild:
+      # `docker compose up -d --build authserver`.
+      dockerfile: src/HealthcareSupport.CaseEvaluation.AuthServer/Dockerfile
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
@@ -183,21 +183,13 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
-      # Bind source so each `docker compose restart authserver` rebuilds
-      # against the latest host edits.
-      - ./src:/app/src
-      - ./Directory.Build.props:/app/Directory.Build.props:ro
-      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx:ro
-      # `dotnet run --project src/.../AuthServer.csproj` sets the content
-      # root to the project folder. ASP.NET only loads appsettings.secrets.json
-      # from the content root, so bind the real secrets file at BOTH the
-      # legacy /app path (used by the eventual published image) AND the
-      # content-root path (used in dev).
+      # The published image is self-contained (content root /app). Only the real
+      # secrets file is mounted, overriding the {} placeholder baked at build time.
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
-      - ./docker/appsettings.secrets.json:/app/src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json:ro
+      # ABP Commercial runtime license. Same mount db-migrator (also a prod
+      # aspnet image) uses to license itself -- without it the host fails at
+      # startup with ABP-LIC-ERROR. The prod image runs as root, so /root resolves.
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
-      # test/ deliberately omitted -- not needed by the dotnet run target and
-      # would slow restore on every container restart.
     ports:
       - "127.0.0.1:${AUTH_PORT:-44368}:8080"
     depends_on:
@@ -219,7 +211,9 @@ services:
   api:
     build:
       context: .
-      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile.dev
+      # Multi-stage production Dockerfile (see authserver). Rebuild to apply a
+      # backend code change: `docker compose up -d --build api`.
+      dockerfile: src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Dockerfile
       args:
         ABP_NUGET_API_KEY: "${ABP_NUGET_API_KEY}"
     environment:
@@ -260,11 +254,11 @@ services:
       BlobStoring__Minio__WithSsl: "false"
       BlobStoring__Minio__CreateBucketIfNotExists: "true"
     volumes:
-      - ./src:/app/src
-      - ./Directory.Build.props:/app/Directory.Build.props:ro
-      - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx:ro
+      # The published image is self-contained (content root /app). Only the real
+      # secrets file is mounted, overriding the {} placeholder baked at build time.
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro
-      - ./docker/appsettings.secrets.json:/app/src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.secrets.json:ro
+      # ABP Commercial runtime license (see authserver) -- without it the host
+      # fails at startup with ABP-LIC-ERROR. Prod image runs as root.
       - ${HOME}/.abp/cli:/root/.abp/cli:ro
     ports:
       - "127.0.0.1:${API_PORT:-44327}:8080"
@@ -305,12 +299,12 @@ services:
   angular:
     build:
       context: ./angular
-      # Dockerfile.dev runs a one-shot `ng build` then serves dist with
-      # browser-sync. OBS-22 (2026-05-22): `--watch` removed; iterate on
-      # source via `docker compose restart angular`. The NG_CONFIG arg
-      # picks the angular.json configuration that ships http (not https)
-      # URLs for AuthServer + API in dev.
-      dockerfile: Dockerfile.dev
+      # Multi-stage production Dockerfile: node build stage runs `ng build`,
+      # final stage serves the static dist from nginx:alpine (~0.15 GB vs the
+      # old browser-sync Dockerfile.dev ~5.5 GB). NG_CONFIG selects the
+      # angular.json configuration shipping http (not https) URLs in dev.
+      # Rebuild to apply an SPA change: `docker compose up -d --build angular`.
+      dockerfile: Dockerfile
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
     environment:
@@ -322,22 +316,17 @@ services:
       NG_PORT: "${NG_PORT:-4200}"
       AUTH_PORT: "${AUTH_PORT:-44368}"
       API_PORT: "${API_PORT:-44327}"
-    # browser-sync listens on container port 80 (set in Dockerfile.dev's
-    # entrypoint), so port mapping host:4200 -> container:80 stays intact.
+    # nginx listens on container port 80 (angular/nginx.conf), so host:4200 ->
+    # container:80 is unchanged from the old browser-sync setup.
     ports:
       - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
-      # Bind source so each `docker compose restart angular` rebuilds against
-      # the latest host edits. node_modules stays inside the image (anonymous
-      # volume) to avoid the slow Windows-host symlink-deep node_modules tree.
-      - ./angular/src:/app/src
-      - ./angular/angular.json:/app/angular.json:ro
-      - ./angular/tsconfig.json:/app/tsconfig.json:ro
-      - ./angular/tsconfig.app.json:/app/tsconfig.app.json:ro
-      - ./angular/package.json:/app/package.json:ro
-      # BUG-015 (Task B, 2026-05-20): docker/dynamic-env.json bind-mount
-      # removed; the entrypoint heredoc now writes /app/dynamic-env.json
-      # from container env vars at startup.
+      # The static SPA is baked into the image; no source mount. This script is
+      # sourced by nginx's /docker-entrypoint.d at startup and regenerates
+      # dynamic-env.json from this stack's NG_PORT/AUTH_PORT/API_PORT, so the
+      # same image works across worktrees (BUG-015). Mounted (not baked) so the
+      # production image that helm builds from angular/Dockerfile stays unchanged.
+      - ./angular/docker-dynamic-env.envsh:/docker-entrypoint.d/15-dynamic-env.envsh:ro
     depends_on:
       api:
         condition: service_healthy

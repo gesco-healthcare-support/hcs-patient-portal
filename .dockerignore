@@ -4,7 +4,6 @@
 .idea
 .vs
 docs
-Logs
 etc
 
 **/.env
@@ -14,6 +13,12 @@ etc
 **/bin/Debug
 **/obj
 **/node_modules
+
+# Per-service log folders (src/.../<Service>/Logs). The bare `Logs` pattern is
+# root-anchored and only matched the repo-root /Logs, so ~388 MB of runtime logs
+# were leaking into the backend build context and images (size + PHI exposure).
+# `**/Logs` matches Logs at any depth, including the repo root.
+**/Logs
 
 angular/node_modules
 angular/dist

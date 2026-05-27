@@ -2,6 +2,9 @@
 
 # Shell scripts must keep LF endings (Docker containers run Linux)
 *.sh text eol=lf
+# nginx /docker-entrypoint.d/*.envsh scripts are sourced as POSIX shell; CRLF
+# would corrupt the heredoc body written into dynamic-env.json.
+*.envsh text eol=lf
 
 # Husky hook scripts have no extension but are POSIX shell scripts
 angular/.husky/pre-commit text eol=lf
