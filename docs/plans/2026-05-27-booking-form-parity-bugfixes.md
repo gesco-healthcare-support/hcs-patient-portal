@@ -140,21 +140,35 @@ bundling structured body parts (separate slice).
 
 - T8: Approval-time server gate (option (b), defense-in-depth) -- block
   the Pending->Approved transition when the appointment lacks >= 1
-  injury detail OR is missing an applicant/defense attorney link.
-  SEQUENCED LAST and gated on tests because it changes approve behavior.
+  injury detail. SEQUENCED LAST and gated on tests because it changes
+  approve behavior. DONE 2026-05-27 (commit e815a96).
   - approach: tdd
-  - files-touched: [src/.../Domain/Appointments/AppointmentManager.cs (ApplyTransitionAsync Approve branch -- inject injury + attorney-link repos), src/.../Domain.Shared/CaseEvaluationDomainErrorCodes.cs (+ message), test/.../Application.Tests + Domain.Tests]
-  - acceptance: ApproveAsync throws a localized BusinessException when an
-    appointment has 0 injuries or a missing attorney link; approve
-    succeeds when both prerequisites exist.
-  - RISK GATE (must verify before merge): every existing approve
-    test/flow that approves an appointment without injuries/attorneys
-    will start failing. Before committing T8: (1) run the full suite,
-    (2) update legitimate existing approve tests to seed the
-    prerequisites, (3) confirm the demo approve flow (clistaff1
-    approving a properly-booked appointment) still works end to end. If
-    T8 proves to ripple too widely, STOP and split it into its own slice
-    rather than destabilize the (c) fixes -- (c) ships independently.
+  - files-touched: [src/.../Domain/Appointments/AppointmentManager.cs (ApplyTransitionAsync Approve branch -- injected IAppointmentInjuryDetailRepository), src/.../Domain.Shared/CaseEvaluationDomainErrorCodes.cs (+ AppointmentApprovalRequiresInjuryDetail + en.json message), test/.../Application.Tests (AppointmentsAppServiceTests)]
+  - acceptance: ApproveAsync throws BusinessException
+    (AppointmentApprovalRequiresInjuryDetail) when an appointment has 0
+    injuries; approve succeeds when >= 1 injury exists. (Both covered by
+    new TDD tests; full suite green.)
+  - SCOPE DECISIONS LOCKED WITH ADRIAN 2026-05-27 (refined the original
+    "injury OR attorney link" wording after reading the actual approve
+    flow):
+    1. **Injury-only.** The attorney-link requirement was DROPPED from
+       the server gate -- attorney enforcement stays client-side (T6).
+       Reason: avoids blocking non-UI/edge approve paths; claim info is
+       universally required for all types, attorney policy is newer.
+    2. **Transition-only.** Gate lives in ApplyTransitionAsync, NOT
+       CreateAsync. Gating CreateAsync would break booking: the
+       internal-user fast-path (AppointmentsAppService.cs:716) creates
+       as Approved in the FIRST step, before injuries are attached
+       post-create; the reschedule cloner builds `new Appointment(...,
+       Approved)` directly (never calls CreateAsync). Both structurally
+       cannot carry injuries at create time.
+  - RISK GATE (verified): (1) full suite green (268 + 19 pass, 0 fail) --
+    no existing approve test invokes ApproveAsync, so no ripple; the pure
+    AppointmentApprovalValidatorUnitTests + PacketGenerationOnApprovedHandlerTests
+    still pass. (2) demo approve flow (clistaff1 approving a
+    properly-booked appointment) -- still to verify live after container
+    rebuild (every UI booking carries >= 1 claim via T7, so it satisfies
+    the gate).
 
 ## Risk / Rollback
 
@@ -190,7 +204,8 @@ Clean `docker compose down -v` boot, then:
    email (unregistered); Defense shows "Dana Defense" (BUG-042).
 5. Register defatty1 via invite, log in, view: Defense Attorney still
    shows the booked "Dana Defense" (not the registered identity name).
-6. API negative tests: create with no claim -> rejected; create omitting
-   an attorney -> rejected (T7/T8).
+6. API negative test (T8): approve a Pending appointment that has no
+   claim/injury row -> rejected with AppointmentApprovalRequiresInjuryDetail.
+   (Attorney omission is NOT server-gated -- client-only per T6.)
 7. `dotnet test` (Application.Tests + Domain.Tests) green.
 8. Visual screenshot pass of booking + view (per visual-checks rule).
