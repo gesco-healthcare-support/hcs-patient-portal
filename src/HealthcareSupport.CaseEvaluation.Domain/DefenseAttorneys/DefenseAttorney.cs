@@ -18,6 +18,15 @@ public class DefenseAttorney : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; set; }
 
+    // BUG-042 (2026-05-27): attorney name stored on the master record so
+    // the booked name persists and displays without requiring a linked
+    // IdentityUser. Split First/Last per product decision.
+    [CanBeNull]
+    public virtual string? FirstName { get; set; }
+
+    [CanBeNull]
+    public virtual string? LastName { get; set; }
+
     [CanBeNull]
     public virtual string? FirmName { get; set; }
 
