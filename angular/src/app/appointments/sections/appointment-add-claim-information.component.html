@@ -28,6 +28,7 @@
               <th>Date Of Injury</th>
               <th>Claim Number</th>
               <th>WCAB</th>
+              <th>Body Parts</th>
               <th>Insurance Company</th>
               <th>Claim Examiner</th>
               <th class="text-end">Actions</th>
@@ -47,6 +48,7 @@
                 </td>
                 <td>{{ injury.claimNumber }}</td>
                 <td>{{ injuryWcabOfficeName(injury.wcabOfficeId) }}</td>
+                <td>{{ injury.bodyParts.join(', ') }}</td>
                 <td>
                   @if (injury.primaryInsurance.isActive) {
                     {{ injury.primaryInsurance.name }}
@@ -194,20 +196,37 @@
                 name="injuryWcabAdj"
               />
             </div>
-            <div class="col-md-12 mb-3">
+            <!-- OBS-41 (2026-05-27): structured per-body-part rows replace the
+                 single free-text textarea. Each row is a required description
+                 (max 500). The parent derives BodyPartsSummary (comma-join) on
+                 submit and POSTs each row to /api/app/appointment-body-parts. -->
+            <div class="col-md-12 mb-3" formArrayName="injuryBodyParts">
               <label class="form-label fw-semibold">Body Parts *</label>
-              <textarea
-                class="form-control"
-                [class.is-invalid]="
-                  injuryForm.get('injuryBodyPartsSummary')?.invalid &&
-                  injuryForm.get('injuryBodyPartsSummary')?.touched
-                "
-                rows="2"
-                maxlength="500"
-                formControlName="injuryBodyPartsSummary"
-                name="injuryBodyPartsSummary"
-                placeholder="e.g. Lower back, right knee, left wrist"
-              ></textarea>
+              @for (part of bodyPartsArray.controls; track $index) {
+                <div class="input-group mb-2">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [formControlName]="$index"
+                    maxlength="500"
+                    placeholder="e.g. Lower back"
+                    [class.is-invalid]="part.invalid && part.touched"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger"
+                    (click)="removeBodyPart($index)"
+                    [disabled]="bodyPartsArray.length <= 1"
+                    aria-label="Remove body part"
+                  >
+                    <i class="fa fa-trash"></i>
+                  </button>
+                </div>
+              }
+              <button type="button" class="btn btn-sm btn-outline-primary" (click)="addBodyPart()">
+                Add body part
+                <i class="fa fa-plus ms-1"></i>
+              </button>
             </div>
           </div>
 

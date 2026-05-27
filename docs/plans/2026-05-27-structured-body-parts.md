@@ -1,10 +1,39 @@
 ---
 feature: structured-body-parts
 date: 2026-05-27
-status: draft
+status: in-progress
 base-branch: main
 related-issues: [OBS-41]
 ---
+
+## DECISIONS LOCKED (2026-05-27, Adrian) + RESEARCH CORRECTION
+
+After a deep code read (3 parallel sweeps), the original plan OVERSTATED the
+backend work. Almost everything except the booking WRITE path already exists:
+- `AppointmentInjuryDetailWithNavigationProperties(.Dto)` already carries a
+  `BodyParts` collection; the EF repo already loads body parts in
+  `GetWithNavigationPropertiesAsync` + `GetListWithNavigationPropertiesAsync`;
+  the proxy nav DTO already exposes `bodyParts[]`; the reschedule/change-request
+  cascade already clones body-part rows; CRUD endpoint + proxy + permissions +
+  mappers all exist. The ONLY gap is that nothing populates `AppAppointmentBodyParts`
+  during booking, and the view reads the scalar `bodyPartsSummary` not `bodyParts[]`.
+- External booking roles already hold `AppointmentBodyParts.Create/.Edit`
+  (ExternalUserRoleDataSeedContributor.cs:130-132), so the SPA can POST rows to
+  the existing `/api/app/appointment-body-parts` endpoint.
+- No live packet/email renders body parts (CoverPageGenerator.RenderCoverPagePdf
+  is dead; PacketTokenResolver emits no body-parts token). So keeping
+  `BodyPartsSummary` derived is rollback-safe.
+
+- **Q1 = description-only (lookup DEFERRED).** Verified description-only does NOT
+  break: nothing requires `bodyPartId`; entity/repo/nav-DTO/clone all handle
+  description rows. Lookup is a pure enhancement (controlled vocabulary), parked
+  for a future session. => T5 SKIPPED; no migration; no backend change.
+- **Q2 = keep `BodyPartsSummary`, derived** (comma-join of the rows on submit,
+  capped at 500 to satisfy the entity's NotNull/500 constraint).
+- **Q3 = flat list of descriptions per injury** (parent injury carries claim/date).
+
+Net: this is a FRONTEND-ONLY slice (no .cs change, no EF migration, no proxy
+regen). Persist via the existing CRUD endpoint after each injury create.
 
 ## Goal
 
