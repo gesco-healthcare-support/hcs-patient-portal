@@ -199,7 +199,86 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentConsts.GetDefaultSorting(true) : sorting);
-        return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
+        var page = await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
+
+        // Issue 6 / T6 (2026-05-27 userflow-fixes-batch2): the single-item
+        // GetWithNavigationPropertiesAsync path loads AppointmentInjuryDetails
+        // via LoadInjuryDetailsAsync, but the list path historically returned
+        // only the base 5-way join -- leaving external "My Appointments
+        // Requests" Claim # + Date Of Injury columns empty even when the data
+        // exists. Mirror the same sub-fetch pattern but BATCHED across the
+        // page (one query per sub-table for all rows, then in-memory group),
+        // avoiding N+1.
+        if (page.Count > 0)
+        {
+            await LoadInjuryDetailsForPageAsync(dbContext, page, cancellationToken);
+        }
+
+        return page;
+    }
+
+    /// <summary>
+    /// Batched mirror of <see cref="LoadInjuryDetailsAsync"/> for the list
+    /// path: loads injuries + sub-entities for ALL appointments in the page
+    /// in a fixed number of round trips (1 for injuries, 1 each for body
+    /// parts / claim examiners / primary insurances, 1 for wcab offices),
+    /// then assembles each row's <c>AppointmentInjuryDetails</c> list in
+    /// memory.
+    /// </summary>
+    private static async Task LoadInjuryDetailsForPageAsync(
+        CaseEvaluationDbContext dbContext,
+        List<AppointmentWithNavigationProperties> page,
+        CancellationToken ct)
+    {
+        var appointmentIds = page.Select(p => p.Appointment.Id).ToList();
+
+        var injuries = await dbContext.Set<AppointmentInjuryDetail>()
+            .Where(i => appointmentIds.Contains(i.AppointmentId))
+            .ToListAsync(ct);
+        if (injuries.Count == 0)
+        {
+            return;
+        }
+
+        var injuryIds = injuries.Select(i => i.Id).ToList();
+
+        var bodyParts = await dbContext.Set<AppointmentBodyPart>()
+            .Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId))
+            .ToListAsync(ct);
+        var claimExaminers = await dbContext.Set<AppointmentClaimExaminer>()
+            .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId))
+            .ToListAsync(ct);
+        var primaryInsurances = await dbContext.Set<AppointmentPrimaryInsurance>()
+            .Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId))
+            .ToListAsync(ct);
+        var wcabOfficeIds = injuries
+            .Where(i => i.WcabOfficeId.HasValue)
+            .Select(i => i.WcabOfficeId!.Value)
+            .Distinct()
+            .ToList();
+        var wcabOffices = wcabOfficeIds.Count == 0
+            ? new List<WcabOffice>()
+            : await dbContext.Set<WcabOffice>()
+                .Where(w => wcabOfficeIds.Contains(w.Id))
+                .ToListAsync(ct);
+
+        var injuriesByAppointment = injuries.ToLookup(i => i.AppointmentId);
+        foreach (var row in page)
+        {
+            row.AppointmentInjuryDetails = injuriesByAppointment[row.Appointment.Id]
+                .Select(injury => new AppointmentInjuryDetailWithNavigationProperties
+                {
+                    AppointmentInjuryDetail = injury,
+                    Appointment = row.Appointment,
+                    WcabOffice = injury.WcabOfficeId.HasValue
+                        ? wcabOffices.FirstOrDefault(w => w.Id == injury.WcabOfficeId.Value)
+                        : null,
+                    BodyParts = bodyParts.Where(b => b.AppointmentInjuryDetailId == injury.Id).ToList(),
+                    ClaimExaminer = claimExaminers.FirstOrDefault(c => c.AppointmentInjuryDetailId == injury.Id),
+                    PrimaryInsurance = primaryInsurances.FirstOrDefault(p => p.AppointmentInjuryDetailId == injury.Id),
+                })
+                .ToList();
+        }
     }
 
     protected virtual async Task<IQueryable<AppointmentWithNavigationProperties>> GetQueryForNavigationPropertiesAsync()

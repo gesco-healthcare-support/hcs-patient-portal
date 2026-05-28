@@ -1,15 +1,23 @@
 <abp-page [title]="title | abpLocalization">
   <abp-page-toolbar-container class="col">
     <div class="text-lg-end pt-2">
-      <button
+      <!-- 2026-05-27 userflow-fixes-batch2 T1: internal users (the only ones
+           who reach this staff list) should land on the full booking form
+           when creating a new appointment, not the generic ABP CRUD modal
+           that previously opened via (click)="create()". The /appointments/add
+           route is authGuard-only and already supports internal on-behalf
+           booking (isExternalUserNonPatient -> patient-picker + on-behalf
+           create-or-find patient). type=1 matches the home patient/external
+           "Book Appointment" entry point. -->
+      <a
         *abpPermission="'CaseEvaluation.Appointments.Create'"
         class="btn btn-primary btn-sm"
-        type="button"
-        (click)="create()"
+        [routerLink]="['/appointments/add']"
+        [queryParams]="{ type: 1 }"
       >
         <i class="fa fa-plus me-1" aria-hidden="true"></i>
         {{ '::NewAppointment' | abpLocalization }}
-      </button>
+      </a>
     </div>
   </abp-page-toolbar-container>
 

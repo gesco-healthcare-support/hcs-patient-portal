@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, OnDestroy, inject } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PagedResultDto, RestService } from '@abp/ng.core';
 import { Subscription } from 'rxjs';
 import type { LookupDto } from '../../proxy/shared/models';
@@ -25,6 +25,13 @@ export interface AppointmentInjuryDraft {
   claimNumber: string;
   wcabOfficeId: string | null;
   wcabAdj: string | null;
+  /**
+   * OBS-41 (2026-05-27): structured per-body-part descriptions. The
+   * authoritative list; `bodyPartsSummary` is derived from it (comma-join)
+   * on submit so existing readers (view cell, repo filter-text, reschedule
+   * cloner) keep working. Description-only -- no body-part lookup (deferred).
+   */
+  bodyParts: string[];
   bodyPartsSummary: string;
   primaryInsurance: {
     isActive: boolean;
@@ -140,7 +147,21 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
       injuryDateOfInjury: [src.dateOfInjury, [Validators.required]],
       injuryToDateOfInjury: [src.toDateOfInjury],
       injuryClaimNumber: [src.claimNumber, [Validators.required]],
-      injuryBodyPartsSummary: [src.bodyPartsSummary, [Validators.required]],
+      // OBS-41: repeatable structured body parts. Seed one required row when
+      // empty so the modal always shows at least one input; saveInjuryModal
+      // blocks submit until every row is filled.
+      injuryBodyParts: this.fb.array(
+        src.bodyParts && src.bodyParts.length > 0
+          ? src.bodyParts.map((d) =>
+              this.fb.control<string | null>(d, [Validators.required, Validators.maxLength(500)]),
+            )
+          : [
+              this.fb.control<string | null>(null, [
+                Validators.required,
+                Validators.maxLength(500),
+              ]),
+            ],
+      ),
       injuryWcabOfficeId: [src.wcabOfficeId],
       injuryWcabAdj: [src.wcabAdj],
       injuryInsuranceEnabled: [src.primaryInsurance.isActive],
@@ -199,6 +220,7 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
       claimNumber: '',
       wcabOfficeId: null,
       wcabAdj: null,
+      bodyParts: [],
       bodyPartsSummary: '',
       primaryInsurance: {
         isActive: true,
@@ -278,6 +300,12 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
    * AppointmentInjuryDraft shape `injuryDrafts[]` carries. */
   private serializeInjuryForm(group: FormGroup): AppointmentInjuryDraft {
     const v = group.getRawValue();
+    // OBS-41: structured rows are authoritative; derive the legacy summary
+    // (comma-join) so existing readers keep working. Cap at 500 to satisfy
+    // AppointmentInjuryDetail.BodyPartsSummary's NotNull/500 constraint.
+    const bodyParts = ((v.injuryBodyParts as Array<string | null>) ?? [])
+      .map((d) => (d ?? '').trim())
+      .filter((d) => d.length > 0);
     return {
       isCumulativeInjury: v.injuryCumulative === true,
       dateOfInjury: v.injuryDateOfInjury ?? null,
@@ -285,7 +313,8 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
       claimNumber: v.injuryClaimNumber ?? '',
       wcabOfficeId: v.injuryWcabOfficeId ?? null,
       wcabAdj: v.injuryWcabAdj ?? null,
-      bodyPartsSummary: v.injuryBodyPartsSummary ?? '',
+      bodyParts,
+      bodyPartsSummary: bodyParts.join(', ').slice(0, 500),
       primaryInsurance: {
         isActive: v.injuryInsuranceEnabled === true,
         name: v.injuryInsuranceName ?? null,
@@ -411,6 +440,25 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
   removeInjury(index: number): void {
     if (index >= 0 && index < this.injuryDrafts.length) {
       this.injuryDrafts.splice(index, 1);
+    }
+  }
+
+  /** OBS-41: the structured body-part rows FormArray on the current injury form. */
+  get bodyPartsArray(): FormArray {
+    return this.injuryForm.get('injuryBodyParts') as FormArray;
+  }
+
+  addBodyPart(): void {
+    this.bodyPartsArray.push(
+      this.fb.control<string | null>(null, [Validators.required, Validators.maxLength(500)]),
+    );
+  }
+
+  removeBodyPart(index: number): void {
+    // Keep at least one row so the section never collapses to empty
+    // (>= 1 body part is required, mirroring OLD's mandatory body parts).
+    if (this.bodyPartsArray.length > 1) {
+      this.bodyPartsArray.removeAt(index);
     }
   }
 

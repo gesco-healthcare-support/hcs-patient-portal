@@ -860,7 +860,13 @@
                       <td>{{ injury.claimNumber }}</td>
                       <td>{{ injury.wcabOfficeName }}</td>
                       <td>{{ injury.wcabAdj }}</td>
-                      <td>{{ injury.bodyPartsSummary }}</td>
+                      <td>
+                        @if (injury.bodyParts.length > 0) {
+                          {{ injury.bodyParts.join(', ') }}
+                        } @else {
+                          {{ injury.bodyPartsSummary }}
+                        }
+                      </td>
                       <td>{{ injury.insuranceCompanyName }}</td>
                       <td>{{ injury.claimExaminerName }}</td>
                     </tr>

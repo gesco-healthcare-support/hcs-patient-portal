@@ -186,7 +186,9 @@
           </ngx-datatable-column>
           <ngx-datatable-column name="Appointment Date" prop="appointment.appointmentDate">
             <ng-template let-row="row" ngx-datatable-cell-template>
-              {{ row.appointment.appointmentDate }}
+              <!-- T5 (2026-05-27): human-readable appointment date/time,
+                   consistent with the appointment-view formatting. -->
+              {{ row.appointment.appointmentDate | date: 'MM/dd/yyyy hh:mm a' }}
             </ng-template>
           </ngx-datatable-column>
           <ngx-datatable-column name="SSN" prop="patient.socialSecurityNumber">
@@ -204,7 +206,9 @@
           <ngx-datatable-column name="Date Of Injury" prop="appointmentInjuryDetails">
             <ng-template let-row="row" ngx-datatable-cell-template>
               @for (inj of row.appointmentInjuryDetails; track $index) {
-                <div>{{ inj.appointmentInjuryDetail?.dateOfInjury }}</div>
+                <!-- T5 (2026-05-27): date-only format for DOI. Populated once
+                     T6 wires injury loading into the appointments list path. -->
+                <div>{{ inj.appointmentInjuryDetail?.dateOfInjury | date: 'MM/dd/yyyy' }}</div>
               }
             </ng-template>
           </ngx-datatable-column>

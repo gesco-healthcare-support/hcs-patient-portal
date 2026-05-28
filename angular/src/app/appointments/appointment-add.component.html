@@ -110,10 +110,19 @@
       <div class="row">
         @if (shouldShowApplicantAttorneySection()) {
           <div class="col-12 col-md-6">
+            <!-- 2026-05-27 userflow-fixes-batch2 T2: AA section is required
+                 (no toggle) only when the booker IS an Applicant Attorney
+                 (and not an IT Admin acting on their behalf). For every
+                 other booker (Patient self-booker, CE, DA, internal staff
+                 + IT Admin), the section is optional and the Include
+                 toggle is visible -- toggle ON by default so the fields
+                 render and validators apply; user may toggle off if the
+                 appointment has no applicant attorney. Reverses part of
+                 the BUG-044 over-correction. -->
             <app-appointment-add-attorney-section
               [form]="form"
               role="applicant"
-              [mandatory]="true"
+              [mandatory]="isApplicantAttorney && !isItAdmin"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="isApplicantAttorney && !isItAdmin"
               [isFieldInvalid]="isFieldInvalidBound"
@@ -122,6 +131,8 @@
         }
         @if (shouldShowDefenseAttorneySection()) {
           <div class="col-12 col-md-6">
+            <!-- T2: DA section stays required (no toggle) for every booker
+                 including patients (decision D2). -->
             <app-appointment-add-attorney-section
               [form]="form"
               role="defense"

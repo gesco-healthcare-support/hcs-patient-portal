@@ -2450,6 +2450,28 @@ export class AppointmentAddComponent {
       const injuryId = created?.id;
       if (!injuryId) continue;
 
+      // OBS-41 (2026-05-27): persist structured body-part rows
+      // (description-only) to the existing CRUD endpoint. The injury's
+      // BodyPartsSummary (derived comma-join) was already sent above so
+      // legacy readers (view fallback, repo filter-text) keep working.
+      for (const description of draft.bodyParts ?? []) {
+        const trimmed = (description ?? '').trim();
+        if (!trimmed) continue;
+        await firstValueFrom(
+          this.restService.request<any, any>(
+            {
+              method: 'POST',
+              url: '/api/app/appointment-body-parts',
+              body: {
+                appointmentInjuryDetailId: injuryId,
+                bodyPartDescription: trimmed,
+              },
+            },
+            { apiName: 'Default' },
+          ),
+        );
+      }
+
       // Insurance: only persist if booker enabled the section.
       if (draft.primaryInsurance.isActive) {
         await firstValueFrom(

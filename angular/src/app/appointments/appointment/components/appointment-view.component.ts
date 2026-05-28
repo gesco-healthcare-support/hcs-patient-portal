@@ -62,6 +62,10 @@ type AppointmentInjuryDetailRow = {
   claimNumber: string;
   wcabAdj: string;
   wcabOfficeName: string;
+  // OBS-41 (2026-05-27): structured per-body-part descriptions from the
+  // nav-properties response (item.bodyParts[]). bodyPartsSummary is kept as a
+  // fallback for legacy injuries that have only the summary string (no rows).
+  bodyParts: string[];
   bodyPartsSummary: string;
   insuranceCompanyName: string;
   claimExaminerName: string;
@@ -1213,6 +1217,9 @@ export class AppointmentViewComponent implements OnInit {
               claimNumber: detail?.claimNumber ?? '',
               wcabAdj: detail?.wcabAdj ?? '',
               wcabOfficeName: wcabOffice?.displayName ?? wcabOffice?.name ?? '',
+              bodyParts: ((item?.bodyParts ?? []) as Array<{ bodyPartDescription?: string }>)
+                .map((b) => (b?.bodyPartDescription ?? '').trim())
+                .filter((d) => d.length > 0),
               bodyPartsSummary: detail?.bodyPartsSummary ?? '',
               insuranceCompanyName: primaryInsurance?.isActive
                 ? (primaryInsurance?.name ?? '')

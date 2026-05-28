@@ -1133,4 +1133,50 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             return await _appointmentRepository.InsertAsync(appointment, autoSave: true);
         }
     }
+
+    // =====================================================================
+    // Issue 6 (T6 / 2026-05-27): the appointments list path must load
+    // AppointmentInjuryDetails for each row so the external "My Appointments
+    // Requests" home grid renders Claim # + Date Of Injury (data already
+    // present, list query previously omitted it). Previously, only the
+    // single-item GetWithNavigationPropertiesAsync ran the injury loader;
+    // the list ran only the base 5-way join. Batched fetch -- one query per
+    // sub-table for the whole page (no N+1).
+    // =====================================================================
+
+    [Fact]
+    public async Task GetListWithNavigationPropertiesAsync_LoadsInjuryDetails_ForEachRow()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(56),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-T6-LISTINJURY");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+            await injuryRepository.InsertAsync(
+                new AppointmentInjuryDetail(
+                    Guid.NewGuid(),
+                    appointment.Id,
+                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    claimNumber: "CLM-T6-LIST",
+                    isCumulativeInjury: false,
+                    bodyPartsSummary: "Test"),
+                autoSave: true);
+
+            var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
+                appointmentDateMin: scratchSlot.AvailableDate.Date,
+                appointmentDateMax: scratchSlot.AvailableDate.Date.AddDays(1));
+
+            var row = items.FirstOrDefault(r => r.Appointment.Id == appointment.Id);
+            row.ShouldNotBeNull();
+            row!.AppointmentInjuryDetails.Count.ShouldBe(1);
+            row.AppointmentInjuryDetails[0].AppointmentInjuryDetail.ClaimNumber.ShouldBe("CLM-T6-LIST");
+        }
+    }
 }

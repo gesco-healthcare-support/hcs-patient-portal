@@ -347,3 +347,7 @@ tests/baseline/
 /claim-modal.yml
 /*.png
 .claude/prompts/
+
+# Claude Code task-scheduler runtime state (machine-local, not project source)
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
