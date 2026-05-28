@@ -16,6 +16,8 @@ export interface DefenseAttorneyCreateDto {
 }
 
 export interface DefenseAttorneyDto extends FullAuditedEntityDto<string> {
+  firstName?: string | null;
+  lastName?: string | null;
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
