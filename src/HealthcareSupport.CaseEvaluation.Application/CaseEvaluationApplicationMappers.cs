@@ -252,14 +252,24 @@ public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabil
 {
     // Source and target AppointmentTypes share the same name; Mapperly reuses
     // the existing AppointmentType -> AppointmentTypeDto mapper. The nested
-    // DoctorAvailability mapping is handled internally; RequiredMappingStrategy
-    // is relaxed to None so Mapperly's internal nested mapper isn't required
-    // to project AppointmentTypeIds from the entity collection (that mapping
-    // is performed by DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap
-    // when the parent ObjectMapper resolves the nested type). Same approach as
-    // PatientWithNavigationPropertiesToPatientWithNavigationPropertiesDtoMapper.
+    // DoctorAvailability mapping is generated internally and does NOT run
+    // DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap, so the inner
+    // DTO's AppointmentTypeIds would otherwise stay empty. AfterMap below
+    // populates it from the outer materialized AppointmentTypes list (the
+    // EF repository builds that list via an explicit subquery join, so it
+    // is the authoritative source for IDs in this projection path).
     public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
     public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
+
+    public override void AfterMap(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination)
+    {
+        if (destination.DoctorAvailability != null && source.AppointmentTypes != null)
+        {
+            destination.DoctorAvailability.AppointmentTypeIds = source.AppointmentTypes
+                .Select(x => x.Id)
+                .ToList();
+        }
+    }
 }
 
 [Mapper]

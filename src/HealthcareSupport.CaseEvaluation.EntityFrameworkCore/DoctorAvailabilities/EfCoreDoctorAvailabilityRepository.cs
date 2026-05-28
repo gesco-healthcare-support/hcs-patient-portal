@@ -20,6 +20,17 @@ public class EfCoreDoctorAvailabilityRepository : EfCoreRepository<CaseEvaluatio
     {
     }
 
+    // 2026-05-15 slot rework: include the M2M AppointmentTypes by default
+    // so any caller hitting GetAsync / WithDetailsAsync (including the
+    // ABP base's GetAsync(id, includeDetails: true) overload) sees the
+    // join collection materialized. Without this, the entity comes back
+    // with an empty AppointmentTypes and the DTO mapper's AfterMap sees
+    // no IDs to project into DoctorAvailabilityDto.AppointmentTypeIds.
+    public override async Task<IQueryable<DoctorAvailability>> WithDetailsAsync()
+    {
+        return (await GetQueryableAsync()).Include(x => x.AppointmentTypes);
+    }
+
     public virtual async Task<DoctorAvailabilityWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
@@ -80,7 +91,9 @@ public class EfCoreDoctorAvailabilityRepository : EfCoreRepository<CaseEvaluatio
 
     public virtual async Task<List<DoctorAvailability>> GetListAsync(string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
-        var query = ApplyFilter((await GetQueryableAsync()), filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId);
+        // WithDetailsAsync() loads the AppointmentTypes M2M so each entity's
+        // DTO mapping produces a populated AppointmentTypeIds list.
+        var query = ApplyFilter((await WithDetailsAsync()), filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? DoctorAvailabilityConsts.GetDefaultSorting(false) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
