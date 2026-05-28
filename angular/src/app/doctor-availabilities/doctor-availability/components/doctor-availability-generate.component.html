@@ -24,23 +24,8 @@
   <div class="card mb-3">
     <div class="card-body">
       <form [formGroup]="form">
-        <div class="d-flex align-items-center mb-3">
-          <div class="form-check me-3">
-            <input class="form-check-input" type="radio" value="dates" formControlName="slotMode" />
-            <label class="form-check-label">{{ '::SlotByDates' | abpLocalization }}</label>
-          </div>
-          <div class="form-check me-3">
-            <input
-              class="form-check-input"
-              type="radio"
-              value="weekdays"
-              formControlName="slotMode"
-            />
-            <label class="form-check-label">{{ '::SlotByWeekdays' | abpLocalization }}</label>
-          </div>
-        </div>
         <div class="row">
-          <div class="col-12 col-md-3">
+          <div class="col-12 col-md-4">
             <div class="mb-3">
               <label class="form-label" for="doctor-availability-location">
                 {{ '::Location' | abpLocalization }} *
@@ -53,153 +38,138 @@
             </div>
           </div>
 
-          @if (form.value.slotMode === 'dates') {
-            <div class="col-12 col-md-3">
-              <div class="mb-3">
-                <label class="form-label" for="doctor-availability-from-date">
-                  {{ '::FromDate' | abpLocalization }} *
-                </label>
-                <input
-                  id="doctor-availability-from-date"
-                  type="date"
-                  class="form-control"
-                  formControlName="fromDate"
-                />
-              </div>
+          <div class="col-12 col-md-4">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-from-date">
+                {{ '::FromDate' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-from-date"
+                type="date"
+                class="form-control"
+                formControlName="fromDate"
+              />
             </div>
+          </div>
 
-            <div class="col-12 col-md-3">
-              <div class="mb-3">
-                <label class="form-label" for="doctor-availability-to-date">
-                  {{ '::ToDate' | abpLocalization }} *
-                </label>
-                <input
-                  id="doctor-availability-to-date"
-                  type="date"
-                  class="form-control"
-                  formControlName="toDate"
-                />
-              </div>
+          <div class="col-12 col-md-4">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-to-date">
+                {{ '::ToDate' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-to-date"
+                type="date"
+                class="form-control"
+                formControlName="toDate"
+              />
             </div>
-          } @else {
-            <div class="col-12 col-md-6">
-              <div class="mb-3">
-                <label class="form-label d-block">{{ '::SelectMonth' | abpLocalization }}</label>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                  <label class="form-check d-flex align-items-center gap-2 mb-0">
-                    <input
-                      class="form-check-input"
-                      type="radio"
-                      name="useCurrentMonth"
-                      [value]="true"
-                      formControlName="useCurrentMonth"
-                    />
-                    <span>{{ '::CurrentMonth' | abpLocalization }}</span>
+          </div>
+        </div>
+
+        <div class="mb-3" formGroupName="selectedDays">
+          <label class="form-label d-block">{{ '::Weekdays' | abpLocalization }}</label>
+          <div class="d-flex gap-3 flex-wrap">
+            @for (key of weekdayLabelKeys; track $index) {
+              <label class="form-check form-check-inline">
+                <input type="checkbox" class="form-check-input" [formControlName]="$index" />
+                <span class="form-check-label">{{ key | abpLocalization }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">{{ '::TimeRanges' | abpLocalization }} *</label>
+          <div formArrayName="timeRanges">
+            @for (range of timeRanges.controls; track $index) {
+              <div class="row align-items-end mb-2" [formGroupName]="$index">
+                <div class="col-12 col-md-3">
+                  <label class="form-label small">{{ '::FromTime' | abpLocalization }} *</label>
+                  <input type="time" step="60" class="form-control" formControlName="fromTime" />
+                </div>
+                <div class="col-12 col-md-3">
+                  <label class="form-label small">{{ '::ToTime' | abpLocalization }} *</label>
+                  <input type="time" step="60" class="form-control" formControlName="toTime" />
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small">
+                    {{ '::DurationOverrideOptional' | abpLocalization }}
                   </label>
-                  <span>{{ currentMonthName }}</span>
-                  <span>{{ '::Or' | abpLocalization }}</span>
-                  <label class="form-check d-flex align-items-center gap-2 mb-0">
-                    <input
-                      class="form-check-input"
-                      type="radio"
-                      name="useCurrentMonth"
-                      [value]="false"
-                      formControlName="useCurrentMonth"
-                    />
-                  </label>
-                  <select
-                    class="form-select form-control"
-                    formControlName="selectedMonth"
-                    [disabled]="form.value.useCurrentMonth"
-                  >
-                    <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
-                    @for (month of monthOptions; track month.id) {
-                      <option [ngValue]="month.id">{{ month.name }}</option>
-                    }
-                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    class="form-control"
+                    [placeholder]="form.value.appointmentDurationMinutes"
+                    formControlName="appointmentDurationMinutes"
+                  />
+                </div>
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                  @if (timeRanges.length > 1) {
+                    <button
+                      type="button"
+                      class="btn btn-outline-danger btn-sm"
+                      (click)="removeTimeRange($index)"
+                      [attr.aria-label]="'AbpUi::Remove' | abpLocalization"
+                    >
+                      <i class="fa fa-trash" aria-hidden="true"></i>
+                    </button>
+                  }
                 </div>
               </div>
+            }
+          </div>
+          <button type="button" class="btn btn-link btn-sm p-0" (click)="addTimeRange()">
+            <i class="fa fa-plus me-1" aria-hidden="true"></i>
+            {{ '::AddTimeRange' | abpLocalization }}
+          </button>
+        </div>
+
+        <div class="row">
+          <div class="col-12 col-md-3">
+            <div class="mb-3">
+              <label class="form-label" for="doctor-availability-capacity">
+                {{ '::Capacity' | abpLocalization }} *
+              </label>
+              <input
+                id="doctor-availability-capacity"
+                type="number"
+                min="1"
+                class="form-control"
+                formControlName="capacity"
+              />
+              <small class="text-muted">{{ '::CapacityHint' | abpLocalization }}</small>
             </div>
-          }
+          </div>
 
           <div class="col-12 col-md-3">
             <div class="mb-3">
-              <label class="form-label" for="doctor-availability-from-time">
-                {{ '::FromTime' | abpLocalization }} *
+              <label class="form-label" for="doctor-availability-interval">
+                {{ '::DefaultDurationMinutes' | abpLocalization }} *
               </label>
               <input
-                id="doctor-availability-from-time"
-                type="time"
-                step="60"
+                id="doctor-availability-interval"
+                type="number"
                 class="form-control"
-                formControlName="fromTime"
+                min="1"
+                formControlName="appointmentDurationMinutes"
               />
             </div>
           </div>
 
           <div class="col-12 col-md-3">
             <div class="mb-3">
-              <label class="form-label" for="doctor-availability-to-time">
-                {{ '::ToTime' | abpLocalization }} *
+              <label class="form-label" for="doctor-availability-appointment-types">
+                {{ '::AppointmentTypes' | abpLocalization }}
               </label>
-              <input
-                id="doctor-availability-to-time"
-                type="time"
-                step="60"
-                class="form-control"
-                formControlName="toTime"
-              />
-            </div>
-          </div>
-
-          @if (form.value.slotMode === 'weekdays') {
-            <div class="col-12 col-md-3">
-              <div class="mb-3">
-                <label class="form-label" for="doctor-availability-from-day">
-                  {{ '::FromDay' | abpLocalization }}
-                </label>
-                <select
-                  id="doctor-availability-from-day"
-                  class="form-select form-control"
-                  formControlName="fromDay"
-                >
-                  <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
-                  @for (day of weekdayOptions; track day.id) {
-                    <option [ngValue]="day.id">{{ day.name }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <div class="col-12 col-md-3">
-              <div class="mb-3">
-                <label class="form-label" for="doctor-availability-to-day">
-                  {{ '::ToDay' | abpLocalization }}
-                </label>
-                <select
-                  id="doctor-availability-to-day"
-                  class="form-select form-control"
-                  formControlName="toDay"
-                >
-                  <option [ngValue]="null">{{ '::Select' | abpLocalization }}</option>
-                  @for (day of weekdayOptions; track day.id) {
-                    <option [ngValue]="day.id">{{ day.name }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-          }
-
-          <div class="col-12 col-md-3">
-            <div class="mb-3">
-              <label class="form-label" for="doctor-availability-appointment-type">
-                {{ '::AppointmentType' | abpLocalization }}
-              </label>
-              <abp-lookup-select
-                cid="doctor-availability-appointment-type"
-                formControlName="appointmentTypeId"
+              <abp-lookup-typeahead-mtm
+                cid="doctor-availability-appointment-types"
+                formControlName="appointmentTypeIds"
+                displayNameProp="name"
+                lookupNameProp="displayName"
                 [getFn]="getAppointmentTypeLookup"
-              ></abp-lookup-select>
+              ></abp-lookup-typeahead-mtm>
+              <small class="text-muted">{{ '::EmptyMeansAnyType' | abpLocalization }}</small>
             </div>
           </div>
 
@@ -221,34 +191,18 @@
               </select>
             </div>
           </div>
-
-          <div class="col-12 col-md-3">
-            <div class="mb-3">
-              <label class="form-label" for="doctor-availability-interval">
-                {{ '::TimeSlotInterval' | abpLocalization }} *
-              </label>
-              <input
-                id="doctor-availability-interval"
-                type="number"
-                class="form-control"
-                min="1"
-                formControlName="appointmentDurationMinutes"
-              />
-              <small class="text-muted">{{ '::Minutes' | abpLocalization }}</small>
-            </div>
-          </div>
         </div>
       </form>
     </div>
   </div>
 
   @if (validationMessage) {
-    <div class="alert alert-warning">
+    <div class="alert" [class.alert-warning]="!hasConflicts" [class.alert-info]="hasConflicts">
       {{ validationMessage }}
     </div>
   }
 
-  @if (preview?.length > 0) {
+  @if (preview?.length) {
     <div class="card">
       <div class="card-body">
         <table class="table table-sm">
@@ -257,9 +211,9 @@
               <th></th>
               <th>{{ '::Location' | abpLocalization }}</th>
               <th>{{ '::Date' | abpLocalization }}</th>
-              <th>{{ '::Time' | abpLocalization }}</th>
               <th>{{ '::Day' | abpLocalization }}</th>
-              <th>{{ '::Action' | abpLocalization }}</th>
+              <th>{{ '::SlotCount' | abpLocalization }}</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -281,9 +235,13 @@
                 </td>
                 <td>{{ day.locationName }}</td>
                 <td>{{ day.dates }}</td>
-                <td>{{ day.time }}</td>
                 <td>{{ day.days }}</td>
-                <td></td>
+                <td>{{ getSlots(day).length }}</td>
+                <td>
+                  @if (day.sameTimeValidation) {
+                    <span class="text-warning small">{{ day.sameTimeValidation }}</span>
+                  }
+                </td>
               </tr>
               @if (isExpanded(day.monthId)) {
                 <tr>
@@ -291,8 +249,9 @@
                     <table class="table table-sm mb-0">
                       <thead>
                         <tr>
-                          <th>{{ '::Location' | abpLocalization }}</th>
-                          <th>{{ '::TimeSlots' | abpLocalization }}</th>
+                          <th>{{ '::TimeRange' | abpLocalization }}</th>
+                          <th>{{ '::Capacity' | abpLocalization }}</th>
+                          <th>{{ '::AppointmentTypes' | abpLocalization }}</th>
                           <th>{{ '::Status' | abpLocalization }}</th>
                           <th>{{ '::Conflict' | abpLocalization }}</th>
                           <th>{{ '::Action' | abpLocalization }}</th>
@@ -300,9 +259,20 @@
                       </thead>
                       <tbody>
                         @for (slot of getSlots(day); track slot.timeId) {
-                          <tr>
-                            <td>{{ day.locationName }}</td>
+                          <tr [class.table-warning]="slot.isConflict">
                             <td>{{ formatSlotTime(slot) }}</td>
+                            <td>{{ slot.capacity }}</td>
+                            <td>
+                              @if (slot.appointmentTypeIds?.length) {
+                                <span class="small text-muted">
+                                  {{ slot.appointmentTypeIds?.length }}
+                                </span>
+                              } @else {
+                                <span class="small text-muted">
+                                  {{ '::AnyType' | abpLocalization }}
+                                </span>
+                              }
+                            </td>
                             <td>
                               {{ '::Enum:BookingStatus.' + slot.bookingStatusId | abpLocalization }}
                             </td>

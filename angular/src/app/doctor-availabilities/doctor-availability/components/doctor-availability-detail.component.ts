@@ -11,7 +11,7 @@ import {
   ButtonComponent,
 } from '@abp/ng.theme.shared';
 
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { LookupSelectComponent, LookupTypeaheadMtmComponent } from '@volo/abp.commercial.ng.ui';
 
 import {
   NgbNavModule,
@@ -38,6 +38,7 @@ import { DoctorAvailabilityDetailViewService } from '../services/doctor-availabi
     ModalComponent,
     ButtonComponent,
     LookupSelectComponent,
+    LookupTypeaheadMtmComponent,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },
