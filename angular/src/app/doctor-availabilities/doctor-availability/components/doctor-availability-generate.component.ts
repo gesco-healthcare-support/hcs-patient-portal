@@ -235,6 +235,10 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // 2026-05-15 slot rework: schema-only PR; the proper UI surface for
+    // multi-type + capacity lands in plan 4. Pass the new fields through
+    // so the create DTO compiles; loose-mode semantics preserved (empty
+    // array = any type accepted), capacity defaults to 3.
     const requests = slots.map((slot) =>
       this.service.create({
         availableDate: slot.availableDate,
@@ -242,7 +246,8 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
         toTime: slot.toTime,
         bookingStatusId: slot.bookingStatusId,
         locationId: slot.locationId,
-        appointmentTypeId: slot.appointmentTypeId ?? null,
+        appointmentTypeIds: slot.appointmentTypeIds ?? [],
+        capacity: slot.capacity ?? 3,
       }),
     );
 
