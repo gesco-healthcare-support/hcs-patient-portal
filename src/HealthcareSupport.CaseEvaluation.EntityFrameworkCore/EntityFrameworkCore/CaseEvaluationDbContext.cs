@@ -129,6 +129,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.Email).HasColumnName(nameof(Doctor.Email)).IsRequired().HasMaxLength(DoctorConsts.EmailMaxLength);
                 b.Property(x => x.Gender).HasColumnName(nameof(Doctor.Gender));
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
+                // One-doctor-per-tenant invariant (PARITY-FLAG-NEW-006). Filtered
+                // unique index so even a direct SQL insert cannot create a second
+                // live Doctor in a tenant. Excludes host-scoped rows (TenantId
+                // null) and soft-deleted rows so "delete then re-create" works.
+                // Mirrored in CaseEvaluationTenantDbContext (matching the
+                // Appointment Phase-11f / Packet soft-delete index precedent).
+                b.HasIndex(x => x.TenantId)
+                    .IsUnique()
+                    .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                    .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique");
             });
             builder.Entity<DoctorAppointmentType>(b =>
             {
