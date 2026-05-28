@@ -9,7 +9,7 @@ import {
   PagedResultDto,
   RestService,
 } from '@abp/ng.core';
-import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
+import { DateAdapter, TimeAdapter, ToasterService } from '@abp/ng.theme.shared';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
@@ -17,7 +17,6 @@ import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto } from '../proxy/appointments/models';
-import { BookingStatus } from '../proxy/enums/booking-status.enum';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type {
   PatientUpdateDto,
@@ -25,6 +24,8 @@ import type {
 } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
+import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
+import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
@@ -101,6 +102,17 @@ export class AppointmentAddComponent {
   private readonly restService = inject(RestService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
+  // Slot rework plan 5 (2026-05-15) -- the booking picker now reads from
+  // GetDoctorAvailabilityLookupAsync, which already filters full +
+  // reserved/booked slots server-side. Binary availability per locked
+  // decision 2026-05-27: clients never see remaining/capacity numbers.
+  private readonly doctorAvailabilityService = inject(DoctorAvailabilityService);
+  // Picker refetch + booking error feedback (plan 5). Three new booking
+  // codes (BookingSlotFull / BookingSlotClosed / BookingSlotTypeMismatch)
+  // from plan 2 surface inline via this toaster; matching codes also
+  // trigger a refetch of the lookup so the dropdown reflects current
+  // server state before the next attempt.
+  private readonly toaster = inject(ToasterService);
 
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
@@ -1000,6 +1012,28 @@ export class AppointmentAddComponent {
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
+    } catch (err: unknown) {
+      // Slot rework plan 5: surface the 3 new booking error codes inline
+      // and refetch the picker so subsequent attempts see current state.
+      // Other errors fall through to a generic toast. ABP screens only
+      // [401,403,404,500] in withHttpErrorConfig, so a 400 reaches here.
+      const httpErr = err as { error?: { error?: { code?: string; message?: string } } };
+      const code = httpErr?.error?.error?.code;
+      const message = httpErr?.error?.error?.message;
+      if (
+        code === 'CaseEvaluation:Appointment.BookingSlotFull' ||
+        code === 'CaseEvaluation:Appointment.BookingSlotClosed' ||
+        code === 'CaseEvaluation:Appointment.BookingSlotTypeMismatch'
+      ) {
+        this.toaster.warn(message ?? 'This slot is no longer available.');
+        this.form.patchValue(
+          { appointmentTime: null, doctorAvailabilityId: null },
+          { emitEvent: false },
+        );
+        this.loadAvailableDatesBySelection();
+        return;
+      }
+      this.toaster.error(message ?? 'Booking failed.');
     } finally {
       this.isSaving = false;
     }
@@ -2178,8 +2212,11 @@ export class AppointmentAddComponent {
 
         this.availableDateKeys.clear();
         this.availableSlotsByDate.clear();
-        (items ?? []).forEach((item) => {
-          const availability = item?.doctorAvailability;
+        (items ?? []).forEach((availability) => {
+          // Slot rework plan 5: lookup returns the flat DoctorAvailabilityDto
+          // shape (not the WithNavigationProperties envelope). The list-page
+          // shape had item.doctorAvailability.{availableDate,fromTime,id};
+          // the lookup shape exposes those fields directly.
           const rawDate = availability?.availableDate as string | undefined;
           const dateKey = this.toDateKeyFromApi(rawDate);
           if (dateKey) {
@@ -2360,45 +2397,20 @@ export class AppointmentAddComponent {
     return selected < threshold;
   }
 
+  // Slot rework plan 5: read from /api/app/doctor-availabilities/lookup
+  // instead of the paged list. The lookup applies tenant lead-time, hides
+  // Reserved/Booked, and excludes slots with zero remaining capacity --
+  // so the picker is binary-available by construction.
   private async fetchAllAvailableSlots(
     locationId: string,
     appointmentTypeId: string,
-  ): Promise<any[]> {
-    const allItems: any[] = [];
-    let skipCount = 0;
-    const pageSize = 1000;
-    let totalCount = Number.MAX_SAFE_INTEGER;
-
-    while (skipCount < totalCount) {
-      const response = await firstValueFrom(
-        this.restService.request<any, PagedResultDto<any>>(
-          {
-            method: 'GET',
-            url: '/api/app/doctor-availabilities',
-            params: {
-              locationId,
-              appointmentTypeId,
-              bookingStatusId: BookingStatus.Available,
-              skipCount,
-              maxResultCount: pageSize,
-            },
-          },
-          { apiName: 'Default' },
-        ),
-      );
-
-      const items = response?.items ?? [];
-      totalCount = response?.totalCount ?? items.length;
-      allItems.push(...items);
-
-      if (items.length < pageSize) {
-        break;
-      }
-
-      skipCount += pageSize;
-    }
-
-    return allItems;
+  ): Promise<DoctorAvailabilityDto[]> {
+    return firstValueFrom(
+      this.doctorAvailabilityService.getDoctorAvailabilityLookup({
+        locationId,
+        appointmentTypeId: appointmentTypeId || null,
+      }),
+    );
   }
 
   // #121 phase T4 (2026-05-13) -- 14 methods moved to

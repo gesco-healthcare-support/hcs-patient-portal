@@ -115,7 +115,7 @@
           !isAvailableDatesLoading &&
           appointmentTimeOptions.length === 0
         ) {
-          <small class="text-danger">No available time slots for selected date.</small>
+          <small class="text-danger">{{ 'Appointment:NoSlotsRemaining' | abpLocalization }}</small>
         }
       </div>
     </div>

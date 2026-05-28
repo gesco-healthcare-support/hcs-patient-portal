@@ -43,6 +43,7 @@
     "GenerateSlot": "Generate",
     "PanelNumber": "Panel Number",
     "TimeSlotInterval": "Time Slot Interval",
+    "Appointment:NoSlotsRemaining": "No slots are available for the selected date. Please pick another date.",
     "Weekdays": "Weekdays",
     "TimeRanges": "Time Ranges",
     "TimeRange": "Time Range",
