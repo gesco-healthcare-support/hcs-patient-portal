@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 issue: slot-rework-phase-4-generation-ui
 owner: AdrianG
 created: 2026-05-15

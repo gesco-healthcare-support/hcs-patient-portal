@@ -91,14 +91,32 @@
               </div>
 
               <div class="mb-3">
-                <label class="form-label" for="doctor-availability-appointment-type-id">
-                  {{ '::AppointmentType' | abpLocalization }}
+                <label class="form-label" for="doctor-availability-capacity">
+                  {{ '::Capacity' | abpLocalization }} *
                 </label>
-                <abp-lookup-select
-                  cid="doctor-availability-appointment-type-id"
-                  formControlName="appointmentTypeId"
+                <input
+                  id="doctor-availability-capacity"
+                  type="number"
+                  min="1"
+                  formControlName="capacity"
+                  class="form-control"
+                />
+                <small class="text-muted">{{ '::CapacityHint' | abpLocalization }}</small>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="doctor-availability-appointment-type-ids">
+                  {{ '::AppointmentTypes' | abpLocalization }}
+                </label>
+                <abp-lookup-typeahead-mtm
+                  cid="doctor-availability-appointment-type-ids"
+                  formControlName="appointmentTypeIds"
+                  displayNameProp="name"
+                  lookupNameProp="displayName"
                   [getFn]="service.getAppointmentTypeLookup"
-                ></abp-lookup-select>
+                  [editingData]="service.selected?.appointmentTypes"
+                ></abp-lookup-typeahead-mtm>
+                <small class="text-muted">{{ '::EmptyMeansAnyType' | abpLocalization }}</small>
               </div>
             </div>
           </ng-template>
