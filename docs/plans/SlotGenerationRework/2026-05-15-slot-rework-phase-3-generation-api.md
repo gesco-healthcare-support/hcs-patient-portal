@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress (build started 2026-05-28 on feat/slot-rework-generation-api)
 issue: slot-rework-phase-3-generation-api
 owner: AdrianG
 created: 2026-05-15
@@ -41,6 +41,69 @@ These supersede any conflicting text below. Confirmed with Adrian after the 2026
   (raw remaining count is acceptable as long as the UI shows only the boolean).
 - (Proxy regeneration command was corrected to `abp generate-proxy -t ng`,
   with HttpApi.Host running, in the re-verification below.)
+
+## Build deviations -- 2026-05-28 (during implementation)
+
+Discovered while building plan 4 on `feat/slot-rework-generation-api`. These
+supersede conflicting text below.
+
+1. **Capacity default = 3** (was `1` in the plan body's DTO snippet;
+   superseded by the round-2 locked decision at the top).
+
+2. **DataAnnotation validators removed from the DTO.** Plan body has
+   `[Range(1, int.MaxValue)] int Capacity` and `[MinLength(1)] List<TimeRangeDto>`.
+   ABP's method-invocation validation interceptor catches these BEFORE the
+   AppService body runs and throws `AbpValidationException` with a generic
+   English message -- not the localized `UserFriendlyException` the plan
+   prescribes. Attributes removed; the AppService validator
+   (`ValidateGenerationInput`) fires the localized
+   `DoctorAvailability:CapacityMustBeAtLeastOne` and
+   `DoctorAvailability:AtLeastOneTimeRangeRequired` messages instead.
+
+3. **Test #17 (`CreateRangeAsync_AnyInsertFails_RollsBack`) Skip-tagged.**
+   Forcing a mid-batch insert failure to assert rollback is hard to engineer
+   reliably on the SQLite in-memory test rig (no real FK constraint behavior,
+   no UNIQUE constraint to violate cleanly). The transactional UoW wrap
+   (`IUnitOfWorkManager.Begin(isTransactional: true)`) is the ABP-provided
+   guarantee; end-to-end rollback behavior is deferred to plan 7's
+   real-SQL-Server hardening (same wave-wide reasoning that defers the
+   row-lock test for plan 3 step 5).
+
+4. **Per-date conflict messaging** (vs plan body's `previewList[0]`
+   one-message-for-the-batch). Implementation now sets
+   `date.SameTimeValidation` per preview day so the SPA can render which
+   date had the conflict; the per-batch behavior was a holdover from the
+   list-input shape.
+
+5. **Dedicated conflict localization keys added.** Plan body uses hardcoded
+   English ("Time slot overlaps a closed slot at this location.") for the
+   conflict-message branch. Added two dedicated keys
+   (`DoctorAvailability:GenerationConflictReserved`,
+   `DoctorAvailability:GenerationConflictExists`) matching the Q3 locked
+   decision's "use `L[]` for user-facing strings" principle.
+
+6. **Existing GeneratePreviewAsync tests replaced wholesale.** The 11
+   pre-rework tests (`GeneratePreviewAsync_When*`) were tied to the
+   list-input + single-range + FromTime/ToTime DTO shape. They cannot be
+   mechanically migrated since the shape itself changed. Replaced with the
+   14 plan tests + 3 CreateRangeAsync tests (one Skip-tagged). The empty-
+   input test (`GeneratePreviewAsync_WhenInputIsEmpty_ReturnsEmpty`) and
+   null-input test (`GeneratePreviewAsync_WhenInputIsNull_ThrowsAbpValidation`)
+   no longer apply -- null still throws but the input is no longer a list.
+
+7. **EnsureAppointmentDateNotInPast moved into preview.** The plan
+   includes a `FromDate < DateTime.Today` reject branch. This is a
+   stricter version of the booking-flow's lead-time check; previewing past
+   dates was previously allowed (`GeneratePreviewAsync_MultiDay_ReturnsOnePreviewPerDay`
+   used dates in 2030). The new validator rejects it for the multi-axis
+   shape -- aligns with the rest of the booking flow.
+
+**Tests:** 905 pass, 0 fail (was 902 before plan 4; +14 new active +
+1 new Skip-tagged - 11 replaced = net +3 active, +1 skipped). Build clean.
+
+**Stack-dependent step pending:** rebuild api + db-migrator and regenerate
+the Angular proxy via `abp generate-proxy -t ng` (per the locked
+decision -- NOT `yarn nswag refresh`).
 
 ## Re-verified 2026-05-27 (HEAD ad07947)
 

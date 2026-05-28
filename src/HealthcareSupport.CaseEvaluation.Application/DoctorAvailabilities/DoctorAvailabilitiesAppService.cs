@@ -15,6 +15,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 
@@ -31,6 +32,10 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     protected IAppointmentRepository _appointmentRepository;
     protected IRepository<AppointmentChangeRequest, Guid> _appointmentChangeRequestRepository;
     protected ISystemParameterRepository _systemParameterRepository;
+    // 2026-05-15 (slot rework plan 4) -- CreateRangeAsync wraps every insert
+    // in a single transactional UoW; either every non-conflicted slot is
+    // persisted or none is.
+    protected IUnitOfWorkManager _unitOfWorkManager;
 
     public DoctorAvailabilitiesAppService(
         IDoctorAvailabilityRepository doctorAvailabilityRepository,
@@ -39,7 +44,8 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository,
         IAppointmentRepository appointmentRepository,
         IRepository<AppointmentChangeRequest, Guid> appointmentChangeRequestRepository,
-        ISystemParameterRepository systemParameterRepository)
+        ISystemParameterRepository systemParameterRepository,
+        IUnitOfWorkManager unitOfWorkManager)
     {
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _doctorAvailabilityManager = doctorAvailabilityManager;
@@ -48,6 +54,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         _appointmentRepository = appointmentRepository;
         _appointmentChangeRequestRepository = appointmentChangeRequestRepository;
         _systemParameterRepository = systemParameterRepository;
+        _unitOfWorkManager = unitOfWorkManager;
     }
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>> GetListAsync(GetDoctorAvailabilitiesInput input)
@@ -211,87 +218,43 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
 
+    // 2026-05-15 (slot rework plan 4) -- cap on slots-per-call. Wraps the
+    // CreateRangeAsync transaction; the SQL Server transaction stays within
+    // healthy duration even on a full year of dense scheduling.
+    internal const int GenerationSlotLimit = 5000;
+
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
-    public virtual async Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto> input)
+    public virtual async Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(
+        DoctorAvailabilityGenerateInputDto input)
     {
-        if (input == null || input.Count == 0)
+        ValidateGenerationInput(input);
+
+        var generatedSlots = ExpandToSlotPreviews(input);
+        if (generatedSlots.Count == 0)
         {
             return new List<DoctorAvailabilitySlotsPreviewDto>();
         }
 
-        foreach (var item in input)
-        {
-            if (item.LocationId == Guid.Empty)
-            {
-                throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
-            }
+        // Pull existing slots in the date span at this location so we can
+        // flag conflicts.
+        var minDate = generatedSlots.Min(s => s.AvailableDate).Date;
+        var maxDate = generatedSlots.Max(s => s.AvailableDate).Date;
+        var existingQuery = (await _doctorAvailabilityRepository.GetQueryableAsync())
+            .Where(x =>
+                x.LocationId == input.LocationId &&
+                x.AvailableDate >= minDate &&
+                x.AvailableDate <= maxDate);
+        var existing = await AsyncExecuter.ToListAsync(existingQuery);
 
-            if (item.AppointmentDurationMinutes <= 0)
-            {
-                throw new UserFriendlyException("Appointment duration must be greater than zero.");
-            }
-
-            if (item.ToDate.Date < item.FromDate.Date)
-            {
-                throw new UserFriendlyException("To date must be greater than or equal to from date.");
-            }
-
-            if (item.ToTime <= item.FromTime)
-            {
-                throw new UserFriendlyException("To time must be greater than from time.");
-            }
-        }
-
-        var minDate = input.Min(x => x.FromDate.Date);
-        var maxDate = input.Max(x => x.ToDate.Date);
-
-        var existingQuery = await _doctorAvailabilityRepository.GetQueryableAsync();
-        existingQuery = existingQuery.Where(x => x.AvailableDate >= minDate && x.AvailableDate <= maxDate);
-        var existingAvailabilities = await AsyncExecuter.ToListAsync(existingQuery);
-
-        var generatedSlots = new List<DoctorAvailabilitySlotPreviewDto>();
-        foreach (var item in input)
-        {
-            var currentDate = item.FromDate.Date;
-            var endDate = item.ToDate.Date;
-
-            while (currentDate <= endDate)
-            {
-                var currentTime = item.FromTime;
-
-                while (currentTime.AddMinutes(item.AppointmentDurationMinutes) <= item.ToTime)
-                {
-                    var toTime = currentTime.AddMinutes(item.AppointmentDurationMinutes);
-                    generatedSlots.Add(new DoctorAvailabilitySlotPreviewDto
-                    {
-                        AppointmentTypeIds = item.AppointmentTypeIds != null ? new List<Guid>(item.AppointmentTypeIds) : new List<Guid>(),
-                        Capacity = item.Capacity,
-                        AvailableDate = currentDate,
-                        BookingStatusId = item.BookingStatusId,
-                        LocationId = item.LocationId,
-                        FromTime = currentTime,
-                        ToTime = toTime,
-                        IsConflict = false,
-                    });
-
-                    currentTime = toTime;
-                }
-
-                currentDate = currentDate.AddDays(1);
-            }
-        }
-
-        var grouped = generatedSlots
-            .GroupBy(x => x.AvailableDate.Date)
-            .OrderBy(x => x.Key)
+        var location = await _locationRepository.FindAsync(input.LocationId);
+        var groupedByDate = generatedSlots
+            .GroupBy(s => s.AvailableDate.Date)
+            .OrderBy(g => g.Key)
             .ToList();
-
-        var location = await _locationRepository.FindAsync(input.First().LocationId);
-        var timeRange = $"{DateTime.Today.Add(input[0].FromTime.ToTimeSpan()):hh:mm tt}-{DateTime.Today.Add(input[0].ToTime.ToTimeSpan()):hh:mm tt}";
 
         var previewList = new List<DoctorAvailabilitySlotsPreviewDto>();
         var monthIndex = 1;
-        foreach (var group in grouped)
+        foreach (var group in groupedByDate)
         {
             var viewModel = new DoctorAvailabilitySlotsPreviewDto
             {
@@ -299,75 +262,255 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
                 Days = group.Key.ToString("dddd"),
                 MonthId = monthIndex,
                 LocationName = location?.Name,
-                Time = timeRange,
+                // Multi-range generations no longer carry a single wall-clock
+                // time string -- the SPA's slot picker (plan 5) renders the
+                // per-slot times instead. Left as empty for backward shape.
+                Time = string.Empty,
                 DoctorAvailabilities = new List<DoctorAvailabilitySlotPreviewDto>(),
             };
 
             var timeId = 1;
             foreach (var slot in group.OrderBy(x => x.FromTime))
             {
-                slot.TimeId = timeId;
+                slot.TimeId = timeId++;
                 viewModel.DoctorAvailabilities.Add(slot);
-                timeId++;
             }
-
             previewList.Add(viewModel);
             monthIndex++;
         }
 
-        // Conflicts are scoped to the same Location only. The slot model is per-location:
-        // two locations can independently host overlapping wall-clock slots (different doctors,
-        // different rooms). Cross-location overlap is intentionally NOT a conflict.
-        var isAlreadyExist = false;
-        var isBookedByUser = false;
+        // Per-date conflict flagging. Same-location overlap with an existing
+        // slot marks the new slot conflict; the message is set per-day so
+        // the SPA can render which date had the collision. Reserved (manually
+        // closed) overlap is messaged distinctly from a plain Available
+        // overlap.
         foreach (var date in previewList)
         {
-            foreach (var timeSlot in date.DoctorAvailabilities)
+            foreach (var slot in date.DoctorAvailabilities)
             {
-                var overlap = existingAvailabilities.FirstOrDefault(x =>
-                    x.LocationId == timeSlot.LocationId &&
-                    x.AvailableDate.Date == timeSlot.AvailableDate.Date &&
-                    x.FromTime < timeSlot.ToTime &&
-                    x.ToTime > timeSlot.FromTime);
-
+                var overlap = existing.FirstOrDefault(x =>
+                    x.AvailableDate.Date == slot.AvailableDate.Date &&
+                    x.FromTime < slot.ToTime &&
+                    x.ToTime > slot.FromTime);
                 if (overlap == null)
                 {
                     continue;
                 }
-
-                // 2026-05-15 (slot rework plan 3) -- Booked is dead under
-                // the capacity model. The "already booked or reserved"
-                // message branch is now triggered only by manually-closed
-                // Reserved slots; everything else (typically Available)
-                // falls through to "already exists".
+                slot.IsConflict = true;
                 if (overlap.BookingStatusId == BookingStatus.Reserved)
                 {
-                    timeSlot.IsConflict = true;
-                    isBookedByUser = true;
+                    date.SameTimeValidation = L["DoctorAvailability:GenerationConflictReserved"].Value;
                 }
                 else
                 {
-                    timeSlot.IsConflict = true;
-                    isAlreadyExist = true;
+                    date.SameTimeValidation = L["DoctorAvailability:GenerationConflictExists"].Value;
                 }
-            }
-        }
-
-        if (previewList.Count > 0)
-        {
-            if (isAlreadyExist)
-            {
-                previewList[0].SameTimeValidation = "Time slot already exists at this location.";
-            }
-
-            if (isBookedByUser)
-            {
-                previewList[0].SameTimeValidation =
-                    "Time slot is already booked or reserved at this location.";
             }
         }
 
         return previewList;
+    }
+
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Create)]
+    public virtual async Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsync(
+        DoctorAvailabilityGenerateInputDto input)
+    {
+        // Validation + expansion + conflict flagging happen inside the
+        // preview path; we re-run them server-side rather than trusting any
+        // client-serialised preview rows (a concurrent admin could create a
+        // colliding slot between the preview and this call).
+        var preview = await GeneratePreviewAsync(input);
+        var flatSlots = preview.SelectMany(d => d.DoctorAvailabilities).ToList();
+        var slotsToInsert = flatSlots.Where(s => !s.IsConflict).ToList();
+        var conflictedSlots = flatSlots.Where(s => s.IsConflict).ToList();
+
+        var result = new DoctorAvailabilityCreateRangeResultDto
+        {
+            InsertedCount = 0,
+            SkippedConflictCount = conflictedSlots.Count,
+            ConflictedSlots = conflictedSlots,
+        };
+
+        if (slotsToInsert.Count == 0)
+        {
+            return result;
+        }
+
+        using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
+        {
+            foreach (var slot in slotsToInsert)
+            {
+                await _doctorAvailabilityManager.CreateAsync(
+                    slot.LocationId,
+                    slot.AppointmentTypeIds,
+                    slot.AvailableDate,
+                    slot.FromTime,
+                    slot.ToTime,
+                    slot.BookingStatusId,
+                    slot.Capacity);
+                result.InsertedCount++;
+            }
+            await uow.CompleteAsync();
+        }
+
+        return result;
+    }
+
+    private void ValidateGenerationInput(DoctorAvailabilityGenerateInputDto input)
+    {
+        Check.NotNull(input, nameof(input));
+        if (input.LocationId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
+        }
+        if (input.AppointmentDurationMinutes <= 0)
+        {
+            throw new UserFriendlyException(L["DoctorAvailability:DurationMustBeGreaterThanZero"]);
+        }
+        if (input.Capacity < 1)
+        {
+            throw new UserFriendlyException(L["DoctorAvailability:CapacityMustBeAtLeastOne"]);
+        }
+        if (input.ToDate.Date < input.FromDate.Date)
+        {
+            throw new UserFriendlyException(L["DoctorAvailability:ToDateBeforeFromDate"]);
+        }
+        if (input.FromDate.Date < DateTime.Today)
+        {
+            throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
+        }
+        if (input.TimeRanges == null || input.TimeRanges.Count == 0)
+        {
+            throw new UserFriendlyException(L["DoctorAvailability:AtLeastOneTimeRangeRequired"]);
+        }
+
+        foreach (var range in input.TimeRanges)
+        {
+            if (range.ToTime <= range.FromTime)
+            {
+                throw new UserFriendlyException(
+                    L["DoctorAvailability:TimeRangeFromMustBeBeforeTo",
+                        range.FromTime, range.ToTime]);
+            }
+            var duration = range.AppointmentDurationMinutes ?? input.AppointmentDurationMinutes;
+            if (duration <= 0)
+            {
+                throw new UserFriendlyException(
+                    L["DoctorAvailability:TimeRangeDurationMustBePositive",
+                        range.FromTime, range.ToTime]);
+            }
+        }
+
+        // Cross-range overlap rejection. Ranges are sorted by FromTime; any
+        // adjacent pair where the next start is before the previous end
+        // overlaps.
+        var sortedRanges = input.TimeRanges.OrderBy(r => r.FromTime).ToList();
+        for (var i = 1; i < sortedRanges.Count; i++)
+        {
+            if (sortedRanges[i].FromTime < sortedRanges[i - 1].ToTime)
+            {
+                throw new UserFriendlyException(
+                    L["DoctorAvailability:TimeRangesOverlap",
+                        sortedRanges[i - 1].FromTime, sortedRanges[i - 1].ToTime,
+                        sortedRanges[i].FromTime, sortedRanges[i].ToTime]);
+            }
+        }
+
+        if (input.SelectedDays != null && input.SelectedDays.Count > 0)
+        {
+            if (input.SelectedDays.Any(d => d < 0 || d > 6))
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:SelectedDayOutOfRange"]);
+            }
+            if (input.SelectedDays.Distinct().Count() != input.SelectedDays.Count)
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:SelectedDaysDuplicate"]);
+            }
+        }
+
+        // Cap the generation before allocating the expansion. Locked
+        // decision 2026-05-20 Q2: 5,000 covers a full year of dense
+        // scheduling, well within SQL Server transaction norms.
+        var expected = EstimateSlotCount(input);
+        if (expected > GenerationSlotLimit)
+        {
+            throw new UserFriendlyException(
+                L["DoctorAvailability:GenerationCountExceedsLimit", GenerationSlotLimit]);
+        }
+    }
+
+    internal static List<DoctorAvailabilitySlotPreviewDto> ExpandToSlotPreviews(
+        DoctorAvailabilityGenerateInputDto input)
+    {
+        var allowedDays = (input.SelectedDays == null || input.SelectedDays.Count == 0)
+            ? new HashSet<int> { 0, 1, 2, 3, 4, 5, 6 }
+            : new HashSet<int>(input.SelectedDays);
+
+        var slots = new List<DoctorAvailabilitySlotPreviewDto>();
+        var currentDate = input.FromDate.Date;
+        var endDate = input.ToDate.Date;
+
+        while (currentDate <= endDate)
+        {
+            if (allowedDays.Contains((int)currentDate.DayOfWeek))
+            {
+                foreach (var range in input.TimeRanges.OrderBy(r => r.FromTime))
+                {
+                    var duration = range.AppointmentDurationMinutes
+                        ?? input.AppointmentDurationMinutes;
+                    var currentTime = range.FromTime;
+
+                    while (currentTime.AddMinutes(duration) <= range.ToTime)
+                    {
+                        var toTime = currentTime.AddMinutes(duration);
+                        slots.Add(new DoctorAvailabilitySlotPreviewDto
+                        {
+                            AppointmentTypeIds = new List<Guid>(input.AppointmentTypeIds),
+                            AvailableDate = currentDate,
+                            BookingStatusId = input.BookingStatusId,
+                            LocationId = input.LocationId,
+                            FromTime = currentTime,
+                            ToTime = toTime,
+                            Capacity = input.Capacity,
+                            IsConflict = false,
+                        });
+                        currentTime = toTime;
+                    }
+                }
+            }
+            currentDate = currentDate.AddDays(1);
+        }
+
+        return slots;
+    }
+
+    internal static int EstimateSlotCount(DoctorAvailabilityGenerateInputDto input)
+    {
+        if (input.TimeRanges == null || input.TimeRanges.Count == 0)
+        {
+            return 0;
+        }
+        var dayCount = 0;
+        for (var day = input.FromDate.Date; day <= input.ToDate.Date; day = day.AddDays(1))
+        {
+            if (input.SelectedDays == null
+                || input.SelectedDays.Count == 0
+                || input.SelectedDays.Contains((int)day.DayOfWeek))
+            {
+                dayCount++;
+            }
+        }
+        var slotsPerDay = input.TimeRanges.Sum(range =>
+        {
+            var duration = range.AppointmentDurationMinutes ?? input.AppointmentDurationMinutes;
+            if (duration <= 0)
+            {
+                return 0;
+            }
+            var minutes = (range.ToTime - range.FromTime).TotalMinutes;
+            return (int)Math.Floor(minutes / duration);
+        });
+        return dayCount * slotsPerDay;
     }
 
     /// <summary>

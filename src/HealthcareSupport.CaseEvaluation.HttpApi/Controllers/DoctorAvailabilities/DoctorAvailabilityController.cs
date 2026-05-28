@@ -94,9 +94,16 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
 
     [HttpPost]
     [Route("preview")]
-    public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto> input)
+    public virtual Task<List<DoctorAvailabilitySlotsPreviewDto>> GeneratePreviewAsync(DoctorAvailabilityGenerateInputDto input)
     {
         return _doctorAvailabilitiesAppService.GeneratePreviewAsync(input);
+    }
+
+    [HttpPost]
+    [Route("create-range")]
+    public virtual Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsync(DoctorAvailabilityGenerateInputDto input)
+    {
+        return _doctorAvailabilitiesAppService.CreateRangeAsync(input);
     }
 
     [HttpGet]
