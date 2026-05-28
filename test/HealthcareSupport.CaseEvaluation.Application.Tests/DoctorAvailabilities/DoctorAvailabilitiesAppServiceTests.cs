@@ -619,4 +619,186 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             AppointmentDurationMinutes = 60,
         };
     }
+
+    // =====================================================================
+    // 2026-05-15 -- slot rework plan 3: GetDoctorAvailabilityLookupAsync
+    // computes RemainingCapacity = Capacity - activeAppointmentCount and
+    // excludes full slots / Reserved slots from the picker.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_RemainingCapacityComputed()
+    {
+        var date = DateTime.Today.AddDays(15);
+        var slotId = Guid.NewGuid();
+        var appointmentRepo = GetRequiredService<HealthcareSupport.CaseEvaluation.Appointments.IAppointmentRepository>();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var slot = new DoctorAvailability(
+                    id: slotId,
+                    locationId: LocationsTestData.Location1Id,
+                    availableDate: date,
+                    fromTime: new TimeOnly(9, 0),
+                    toTime: new TimeOnly(10, 0),
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
+                slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+                await _slotRepository.InsertAsync(slot, autoSave: true);
+
+                await appointmentRepo.InsertAsync(new HealthcareSupport.CaseEvaluation.Appointments.Appointment(
+                    id: Guid.NewGuid(),
+                    patientId: PatientsTestData.Patient1Id,
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    locationId: LocationsTestData.Location1Id,
+                    doctorAvailabilityId: slotId,
+                    appointmentDate: date.AddHours(9).AddMinutes(15),
+                    requestConfirmationNumber: "A-RC-1",
+                    appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
+            }
+        });
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        var dto = result.SingleOrDefault(x => x.Id == slotId);
+        dto.ShouldNotBeNull();
+        dto.RemainingCapacity.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_FullSlotsExcluded()
+    {
+        var date = DateTime.Today.AddDays(16);
+        var slotId = Guid.NewGuid();
+        var appointmentRepo = GetRequiredService<HealthcareSupport.CaseEvaluation.Appointments.IAppointmentRepository>();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 1);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+
+            await appointmentRepo.InsertAsync(new HealthcareSupport.CaseEvaluation.Appointments.Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: slotId,
+                appointmentDate: date.AddHours(9).AddMinutes(15),
+                requestConfirmationNumber: "A-FULL-1",
+                appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_ReservedSlotsExcluded()
+    {
+        var date = DateTime.Today.AddDays(17);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Reserved,
+                capacity: 10);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_TypeFilterRespected()
+    {
+        var date = DateTime.Today.AddDays(18);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 3);
+            // Strict-mode: AppointmentType1 only.
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Caller requests AppointmentType2 -- should omit the strict slot.
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AppointmentTypeId = AppointmentTypesTestData.AppointmentType2Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
 }

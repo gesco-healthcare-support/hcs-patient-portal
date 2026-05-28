@@ -186,6 +186,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.DoctorCannotDeleteWithDependents,
                 System.Net.HttpStatusCode.BadRequest);
 
+            // 2026-05-15 -- capacity-aware booking gate
+            // (AppointmentsAppService.ValidateDoctorAvailabilityForBooking).
+            // All three are client-input precondition violations; HTTP 400 fits.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+
             // OBS-23 (2026-05-21) -- non-attorney external users blocked
             // from creating AME / AME-REVAL appointments. Client-input
             // policy violation; HTTP 400, not 403.

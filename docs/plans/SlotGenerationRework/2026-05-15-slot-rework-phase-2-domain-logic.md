@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress (build started 2026-05-28 on feat/slot-rework-domain-logic)
 issue: slot-rework-phase-2-domain-logic
 owner: AdrianG
 created: 2026-05-15
@@ -49,6 +49,68 @@ These supersede any conflicting text below, INCLUDING the
 - **Capacity model:** new slots carry `Capacity` (default 3). The booking gate
   compares the active-appointment count for a slot against that slot's
   `Capacity` (bookable when active-count < Capacity).
+
+## Build deviations -- 2026-05-28 (during implementation)
+
+Discovered while building plan 3 on `feat/slot-rework-domain-logic`. These
+supersede conflicting text below.
+
+1. **Phase21 data migration: DROPPED.** Per the round-2 locked decision
+   ("app is pre-deployment; existing data wiped and reseeded fresh"). No
+   migration was generated; plan section 11 is moot.
+
+2. **Step 5/6 row-lock + transactional UoW: DEFERRED to plan 7.** The
+   wave-wide kickoff invariant defers the race-to-last-seat hardening,
+   noting that the SQLite test harness cannot honor the T-SQL row-lock
+   hint. The capacity gate (step 6 Arms 1-3) is implemented; the
+   `FromSqlRaw("... WITH (UPDLOCK, HOLDLOCK)")` wrap is NOT added in this
+   PR. Test #8 (concurrent) is correspondingly omitted from the test plan.
+
+3. **Pre-existing test `CreateAsync_WhenSlotIsNotAvailable_Throws`
+   updated** to reflect new semantics: previously asserted that booking
+   `Slot1` (seeded as `Booked`) threw `UserFriendlyException` with
+   "no longer available". Under the capacity model `Booked` is legacy
+   (treated like `Available`); only `Reserved` blocks immediately. Test
+   renamed to `CreateAsync_WhenSlotIsReserved_Throws`, now flips Slot1 to
+   `Reserved` and asserts `BusinessException` with code
+   `AppointmentBookingSlotClosed`.
+
+4. **Pre-existing test `CreateAsync_FlipsSlotOutOfAvailable_ButNotEnshrineBooked`
+   updated** to the inverse assertion. Plan step 7d explicitly removes
+   slot status mutation from `CreateAsync`; the slot now stays `Available`
+   after booking and the active-count probe is authoritative. Test renamed
+   to `CreateAsync_LeavesSlotInAvailable_UnderCapacityModel`.
+
+5. **AppService field type changed**: `DoctorAvailabilitiesAppService`
+   previously injected `IRepository<Appointment, Guid>`; switched to
+   `IAppointmentRepository` so the new `GetActiveCountsForSlotsAsync`
+   bulk method is available for the lookup endpoint's RemainingCapacity
+   computation.
+
+6. **Validator renamed `ValidateDoctorAvailabilityForBooking` ->
+   `ValidateDoctorAvailabilityForBookingAsync`** since the method is now
+   async (needs to await the active-count probe). Call site updated to
+   `await`. Booked slots (legacy) pass through Arm 1 unchanged; Arm 1
+   only blocks `Reserved`. The plan body's "Arm 1: BookingStatusId !=
+   Available" check is REMOVED -- the capacity probe is the
+   authoritative source for "is this slot bookable" under the new model.
+
+7. **Test dates adjusted to stay within both lead-time and max-booking-
+   horizon.** `DefaultAppointmentLeadTime = 3` days and AppointmentType
+   has a max-time horizon (~30 days). Test `AppointmentDate` values use
+   `DateTime.Today.AddDays(7..18)` to land in the safe window; lookup
+   tests use `AvailableDateFrom = DateTime.Today.AddDays(-1)` so the
+   lead-time offset does not push `minDate` past the seeded slot date.
+
+**Tests:** 902 pass (vs. 890 before plan 3 -- +13 new: 7 capacity gate
+in `AppointmentsAppServiceTests`, 4 lookup in
+`DoctorAvailabilitiesAppServiceTests`, 1 active-count in new
+`AppointmentRepositoryTests`, plus 1 renamed pre-existing). 19 skipped
+unchanged.
+
+**Stack-dependent steps still pending:** Angular proxy regenerate to pick
+up `DoctorAvailabilityDto.RemainingCapacity` (no SPA consumer yet -- plan
+4/5 UI work).
 
 ## Re-verified 2026-05-27 (HEAD ad07947)
 

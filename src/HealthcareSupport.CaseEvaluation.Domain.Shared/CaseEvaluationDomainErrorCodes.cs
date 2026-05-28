@@ -716,4 +716,39 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string DoctorCannotDeleteWithDependents =
         "CaseEvaluation:Doctor.CannotDeleteWithDependents";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by
+    /// <c>AppointmentsAppService.ValidateDoctorAvailabilityForBooking</c>
+    /// when the slot's active-appointment count has reached or exceeded
+    /// its <c>Capacity</c>. Carries <c>capacity</c> + <c>activeCount</c>
+    /// via <c>WithData</c>. Mapped to HTTP 400 Bad Request. Localization
+    /// key <c>Appointment:BookingSlotFull</c>.
+    /// </summary>
+    public const string AppointmentBookingSlotFull =
+        "CaseEvaluation:Appointment.BookingSlotFull";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by
+    /// <c>AppointmentsAppService.ValidateDoctorAvailabilityForBooking</c>
+    /// when the slot's <c>BookingStatusId</c> is <c>Reserved</c>
+    /// (manually closed by the doctor's-admin -- never bookable
+    /// regardless of capacity). Mapped to HTTP 400 Bad Request.
+    /// Localization key <c>Appointment:BookingSlotClosed</c>.
+    /// </summary>
+    public const string AppointmentBookingSlotClosed =
+        "CaseEvaluation:Appointment.BookingSlotClosed";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by
+    /// <c>AppointmentsAppService.ValidateDoctorAvailabilityForBooking</c>
+    /// when the slot's <c>AppointmentTypes</c> set is non-empty and the
+    /// requested <c>AppointmentTypeId</c> is not in it. Empty set means
+    /// "any type accepted" and never raises this. Carries <c>requested</c>
+    /// + <c>permitted</c> ids via <c>WithData</c>. Mapped to HTTP 400
+    /// Bad Request. Localization key
+    /// <c>Appointment:BookingSlotTypeMismatch</c>.
+    /// </summary>
+    public const string AppointmentBookingSlotTypeMismatch =
+        "CaseEvaluation:Appointment.BookingSlotTypeMismatch";
 }
