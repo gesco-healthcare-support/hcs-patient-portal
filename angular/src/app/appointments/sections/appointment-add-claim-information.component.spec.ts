@@ -28,16 +28,30 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
   });
 
   /**
-   * Fills the always-required claim fields + disables the optional Insurance /
-   * Claim Examiner sub-sections so the modal form is valid and saveInjuryModal
-   * commits the draft.
+   * Fills the always-required claim fields, including the Insurance + Claim
+   * Examiner sub-sections (T3 / 2026-05-27: their Include toggles were removed
+   * and their fields are now unconditionally required), so the modal form is
+   * valid and saveInjuryModal commits the draft.
    */
   function fillRequiredScaffold(claimNumber: string): void {
     component.openAddInjuryModal();
     component.injuryForm.get('injuryDateOfInjury')!.setValue('2025-03-15');
     component.injuryForm.get('injuryClaimNumber')!.setValue(claimNumber);
-    component.injuryForm.get('injuryInsuranceEnabled')!.setValue(false);
-    component.injuryForm.get('injuryClaimExaminerEnabled')!.setValue(false);
+    // Insurance (1 required field; synthetic).
+    component.injuryForm.get('injuryInsuranceName')!.setValue('Acme Insurance Co');
+    // Claim Examiner (8 required fields; synthetic, 555-prefixed phones per
+    // .claude/rules/test-data.md). StateId only needs a non-null value to
+    // satisfy Validators.required.
+    component.injuryForm.get('injuryClaimExaminerName')!.setValue('Test Examiner');
+    component.injuryForm.get('injuryClaimExaminerEmail')!.setValue('examiner@test.local');
+    component.injuryForm.get('injuryClaimExaminerPhone')!.setValue('555-0100');
+    component.injuryForm.get('injuryClaimExaminerFax')!.setValue('555-0101');
+    component.injuryForm.get('injuryClaimExaminerStreet')!.setValue('1 Test St');
+    component.injuryForm.get('injuryClaimExaminerCity')!.setValue('Testville');
+    component.injuryForm
+      .get('injuryClaimExaminerStateId')!
+      .setValue('00000000-0000-0000-0000-000000000001');
+    component.injuryForm.get('injuryClaimExaminerZip')!.setValue('90001');
   }
 
   it('seeds exactly one required body-part row when the modal opens', () => {
