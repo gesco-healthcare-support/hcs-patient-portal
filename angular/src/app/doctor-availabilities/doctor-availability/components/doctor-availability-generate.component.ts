@@ -174,16 +174,14 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     }
 
     const value = this.form.value;
-    const basePayload = {
-      locationId: value.locationId,
-      appointmentTypeId: value.appointmentTypeId,
-      fromTime: this.normalizeTime(value.fromTime),
-      toTime: this.normalizeTime(value.toTime),
-      bookingStatusId: value.bookingStatusId,
-      appointmentDurationMinutes: Number(value.appointmentDurationMinutes),
-    };
 
-    let payloads: DoctorAvailabilityGenerateInputDto[] = [];
+    // 2026-05-15 slot rework (plan 4): the generate API now takes one
+    // multi-axis DoctorAvailabilityGenerateInputDto. This is a minimum
+    // compile-keep migration -- plan 5 reworks the form to expose
+    // multi-range / multi-type / multi-weekday natively.
+    let fromDate: string | null;
+    let toDate: string | null;
+    let selectedDays: number[] | null = null;
 
     if (value.slotMode === 'weekdays') {
       const month = this.resolveSelectedMonth();
@@ -192,26 +190,38 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
         value.fromDay === null || value.fromDay === undefined ? null : Number(value.fromDay);
       const toDay = value.toDay === null || value.toDay === undefined ? null : Number(value.toDay);
       const dates = this.buildWeekdayDates(year, month, fromDay, toDay);
-      payloads = dates.map((date) => ({
-        ...basePayload,
-        fromDate: date,
-        toDate: date,
-      }));
+      fromDate = dates[0] ?? null;
+      toDate = dates[dates.length - 1] ?? null;
+      // Derive SelectedDays from the picked-weekday set.
+      const dayOfWeekSet = new Set<number>(dates.map((d) => new Date(d).getDay()));
+      selectedDays = Array.from(dayOfWeekSet);
     } else {
-      payloads = [
-        {
-          ...basePayload,
-          fromDate: value.fromDate,
-          toDate: value.toDate,
-        },
-      ];
+      fromDate = value.fromDate;
+      toDate = value.toDate;
     }
+
+    const input: DoctorAvailabilityGenerateInputDto = {
+      locationId: value.locationId,
+      appointmentTypeIds: value.appointmentTypeId ? [value.appointmentTypeId] : [],
+      fromDate: fromDate ?? undefined,
+      toDate: toDate ?? undefined,
+      selectedDays,
+      timeRanges: [
+        {
+          fromTime: this.normalizeTime(value.fromTime),
+          toTime: this.normalizeTime(value.toTime),
+        },
+      ],
+      bookingStatusId: value.bookingStatusId,
+      appointmentDurationMinutes: Number(value.appointmentDurationMinutes),
+      capacity: 3,
+    };
 
     this.isGenerating = true;
     this.validationMessage = null;
 
     this.service
-      .generatePreview(payloads)
+      .generatePreview(input)
       .pipe(finalize(() => (this.isGenerating = false)))
       .subscribe((result) => {
         this.preview = result ?? [];

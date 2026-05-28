@@ -1,4 +1,4 @@
-import type { DoctorAvailabilityBulkDeleteResultDto, DoctorAvailabilityCreateDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput } from './models';
+import type { DoctorAvailabilityBulkDeleteResultDto, DoctorAvailabilityCreateDto, DoctorAvailabilityCreateRangeResultDto, DoctorAvailabilityDeleteByDateInputDto, DoctorAvailabilityDeleteBySlotInputDto, DoctorAvailabilityDto, DoctorAvailabilityGenerateInputDto, DoctorAvailabilitySlotsPreviewDto, DoctorAvailabilityUpdateDto, DoctorAvailabilityWithNavigationPropertiesDto, GetDoctorAvailabilitiesInput, GetDoctorAvailabilityLookupInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -16,6 +16,15 @@ export class DoctorAvailabilityService {
     this.restService.request<any, DoctorAvailabilityDto>({
       method: 'POST',
       url: '/api/app/doctor-availabilities',
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  createRange = (input: DoctorAvailabilityGenerateInputDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, DoctorAvailabilityCreateRangeResultDto>({
+      method: 'POST',
+      url: '/api/app/doctor-availabilities/create-range',
       body: input,
     },
     { apiName: this.apiName,...config });
@@ -47,7 +56,7 @@ export class DoctorAvailabilityService {
     { apiName: this.apiName,...config });
   
 
-  generatePreview = (input: DoctorAvailabilityGenerateInputDto[], config?: Partial<Rest.Config>) =>
+  generatePreview = (input: DoctorAvailabilityGenerateInputDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, DoctorAvailabilitySlotsPreviewDto[]>({
       method: 'POST',
       url: '/api/app/doctor-availabilities/preview',

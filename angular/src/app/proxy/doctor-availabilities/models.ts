@@ -18,6 +18,12 @@ export interface DoctorAvailabilityCreateDto {
   capacity?: number;
 }
 
+export interface DoctorAvailabilityCreateRangeResultDto {
+  insertedCount?: number;
+  skippedConflictCount?: number;
+  conflictedSlots?: DoctorAvailabilitySlotPreviewDto[];
+}
+
 export interface DoctorAvailabilityDeleteByDateInputDto {
   locationId?: string;
   availableDate?: string;
@@ -45,13 +51,13 @@ export interface DoctorAvailabilityDto extends FullAuditedEntityDto<string> {
 export interface DoctorAvailabilityGenerateInputDto {
   fromDate?: string;
   toDate?: string;
-  fromTime?: string;
-  toTime?: string;
+  selectedDays?: number[] | null;
+  timeRanges?: TimeRangeDto[];
   bookingStatusId?: BookingStatus;
   locationId?: string;
   appointmentTypeIds?: string[];
-  capacity?: number;
   appointmentDurationMinutes?: number;
+  capacity?: number;
 }
 
 export interface DoctorAvailabilitySlotPreviewDto {
@@ -110,4 +116,10 @@ export interface GetDoctorAvailabilityLookupInput {
   appointmentTypeId?: string | null;
   availableDateFrom?: string | null;
   availableDateTo?: string | null;
+}
+
+export interface TimeRangeDto {
+  fromTime?: string;
+  toTime?: string;
+  appointmentDurationMinutes?: number | null;
 }
