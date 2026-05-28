@@ -156,9 +156,13 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
                 //     so threading through CancellationRequested ->
                 //     Confirm would be ceremony.
                 //   - Publishing AppointmentStatusChangedEto manually
-                //     drives Session A's existing SlotCascadeHandler
-                //     so the slot transitions Booked -> Available
-                //     identically to the supervisor-cancel path.
+                //     fires the downstream notification + audit handlers
+                //     identically to the supervisor-cancel path. Slot
+                //     mutation no longer happens here; capacity-aware
+                //     booking (2026-05-15 slot rework plan 3) treats
+                //     the slot's BookingStatusId as a manual-close
+                //     override only, and SlotCascadeHandler is a
+                //     log-only stub.
                 // Phase 14b refines if Session A grows a public
                 // auto-cancel trigger.
                 var entity = await _appointmentRepository.GetAsync(candidate.Id);

@@ -38,6 +38,7 @@ export interface DoctorAvailabilityDto extends FullAuditedEntityDto<string> {
   locationId?: string;
   appointmentTypeIds?: string[];
   capacity?: number;
+  remainingCapacity?: number | null;
   concurrencyStamp?: string;
 }
 

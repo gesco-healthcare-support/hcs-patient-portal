@@ -28,7 +28,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     protected DoctorAvailabilityManager _doctorAvailabilityManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> _locationRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> _appointmentTypeRepository;
-    protected IRepository<Appointment, Guid> _appointmentRepository;
+    protected IAppointmentRepository _appointmentRepository;
     protected IRepository<AppointmentChangeRequest, Guid> _appointmentChangeRequestRepository;
     protected ISystemParameterRepository _systemParameterRepository;
 
@@ -37,7 +37,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         DoctorAvailabilityManager doctorAvailabilityManager,
         IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository,
         IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository,
-        IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentRepository appointmentRepository,
         IRepository<AppointmentChangeRequest, Guid> appointmentChangeRequestRepository,
         ISystemParameterRepository systemParameterRepository)
     {
@@ -335,8 +335,12 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
                     continue;
                 }
 
-                if (overlap.BookingStatusId == BookingStatus.Booked ||
-                    overlap.BookingStatusId == BookingStatus.Reserved)
+                // 2026-05-15 (slot rework plan 3) -- Booked is dead under
+                // the capacity model. The "already booked or reserved"
+                // message branch is now triggered only by manually-closed
+                // Reserved slots; everything else (typically Available)
+                // falls through to "already exists".
+                if (overlap.BookingStatusId == BookingStatus.Reserved)
                 {
                     timeSlot.IsConflict = true;
                     isBookedByUser = true;
@@ -411,7 +415,25 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         query = query.OrderBy(x => x.AvailableDate).ThenBy(x => x.FromTime);
 
         var entities = await AsyncExecuter.ToListAsync(query);
-        return entities.Select(ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>).ToList();
+
+        // 2026-05-15 (slot rework plan 3) -- compute RemainingCapacity and
+        // exclude full slots from the picker. Bulk fetch active-counts to
+        // avoid N+1 round-trips; missing keys mean zero active appointments.
+        var slotIds = entities.Select(x => x.Id).ToList();
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(slotIds);
+
+        var dtos = new List<DoctorAvailabilityDto>(entities.Count);
+        foreach (var slot in entities)
+        {
+            var dto = ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(slot);
+            var active = activeCounts.TryGetValue(slot.Id, out var c) ? c : 0;
+            dto.RemainingCapacity = (int)Math.Max(0, slot.Capacity - active);
+            if (dto.RemainingCapacity > 0)
+            {
+                dtos.Add(dto);
+            }
+        }
+        return dtos;
     }
 
     /// <summary>

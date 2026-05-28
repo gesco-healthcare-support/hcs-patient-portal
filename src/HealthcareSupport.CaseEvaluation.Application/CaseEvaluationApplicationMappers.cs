@@ -234,9 +234,11 @@ public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBa
     // idiomatic [MapperIgnoreTarget] + AfterMap pattern (see
     // AppointmentTypeToLookupDtoGuidMapper) so the shape change is explicit.
     [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
 
     [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
 
     public override void AfterMap(DoctorAvailability source, DoctorAvailabilityDto destination)
