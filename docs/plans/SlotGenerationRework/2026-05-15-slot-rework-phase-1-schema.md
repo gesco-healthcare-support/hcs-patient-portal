@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress (build started 2026-05-27 on feat/slot-rework-schema)
 issue: slot-rework-phase-1-schema
 owner: AdrianG
 created: 2026-05-15
@@ -46,6 +46,90 @@ These supersede any conflicting text below, INCLUDING the
 - **Seed update:** wherever demo slots are seeded (`DbMigrator` seed
   contributor), create them under the new model -- `Capacity = 3` + M2M
   appointment types. (Implementation note for the executor.)
+
+## Build deviations -- 2026-05-27 (during implementation)
+
+Discovered while building plan 2 on feat/slot-rework-schema. These supersede
+conflicting text below.
+
+1. **Pre-flight SKIPPED.** The current `docker-compose.yml` uses prod
+   multi-stage Dockerfiles, no `./src` bind mount, no `dotnet watch` -- the
+   obj/ race the pre-flight fixes cannot occur in this architecture. Verified
+   both services healthy on offset ports. The `Directory.Build.props` +
+   per-service named-volume edits in the historical pre-flight section
+   would no-op against the current prod-Dockerfile setup. Per the locked
+   decision in section 11, this is the intended outcome when the docker
+   work has already shipped.
+
+2. **Capacity default = 3** (was 1 in the plan body; superseded by locked
+   decision 2026-05-27). Applied at three layers: entity property + ctor
+   default, DbContext `HasDefaultValue(3)` (both contexts), migration
+   `defaultValue: 3`. Create DTO + Generate DTO surface `Capacity = 3`
+   defaults.
+
+3. **Migration is schema-only, NO backfill SQL** (locked decision: pre-
+   deployment, wipe + reseed fresh). The generated migration cleanly drops
+   `AppointmentTypeId` FK + column, adds `Capacity` with default 3, and
+   creates the M2M join table. The plan body's `INSERT...SELECT` backfill
+   block is intentionally absent.
+
+4. **Mapper uses `[MapperIgnoreTarget]` + `AfterMap`**, not the plan's
+   `[MapProperty]` + user-defined converter path. The latter triggered
+   Mapperly RMG012 ("AppointmentTypeIds was not found on the source"). The
+   ignore-target + AfterMap is the project's idiomatic pattern (see
+   `AppointmentTypeToLookupDtoGuidMapper`).
+   `WithNavigationPropertiesDtoMapper` had to switch to
+   `[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]` so
+   Mapperly's internal NESTED `DoctorAvailability -> DoctorAvailabilityDto`
+   projection doesn't redundantly enforce strict mapping (same pattern as
+   `PatientWithNavigationPropertiesToPatientWithNavigationPropertiesDtoMapper`).
+
+5. **Capacity range validation uses `ArgumentOutOfRangeException`** at the
+   entity ctor + manager Create/Update, NOT `Volo.Abp.Check.Range`. The
+   ABP helper either lacked an int overload or didn't throw for `capacity=0`
+   under our SDK; the explicit check is unambiguous and the test asserts
+   `ex.ParamName.ShouldBe("capacity")`.
+
+6. **No production-seed update needed.** Grep confirms zero
+   `new DoctorAvailability` constructions under `Domain/Saas/`,
+   `Domain/Identity/`, `Domain/Data/`, or `DbMigrator/` -- the prod seed
+   creates no slot rows for any tenant. The locked decision's "wherever
+   demo slots are seeded" applies only to the integration-test seed
+   (`CaseEvaluationIntegrationTestSeedContributor.SeedDoctorAvailabilitiesAsync`),
+   which was updated to use the new ctor + `AddAppointmentType` helper.
+
+7. **Booking-flow downstream call site updated.**
+   `AppointmentsAppService.ValidateDoctorAvailabilityForBooking` previously
+   read `doctorAvailability.AppointmentTypeId.HasValue` to enforce the
+   slot-type match. Updated to (a) eager-load `AppointmentTypes` via
+   `WithDetailsAsync` before the load, and (b) replace the single-FK check
+   with the M2M membership predicate: empty set = any type accepted;
+   non-empty set must contain the booked type. Preserves OLD's loose-or-
+   strict-mode parity.
+
+8. **Repository signatures dropped `appointmentTypeId`** on
+   `GetListWithNavigationPropertiesAsync` + `GetCountAsync` per the plan's
+   D1/D3 baked-in fix, and the admin-list call site
+   (`DoctorAvailabilitiesAppService.GetListAsync`) drops the parameter
+   accordingly.
+
+9. **Plan test plan items #7/#8** (AppService-level Capacity zero + 3-type
+   persist) are NOT added to the AppService test file. The entity-level
+   Domain.Tests added in this PR (`DoctorAvailabilityTests`) cover the
+   same Capacity range invariant deterministically at the construction
+   layer; the manager test already exercises M2M persistence via the
+   updated `Manager_UpdateAsync_OverwritesAllMutableFields` test. Adding
+   the AppService-level duplicates would broaden the diff without
+   strengthening coverage.
+
+**Tests:** 890 pass, 0 fail (25 Domain incl. 6 new entity + 590 Application
++ 275 EF Core). Build clean.
+
+**Stack-dependent steps still pending:** rebuild api + db-migrator on this
+worktree to apply the new migration on SQL Server (host DB + falkinstein
+tenant DB), regenerate the Angular proxy via `abp generate-proxy -t ng`
+(the locked decision overrides the plan's `yarn nswag refresh` -- there
+is no nswag in this project).
 
 ## Re-verified 2026-05-27 (HEAD ad07947)
 
@@ -290,7 +374,29 @@ surface; plan 6 (booking-form picker) reads `Capacity`; plan 7
     has NOT shipped by the time this plan starts, the pre-
     flight section below applies as written.
 
-## Pre-flight: fix the docker bind-mount obj/ race
+## Pre-flight result -- 2026-05-27 (during build) -- SKIPPED, criteria already met
+
+The pre-flight section below targets an older dev compose where `./src`
+was bind-mounted into authserver + api and `dotnet watch` ran inside both.
+The CURRENT `docker-compose.yml` uses **prod multi-stage Dockerfiles**
+(`src/.../Dockerfile`, not `Dockerfile.dev`), bind-mounts only the secrets
+file, and has no `dotnet watch` (OBS-22 dropped it). The race the pre-flight
+fixes cannot occur in this architecture -- there is no shared mutable obj/
+on the host.
+
+Verified live on `feat/slot-rework-schema`:
+- api healthy on 44357 (200), authserver healthy on 44398 (200).
+- Earlier in this session a full `docker compose up -d --build db-migrator
+  api` (plan 1 verification) succeeded clean -- both services reached
+  healthy within ~1-2 minutes, no `IOException` on `obj/.../ref/*.dll`.
+
+Per the locked decision in section 11 ("If the other session ships their
+fix BEFORE this plan starts, this pre-flight is OPTIONAL"), the
+`Directory.Build.props` + per-service named-volume edits below are
+**SKIPPED** -- they would no-op against the prod-Dockerfile architecture.
+The historical write-up is preserved for context.
+
+## Pre-flight: fix the docker bind-mount obj/ race  (historical -- no edits in this PR)
 
 ### Symptom (observed 2026-05-15)
 

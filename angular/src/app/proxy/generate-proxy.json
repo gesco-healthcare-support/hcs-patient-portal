@@ -15331,18 +15331,6 @@
                 },
                 {
                   "nameOnMethod": "input",
-                  "name": "AppointmentTypeId",
-                  "jsonName": null,
-                  "type": "System.Guid?",
-                  "typeSimple": "string?",
-                  "isOptional": false,
-                  "defaultValue": null,
-                  "constraintTypes": null,
-                  "bindingSourceId": "ModelBinding",
-                  "descriptorName": "input"
-                },
-                {
-                  "nameOnMethod": "input",
                   "name": "Sorting",
                   "jsonName": null,
                   "type": "System.String",
@@ -17426,6 +17414,43 @@
               "allowAnonymous": true,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.ExternalSignupController"
             },
+            "ValidateInviteAsyncByToken": {
+              "uniqueName": "ValidateInviteAsyncByToken",
+              "name": "ValidateInviteAsync",
+              "httpMethod": "GET",
+              "url": "api/public/external-signup/validate-invite",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "token",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "token",
+                  "name": "token",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalSignups.ExternalSignupController"
+            },
             "MarkEmailConfirmedAsyncByInput": {
               "uniqueName": "MarkEmailConfirmedAsyncByInput",
               "name": "MarkEmailConfirmedAsync",
@@ -17562,6 +17587,91 @@
               },
               "allowAnonymous": false,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.ExternalUsers.ExternalUserController"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.Controllers.InternalUsers.InternalUsersController": {
+          "controllerName": "InternalUsers",
+          "controllerGroupName": "InternalUsers",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.InternalUsers.InternalUsersController",
+          "interfaces": [],
+          "actions": {
+            "CreateAsyncByInput": {
+              "uniqueName": "CreateAsyncByInput",
+              "name": "CreateAsync",
+              "httpMethod": "POST",
+              "url": "api/app/internal-users",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.InternalUsers.InternalUserCreatedDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.InternalUsers.InternalUserCreatedDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.InternalUsers.InternalUsersController"
+            },
+            "GetTenantOptionsAsyncByFilter": {
+              "uniqueName": "GetTenantOptionsAsyncByFilter",
+              "name": "GetTenantOptionsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/internal-users/tenants",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "filter",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": true,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "filter",
+                  "name": "filter",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.Shared.LookupDto<System.Guid>>",
+                "typeSimple": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.Shared.LookupDto<string>>"
+              },
+              "allowAnonymous": true,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.InternalUsers.InternalUsersController"
             }
           }
         },
@@ -22949,6 +23059,23 @@
                   }
                 },
                 {
+                  "name": "ValidateInviteAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "token",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto"
+                  }
+                },
+                {
                   "name": "MarkEmailConfirmedAsync",
                   "parametersOnMethod": [
                     {
@@ -23258,6 +23385,43 @@
                 "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.InviteExternalUserResultDto"
               },
               "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.ExternalSignups.IExternalSignupAppService"
+            },
+            "ValidateInviteAsyncByToken": {
+              "uniqueName": "ValidateInviteAsyncByToken",
+              "name": "ValidateInviteAsync",
+              "httpMethod": "POST",
+              "url": "api/app/external-signup/validate-invite",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "token",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "token",
+                  "name": "token",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto"
+              },
+              "allowAnonymous": true,
               "implementFrom": "HealthcareSupport.CaseEvaluation.ExternalSignups.IExternalSignupAppService"
             }
           }
@@ -39237,6 +39401,32 @@
       "genericArguments": null,
       "properties": [
         {
+          "name": "FirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "FirmName",
           "jsonName": null,
           "type": "System.String",
@@ -44244,6 +44434,32 @@
           "isNullable": false
         },
         {
+          "name": "RejectionNotes",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "RejectedById",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "PatientId",
           "jsonName": null,
           "type": "System.Guid",
@@ -45108,13 +45324,13 @@
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
-          "isRequired": false,
-          "minLength": 0,
-          "maxLength": 2000,
+          "isRequired": true,
+          "minLength": 5,
+          "maxLength": 500,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
         }
       ]
     },
@@ -46640,6 +46856,32 @@
       "genericArguments": null,
       "properties": [
         {
+          "name": "FirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "FirmName",
           "jsonName": null,
           "type": "System.String",
@@ -47179,17 +47421,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "Capacity",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": "1",
+          "maximum": "2147483647",
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -47362,17 +47617,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "Capacity",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "ConcurrencyStamp",
@@ -47475,17 +47743,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "Capacity",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": "1",
+          "maximum": "2147483647",
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "AppointmentDurationMinutes",
@@ -47575,17 +47856,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "Capacity",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "TimeId",
@@ -47788,17 +48082,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "Capacity",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": "1",
+          "maximum": "2147483647",
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "ConcurrencyStamp",
@@ -47849,17 +48156,17 @@
           "isNullable": true
         },
         {
-          "name": "AppointmentType",
+          "name": "AppointmentTypes",
           "jsonName": null,
-          "type": "HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentTypeDto",
-          "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentTypeDto",
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentTypeDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentTypeDto]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
         }
       ]
     },
@@ -47976,19 +48283,6 @@
         },
         {
           "name": "LocationId",
-          "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": true
-        },
-        {
-          "name": "AppointmentTypeId",
           "jsonName": null,
           "type": "System.Guid?",
           "typeSimple": "string?",
@@ -49359,6 +49653,19 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        },
+        {
+          "name": "InviteToken",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
@@ -49381,6 +49688,80 @@
       ],
       "genericArguments": null,
       "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.ExternalSignups.InvitationValidationDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "UserType",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalUserType",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RoleName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "TenantName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ExpiresAt",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
     },
     "HealthcareSupport.CaseEvaluation.ExternalSignups.InviteExternalUserDto": {
       "baseType": null,
@@ -49438,19 +49819,6 @@
           "isNullable": false
         },
         {
-          "name": "EmailEnqueued",
-          "jsonName": null,
-          "type": "System.Boolean",
-          "typeSimple": "boolean",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": false
-        },
-        {
           "name": "Email",
           "jsonName": null,
           "type": "System.String",
@@ -49481,6 +49849,206 @@
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ExpiresAt",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.InternalUsers.CreateInternalUserDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "FirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 1,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "LastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 1,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RoleName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 1,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "TenantId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PhoneNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 20,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.InternalUsers.InternalUserCreatedDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "UserId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "FirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "LastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RoleName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "TenantName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "WelcomeEmailQueued",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,

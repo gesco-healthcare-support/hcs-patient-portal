@@ -14,7 +14,8 @@ export interface DoctorAvailabilityCreateDto {
   toTime?: string;
   bookingStatusId?: BookingStatus;
   locationId?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  capacity?: number;
 }
 
 export interface DoctorAvailabilityDeleteByDateInputDto {
@@ -35,7 +36,8 @@ export interface DoctorAvailabilityDto extends FullAuditedEntityDto<string> {
   toTime?: string;
   bookingStatusId?: BookingStatus;
   locationId?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  capacity?: number;
   concurrencyStamp?: string;
 }
 
@@ -46,7 +48,8 @@ export interface DoctorAvailabilityGenerateInputDto {
   toTime?: string;
   bookingStatusId?: BookingStatus;
   locationId?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  capacity?: number;
   appointmentDurationMinutes?: number;
 }
 
@@ -56,7 +59,8 @@ export interface DoctorAvailabilitySlotPreviewDto {
   toTime?: string;
   bookingStatusId?: BookingStatus;
   locationId?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  capacity?: number;
   timeId?: number;
   isConflict?: boolean;
 }
@@ -77,14 +81,15 @@ export interface DoctorAvailabilityUpdateDto {
   toTime?: string;
   bookingStatusId?: BookingStatus;
   locationId?: string;
-  appointmentTypeId?: string | null;
+  appointmentTypeIds?: string[];
+  capacity?: number;
   concurrencyStamp?: string;
 }
 
 export interface DoctorAvailabilityWithNavigationPropertiesDto {
   doctorAvailability?: DoctorAvailabilityDto;
   location?: LocationDto | null;
-  appointmentType?: AppointmentTypeDto | null;
+  appointmentTypes?: AppointmentTypeDto[];
 }
 
 export interface GetDoctorAvailabilitiesInput extends PagedAndSortedResultRequestDto {
@@ -97,7 +102,6 @@ export interface GetDoctorAvailabilitiesInput extends PagedAndSortedResultReques
   toTimeMax?: string | null;
   bookingStatusId?: BookingStatus | null;
   locationId?: string | null;
-  appointmentTypeId?: string | null;
 }
 
 export interface GetDoctorAvailabilityLookupInput {

@@ -118,7 +118,6 @@ public abstract class DoctorsAppServiceTests<TStartupModule> : CaseEvaluationApp
                 await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                     id: Guid.NewGuid(),
                     locationId: LocationsTestData.Location1Id,
-                    appointmentTypeId: null,
                     availableDate: new DateTime(2026, 1, 1),
                     fromTime: new TimeOnly(9, 0),
                     toTime: new TimeOnly(9, 30),

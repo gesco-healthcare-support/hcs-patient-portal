@@ -139,5 +139,5 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
 }
 
 export interface RejectAppointmentInput {
-  reason?: string | null;
+  reason: string;
 }

@@ -205,8 +205,39 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.FromTime).HasColumnName(nameof(DoctorAvailability.FromTime));
             b.Property(x => x.ToTime).HasColumnName(nameof(DoctorAvailability.ToTime));
             b.Property(x => x.BookingStatusId).HasColumnName(nameof(DoctorAvailability.BookingStatusId));
+            // 2026-05-15 (locked 2026-05-27) -- new-slot default capacity = 3.
+            // Internal staff may override per slot during generation. Plan 3's
+            // bookable predicate enforces (Capacity - activeAppointmentCount) > 0.
+            b.Property(x => x.Capacity)
+                .HasColumnName(nameof(DoctorAvailability.Capacity))
+                .IsRequired()
+                .HasDefaultValue(3);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
-            b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.SetNull);
+            // AppointmentTypeId removed -- see DoctorAvailabilityAppointmentType join below.
+        });
+
+        // 2026-05-15 -- M2M join between DoctorAvailability and AppointmentType
+        // (replaces the single AppointmentTypeId FK). Empty set means "any
+        // type accepted". TenantId mirrors the parent slot.
+        builder.Entity<DoctorAvailabilityAppointmentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "DoctorAvailabilityAppointmentType", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(DoctorAvailabilityAppointmentType.TenantId));
+            b.HasKey(x => new { x.DoctorAvailabilityId, x.AppointmentTypeId });
+            b.HasOne(x => x.DoctorAvailability)
+                .WithMany(x => x.AppointmentTypes)
+                .HasForeignKey(x => x.DoctorAvailabilityId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.AppointmentType)
+                .WithMany()
+                .HasForeignKey(x => x.AppointmentTypeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.NoAction);
+            b.HasIndex(x => new { x.DoctorAvailabilityId, x.AppointmentTypeId });
+            // Mirror parent's soft-delete filter -- slot is soft-deletable.
+            b.HasQueryFilter(x => !x.DoctorAvailability.IsDeleted);
         });
 
         // Phase 7b (2026-05-03) -- Doctor-Location preference toggle.

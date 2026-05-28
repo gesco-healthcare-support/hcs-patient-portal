@@ -389,8 +389,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     [Fact]
     public async Task GetWithNavigationPropertiesAsync_ResolvesLocationAndAppointmentType()
     {
-        // Slot1 has both LocationId (Location1) and AppointmentTypeId
-        // (AppointmentType1) populated, exercising the nav-prop join.
+        // 2026-05-15 slot rework: AppointmentTypes is a M2M collection.
+        // Slot1 has Location1 and a single AppointmentType1 join row.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot1Id);
@@ -399,23 +399,22 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
             result.Location.ShouldNotBeNull();
             result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
-            result.AppointmentType.ShouldNotBeNull();
-            result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
+            result.AppointmentTypes.Count.ShouldBe(1);
+            result.AppointmentTypes.Single().Id.ShouldBe(LocationsTestData.AppointmentType1Id);
         }
     }
 
     [Fact]
-    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypeIdNull_ReturnsNullNavBranch()
+    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypesEmpty_ReturnsEmptyList()
     {
-        // Slot2 has AppointmentTypeId = null, exercising the LEFT-JOIN's
-        // null-nav branch.
+        // 2026-05-15 slot rework: Slot2 has no join rows (loose mode).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot2Id);
 
             result.ShouldNotBeNull();
             result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot2Id);
-            result.AppointmentType.ShouldBeNull();
+            result.AppointmentTypes.ShouldBeEmpty();
             result.Location.ShouldNotBeNull();
         }
     }
@@ -428,11 +427,12 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var input = new DoctorAvailabilityCreateDto
             {
                 LocationId = LocationsTestData.Location1Id,
-                AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+                AppointmentTypeIds = new List<Guid> { LocationsTestData.AppointmentType1Id },
                 AvailableDate = new DateTime(2027, 8, 15, 0, 0, 0, DateTimeKind.Utc),
                 FromTime = new TimeOnly(11, 0),
                 ToTime = new TimeOnly(12, 0),
                 BookingStatusId = BookingStatus.Available,
+                Capacity = 3,
             };
 
             var created = await _appService.CreateAsync(input);
@@ -457,22 +457,23 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratch = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2027, 9, 1, 0, 0, 0, DateTimeKind.Utc),
                 fromTime: new TimeOnly(13, 0),
                 toTime: new TimeOnly(14, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratch.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
 
             var existing = await _slotRepository.GetAsync(inserted.Id);
             var update = new DoctorAvailabilityUpdateDto
             {
                 LocationId = existing.LocationId,
-                AppointmentTypeId = existing.AppointmentTypeId,
+                AppointmentTypeIds = existing.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList(),
                 AvailableDate = existing.AvailableDate,
                 FromTime = existing.FromTime,
                 ToTime = existing.ToTime,
                 BookingStatusId = BookingStatus.Reserved,
+                Capacity = existing.Capacity,
                 ConcurrencyStamp = existing.ConcurrencyStamp,
             };
 
@@ -489,11 +490,11 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratch = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2027, 10, 1, 0, 0, 0, DateTimeKind.Utc),
                 fromTime: new TimeOnly(8, 0),
                 toTime: new TimeOnly(9, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratch.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
 
             await _appService.DeleteAsync(inserted.Id);
@@ -513,19 +514,19 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratchA = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: new TimeOnly(8, 0),
                 toTime: new TimeOnly(9, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratchA.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var scratchB = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(10, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratchB.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var insertedA = await _slotRepository.InsertAsync(scratchA, autoSave: true);
             var insertedB = await _slotRepository.InsertAsync(scratchB, autoSave: true);
 
@@ -583,7 +584,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             ToTime = new TimeOnly(10, 0),
             BookingStatusId = BookingStatus.Available,
             LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            AppointmentTypeIds = new List<Guid> { DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId },
+            Capacity = 3,
         };
     }
 
@@ -596,7 +598,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             ToTime = new TimeOnly(10, 0),
             BookingStatusId = BookingStatus.Available,
             LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            AppointmentTypeIds = new List<Guid> { DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId },
+            Capacity = 3,
             ConcurrencyStamp = string.Empty,
         };
     }
@@ -611,7 +614,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             ToTime = new TimeOnly(10, 0),
             BookingStatusId = BookingStatus.Available,
             LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            AppointmentTypeIds = new List<Guid> { DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId },
+            Capacity = 3,
             AppointmentDurationMinutes = 60,
         };
     }

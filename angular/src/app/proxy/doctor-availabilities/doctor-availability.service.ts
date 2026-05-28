@@ -86,7 +86,7 @@ export class DoctorAvailabilityService {
     this.restService.request<any, PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>>({
       method: 'GET',
       url: '/api/app/doctor-availabilities',
-      params: { filterText: input.filterText, availableDateMin: input.availableDateMin, availableDateMax: input.availableDateMax, fromTimeMin: input.fromTimeMin, fromTimeMax: input.fromTimeMax, toTimeMin: input.toTimeMin, toTimeMax: input.toTimeMax, bookingStatusId: input.bookingStatusId, locationId: input.locationId, appointmentTypeId: input.appointmentTypeId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, availableDateMin: input.availableDateMin, availableDateMax: input.availableDateMax, fromTimeMin: input.fromTimeMin, fromTimeMax: input.fromTimeMax, toTimeMin: input.toTimeMin, toTimeMax: input.toTimeMax, bookingStatusId: input.bookingStatusId, locationId: input.locationId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   
