@@ -141,6 +141,14 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Gender).HasColumnName(nameof(Doctor.Gender));
             b.HasMany(x => x.AppointmentTypes).WithOne().HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.NoAction);
             b.HasMany(x => x.Locations).WithOne().HasForeignKey(x => x.DoctorId).IsRequired().OnDelete(DeleteBehavior.NoAction);
+            // One-doctor-per-tenant invariant (PARITY-FLAG-NEW-006). Mirrors the
+            // filtered unique index in CaseEvaluationDbContext so the tenant DB
+            // enforces it too (matching the Appointment Phase-11f / Packet
+            // soft-delete index precedent).
+            b.HasIndex(x => x.TenantId)
+                .IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
+                .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique");
         });
         builder.Entity<DoctorAppointmentType>(b =>
         {

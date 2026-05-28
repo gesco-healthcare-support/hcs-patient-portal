@@ -237,12 +237,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedDoctorsAsync()
     {
-        // Both doctors scoped to TenantA -- reflects the realistic case of a
-        // practice with multiple practitioners. Doctor2 was previously planned
-        // for TenantB but this complicates host-context tests unnecessarily:
-        // Patient tests don't depend on Doctor tenancy, and keeping the tenant
-        // model "two-tenant for Patients, one-tenant for Doctors" keeps existing
-        // Doctor tests workable with a single tenant-context wrap.
+        // One doctor per tenant -- the one-doctor-per-tenant invariant
+        // (PARITY-FLAG-NEW-006, enforced by DoctorsAppService guards + a
+        // filtered unique index on Doctors(TenantId)). The tenant IS the
+        // doctor, so seeding two doctors in TenantA would violate the index
+        // at schema-creation time in the SQLite test rig. Doctor1 -> TenantA,
+        // Doctor2 -> TenantB. This also lines TenantB's doctor up with its
+        // own DoctorAvailability (Slot3) and Appointment2 seeds below.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _doctorRepository.InsertAsync(new Doctor(
@@ -251,7 +252,10 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
                 gender: default));
+        }
 
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,

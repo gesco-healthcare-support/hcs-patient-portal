@@ -1,5 +1,5 @@
 ---
-status: draft (decisions resolved 2026-05-20; see readiness check)
+status: in-progress (build started 2026-05-27; decisions resolved 2026-05-20, see readiness check)
 issue: doctor-invariant-enforcement
 owner: AdrianG
 created: 2026-05-15
@@ -26,6 +26,59 @@ These supersede any conflicting text below. Confirmed with Adrian after the 2026
   confirmation-number index (`Phase 11f`) and
   `Packet_FilteredUniqueIndex_SoftDelete` are already mirrored host->tenant.
   The generated migration must create the index for both contexts.
+
+## Build deviations -- 2026-05-27 (during implementation)
+
+Discovered while building; resolved with Adrian. These supersede conflicting
+text below.
+
+1. **Test seed reshaped (was NOT in the plan).** The integration-test seed
+   (`CaseEvaluationIntegrationTestSeedContributor.SeedDoctorsAsync`) put BOTH
+   Doctor1 and Doctor2 in TenantA -- which violates the new filtered unique
+   index and fails at SQLite schema-creation time. Fixed: Doctor1 -> TenantA,
+   Doctor2 -> TenantB (one per tenant). `DoctorRepositoryTests.GetCountAsync`
+   re-scoped from TenantA to TenantB (queries Doctor2's fields; assertion
+   unchanged). `GetListAsync` (host context, filter disabled) still sees both,
+   so `TotalCount == 2` holds. Confirmed with Adrian: prod has only admin +
+   falkinstein tenants; multi-tenant fixtures exist only in tests.
+
+2. **DeleteAsync probes appointments FIRST (was slots-first).** Every
+   `Appointment` requires a `DoctorAvailability` (required FK, NoAction), so a
+   slots-first probe would always report `DoctorAvailability` and the operator
+   would never see the more actionable `Appointment` bucket. Order is now
+   Appointment -> DoctorAvailability -> active DoctorPreferredLocation.
+   Confirmed with Adrian 2026-05-27.
+
+3. **`DoctorPreferredLocation` repo type corrected.** It has a COMPOSITE key
+   (`{DoctorId, LocationId}`, `FullAuditedEntity` not `<Guid>`), so the repo is
+   `IRepository<DoctorPreferredLocation>` -- NOT
+   `IRepository<DoctorPreferredLocation, Guid>` as the plan snippet showed.
+
+4. **CreateAsync guard uses `FindAsync(x => x.TenantId == CurrentTenant.Id)`**
+   (confirmed available via the existing test suite) rather than `AnyAsync`.
+   Keeps the explicit TenantId predicate from the plan's superseded note.
+
+5. **Migration name = `DoctorOnePerTenantUniqueIndex`** (no `PhaseNN_` prefix,
+   per current convention). EF emitted the filtered index correctly
+   (`filter: "[TenantId] IS NOT NULL AND [IsDeleted] = 0"`); no hand-edit
+   needed. It drops the old non-unique `IX_AppDoctors_TenantId` and creates
+   `IX_AppEntity_Doctors_TenantId_Unique`.
+
+6. **Index added to BOTH `CaseEvaluationDbContext` (host-guard block) and
+   `CaseEvaluationTenantDbContext`** per the locked decision.
+
+7. **Latent test bug noted (left as-is, out of scope).** The pre-existing
+   `DoctorApplicationTests.DeleteAsync` "passes" for a false-positive reason:
+   it runs in host context where the `IMultiTenant` filter hides TenantA's
+   Doctor1, so ABP's `DeleteAsync(id)` no-ops and the `ShouldBeNull` assertion
+   holds because the row was never visible (not because it was deleted). The
+   new guard adds host-scope counts that are all 0, so it does not regress this
+   test. Empirically confirmed the filter is ON and isolates by tenant
+   (`host(avail=0,appt=0) tenantA(avail=2,appt=1)`).
+
+**Stack-dependent steps still pending** (deferred until the dev stack is up):
+the 5c dedupe pre-flight probe, `database update` via DbMigrator (fresh
+reseed -- no existing dupes pre-deploy), and the manual UI verification.
 
 ## Re-verified 2026-05-27 (HEAD ad07947)
 

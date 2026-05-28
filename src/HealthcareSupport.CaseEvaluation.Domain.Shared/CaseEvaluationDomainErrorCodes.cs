@@ -684,4 +684,36 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentDocumentFileEmpty =
         "CaseEvaluation:AppointmentDocument.FileEmpty";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>DoctorsAppService.CreateAsync</c>
+    /// when a non-deleted <c>Doctor</c> row already exists for the
+    /// caller's tenant. Codifies the one-doctor-per-tenant invariant
+    /// (<c>docs/parity/wave-1-parity/_parity-flags.md</c>
+    /// PARITY-FLAG-NEW-006). Operators should use the tenant
+    /// provisioning flow (<c>DoctorTenantAppService.CreateAsync</c>)
+    /// for net-new doctors; the standard CRUD CreateAsync is reserved
+    /// for legacy data fixes that should never re-create a duplicate.
+    /// Mapped to HTTP 400 Bad Request in
+    /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 for
+    /// <c>BusinessException</c> would make the SPA treat it as a
+    /// permission failure). Localization key
+    /// <c>Doctor:OnePerTenantViolated</c>.
+    /// </summary>
+    public const string DoctorOnePerTenantViolated =
+        "CaseEvaluation:Doctor.OnePerTenantViolated";
+
+    /// <summary>
+    /// 2026-05-15 -- raised by <c>DoctorsAppService.DeleteAsync</c>
+    /// when the tenant still has downstream rows that depend on the
+    /// doctor (<c>DoctorAvailability</c>, <c>Appointment</c>, or an
+    /// active <c>DoctorPreferredLocation</c>). Forces the operator to
+    /// drain the schedule and reassign or cancel dependents before
+    /// removing the Doctor profile. Carries <c>entity</c> + <c>count</c>
+    /// via <c>WithData</c> so the SPA can render which bucket is
+    /// non-empty. Mapped to HTTP 400 Bad Request. Localization key
+    /// <c>Doctor:CannotDeleteWithDependents</c>.
+    /// </summary>
+    public const string DoctorCannotDeleteWithDependents =
+        "CaseEvaluation:Doctor.CannotDeleteWithDependents";
 }
