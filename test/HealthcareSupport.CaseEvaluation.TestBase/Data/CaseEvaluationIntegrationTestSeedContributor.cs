@@ -361,21 +361,26 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs AFTER SeedLocationsAsync (LocationId + AppointmentTypeId FKs
         // satisfied) and BEFORE SeedAppointmentsAsync (Appointment's
         // DoctorAvailabilityId FK depends on these slots).
+        // 2026-05-15 slot rework: ctor no longer takes appointmentTypeId.
+        // The single-type-per-slot fixture is preserved via the new M2M:
+        // Slot1 + Slot3 accept AppointmentType1 (strict); Slot2 accepts any
+        // type (loose, empty set).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot1 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot1Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot1FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot1ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus);
+            slot1.TenantId = TenantsTestData.TenantARef;
+            slot1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot1);
 
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot2Id,
                 locationId: LocationsTestData.Location2Id,
-                appointmentTypeId: null,
                 availableDate: DoctorAvailabilitiesTestData.Slot2AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot2FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot2ToTime,
@@ -384,14 +389,16 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         using (_currentTenant.Change(TenantsTestData.TenantBRef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot3 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot3Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus);
+            slot3.TenantId = TenantsTestData.TenantBRef;
+            slot3.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot3);
         }
     }
 

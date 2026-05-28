@@ -52,8 +52,8 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
     public virtual async Task<PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>> GetListAsync(GetDoctorAvailabilitiesInput input)
     {
-        var totalCount = await _doctorAvailabilityRepository.GetCountAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId, input.AppointmentTypeId);
-        var items = await _doctorAvailabilityRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId, input.AppointmentTypeId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var totalCount = await _doctorAvailabilityRepository.GetCountAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId);
+        var items = await _doctorAvailabilityRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.AvailableDateMin, input.AvailableDateMax, input.FromTimeMin, input.FromTimeMax, input.ToTimeMin, input.ToTimeMax, input.BookingStatusId, input.LocationId, input.Sorting, input.MaxResultCount, input.SkipCount);
         return new PagedResultDto<DoctorAvailabilityWithNavigationPropertiesDto>
         {
             TotalCount = totalCount,
@@ -185,7 +185,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
 
-        var doctorAvailability = await _doctorAvailabilityManager.CreateAsync(input.LocationId, input.AppointmentTypeId, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId);
+        var doctorAvailability = await _doctorAvailabilityManager.CreateAsync(input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
 
@@ -207,7 +207,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotUpdateBookedOrReserved);
         }
 
-        var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeId, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.ConcurrencyStamp);
+        var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity, input.ConcurrencyStamp);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
     }
 
@@ -264,7 +264,8 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
                     var toTime = currentTime.AddMinutes(item.AppointmentDurationMinutes);
                     generatedSlots.Add(new DoctorAvailabilitySlotPreviewDto
                     {
-                        AppointmentTypeId = item.AppointmentTypeId,
+                        AppointmentTypeIds = item.AppointmentTypeIds != null ? new List<Guid>(item.AppointmentTypeIds) : new List<Guid>(),
+                        Capacity = item.Capacity,
                         AvailableDate = currentDate,
                         BookingStatusId = item.BookingStatusId,
                         LocationId = item.LocationId,
@@ -397,11 +398,14 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         if (input.AppointmentTypeId.HasValue)
         {
-            // OLD's loose-or-strict mode: a slot with null AppointmentTypeId
-            // accepts any type; a slot with a specific type accepts only
-            // that type. See _slot-generation-deep-dive.md.
+            // OLD's loose-or-strict mode, ported to the M2M shape: a slot
+            // with no AppointmentTypes accepts any type; a slot with a
+            // specific set accepts only those types. See
+            // _slot-generation-deep-dive.md.
             var typeId = input.AppointmentTypeId.Value;
-            query = query.Where(x => x.AppointmentTypeId == null || x.AppointmentTypeId == typeId);
+            query = query.Where(x =>
+                !x.AppointmentTypes.Any()
+                || x.AppointmentTypes.Any(at => at.AppointmentTypeId == typeId));
         }
 
         query = query.OrderBy(x => x.AvailableDate).ThenBy(x => x.FromTime);

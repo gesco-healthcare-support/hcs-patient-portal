@@ -690,7 +690,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected location does not exist."]);
         }
 
-        var doctorAvailability = await _doctorAvailabilityRepository.FindAsync(input.DoctorAvailabilityId);
+        // 2026-05-15 slot rework: eager-load the AppointmentTypes M2M so the
+        // booking validator can check the new set semantics (empty = any type;
+        // non-empty must contain the booked type).
+        var slotQueryable = await _doctorAvailabilityRepository.WithDetailsAsync(x => x.AppointmentTypes);
+        var doctorAvailability = await AsyncExecuter.FirstOrDefaultAsync(
+            slotQueryable.Where(x => x.Id == input.DoctorAvailabilityId));
         if (doctorAvailability == null)
         {
             throw new UserFriendlyException(L["The selected availability slot does not exist."]);
@@ -873,7 +878,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected availability slot does not belong to the selected location."]);
         }
 
-        if (doctorAvailability.AppointmentTypeId.HasValue && doctorAvailability.AppointmentTypeId.Value != input.AppointmentTypeId)
+        // 2026-05-15 slot rework: empty AppointmentTypes set = any type accepted
+        // (loose mode); non-empty set must contain the requested type.
+        if (doctorAvailability.AppointmentTypes.Any() &&
+            !doctorAvailability.AppointmentTypes.Any(at => at.AppointmentTypeId == input.AppointmentTypeId))
         {
             throw new UserFriendlyException(L["The selected availability slot does not belong to the selected appointment type."]);
         }

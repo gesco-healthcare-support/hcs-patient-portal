@@ -229,13 +229,35 @@ public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, Lookup
 [Mapper]
 public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBase<DoctorAvailability, DoctorAvailabilityDto>
 {
+    // 2026-05-15 -- the entity carries ICollection<DoctorAvailabilityAppointmentType>;
+    // the DTO surfaces List<Guid> AppointmentTypeIds. Use the project's
+    // idiomatic [MapperIgnoreTarget] + AfterMap pattern (see
+    // AppointmentTypeToLookupDtoGuidMapper) so the shape change is explicit.
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
     public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
+
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
     public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
+
+    public override void AfterMap(DoctorAvailability source, DoctorAvailabilityDto destination)
+    {
+        destination.AppointmentTypeIds = source.AppointmentTypes
+            .Select(x => x.AppointmentTypeId)
+            .ToList();
+    }
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper : MapperBase<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>
 {
+    // Source and target AppointmentTypes share the same name; Mapperly reuses
+    // the existing AppointmentType -> AppointmentTypeDto mapper. The nested
+    // DoctorAvailability mapping is handled internally; RequiredMappingStrategy
+    // is relaxed to None so Mapperly's internal nested mapper isn't required
+    // to project AppointmentTypeIds from the entity collection (that mapping
+    // is performed by DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap
+    // when the parent ObjectMapper resolves the nested type). Same approach as
+    // PatientWithNavigationPropertiesToPatientWithNavigationPropertiesDtoMapper.
     public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
     public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
 }

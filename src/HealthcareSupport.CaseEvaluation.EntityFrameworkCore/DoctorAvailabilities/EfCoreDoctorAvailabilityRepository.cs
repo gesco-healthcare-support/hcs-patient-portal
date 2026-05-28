@@ -23,35 +23,54 @@ public class EfCoreDoctorAvailabilityRepository : EfCoreRepository<CaseEvaluatio
     public virtual async Task<DoctorAvailabilityWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(doctorAvailability => new DoctorAvailabilityWithNavigationProperties { DoctorAvailability = doctorAvailability, Location = dbContext.Set<Location>().FirstOrDefault(c => c.Id == doctorAvailability.LocationId), AppointmentType = dbContext.Set<AppointmentType>().FirstOrDefault(c => c.Id == doctorAvailability.AppointmentTypeId) }).FirstOrDefaultAsync(cancellationToken);
+        return await (await GetDbSetAsync())
+            .Where(b => b.Id == id)
+            .Select(doctorAvailability => new DoctorAvailabilityWithNavigationProperties
+            {
+                DoctorAvailability = doctorAvailability,
+                Location = dbContext.Set<Location>().FirstOrDefault(c => c.Id == doctorAvailability.LocationId),
+                AppointmentTypes = (
+                    from j in dbContext.Set<DoctorAvailabilityAppointmentType>()
+                    join atype in dbContext.Set<AppointmentType>()
+                        on j.AppointmentTypeId equals atype.Id
+                    where j.DoctorAvailabilityId == doctorAvailability.Id
+                    select atype
+                ).ToList(),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<DoctorAvailabilityWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null, Guid? appointmentTypeId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<DoctorAvailabilityWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId, locationId, appointmentTypeId);
+        query = ApplyFilter(query, filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId, locationId);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? DoctorAvailabilityConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
     protected virtual async Task<IQueryable<DoctorAvailabilityWithNavigationProperties>> GetQueryForNavigationPropertiesAsync()
     {
+        var dbContext = await GetDbContextAsync();
         return from doctorAvailability in (await GetDbSetAsync())
-               join location in (await GetDbContextAsync()).Set<Location>() on doctorAvailability.LocationId equals location.Id into locations
+               join location in dbContext.Set<Location>() on doctorAvailability.LocationId equals location.Id into locations
                from location in locations.DefaultIfEmpty()
-               join appointmentType in (await GetDbContextAsync()).Set<AppointmentType>() on doctorAvailability.AppointmentTypeId equals appointmentType.Id into appointmentTypes
-               from appointmentType in appointmentTypes.DefaultIfEmpty()
                select new DoctorAvailabilityWithNavigationProperties
                {
                    DoctorAvailability = doctorAvailability,
                    Location = location,
-                   AppointmentType = appointmentType
+                   AppointmentTypes = (
+                       from j in dbContext.Set<DoctorAvailabilityAppointmentType>()
+                       join atype in dbContext.Set<AppointmentType>()
+                           on j.AppointmentTypeId equals atype.Id
+                       where j.DoctorAvailabilityId == doctorAvailability.Id
+                       select atype
+                   ).ToList(),
                };
     }
 
-    protected virtual IQueryable<DoctorAvailabilityWithNavigationProperties> ApplyFilter(IQueryable<DoctorAvailabilityWithNavigationProperties> query, string? filterText, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null, Guid? appointmentTypeId = null)
+    protected virtual IQueryable<DoctorAvailabilityWithNavigationProperties> ApplyFilter(IQueryable<DoctorAvailabilityWithNavigationProperties> query, string? filterText, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(availableDateMin.HasValue, e => e.DoctorAvailability.AvailableDate >= availableDateMin!.Value).WhereIf(availableDateMax.HasValue, e => e.DoctorAvailability.AvailableDate <= availableDateMax!.Value).WhereIf(fromTimeMin.HasValue, e => e.DoctorAvailability.FromTime >= fromTimeMin!.Value).WhereIf(fromTimeMax.HasValue, e => e.DoctorAvailability.FromTime <= fromTimeMax!.Value).WhereIf(toTimeMin.HasValue, e => e.DoctorAvailability.ToTime >= toTimeMin!.Value).WhereIf(toTimeMax.HasValue, e => e.DoctorAvailability.ToTime <= toTimeMax!.Value).WhereIf(bookingStatusId.HasValue, e => e.DoctorAvailability.BookingStatusId == bookingStatusId).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Location != null && e.Location.Id == locationId).WhereIf(appointmentTypeId != null && appointmentTypeId != Guid.Empty, e => e.AppointmentType != null && e.AppointmentType.Id == appointmentTypeId);
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => true).WhereIf(availableDateMin.HasValue, e => e.DoctorAvailability.AvailableDate >= availableDateMin!.Value).WhereIf(availableDateMax.HasValue, e => e.DoctorAvailability.AvailableDate <= availableDateMax!.Value).WhereIf(fromTimeMin.HasValue, e => e.DoctorAvailability.FromTime >= fromTimeMin!.Value).WhereIf(fromTimeMax.HasValue, e => e.DoctorAvailability.FromTime <= fromTimeMax!.Value).WhereIf(toTimeMin.HasValue, e => e.DoctorAvailability.ToTime >= toTimeMin!.Value).WhereIf(toTimeMax.HasValue, e => e.DoctorAvailability.ToTime <= toTimeMax!.Value).WhereIf(bookingStatusId.HasValue, e => e.DoctorAvailability.BookingStatusId == bookingStatusId).WhereIf(locationId != null && locationId != Guid.Empty, e => e.Location != null && e.Location.Id == locationId);
     }
 
     protected virtual IQueryable<DoctorAvailability> ApplyFilter(IQueryable<DoctorAvailability> query, string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null)
@@ -66,10 +85,10 @@ public class EfCoreDoctorAvailabilityRepository : EfCoreRepository<CaseEvaluatio
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null, Guid? appointmentTypeId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, DateTime? availableDateMin = null, DateTime? availableDateMax = null, TimeOnly? fromTimeMin = null, TimeOnly? fromTimeMax = null, TimeOnly? toTimeMin = null, TimeOnly? toTimeMax = null, BookingStatus? bookingStatusId = null, Guid? locationId = null, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId, locationId, appointmentTypeId);
+        query = ApplyFilter(query, filterText, availableDateMin, availableDateMax, fromTimeMin, fromTimeMax, toTimeMin, toTimeMax, bookingStatusId, locationId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

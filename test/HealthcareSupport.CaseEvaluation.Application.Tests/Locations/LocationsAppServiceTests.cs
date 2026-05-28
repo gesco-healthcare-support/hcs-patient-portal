@@ -284,7 +284,6 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: disposable.Id,
-                appointmentTypeId: null,
                 availableDate: new DateTime(2026, 5, 1),
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(10, 0),
@@ -315,14 +314,15 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             // autoSave persists each child row immediately so the subsequent
             // DeleteAsync on `disposable` raises the NoAction FK violation we
             // are asserting.
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot = new DoctorAvailability(
                 id: availabilityId,
                 locationId: disposable.Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2026, 5, 2),
                 fromTime: new TimeOnly(11, 0),
                 toTime: new TimeOnly(12, 0),
-                bookingStatusId: BookingStatus.Booked), autoSave: true);
+                bookingStatusId: BookingStatus.Booked);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
 
             await _appointmentRepository.InsertAsync(new Appointment(
                 id: Guid.NewGuid(),

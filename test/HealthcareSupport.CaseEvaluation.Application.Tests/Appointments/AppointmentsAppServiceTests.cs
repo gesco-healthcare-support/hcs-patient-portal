@@ -631,11 +631,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             var slot = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: locationId ?? LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: scratchFromTime,
                 toTime: scratchToTime,
                 bookingStatusId: BookingStatus.Available);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             return await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
         }
     }
