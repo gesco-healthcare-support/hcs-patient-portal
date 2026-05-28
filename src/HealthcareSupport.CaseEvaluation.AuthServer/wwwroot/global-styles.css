@@ -182,15 +182,15 @@ span.field-validation-error {
 }
 
 /* ---------------------------------------------------------------------------
- * Register page -- hide the redundant "Already have an account? Sign in"
- * heading (2026-05-19). The framework's stock Register.cshtml puts an
- * h5 link at the top of the card pointing back at /Account/Login.
- * Adrian's directive: drop both that heading and the post-success
- * "Sign in" button (the latter handled in global-scripts.js
- * showSignupSuccess). :has() targets the framework's specific h5 so we
- * do not accidentally hide unrelated h5 elements.
+ * Register page sign-in link: REVERSAL 2026-05-27 (userflow-fixes-batch2 T4).
+ * The 2026-05-19 directive hid the framework's stock "Already have an
+ * account? Sign in" heading + suppressed the post-success Sign In button.
+ * That left users with no clear path back to login from both the register
+ * form and the post-registration "Account created" screen. Reversed by
+ * removing the `display:none` rule that previously sat here -- the stock
+ * heading + link are now visible. Because the heading is a SIBLING outside
+ * `#registerForm` (which `global-scripts.js` showSignupSuccess replaces on
+ * success), the same link also stays visible above the success banner,
+ * fixing both halves of the dead-end in one change.
  * ------------------------------------------------------------------------ */
-.account-module-form > h5:has(a[href="/Account/Login"]) {
-    display: none;
-}
 
