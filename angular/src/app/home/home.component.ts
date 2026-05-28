@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import {
   AuthService,
   ConfigStateService,
@@ -32,6 +33,9 @@ import { SsnMaskPipe } from '../shared/pipes/ssn-mask.pipe';
     FormsModule,
     ReactiveFormsModule,
     SsnMaskPipe,
+    // T5 (2026-05-27 userflow-fixes-batch2): standalone DatePipe enables
+    // `| date:'…'` formatting on Appointment Date + Date Of Injury cells.
+    DatePipe,
   ],
   providers: [ListService, AppointmentViewService, AppointmentDetailViewService],
 })
