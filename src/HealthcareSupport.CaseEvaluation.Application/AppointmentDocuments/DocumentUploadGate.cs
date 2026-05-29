@@ -37,7 +37,8 @@ internal static class DocumentUploadGate
     /// Mirrors OLD <c>UpdateValidation</c> at
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:95-105.
     /// Throws <c>BusinessException(DocumentUploadAfterApproval)</c>
-    /// when the appointment status is not Approved/RescheduleRequested,
+    /// when the appointment status is not Pending/Approved/RescheduleRequested
+    /// (F3 2026-05-29: documents may be uploaded from request time),
     /// or <c>DocumentUploadAfterDueDate</c> when the appointment is
     /// past <see cref="Appointment.DueDate"/>. NULL <c>DueDate</c> is
     /// treated as "no due-date gate" (the appointment was created
@@ -52,7 +53,10 @@ internal static class DocumentUploadGate
             throw new ArgumentNullException(nameof(appointment));
         }
         var status = appointment.AppointmentStatus;
-        if (status != AppointmentStatusType.Approved &&
+        // F3 (2026-05-29): allow upload from request time (Pending), not only
+        // after approval -- users must supply documents to get approved.
+        if (status != AppointmentStatusType.Pending &&
+            status != AppointmentStatusType.Approved &&
             status != AppointmentStatusType.RescheduleRequested)
         {
             throw new BusinessException(
