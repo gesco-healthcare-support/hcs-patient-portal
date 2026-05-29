@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
-using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -59,7 +58,7 @@ public class GenerateAppointmentPacketJobTests
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull("AbpDbConcurrencyException must be caught by the widened filter, not propagated to Hangfire.");
 
-        await fixture.PacketManager.Received(2).MarkFailedAsync(
+        await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
             Arg.Is<string>(msg => msg.Contains("simulated concurrency")));
     }
@@ -75,7 +74,7 @@ public class GenerateAppointmentPacketJobTests
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull();
 
-        await fixture.PacketManager.Received(2).MarkFailedAsync(
+        await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
             Arg.Is<string>(msg => msg.Contains("template render failure")));
     }
@@ -88,7 +87,7 @@ public class GenerateAppointmentPacketJobTests
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull();
 
-        await fixture.PacketManager.Received(2).MarkGeneratedAsync(
+        await fixture.PacketManager.Received(3).MarkGeneratedAsync(
             Arg.Any<Guid>(), Arg.Any<string?>());
         await fixture.PacketManager.DidNotReceive().MarkFailedAsync(
             Arg.Any<Guid>(), Arg.Any<string>());
@@ -97,7 +96,6 @@ public class GenerateAppointmentPacketJobTests
     private sealed class JobFixture
     {
         public IRepository<Appointment, Guid> AppointmentRepository { get; }
-        public IRepository<AppointmentType, Guid> AppointmentTypeRepository { get; }
         public AppointmentPacketManager PacketManager { get; }
         public IBlobContainer<AppointmentPacketsContainer> Container { get; }
         public IPacketTokenResolver TokenResolver { get; }
@@ -112,7 +110,6 @@ public class GenerateAppointmentPacketJobTests
         public JobFixture()
         {
             AppointmentRepository = Substitute.For<IRepository<Appointment, Guid>>();
-            AppointmentTypeRepository = Substitute.For<IRepository<AppointmentType, Guid>>();
 
             var packetRepository = Substitute.For<IRepository<AppointmentPacket, Guid>>();
             PacketManager = Substitute.For<AppointmentPacketManager>(packetRepository);
@@ -155,12 +152,8 @@ public class GenerateAppointmentPacketJobTests
             AppointmentRepository.GetAsync(AppointmentId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(BuildAppointmentStub());
 
-            AppointmentTypeRepository.FindAsync(AppointmentTypeId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
-                .Returns(BuildNonAttyCeAppointmentTypeStub());
-
             Job = new GenerateAppointmentPacketJob(
                 AppointmentRepository,
-                AppointmentTypeRepository,
                 PacketManager,
                 Container,
                 TokenResolver,
@@ -178,6 +171,10 @@ public class GenerateAppointmentPacketJobTests
             };
         }
 
+        // F5 (2026-05-29): the job now generates all three packet kinds for
+        // every appointment type, so each scenario below exercises 3 kinds
+        // (Patient, Doctor, AttorneyClaimExaminer) -- hence Received(3).
+
         private static Appointment BuildAppointmentStub()
         {
             return new Appointment(
@@ -190,15 +187,6 @@ public class GenerateAppointmentPacketJobTests
                 appointmentDate: new DateTime(2026, 5, 23, 0, 0, 0, DateTimeKind.Utc),
                 requestConfirmationNumber: "synthetic-confirmation-token",
                 appointmentStatus: AppointmentStatusType.Approved);
-        }
-
-        private static AppointmentType BuildNonAttyCeAppointmentTypeStub()
-        {
-            // Name omits both "PQME" and "AME" so kindsToGenerate stays at
-            // [Patient, Doctor]. Two kinds keeps the assertions simple.
-            return new AppointmentType(
-                id: AppointmentTypeId,
-                name: "Initial Consultation");
         }
     }
 }

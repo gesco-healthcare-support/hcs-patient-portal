@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Authorization;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
@@ -43,6 +44,13 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // F5 (2026-05-29): this legacy single-packet surface only ever returns
+        // the Patient packet; callers not allowed that kind (attorneys / claim
+        // examiners) get nothing here.
+        if (!PacketVisibility.IsAllowed(CurrentUser.Roles, PacketKind.Patient))
+        {
+            return null;
+        }
         // Phase 1A.1 backward-compat: existing UI fetches one packet per
         // appointment. Filter to Kind=Patient so this surface keeps
         // returning the single Patient packet until Phase 1D.9 expands
@@ -60,6 +68,11 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         if (appointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        // F5: the legacy download surface only serves the Patient packet.
+        if (!PacketVisibility.IsAllowed(CurrentUser.Roles, PacketKind.Patient))
+        {
+            throw new AbpAuthorizationException("You are not allowed to access this packet.");
         }
         var queryable = await _packetRepository.GetQueryableAsync();
         var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == PacketKind.Patient)
@@ -90,10 +103,16 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
         }
+        // F5 (2026-05-29): filter to the packet kinds this caller's role is
+        // allowed to see (Patient -> Patient; AA/DA/CE -> Attorney-CE;
+        // internal -> all three; no external role sees the Doctor packet).
+        var allowedKinds = PacketVisibility.AllowedKinds(CurrentUser.Roles);
         var queryable = await _packetRepository.GetQueryableAsync();
         var entities = queryable
             .Where(x => x.AppointmentId == appointmentId)
             .OrderBy(x => x.Kind)
+            .ToList()
+            .Where(x => allowedKinds.Contains(x.Kind))
             .ToList();
         return entities
             .Select(e => ObjectMapper.Map<AppointmentPacket, AppointmentPacketDto>(e))
@@ -106,6 +125,11 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
         if (appointmentId == Guid.Empty)
         {
             throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        // F5 (2026-05-29): deny kinds this caller's role is not allowed to see.
+        if (!PacketVisibility.IsAllowed(CurrentUser.Roles, kind))
+        {
+            throw new AbpAuthorizationException("You are not allowed to access this packet.");
         }
         var queryable = await _packetRepository.GetQueryableAsync();
         var packet = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == kind)
