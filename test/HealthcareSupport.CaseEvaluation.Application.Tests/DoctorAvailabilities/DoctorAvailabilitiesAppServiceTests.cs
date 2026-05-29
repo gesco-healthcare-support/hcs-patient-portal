@@ -114,199 +114,298 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     // GeneratePreviewAsync -- null/empty input returns empty (does NOT throw).
     // =====================================================================
 
-    [Fact]
-    public async Task GeneratePreviewAsync_WhenInputIsNull_ThrowsAbpValidation()
-    {
-        // NB: The AppService body contains `if (input == null || input.Count == 0) return empty;`
-        // but ABP's method-invocation validation interceptor rejects null for non-nullable
-        // list parameters BEFORE the method body runs, so the null branch is dead code.
-        // This test pins the actual observable behaviour.
-        await Should.ThrowAsync<AbpValidationException>(
-            async () => await _appService.GeneratePreviewAsync(null!));
-    }
-
-    [Fact]
-    public async Task GeneratePreviewAsync_WhenInputIsEmpty_ReturnsEmpty()
-    {
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto>());
-
-        result.ShouldNotBeNull();
-        result.ShouldBeEmpty();
-    }
-
     // =====================================================================
-    // GeneratePreviewAsync -- per-item guard clauses (4 branches).
+    // 2026-05-15 (slot rework plan 4) -- multi-axis generation. Replaces
+    // the pre-rework single-day / single-range / single-type test set.
+    // The new shape is one DoctorAvailabilityGenerateInputDto (not a list)
+    // with TimeRanges + SelectedDays + AppointmentTypeIds + Capacity.
     // =====================================================================
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenLocationIdIsEmpty_Throws()
+    public async Task GeneratePreviewAsync_WhenLocationEmpty_Throws()
     {
         var input = BuildValidGenerateInput();
         input.LocationId = Guid.Empty;
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
+            async () => await _appService.GeneratePreviewAsync(input));
         ex.Message.ShouldContain("Location");
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenDurationIsZero_Throws()
+    public async Task GeneratePreviewAsync_WhenDurationNonPositive_Throws()
     {
         var input = BuildValidGenerateInput();
         input.AppointmentDurationMinutes = 0;
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
+            async () => await _appService.GeneratePreviewAsync(input));
         ex.Message.ShouldContain("duration");
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenDurationIsNegative_Throws()
+    public async Task GeneratePreviewAsync_WhenCapacityZero_Throws()
     {
         var input = BuildValidGenerateInput();
-        input.AppointmentDurationMinutes = -5;
+        input.Capacity = 0;
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
-        ex.Message.ShouldContain("duration");
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("Capacity", Case.Insensitive);
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenToDateBeforeFromDate_Throws()
+    public async Task GeneratePreviewAsync_WhenFromDatePast_Throws()
     {
         var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 10);
-        input.ToDate = new DateTime(2030, 1, 1);
+        input.FromDate = DateTime.Today.AddDays(-1);
+        input.ToDate = DateTime.Today.AddDays(-1);
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
-        ex.Message.ShouldContain("date");
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("past", Case.Insensitive);
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenToTimeEqualsFromTime_Throws()
+    public async Task GeneratePreviewAsync_WhenNoTimeRanges_Throws()
     {
         var input = BuildValidGenerateInput();
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(9, 0);
+        input.TimeRanges = new List<TimeRangeDto>();
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
-        ex.Message.ShouldContain("time");
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("time range", Case.Insensitive);
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_WhenToTimeBeforeFromTime_Throws()
+    public async Task GeneratePreviewAsync_WhenRangeFromGtTo_Throws()
     {
         var input = BuildValidGenerateInput();
-        input.FromTime = new TimeOnly(10, 0);
-        input.ToTime = new TimeOnly(9, 0);
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(10, 0), ToTime = new TimeOnly(9, 0) }
+        };
 
         var ex = await Should.ThrowAsync<UserFriendlyException>(
-            async () => await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input }));
-
-        ex.Message.ShouldContain("time");
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("FromTime", Case.Insensitive);
     }
 
-    // =====================================================================
-    // GeneratePreviewAsync -- slot-math happy path + boundaries.
-    // Pins the behavioural contract that the P-11 refactor
-    // (extract ValidateGenerateInput / GeneratePreviewSlots / DetectConflicts)
-    // must preserve. No seeded slots => no conflict-detection branch.
-    // =====================================================================
-
     [Fact]
-    public async Task GeneratePreviewAsync_SingleDay_60MinuteSlot_InOneHourRange_Returns1Slot()
+    public async Task GeneratePreviewAsync_WhenRangesOverlap_Throws()
     {
         var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 1);
-        input.ToDate = new DateTime(2030, 1, 1);
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(10, 0);
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(8, 0), ToTime = new TimeOnly(10, 0) },
+            new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(11, 0) },
+        };
+
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("overlap", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_WhenSelectedDayOutOfRange_Throws()
+    {
+        var input = BuildValidGenerateInput();
+        input.SelectedDays = new List<int> { 9 };
+
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("Sunday", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_WhenSelectedDaysDuplicate_Throws()
+    {
+        var input = BuildValidGenerateInput();
+        input.SelectedDays = new List<int> { 1, 1 };
+
+        var ex = await Should.ThrowAsync<UserFriendlyException>(
+            async () => await _appService.GeneratePreviewAsync(input));
+        ex.Message.ShouldContain("duplicate", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_AllWeekdays_3DayRange_OneRange_60mDuration_Returns9Slots()
+    {
+        // Pure expansion math test on ExpandToSlotPreviews: 3 days x 1 range
+        // of 3 hours / 60-minute duration = 9 slots total.
+        var input = BuildValidGenerateInput();
+        // Pick a Monday so 3 consecutive days are Mon/Tue/Wed (all weekdays).
+        var monday = NextWeekday(DateTime.Today.AddDays(1), DayOfWeek.Monday);
+        input.FromDate = monday;
+        input.ToDate = monday.AddDays(2);
+        input.SelectedDays = null;
         input.AppointmentDurationMinutes = 60;
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(12, 0) },
+        };
 
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input });
-
-        result.Count.ShouldBe(1);
-        result[0].DoctorAvailabilities.Count.ShouldBe(1);
-        result[0].DoctorAvailabilities[0].FromTime.ShouldBe(new TimeOnly(9, 0));
-        result[0].DoctorAvailabilities[0].ToTime.ShouldBe(new TimeOnly(10, 0));
-        result[0].DoctorAvailabilities[0].IsConflict.ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task GeneratePreviewAsync_SingleDay_30MinuteSlots_InOneHourRange_Returns2Slots()
-    {
-        var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 1);
-        input.ToDate = new DateTime(2030, 1, 1);
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(10, 0);
-        input.AppointmentDurationMinutes = 30;
-
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input });
-
-        result.Count.ShouldBe(1);
-        result[0].DoctorAvailabilities.Count.ShouldBe(2);
-        result[0].DoctorAvailabilities[0].FromTime.ShouldBe(new TimeOnly(9, 0));
-        result[0].DoctorAvailabilities[0].ToTime.ShouldBe(new TimeOnly(9, 30));
-        result[0].DoctorAvailabilities[1].FromTime.ShouldBe(new TimeOnly(9, 30));
-        result[0].DoctorAvailabilities[1].ToTime.ShouldBe(new TimeOnly(10, 0));
-    }
-
-    [Fact]
-    public async Task GeneratePreviewAsync_MultiDay_ReturnsOnePreviewPerDay()
-    {
-        var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 1);
-        input.ToDate = new DateTime(2030, 1, 3);
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(10, 0);
-        input.AppointmentDurationMinutes = 60;
-
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input });
+        var result = await _appService.GeneratePreviewAsync(input);
 
         result.Count.ShouldBe(3);
-        result.Select(r => r.Dates).ShouldBe(new[] { "01-01-2030", "01-02-2030", "01-03-2030" });
-        result.ShouldAllBe(r => r.DoctorAvailabilities.Count == 1);
+        result.Sum(d => d.DoctorAvailabilities.Count).ShouldBe(9);
+        result.ShouldAllBe(d => d.DoctorAvailabilities.Count == 3);
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_DurationLongerThanRange_Returns0Slots()
+    public async Task GeneratePreviewAsync_MondayAndWednesdayOnly_5DayRange_Returns2Days()
     {
+        // Pin SelectedDays filtering: Mon=1, Wed=3 within a 5-day Mon-Fri
+        // range yields exactly two preview days.
+        var monday = NextWeekday(DateTime.Today.AddDays(1), DayOfWeek.Monday);
         var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 1);
-        input.ToDate = new DateTime(2030, 1, 1);
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(9, 30);
+        input.FromDate = monday;
+        input.ToDate = monday.AddDays(4);
+        input.SelectedDays = new List<int> { 1, 3 };
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(10, 0) },
+        };
         input.AppointmentDurationMinutes = 60;
 
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input });
+        var result = await _appService.GeneratePreviewAsync(input);
 
-        // When no slots fit, the outer grouping produces zero preview entries
-        // (not an entry with zero slots) because the generated-slots list is empty.
-        result.ShouldBeEmpty();
+        result.Count.ShouldBe(2);
+        result.ShouldAllBe(d => d.DoctorAvailabilities.Count == 1);
     }
 
     [Fact]
-    public async Task GeneratePreviewAsync_Boundary_60MinuteInExactly60MinuteRange_Returns1Slot()
+    public async Task GeneratePreviewAsync_TwoNonOverlappingRanges_30mAm_60mPm_Sums()
     {
+        // Per-range duration override -- AM 30m + PM 60m on one day = 4 + 2 = 6 slots.
         var input = BuildValidGenerateInput();
-        input.FromDate = new DateTime(2030, 1, 1);
-        input.ToDate = new DateTime(2030, 1, 1);
-        input.FromTime = new TimeOnly(9, 0);
-        input.ToTime = new TimeOnly(10, 0);
-        input.AppointmentDurationMinutes = 60;
+        input.FromDate = DateTime.Today.AddDays(2);
+        input.ToDate = DateTime.Today.AddDays(2);
+        input.SelectedDays = null;
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(8, 0), ToTime = new TimeOnly(10, 0), AppointmentDurationMinutes = 30 },
+            new TimeRangeDto { FromTime = new TimeOnly(13, 0), ToTime = new TimeOnly(15, 0), AppointmentDurationMinutes = 60 },
+        };
 
-        var result = await _appService.GeneratePreviewAsync(new List<DoctorAvailabilityGenerateInputDto> { input });
+        var result = await _appService.GeneratePreviewAsync(input);
 
         result.Count.ShouldBe(1);
-        result[0].DoctorAvailabilities.Count.ShouldBe(1);
+        result[0].DoctorAvailabilities.Count.ShouldBe(6);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_MultiTypeSet_AppliedToEverySlot()
+    {
+        var input = BuildValidGenerateInput();
+        input.AppointmentTypeIds = new List<Guid>
+        {
+            LocationsTestData.AppointmentType1Id,
+            AppointmentTypesTestData.AppointmentType2Id,
+        };
+
+        var result = await _appService.GeneratePreviewAsync(input);
+
+        result.SelectMany(d => d.DoctorAvailabilities)
+            .ShouldAllBe(s => s.AppointmentTypeIds.Count == 2);
+    }
+
+    [Fact]
+    public async Task GeneratePreviewAsync_CapacityAppliedToEverySlot()
+    {
+        var input = BuildValidGenerateInput();
+        input.Capacity = 3;
+
+        var result = await _appService.GeneratePreviewAsync(input);
+
+        result.SelectMany(d => d.DoctorAvailabilities)
+            .ShouldAllBe(s => s.Capacity == 3);
+    }
+
+    [Fact]
+    public async Task CreateRangeAsync_AllNonConflicting_InsertsAllAndReturnsCount()
+    {
+        // Fresh date range with no pre-existing slots in the tenant scope.
+        var input = BuildValidGenerateInput();
+        var startDate = NextWeekday(DateTime.Today.AddDays(40), DayOfWeek.Monday);
+        input.FromDate = startDate;
+        input.ToDate = startDate;
+        input.SelectedDays = null;
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(8, 0), ToTime = new TimeOnly(13, 0) },
+        };
+        input.AppointmentDurationMinutes = 60;
+        // 1 day x 5 slots = 5
+
+        DoctorAvailabilityCreateRangeResultDto result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.CreateRangeAsync(input);
+        }
+        result.InsertedCount.ShouldBe(5);
+        result.SkippedConflictCount.ShouldBe(0);
+        result.ConflictedSlots.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateRangeAsync_HalfConflict_InsertsRest()
+    {
+        // Seed two pre-existing slots that overlap the first two new slots;
+        // the remaining two should insert.
+        var startDate = NextWeekday(DateTime.Today.AddDays(50), DayOfWeek.Monday);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _slotRepository.InsertAsync(new DoctorAvailability(
+                    id: Guid.NewGuid(),
+                    locationId: LocationsTestData.Location1Id,
+                    availableDate: startDate,
+                    fromTime: new TimeOnly(8, 0),
+                    toTime: new TimeOnly(9, 0),
+                    bookingStatusId: BookingStatus.Available), autoSave: true);
+                await _slotRepository.InsertAsync(new DoctorAvailability(
+                    id: Guid.NewGuid(),
+                    locationId: LocationsTestData.Location1Id,
+                    availableDate: startDate,
+                    fromTime: new TimeOnly(9, 0),
+                    toTime: new TimeOnly(10, 0),
+                    bookingStatusId: BookingStatus.Available), autoSave: true);
+            }
+        });
+
+        var input = BuildValidGenerateInput();
+        input.FromDate = startDate;
+        input.ToDate = startDate;
+        input.SelectedDays = null;
+        input.TimeRanges = new List<TimeRangeDto>
+        {
+            new TimeRangeDto { FromTime = new TimeOnly(8, 0), ToTime = new TimeOnly(12, 0) },
+        };
+        input.AppointmentDurationMinutes = 60;
+        // 4 slots; first two overlap pre-existing -> 2 conflicts + 2 inserts.
+
+        DoctorAvailabilityCreateRangeResultDto result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.CreateRangeAsync(input);
+        }
+        result.InsertedCount.ShouldBe(2);
+        result.SkippedConflictCount.ShouldBe(2);
+        result.ConflictedSlots.Count.ShouldBe(2);
+    }
+
+    [Fact(Skip = "KNOWN GAP: forcing a mid-batch insert failure (to assert rollback) requires a DB constraint violation that the in-memory SQLite test rig does not honor reliably. The transactional UoW wrap (IUnitOfWorkManager.Begin(isTransactional:true)) is the ABP-provided guarantee; behavior will be exercised end-to-end against real SQL Server in plan 7 hardening.")]
+    public Task CreateRangeAsync_AnyInsertFails_RollsBack()
+    {
+        return Task.CompletedTask;
+    }
+
+    private static DateTime NextWeekday(DateTime from, DayOfWeek target)
+    {
+        var diff = ((int)target - (int)from.DayOfWeek + 7) % 7;
+        return from.AddDays(diff);
     }
 
     // =====================================================================
@@ -389,8 +488,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     [Fact]
     public async Task GetWithNavigationPropertiesAsync_ResolvesLocationAndAppointmentType()
     {
-        // Slot1 has both LocationId (Location1) and AppointmentTypeId
-        // (AppointmentType1) populated, exercising the nav-prop join.
+        // 2026-05-15 slot rework: AppointmentTypes is a M2M collection.
+        // Slot1 has Location1 and a single AppointmentType1 join row.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot1Id);
@@ -399,23 +498,22 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
             result.Location.ShouldNotBeNull();
             result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
-            result.AppointmentType.ShouldNotBeNull();
-            result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
+            result.AppointmentTypes.Count.ShouldBe(1);
+            result.AppointmentTypes.Single().Id.ShouldBe(LocationsTestData.AppointmentType1Id);
         }
     }
 
     [Fact]
-    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypeIdNull_ReturnsNullNavBranch()
+    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypesEmpty_ReturnsEmptyList()
     {
-        // Slot2 has AppointmentTypeId = null, exercising the LEFT-JOIN's
-        // null-nav branch.
+        // 2026-05-15 slot rework: Slot2 has no join rows (loose mode).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot2Id);
 
             result.ShouldNotBeNull();
             result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot2Id);
-            result.AppointmentType.ShouldBeNull();
+            result.AppointmentTypes.ShouldBeEmpty();
             result.Location.ShouldNotBeNull();
         }
     }
@@ -428,11 +526,12 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var input = new DoctorAvailabilityCreateDto
             {
                 LocationId = LocationsTestData.Location1Id,
-                AppointmentTypeId = LocationsTestData.AppointmentType1Id,
+                AppointmentTypeIds = new List<Guid> { LocationsTestData.AppointmentType1Id },
                 AvailableDate = new DateTime(2027, 8, 15, 0, 0, 0, DateTimeKind.Utc),
                 FromTime = new TimeOnly(11, 0),
                 ToTime = new TimeOnly(12, 0),
                 BookingStatusId = BookingStatus.Available,
+                Capacity = 3,
             };
 
             var created = await _appService.CreateAsync(input);
@@ -457,22 +556,23 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratch = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2027, 9, 1, 0, 0, 0, DateTimeKind.Utc),
                 fromTime: new TimeOnly(13, 0),
                 toTime: new TimeOnly(14, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratch.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
 
             var existing = await _slotRepository.GetAsync(inserted.Id);
             var update = new DoctorAvailabilityUpdateDto
             {
                 LocationId = existing.LocationId,
-                AppointmentTypeId = existing.AppointmentTypeId,
+                AppointmentTypeIds = existing.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList(),
                 AvailableDate = existing.AvailableDate,
                 FromTime = existing.FromTime,
                 ToTime = existing.ToTime,
                 BookingStatusId = BookingStatus.Reserved,
+                Capacity = existing.Capacity,
                 ConcurrencyStamp = existing.ConcurrencyStamp,
             };
 
@@ -489,11 +589,11 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratch = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2027, 10, 1, 0, 0, 0, DateTimeKind.Utc),
                 fromTime: new TimeOnly(8, 0),
                 toTime: new TimeOnly(9, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratch.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var inserted = await _slotRepository.InsertAsync(scratch, autoSave: true);
 
             await _appService.DeleteAsync(inserted.Id);
@@ -513,19 +613,19 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             var scratchA = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: new TimeOnly(8, 0),
                 toTime: new TimeOnly(9, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratchA.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var scratchB = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(10, 0),
                 bookingStatusId: BookingStatus.Available);
+            scratchB.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             var insertedA = await _slotRepository.InsertAsync(scratchA, autoSave: true);
             var insertedB = await _slotRepository.InsertAsync(scratchB, autoSave: true);
 
@@ -583,7 +683,8 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             ToTime = new TimeOnly(10, 0),
             BookingStatusId = BookingStatus.Available,
             LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            AppointmentTypeIds = new List<Guid> { DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId },
+            Capacity = 3,
         };
     }
 
@@ -596,23 +697,213 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
             ToTime = new TimeOnly(10, 0),
             BookingStatusId = BookingStatus.Available,
             LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            AppointmentTypeIds = new List<Guid> { DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId },
+            Capacity = 3,
             ConcurrencyStamp = string.Empty,
         };
     }
 
     private static DoctorAvailabilityGenerateInputDto BuildValidGenerateInput()
     {
+        // 2026-05-15 (slot rework plan 4) -- multi-axis generation input.
+        // Date is +1 day so the FromDatePast validator does not fire on the
+        // default; SelectedDays=null means "all weekdays"; one TimeRange.
         return new DoctorAvailabilityGenerateInputDto
         {
-            FromDate = new DateTime(2030, 1, 1),
-            ToDate = new DateTime(2030, 1, 1),
-            FromTime = new TimeOnly(9, 0),
-            ToTime = new TimeOnly(10, 0),
+            FromDate = DateTime.Today.AddDays(1),
+            ToDate = DateTime.Today.AddDays(1),
+            SelectedDays = null,
+            TimeRanges = new List<TimeRangeDto>
+            {
+                new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(10, 0) },
+            },
             BookingStatusId = BookingStatus.Available,
-            LocationId = DoctorAvailabilitiesTestData.NonExistentLocationId,
-            AppointmentTypeId = DoctorAvailabilitiesTestData.NonExistentAppointmentTypeId,
+            LocationId = LocationsTestData.Location1Id,
+            AppointmentTypeIds = new List<Guid>(),
             AppointmentDurationMinutes = 60,
+            Capacity = 3,
         };
+    }
+
+    // =====================================================================
+    // 2026-05-15 -- slot rework plan 3: GetDoctorAvailabilityLookupAsync
+    // computes RemainingCapacity = Capacity - activeAppointmentCount and
+    // excludes full slots / Reserved slots from the picker.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_RemainingCapacityComputed()
+    {
+        var date = DateTime.Today.AddDays(15);
+        var slotId = Guid.NewGuid();
+        var appointmentRepo = GetRequiredService<HealthcareSupport.CaseEvaluation.Appointments.IAppointmentRepository>();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var slot = new DoctorAvailability(
+                    id: slotId,
+                    locationId: LocationsTestData.Location1Id,
+                    availableDate: date,
+                    fromTime: new TimeOnly(9, 0),
+                    toTime: new TimeOnly(10, 0),
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3);
+                slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+                await _slotRepository.InsertAsync(slot, autoSave: true);
+
+                await appointmentRepo.InsertAsync(new HealthcareSupport.CaseEvaluation.Appointments.Appointment(
+                    id: Guid.NewGuid(),
+                    patientId: PatientsTestData.Patient1Id,
+                    identityUserId: IdentityUsersTestData.Patient1UserId,
+                    appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                    locationId: LocationsTestData.Location1Id,
+                    doctorAvailabilityId: slotId,
+                    appointmentDate: date.AddHours(9).AddMinutes(15),
+                    requestConfirmationNumber: "A-RC-1",
+                    appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
+            }
+        });
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        var dto = result.SingleOrDefault(x => x.Id == slotId);
+        dto.ShouldNotBeNull();
+        dto.RemainingCapacity.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_FullSlotsExcluded()
+    {
+        var date = DateTime.Today.AddDays(16);
+        var slotId = Guid.NewGuid();
+        var appointmentRepo = GetRequiredService<HealthcareSupport.CaseEvaluation.Appointments.IAppointmentRepository>();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 1);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+
+            await appointmentRepo.InsertAsync(new HealthcareSupport.CaseEvaluation.Appointments.Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: slotId,
+                appointmentDate: date.AddHours(9).AddMinutes(15),
+                requestConfirmationNumber: "A-FULL-1",
+                appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_ReservedSlotsExcluded()
+    {
+        var date = DateTime.Today.AddDays(17);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Reserved,
+                capacity: 10);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_TypeFilterRespected()
+    {
+        var date = DateTime.Today.AddDays(18);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 3);
+            // Strict-mode: AppointmentType1 only.
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _slotRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        List<DoctorAvailabilityDto> result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Caller requests AppointmentType2 -- should omit the strict slot.
+            result = await _appService.GetDoctorAvailabilityLookupAsync(new GetDoctorAvailabilityLookupInput
+            {
+                LocationId = LocationsTestData.Location1Id,
+                AppointmentTypeId = AppointmentTypesTestData.AppointmentType2Id,
+                // AvailableDateFrom is today-1 so leadTime (default 3) + that
+                // does not push minDate past the slot's date today+15..+18.
+                AvailableDateFrom = DateTime.Today.AddDays(-1),
+                AvailableDateTo = date.AddDays(1),
+            });
+        }
+
+        result.Any(x => x.Id == slotId).ShouldBeFalse();
     }
 }

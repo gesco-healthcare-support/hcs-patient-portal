@@ -1,5 +1,5 @@
 ---
-status: draft (decisions resolved 2026-05-20; see readiness check)
+status: in-progress (build started 2026-05-27; decisions resolved 2026-05-20, see readiness check)
 issue: doctor-invariant-enforcement
 owner: AdrianG
 created: 2026-05-15
@@ -12,6 +12,96 @@ branch: create a new branch off `feat/replicate-old-app`. PR back to
   reviews the full series.
 readiness-check: docs/plans/SlotGenerationRework/_2026-05-20-doctor-invariant-readiness-check.md
 ---
+
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below. Confirmed with Adrian after the 2026-05-27 re-verification.
+
+- **Doctor one-per-tenant unique index goes in BOTH DbContexts.** Emit the
+  filtered unique index (filter `[TenantId] IS NOT NULL AND [IsDeleted] = 0`)
+  in `CaseEvaluationDbContext` (inside the host-guard block) AND
+  `CaseEvaluationTenantDbContext`. This RESOLVES the BLOCKING "host-only vs
+  both" question raised in change C of the re-verification below. Rationale:
+  matches the established precedent in this codebase -- the Appointment
+  confirmation-number index (`Phase 11f`) and
+  `Packet_FilteredUniqueIndex_SoftDelete` are already mirrored host->tenant.
+  The generated migration must create the index for both contexts.
+
+## Build deviations -- 2026-05-27 (during implementation)
+
+Discovered while building; resolved with Adrian. These supersede conflicting
+text below.
+
+1. **Test seed reshaped (was NOT in the plan).** The integration-test seed
+   (`CaseEvaluationIntegrationTestSeedContributor.SeedDoctorsAsync`) put BOTH
+   Doctor1 and Doctor2 in TenantA -- which violates the new filtered unique
+   index and fails at SQLite schema-creation time. Fixed: Doctor1 -> TenantA,
+   Doctor2 -> TenantB (one per tenant). `DoctorRepositoryTests.GetCountAsync`
+   re-scoped from TenantA to TenantB (queries Doctor2's fields; assertion
+   unchanged). `GetListAsync` (host context, filter disabled) still sees both,
+   so `TotalCount == 2` holds. Confirmed with Adrian: prod has only admin +
+   falkinstein tenants; multi-tenant fixtures exist only in tests.
+
+2. **DeleteAsync probes appointments FIRST (was slots-first).** Every
+   `Appointment` requires a `DoctorAvailability` (required FK, NoAction), so a
+   slots-first probe would always report `DoctorAvailability` and the operator
+   would never see the more actionable `Appointment` bucket. Order is now
+   Appointment -> DoctorAvailability -> active DoctorPreferredLocation.
+   Confirmed with Adrian 2026-05-27.
+
+3. **`DoctorPreferredLocation` repo type corrected.** It has a COMPOSITE key
+   (`{DoctorId, LocationId}`, `FullAuditedEntity` not `<Guid>`), so the repo is
+   `IRepository<DoctorPreferredLocation>` -- NOT
+   `IRepository<DoctorPreferredLocation, Guid>` as the plan snippet showed.
+
+4. **CreateAsync guard uses `FindAsync(x => x.TenantId == CurrentTenant.Id)`**
+   (confirmed available via the existing test suite) rather than `AnyAsync`.
+   Keeps the explicit TenantId predicate from the plan's superseded note.
+
+5. **Migration name = `DoctorOnePerTenantUniqueIndex`** (no `PhaseNN_` prefix,
+   per current convention). EF emitted the filtered index correctly
+   (`filter: "[TenantId] IS NOT NULL AND [IsDeleted] = 0"`); no hand-edit
+   needed. It drops the old non-unique `IX_AppDoctors_TenantId` and creates
+   `IX_AppEntity_Doctors_TenantId_Unique`.
+
+6. **Index added to BOTH `CaseEvaluationDbContext` (host-guard block) and
+   `CaseEvaluationTenantDbContext`** per the locked decision.
+
+7. **Latent test bug noted (left as-is, out of scope).** The pre-existing
+   `DoctorApplicationTests.DeleteAsync` "passes" for a false-positive reason:
+   it runs in host context where the `IMultiTenant` filter hides TenantA's
+   Doctor1, so ABP's `DeleteAsync(id)` no-ops and the `ShouldBeNull` assertion
+   holds because the row was never visible (not because it was deleted). The
+   new guard adds host-scope counts that are all 0, so it does not regress this
+   test. Empirically confirmed the filter is ON and isolates by tenant
+   (`host(avail=0,appt=0) tenantA(avail=2,appt=1)`).
+
+**Stack-dependent steps still pending** (deferred until the dev stack is up):
+the 5c dedupe pre-flight probe, `database update` via DbMigrator (fresh
+reseed -- no existing dupes pre-deploy), and the manual UI verification.
+
+## Re-verified 2026-05-27 (HEAD ad07947)
+
+Full re-verification pass against current source (the 2026-05-20 readiness
+check was research-output and never folded into the body). ~50 commits landed
+2026-05-15..2026-05-27; the citations drifted. The plan's INTENT and all
+locked decisions (Q1=C, Q2=A, Q3=C-then-A) remain valid. Status:
+**needs-refresh** (line/path drift + one CORE assumption to confirm with
+Adrian -- see BLOCKING note in section 2/5). Changes applied:
+
+| # | What changed | Evidence (file:line @ HEAD) | Confidence |
+|---|---|---|---|
+| A | `CaseEvaluationDomainErrorCodes.cs` is now **673 lines** (not 607), and has **zero `Doctor.*` codes** (only `DoctorAvailability*`). New insertion point: end of file, after `AppointmentDocumentFileEmpty` (line 671). The "line 59-84 Doctor region" never existed. | `CaseEvaluationDomainErrorCodes.cs:1-673`; last code at :671 | HIGH |
+| B | `DoctorsAppService.CreateAsync` is **lines 112-117** (matches), `DeleteAsync` **106-110** (matches), but both bodies are now single-line. Constructor injects `IDataFilter<IMultiTenant> _dataFilter` (line 26/33). "From" snippets refreshed. | `DoctorsAppService.cs:106-117`, ctor :28-42 | HIGH |
+| C | **CORE ASSUMPTION FLAG:** the `Doctor` entity is configured **inside `if (builder.IsHostDatabase())`** (`CaseEvaluationDbContext.cs:120`). The Doctor table + both M2M joins live in the HOST DB on this context. `Doctor` is `IMultiTenant` (TenantId nullable) and ALSO configured in `CaseEvaluationTenantDbContext` (per Doctors/CLAUDE.md). The DbContext index in section 5a must therefore be added inside the host-guard block (lines 122-131) AND mirrored in the tenant DbContext if the tenant DB is expected to enforce it. This was NOT addressed by the plan or readiness check. See BLOCKING question. | `CaseEvaluationDbContext.cs:120-156`; tenant ctx per `Domain/Doctors/CLAUDE.md` | HIGH |
+| D | DbContext `Doctor` block is **lines 122-131** (closes at 132), not "122-132". Existing `HasOne<Tenant>().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull)` at line 131 -- the new `HasIndex` line goes after it. `DoctorAppointmentType` 133-145, `DoctorLocation` 146-155. | `CaseEvaluationDbContext.cs:122-155` | HIGH |
+| E | Reference migration upgraded: use **`20260524012608_Packet_FilteredUniqueIndex_SoftDelete.cs`** (2026-05-24) -- it uses the EXACT compound filter `"[IsDeleted] = 0 AND [TenantId] IS NOT NULL"` we need, newer than `Phase11f` (which uses only `[TenantId] IS NOT NULL`). | `Migrations/20260524012608_*.cs:22` | HIGH |
+| F | Migration-name collision: **no `Phase19`** exists; latest migration is `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`. `Phase19_DoctorOnePerTenantUniqueIndex` is open. (Naming note: recent migrations dropped the `PhaseNN_` prefix; consider `DoctorOnePerTenantUniqueIndex` for consistency -- non-blocking.) | `Migrations/` listing | HIGH |
+| G | HTTP-status mapping block moved: the `Configure<AbpExceptionHttpStatusCodeOptions>` lambda is at **`CaseEvaluationHttpApiHostModule.cs:153-190`**. Shared codes were extracted to `CaseEvaluationExceptionStatusCodeMappings.MapSharedRegistrationAndInternalUserCodes(options)` (line 159-160); host-specific `options.Map(...)` calls are at :165-189. Add the two new Doctor maps next to `AppointmentInvalidTransition` (:174). Also note `MapAppointmentDocumentErrorCodes` helper pattern (:202) for testable extraction. | `CaseEvaluationHttpApiHostModule.cs:153-210` | HIGH |
+| H | Test file confirmed: `test/.../Doctors/DoctorApplicationTests.cs`, abstract class `DoctorsAppServiceTests<TStartupModule>` (5 existing `[Fact]`s, NO concrete subclass in the file). **Existing `CreateAsync` test (line 54-77) runs in HOST context (no `_currentTenant.Change`)** and asserts a plain create succeeds. The plan's new test #1 must seed/create inside a tenant scope AND the guard's `AnyAsync()` semantics depend on it -- see refreshed test-plan note. `GetAsync`/`UpdateAsync`/`DeleteAsync` tests wrap in `_currentTenant.Change(TenantsTestData.TenantARef)`. | `DoctorApplicationTests.cs:13-117` | HIGH |
+| I | `en.json` confirmed: **zero `Doctor:*` keys** -- the two new keys establish the namespace. | en.json grep (no matches) | HIGH |
+| J | PARITY-FLAG-NEW-006 confirmed present at `docs/parity/wave-1-parity/_parity-flags.md:23`. | grep | HIGH |
+| K | EF Core 10 verified: `SqlServerIndexConvention` auto-adds `IS NOT NULL` for nullable cols in a unique index; explicit `.HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")` overrides it. `HasFilter` accepts arbitrary SQL (Microsoft.EntityFrameworkCore.Relational v10.0.0). Compound filter is supported and proven by change E. | learn.microsoft.com/ef/core/modeling/indexes#index-filter ; HasFilter API efcore-10.0 | HIGH |
 
 > **2026-05-20 decisions locked** (see readiness-check for full context):
 > - **Q1 (Option C):** the dependent-bucket probe in `DeleteAsync` checks ONLY
@@ -74,15 +164,17 @@ is just the profile face of that scope. Downstream entities
 
 Today the codebase encodes this invariant only by convention. The
 existing `DoctorTenantAppService.CreateAsync` (in
-`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorTenantAppService.cs:52-85`)
+`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorTenantAppService.cs:52-85`,
+re-verified @ HEAD 2026-05-27)
 correctly seeds one Doctor when a tenant is provisioned. But:
 
 - `DoctorsAppService.CreateAsync`
-  (`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorsAppService.cs:112-117`)
+  (`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorsAppService.cs:112-117`,
+  re-verified @ HEAD)
   has no guard and will happily insert a second row inside the
   current tenant scope.
-- `DoctorsAppService.DeleteAsync` (line 106-110) is a pure
-  `DeleteAsync(id)` call that orphans every downstream row.
+- `DoctorsAppService.DeleteAsync` (lines 106-110, re-verified @ HEAD)
+  is a pure `DeleteAsync(id)` call that orphans every downstream row.
 - No DB constraint prevents direct SQL (or a future code-gen
   regression) from inserting a duplicate.
 
@@ -126,10 +218,15 @@ the invariant as load-bearing.
 2. **Soft-delete-aware.** ABP's `FullAuditedAggregateRoot<Guid>`
    sets `IsDeleted = 1` on logical deletion. The unique index
    filter must include `AND IsDeleted = 0` so a soft-deleted
-   doctor does not block a fresh create. This matches every
-   other ABP unique index in the project (e.g.
-   `IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber`
-   from `Phase11f_AppointmentConfirmationNumberUniqueIndex`).
+   doctor does not block a fresh create. This matches the most
+   recent filtered unique index in the project,
+   `IX_AppAppointmentPackets_TenantId_AppointmentId_Kind` from
+   `20260524012608_Packet_FilteredUniqueIndex_SoftDelete` (2026-05-24),
+   which uses the exact compound filter
+   `"[IsDeleted] = 0 AND [TenantId] IS NOT NULL"`. (The older
+   `Phase11f_AppointmentConfirmationNumberUniqueIndex` used only
+   `[TenantId] IS NOT NULL`; the 2026-05-24 migration is the
+   canonical soft-delete-aware reference -- 2026-05-27 update.)
 
 3. **Two new error codes.** Both go into
    `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs`
@@ -157,7 +254,8 @@ the invariant as load-bearing.
 
 6. **`DoctorTenantAppService.CreateAsync` keeps its
    replay-on-conflict semantics**
-   (file:`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorTenantAppService.cs:121-141`):
+   (file:`src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorTenantAppService.cs:121-141`,
+   re-verified @ HEAD 2026-05-27 -- `CreateDoctorProfileAsync` find-or-update):
    if the per-email Doctor lookup finds an existing row, it
    updates that row rather than inserting. This is the legitimate
    "tenant re-provisioning" code path and must NOT be broken by
@@ -169,8 +267,14 @@ the invariant as load-bearing.
 
 ### 1. `src/HealthcareSupport.CaseEvaluation.Domain.Shared/CaseEvaluationDomainErrorCodes.cs`
 
-Append two new public const strings near the existing Doctor-area
-codes (line 59-84 region):
+> **2026-05-27 refresh:** the file is now **673 lines** and has **NO
+> `Doctor.*` error codes** (only `DoctorAvailability*`). The original
+> "line 59-84 Doctor region" never existed. Append the two new const
+> strings at the **end of the class**, after
+> `AppointmentDocumentFileEmpty` (last code, line 671). No semantic
+> change to the bodies below.
+
+Append two new public const strings at the end of the class:
 
 ```csharp
 /// <summary>
@@ -204,7 +308,9 @@ public const string DoctorCannotDeleteWithDependents =
 
 ### 2. `src/HealthcareSupport.CaseEvaluation.Application/Doctors/DoctorsAppService.cs`
 
-**CreateAsync (lines 112-117).** Replace with the guarded
+**CreateAsync (lines 112-117, re-verified @ HEAD 2026-05-27 -- current
+body is a single-line `_doctorManager.CreateAsync(...)` + map).**
+Replace with the guarded
 implementation. Pull `IRepository<Doctor, Guid>` (already
 injected as `_doctorRepository` via `IDoctorRepository` -- reuse
 it) and call `AnyAsync(x => x.TenantId == CurrentTenant.Id)`
@@ -212,6 +318,25 @@ against the implicit `IMultiTenant` filter (which already scopes
 to the current tenant). The filter excludes soft-deleted rows
 by default, so the call is a simple "does the tenant have any
 live Doctor row" check.
+
+> **2026-05-27 caveat (tenant-context dependency).** The
+> `AnyAsync()` no-predicate guard relies on `CurrentTenant.Id`
+> being non-null at call time so the `IMultiTenant` filter scopes
+> to one tenant. Two facts to keep straight: (1) the `Doctor`
+> entity is configured **inside `if (builder.IsHostDatabase())`**
+> on `CaseEvaluationDbContext` (line 120) -- the table lives in the
+> host DB on that context, and is also configured in
+> `CaseEvaluationTenantDbContext`; see changelog item C + the
+> BLOCKING question. (2) The existing `CreateAsync` unit test runs
+> in **host context** (`CurrentTenant.Id == null`, no
+> `_currentTenant.Change`). With the filter disabled in host scope
+> a no-predicate `AnyAsync()` could see Doctors across all tenants
+> and false-positive. The new test #1 must therefore enter a tenant
+> scope (`_currentTenant.Change(...)`) before the second create, and
+> the guard SHOULD use the explicit
+> `AnyAsync(x => x.TenantId == CurrentTenant.Id)` predicate (already
+> shown in the snippet below) rather than the no-predicate form
+> recommended in the original "Notes" -- see the superseded note.
 
 ```csharp
 [Authorize(CaseEvaluationPermissions.Doctors.Create)]
@@ -223,7 +348,13 @@ public virtual async Task<DoctorDto> CreateAsync(DoctorCreateDto input)
     // downstream "lookup by tenant scope" path (DoctorAvailability,
     // Appointment, slot generation). DoctorTenantAppService is the
     // canonical net-new path; this AppService is for profile edits.
-    if (await _doctorRepository.AnyAsync())
+    // 2026-05-27: explicit TenantId predicate (was no-predicate
+    // AnyAsync in the v1 plan). Reason: the existing test suite calls
+    // CreateAsync from host context (CurrentTenant.Id == null) where
+    // GetListAsync disables the IMultiTenant filter; a no-predicate
+    // AnyAsync could then see cross-tenant Doctors. The explicit
+    // predicate is null-safe and deterministic in both scopes.
+    if (await _doctorRepository.AnyAsync(x => x.TenantId == CurrentTenant.Id))
     {
         throw new BusinessException(
             CaseEvaluationDomainErrorCodes.DoctorOnePerTenantViolated)
@@ -242,16 +373,22 @@ public virtual async Task<DoctorDto> CreateAsync(DoctorCreateDto input)
 ```
 
 Notes:
-- `IRepository<Doctor, Guid>.AnyAsync()` with no predicate uses
+- ~~`IRepository<Doctor, Guid>.AnyAsync()` with no predicate uses
   the queryable's current scope, which already applies the
   `IMultiTenant` filter. We deliberately do NOT add a manual
   `TenantId == CurrentTenant.Id` predicate -- ABP's filter is the
-  single source of truth here.
+  single source of truth here.~~ **SUPERSEDED 2026-05-27:** use the
+  explicit `x.TenantId == CurrentTenant.Id` predicate. The
+  no-predicate form is unsafe in host context, where
+  `GetListAsync` disables the `IMultiTenant` filter and the
+  existing `CreateAsync` test runs (`CurrentTenant.Id == null`).
+  The explicit predicate is correct in both host and tenant scope.
 - We do NOT disable the soft-delete filter. A soft-deleted Doctor
   row does not block a new create; the operator workflow is
   "delete then re-create" if the profile metadata is wrong.
 
-**DeleteAsync (lines 106-110).** Wire up three count probes against
+**DeleteAsync (lines 106-110, re-verified @ HEAD 2026-05-27 -- current
+body is a single-line `_doctorRepository.DeleteAsync(id)`).** Wire up three count probes against
 operational tenant-scope data only (per Q1 Option C decision
 2026-05-20: host-scope M2M tables `DoctorLocation` and
 `DoctorAppointmentType` are dropped from the probe; their
@@ -336,8 +473,18 @@ Notes:
 ### 3. `src/HealthcareSupport.CaseEvaluation.HttpApi.Host/CaseEvaluationHttpApiHostModule.cs`
 
 Add two entries to the existing `Configure<AbpExceptionHttpStatusCodeOptions>`
-block (search for existing entries like
-`options.Map(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime, HttpStatusCode.BadRequest);`).
+block at **`CaseEvaluationHttpApiHostModule.cs:153-190`** (2026-05-27:
+the block moved + the shared registration/internal-user maps were
+extracted to
+`CaseEvaluationExceptionStatusCodeMappings.MapSharedRegistrationAndInternalUserCodes(options)`,
+invoked at lines 159-160). Add the two new Doctor `options.Map(...)`
+calls next to the host-specific
+`options.Map(CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition, ...)`
+entry (line 174). NOTE the `MapAppointmentDocumentErrorCodes` helper
+pattern (line 202): the codebase now favors extracting groups of maps
+into a named `internal static` helper so unit tests can verify them
+without booting the host -- optional but consistent to follow for the
+two Doctor codes.
 
 ```csharp
 options.Map(
@@ -350,9 +497,10 @@ options.Map(
 
 ### 4. `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Localization/CaseEvaluation/en.json`
 
-Add the two new keys plus a `Doctor:` namespace if absent. Place
-under the existing `Doctor` section (alphabetical -- they fall
-between any current `Doctor:*` keys):
+Add the two new keys. **2026-05-27: confirmed there is NO existing
+`Doctor:*` section in `en.json`** -- these two keys establish the
+namespace. Place them anywhere sensible in the `texts` object (the
+file is not strictly alphabetized):
 
 ```jsonc
 "Doctor:OnePerTenantViolated": "This clinic already has a doctor profile. The system supports one doctor per clinic. Edit the existing profile instead, or contact the IT administrator if the clinic needs a different doctor.",
@@ -363,6 +511,13 @@ ASCII only. ABP's `BusinessException.WithData` parameters render
 through these placeholders by name.
 
 ### 5. EF Core migration: `Phase19_DoctorOnePerTenantUniqueIndex`
+
+> **2026-05-27:** no `Phase19` collision (latest migration is
+> `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`). The name
+> below is open. Recent migrations have dropped the `PhaseNN_` prefix
+> convention (e.g. `Packet_FilteredUniqueIndex_SoftDelete`,
+> `Added_Invitations`); a plain `DoctorOnePerTenantUniqueIndex` would
+> match current style. Non-blocking -- use whichever Adrian prefers.
 
 Add a new migration via:
 
@@ -380,9 +535,22 @@ not directly emit a `WHERE` predicate on SQL Server without
 `.HasFilter("...")`, so we add the index declaratively to
 `CaseEvaluationDbContext.cs` AND let the migration capture it.
 
-#### 5a. Edit `CaseEvaluationDbContext.cs` (the `Doctor` entity block, line 122-132)
+#### 5a. Edit `CaseEvaluationDbContext.cs` (the `Doctor` entity block, lines 122-131)
 
-Add a new line at the end of the configurator:
+> **2026-05-27 -- CORE flag.** The `Doctor` block is **inside the
+> `if (builder.IsHostDatabase())` guard** (`CaseEvaluationDbContext.cs:120`).
+> Add the new `HasIndex` line at the end of the `builder.Entity<Doctor>(b => {...})`
+> configurator (after the existing
+> `b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);`
+> at line 131). This places the index on the **host** DbContext only.
+> Per `Domain/Doctors/CLAUDE.md`, `Doctor` is ALSO configured in
+> `CaseEvaluationTenantDbContext` (outside any host guard). DECIDE whether
+> the tenant DbContext needs the same index -- see the BLOCKING question
+> in the changelog (item C). If tenant DBs are expected to hold Doctor
+> rows and enforce the invariant at the DB level, mirror this `HasIndex`
+> there too and emit it in the migration for both contexts.
+
+Add a new line at the end of the host configurator:
 
 ```csharp
 b.HasIndex(x => x.TenantId)
@@ -390,6 +558,13 @@ b.HasIndex(x => x.TenantId)
     .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0")
     .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique");
 ```
+
+> EF Core 10 note (verified 2026-05-27): `SqlServerIndexConvention`
+> auto-adds an `IS NOT NULL` filter for nullable columns in a unique
+> index, but the explicit `.HasFilter(...)` here overrides the
+> convention with our compound predicate. Confirmed working in
+> `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`. Source:
+> learn.microsoft.com/ef/core/modeling/indexes#index-filter.
 
 Notes:
 - The filter ensures the index only enforces uniqueness on live
@@ -417,8 +592,11 @@ If the auto-generated emit does not include the filter (some
 EF Core versions strip it without `[Index(...)]` data annotation
 hints), edit the migration by hand to add `filter: "..."` -- this
 is the pattern used in
-`20260504170956_Phase11f_AppointmentConfirmationNumberUniqueIndex.cs`
-(read that migration first to confirm syntax).
+`20260524012608_Packet_FilteredUniqueIndex_SoftDelete.cs`
+(2026-05-27: this is the canonical reference -- its `Up()` uses
+`filter: "[IsDeleted] = 0 AND [TenantId] IS NOT NULL"` verbatim, the
+exact compound shape we need. Read it first to confirm syntax. The
+older `Phase11f` migration only used `[TenantId] IS NOT NULL`.).
 
 `Down()`:
 
@@ -473,8 +651,31 @@ This is the only doc-comment touch -- not a refactor.
 ### `test/HealthcareSupport.CaseEvaluation.Application.Tests/Doctors/DoctorApplicationTests.cs`
 
 Existing test class is `DoctorsAppServiceTests<TStartupModule>` (abstract
-generic, ABP Suite scaffold pattern). New tests go in the concrete
-subclass that already lives in this file. Add six new `[Fact]` tests
+generic, ABP Suite scaffold pattern), confirmed @ HEAD 2026-05-27 with
+5 existing `[Fact]`s.
+
+> **2026-05-27 corrections to the v1 test plan:**
+> - There is **no concrete subclass inside this file** -- the v1 line
+>   "new tests go in the concrete subclass that already lives in this
+>   file" is wrong. The concrete subclass lives in the EF Core test
+>   project (the standard ABP Suite split: abstract test in
+>   `Application.Tests`, concrete subclass in `EntityFrameworkCore.Tests`).
+>   Concrete subclass confirmed @ HEAD:
+>   `test/.../EntityFrameworkCore.Tests/EntityFrameworkCore/Applications/Doctors/EfCoreDoctorsAppServiceTests.cs`
+>   (`EfCoreDoctorsAppServiceTests : DoctorsAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>`).
+>   Add the new `[Fact]`s to the abstract base here; they run via this
+>   concrete subclass.
+> - **Tenant context matters.** The existing `CreateAsync` test runs in
+>   HOST context (no `_currentTenant.Change`); `GetAsync`/`UpdateAsync`/
+>   `DeleteAsync` wrap in `_currentTenant.Change(TenantsTestData.TenantARef)`.
+>   The new guard uses `x.TenantId == CurrentTenant.Id` (see section 2
+>   superseded note), so the "second create throws" test (#1) MUST seed
+>   the first Doctor AND attempt the second create **inside the same
+>   tenant scope** (`_currentTenant.Change(...)`), otherwise host-scope
+>   filter-disable makes the assertion non-deterministic. Mirror the
+>   `GetAsync` test's tenant-wrapping pattern.
+
+New tests go in the abstract base. Add six new `[Fact]` tests
 (TDD: write the test first, watch it fail with the unguarded
 `CreateAsync`/`DeleteAsync`, ship the guard, watch it pass):
 

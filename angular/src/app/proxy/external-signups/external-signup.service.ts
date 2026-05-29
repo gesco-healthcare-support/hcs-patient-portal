@@ -1,4 +1,4 @@
-import type { DeleteTestUsersResultDto, ExternalUserLookupDto, ExternalUserProfileDto, ExternalUserSignUpDto, InviteExternalUserDto, InviteExternalUserResultDto } from './models';
+import type { DeleteTestUsersResultDto, ExternalUserLookupDto, ExternalUserProfileDto, ExternalUserSignUpDto, InvitationValidationDto, InviteExternalUserDto, InviteExternalUserResultDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { ListResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -79,6 +79,15 @@ export class ExternalSignupService {
       method: 'POST',
       url: '/api/app/external-signup/resolve-tenant-by-name',
       params: { name },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  validateInvite = (token: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, InvitationValidationDto>({
+      method: 'POST',
+      url: '/api/app/external-signup/validate-invite',
+      params: { token },
     },
     { apiName: this.apiName,...config });
 }

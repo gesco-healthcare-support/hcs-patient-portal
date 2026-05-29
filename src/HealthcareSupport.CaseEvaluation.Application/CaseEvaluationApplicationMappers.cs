@@ -229,15 +229,49 @@ public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, Lookup
 [Mapper]
 public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBase<DoctorAvailability, DoctorAvailabilityDto>
 {
+    // 2026-05-15 -- the entity carries ICollection<DoctorAvailabilityAppointmentType>;
+    // the DTO surfaces List<Guid> AppointmentTypeIds. Use the project's
+    // idiomatic [MapperIgnoreTarget] + AfterMap pattern (see
+    // AppointmentTypeToLookupDtoGuidMapper) so the shape change is explicit.
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
+
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
+
+    public override void AfterMap(DoctorAvailability source, DoctorAvailabilityDto destination)
+    {
+        destination.AppointmentTypeIds = source.AppointmentTypes
+            .Select(x => x.AppointmentTypeId)
+            .ToList();
+    }
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper : MapperBase<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>
 {
+    // Source and target AppointmentTypes share the same name; Mapperly reuses
+    // the existing AppointmentType -> AppointmentTypeDto mapper. The nested
+    // DoctorAvailability mapping is generated internally and does NOT run
+    // DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap, so the inner
+    // DTO's AppointmentTypeIds would otherwise stay empty. AfterMap below
+    // populates it from the outer materialized AppointmentTypes list (the
+    // EF repository builds that list via an explicit subquery join, so it
+    // is the authoritative source for IDs in this projection path).
     public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
     public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
+
+    public override void AfterMap(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination)
+    {
+        if (destination.DoctorAvailability != null && source.AppointmentTypes != null)
+        {
+            destination.DoctorAvailability.AppointmentTypeIds = source.AppointmentTypes
+                .Select(x => x.Id)
+                .ToList();
+        }
+    }
 }
 
 [Mapper]

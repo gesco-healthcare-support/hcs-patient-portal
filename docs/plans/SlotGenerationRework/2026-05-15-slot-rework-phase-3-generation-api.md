@@ -1,10 +1,12 @@
 ---
-status: draft
+status: in-progress (build started 2026-05-28 on feat/slot-rework-generation-api)
 issue: slot-rework-phase-3-generation-api
 owner: AdrianG
 created: 2026-05-15
-revised: 2026-05-20 (drift check + locked decisions baked in -- see
-  `_2026-05-20-slot-phase-3-readiness-check.md`)
+revised: 2026-05-27 (re-verified HEAD ad07947; proxy-regen command
+  corrected; stale Swagger URL fixed; Phase 1/2 "from" states annotated
+  as verify-at-execution-time; EstimateSlotCount formula confirmed
+  correct in body; all D1-D6 decisions confirmed present)
 approach: tdd (generation math is pure functions on input shape;
   TDD pays the most here) + code (the persistence wave and
   preview projection are orchestration)
@@ -22,6 +24,114 @@ decisions-locked-2026-05-20:
   Q3 (error messages): use `L["Key"]` translation system, NOT
     hardcoded English. Matches every other validation error in
     the codebase.
+---
+
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below. Confirmed with Adrian after the 2026-05-27 re-verification.
+
+- **Generation input `Capacity` default = 3.** Internal staff set capacity
+  per slot/range; the DTO default is 3 (not 1). Each generated slot is created
+  with the chosen capacity.
+- **External-facing bookability signal.** The booking slot data consumed by the
+  external picker (Plan 6 / phase-5) must carry a server-computed "bookable"
+  signal (remaining capacity >= 1), computed from `Capacity` minus the
+  active-appointment count (phase-2 active-count method). External users only
+  ever see available/not -- never the number -- so a boolean is sufficient
+  (raw remaining count is acceptable as long as the UI shows only the boolean).
+- (Proxy regeneration command was corrected to `abp generate-proxy -t ng`,
+  with HttpApi.Host running, in the re-verification below.)
+
+## Build deviations -- 2026-05-28 (during implementation)
+
+Discovered while building plan 4 on `feat/slot-rework-generation-api`. These
+supersede conflicting text below.
+
+1. **Capacity default = 3** (was `1` in the plan body's DTO snippet;
+   superseded by the round-2 locked decision at the top).
+
+2. **DataAnnotation validators removed from the DTO.** Plan body has
+   `[Range(1, int.MaxValue)] int Capacity` and `[MinLength(1)] List<TimeRangeDto>`.
+   ABP's method-invocation validation interceptor catches these BEFORE the
+   AppService body runs and throws `AbpValidationException` with a generic
+   English message -- not the localized `UserFriendlyException` the plan
+   prescribes. Attributes removed; the AppService validator
+   (`ValidateGenerationInput`) fires the localized
+   `DoctorAvailability:CapacityMustBeAtLeastOne` and
+   `DoctorAvailability:AtLeastOneTimeRangeRequired` messages instead.
+
+3. **Test #17 (`CreateRangeAsync_AnyInsertFails_RollsBack`) Skip-tagged.**
+   Forcing a mid-batch insert failure to assert rollback is hard to engineer
+   reliably on the SQLite in-memory test rig (no real FK constraint behavior,
+   no UNIQUE constraint to violate cleanly). The transactional UoW wrap
+   (`IUnitOfWorkManager.Begin(isTransactional: true)`) is the ABP-provided
+   guarantee; end-to-end rollback behavior is deferred to plan 7's
+   real-SQL-Server hardening (same wave-wide reasoning that defers the
+   row-lock test for plan 3 step 5).
+
+4. **Per-date conflict messaging** (vs plan body's `previewList[0]`
+   one-message-for-the-batch). Implementation now sets
+   `date.SameTimeValidation` per preview day so the SPA can render which
+   date had the conflict; the per-batch behavior was a holdover from the
+   list-input shape.
+
+5. **Dedicated conflict localization keys added.** Plan body uses hardcoded
+   English ("Time slot overlaps a closed slot at this location.") for the
+   conflict-message branch. Added two dedicated keys
+   (`DoctorAvailability:GenerationConflictReserved`,
+   `DoctorAvailability:GenerationConflictExists`) matching the Q3 locked
+   decision's "use `L[]` for user-facing strings" principle.
+
+6. **Existing GeneratePreviewAsync tests replaced wholesale.** The 11
+   pre-rework tests (`GeneratePreviewAsync_When*`) were tied to the
+   list-input + single-range + FromTime/ToTime DTO shape. They cannot be
+   mechanically migrated since the shape itself changed. Replaced with the
+   14 plan tests + 3 CreateRangeAsync tests (one Skip-tagged). The empty-
+   input test (`GeneratePreviewAsync_WhenInputIsEmpty_ReturnsEmpty`) and
+   null-input test (`GeneratePreviewAsync_WhenInputIsNull_ThrowsAbpValidation`)
+   no longer apply -- null still throws but the input is no longer a list.
+
+7. **EnsureAppointmentDateNotInPast moved into preview.** The plan
+   includes a `FromDate < DateTime.Today` reject branch. This is a
+   stricter version of the booking-flow's lead-time check; previewing past
+   dates was previously allowed (`GeneratePreviewAsync_MultiDay_ReturnsOnePreviewPerDay`
+   used dates in 2030). The new validator rejects it for the multi-axis
+   shape -- aligns with the rest of the booking flow.
+
+**Tests:** 905 pass, 0 fail (was 902 before plan 4; +14 new active +
+1 new Skip-tagged - 11 replaced = net +3 active, +1 skipped). Build clean.
+
+**Stack-dependent step pending:** rebuild api + db-migrator and regenerate
+the Angular proxy via `abp generate-proxy -t ng` (per the locked
+decision -- NOT `yarn nswag refresh`).
+
+## Re-verified 2026-05-27 (HEAD ad07947)
+
+File-by-file evidence and confidence ratings:
+
+| Symbol / file | 2026-05-20 "from" state | 2026-05-27 current state | Action taken |
+|---|---|---|---|
+| `DoctorAvailabilityGenerateInputDto.cs` (24 lines) | Single-day / single-range / single-type / no-capacity (CONFIRMED) | UNCHANGED -- still pre-Phase-1 shape (no Capacity, no TimeRanges, no SelectedDays, single AppointmentTypeId) | No edit needed; plan's "rewrite to multi-axis shape" target still valid. CONFIDENCE: HIGH (file read). |
+| `IDoctorAvailabilitiesAppService.cs` line 22 | `GeneratePreviewAsync(List<...> input)` | UNCHANGED -- still list shape; no CreateRangeAsync | No edit needed; plan adds both. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilitiesAppService.cs` constructor (lines 35-51) | 7 injected deps; no IUnitOfWorkManager | UNCHANGED -- 7 deps confirmed; no IUnitOfWorkManager. Lines 35-51 still accurate. | D2 injection still required; plan body correct. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilitiesAppService.GeneratePreviewAsync` (lines 214-366) | ~152 lines; list iteration; hardcoded English error strings | UNCHANGED -- still list-input, lines 214-366; still hardcoded strings; no `_doctorAvailabilityManager` call, only `_doctorAvailabilityRepository`. | No edit needed; plan rewrites this. NOTE: conflict logic sets `previewList[0].SameTimeValidation` (not per-date) -- plan's per-date approach is the intended improvement. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilitySlotPreviewDto.cs` | `AppointmentTypeId : Guid?` (singular); no Capacity, no AppointmentTypeIds | UNCHANGED -- still pre-Phase-1 shape (single AppointmentTypeId, no Capacity) | **Phase 1 not yet shipped.** Plan's section 4 "Plan 1 already added AppointmentTypeIds and Capacity" is ASPIRATIONAL, not current. Mark as verify-at-execution-time. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilitySlotsPreviewDto.cs` | Has `Time : string`; no SameTimeValidation | UNCHANGED -- has `Time : string` + `SameTimeValidation : string?` (SameTimeValidation already present) | D3 decision (leave `Time` as string.Empty) still applies. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilityController.cs` lines 95-100 | `[Route("preview")]`, list-shape param | UNCHANGED -- `[Route("preview")]` at line 96; list param. Two-attribute style (`[HttpPost]` + `[Route(...)]`) confirmed. | Plan section 5 "preview" route is correct; two-attribute style note already in plan. CONFIDENCE: HIGH (file read). |
+| `DoctorAvailabilityManager.CreateAsync` signature | Phase 1 target: `CreateAsync(Guid locationId, List<Guid> appointmentTypeIds, DateTime, TimeOnly, TimeOnly, BookingStatus, int capacity)` | CURRENT (pre-Phase-1): `CreateAsync(Guid locationId, Guid? appointmentTypeId, ...)` -- no Capacity, no list. | **Phase 1 not yet shipped.** Plan section 3b's `CreateRangeAsync` call `_doctorAvailabilityManager.CreateAsync(slot.LocationId, slot.AppointmentTypeIds, slot.AvailableDate, slot.FromTime, slot.ToTime, slot.BookingStatusId, slot.Capacity)` uses Phase-1-updated signature. Mark as verify-at-execution-time. CONFIDENCE: HIGH (file read). |
+| `angular/src/app/proxy/...doctor-availability.service.ts` line 50-56 | `generatePreview(input: DoctorAvailabilityGenerateInputDto[], ...)` at URL `/preview` | UNCHANGED -- array shape, URL `/api/app/doctor-availabilities/preview` confirmed at line 50-53. | No edit needed; proxy regen is part of this plan. CONFIDENCE: HIGH (file read). |
+| `EstimateSlotCount` formula in plan body | Corrected in 2026-05-20 bake -- iterates actual calendar days, sums per-range slot counts | CONFIRMED PRESENT in plan body (Risk section) -- the full correct helper is there. Formula iterates `FromDate..ToDate`, checks `SelectedDays`, sums `Math.Floor(rangeMinutes / duration)`. | No edit needed. CONFIDENCE: HIGH (plan read). |
+| Proxy regen command in plan section 6 | `yarn nswag refresh` (incorrect for this stack) | **COMMAND IS WRONG.** This project has no `nswag refresh` script in `package.json`, no `nswag.json`, and no nswag tooling. Correct command is `abp generate-proxy -t ng` (ABP CLI 10.2.0 confirmed installed; `generate-proxy` command confirmed). | Fixed below in section 6. CONFIDENCE: HIGH (package.json read + `abp help generate-proxy` output). |
+| Newest migration (collision check) | Last known: Phase 1 schema (not yet run) | Current newest: `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`. Phase 1 schema migration not yet added. | No collision with this plan (Phase 3 has no schema delta). CONFIDENCE: HIGH (migrations dir listed). |
+| Swagger URL in manual verification step 3 | `generate-preview` (stale D1 artifact) | Still `generate-preview` in plan line -- stale. Correct URL is `/preview`. | Fixed below. CONFIDENCE: HIGH (plan read + controller confirmed). |
+
+**BLOCKING finding -- Phase 1/2 prerequisite state:**
+`DoctorAvailabilitySlotPreviewDto` still has `AppointmentTypeId : Guid?` (singular) not
+`AppointmentTypeIds : List<Guid>`. `DoctorAvailabilityManager.CreateAsync` still takes
+`Guid? appointmentTypeId` not `List<Guid>`. Phase 1 has not shipped. The plan's section 3b
+and section 4 call Phase-1-updated symbols. This is expected (plan depends-on Phase 1+2);
+annotated with "verify-at-execution-time" markers below.
+
 ---
 
 # Slot rework Phase 3: multi-type / multi-weekday / multi-range
@@ -490,6 +600,16 @@ private static List<DoctorAvailabilitySlotPreviewDto> ExpandToSlotPreviews(
 
 #### 3b. Add `CreateRangeAsync`
 
+<!-- VERIFY-AT-EXECUTION-TIME (2026-05-27): as of HEAD ad07947, Phase 1
+has NOT shipped. DoctorAvailabilityManager.CreateAsync still takes
+`Guid? appointmentTypeId` (singular) with no `capacity` parameter.
+The CreateRangeAsync body below calls the Phase-1-updated signature:
+  _doctorAvailabilityManager.CreateAsync(
+      slot.LocationId, slot.AppointmentTypeIds, slot.AvailableDate,
+      slot.FromTime, slot.ToTime, slot.BookingStatusId, slot.Capacity)
+Verify Phase 1 has landed and the manager signature matches before
+coding this method. -->
+
 (2026-05-20 from readiness-check D2.) Add `IUnitOfWorkManager`
 to the constructor + readonly field; add `using Volo.Abp.Uow;`
 to the file's import block:
@@ -558,6 +678,11 @@ public virtual async Task<DoctorAvailabilityCreateRangeResultDto> CreateRangeAsy
 
 ### 4. `DoctorAvailabilitySlotPreviewDto.cs` and `DoctorAvailabilitySlotsPreviewDto.cs`
 
+<!-- VERIFY-AT-EXECUTION-TIME (2026-05-27): as of HEAD ad07947, Phase 1
+has NOT shipped. DoctorAvailabilitySlotPreviewDto still has
+`AppointmentTypeId : Guid?` (singular) and no Capacity. The statement
+below assumes Phase 1 has landed before this plan is executed. Confirm
+before coding. -->
 Plan 1 already added `AppointmentTypeIds` and `Capacity` to
 `DoctorAvailabilitySlotPreviewDto`. No further changes here.
 
@@ -644,14 +769,21 @@ already exists in the codebase and reuses the existing
 After build passes:
 
 ```bash
-cd angular
-yarn nswag refresh
+# Run from the angular/ directory with the API running (port 44327).
+# 2026-05-27: corrected from `yarn nswag refresh` -- this project has
+# no nswag.json and no nswag script. The correct ABP CLI command is:
+abp generate-proxy -t ng
 ```
 
 This rewrites `angular/src/app/proxy/doctor-availabilities/doctor-availability.service.ts`
 to expose `generatePreview(input: DoctorAvailabilityGenerateInputDto)`
 (single DTO, not array) and the new `createRange(input: ...)`
 method. Plan 5 consumes them.
+
+Note: `abp generate-proxy -t ng` requires the HttpApi.Host to be running at
+its configured URL so the CLI can pull the Swagger/OpenAPI definition. Start
+the services in the standard order (SQL -> AuthServer -> HttpApi.Host) before
+running the command.
 
 ## Test plan
 
@@ -700,7 +832,8 @@ is plan 5). To verify the new endpoints from outside the UI:
 
 1. `docker compose up -d --build`.
 2. Use Swagger at `https://api.localhost:44327/swagger`.
-3. POST `/api/app/doctor-availabilities/generate-preview` with:
+3. POST `/api/app/doctor-availabilities/preview` with:
+   <!-- 2026-05-27: was `generate-preview` (stale D1 artifact); route is `preview` per controller line 96 -->
    ```json
    {
      "fromDate": "2026-06-01",

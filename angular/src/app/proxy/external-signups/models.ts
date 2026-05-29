@@ -37,6 +37,15 @@ export interface ExternalUserSignUpDto {
   firmName?: string | null;
   firmEmail?: string | null;
   tenantId?: string | null;
+  inviteToken?: string | null;
+}
+
+export interface InvitationValidationDto {
+  email?: string;
+  userType?: ExternalUserType;
+  roleName?: string;
+  tenantName?: string;
+  expiresAt?: string;
 }
 
 export interface InviteExternalUserDto {
@@ -46,10 +55,10 @@ export interface InviteExternalUserDto {
 
 export interface InviteExternalUserResultDto {
   inviteUrl?: string;
-  emailEnqueued?: boolean;
   email?: string;
   roleName?: string;
   tenantName?: string;
+  expiresAt?: string;
 }
 
 export interface MarkEmailConfirmedDto {

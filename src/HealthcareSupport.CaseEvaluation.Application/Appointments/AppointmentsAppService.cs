@@ -680,8 +680,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             && BookingFlowRoles.IsAmeAppointmentType(appointmentType.Name)
             && !BookingFlowRoles.IsAttorneyCaller(bookingCallerRoles))
         {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole);
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
+                message: L["Appointment:AmeRequiresAttorneyRole"]);
         }
 
         var location = await _locationRepository.FindAsync(input.LocationId);
@@ -690,13 +691,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected location does not exist."]);
         }
 
-        var doctorAvailability = await _doctorAvailabilityRepository.FindAsync(input.DoctorAvailabilityId);
+        // 2026-05-15 slot rework: eager-load the AppointmentTypes M2M so the
+        // booking validator can check the new set semantics (empty = any type;
+        // non-empty must contain the booked type).
+        var slotQueryable = await _doctorAvailabilityRepository.WithDetailsAsync(x => x.AppointmentTypes);
+        var doctorAvailability = await AsyncExecuter.FirstOrDefaultAsync(
+            slotQueryable.Where(x => x.Id == input.DoctorAvailabilityId));
         if (doctorAvailability == null)
         {
             throw new UserFriendlyException(L["The selected availability slot does not exist."]);
         }
 
-        ValidateDoctorAvailabilityForBooking(input, doctorAvailability);
+        await ValidateDoctorAvailabilityForBookingAsync(input, doctorAvailability);
 
         // Phase 11b (2026-05-04) -- lead-time + per-AppointmentType max-time
         // gates per OLD AppointmentDomain.cs Add path. Throws BusinessException
@@ -861,21 +867,65 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         }
     }
 
-    private void ValidateDoctorAvailabilityForBooking(AppointmentCreateDto input, DoctorAvailability doctorAvailability)
+    private async Task ValidateDoctorAvailabilityForBookingAsync(AppointmentCreateDto input, DoctorAvailability doctorAvailability)
     {
-        if (doctorAvailability.BookingStatusId != BookingStatus.Available)
+        // 2026-05-15 slot rework (plan 3): capacity-aware booking gate.
+        // Previous single-row gate (BookingStatusId == Available) is
+        // replaced with: Reserved => manually closed (always blocks);
+        // capacity exhausted (active count >= Capacity) => SlotFull;
+        // non-empty AppointmentTypes set not containing requested type
+        // => TypeMismatch. Booked is treated as Available for backward
+        // compatibility (the active-count probe is authoritative).
+
+        // Arm 1: explicit manual close.
+        // 2026-05-28 -- UserFriendlyException (not BusinessException) so the
+        // localized message reaches the client. ABP's BusinessException auto-
+        // localization via MapCodeNamespace is documented as not resolving
+        // in this codebase (see AppointmentReadAccessGuard.cs:162-167) and
+        // surfaces as "An internal error occurred during your request!".
+        // The error CODE is still carried so the SPA's plan-6 catch block in
+        // appointment-add.component.ts pattern-matches correctly.
+        if (doctorAvailability.BookingStatusId == BookingStatus.Reserved)
         {
-            throw new UserFriendlyException(L["The selected availability slot is no longer available."]);
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
+                message: L["Appointment:BookingSlotClosed"]);
         }
 
+        // Arm 2: capacity. Active-count is the authoritative measure;
+        // see IAppointmentRepository.GetActiveCountForSlotAsync for the
+        // five freed terminal statuses that are excluded.
+        var activeCount = await _appointmentRepository
+            .GetActiveCountForSlotAsync(doctorAvailability.Id);
+        if (activeCount >= doctorAvailability.Capacity)
+        {
+            // Carry the active-count + capacity on the exception data so
+            // logging + any structured consumer can read the numbers; the
+            // localized message already interpolates them for the SPA toast.
+            throw new UserFriendlyException(
+                    code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                    message: L["Appointment:BookingSlotFull", activeCount, doctorAvailability.Capacity])
+                .WithData("activeCount", activeCount)
+                .WithData("capacity", doctorAvailability.Capacity);
+        }
+
+        // Arm 3: type membership. Empty set = any type accepted
+        // (loose mode); non-empty must contain the requested type.
+        if (doctorAvailability.AppointmentTypes.Any() &&
+            !doctorAvailability.AppointmentTypes.Any(at => at.AppointmentTypeId == input.AppointmentTypeId))
+        {
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
+                message: L["Appointment:BookingSlotTypeMismatch"]);
+        }
+
+        // Arms 4 / 5 / 6: location, date, and time-range parity checks
+        // preserved verbatim from the previous validator. Stay as
+        // UserFriendlyException because they signal client-input
+        // inconsistency rather than a slot-state condition.
         if (doctorAvailability.LocationId != input.LocationId)
         {
             throw new UserFriendlyException(L["The selected availability slot does not belong to the selected location."]);
-        }
-
-        if (doctorAvailability.AppointmentTypeId.HasValue && doctorAvailability.AppointmentTypeId.Value != input.AppointmentTypeId)
-        {
-            throw new UserFriendlyException(L["The selected availability slot does not belong to the selected appointment type."]);
         }
 
         if (doctorAvailability.AvailableDate.Date != input.AppointmentDate.Date)

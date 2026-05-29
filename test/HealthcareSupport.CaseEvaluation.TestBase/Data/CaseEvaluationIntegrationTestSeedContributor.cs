@@ -237,12 +237,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedDoctorsAsync()
     {
-        // Both doctors scoped to TenantA -- reflects the realistic case of a
-        // practice with multiple practitioners. Doctor2 was previously planned
-        // for TenantB but this complicates host-context tests unnecessarily:
-        // Patient tests don't depend on Doctor tenancy, and keeping the tenant
-        // model "two-tenant for Patients, one-tenant for Doctors" keeps existing
-        // Doctor tests workable with a single tenant-context wrap.
+        // One doctor per tenant -- the one-doctor-per-tenant invariant
+        // (PARITY-FLAG-NEW-006, enforced by DoctorsAppService guards + a
+        // filtered unique index on Doctors(TenantId)). The tenant IS the
+        // doctor, so seeding two doctors in TenantA would violate the index
+        // at schema-creation time in the SQLite test rig. Doctor1 -> TenantA,
+        // Doctor2 -> TenantB. This also lines TenantB's doctor up with its
+        // own DoctorAvailability (Slot3) and Appointment2 seeds below.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _doctorRepository.InsertAsync(new Doctor(
@@ -251,7 +252,10 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
                 gender: default));
+        }
 
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,
@@ -357,21 +361,26 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs AFTER SeedLocationsAsync (LocationId + AppointmentTypeId FKs
         // satisfied) and BEFORE SeedAppointmentsAsync (Appointment's
         // DoctorAvailabilityId FK depends on these slots).
+        // 2026-05-15 slot rework: ctor no longer takes appointmentTypeId.
+        // The single-type-per-slot fixture is preserved via the new M2M:
+        // Slot1 + Slot3 accept AppointmentType1 (strict); Slot2 accepts any
+        // type (loose, empty set).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot1 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot1Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot1FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot1ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus);
+            slot1.TenantId = TenantsTestData.TenantARef;
+            slot1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot1);
 
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot2Id,
                 locationId: LocationsTestData.Location2Id,
-                appointmentTypeId: null,
                 availableDate: DoctorAvailabilitiesTestData.Slot2AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot2FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot2ToTime,
@@ -380,14 +389,16 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         using (_currentTenant.Change(TenantsTestData.TenantBRef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot3 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot3Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus);
+            slot3.TenantId = TenantsTestData.TenantBRef;
+            slot3.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot3);
         }
     }
 

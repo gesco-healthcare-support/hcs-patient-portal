@@ -383,4 +383,50 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             .OrderByDescending(a => a.CreationTime)
             .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
     }
+
+    public virtual async Task<long> GetActiveCountForSlotAsync(
+        Guid doctorAvailabilityId,
+        CancellationToken cancellationToken = default)
+    {
+        // 2026-05-15 -- capacity gate uses this against slot.Capacity to
+        // decide bookability. Exclude the five slot-freed terminal
+        // statuses (the patient no longer holds the slot in those cases).
+        var dbSet = await GetDbSetAsync();
+        var query = dbSet
+            .Where(x => x.DoctorAvailabilityId == doctorAvailabilityId)
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate);
+
+        return await query.LongCountAsync(GetCancellationToken(cancellationToken));
+    }
+
+    public virtual async Task<Dictionary<Guid, long>> GetActiveCountsForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default)
+    {
+        // 2026-05-15 -- bulk variant for the booking-form lookup so the
+        // remaining-capacity computation runs in one round-trip rather
+        // than N+1. Predicate mirrors GetActiveCountForSlotAsync.
+        if (doctorAvailabilityIds == null || doctorAvailabilityIds.Count == 0)
+        {
+            return new Dictionary<Guid, long>();
+        }
+
+        var dbSet = await GetDbSetAsync();
+        return await dbSet
+            .Where(x => doctorAvailabilityIds.Contains(x.DoctorAvailabilityId))
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate)
+            .GroupBy(x => x.DoctorAvailabilityId)
+            .Select(g => new { SlotId = g.Key, Count = (long)g.Count() })
+            .ToDictionaryAsync(x => x.SlotId, x => x.Count, GetCancellationToken(cancellationToken));
+    }
 }

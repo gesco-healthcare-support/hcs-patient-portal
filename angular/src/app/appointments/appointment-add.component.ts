@@ -9,7 +9,13 @@ import {
   PagedResultDto,
   RestService,
 } from '@abp/ng.core';
-import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
+import {
+  Confirmation,
+  ConfirmationService,
+  DateAdapter,
+  TimeAdapter,
+  ToasterService,
+} from '@abp/ng.theme.shared';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
@@ -17,7 +23,6 @@ import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto } from '../proxy/appointments/models';
-import { BookingStatus } from '../proxy/enums/booking-status.enum';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type {
   PatientUpdateDto,
@@ -25,6 +30,8 @@ import type {
 } from '../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../proxy/shared/models';
 import { AppointmentViewService } from './appointment/services/appointment.service';
+import { DoctorAvailabilityService } from '../proxy/doctor-availabilities/doctor-availability.service';
+import type { DoctorAvailabilityDto } from '../proxy/doctor-availabilities/models';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import type { CustomFieldDto, CustomFieldValueInputDto } from '../proxy/custom-fields/models';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
@@ -101,6 +108,19 @@ export class AppointmentAddComponent {
   private readonly restService = inject(RestService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
+  // Slot rework plan 5 (2026-05-15) -- the booking picker now reads from
+  // GetDoctorAvailabilityLookupAsync, which already filters full +
+  // reserved/booked slots server-side. Binary availability per locked
+  // decision 2026-05-27: clients never see remaining/capacity numbers.
+  private readonly doctorAvailabilityService = inject(DoctorAvailabilityService);
+  // Picker refetch + booking error feedback (plan 5). Three new booking
+  // codes (BookingSlotFull / BookingSlotClosed / BookingSlotTypeMismatch)
+  // from plan 2 surface inline via this toaster; matching codes also
+  // trigger a refetch of the lookup so the dropdown reflects current
+  // server state before the next attempt.
+  private readonly toaster = inject(ToasterService);
+  // 2026-05-28 -- self-represented confirmation modal on AA toggle-off.
+  private readonly confirmationService = inject(ConfirmationService);
 
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
@@ -458,12 +478,20 @@ export class AppointmentAddComponent {
     // the validator subscription -- emitEvent: false suppresses the
     // valueChanges event on the email field itself, not on the enabled
     // checkbox.
+    // 2026-05-28 -- AA toggle-off requires explicit confirmation that the
+    // applicant is self-represented. OLD did not have this gate; NEW adds
+    // it so a booker (patient / clinic staff / IT admin) cannot silently
+    // omit the applicant attorney section without acknowledging it. When
+    // the user clicks "No" on the modal we revert the toggle back to ON
+    // via setValue(true, { emitEvent: false }) so this subscriber does
+    // not re-fire. Toggling ON has no modal -- the section just opens.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
-      applyAttorneySectionValidators(this.form, 'applicantAttorney', !!enabled);
       if (!enabled) {
-        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+        this.confirmAaToggleOff();
+        return;
       }
+      this.applyConditionalEmailValidator('applicantAttorneyEmail', true);
+      applyAttorneySectionValidators(this.form, 'applicantAttorney', true);
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
@@ -542,6 +570,38 @@ export class AppointmentAddComponent {
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
     control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * 2026-05-28 -- AA toggle-off confirmation. Pops the ABP confirmation
+   * modal asking whether the applicant is self-represented. On Yes the
+   * toggle stays off and the section's required-validators + email value
+   * are cleared. On No (or dismissal) the toggle reverts to ON with
+   * { emitEvent: false } so the valueChanges subscriber that opened this
+   * modal does not re-fire.
+   */
+  private confirmAaToggleOff(): void {
+    const enabledControl = this.form.get('applicantAttorneyEnabled');
+    if (!enabledControl) return;
+    this.confirmationService
+      .warn(
+        '::Appointment:ApplicantAttorneySelfRepresentedMessage',
+        '::Appointment:ApplicantAttorneySelfRepresentedTitle',
+        { yesText: 'AbpUi::Yes', cancelText: 'AbpUi::No' },
+      )
+      .subscribe((status) => {
+        if (status !== Confirmation.Status.confirm) {
+          // Revert with emitEvent: true so valueChanges re-fires and the
+          // section's OnPush markForCheck hook re-renders the body. The
+          // outer valueChanges subscriber's "enabled=true" branch only
+          // re-applies the (already-required) validators -- idempotent.
+          enabledControl.setValue(true);
+          return;
+        }
+        this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
+        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+      });
   }
 
   // BUG-012 Sub-bug 2 (2026-05-22) -- the OLD-parity "Mandatory Fields"
@@ -1000,6 +1060,28 @@ export class AppointmentAddComponent {
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
+    } catch (err: unknown) {
+      // Slot rework plan 5: surface the 3 new booking error codes inline
+      // and refetch the picker so subsequent attempts see current state.
+      // Other errors fall through to a generic toast. ABP screens only
+      // [401,403,404,500] in withHttpErrorConfig, so a 400 reaches here.
+      const httpErr = err as { error?: { error?: { code?: string; message?: string } } };
+      const code = httpErr?.error?.error?.code;
+      const message = httpErr?.error?.error?.message;
+      if (
+        code === 'CaseEvaluation:Appointment.BookingSlotFull' ||
+        code === 'CaseEvaluation:Appointment.BookingSlotClosed' ||
+        code === 'CaseEvaluation:Appointment.BookingSlotTypeMismatch'
+      ) {
+        this.toaster.warn(message ?? 'This slot is no longer available.');
+        this.form.patchValue(
+          { appointmentTime: null, doctorAvailabilityId: null },
+          { emitEvent: false },
+        );
+        this.loadAvailableDatesBySelection();
+        return;
+      }
+      this.toaster.error(message ?? 'Booking failed.');
     } finally {
       this.isSaving = false;
     }
@@ -2178,8 +2260,11 @@ export class AppointmentAddComponent {
 
         this.availableDateKeys.clear();
         this.availableSlotsByDate.clear();
-        (items ?? []).forEach((item) => {
-          const availability = item?.doctorAvailability;
+        (items ?? []).forEach((availability) => {
+          // Slot rework plan 5: lookup returns the flat DoctorAvailabilityDto
+          // shape (not the WithNavigationProperties envelope). The list-page
+          // shape had item.doctorAvailability.{availableDate,fromTime,id};
+          // the lookup shape exposes those fields directly.
           const rawDate = availability?.availableDate as string | undefined;
           const dateKey = this.toDateKeyFromApi(rawDate);
           if (dateKey) {
@@ -2360,45 +2445,20 @@ export class AppointmentAddComponent {
     return selected < threshold;
   }
 
+  // Slot rework plan 5: read from /api/app/doctor-availabilities/lookup
+  // instead of the paged list. The lookup applies tenant lead-time, hides
+  // Reserved/Booked, and excludes slots with zero remaining capacity --
+  // so the picker is binary-available by construction.
   private async fetchAllAvailableSlots(
     locationId: string,
     appointmentTypeId: string,
-  ): Promise<any[]> {
-    const allItems: any[] = [];
-    let skipCount = 0;
-    const pageSize = 1000;
-    let totalCount = Number.MAX_SAFE_INTEGER;
-
-    while (skipCount < totalCount) {
-      const response = await firstValueFrom(
-        this.restService.request<any, PagedResultDto<any>>(
-          {
-            method: 'GET',
-            url: '/api/app/doctor-availabilities',
-            params: {
-              locationId,
-              appointmentTypeId,
-              bookingStatusId: BookingStatus.Available,
-              skipCount,
-              maxResultCount: pageSize,
-            },
-          },
-          { apiName: 'Default' },
-        ),
-      );
-
-      const items = response?.items ?? [];
-      totalCount = response?.totalCount ?? items.length;
-      allItems.push(...items);
-
-      if (items.length < pageSize) {
-        break;
-      }
-
-      skipCount += pageSize;
-    }
-
-    return allItems;
+  ): Promise<DoctorAvailabilityDto[]> {
+    return firstValueFrom(
+      this.doctorAvailabilityService.getDoctorAvailabilityLookup({
+        locationId,
+        appointmentTypeId: appointmentTypeId || null,
+      }),
+    );
   }
 
   // #121 phase T4 (2026-05-13) -- 14 methods moved to

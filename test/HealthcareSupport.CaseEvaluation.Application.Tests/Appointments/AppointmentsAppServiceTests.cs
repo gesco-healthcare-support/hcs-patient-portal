@@ -481,14 +481,13 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     [Fact]
-    public async Task CreateAsync_FlipsSlotOutOfAvailable_ButNotEnshrineBooked()
+    public async Task CreateAsync_LeavesSlotInAvailable_UnderCapacityModel()
     {
-        // W2-1 lock: assert the slot's status is no longer Available after
-        // booking, but do NOT assert it is Booked. Product intent (per
-        // docs/product/doctor-availabilities.md) is Available -> Reserved
-        // (pending office review) -> Booked. Current code skips Reserved.
-        // The Skip Fact below pins the divergence; this live Fact passes
-        // either way the production code resolves it.
+        // 2026-05-15 (slot rework plan 3): under capacity-aware booking,
+        // CreateAsync does NOT mutate the slot's BookingStatusId. The slot
+        // stays Available; the active-appointment-count probe drives the
+        // bookable predicate. Reserved is now a manual-close override
+        // written only by an admin via DoctorAvailabilitiesAppService.
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
             scratchDate: DateTime.Today.AddDays(13),
             scratchFromTime: new TimeOnly(10, 0),
@@ -501,26 +500,34 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             await _appointmentsAppService.CreateAsync(input);
 
             var slotAfter = await _doctorAvailabilityRepository.GetAsync(scratchSlot.Id);
-            slotAfter.BookingStatusId.ShouldNotBe(BookingStatus.Available);
+            slotAfter.BookingStatusId.ShouldBe(BookingStatus.Available);
         }
     }
 
     [Fact]
-    public async Task CreateAsync_WhenSlotIsNotAvailable_Throws()
+    public async Task CreateAsync_WhenSlotIsReserved_Throws()
     {
-        // Slot1 is seeded as Booked; attempting to book it again must reject.
+        // 2026-05-15 slot rework (plan 3): Reserved = manually closed by
+        // doctor's-admin. Attempting to book a Reserved slot must reject
+        // with AppointmentBookingSlotClosed. (Previously this test pinned
+        // the Booked-blocks behaviour, which is gone -- Booked is legacy
+        // and bookable subject to the capacity gate now.)
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
+            var slot1 = await _doctorAvailabilityRepository.GetAsync(DoctorAvailabilitiesTestData.Slot1Id);
+            slot1.BookingStatusId = BookingStatus.Reserved;
+            await _doctorAvailabilityRepository.UpdateAsync(slot1, autoSave: true);
+
             var input = BuildScratchCreateDto(
                 DoctorAvailabilitiesTestData.Slot1Id,
                 DoctorAvailabilitiesTestData.Slot1AvailableDate.Date.AddHours(9).AddMinutes(15));
             input.LocationId = LocationsTestData.Location1Id;
             input.AppointmentTypeId = LocationsTestData.AppointmentType1Id;
 
-            var ex = await Should.ThrowAsync<UserFriendlyException>(
+            var ex = await Should.ThrowAsync<BusinessException>(
                 async () => await _appointmentsAppService.CreateAsync(input));
 
-            ex.Message.ShouldContain("no longer available");
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
         }
     }
 
@@ -631,11 +638,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             var slot = new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: locationId ?? LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: scratchDate,
                 fromTime: scratchFromTime,
                 toTime: scratchToTime,
                 bookingStatusId: BookingStatus.Available);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
             return await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
         }
     }
@@ -866,6 +873,236 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
 
             approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
         }
+    }
+
+    // =====================================================================
+    // 2026-05-15 -- slot rework plan 3: capacity-aware booking gate.
+    // ValidateDoctorAvailabilityForBooking now rejects on Reserved (slot
+    // closed), capacity exhausted (active count >= Capacity), and type
+    // not in non-empty AppointmentTypes set. Race-to-last-seat test (#8)
+    // is deferred per the wave-wide invariant -- SQLite cannot honor the
+    // T-SQL row-lock hint.
+    // =====================================================================
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotIsReserved_ThrowsSlotClosed()
+    {
+        var date = DateTime.Today.AddDays(7);
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: date,
+            scratchFromTime: new TimeOnly(9, 0),
+            scratchToTime: new TimeOnly(10, 0));
+
+        // Flip the seeded Available slot to manually-closed Reserved.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var loaded = await _doctorAvailabilityRepository.GetAsync(scratchSlot.Id);
+            loaded.BookingStatusId = BookingStatus.Reserved;
+            await _doctorAvailabilityRepository.UpdateAsync(loaded, autoSave: true);
+        }
+
+        var input = BuildScratchCreateDto(scratchSlot.Id, date.AddHours(9).AddMinutes(15));
+
+        BusinessException ex;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+        }
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotCapacityIsExhausted_ThrowsSlotFull()
+    {
+        var date = DateTime.Today.AddDays(8);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 2);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        await InsertPendingAppointmentInTenantAAsync(slotId, date.AddHours(9).AddMinutes(10), "A-CAP-1");
+        await InsertPendingAppointmentInTenantAAsync(slotId, date.AddHours(9).AddMinutes(20), "A-CAP-2");
+
+        var input = BuildScratchCreateDto(slotId, date.AddHours(9).AddMinutes(30));
+
+        BusinessException ex;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+        }
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull);
+        ex.Data["capacity"].ShouldBe(2);
+        ex.Data["activeCount"].ShouldBe(2L);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotHasFreedAppointments_DoesNotCountThem()
+    {
+        var date = DateTime.Today.AddDays(9);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available,
+                capacity: 1);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
+
+            // Rejected appointment -- does NOT count toward active.
+            await _appointmentRepository.InsertAsync(new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: slotId,
+                appointmentDate: date.AddHours(9).AddMinutes(10),
+                requestConfirmationNumber: "A-FREED-1",
+                appointmentStatus: AppointmentStatusType.Rejected), autoSave: true);
+        }
+
+        var input = BuildScratchCreateDto(slotId, date.AddHours(9).AddMinutes(30));
+
+        AppointmentDto result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appointmentsAppService.CreateAsync(input);
+        }
+
+        result.ShouldNotBeNull();
+        result.Id.ShouldNotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSlotTypesEmpty_AnyTypeWorks()
+    {
+        var date = DateTime.Today.AddDays(10);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available);
+            // No AddAppointmentType -- empty set = any type accepted.
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        var input = BuildScratchCreateDto(slotId, date.AddHours(9).AddMinutes(15));
+        // input requests AppointmentType1; loose-mode slot accepts any type.
+
+        AppointmentDto result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appointmentsAppService.CreateAsync(input);
+        }
+
+        result.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenRequestedTypeNotInSlotTypes_ThrowsTypeMismatch()
+    {
+        var date = DateTime.Today.AddDays(11);
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: date,
+            scratchFromTime: new TimeOnly(9, 0),
+            scratchToTime: new TimeOnly(10, 0));
+        // Helper adds AppointmentType1. Input requests AppointmentType2.
+
+        var input = BuildScratchCreateDto(scratchSlot.Id, date.AddHours(9).AddMinutes(15));
+        input.AppointmentTypeId = AppointmentTypesTestData.AppointmentType2Id;
+
+        BusinessException ex;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+        }
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenRequestedTypeInSlotTypes_Succeeds()
+    {
+        var date = DateTime.Today.AddDays(12);
+        var slotId = Guid.NewGuid();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var slot = new DoctorAvailability(
+                id: slotId,
+                locationId: LocationsTestData.Location1Id,
+                availableDate: date,
+                fromTime: new TimeOnly(9, 0),
+                toTime: new TimeOnly(10, 0),
+                bookingStatusId: BookingStatus.Available);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            slot.AddAppointmentType(AppointmentTypesTestData.AppointmentType2Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
+        }
+
+        var input = BuildScratchCreateDto(slotId, date.AddHours(9).AddMinutes(15));
+        input.AppointmentTypeId = AppointmentTypesTestData.AppointmentType2Id;
+
+        AppointmentDto result;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            result = await _appointmentsAppService.CreateAsync(input);
+        }
+
+        result.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenLeadTimeBlocks_RaisesLeadTimeNotCapacity()
+    {
+        // Verify lead-time still fires for a non-full slot when the
+        // requested date is in the past. Slot is Available + non-full +
+        // correct type; the capacity gate passes; BookingPolicyValidator's
+        // EnsureAppointmentDateNotInPast then throws.
+        var pastDate = DateTime.Today.AddDays(-5);
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: pastDate,
+            scratchFromTime: new TimeOnly(9, 0),
+            scratchToTime: new TimeOnly(10, 0));
+
+        var input = BuildScratchCreateDto(scratchSlot.Id, pastDate.AddHours(9).AddMinutes(15));
+
+        BusinessException ex;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            ex = await Should.ThrowAsync<BusinessException>(
+                async () => await _appointmentsAppService.CreateAsync(input));
+        }
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime);
     }
 
     /// <summary>

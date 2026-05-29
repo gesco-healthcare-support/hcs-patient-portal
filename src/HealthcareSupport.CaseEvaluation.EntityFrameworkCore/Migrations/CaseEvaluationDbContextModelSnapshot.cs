@@ -1985,9 +1985,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AppointmentTypeId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("AvailableDate")
                         .HasColumnType("datetime2")
                         .HasColumnName("AvailableDate");
@@ -1995,6 +1992,12 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<int>("BookingStatusId")
                         .HasColumnType("int")
                         .HasColumnName("BookingStatusId");
+
+                    b.Property<int>("Capacity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(3)
+                        .HasColumnName("Capacity");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -2055,11 +2058,30 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppointmentTypeId");
-
                     b.HasIndex("LocationId");
 
                     b.ToTable("AppDoctorAvailabilities", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityAppointmentType", b =>
+                {
+                    b.Property<Guid>("DoctorAvailabilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("DoctorAvailabilityId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.HasIndex("DoctorAvailabilityId", "AppointmentTypeId");
+
+                    b.ToTable("AppDoctorAvailabilityAppointmentType", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocation", b =>
@@ -2194,7 +2216,10 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique")
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppDoctors", (string)null);
                 });
@@ -5880,16 +5905,30 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", b =>
                 {
-                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", null)
-                        .WithMany()
-                        .HasForeignKey("AppointmentTypeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
                         .WithMany()
                         .HasForeignKey("LocationId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", "AppointmentType")
+                        .WithMany()
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", "DoctorAvailability")
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("DoctorAvailabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentType");
+
+                    b.Navigation("DoctorAvailability");
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocation", b =>
@@ -6208,6 +6247,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", b =>
                 {
                     b.Navigation("DoctorAppointmentTypes");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", b =>
+                {
+                    b.Navigation("AppointmentTypes");
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.Doctor", b =>

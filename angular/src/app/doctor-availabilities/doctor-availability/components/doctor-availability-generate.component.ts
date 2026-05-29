@@ -1,18 +1,33 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { Subscription, forkJoin, of } from 'rxjs';
-import { LocalizationPipe } from '@abp/ng.core';
+import { Subscription } from 'rxjs';
+import { LocalizationPipe, LocalizationService } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 import { PageComponent, PageToolbarContainerComponent } from '@abp/ng.components/page';
-import { LookupSelectComponent } from '@volo/abp.commercial.ng.ui';
+import { LookupSelectComponent, LookupTypeaheadMtmComponent } from '@volo/abp.commercial.ng.ui';
 import { bookingStatusOptions } from '../../../proxy/enums/booking-status.enum';
 import type {
+  DoctorAvailabilityCreateRangeResultDto,
   DoctorAvailabilityGenerateInputDto,
   DoctorAvailabilitySlotsPreviewDto,
 } from '../../../proxy/doctor-availabilities/models';
 import { DoctorAvailabilityService } from '../../../proxy/doctor-availabilities/doctor-availability.service';
+
+interface TimeRangeFormShape {
+  fromTime: FormControl<string | null>;
+  toTime: FormControl<string | null>;
+  appointmentDurationMinutes: FormControl<number | null>;
+}
 
 @Component({
   selector: 'app-doctor-availability-generate',
@@ -24,14 +39,17 @@ import { DoctorAvailabilityService } from '../../../proxy/doctor-availabilities/
     PageComponent,
     PageToolbarContainerComponent,
     LookupSelectComponent,
+    LookupTypeaheadMtmComponent,
   ],
   templateUrl: './doctor-availability-generate.component.html',
   styles: [],
 })
-export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
+export class DoctorAvailabilityGenerateComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly service = inject(DoctorAvailabilityService);
+  private readonly toaster = inject(ToasterService);
+  private readonly localization = inject(LocalizationService);
   private readonly subscriptions = new Subscription();
 
   bookingStatusOptions = bookingStatusOptions;
@@ -43,93 +61,74 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
   canSubmit = false;
   private readonly expandedRows = new Set<number>();
 
-  form = this.fb.group({
-    slotMode: ['dates', [Validators.required]],
-    locationId: [null, [Validators.required]],
-    appointmentTypeId: [null, []],
-    fromDate: [null, [Validators.required]],
-    toDate: [null, [Validators.required]],
-    fromTime: [null, [Validators.required]],
-    toTime: [null, [Validators.required]],
-    bookingStatusId: [this.bookingStatusOptions[0]?.value ?? null, [Validators.required]],
-    appointmentDurationMinutes: [15, [Validators.required, Validators.min(1)]],
-    useCurrentMonth: [true, []],
-    selectedMonth: [null, []],
-    fromDay: [null, []],
-    toDay: [null, []],
-  });
+  weekdayLabelKeys = [
+    'AbpUi::Sunday',
+    'AbpUi::Monday',
+    'AbpUi::Tuesday',
+    'AbpUi::Wednesday',
+    'AbpUi::Thursday',
+    'AbpUi::Friday',
+    'AbpUi::Saturday',
+  ];
+
+  form: FormGroup;
 
   getLocationLookup = this.service.getLocationLookup;
   getAppointmentTypeLookup = this.service.getAppointmentTypeLookup;
 
-  monthOptions = [
-    { id: 1, name: 'January' },
-    { id: 2, name: 'February' },
-    { id: 3, name: 'March' },
-    { id: 4, name: 'April' },
-    { id: 5, name: 'May' },
-    { id: 6, name: 'June' },
-    { id: 7, name: 'July' },
-    { id: 8, name: 'August' },
-    { id: 9, name: 'September' },
-    { id: 10, name: 'October' },
-    { id: 11, name: 'November' },
-    { id: 12, name: 'December' },
-  ];
-
-  weekdayOptions = [
-    { id: 0, name: 'Sunday' },
-    { id: 1, name: 'Monday' },
-    { id: 2, name: 'Tuesday' },
-    { id: 3, name: 'Wednesday' },
-    { id: 4, name: 'Thursday' },
-    { id: 5, name: 'Friday' },
-    { id: 6, name: 'Saturday' },
-  ];
-
-  get currentMonthName() {
-    return this.monthOptions[new Date().getMonth()]?.name ?? '';
+  constructor() {
+    this.form = this.fb.group({
+      locationId: this.fb.control<string | null>(null, { validators: [Validators.required] }),
+      appointmentTypeIds: this.fb.control<string[]>([]),
+      fromDate: this.fb.control<string | null>(null, { validators: [Validators.required] }),
+      toDate: this.fb.control<string | null>(null, { validators: [Validators.required] }),
+      selectedDays: this.fb.group({
+        0: this.fb.nonNullable.control(false),
+        1: this.fb.nonNullable.control(true),
+        2: this.fb.nonNullable.control(true),
+        3: this.fb.nonNullable.control(true),
+        4: this.fb.nonNullable.control(true),
+        5: this.fb.nonNullable.control(true),
+        6: this.fb.nonNullable.control(false),
+      }),
+      timeRanges: this.fb.array<FormGroup<TimeRangeFormShape>>([this.createTimeRangeGroup()]),
+      bookingStatusId: this.fb.control<number | null>(this.bookingStatusOptions[0]?.value ?? null, {
+        validators: [Validators.required],
+      }),
+      appointmentDurationMinutes: this.fb.control(15, {
+        validators: [Validators.required, Validators.min(1)],
+      }),
+      capacity: this.fb.control(3, { validators: [Validators.required, Validators.min(1)] }),
+    });
   }
 
-  ngOnInit() {
-    this.updateSlotModeValidators(this.form.get('slotMode')?.value ?? 'dates');
+  get timeRanges(): FormArray<FormGroup<TimeRangeFormShape>> {
+    return this.form.get('timeRanges') as FormArray<FormGroup<TimeRangeFormShape>>;
+  }
 
-    const useCurrentMonthControl = this.form.get('useCurrentMonth');
-    const selectedMonthControl = this.form.get('selectedMonth');
-    const slotModeControl = this.form.get('slotMode');
+  get selectedDaysGroup(): FormGroup {
+    return this.form.get('selectedDays') as FormGroup;
+  }
 
-    if (useCurrentMonthControl) {
-      this.subscriptions.add(
-        useCurrentMonthControl.valueChanges.subscribe((value) => {
-          if (value) {
-            selectedMonthControl?.patchValue(null, { emitEvent: false });
-          }
-          this.updateMonthValidators(!!value);
-        }),
-      );
-    }
+  private createTimeRangeGroup(): FormGroup<TimeRangeFormShape> {
+    return this.fb.group<TimeRangeFormShape>({
+      fromTime: this.fb.control<string | null>(null, { validators: [Validators.required] }),
+      toTime: this.fb.control<string | null>(null, { validators: [Validators.required] }),
+      appointmentDurationMinutes: this.fb.control<number | null>(null),
+    });
+  }
 
-    if (selectedMonthControl) {
-      this.subscriptions.add(
-        selectedMonthControl.valueChanges.subscribe((value) => {
-          if (value !== null && value !== undefined && value !== '') {
-            useCurrentMonthControl?.patchValue(false, { emitEvent: false });
-            this.updateMonthValidators(false);
-          }
-        }),
-      );
-    }
+  addTimeRange(): void {
+    this.timeRanges.push(this.createTimeRangeGroup());
+  }
 
-    if (slotModeControl) {
-      this.subscriptions.add(
-        slotModeControl.valueChanges.subscribe((value) => {
-          this.updateSlotModeValidators(value);
-        }),
-      );
+  removeTimeRange(index: number): void {
+    if (this.timeRanges.length > 1) {
+      this.timeRanges.removeAt(index);
     }
   }
 
-  ngOnDestroy() {
+  ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
   }
 
@@ -137,133 +136,139 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     if (!value) {
       return null;
     }
-
     const trimmed = value.trim();
     if (!trimmed) {
       return null;
     }
-
     const main = trimmed.split('.')[0];
     const parts = main.split(':');
-
     if (parts.length === 2) {
       return `${parts[0]}:${parts[1]}:00`;
     }
-
     return main;
   }
 
-  goBack() {
-    this.router.navigate(['/doctor-management/doctor-availabilities']);
+  // The ABP <abp-lookup-typeahead-mtm> control writes an array of
+  // { id, name, ... } lookup objects, not bare ids. The backend DTO expects
+  // Guid[]; collapse to ids here regardless of which shape arrived.
+  private toIdArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((v) => (typeof v === 'string' ? v : ((v as { id?: string } | null)?.id ?? '')))
+      .filter((v): v is string => !!v);
   }
 
-  reset() {
-    this.form.reset({
-      slotMode: 'dates',
-      bookingStatusId: this.bookingStatusOptions[0]?.value ?? null,
-      appointmentDurationMinutes: 15,
-      useCurrentMonth: true,
-    });
-    this.preview = [];
-    this.validationMessage = null;
-  }
-
-  generate() {
-    if (this.form.invalid) {
-      return;
-    }
-
-    const value = this.form.value;
-    const basePayload = {
-      locationId: value.locationId,
-      appointmentTypeId: value.appointmentTypeId,
-      fromTime: this.normalizeTime(value.fromTime),
-      toTime: this.normalizeTime(value.toTime),
-      bookingStatusId: value.bookingStatusId,
+  buildPayload(): DoctorAvailabilityGenerateInputDto {
+    const value = this.form.getRawValue();
+    const selectedDaysObj = value.selectedDays as Record<string, boolean>;
+    const checkedDays = Object.entries(selectedDaysObj)
+      .filter(([, checked]) => checked)
+      .map(([day]) => Number(day))
+      .sort((a, b) => a - b);
+    const selectedDays = checkedDays.length === 7 ? [] : checkedDays;
+    const timeRangesValue = value.timeRanges as Array<{
+      fromTime: string | null;
+      toTime: string | null;
+      appointmentDurationMinutes: number | null;
+    }>;
+    return {
+      fromDate: value.fromDate ?? undefined,
+      toDate: value.toDate ?? undefined,
+      selectedDays,
+      timeRanges: timeRangesValue.map((r) => ({
+        fromTime: this.normalizeTime(r.fromTime) ?? undefined,
+        toTime: this.normalizeTime(r.toTime) ?? undefined,
+        appointmentDurationMinutes: r.appointmentDurationMinutes ?? null,
+      })),
+      bookingStatusId: value.bookingStatusId ?? undefined,
+      locationId: value.locationId ?? undefined,
+      appointmentTypeIds: this.toIdArray(value.appointmentTypeIds),
       appointmentDurationMinutes: Number(value.appointmentDurationMinutes),
+      capacity: Number(value.capacity),
     };
+  }
 
-    let payloads: DoctorAvailabilityGenerateInputDto[] = [];
-
-    if (value.slotMode === 'weekdays') {
-      const month = this.resolveSelectedMonth();
-      const year = new Date().getFullYear();
-      const fromDay =
-        value.fromDay === null || value.fromDay === undefined ? null : Number(value.fromDay);
-      const toDay = value.toDay === null || value.toDay === undefined ? null : Number(value.toDay);
-      const dates = this.buildWeekdayDates(year, month, fromDay, toDay);
-      payloads = dates.map((date) => ({
-        ...basePayload,
-        fromDate: date,
-        toDate: date,
-      }));
-    } else {
-      payloads = [
-        {
-          ...basePayload,
-          fromDate: value.fromDate,
-          toDate: value.toDate,
-        },
-      ];
+  generate(): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.validationMessage = this.localization.instant('::FormErrorsValidation');
+      return;
     }
 
     this.isGenerating = true;
     this.validationMessage = null;
 
     this.service
-      .generatePreview(payloads)
+      .generatePreview(this.buildPayload())
       .pipe(finalize(() => (this.isGenerating = false)))
       .subscribe((result) => {
         this.preview = result ?? [];
         this.updateConflictState();
-        if (!this.hasConflicts) {
-          this.preview.forEach((item) => (item.sameTimeValidation = null));
-        }
         this.expandedRows.clear();
       });
   }
 
-  submit() {
-    if (this.preview.length < 1 || !this.canSubmit) {
+  submit(): void {
+    if (!this.canSubmit || this.isSubmitting) {
       return;
     }
-
-    const slots = this.preview
-      .reduce((acc, day) => acc.concat(this.getSlots(day)), [])
-      .filter((slot) => !slot.isConflict);
-    if (slots.length < 1) {
-      return;
-    }
-
-    const requests = slots.map((slot) =>
-      this.service.create({
-        availableDate: slot.availableDate,
-        fromTime: slot.fromTime,
-        toTime: slot.toTime,
-        bookingStatusId: slot.bookingStatusId,
-        locationId: slot.locationId,
-        appointmentTypeId: slot.appointmentTypeId ?? null,
-      }),
-    );
 
     this.isSubmitting = true;
-    forkJoin(requests.length ? requests : [of(null)])
+    this.service
+      .createRange(this.buildPayload())
       .pipe(finalize(() => (this.isSubmitting = false)))
-      .subscribe(() => {
+      .subscribe((result: DoctorAvailabilityCreateRangeResultDto) => {
+        const inserted = result?.insertedCount ?? 0;
+        const skipped = result?.skippedConflictCount ?? 0;
+        const message = this.localization.instant(
+          {
+            key: '::SlotsInsertedSummary',
+            defaultValue: 'Inserted {0} slots. Skipped {1} due to conflicts.',
+          },
+          String(inserted),
+          String(skipped),
+        );
+        const title = this.localization.instant('::SlotsGeneratedTitle');
+        this.toaster.success(message, title);
         this.goBack();
       });
   }
 
-  toggleRow(id: number) {
+  reset(): void {
+    this.form.reset({
+      locationId: null,
+      appointmentTypeIds: [],
+      fromDate: null,
+      toDate: null,
+      selectedDays: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false },
+      bookingStatusId: this.bookingStatusOptions[0]?.value ?? null,
+      appointmentDurationMinutes: 15,
+      capacity: 3,
+    });
+    while (this.timeRanges.length > 1) {
+      this.timeRanges.removeAt(this.timeRanges.length - 1);
+    }
+    this.timeRanges.at(0).reset();
+    this.preview = [];
+    this.validationMessage = null;
+    this.hasConflicts = false;
+    this.canSubmit = false;
+    this.expandedRows.clear();
+  }
+
+  goBack(): void {
+    this.router.navigate(['/doctor-management/doctor-availabilities']);
+  }
+
+  toggleRow(id: number): void {
     if (this.expandedRows.has(id)) {
       this.expandedRows.delete(id);
       return;
     }
-
     this.expandedRows.add(id);
   }
 
-  isExpanded(id: number) {
+  isExpanded(id: number): boolean {
     return this.expandedRows.has(id);
   }
 
@@ -271,126 +276,33 @@ export class DoctorAvailabilityGenerateComponent implements OnInit, OnDestroy {
     return day.doctorAvailabilities ?? [];
   }
 
-  formatSlotTime(slot: { appointmentFromTime?: string | null; fromTime?: string | null }) {
-    if (slot.appointmentFromTime) {
-      return slot.appointmentFromTime;
-    }
-
-    return slot.fromTime ?? '';
+  formatSlotTime(slot: { fromTime?: string | null; toTime?: string | null }): string {
+    return `${slot.fromTime ?? ''} - ${slot.toTime ?? ''}`;
   }
 
-  removeSlot(day: DoctorAvailabilitySlotsPreviewDto, slot: { timeId: number }) {
+  removeSlot(day: DoctorAvailabilitySlotsPreviewDto, slot: { timeId?: number }): void {
     const slots = this.getSlots(day).filter((item) => item.timeId !== slot.timeId);
-
     day.doctorAvailabilities = slots;
-
     if (slots.length === 0) {
       this.preview = this.preview.filter((item) => item !== day);
     }
-
     this.updateConflictState();
   }
 
-  private updateConflictState() {
-    const allSlots = this.preview.reduce((acc, day) => acc.concat(this.getSlots(day)), []);
+  private updateConflictState(): void {
+    const allSlots = this.preview.reduce(
+      (acc, day) => acc.concat(this.getSlots(day)),
+      [] as Array<{ isConflict?: boolean }>,
+    );
     const anyConflict = allSlots.some((slot) => !!slot.isConflict);
     this.hasConflicts = anyConflict;
     if (anyConflict) {
-      this.validationMessage =
-        'Some generated slots already exist. Please remove them before submitting.';
-    } else if (allSlots.length === 0 && this.form.valid && !this.isGenerating) {
-      // S-7.4 (W-UI-11): backend returns an empty array for inverted FromDate>ToDate,
-      // inverted FromTime>ToTime, or zero-duration FromTime==ToTime inputs. The form
-      // is otherwise "valid" so the framework does not flag the field; surface an
-      // inline message instead of leaving Submit silently disabled.
-      this.validationMessage =
-        'No slots were generated. Check that your start date is before your end date and your start time is before your end time.';
+      this.validationMessage = this.localization.instant('::SomeSlotsConflict');
+    } else if (allSlots.length === 0 && !this.isGenerating) {
+      this.validationMessage = this.localization.instant('::NoSlotsGenerated');
     } else {
       this.validationMessage = null;
     }
-    this.canSubmit = allSlots.length > 0 && !anyConflict;
-  }
-
-  private resolveSelectedMonth(): number {
-    if (this.form.value.useCurrentMonth) {
-      return new Date().getMonth() + 1;
-    }
-
-    return Number(this.form.value.selectedMonth) || new Date().getMonth() + 1;
-  }
-
-  private buildWeekdayDates(
-    year: number,
-    month: number,
-    fromDay: number | null,
-    toDay: number | null,
-  ): string[] {
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0);
-    const dates: string[] = [];
-
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay();
-      const inRange = this.isWeekdayInRange(day, fromDay, toDay);
-      if (!inRange) {
-        continue;
-      }
-      dates.push(this.formatLocalDate(d));
-    }
-
-    return dates;
-  }
-
-  private isWeekdayInRange(day: number, fromDay: number | null, toDay: number | null): boolean {
-    if (fromDay === null || toDay === null) {
-      return true;
-    }
-
-    if (fromDay <= toDay) {
-      return day >= fromDay && day <= toDay;
-    }
-
-    return day >= fromDay || day <= toDay;
-  }
-
-  private formatLocalDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  private updateMonthValidators(useCurrentMonth: boolean) {
-    const selectedMonthControl = this.form.get('selectedMonth');
-    if (!selectedMonthControl) {
-      return;
-    }
-
-    if (useCurrentMonth) {
-      selectedMonthControl.clearValidators();
-    } else {
-      selectedMonthControl.setValidators([Validators.required]);
-    }
-    selectedMonthControl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private updateSlotModeValidators(mode: string) {
-    const fromDateControl = this.form.get('fromDate');
-    const toDateControl = this.form.get('toDate');
-
-    if (!fromDateControl || !toDateControl) {
-      return;
-    }
-
-    if (mode === 'weekdays') {
-      fromDateControl.clearValidators();
-      toDateControl.clearValidators();
-    } else {
-      fromDateControl.setValidators([Validators.required]);
-      toDateControl.setValidators([Validators.required]);
-    }
-
-    fromDateControl.updateValueAndValidity({ emitEvent: false });
-    toDateControl.updateValueAndValidity({ emitEvent: false });
+    this.canSubmit = allSlots.length > 0;
   }
 }

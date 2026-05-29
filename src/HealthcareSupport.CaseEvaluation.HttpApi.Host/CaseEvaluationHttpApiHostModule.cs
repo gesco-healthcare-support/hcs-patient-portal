@@ -175,6 +175,30 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
                 System.Net.HttpStatusCode.BadRequest);
 
+            // 2026-05-15 -- one-doctor-per-tenant invariant guards in
+            // DoctorsAppService. Both are client-input / precondition
+            // violations; HTTP 400 fits, not ABP's default 403 (which the
+            // SPA would treat as a permission failure and retry).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DoctorOnePerTenantViolated,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DoctorCannotDeleteWithDependents,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // 2026-05-15 -- capacity-aware booking gate
+            // (AppointmentsAppService.ValidateDoctorAvailabilityForBooking).
+            // All three are client-input precondition violations; HTTP 400 fits.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+
             // OBS-23 (2026-05-21) -- non-attorney external users blocked
             // from creating AME / AME-REVAL appointments. Client-input
             // policy violation; HTTP 400, not 403.

@@ -1,10 +1,19 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  Input,
+  OnChanges,
+  OnDestroy,
+  SimpleChanges,
+  inject,
+} from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
-import { Observable } from 'rxjs';
+import { Observable, Subscription } from 'rxjs';
 
 /**
  * #121 phase T5 (2026-05-13) -- shared Applicant Attorney / Defense
@@ -44,7 +53,7 @@ import { Observable } from 'rxjs';
   templateUrl: './appointment-add-attorney-section.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppointmentAddAttorneySectionComponent {
+export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) role!: 'applicant' | 'defense';
   @Input({ required: true }) getStateLookup!: (
@@ -56,6 +65,18 @@ export class AppointmentAddAttorneySectionComponent {
    * locked to true so the required validators stay applied. */
   @Input() mandatory = false;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
+
+  // 2026-05-28 -- when the parent reverts the AA toggle from the
+  // self-represented confirmation modal it uses
+  // `setValue(true, { emitEvent: false })`. Even with emitEvent: true,
+  // a programmatic form change does not mark this OnPush child for
+  // check (the click that triggered the revert happened in ABP's
+  // overlay, outside our component tree). We subscribe to the
+  // `{prefix}Enabled` control's valueChanges and call markForCheck so
+  // the @if guarding the card body re-evaluates after every flip,
+  // regardless of where the change originated.
+  private readonly cdr = inject(ChangeDetectorRef);
+  private enabledSub?: Subscription;
 
   /** Field-name prefix used by every formControlName in this section's
    * template. `applicantAttorney` or `defenseAttorney`. */
@@ -77,5 +98,22 @@ export class AppointmentAddAttorneySectionComponent {
    * Playwright + a11y selectors keep working unchanged. */
   get stateSelectCid(): string {
     return 'appointment-' + this.role + '-attorney-state-id';
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['form'] || changes['role']) {
+      this.subscribeToEnabledChanges();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.enabledSub?.unsubscribe();
+  }
+
+  private subscribeToEnabledChanges(): void {
+    this.enabledSub?.unsubscribe();
+    const control = this.form?.get(this.prefix + 'Enabled');
+    if (!control) return;
+    this.enabledSub = control.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
 }

@@ -1,10 +1,10 @@
 ---
-status: draft
+status: in-progress (build started 2026-05-28 on feat/slot-rework-domain-logic)
 issue: slot-rework-phase-2-domain-logic
 owner: AdrianG
 created: 2026-05-15
-revised: 2026-05-20 (drift check + locked decisions baked in -- see
-  `_2026-05-20-slot-phase-2-readiness-check.md`)
+revised: 2026-05-27 (HEAD ad07947 -- drift re-verify against ~50 commits
+  since 2026-05-20; see changelog below)
 approach: tdd (pure domain logic + AppService validators) + code
   (event-handler edits where the test would re-test ABP plumbing)
 sequence: 3 of 7 (slot-generation + doctor-invariant series)
@@ -29,6 +29,216 @@ decisions-locked-2026-05-20:
     bulk variants together in this PR. Lookup endpoint is the
     natural bulk consumer; deferring fragments the rework.
 ---
+
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below, INCLUDING the
+`decisions-locked-2026-05-20` Q2 down-migration note in the frontmatter.
+
+- **The Phase21 `Booked -> Available` data migration is MOOT -- drop it.** The
+  app is pre-deployment; existing `DoctorAvailability` data is wiped and
+  reseeded fresh under the new model (see phase-1 plan's round-2 decisions). The
+  seed creates slots already in the correct state, so there is no legacy
+  `Booked`/`Reserved` partition to migrate. Remove the Phase21 data-migration
+  section entirely (the Q2 down-migration question is moot too).
+- **Everything else in this plan STILL APPLIES:** the capacity-aware bookable
+  predicate, the active-count repo methods (`GetActiveCountForSlotAsync` +
+  bulk `GetActiveCountsForSlotsAsync`), the SlotCascadeHandler log-only stub,
+  the `Reserved = manually closed` redefinition, and the D2 CRITICAL deletion
+  of `ReleaseSlotIfReservedAsync` + its two call sites.
+- **Capacity model:** new slots carry `Capacity` (default 3). The booking gate
+  compares the active-appointment count for a slot against that slot's
+  `Capacity` (bookable when active-count < Capacity).
+
+## Build deviations -- 2026-05-28 (during implementation)
+
+Discovered while building plan 3 on `feat/slot-rework-domain-logic`. These
+supersede conflicting text below.
+
+1. **Phase21 data migration: DROPPED.** Per the round-2 locked decision
+   ("app is pre-deployment; existing data wiped and reseeded fresh"). No
+   migration was generated; plan section 11 is moot.
+
+2. **Step 5/6 row-lock + transactional UoW: DEFERRED to plan 7.** The
+   wave-wide kickoff invariant defers the race-to-last-seat hardening,
+   noting that the SQLite test harness cannot honor the T-SQL row-lock
+   hint. The capacity gate (step 6 Arms 1-3) is implemented; the
+   `FromSqlRaw("... WITH (UPDLOCK, HOLDLOCK)")` wrap is NOT added in this
+   PR. Test #8 (concurrent) is correspondingly omitted from the test plan.
+
+3. **Pre-existing test `CreateAsync_WhenSlotIsNotAvailable_Throws`
+   updated** to reflect new semantics: previously asserted that booking
+   `Slot1` (seeded as `Booked`) threw `UserFriendlyException` with
+   "no longer available". Under the capacity model `Booked` is legacy
+   (treated like `Available`); only `Reserved` blocks immediately. Test
+   renamed to `CreateAsync_WhenSlotIsReserved_Throws`, now flips Slot1 to
+   `Reserved` and asserts `BusinessException` with code
+   `AppointmentBookingSlotClosed`.
+
+4. **Pre-existing test `CreateAsync_FlipsSlotOutOfAvailable_ButNotEnshrineBooked`
+   updated** to the inverse assertion. Plan step 7d explicitly removes
+   slot status mutation from `CreateAsync`; the slot now stays `Available`
+   after booking and the active-count probe is authoritative. Test renamed
+   to `CreateAsync_LeavesSlotInAvailable_UnderCapacityModel`.
+
+5. **AppService field type changed**: `DoctorAvailabilitiesAppService`
+   previously injected `IRepository<Appointment, Guid>`; switched to
+   `IAppointmentRepository` so the new `GetActiveCountsForSlotsAsync`
+   bulk method is available for the lookup endpoint's RemainingCapacity
+   computation.
+
+6. **Validator renamed `ValidateDoctorAvailabilityForBooking` ->
+   `ValidateDoctorAvailabilityForBookingAsync`** since the method is now
+   async (needs to await the active-count probe). Call site updated to
+   `await`. Booked slots (legacy) pass through Arm 1 unchanged; Arm 1
+   only blocks `Reserved`. The plan body's "Arm 1: BookingStatusId !=
+   Available" check is REMOVED -- the capacity probe is the
+   authoritative source for "is this slot bookable" under the new model.
+
+7. **Test dates adjusted to stay within both lead-time and max-booking-
+   horizon.** `DefaultAppointmentLeadTime = 3` days and AppointmentType
+   has a max-time horizon (~30 days). Test `AppointmentDate` values use
+   `DateTime.Today.AddDays(7..18)` to land in the safe window; lookup
+   tests use `AvailableDateFrom = DateTime.Today.AddDays(-1)` so the
+   lead-time offset does not push `minDate` past the seeded slot date.
+
+**Tests:** 902 pass (vs. 890 before plan 3 -- +13 new: 7 capacity gate
+in `AppointmentsAppServiceTests`, 4 lookup in
+`DoctorAvailabilitiesAppServiceTests`, 1 active-count in new
+`AppointmentRepositoryTests`, plus 1 renamed pre-existing). 19 skipped
+unchanged.
+
+**Stack-dependent steps still pending:** Angular proxy regenerate to pick
+up `DoctorAvailabilityDto.RemainingCapacity` (no SPA consumer yet -- plan
+4/5 UI work).
+
+## Re-verified 2026-05-27 (HEAD ad07947)
+
+Evidence collected via Grep/Read against the live worktree. Confidence
+ratings: HIGH = read from source; MEDIUM = inferred from grep hits.
+
+### Findings -- no blocking assumption failures
+
+**Enums** (HIGH)
+- `BookingStatus`: `Available=8, Booked=9, Reserved=10` -- unchanged.
+  Source: `Domain.Shared/Enums/BookingStatus.cs`.
+- `AppointmentStatusType`: 13 values, `Rejected=3, CancelledNoBill=5,
+  CancelledLate=6, RescheduledNoBill=7, RescheduledLate=8` -- unchanged.
+  Source: `Domain.Shared/Enums/AppointmentStatusType.cs`.
+- Migration SQL literals in step 11 (`NOT IN (3,5,6,7,8)` and
+  `BookingStatusId = 8/9/10`) are verified correct.
+
+**Error codes** (HIGH)
+- Three new codes planned (`AppointmentBookingSlotFull`,
+  `AppointmentBookingSlotClosed`, `AppointmentBookingSlotTypeMismatch`)
+  do NOT exist yet -- no collision. Existing `Appointment:*` codes end
+  at `AppointmentAttorneyFirmNameRequired`. Safe to add.
+  Source: `Domain.Shared/CaseEvaluationDomainErrorCodes.cs`.
+
+**`IAppointmentRepository`** (HIGH)
+- `GetActiveCountForSlotAsync` and `GetActiveCountsForSlotsAsync` do NOT
+  exist yet. The interface has 4 methods. Source:
+  `Domain/Appointments/IAppointmentRepository.cs:10-35`.
+- `EfCoreAppointmentRepository` implements those 4 and adds no locking
+  methods. Source:
+  `EntityFrameworkCore/Appointments/EfCoreAppointmentRepository.cs`.
+
+**`AppointmentsAppService`** (HIGH) -- LINE NUMBERS CORRECTED
+- File grew to 1435 lines (was ~1250 at plan write-time). Rejection-notes
+  commits (2edb0ec, 88cadf3) and approve-date commits (#237/#239) added
+  ~185 lines, shifting everything below the old line 808 region.
+- `ValidateDoctorAvailabilityForBooking` is now at **line 864** (was
+  "line 808-..." in the plan). Method signature is `private void` --
+  must change to `private async Task` when capacity check is added.
+- The method body (lines 864-891) still has exactly the four original
+  arms: `BookingStatusId != Available` (line 866), LocationId mismatch
+  (line 871), AppointmentTypeId mismatch (line 876), date mismatch
+  (line 881), time-range mismatch (lines 886-890).
+- Call site for `ValidateDoctorAvailabilityForBooking` is at **line 699**
+  (was "line 643" in the plan).
+- Slot load (`FindAsync`) is at **line 693**:
+  `var doctorAvailability = await _doctorAvailabilityRepository.FindAsync(input.DoctorAvailabilityId);`
+  This is the line to replace with `WithDetailsAsync`.
+- `_appointmentManager.CreateAsync(...)` call is at **line 768**.
+- `CreateAppointmentInternalAsync` entry is at **line 647**.
+- No `ReleaseSlotIfReservedAsync` or `HasInFlightStatus` calls in this
+  file -- those are only in the Approval partial and DoctorAvailabilities.
+
+**`SlotCascadeHandler`** (HIGH)
+- `MapToSlotStatus` and `ApplySlotStatusAsync` are both `private` --
+  confirmed no external consumers. Plan step 7 deletion is safe.
+- File is 159 lines; the 14-state mapping runs lines 133-158.
+  Source: `Domain/Appointments/Handlers/SlotCascadeHandler.cs`.
+
+**`AppointmentChangeRequestsAppService.Approval.cs` -- D2 CRITICAL** (HIGH)
+- `ReleaseSlotIfReservedAsync` helper is at **line 458** (plan said
+  "lines 458-470" -- matches current source exactly; function starts
+  line 458).
+- First call site: **line 316** (inside `ApproveCancellationAsync` --
+  plan said "line 316", confirmed).
+- Second call site: **line 385** (inside `RejectRescheduleAsync` --
+  plan said "line 385", confirmed).
+- Both call sites and the helper body are still present and unmodified
+  by the rejection/approve-date commits. D2 deletion is still needed.
+
+**`DoctorAvailabilitiesAppService`** (HIGH)
+- `HasInFlightStatus` at **line 420** (`Reserved || Booked`). Plan
+  step 7e "leave as-is" is still correct.
+- Conflict detection (`isBookedByUser` branch): lines 337-346. The
+  `overlap.BookingStatusId == Booked || overlap.BookingStatusId == Reserved`
+  test is at **lines 337-338** (plan step 12 says "lines 322-349" --
+  the surrounding block is still in that range; the specific two-arm if
+  is at 337-338). Step 12 edit remains valid.
+- Lookup filter `BookingStatusId == Available` is at **line 389**.
+
+**`JointDeclarationAutoCancelJob`** (HIGH)
+- Stale comment at **lines 158-161** (plan said "lines 158-161" --
+  confirmed exact). Comment still says "SlotCascadeHandler" / "Booked
+  -> Available". Step 7c replacement text is still needed.
+
+**`Appointments/CLAUDE.md` Business Rule #4** (MEDIUM)
+- Step 7d: not verified by direct read in this session. Treat "from"
+  state as "verify at execution time" -- the Business Rule text may have
+  been updated in one of the ~50 intervening commits. Read the file
+  before applying step 7d.
+
+**Newest migration** (HIGH)
+- Latest: `20260524012608_Packet_FilteredUniqueIndex_SoftDelete`.
+  The Phase 1 schema migration (`Phase20_DoctorAvailabilityCapacityAndTypeSet`)
+  does NOT yet exist -- it is a Phase 1 prerequisite. Plan step 11
+  migration name `Phase21_RepurposeReservedAndBackfill` is correct
+  sequentially (comes after Phase20 from plan 2). At execution time,
+  verify Phase20 has run before generating Phase21.
+
+**EF Core 10 row-lock research** (HIGH -- Microsoft official docs)
+- `FROM ... WITH (UPDLOCK, HOLDLOCK)` is valid T-SQL for SQL Server and
+  is supported through EF Core `FromSqlRaw`. Pattern is current and
+  unchanged in EF Core 10 -- `FromSqlRaw` passes the string verbatim to
+  the provider.
+- UPDLOCK acquires an update lock on the row (blocks other UPDLOCK/XLOCK
+  readers); HOLDLOCK holds the lock until the transaction commits
+  (equivalent to SERIALIZABLE for that row).
+- Important caveat from MS docs: if `READ_COMMITTED_SNAPSHOT` is ON
+  (Azure SQL default, often on dev LocalDB too), shared locks are
+  replaced by row versioning -- in that case UPDLOCK + HOLDLOCK is
+  required to force a real lock rather than a snapshot read. The hint
+  is always safe to include; it is essential when RCSI is on.
+- The `FromSqlRaw` + `.Include()` composition to hydrate the M2M list
+  does NOT work in EF Core when `FromSqlRaw` is the entry point for a
+  tracked entity -- EF requires the raw query to return all columns of
+  the entity. Pattern in plan step 6 (`FromSqlRaw` + separate
+  `.Include(x => x.AppointmentTypes).LoadAsync()`) is correct: first
+  load the entity via raw SQL into the change-tracker, then call
+  `dbContext.Entry(slot).Collection(x => x.AppointmentTypes).LoadAsync()`
+  to hydrate the navigation collection explicitly.
+  Citation: https://learn.microsoft.com/en-us/ef/core/querying/sql-queries
+  and https://learn.microsoft.com/sql/t-sql/queries/hints-transact-sql-table
+
+### Corrected "from" snippets
+
+Step 6 references corrected below (line numbers updated; see step 6).
+Step 7b references confirmed (line numbers match).
+Step 12 reference corrected (line numbers updated; see step 12).
 
 # Slot rework Phase 2: capacity-aware booking domain logic
 
@@ -81,7 +291,8 @@ section "Phase 2 -- Domain logic" prescribes:
 Today the gate is single-row (`BookingStatusId == Available`)
 and the `SlotCascadeHandler` flips slots between Available /
 Booked / Reserved per a 14-state mapping
-(`src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Handlers/SlotCascadeHandler.cs:133-158`).
+(`src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Handlers/SlotCascadeHandler.cs:133-158`
+-- verified 2026-05-27; lines unchanged).
 That mapping was designed for "slot ties to exactly one
 appointment". With Capacity it stops making sense -- if Capacity
 is 3 and one appointment lands, flipping the slot to Booked
@@ -268,8 +479,10 @@ public virtual async Task<long> GetActiveCountForSlotAsync(
 
 ### 6. `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs`
 
-Replace `ValidateDoctorAvailabilityForBooking` (line 808-...).
-Inject `IAppointmentRepository` (already injected as
+Replace `ValidateDoctorAvailabilityForBooking` (currently `private void`
+at **line 864**, verified 2026-05-27; was "line 808-..." in prior plan
+versions -- shifted by ~185 lines from rejection-notes + approve-date
+commits). Inject `IAppointmentRepository` (already injected as
 `_appointmentRepository`) -- use the new method directly.
 
 ```csharp
@@ -342,11 +555,15 @@ private async Task ValidateDoctorAvailabilityForBooking(
 }
 ```
 
-Replace the call site at line 643 in `CreateAsync` -- the new
-method is async, so the call becomes `await ValidateDoctorAvailabilityForBooking(...)`.
+Replace the call site at **line 699** in `CreateAppointmentInternalAsync`
+(verified 2026-05-27; was "line 643" in prior versions -- call goes
+through `CreateAsync` -> `CreateAppointmentInternalAsync`). The new
+method is async, so the call becomes
+`await ValidateDoctorAvailabilityForBooking(...)`.
 
-**Load the slot with `WithDetailsAsync`**. The existing line
-637 `var doctorAvailability = await _doctorAvailabilityRepository.FindAsync(...)`
+**Load the slot with `WithDetailsAsync`**. The existing **line 693**
+`var doctorAvailability = await _doctorAvailabilityRepository.FindAsync(...)`
+(verified 2026-05-27; was "line 637" in prior versions)
 does NOT pull the M2M collection. Replace with:
 
 ```csharp
@@ -379,11 +596,30 @@ using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: tr
 
 Where `LoadSlotWithLockAsync` runs an explicit
 `FromSqlRaw("SELECT * FROM AppEntity.DoctorAvailabilities WITH (UPDLOCK, HOLDLOCK) WHERE Id = {0}", id)`
-+ a second `.Include(x => x.AppointmentTypes).LoadAsync()` to
-hydrate the M2M list. The raw SQL is necessary because EF
-Core's LINQ does not emit lock hints; FromSqlRaw + tagged
-hint is the standard pattern (Microsoft docs:
-`docs.microsoft.com/en-us/ef/core/querying/raw-sql`).
+to pull the entity into the change-tracker under the row lock, then
+hydrates the M2M navigation with a separate explicit load:
+
+```csharp
+// EF Core does not support .Include() on a FromSqlRaw query when
+// the raw SQL is used as the root of a tracked query. Use explicit
+// collection loading instead (change-tracker must already hold the
+// entity from the FromSqlRaw call above).
+await dbContext.Entry(slot)
+    .Collection(x => x.AppointmentTypes)
+    .LoadAsync(cancellationToken);
+```
+
+The raw SQL is necessary because EF Core's LINQ translator does not
+emit SQL Server table hints; `FromSqlRaw` passes the string verbatim to
+the provider. The `WITH (UPDLOCK, HOLDLOCK)` hint is essential when
+`READ_COMMITTED_SNAPSHOT` isolation is on (common on Azure SQL and some
+LocalDB configs) because RCSI replaces shared locks with row-versioning,
+making a plain `SELECT` non-blocking; UPDLOCK forces a real update lock.
+HOLDLOCK keeps the lock until the enclosing transaction commits, closing
+the TOCTOU window between the capacity check and the INSERT.
+(Citation: https://learn.microsoft.com/sql/t-sql/queries/hints-transact-sql-table
+and https://learn.microsoft.com/ef/core/querying/sql-queries -- verified
+2026-05-27; pattern is current in EF Core 10.)
 
 ### 7. `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Handlers/SlotCascadeHandler.cs`
 
@@ -429,11 +665,12 @@ consumers (verified 2026-05-20 in readiness-check D6).
 
 ### 7b. `src/HealthcareSupport.CaseEvaluation.Application/AppointmentChangeRequests/AppointmentChangeRequestsAppService.Approval.cs` (CRITICAL -- added 2026-05-20 from readiness-check D2)
 
-Delete `ReleaseSlotIfReservedAsync` (lines 458-470) and its two
-call sites (lines 316, 385). Under the new "Reserved = manually
-closed by doctor's-admin" semantic, an unrelated change-request
-approval flow must NOT flip a manually-closed slot back to
-Available.
+Delete `ReleaseSlotIfReservedAsync` (helper starts at **line 458**,
+verified 2026-05-27) and its two call sites (**line 316** and
+**line 385**, both verified 2026-05-27 -- unchanged by rejection-notes
+and approve-date commits). Under the new "Reserved = manually closed by
+doctor's-admin" semantic, an unrelated change-request approval flow must
+NOT flip a manually-closed slot back to Available.
 
 Before:
 
@@ -460,7 +697,9 @@ and the next patient books into a "closed" slot.
 
 ### 7c. `src/HealthcareSupport.CaseEvaluation.Domain/Notifications/Jobs/JointDeclarationAutoCancelJob.cs` (added 2026-05-20 from readiness-check D5)
 
-Update the stale comment at lines 158-161:
+Update the stale comment at **lines 158-161** (verified 2026-05-27 --
+still at these lines, still says "SlotCascadeHandler" / "Booked ->
+Available"):
 
 ```csharp
 // - Publishing AppointmentStatusChangedEto manually
@@ -475,8 +714,14 @@ Behaviour is unchanged; the job still publishes the ETO.
 
 ### 7d. `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md` (added 2026-05-20 from readiness-check D4)
 
+**NOTE 2026-05-27**: Business Rule #4 text was not re-read in this
+verification pass (~50 commits may have already updated it). Verify at
+execution time: read the file first. If it still says "CreateAsync sets
+the slot to Booked" (or equivalent), apply the replacement below. If it
+has already been updated, skip this step.
+
 Rewrite Business Rule #4 to reflect the capacity-aware model.
-Today it incorrectly says "CreateAsync sets the slot to Booked"
+Prior text incorrectly says "CreateAsync sets the slot to Booked"
 -- the actual flip lived in SlotCascadeHandler (which is now a
 log-only stub) and the AppService no longer writes
 BookingStatusId at all.
@@ -501,12 +746,12 @@ have no domain producer; that part remains true.
 
 ### 7e. `src/HealthcareSupport.CaseEvaluation.Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` `HasInFlightStatus` helper (added 2026-05-20 from readiness-check D3)
 
-LEAVE AS-IS. The helper at lines 420-423 returns true for both
-`Reserved` and `Booked`. After Phase21 backfill, no slot has
-`Booked` anymore, so the Booked arm becomes dead code -- but
-trimming it would widen the diff and add risk for zero
-functional gain. A separate cleanup PR after Phase 2 ships can
-remove the dead arm.
+LEAVE AS-IS. The helper at **line 420** (verified 2026-05-27;
+`internal static bool HasInFlightStatus(BookingStatus status)`) returns
+true for both `Reserved` and `Booked`. After Phase21 backfill, no slot
+has `Booked` anymore, so the Booked arm becomes dead code -- but
+trimming it would widen the diff and add risk for zero functional gain.
+A separate cleanup PR after Phase 2 ships can remove the dead arm.
 
 ### 8. `DoctorAvailabilitiesAppService.GetDoctorAvailabilityLookupAsync`
 
@@ -693,16 +938,22 @@ protected override void Down(MigrationBuilder migrationBuilder)
 }
 ```
 
-Note: confirm enum integer values match the SQL literals by
-reading `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/`.
-`BookingStatus` is `Available=8, Booked=9, Reserved=10`;
-`AppointmentStatusType.Rejected=3`, `CancelledNoBill=5`,
-`CancelledLate=6`, `RescheduledNoBill=7`, `RescheduledLate=8`.
-Cross-check before running.
+Note: enum integer values verified 2026-05-27 against source.
+`BookingStatus`: `Available=8, Booked=9, Reserved=10` -- match SQL literals.
+`AppointmentStatusType`: `Rejected=3, CancelledNoBill=5, CancelledLate=6,
+RescheduledNoBill=7, RescheduledLate=8` -- match `NOT IN (3,5,6,7,8)`.
+No mismatch; SQL literals are correct as written.
+
+Migration collision check (2026-05-27): newest existing migration is
+`20260524012608_Packet_FilteredUniqueIndex_SoftDelete`. The Phase 1
+prerequisite migration (`Phase20_DoctorAvailabilityCapacityAndTypeSet`)
+does not yet exist. Phase21 follows Phase20; at execution time verify
+Phase20 has been generated and applied before generating Phase21.
 
 ### 12. Update `DoctorAvailabilitiesAppService.GeneratePreviewAsync` conflict detection
 
-The conflict detection at line 322-349 currently uses
+The conflict detection at **lines 337-338** (verified 2026-05-27;
+surrounding block spans approximately lines 320-360) currently uses
 `overlap.BookingStatusId == Booked || overlap.BookingStatusId == Reserved`
 to decide whether to mark the new slot's conflict message as
 "already booked or reserved" vs "already exists". Under the new

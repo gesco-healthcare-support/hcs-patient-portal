@@ -15,6 +15,119 @@ branch: create a new branch off `feat/replicate-old-app`. PR back
 
 # Slot rework Phase 6: tests + HARDENING-TEST-SUITE additions
 
+## Locked decisions -- 2026-05-27 (round 2; Adrian)
+
+These supersede any conflicting text below.
+
+- **New-slot Capacity default = 3** in all test expectations (not 1).
+- **No backfill tests.** Data is wiped + reseeded fresh pre-deploy; there is no
+  data-migration backfill to test (phases 1-2 dropped their backfill steps).
+- **Race-to-last-seat test (HRD-R2.10.1): DEFERRED.** The test harness is
+  SQLite in-memory and cannot execute the T-SQL `UPDLOCK/HOLDLOCK` row-lock.
+  Ship the other hardening scenarios now; revisit R2.10.1 via a Testcontainers
+  SQL Server project as a follow-up (or manual verification + log in the
+  interim). Do not block this wave on it.
+- **Reschedule tests DESCOPED** -- reschedule is not in this wave (see phase-5
+  round-2 decision).
+- **List-page capacity/types surfacing is OUT OF SCOPE** this wave -- no tests
+  needed there.
+
+## Re-verified 2026-05-27 (HEAD ad07947) -- NOTE: no prior readiness check existed; first re-verification
+
+This plan (written 2026-05-15) had no Phase-6 readiness check. Phases 1-3 DID
+get readiness checks on 2026-05-20 (`_2026-05-20-slot-phase-{1,2,3}-readiness-check.md`,
+all `status: resolved`) which LOCKED decisions that supersede several assumptions in
+this Phase-6 body. Phases 1-5 are still NOT implemented in source as of HEAD ad07947
+(verified: no `Capacity`, no `AppointmentTypes` M2M, no `TimeRangeDto`, no `CreateRangeAsync`,
+no `AppointmentBookingSlot*` error codes exist yet). So every "expected behavior" below is
+TENTATIVE -- verify after the implementing phase ships. Confidence on each item noted inline.
+
+Evidence-backed corrections (file:line):
+
+1. **Test class pattern is WRONG (HIGH).** Plan's "`public abstract partial class
+   DoctorAvailabilitiesAppServiceTests`" in a brand-new file does not match the repo.
+   Actual: `public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule>
+   : CaseEvaluationApplicationTestBase<TStartupModule> where TStartupModule : IAbpModule`
+   (test/HealthcareSupport.CaseEvaluation.Application.Tests/DoctorAvailabilities/
+   DoctorAvailabilitiesAppServiceTests.cs:34). The concrete runner
+   `EfCoreDoctorAvailabilitiesAppServiceTests : ...<CaseEvaluationEntityFrameworkCoreTestModule>`
+   carrying `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]` lives in
+   test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/EntityFrameworkCore/
+   Applications/DoctorAvailabilities/EfCoreDoctorAvailabilitiesAppServiceTests.cs:6-9.
+   New HRD `[Fact]`s must be added to the EXISTING abstract base class (so the existing
+   concrete subclass runs them) OR a new abstract base + new concrete subclass pair must be
+   created. A standalone "partial" file gets no concrete runner and never executes.
+
+2. **Generation cap is 5,000, NOT 1,000 (HIGH, superseded).** Phase 3 readiness check
+   Q2=B locked 5,000 (`_2026-05-20-slot-phase-3-readiness-check.md:280-282`). HRD-R1.12.6
+   and the `_hrd-scenarios` doc must assert the 5,000 ceiling, not "more than 1,000 slots".
+   The 31-day x 1440/day fixture (=44,640) still trips a 5,000 cap, so the scenario shape
+   survives -- only the number + message change.
+
+3. **AppService surface differs (HIGH).** Current API:
+   `GeneratePreviewAsync(List<DoctorAvailabilityGenerateInputDto>)` returning
+   `List<DoctorAvailabilitySlotsPreviewDto>`; `CreateAsync(DoctorAvailabilityCreateDto)`
+   for single slots; NO `CreateRangeAsync`, NO `InsertedCount`/`SkippedConflictCount`
+   (DoctorAvailabilitiesAppServiceTests.cs:131, :438; IDoctorAvailabilitiesAppService per
+   Phase 3 check :35). Phase 3 (Q1/D1=C) changes `GeneratePreviewAsync` to take a SINGLE
+   DTO and adds `CreateRangeAsync` returning `DoctorAvailabilityCreateRangeResultDto`
+   (InsertedCount/SkippedConflictCount/ConflictedSlots). So the plan's API names are the
+   POST-Phase-3 target -- valid only after Phase 3 ships. Mark every code snippet using
+   `CreateRangeAsync`/`InsertedCount` as "verify after Phase 3."
+
+4. **DTO/entity shape is single-axis today (HIGH).** `DoctorAvailabilityGenerateInputDto`
+   (src/.../Application.Contracts/DoctorAvailabilities/DoctorAvailabilityGenerateInputDto.cs:6-23)
+   has flat `FromTime/ToTime`, single `Guid? AppointmentTypeId`, `AppointmentDurationMinutes=15`
+   -- NO `TimeRanges`, NO `SelectedDays`, NO `Capacity`. `DoctorAvailability` entity
+   (src/.../Domain/DoctorAvailabilities/DoctorAvailability.cs:16-45) has single
+   `Guid? AppointmentTypeId`, NO `Capacity`, NO `AppointmentTypes` collection. Phase 1 adds
+   `Capacity` (default 1, ctor last param per Phase 1 Q1=A) + M2M `AppointmentTypes`;
+   Phase 3 adds `TimeRangeDto`/`SelectedDays`. All multi-axis fixtures in the HRD snippets
+   are POST-Phase-1/3 -- valid only after those ship.
+
+5. **No SQL Server test harness exists (HIGH, blocking for R2.10.1).** The entire test base
+   is SQLite in-memory (test/CLAUDE.md; CaseEvaluationTestBaseModule.cs; SQLite is the only
+   provider wired). `[Trait("Backend", "SqlServer")]` has NOTHING to run against. Worse, the
+   Phase 2 row-lock is `FromSqlRaw(... WITH (UPDLOCK, HOLDLOCK) ...)` which is T-SQL that
+   SQLite cannot parse -- it throws a syntax error, not a race. See "Blocking question" below.
+
+6. **e2e is Protractor, not Playwright (MEDIUM).** `angular/e2e/` contains
+   `protractor.conf.js` + `src/app.e2e-spec.ts` (Glob verified). There is NO
+   `playwright.config.*` and NO `@playwright/test` dependency. HRD-R2.10.2's
+   `angular/e2e/*.spec.ts` Playwright file cannot drop into the existing Protractor folder.
+   Either run R2.10.2 purely as a Playwright MCP manual session logged to `_hrd-runs/`
+   (no committed spec file), or stand up a Playwright project first (out of scope here).
+
+7. **Auth is always-allow (MEDIUM).** `CaseEvaluationTestBaseModule.ConfigureServices`
+   calls `AddAlwaysAllowAuthorization()` (line 27). Permission-denial scenarios cannot be
+   asserted in this harness (consistent with the 4 existing Skip-tagged permission gaps in
+   AppointmentsAppServiceTests.cs:258-274). Not directly in scope here, but relevant if any
+   HRD scenario later wants a permission assertion.
+
+8. **No overlap with intervening-commit tests (LOW, positive).** The ~50 intervening commits
+   added `AppointmentDtoMapperRejectionNotesUnitTests.cs`, `Patients/SsnVisibilityUnitTests.cs`,
+   `AppointmentDocuments/AppointmentDocumentSizeLimitTests.cs`, and several validator unit
+   tests. NONE touch slot generation, capacity gate, active-count, or SlotCascadeHandler, so
+   this plan's tests do not duplicate them. Existing `DoctorAvailabilitiesAppServiceUnitTests.cs`
+   (pure helpers: HasInFlightStatus / ComputeNumberOfSlotsPerDay / IsValidSlot{Time,Date}Range)
+   and the 20 `[Fact]`s in `DoctorAvailabilitiesAppServiceTests.cs` (validation + slot-math)
+   already cover the single-axis preview math -- new HRD tests should extend, not re-pin.
+
+9. **Validation messages are localized via `L["Key"]` (MEDIUM).** Phase 3 Q3=A locked
+   `L["Key"]` for the new generation validators (`_2026-05-20-slot-phase-3-readiness-check.md:305`).
+   So assertions like `ShouldContain("Capacity must be at least 1")` and
+   `ShouldContain("more than 1,000 slots")` may not match the localized output. Assert against
+   the resolved localized string (read `en.json` after Phase 3) or against the thrown exception
+   type/code rather than a hardcoded English fragment.
+
+10. **Error-code names confirmed planned (HIGH, not yet in source).** Phase 2 readiness check
+    confirms `AppointmentBookingSlotFull`, `AppointmentBookingSlotClosed`,
+    `AppointmentBookingSlotTypeMismatch` are NEW consts to add to
+    `CaseEvaluationDomainErrorCodes` (`_2026-05-20-slot-phase-2-readiness-check.md:34`). Plan's
+    references to `CaseEvaluationDomainErrorCodes.AppointmentBookingSlot*` are correct names but
+    only exist after Phase 2. `BusinessException.Code` carries the `CaseEvaluation:` prefix at
+    the wire/SPA layer (R2.10.2's `CaseEvaluation:Appointment.BookingSlotTypeMismatch`).
+
 ## Goal
 
 Lock the behavior shipped in plans 1-6 with explicit tests:
@@ -88,6 +201,18 @@ tests called out in plans 1-5.
    requires the real engine. Add a marker
    `[Trait("Backend", "SqlServer")]` to gate.
 
+   > BLOCKING (re-verified 2026-05-27): there is NO SQL Server test harness in
+   > this repo. The whole test base is SQLite in-memory
+   > (`CaseEvaluationTestBaseModule.cs`; test/CLAUDE.md item 3). A
+   > `[Trait("Backend", "SqlServer")]` test has nothing to run against, AND the
+   > Phase 2 row-lock is `FromSqlRaw(... WITH (UPDLOCK, HOLDLOCK) ...)` (T-SQL)
+   > which SQLite cannot parse -- it throws a syntax error, not a race. HRD-R2.10.1
+   > as designed CANNOT run until a SQL Server (Testcontainers/Docker) test project is
+   > stood up, which is NOT "pure test wiring" and is arguably out of this plan's
+   > scope. See the top changelog item 5 and the "Blocking question" at the end.
+   > Confidence: HIGH (SQLite cannot honor T-SQL table hints; see Microsoft EF Core
+   > SQLite limitations docs).
+
 ## Files touched
 
 ### 1. NEW FILE `docs/parity/wave-1-parity/_hrd-scenarios-slot-rework.md`
@@ -156,18 +281,29 @@ domain-level Check.Range.
 Test: `DoctorAvailabilitiesAppServiceTests.HrdR1_12_5_CapacityZeroRejected`
 Assertions:
 - Input: `capacity = 0`.
-- AbpValidationException OR UserFriendlyException with
-  "Capacity must be at least 1".
+- AbpValidationException OR UserFriendlyException. Do NOT assert the literal
+  "Capacity must be at least 1" -- Phase 3 Q3=A localizes via `L["Key"]` and the
+  domain-level guard is `Check.Range` (Phase 1). Assert on exception type, or read
+  the resolved localized message from `en.json` after Phase 1/3 ship. (re-verified
+  2026-05-27, MEDIUM)
 
-### HRD-R1.12.6 -- > 1000 estimated slots rejected
+### HRD-R1.12.6 -- > 5000 estimated slots rejected
 
-Goal: large-batch guard fires before any DB work.
-Test: `DoctorAvailabilitiesAppServiceTests.HrdR1_12_6_LargeBatchRejected`
+> SUPERSEDED 2026-05-27: Phase 3 Q2=B locked the cap at 5,000, NOT 1,000
+> (`_2026-05-20-slot-phase-3-readiness-check.md:280-282`). Assert the 5,000
+> ceiling. The 31-day x 1440/day fixture (=44,640) still trips a 5,000 cap, so
+> the scenario stands; only the number + message change. Confidence: HIGH.
+
+Goal: large-batch guard fires before any DB work (the `EstimateSlotCount`
+helper runs BEFORE the expansion loop -- see Phase 3 check D4 for the corrected
+formula).
+Test: `HrdR1_12_6_LargeBatchRejected` (add to the existing abstract base class)
 Assertions:
 - Input: 31-day range, all 7 weekdays, single 24-hour range
-  with 1-minute duration. Estimated count = 31 * 1440 > 1000.
-- `UserFriendlyException` with message containing
-  "more than 1,000 slots".
+  with 1-minute duration. Estimated count = 31 * 1440 > 5000.
+- `UserFriendlyException`. Do NOT assert a hardcoded English fragment --
+  Phase 3 Q3=A localizes the message via `L["Key"]`. Assert on the exception
+  type, or on the resolved localized string after reading `en.json`.
 
 ## Booking-time concurrency / capacity (HRD-R2.10.x)
 
@@ -217,6 +353,10 @@ Assertions:
 
 ## Run procedure
 
+(re-verified 2026-05-27: the `Trait=Backend=SqlServer` line below has no harness
+to run against today -- see the Blocking question. The default `Trait=HRD` run
+executes only the SQLite-compatible scenarios.)
+
 ```bash
 # Back-end HRD tests:
 dotnet test --filter Trait=HRD --logger "console;verbosity=detailed"
@@ -231,9 +371,33 @@ dotnet test --filter "Trait=HRD&Trait=Backend=SqlServer"
 
 ### 2. NEW FILE `test/HealthcareSupport.CaseEvaluation.Application.Tests/DoctorAvailabilities/HrdSlotGenerationTests.cs`
 
-Holds `HRD-R1.12.{1..6}`. The class is a partial of the
-existing `DoctorAvailabilitiesAppServiceTests` infrastructure
-to inherit the seed + tenant scope:
+Holds `HRD-R1.12.{1..6}`.
+
+> CORRECTED 2026-05-27 (HIGH): the existing test base is
+> `public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule>
+> : CaseEvaluationApplicationTestBase<TStartupModule> where TStartupModule : IAbpModule`
+> (DoctorAvailabilitiesAppServiceTests.cs:34), and the concrete runner
+> `EfCoreDoctorAvailabilitiesAppServiceTests` (with `[Collection(...)]`) lives under
+> EntityFrameworkCore.Tests, NOT Application.Tests. A standalone `partial class`
+> with no `<TStartupModule>` and no concrete subclass will NOT execute -- xUnit
+> needs a concrete, non-generic class. Two valid options:
+>   (a) Add the HRD `[Fact]`s directly to the existing abstract base file
+>       (DoctorAvailabilitiesAppServiceTests.cs); the existing concrete
+>       `EfCoreDoctorAvailabilitiesAppServiceTests` then runs them automatically.
+>   (b) Create a NEW abstract base
+>       `public abstract class HrdSlotGenerationTests<TStartupModule>
+>       : CaseEvaluationApplicationTestBase<TStartupModule>` here PLUS a NEW concrete
+>       `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
+>        public class EfCoreHrdSlotGenerationTests
+>        : HrdSlotGenerationTests<CaseEvaluationEntityFrameworkCoreTestModule>` under
+>       EntityFrameworkCore.Tests.
+> The snippet below shows the `[Fact]` bodies; the class declaration must follow
+> (a) or (b), not the `abstract partial` form shown. The seed/tenant helpers
+> (`SeedLocationAsync`, `NextMonday`, etc.) do not exist yet -- model them on
+> `CreateScratchAvailableSlotInTenantAAsync` + `TenantsTestData.TenantARef`
+> (AppointmentsAppServiceTests.cs:620-638). All multi-axis input fields
+> (`TimeRanges`, `SelectedDays`, `Capacity`) are POST-Phase-1/3 -- verify after
+> those phases ship.
 
 ```csharp
 using System;
@@ -426,6 +590,18 @@ public abstract partial class DoctorAvailabilitiesAppServiceTests
 Holds `HRD-R2.10.{1,3}`. R2.10.2 is browser-driven and lives in
 the playwright spec below.
 
+> CORRECTED 2026-05-27: same concrete-runner rule as file 2 -- either add these
+> `[Fact]`s to the existing `AppointmentsAppServiceTests<TStartupModule>` abstract
+> base (AppointmentsAppServiceTests.cs:30; concrete `EfCoreAppointmentsAppServiceTests`
+> under EntityFrameworkCore.Tests runs it) or create a new abstract+concrete pair.
+> HRD-R2.10.1 additionally has the SQL-Server-harness blocker (see Decision 5 note and
+> the Blocking question) -- it cannot run under SQLite. HRD-R2.10.3 (manual-close)
+> does NOT need the row lock and CAN run under SQLite once Phase 2's
+> `BookingSlotClosed` code + the Reserved=manually-closed semantic land (Phase 2 D2).
+> `DoctorAvailabilityUpdateDto` here must match the POST-Phase-1 shape (adds
+> `Capacity`, `AppointmentTypeIds`); today it is single `AppointmentTypeId`, no
+> `Capacity`. Verify after Phase 1/2.
+
 ```csharp
 [Fact]
 [Trait("HRD", "R2.10.1")]
@@ -498,6 +674,17 @@ deterministic.
 
 ### 4. NEW FILE `angular/e2e/hrd-r2-10-2-type-mismatch-refresh.spec.ts`
 
+> CORRECTED 2026-05-27 (MEDIUM): `angular/e2e/` is a PROTRACTOR project
+> (`angular/e2e/protractor.conf.js`, `e2e/src/app.e2e-spec.ts`) -- there is NO
+> `playwright.config.*` and NO `@playwright/test` dependency in the repo. Dropping
+> a `@playwright/test` spec into the Protractor folder will not run. Per the plan's
+> own Decision 4, R2.10.2 is meant to run via the Playwright MCP browser session
+> from a manual run -- so DO NOT commit a `.spec.ts`; instead drive it via Playwright
+> MCP and log the pass/fail to `docs/parity/wave-1-parity/_hrd-runs/`. The snippet
+> below is a reference script for the MCP session, not a checked-in test file. (If a
+> committed Playwright suite is wanted, stand up a separate Playwright project first
+> -- out of scope for this "test wiring" plan.)
+
 A Playwright spec that drives the SPA through the
 type-mismatch refresh cascade. The MCP setup already exists.
 
@@ -554,6 +741,18 @@ following the existing Playwright MCP convention used in
 
 ### 5. NEW FILE `test/HealthcareSupport.CaseEvaluation.Domain.Tests/DoctorAvailabilities/DoctorAvailabilityCapacityTests.cs`
 
+> NOTE 2026-05-27: pure entity-invariant tests can be a plain non-generic class
+> deriving from `CaseEvaluationDomainTestBase` (the Domain.Tests base), since they
+> only construct the entity and don't need the SQLite app harness -- OR pure ctor
+> tests with no DI can be a plain xUnit class (cf. `DoctorAvailabilitiesAppServiceUnitTests.cs`
+> which is a plain class testing `internal static` helpers via `InternalsVisibleTo`).
+> Choose the lighter option. Every row below (`Capacity`, `AddAppointmentType`,
+> `RemoveAllAppointmentTypesExceptGivenIds`, M2M `TenantId` mirroring) is POST-Phase-1
+> -- none exist on the entity today (DoctorAvailability.cs:16-45 has single
+> `AppointmentTypeId`, no `Capacity`, no collection). Verify after Phase 1. Confirm
+> the constructor signature against Phase 1 Q1=A (`capacity` is the defaulted LAST
+> param; `appointmentTypeId` removed from the ctor, seeded via `AddAppointmentType`).
+
 Pure entity invariants (TDD; some of these are already covered
 by plan 1's unit tests -- keep them deduplicated by moving them
 here if plan 1 wasn't merged with the tests):
@@ -568,6 +767,19 @@ here if plan 1 wasn't merged with the tests):
 | 6 | `Capacity_DefaultsTo1WhenCtorOmitted` | Constructor without capacity argument -> 1. |
 
 ### 6. NEW FILE `test/HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Tests/Appointments/EfCoreAppointmentRepositoryActiveCountTests.cs`
+
+> NOTE 2026-05-27: EF repo tests MUST carry
+> `[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]` and derive from
+> `CaseEvaluationEntityFrameworkCoreTestBase` (test/CLAUDE.md item 2; existing
+> repo tests under EntityFrameworkCore.Tests/EntityFrameworkCore/Domains/Appointment*/
+> follow this). The methods under test (`GetActiveCountForSlotAsync`,
+> `GetActiveCountsForSlotsAsync`) are added in Phase 2
+> (`_2026-05-20-slot-phase-2-readiness-check.md:35`) and do NOT exist yet -- verify
+> after Phase 2. Active-count exclusion set (Rejected, CancelledNoBill, CancelledLate,
+> RescheduledNoBill, RescheduledLate = status ints 3,5,6,7,8) is confirmed against the
+> Phase 2 check's `AppointmentStatusType` enum mapping
+> (`_2026-05-20-slot-phase-2-readiness-check.md:32`); the table rows below align.
+> These run fine under SQLite (no row-lock needed -- counting is a plain query).
 
 | # | Test | Acceptance |
 |---|------|------------|
@@ -626,10 +838,37 @@ dotnet test --filter "Trait=HRD&Trait=Backend=SqlServer"
 **Rollback:**
 - Revert the commit. Tests disappear; product code unchanged.
 
-**Risk: HRD-R2.10.1's race test is flaky on SQLite.** Mitigated
-by the `[Trait("Backend", "SqlServer")]` gate. CI must run the
-SQL Server container for HRD-Backend=SqlServer; in-process
-SQLite test runs skip it by default.
+**Risk: HRD-R2.10.1's race test is flaky on SQLite.**
+
+> CORRECTED 2026-05-27 (HIGH): this is understated. It is not "flaky" on SQLite --
+> it is IMPOSSIBLE on SQLite two ways: (1) the Phase 2 row-lock SQL
+> `FromSqlRaw(... WITH (UPDLOCK, HOLDLOCK) ...)` is T-SQL that SQLite cannot parse
+> (syntax error at runtime, not a race); (2) there is no SQL Server test project to
+> gate to -- the entire harness is SQLite in-memory. The `[Trait("Backend",
+> "SqlServer")]` marker gates to nothing. Standing up a SQL Server (Testcontainers
+> or docker) test project is a prerequisite and is NOT "pure test wiring." See the
+> Blocking question below. Sources: Microsoft EF Core SQLite limitations
+> (https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations);
+> EF Core pessimistic-locking pattern
+> (https://www.milanjovanovic.tech/blog/a-clever-way-to-implement-pessimistic-locking-in-ef-core);
+> SQLite-in-memory vs InMemory provider divergence
+> (https://www.dotnet-guide.com/tutorials/ef-core/testing-sqlite-inmemory-vs-inmemory/).
+
+## Blocking question (re-verified 2026-05-27)
+
+HRD-R2.10.1 (two-patients-race-last-seat) cannot be implemented as "pure test
+wiring" in the current SQLite-only harness. Pick one before building Phase 6:
+
+- **(a)** Add a SQL Server Testcontainers test project (new infra, new CI job) and
+  put R2.10.1 there. Scope expands beyond "tests + hardening."
+- **(b)** Drop R2.10.1 from the automated suite; verify the capacity race manually
+  against the docker SQL Server stack and log it under `_hrd-runs/`. Keeps this plan
+  test-only.
+- **(c)** Defer R2.10.1 to a separate concurrency-harness plan; ship the other 8 HRD
+  scenarios now (R1.12.* under SQLite, R2.10.3 under SQLite, R2.10.2 via Playwright MCP).
+
+Recommendation: (c) -- it keeps Phase 6 honest as test wiring and isolates the
+infra cost. Adrian to decide.
 
 **Risk: helper methods (`SeedLocationAsync`, `SeedPatientAsync`,
 `RunInScope`) do not yet exist in the test base.** Mitigated:

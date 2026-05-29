@@ -32,4 +32,27 @@ public interface IAppointmentRepository : IRepository<Appointment, Guid>
     Task<Appointment?> FindByConfirmationNumberAsync(
         string requestConfirmationNumber,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 2026-05-15 -- counts the appointments tied to the given slot that
+    /// are NOT in a slot-freed terminal status. The five freed statuses
+    /// excluded are: <c>Rejected</c>, <c>CancelledNoBill</c>,
+    /// <c>CancelledLate</c>, <c>RescheduledNoBill</c>,
+    /// <c>RescheduledLate</c>. Caller uses this count against the slot's
+    /// <c>Capacity</c> to determine whether the slot is bookable.
+    /// </summary>
+    Task<long> GetActiveCountForSlotAsync(
+        Guid doctorAvailabilityId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 2026-05-15 -- bulk variant of <see cref="GetActiveCountForSlotAsync"/>.
+    /// Used by the booking-form lookup endpoint to compute remaining
+    /// capacity for a paged set of slots in a single round-trip. Returns
+    /// a dictionary keyed by slot id; slots with zero active appointments
+    /// are absent from the result (caller treats missing as 0).
+    /// </summary>
+    Task<Dictionary<Guid, long>> GetActiveCountsForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default);
 }

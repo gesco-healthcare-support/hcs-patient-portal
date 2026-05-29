@@ -307,14 +307,13 @@ public class AppointmentChangeRequestsApprovalAppService :
             occurredAt: DateTime.UtcNow,
             doctorAvailabilityId: newSlotId));
 
-        // Admin-override case: the user-picked slot was held in
-        // Reserved by Phase 16's submit. The supervisor abandoned it
-        // -- release back to Available. The cascade handler does not
-        // know about an abandoned reserved slot so we flip directly.
-        if (isAdminOverride && changeRequest.NewDoctorAvailabilityId.HasValue)
-        {
-            await ReleaseSlotIfReservedAsync(changeRequest.NewDoctorAvailabilityId.Value);
-        }
+        // 2026-05-15 (slot rework plan 3) -- ReleaseSlotIfReservedAsync
+        // call removed. Under capacity-aware booking, BookingStatusId =
+        // Reserved means "manually closed by doctor's-admin", not
+        // "held while pending"; an unrelated change-request approval
+        // must NOT flip a manually-closed slot back to Available.
+        // Phase 16's submit no longer puts the user-picked slot into
+        // Reserved (SlotCascadeHandler is a log-only stub).
 
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestApprovedEto
         {
@@ -379,11 +378,11 @@ public class AppointmentChangeRequestsApprovalAppService :
             occurredAt: DateTime.UtcNow,
             doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
 
-        // Release the user-picked Reserved slot back to Available.
-        if (changeRequest.NewDoctorAvailabilityId.HasValue)
-        {
-            await ReleaseSlotIfReservedAsync(changeRequest.NewDoctorAvailabilityId.Value);
-        }
+        // 2026-05-15 (slot rework plan 3) -- ReleaseSlotIfReservedAsync
+        // call removed. Reserved is no longer a transient "held while
+        // pending" state; it is a manual-close override owned by the
+        // doctor's-admin. A change-request rejection must not flip a
+        // closed slot back to Available.
 
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestRejectedEto
         {
@@ -453,20 +452,6 @@ public class AppointmentChangeRequestsApprovalAppService :
     private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
-    }
-
-    private async Task ReleaseSlotIfReservedAsync(Guid slotId)
-    {
-        var slot = await _doctorAvailabilityRepository.FindAsync(slotId);
-        if (slot == null)
-        {
-            return;
-        }
-        if (slot.BookingStatusId == BookingStatus.Reserved)
-        {
-            slot.BookingStatusId = BookingStatus.Available;
-            await _doctorAvailabilityRepository.UpdateAsync(slot, autoSave: true);
-        }
     }
 
     /// <summary>
