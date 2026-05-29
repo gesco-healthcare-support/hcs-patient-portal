@@ -26,7 +26,7 @@ internal static class EmailSubjects
     /// OLD <c>UserDomain.cs</c>:321. Typo "Your" -> "You" fixed.
     /// </summary>
     public const string UserRegistered =
-        "You have registered successfully - Patient Appointment portal";
+        "You have registered successfully - Appointment portal";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:926.</summary>
     public const string PatientAppointmentPending =
@@ -65,7 +65,7 @@ internal static class EmailSubjects
     /// fired after a successful password change (in-app or post-reset).
     /// </summary>
     public const string PasswordChange =
-        "Your password has been successfully changed - Patient Appointment portal";
+        "Your password has been successfully changed - Appointment portal";
 
     // ----------------------------------------------------------------------
     // Phase 2.A (Category 2, 2026-05-08): per-recipient "Appointment Requested"
