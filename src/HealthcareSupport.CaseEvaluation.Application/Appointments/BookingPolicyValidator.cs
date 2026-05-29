@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
+using Microsoft.Extensions.Localization;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -28,13 +30,16 @@ public class BookingPolicyValidator : ITransientDependency
 {
     private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
+    private readonly IStringLocalizer<CaseEvaluationResource> _l;
 
     public BookingPolicyValidator(
         ISystemParameterRepository systemParameterRepository,
-        IRepository<AppointmentType, Guid> appointmentTypeRepository)
+        IRepository<AppointmentType, Guid> appointmentTypeRepository,
+        IStringLocalizer<CaseEvaluationResource> l)
     {
         _systemParameterRepository = systemParameterRepository;
         _appointmentTypeRepository = appointmentTypeRepository;
+        _l = l;
     }
 
     /// <summary>
@@ -54,7 +59,12 @@ public class BookingPolicyValidator : ITransientDependency
         var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
         if (systemParameter == null)
         {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded);
+            // 2026-05-28 -- UserFriendlyException so the localized message reaches
+            // the client; ABP's BusinessException auto-localization does not
+            // resolve in this codebase (see AppointmentReadAccessGuard.cs:162-167).
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded,
+                message: _l["SystemParameter:NotSeeded"]);
         }
 
         var appointmentType = await _appointmentTypeRepository.GetAsync(appointmentTypeId);
@@ -65,11 +75,13 @@ public class BookingPolicyValidator : ITransientDependency
             case BookingPolicyOutcome.Allowed:
                 return;
             case BookingPolicyOutcome.InsideLeadTime:
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime)
-                    .WithData("leadTimeDays", result.ThresholdDays);
+                throw new UserFriendlyException(
+                    code: CaseEvaluationDomainErrorCodes.AppointmentBookingDateInsideLeadTime,
+                    message: _l["Appointment:BookingDateInsideLeadTime", result.ThresholdDays]);
             case BookingPolicyOutcome.PastMaxHorizon:
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingDatePastMaxHorizon)
-                    .WithData("maxTimeDays", result.ThresholdDays);
+                throw new UserFriendlyException(
+                    code: CaseEvaluationDomainErrorCodes.AppointmentBookingDatePastMaxHorizon,
+                    message: _l["Appointment:BookingDatePastMaxHorizon", result.ThresholdDays]);
             default:
                 throw new InvalidOperationException(
                     $"Unhandled booking-policy outcome '{result.Outcome}'.");

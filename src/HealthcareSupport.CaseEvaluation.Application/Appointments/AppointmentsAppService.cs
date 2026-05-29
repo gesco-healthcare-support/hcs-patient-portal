@@ -680,8 +680,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             && BookingFlowRoles.IsAmeAppointmentType(appointmentType.Name)
             && !BookingFlowRoles.IsAttorneyCaller(bookingCallerRoles))
         {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole);
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
+                message: L["Appointment:AmeRequiresAttorneyRole"]);
         }
 
         var location = await _locationRepository.FindAsync(input.LocationId);
@@ -877,10 +878,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // compatibility (the active-count probe is authoritative).
 
         // Arm 1: explicit manual close.
+        // 2026-05-28 -- UserFriendlyException (not BusinessException) so the
+        // localized message reaches the client. ABP's BusinessException auto-
+        // localization via MapCodeNamespace is documented as not resolving
+        // in this codebase (see AppointmentReadAccessGuard.cs:162-167) and
+        // surfaces as "An internal error occurred during your request!".
+        // The error CODE is still carried so the SPA's plan-6 catch block in
+        // appointment-add.component.ts pattern-matches correctly.
         if (doctorAvailability.BookingStatusId == BookingStatus.Reserved)
         {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
+                message: L["Appointment:BookingSlotClosed"]);
         }
 
         // Arm 2: capacity. Active-count is the authoritative measure;
@@ -890,10 +899,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .GetActiveCountForSlotAsync(doctorAvailability.Id);
         if (activeCount >= doctorAvailability.Capacity)
         {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull)
-                .WithData("capacity", doctorAvailability.Capacity)
-                .WithData("activeCount", activeCount);
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                message: L["Appointment:BookingSlotFull", activeCount, doctorAvailability.Capacity]);
         }
 
         // Arm 3: type membership. Empty set = any type accepted
@@ -901,11 +909,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (doctorAvailability.AppointmentTypes.Any() &&
             !doctorAvailability.AppointmentTypes.Any(at => at.AppointmentTypeId == input.AppointmentTypeId))
         {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch)
-                .WithData("requested", input.AppointmentTypeId)
-                .WithData("permitted", string.Join(",",
-                    doctorAvailability.AppointmentTypes.Select(at => at.AppointmentTypeId)));
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
+                message: L["Appointment:BookingSlotTypeMismatch"]);
         }
 
         // Arms 4 / 5 / 6: location, date, and time-range parity checks
