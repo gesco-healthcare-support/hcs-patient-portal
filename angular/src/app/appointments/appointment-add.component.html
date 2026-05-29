@@ -131,12 +131,15 @@
         }
         @if (shouldShowDefenseAttorneySection()) {
           <div class="col-12 col-md-6">
-            <!-- T2: DA section stays required (no toggle) for every booker
-                 including patients (decision D2). -->
+            <!-- F4 (2026-05-29): DA section mirrors AA -- required (no toggle)
+                 only when the booker IS a Defense Attorney (and not an IT Admin
+                 acting on their behalf). Every other booker gets the Include
+                 toggle; toggling it off opens the "Is a Defense Attorney
+                 assigned?" confirmation modal. Reverses decision D2. -->
             <app-appointment-add-attorney-section
               [form]="form"
               role="defense"
-              [mandatory]="true"
+              [mandatory]="isDefenseAttorney && !isItAdmin"
               [getStateLookup]="getStateLookup"
               [isReadOnly]="isDefenseAttorney && !isItAdmin"
               [isFieldInvalid]="isFieldInvalidBound"
