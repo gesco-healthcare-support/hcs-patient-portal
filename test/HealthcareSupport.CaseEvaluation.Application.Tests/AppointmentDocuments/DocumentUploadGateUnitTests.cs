@@ -51,8 +51,20 @@ public class DocumentUploadGateUnitTests
             DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment));
     }
 
+    [Fact]
+    public void EnsureAppointmentApprovedAndNotPastDueDate_Pending_FutureDueDate_DoesNotThrow()
+    {
+        // F3 (2026-05-29): documents can be uploaded as soon as the appointment
+        // is requested (Pending), before approval.
+        var appointment = NewAppointment(
+            status: AppointmentStatusType.Pending,
+            dueDate: DateTime.UtcNow.AddDays(7));
+
+        Should.NotThrow(() =>
+            DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment));
+    }
+
     [Theory]
-    [InlineData(AppointmentStatusType.Pending)]
     [InlineData(AppointmentStatusType.Rejected)]
     [InlineData(AppointmentStatusType.CheckedIn)]
     [InlineData(AppointmentStatusType.CancelledNoBill)]
