@@ -9,7 +9,13 @@ import {
   PagedResultDto,
   RestService,
 } from '@abp/ng.core';
-import { DateAdapter, TimeAdapter, ToasterService } from '@abp/ng.theme.shared';
+import {
+  Confirmation,
+  ConfirmationService,
+  DateAdapter,
+  TimeAdapter,
+  ToasterService,
+} from '@abp/ng.theme.shared';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
@@ -113,6 +119,8 @@ export class AppointmentAddComponent {
   // trigger a refetch of the lookup so the dropdown reflects current
   // server state before the next attempt.
   private readonly toaster = inject(ToasterService);
+  // 2026-05-28 -- self-represented confirmation modal on AA toggle-off.
+  private readonly confirmationService = inject(ConfirmationService);
 
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
@@ -470,12 +478,20 @@ export class AppointmentAddComponent {
     // the validator subscription -- emitEvent: false suppresses the
     // valueChanges event on the email field itself, not on the enabled
     // checkbox.
+    // 2026-05-28 -- AA toggle-off requires explicit confirmation that the
+    // applicant is self-represented. OLD did not have this gate; NEW adds
+    // it so a booker (patient / clinic staff / IT admin) cannot silently
+    // omit the applicant attorney section without acknowledging it. When
+    // the user clicks "No" on the modal we revert the toggle back to ON
+    // via setValue(true, { emitEvent: false }) so this subscriber does
+    // not re-fire. Toggling ON has no modal -- the section just opens.
     this.form.get('applicantAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      this.applyConditionalEmailValidator('applicantAttorneyEmail', !!enabled);
-      applyAttorneySectionValidators(this.form, 'applicantAttorney', !!enabled);
       if (!enabled) {
-        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+        this.confirmAaToggleOff();
+        return;
       }
+      this.applyConditionalEmailValidator('applicantAttorneyEmail', true);
+      applyAttorneySectionValidators(this.form, 'applicantAttorney', true);
     });
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
@@ -554,6 +570,38 @@ export class AppointmentAddComponent {
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
     control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * 2026-05-28 -- AA toggle-off confirmation. Pops the ABP confirmation
+   * modal asking whether the applicant is self-represented. On Yes the
+   * toggle stays off and the section's required-validators + email value
+   * are cleared. On No (or dismissal) the toggle reverts to ON with
+   * { emitEvent: false } so the valueChanges subscriber that opened this
+   * modal does not re-fire.
+   */
+  private confirmAaToggleOff(): void {
+    const enabledControl = this.form.get('applicantAttorneyEnabled');
+    if (!enabledControl) return;
+    this.confirmationService
+      .warn(
+        '::Appointment:ApplicantAttorneySelfRepresentedMessage',
+        '::Appointment:ApplicantAttorneySelfRepresentedTitle',
+        { yesText: 'AbpUi::Yes', cancelText: 'AbpUi::No' },
+      )
+      .subscribe((status) => {
+        if (status !== Confirmation.Status.confirm) {
+          // Revert with emitEvent: true so valueChanges re-fires and the
+          // section's OnPush markForCheck hook re-renders the body. The
+          // outer valueChanges subscriber's "enabled=true" branch only
+          // re-applies the (already-required) validators -- idempotent.
+          enabledControl.setValue(true);
+          return;
+        }
+        this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
+        this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+      });
   }
 
   // BUG-012 Sub-bug 2 (2026-05-22) -- the OLD-parity "Mandatory Fields"
