@@ -493,12 +493,15 @@ export class AppointmentAddComponent {
       this.applyConditionalEmailValidator('applicantAttorneyEmail', true);
       applyAttorneySectionValidators(this.form, 'applicantAttorney', true);
     });
+    // F4 (2026-05-29): DA toggle-off mirrors AA -- pop the confirmation modal
+    // instead of silently dropping the section. Toggling ON has no modal.
     this.form.get('defenseAttorneyEnabled')?.valueChanges.subscribe((enabled) => {
-      this.applyConditionalEmailValidator('defenseAttorneyEmail', !!enabled);
-      applyAttorneySectionValidators(this.form, 'defenseAttorney', !!enabled);
       if (!enabled) {
-        this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
+        this.confirmDaToggleOff();
+        return;
       }
+      this.applyConditionalEmailValidator('defenseAttorneyEmail', true);
+      applyAttorneySectionValidators(this.form, 'defenseAttorney', true);
     });
     this.form.get('claimExaminerEnabled')?.valueChanges.subscribe((enabled) => {
       this.applyConditionalEmailValidator('claimExaminerEmail', !!enabled);
@@ -601,6 +604,36 @@ export class AppointmentAddComponent {
         this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
         applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
         this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+      });
+  }
+
+  /**
+   * F4 (2026-05-29) -- DA toggle-off confirmation. Mirrors confirmAaToggleOff
+   * but with INVERTED Yes/No, because the question polarity is opposite. The
+   * modal asks "Is a Defense Attorney assigned to this case?":
+   *   - Yes = one IS assigned -> keep the section required (revert the toggle
+   *     to ON with emitEvent so the OnPush section re-renders; the enabled=true
+   *     branch re-applies the already-required validators, idempotent).
+   *   - No / dismiss = none assigned -> confirm removal: clear the DA
+   *     required-validators and the DA email value.
+   */
+  private confirmDaToggleOff(): void {
+    const enabledControl = this.form.get('defenseAttorneyEnabled');
+    if (!enabledControl) return;
+    this.confirmationService
+      .warn(
+        '::Appointment:DefenseAttorneyAssignedMessage',
+        '::Appointment:DefenseAttorneyAssignedTitle',
+        { yesText: 'AbpUi::Yes', cancelText: 'AbpUi::No' },
+      )
+      .subscribe((status) => {
+        if (status === Confirmation.Status.confirm) {
+          enabledControl.setValue(true);
+          return;
+        }
+        this.applyConditionalEmailValidator('defenseAttorneyEmail', false);
+        applyAttorneySectionValidators(this.form, 'defenseAttorney', false);
+        this.form.get('defenseAttorneyEmail')?.setValue(null, { emitEvent: false });
       });
   }
 
