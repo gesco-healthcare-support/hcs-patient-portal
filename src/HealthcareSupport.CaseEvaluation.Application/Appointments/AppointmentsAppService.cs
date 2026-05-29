@@ -899,9 +899,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .GetActiveCountForSlotAsync(doctorAvailability.Id);
         if (activeCount >= doctorAvailability.Capacity)
         {
+            // Carry the active-count + capacity on the exception data so
+            // logging + any structured consumer can read the numbers; the
+            // localized message already interpolates them for the SPA toast.
             throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
-                message: L["Appointment:BookingSlotFull", activeCount, doctorAvailability.Capacity]);
+                    code: CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                    message: L["Appointment:BookingSlotFull", activeCount, doctorAvailability.Capacity])
+                .WithData("activeCount", activeCount)
+                .WithData("capacity", doctorAvailability.Capacity);
         }
 
         // Arm 3: type membership. Empty set = any type accepted
