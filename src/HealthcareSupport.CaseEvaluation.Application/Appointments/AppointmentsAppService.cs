@@ -832,6 +832,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             tenantId: appointment.TenantId,
             bookerUserId: appointment.IdentityUserId,
             patientId: appointment.PatientId,
+            appointmentTypeId: appointment.AppointmentTypeId,
             requestConfirmationNumber: appointment.RequestConfirmationNumber,
             appointmentDate: appointment.AppointmentDate,
             submittedAt: DateTime.UtcNow));
