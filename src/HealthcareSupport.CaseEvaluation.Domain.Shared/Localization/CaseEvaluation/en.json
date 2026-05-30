@@ -324,6 +324,7 @@
     "Enum:PhoneNumberType.28": "Work",
     "Enum:PhoneNumberType.29": "Home",
     "Permission:Patients": "Patients",
+    "Permission:RevealSsn": "Reveal SSN",
     "Patients": "Patients",
     "NewPatient": "New Patient",
     "Patient": "Patient",

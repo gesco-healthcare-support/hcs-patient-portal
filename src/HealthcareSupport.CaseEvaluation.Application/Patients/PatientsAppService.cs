@@ -392,6 +392,31 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
     }
 
+    // F1 / Design B (2026-05-29) -- dedicated, audited SSN reveal endpoint.
+    // Standard payloads carry only the masked last-4 (see ApplySsnVisibility);
+    // this returns the full value. Two gates: the Patients.RevealSsn permission
+    // (declarative) AND the internal-or-owner check in SsnRevealAccess (so a
+    // Patient can reveal only their OWN SSN, while internal staff may reveal
+    // any). ABP's HTTP audit log records each call (caller + patient id in the
+    // route: GET api/app/patients/{id}/ssn).
+    [Authorize(CaseEvaluationPermissions.Patients.RevealSsn)]
+    public virtual async Task<SsnRevealDto> GetFullSsnAsync(Guid id)
+    {
+        var isHost = CurrentTenant.Id == null;
+        Patient patient;
+        using (isHost ? _dataFilter.Disable() : null)
+        {
+            patient = await _patientRepository.GetAsync(id);
+        }
+
+        if (!SsnRevealAccess.CanReveal(CurrentUser.Roles, CurrentUser.Id, patient.IdentityUserId))
+        {
+            throw new AbpAuthorizationException("Not authorized to reveal this patient's SSN.");
+        }
+
+        return new SsnRevealDto { SocialSecurityNumber = patient.SocialSecurityNumber };
+    }
+
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
@@ -562,19 +587,9 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- every patient
     // read- AND write-path return now masks SSN to the last 4 for ALL callers
     // (internal staff and the record owner included). The full value crosses
-    // the wire only via GetFullSsnAsync (the audited reveal endpoint), which
-    // uses the two authorization helpers below to gate access.
+    // the wire only via GetFullSsnAsync (the audited reveal endpoint), whose
+    // internal-or-owner authorization lives in the pure SsnRevealAccess helper.
     // See docs/plans/2026-05-29-ssn-redact-on-type.md.
-    private bool IsInternalCallerForSsn()
-    {
-        return BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
-    }
-
-    private bool IsRecordOwnerForSsn(Guid patientIdentityUserId)
-    {
-        return CurrentUser.Id.HasValue && patientIdentityUserId == CurrentUser.Id.Value;
-    }
-
     private void ApplySsnVisibility(PatientDto? dto)
     {
         SsnVisibility.MaskToLast4(dto);

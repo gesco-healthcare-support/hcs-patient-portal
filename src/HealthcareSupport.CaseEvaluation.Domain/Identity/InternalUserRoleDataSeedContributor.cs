@@ -228,6 +228,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             yield return Delete(entity);
         }
 
+        // F1 / Design B (2026-05-29) -- SSN reveal endpoint. Not part of the
+        // standard CRUD loop, so yielded explicitly. Internal staff may reveal
+        // any patient's SSN (verification during intake / review).
+        yield return $"{Group}.Patients.RevealSsn";
+
         yield return Approve("AppointmentDocuments");
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
@@ -310,6 +315,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             yield return Edit(entity);
         }
 
+        // F1 / Design B (2026-05-29) -- SSN reveal endpoint (internal staff
+        // may reveal any patient's SSN). Yielded explicitly; not in the CRUD loop.
+        yield return $"{Group}.Patients.RevealSsn";
+
         // D.1 / W-I-2: AppointmentDocuments full CRUD + Approve (no Delete --
         // hard-delete remains IT-Admin-only).
         yield return Default("AppointmentDocuments");
@@ -388,6 +397,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
         yield return Create("Patients");
         yield return Edit("Patients");
+
+        // F1 / Design B (2026-05-29) -- SSN reveal endpoint (clinic staff
+        // reveal any patient's SSN during phone-in intake / review).
+        yield return $"{Group}.Patients.RevealSsn";
 
         // W2-8 -- the booking-add SPA fires a separate POST per injury
         // draft (multi-injury support per OLD parity, see
