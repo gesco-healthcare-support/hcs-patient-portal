@@ -19547,6 +19547,23 @@
                   }
                 },
                 {
+                  "name": "GetFullSsnAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.Patients.SsnRevealDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.Patients.SsnRevealDto"
+                  }
+                },
+                {
                   "name": "GetStateLookupAsync",
                   "parametersOnMethod": [
                     {
@@ -20260,6 +20277,43 @@
               "returnValue": {
                 "type": "HealthcareSupport.CaseEvaluation.Patients.PatientDto",
                 "typeSimple": "HealthcareSupport.CaseEvaluation.Patients.PatientDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Patients.IPatientsAppService"
+            },
+            "GetFullSsnAsyncById": {
+              "uniqueName": "GetFullSsnAsyncById",
+              "name": "GetFullSsnAsync",
+              "httpMethod": "GET",
+              "url": "api/app/patients/{id}/ssn",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Patients.SsnRevealDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Patients.SsnRevealDto"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Patients.IPatientsAppService"
@@ -52865,6 +52919,28 @@
           "maximum": null,
           "regex": null,
           "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Patients.SsnRevealDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "SocialSecurityNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
