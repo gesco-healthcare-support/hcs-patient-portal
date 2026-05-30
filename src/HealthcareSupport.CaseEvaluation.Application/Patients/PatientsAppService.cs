@@ -367,7 +367,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.ConcurrencyStamp ?? currentPatient.ConcurrencyStamp
         );
 
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize]
@@ -466,7 +466,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
 
         var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Edit)]
@@ -486,7 +486,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         {
             patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
         }
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize]
@@ -522,7 +522,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.ConcurrencyStamp
         );
 
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     private async Task<PatientWithNavigationProperties> GetCurrentPatientWithNavigationAsync()
@@ -559,10 +559,12 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         return current;
     }
 
-    // F4-01 (2026-05-25) -- role-aware SSN redaction. Applied at every
-    // read-path return so external attorneys / claim examiners cannot see
-    // a full SSN they do not own. Internal staff and record owners get
-    // the full value. See docs/plans/2026-05-25-ssn-role-visibility.md.
+    // F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- every patient
+    // read- AND write-path return now masks SSN to the last 4 for ALL callers
+    // (internal staff and the record owner included). The full value crosses
+    // the wire only via GetFullSsnAsync (the audited reveal endpoint), which
+    // uses the two authorization helpers below to gate access.
+    // See docs/plans/2026-05-29-ssn-redact-on-type.md.
     private bool IsInternalCallerForSsn()
     {
         return BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
@@ -575,32 +577,31 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
 
     private void ApplySsnVisibility(PatientDto? dto)
     {
-        if (dto == null)
-        {
-            return;
-        }
-        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.IdentityUserId));
+        SsnVisibility.MaskToLast4(dto);
     }
 
     private void ApplySsnVisibility(PatientWithNavigationPropertiesDto? dto)
     {
-        if (dto?.Patient == null)
-        {
-            return;
-        }
-        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+        SsnVisibility.MaskToLast4(dto);
     }
 
     private void ApplySsnVisibilityToList(IEnumerable<PatientWithNavigationPropertiesDto> dtos)
     {
-        var isInternal = IsInternalCallerForSsn();
         foreach (var dto in dtos)
         {
-            if (dto?.Patient == null)
-            {
-                continue;
-            }
-            SsnVisibility.RedactForCaller(dto, isInternal, IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+            SsnVisibility.MaskToLast4(dto);
         }
+    }
+
+    // F1 / Design B (2026-05-29) -- the write-path returns (Create / Update /
+    // UpdateMyProfile / UpdatePatientForAppointmentBooking) previously echoed
+    // the full SSN to every caller because they mapped straight from the
+    // entity (the F4-01 write-back gap). Mask them on the way out, same as the
+    // read paths.
+    private PatientDto MapToMaskedDto(Patient patient)
+    {
+        var dto = ObjectMapper.Map<Patient, PatientDto>(patient);
+        SsnVisibility.MaskToLast4(dto);
+        return dto;
     }
 }
