@@ -325,6 +325,7 @@
     "Enum:PhoneNumberType.29": "Home",
     "Permission:Patients": "Patients",
     "Permission:RevealSsn": "Reveal SSN",
+    "SsnOnFile": "SSN on file",
     "Patients": "Patients",
     "NewPatient": "New Patient",
     "Patient": "Patient",

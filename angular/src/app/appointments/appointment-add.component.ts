@@ -1403,7 +1403,7 @@ export class AppointmentAddComponent {
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: patient.socialSecurityNumber ?? null,
+          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
           address: patient.address ?? null,
           city: patient.city ?? null,
@@ -1519,7 +1519,7 @@ export class AppointmentAddComponent {
           cellPhoneNumber: profile.patient.cellPhoneNumber ?? null,
           phoneNumber: profile.patient.phoneNumber ?? null,
           phoneNumberTypeId: (profile.patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: profile.patient.socialSecurityNumber ?? null,
+          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: profile.patient.street ?? null,
           address: profile.patient.address ?? null,
           city: profile.patient.city ?? null,
@@ -1637,7 +1637,7 @@ export class AppointmentAddComponent {
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
           phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
-          socialSecurityNumber: patient.socialSecurityNumber ?? null,
+          socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
           street: patient.street ?? null,
           address: patient.address ?? null,
           city: patient.city ?? null,
