@@ -1126,6 +1126,10 @@ export class AppointmentAddComponent {
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
         patientId: rawAfter.patientId ?? '',
+        // G-01-03 / OLD parity (AppointmentDomain.cs:203-218): persist the
+        // returning-patient result the dedup already computed. The server reads
+        // this flag verbatim; without it every booking records a "new" patient.
+        isPatientAlreadyExist: this.currentPatientProfile?.isExisting ?? false,
         identityUserId: rawAfter.identityUserId ?? '',
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
