@@ -651,6 +651,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         ValidateCreateGuids(input);
 
+        // OLD parity (AppointmentDomain.CommonValidation): the patient, applicant
+        // attorney, and defense attorney must each use a distinct email address so
+        // notifications reach the right party.
+        if (AppointmentBookingValidators.HasDuplicateStakeholderEmail(
+                input.PatientEmail, input.ApplicantAttorneyEmail, input.DefenseAttorneyEmail))
+        {
+            throw new UserFriendlyException(L["Appointment:DuplicateStakeholderEmail"]);
+        }
+
         var patient = await _patientRepository.FindAsync(input.PatientId);
         if (patient == null)
         {

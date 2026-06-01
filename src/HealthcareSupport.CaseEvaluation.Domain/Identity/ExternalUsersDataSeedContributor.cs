@@ -232,7 +232,7 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             firstName: user.Name ?? string.Empty,
             lastName: user.Surname ?? string.Empty,
             email: user.Email ?? string.Empty,
-            genderId: Gender.Male,
+            genderId: Gender.Unspecified,
             dateOfBirth: DateTime.UtcNow.Date,
             phoneNumberTypeId: PhoneNumberType.Home);
 

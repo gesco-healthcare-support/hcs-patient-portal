@@ -25,7 +25,7 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 ///         DefenseAttorney (audit G6 OLD-bug-fix).</item>
 ///   <item>OLD parity: FirmEmail auto-derived from Email when not
 ///         supplied (UserDomain.cs:106).</item>
-///   <item>OLD parity: Adjuster role mapped to "Adjuster" (audit G1).</item>
+///   <item>ToRoleName maps each external role to its seeded role-name string.</item>
 ///   <item>Negative cases: null DTO, blank email/password.</item>
 /// </list>
 /// </summary>
@@ -128,10 +128,10 @@ public class ExternalSignupValidatorUnitTests
     }
 
     [Fact]
-    public void ValidateRegistrationInput_AdjusterWithoutFirmName_DoesNotThrow()
+    public void ValidateRegistrationInput_ClaimExaminerWithoutFirmName_DoesNotThrow()
     {
         var dto = ValidPatientDto();
-        dto.UserType = ExternalUserType.Adjuster;
+        dto.UserType = ExternalUserType.ClaimExaminer;
         dto.FirmName = null;
 
         ExternalSignupAppService.ValidateRegistrationInput(dto);
@@ -240,7 +240,6 @@ public class ExternalSignupValidatorUnitTests
     [InlineData(ExternalUserType.ApplicantAttorney, true)]
     [InlineData(ExternalUserType.DefenseAttorney, true)]
     [InlineData(ExternalUserType.Patient, false)]
-    [InlineData(ExternalUserType.Adjuster, false)]
     [InlineData(ExternalUserType.ClaimExaminer, false)]
     public void IsAttorneyRole_RecognizesBothAttorneyEnums(ExternalUserType userType, bool expected)
     {
@@ -248,12 +247,11 @@ public class ExternalSignupValidatorUnitTests
     }
 
     // ------------------------------------------------------------------
-    // ToRoleName -- Adjuster mapping (G1)
+    // ToRoleName -- role-name mapping
     // ------------------------------------------------------------------
 
     [Theory]
     [InlineData(ExternalUserType.Patient, "Patient")]
-    [InlineData(ExternalUserType.Adjuster, "Adjuster")]
     [InlineData(ExternalUserType.ClaimExaminer, "Claim Examiner")]
     [InlineData(ExternalUserType.ApplicantAttorney, "Applicant Attorney")]
     [InlineData(ExternalUserType.DefenseAttorney, "Defense Attorney")]

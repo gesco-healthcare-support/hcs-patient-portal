@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Events;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -110,17 +111,6 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         {
             appointment.InternalUserComments = input.InternalUserComments;
         }
-        var overridden = AppointmentApprovalValidator.ShouldOverridePatientMatch(appointment, input);
-        if (overridden)
-        {
-            // OLD parity (`AppointmentDomain.cs`:217): when the staff
-            // approver overrides the dedup match, the appointment is
-            // treated as a NEW patient. Phase 12 records the decision
-            // by clearing the dedup flag; the actual patient-row split
-            // (creating a new Patient row + relinking) is downstream
-            // work in Session A's manager rewrite.
-            appointment.IsPatientAlreadyExist = false;
-        }
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
         // Delegate the state-machine transition to Session A's manager.
@@ -142,17 +132,15 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             TenantId = approved.TenantId,
             AppointmentTypeId = approved.AppointmentTypeId,
             PrimaryResponsibleUserId = input.PrimaryResponsibleUserId,
-            PatientMatchOverridden = overridden,
             ApprovedByUserId = CurrentUser.Id ?? Guid.Empty,
             OccurredAt = DateTime.UtcNow,
         });
 
         _logger.LogInformation(
-            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId} with responsible {ResponsibleUserId}, override={Override}.",
+            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId} with responsible {ResponsibleUserId}.",
             approved.Id,
             CurrentUser.Id,
-            input.PrimaryResponsibleUserId,
-            overridden);
+            input.PrimaryResponsibleUserId);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(approved);
     }
@@ -189,6 +177,42 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             CurrentUser.Id);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(rejected);
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<AppointmentDto> DirectCancelAppointmentAsync(Guid id, DirectCancelAppointmentInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        // Only the two terminal cancel outcomes are valid for a direct staff
+        // cancel; the UI radio enforces this, but guard the API too.
+        if (input.CancellationOutcome != AppointmentStatusType.CancelledNoBill &&
+            input.CancellationOutcome != AppointmentStatusType.CancelledLate)
+        {
+            throw new UserFriendlyException(L["Appointment:InvalidCancellationOutcome"]);
+        }
+
+        // Delegate the Approved -> CancelledNoBill/Late transition to the manager:
+        // it validates the source state via the state machine, stamps
+        // CancellationReason + CancelledById, and publishes
+        // AppointmentStatusChangedEto. The terminal status frees the slot via the
+        // capacity model. Phase 1 email scope excludes a cancellation notification,
+        // so no email Eto is published here (deferred with the other gated handlers).
+        Appointment cancelled;
+        try
+        {
+            cancelled = await _appointmentManager.DirectCancelAsync(
+                id, input.CancellationOutcome, input.Reason, CurrentUser.Id);
+        }
+        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+
+        _logger.LogInformation(
+            "AppointmentApprovalAppService.DirectCancelAppointmentAsync: appointment {AppointmentId} cancelled ({Outcome}) by {UserId}.",
+            cancelled.Id,
+            input.CancellationOutcome,
+            CurrentUser.Id);
+
+        return ObjectMapper.Map<Appointment, AppointmentDto>(cancelled);
     }
 
     /// <summary>

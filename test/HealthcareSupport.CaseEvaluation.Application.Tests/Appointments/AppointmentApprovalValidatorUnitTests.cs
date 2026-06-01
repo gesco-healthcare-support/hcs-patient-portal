@@ -24,8 +24,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///   <item>EnsureRejectable: missing/whitespace notes, idempotent
 ///     re-rejection (current=Rejected), Pending happy path,
 ///     null-arg defenses.</item>
-///   <item>ShouldOverridePatientMatch: matrix on
-///     <c>(IsPatientAlreadyExist, OverridePatientMatch)</c>.</item>
 /// </list>
 ///
 /// <para>Test appointments are constructed directly via
@@ -188,44 +186,6 @@ public class AppointmentApprovalValidatorUnitTests
         var appointment = NewAppointment(AppointmentStatusType.Pending);
         Should.Throw<ArgumentNullException>(
             () => AppointmentApprovalValidator.EnsureRejectable(appointment, null!));
-    }
-
-    // ------------------------------------------------------------------
-    // ShouldOverridePatientMatch -- matrix
-    // ------------------------------------------------------------------
-
-    [Theory]
-    [InlineData(true, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, false)]
-    public void ShouldOverridePatientMatch_MatrixDecision(
-        bool isPatientAlreadyExist,
-        bool overrideFlag,
-        bool expected)
-    {
-        var appointment = NewAppointment(AppointmentStatusType.Pending);
-        appointment.IsPatientAlreadyExist = isPatientAlreadyExist;
-        var input = new ApproveAppointmentInput
-        {
-            PrimaryResponsibleUserId = Guid.NewGuid(),
-            OverridePatientMatch = overrideFlag,
-        };
-
-        AppointmentApprovalValidator.ShouldOverridePatientMatch(appointment, input).ShouldBe(expected);
-    }
-
-    [Fact]
-    public void ShouldOverridePatientMatch_NullAppointment_ReturnsFalse()
-    {
-        AppointmentApprovalValidator.ShouldOverridePatientMatch(null!, new ApproveAppointmentInput()).ShouldBeFalse();
-    }
-
-    [Fact]
-    public void ShouldOverridePatientMatch_NullInput_ReturnsFalse()
-    {
-        var appointment = NewAppointment(AppointmentStatusType.Pending);
-        AppointmentApprovalValidator.ShouldOverridePatientMatch(appointment, null!).ShouldBeFalse();
     }
 
     // ------------------------------------------------------------------

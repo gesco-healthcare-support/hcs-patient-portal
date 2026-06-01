@@ -37,9 +37,11 @@ No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole
    `api/app/external-users`) handles profile. Both delegate to `ExternalSignupAppService`.
    Controllers are in DIFFERENT directories (`ExternalSignups/` vs `ExternalUsers/`).
 
-3. **Hardcoded Patient defaults** -- `Gender.Male`, `DOB = DateTime.UtcNow.Date`,
-   `PhoneNumberType.Home` are placeholder values set at registration time. Patient profile
-   requires a follow-up update to supply real values from the user.
+3. **Registration Patient stub (G-06-08)** -- `Gender.Unspecified` (the "not provided"
+   sentinel), `DOB = DateTime.MinValue`, and `PhoneNumberType.Home` are placeholders set at
+   registration before demographics are collected. The booking form requires a real Gender +
+   DOB at booking; the booking prefill and read surfaces treat the sentinels as blank rather
+   than surfacing a fabricated value.
 
 4. **`GetExternalUserLookupAsync` may be unprotected** -- No explicit `[Authorize]` or
    `[AllowAnonymous]` attribute. If ABP does not apply a default policy, unauthenticated

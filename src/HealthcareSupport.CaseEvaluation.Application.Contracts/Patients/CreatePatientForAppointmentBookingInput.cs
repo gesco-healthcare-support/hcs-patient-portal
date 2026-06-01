@@ -22,7 +22,10 @@ public class CreatePatientForAppointmentBookingInput
     [StringLength(PatientConsts.EmailMaxLength)]
     public string Email { get; set; } = null!;
 
-    public Gender GenderId { get; set; } = Enum.GetValues<Gender>()[0];
+    // G-06-08 (2026-06-01): default to the explicit "not provided" sentinel
+    // rather than positional [0] (which silently meant Male before Unspecified
+    // was added). The booking form requires a real gender; this governs omission.
+    public Gender GenderId { get; set; } = Gender.Unspecified;
 
     public DateTime DateOfBirth { get; set; }
 

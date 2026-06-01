@@ -27,11 +27,12 @@ import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
+import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 
-type TransitionAction = 'approve' | 'reject';
+type TransitionAction = 'approve' | 'reject' | 'cancel';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -121,6 +122,7 @@ type ApplicantAttorneyLookupResult = {
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
+    CancelAppointmentModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     SsnInputComponent,
@@ -139,6 +141,7 @@ export class AppointmentViewComponent implements OnInit {
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
+  cancelModalVisible = false;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -523,23 +526,30 @@ export class AppointmentViewComponent implements OnInit {
     const status = this.currentStatus;
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      !this.isPatientUser && status === AppointmentStatusType.Pending
+      // Pending shows Approve/Reject; Approved shows the G-02-05 direct Cancel.
+      // Server [Authorize(Appointments.*)] gates remain authoritative.
+      !this.isPatientUser &&
+      (status === AppointmentStatusType.Pending || status === AppointmentStatusType.Approved)
     );
   }
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending: approve | reject  (OLD parity -- no send-back path)
+   *  Pending:  approve | reject  (OLD parity -- no send-back path)
+   *  Approved: cancel            (G-02-05 one-step staff cancel)
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
       return ['approve', 'reject'];
     }
+    if (status === AppointmentStatusType.Approved) {
+      return ['cancel'];
+    }
     return [];
   }
 
-  /** Triggered when the office clicks Approve or Reject in the toolbar. */
+  /** Triggered when the office clicks Approve, Reject, or Cancel in the toolbar. */
   dispatchAction(action: TransitionAction): void {
     if (!this.appointment?.appointment?.id) {
       return;
@@ -550,6 +560,9 @@ export class AppointmentViewComponent implements OnInit {
         break;
       case 'reject':
         this.rejectModalVisible = true;
+        break;
+      case 'cancel':
+        this.cancelModalVisible = true;
         break;
     }
   }

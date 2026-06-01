@@ -205,6 +205,22 @@ public class AppointmentManager : DomainService
     public virtual Task<Appointment> RequestRescheduleAsync(Guid id, string? reason, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.RequestReschedule, reason, actingUserId);
 
+    /// <summary>
+    /// G-02-05 (2026-06-01) -- one-step internal-staff cancel of an Approved
+    /// appointment. Maps the chosen NoBill/Late outcome to the matching
+    /// direct-cancel trigger; the transition stamps CancellationReason +
+    /// CancelledById and frees the slot via the capacity model. Mirrors OLD's
+    /// internal-user CancelledNoBill path (AppointmentDomain.Update), which did
+    /// not require a patient/attorney change request. Permitted from Approved only.
+    /// </summary>
+    public virtual Task<Appointment> DirectCancelAsync(Guid id, AppointmentStatusType outcome, string? reason, Guid? actingUserId)
+    {
+        var trigger = outcome == AppointmentStatusType.CancelledLate
+            ? AppointmentTransitionTrigger.DirectCancelLate
+            : AppointmentTransitionTrigger.DirectCancel;
+        return TransitionAsync(id, trigger, reason, actingUserId);
+    }
+
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);
@@ -257,6 +273,16 @@ public class AppointmentManager : DomainService
             appointment.RejectionNotes = reason;
             appointment.RejectedById = actingUserId;
         }
+        else if (trigger == AppointmentTransitionTrigger.DirectCancel
+            || trigger == AppointmentTransitionTrigger.DirectCancelLate)
+        {
+            // G-02-05 (OLD AppointmentDomain.Update:537-550): a one-step staff
+            // cancel stamps the reason + actor. The terminal CancelledNoBill/Late
+            // status drops the appointment from the slot's active count, freeing
+            // capacity (Business Rule 4) -- no slot write needed.
+            appointment.CancellationReason = reason;
+            appointment.CancelledById = actingUserId;
+        }
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
@@ -294,6 +320,8 @@ public class AppointmentManager : DomainService
         machine.Configure(AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.RequestReschedule, AppointmentStatusType.RescheduleRequested)
+            .Permit(AppointmentTransitionTrigger.DirectCancel, AppointmentStatusType.CancelledNoBill)
+            .Permit(AppointmentTransitionTrigger.DirectCancelLate, AppointmentStatusType.CancelledLate)
             .Permit(AppointmentTransitionTrigger.MarkNoShow, AppointmentStatusType.NoShow)
             .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
 

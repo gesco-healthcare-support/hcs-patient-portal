@@ -45,6 +45,13 @@ public class AppointmentApprovalController : AbpController
         return _appointmentApprovalAppService.RejectAppointmentAsync(id, input);
     }
 
+    [HttpPost]
+    [Route("{id}/cancel")]
+    public virtual Task<AppointmentDto> DirectCancelAppointmentAsync(Guid id, [FromBody] DirectCancelAppointmentInput input)
+    {
+        return _appointmentApprovalAppService.DirectCancelAppointmentAsync(id, input);
+    }
+
     [HttpGet]
     [Route("internal-user-lookup")]
     public virtual Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(
