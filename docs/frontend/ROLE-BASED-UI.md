@@ -1,16 +1,18 @@
 # Role-Based UI
 
+> Purpose: Describes how the app selects layout and content based on user role. Audience: frontend developer. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Frontend](./) > Role-Based UI
 
 ## Overview
 
-The application renders different UI layouts and content based on the current user's role. The primary distinction is between **external users** (Patient, Applicant Attorney, Defense Attorney) who see a simplified portal, and **internal/admin users** who see the full ABP management interface with LeptonX sidebar navigation.
+The application renders different UI layouts and content based on the current user's role. The primary distinction is between **external users** (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) who see a simplified portal, and **internal/admin users** who see the full ABP management interface with LeptonX sidebar navigation.
 
 ## External vs Internal Users
 
 | Aspect | External Users | Internal/Admin Users |
 |--------|---------------|---------------------|
-| Roles | Patient, Applicant Attorney, Defense Attorney | Admin, and any role without external designation |
+| Roles | Patient, Applicant Attorney, Defense Attorney, Claim Examiner | Admin, and any role without external designation |
 | Sidebar | Hidden | Visible (LeptonX side menu) |
 | Topbar | Hidden (LeptonX), replaced by `TopHeaderNavbarComponent` | Visible (LeptonX topbar) |
 | Content width | Full width (no sidebar margin) | Standard width with sidebar offset |
@@ -24,11 +26,12 @@ The application renders different UI layouts and content based on the current us
 Role detection happens in the root `AppComponent` and runs on every `NavigationEnd` event:
 
 ```typescript
+// import at top of app.component.ts
+import { hasAnyExternalRole } from './shared/auth/external-user-roles';
+
 private updatePatientRoleClass(): void {
-  const currentUser = this.configState.getOne('currentUser');
-  const roles = (currentUser?.roles ?? []).map(role => role.toLowerCase().trim());
-  const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-  const isExternalUser = externalUserRoles.some(role => roles.includes(role));
+  const currentUser = this.configState.getOne('currentUser') as { roles?: string[] } | null;
+  const isExternalUser = hasAnyExternalRole(currentUser?.roles ?? []);
 
   document.body.classList.toggle('externaluser-role', isExternalUser);
   document.documentElement.classList.toggle('externaluser-role', isExternalUser);
@@ -37,28 +40,31 @@ private updatePatientRoleClass(): void {
 ```
 
 - Uses ABP `ConfigStateService` to read `currentUser.roles` from the application configuration
-- Checks if any role matches the external user roles list (case-insensitive)
+- Delegates role classification to `hasAnyExternalRole()` from `shared/auth/external-user-roles.ts` -- the canonical role list lives there (4 entries: patient, applicant attorney, defense attorney, claim examiner); `app.component.ts` holds no inline role array
+- `hasAnyExternalRole` returns true when at least one role is external (case-insensitive, trimmed); a mixed internal+external user therefore gets the sidebar-hidden layout
 - Toggles CSS classes on both `<body>` and `<html>` elements
 - Directly manipulates DOM elements to hide/show sidebar and expand content
 
 ### HomeComponent (home.component.ts)
 
-The home page also performs role detection for rendering:
+The home page performs role detection for rendering:
 
 ```typescript
+/** Patient, Applicant Attorney, Defense Attorney, and Claim Examiner share the same layout. */
 get isPatientUser(): boolean {
   if (!this.hasLoggedIn) return false;
   const roles = this.currentUser?.roles ?? [];
-  const externalUserRoles = ['patient', 'applicant attorney', 'defense attorney'];
-  return roles.some(role => externalUserRoles.includes(role?.toLowerCase() ?? ''));
-}
-
-private get isAttorneyUser(): boolean {
-  const roles = this.currentUser?.roles ?? [];
-  const attorneyRoles = ['applicant attorney', 'defense attorney'];
-  return roles.some(role => attorneyRoles.includes(role?.toLowerCase() ?? ''));
+  const externalUserRoles = new Set([
+    'patient',
+    'applicant attorney',
+    'defense attorney',
+    'claim examiner',
+  ]);
+  return roles.some(role => externalUserRoles.has(role?.toLowerCase() ?? ''));
 }
 ```
+
+`HomeComponent` does not import the shared utility directly; it maintains a local 4-entry `Set` that mirrors `EXTERNAL_USER_ROLES`. There is no separate `isAttorneyUser` getter -- attorney-specific appointment filtering was removed when the server-side S-NEW-2 visibility filter was introduced (see "Appointment Filtering by Role" below).
 
 ## CSS Class Toggles
 
@@ -133,7 +139,7 @@ Used in:
 flowchart TD
     START[User navigates to page] --> AUTH{Is user<br/>authenticated?}
     AUTH -->|No| UNAUTH[Show login/register<br/>landing page<br/>with ABP page layout]
-    AUTH -->|Yes| ROLE{User has role:<br/>Patient, Applicant Attorney,<br/>or Defense Attorney?}
+    AUTH -->|Yes| ROLE{User has role:<br/>Patient, Applicant Attorney,<br/>Defense Attorney, or Claim Examiner?}
     ROLE -->|Yes - External| EXT_SETUP[Apply externaluser-role class<br/>Hide sidebar + LeptonX topbar<br/>Show TopHeaderNavbar]
     ROLE -->|No - Admin/Internal| ADMIN_SETUP[Standard LeptonX layout<br/>Show sidebar + topbar<br/>Full admin navigation]
 
@@ -147,13 +153,11 @@ flowchart TD
     ADMIN_HOME -->|Home /| ADMIN_LANDING[Show admin landing:<br/>- ABP getting started page<br/>- or dashboard link]
     ADMIN_HOME -->|Any admin route| ADMIN_PAGE[Show full management<br/>interface with sidebar<br/>navigation]
 
-    subgraph "External User - Attorney Specific"
-        ATT_CHECK{Is Attorney role?}
-        ATT_CHECK -->|Yes| ATT_FILTER[Filter appointments by<br/>accessorIdentityUserId]
-        ATT_CHECK -->|No - Patient| PAT_FILTER[Filter appointments by<br/>identityUserId]
+    subgraph "External User - Appointment Visibility"
+        SRV_FILTER[Server S-NEW-2 filter:<br/>appointments where caller is<br/>booker, patient, attorney link,<br/>or claim examiner email]
     end
 
-    EXT_HOME_PAGE --> ATT_CHECK
+    EXT_HOME_PAGE --> SRV_FILTER
 ```
 
 ## HomeComponent Rendering by Role
@@ -165,7 +169,7 @@ Shows a simple landing page wrapped in `<abp-page>`:
 - "Click to login or register" message
 - Login button that calls `authService.navigateToLogin()`
 
-### Patient / Attorney Users (`isPatientUser === true`)
+### Patient / Attorney / Claim Examiner Users (`isPatientUser === true`)
 
 Shows the external user portal:
 
@@ -188,21 +192,9 @@ Shows the standard ABP landing page within `<abp-page>`. If not logged in, shows
 
 ## Appointment Filtering by Role
 
-In `HomeComponent.ngOnInit()`:
+Client-side role-based filtering (previously keyed on an `isAttorneyUser` getter that set `accessorIdentityUserId` or `identityUserId`) was removed. The server's S-NEW-2 visibility filter now narrows the appointment list to records where the caller is involved -- as the booker, the patient, an applicant/defense attorney link, or a claim examiner email match. This covers the union of all involvement modes without requiring the client to distinguish roles.
 
-```typescript
-if (this.isAttorneyUser) {
-  // Attorneys see appointments where they are an accessor
-  this.service.filters.accessorIdentityUserId = currentUserId;
-} else {
-  // Patients see their own appointments
-  this.service.filters.identityUserId = currentUserId;
-}
-```
-
-This ensures:
-- **Patients** see only appointments where they are the patient (`identityUserId` match)
-- **Attorneys** see appointments where they have been granted access (`accessorIdentityUserId` match via `AppointmentAccessor`)
+`HomeComponent.ngOnInit()` calls `this.service.hookToQuery()` unconditionally once `isPatientUser` is confirmed true; no per-role filter is pre-set on the client.
 
 ## Patient Self-Service Routes
 

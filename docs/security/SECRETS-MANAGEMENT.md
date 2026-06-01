@@ -2,7 +2,9 @@
 
 # Secrets Management
 
-> For known security vulnerabilities and remediation status, see [Security Issues](../issues/SECURITY.md).
+> Purpose: Inventory of secrets, injection points, and operator setup requirements. Audience: developers and operators. Last verified: 2026-06-01 vs main.
+
+> For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 
 Inventory of where secrets live, how they are injected, and what is expected of operators. Active remediation items (SEC-01 secret rotation) are tracked in the linked issues file.
 
@@ -22,7 +24,7 @@ Inventory of where secrets live, how they are injected, and what is expected of 
 | SQL connection strings | `appsettings.Local.json` | Environment variable `ConnectionStrings__Default` | gitignored |
 | Kestrel cert password (Docker dev) | `.env` interpolated in compose | Not applicable in cloud (TLS termination at load balancer) | `.env` gitignored |
 
-**Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](../issues/SECURITY.md#sec-01-secrets-committed-to-source-control).
+**Historical exposure:** SEC-01 documents that the string encryption passphrase, PFX cert password, SQL SA password, and Kestrel cert password were previously committed to source in plaintext. These have been replaced with placeholders / env var references, **but the original values remain in git history**. See [SEC-01 remediation](THREAT-MODEL.md).
 
 ---
 
@@ -72,7 +74,7 @@ Secrets must be injected via environment variables or a cloud secret store. Appl
 
 ## Related Documents
 
-- [SEC-01 Secrets in Source Control](../issues/SECURITY.md#sec-01-secrets-committed-to-source-control)
+- [SEC-01 Secrets in Source Control](THREAT-MODEL.md)
 - [Threat Model: AuthServer component](THREAT-MODEL.md#component-3-authserver-port-44368)
 - [HIPAA Compliance](HIPAA-COMPLIANCE.md)
 - [CI Workflow](../../.github/workflows/ci.yml)

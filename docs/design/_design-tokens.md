@@ -13,11 +13,13 @@ old-source-roots:
   - P:\PatientPortalOld\patientappointment-portal\src\assets\theme\css\demo-longacre.css
   - P:\PatientPortalOld\patientappointment-portal\src\assets\theme\css\demo-pelton.css
 cross-reference:
-  - docs/parity/_branding.md  # full brand-token surface + per-feature touchpoints
+  - docs/parity/_branding.md  # full brand-token surface + per-feature touchpoints (file not yet created)
 strict-parity: true
 ---
 
 # Design tokens -- OLD-anchored visual contract
+
+> Purpose: Single source of truth for the runtime CSS-variable contract every Phase 1 feature consumes. Audience: frontend engineer. Last verified: 2026-06-01 vs main.
 
 Single source of truth for the **runtime CSS-variable contract** every Phase 1
 feature consumes. Captures OLD's literal color, typography, spacing,
@@ -27,7 +29,7 @@ docs can refer to one canonical set rather than re-derive them per page.
 **Strict-parity directive:** internal pages keep OLD's exact visual
 contract. External-user-facing pages parameterize the **brand layer**
 (primary color, logo, clinic name, support contact) per
-`docs/parity/_branding.md` Section A; everything else stays verbatim.
+`docs/parity/_branding.md` Section A (file not yet created); everything else stays verbatim.
 
 > Read order: this doc -> `_shell-layout.md` -> `_components.md` ->
 > per-feature `<feature>-design.md`. Per-feature docs cite tokens by
@@ -59,52 +61,70 @@ These three vary across OLD's three theme files. NEW exposes them as
 `--brand-*` runtime variables so the same Angular bundle re-themes per
 tenant without rebuild.
 
-| Token | OLD value(s) | OLD source | NEW CSS var |
+| Token | OLD value(s) | OLD source | NEW CSS var (deployed in `_brand.scss`) |
 |---|---|---|---|
-| Primary | `#06519f` (deep blue) -- all 3 themes | `demo-falkinstein.css`:40-41, `demo-longacre.css`:42-43, `demo-pelton.css`:41-42 | `--brand-primary` |
-| Primary text-on-light | `#005494` | `demo-falkinstein.css`:323, 327, 331; `demo-pelton.css`:325, 329, 333 | `--brand-primary-text` |
-| Primary focus shadow | `rgba(0, 84, 148, 0.3)` (inset) | `demo-falkinstein.css`:359-361 | `--brand-primary-focus-shadow` |
-| Primary focus border | `rgba(0, 84, 148, 0.5)` | `demo-falkinstein.css`:359 | `--brand-primary-focus-border` |
+| Primary | `#06519f` (deep blue) -- all 3 themes (spec); deployed as `#055495` | `demo-falkinstein.css`:40-41, `demo-longacre.css`:42-43, `demo-pelton.css`:41-42 | `--brand-primary: #055495` |
+| Primary hover | `#005494` | `demo-falkinstein.css`:323, 327, 331 | `--brand-primary-hover: #005494` |
+| Accent | `#9dc13b` | form-field icons (OLD `styles.css`) | `--brand-accent: #9dc13b` |
+| Active button state | `#006ffc` | active button OLD source | `--brand-button-active: #006ffc` |
+| Inline link / edit | `#00a2dc` | OLD edit link color | `--brand-link: #00a2dc` |
+| Error / delete | `#fe5a5b` | OLD delete action color | `--brand-error: #fe5a5b` |
+| Primary focus shadow | `rgba(0, 84, 148, 0.3)` (inset) | `demo-falkinstein.css`:359-361 | spec only / not built (`--brand-primary-focus-shadow` not in `_brand.scss`) |
+| Primary focus border | `rgba(0, 84, 148, 0.5)` | `demo-falkinstein.css`:359 | spec only / not built (`--brand-primary-focus-border` not in `_brand.scss`) |
 
-OLD's `Longacre` theme overrides `text-primary` to `#06519f` (matches the
-primary), while `Falkinstein` and `Pelton` use `#005494` -- a 6%-darker
-hue. NEW collapses both to `--brand-primary-text` and lets each tenant
-override.
+Note on primary value: the OLD theme files use `#06519f`; `_brand.scss` (deployed)
+uses `#055495` (a slightly darker value from `P:\PatientPortalOld\patientappointment-portal\src\styles.css`
+verified 2026-05-03). The spec value `#06519f` was never deployed. `--brand-primary-text`
+was renamed `--brand-primary-hover` in the implementation.
 
 ### Status / semantic colors (shared across all OLD themes)
 
-| Token | OLD value | OLD source | NEW CSS var |
+| Token | OLD value | OLD source | NEW CSS var (deployed in `_brand.scss`) |
 |---|---|---|---|
-| Success | `#51a351` | `rx-control-design/toast.css`:66 | `--color-success` |
-| Danger | `#bd362f` (toast) / `#e6514a` (button) | `toast.css`:95, `demo-falkinstein.css`:309 | `--color-danger`, `--color-danger-button` |
-| Warning | `#f89406` | `toast.css`:103 | `--color-warning` |
-| Info | `#2f96b4` | `toast.css`:110 | `--color-info` |
+| Success | `#51a351` | `rx-control-design/toast.css`:66 | spec only / not built (`--color-success` not in `_brand.scss`) |
+| Danger | `#bd362f` (toast) / `#e6514a` (button) | `toast.css`:95, `demo-falkinstein.css`:309 | spec only / not built (`--color-danger`, `--color-danger-button` not in `_brand.scss`) |
+| Warning | `#f89406` | `toast.css`:103 | spec only / not built (`--color-warning` not in `_brand.scss`) |
+| Info | `#2f96b4` | `toast.css`:110 | spec only / not built (`--color-info` not in `_brand.scss`) |
 
-These four are HTML-attribute baked across all rx-toast / rx-dialog
-flows. Per-feature design docs cite them as `--color-*`.
+These four OLD values are accurate and must be implemented when toast/dialog components
+are built. The planned CSS variable names (`--color-success` etc.) have not yet been added
+to `_brand.scss`. Per-feature design docs SHOULD cite them as `--color-*` for Phase 19b
+implementation; they are not yet available as runtime variables.
+
+### Sidebar colors (deployed in `_brand.scss`)
+
+| Token | Deployed value | Usage | NEW CSS var |
+|---|---|---|---|
+| Sidebar bg level 0 | `#0a4778` | Sidenav background | `--brand-sidebar-bg` |
+| Sidebar bg level 1 | `#0a3354` | Sidenav nested level 1 | `--brand-sidebar-bg-2` |
+| Sidebar bg level 2 | `#0b3a60` | Sidenav nested level 2 | `--brand-sidebar-bg-3` |
 
 ### Neutral grayscale (shared across all OLD themes)
 
-| Token | OLD value | Usage in OLD | NEW CSS var |
-|---|---|---|---|
-| Body text | `#333` | `dialog.css`:41 (modal body) | `--text-body` |
-| Heading / dialog header | `#414c55` | `dialog.css`:7 | `--text-heading` |
-| Muted text | `#666` | `demo-falkinstein.css`:193, 306 | `--text-muted` |
-| Disabled / placeholder text | `#999` | `vendor/app.css`:51, datepicker arrows `datepicker.css`:27, 90 | `--text-disabled` |
-| Inactive nav text | `#a3a4a6` | `demo-falkinstein.css`:316, 320 | `--text-inactive` |
-| Code-snippet inline | `#c7254e` | `demo-falkinstein.css`:189 | `--text-code` |
-| Border light | `#eee` | `demo-falkinstein.css`:274, 334-336, 338 | `--border-light` |
-| Background body | `#fff` | universal | `--bg-body` |
-| Background sidenav (light layout) | `#fff` | implied via theme `default-style` | `--bg-sidenav` |
-| Background card | `#fff` | `demo-falkinstein.css`:267, 303 | `--bg-card` |
-| Background hover light | `#f7f7f7` | `vendor/app.css`:7 (login form) | `--bg-hover-light` |
+Deployed names in `_brand.scss` differ from the original spec names. Both columns shown.
+
+| Token | OLD value | Usage in OLD | Spec CSS var (not built) | Deployed CSS var (`_brand.scss`) |
+|---|---|---|---|---|
+| Body text / primary text | `#333` | `dialog.css`:41 (modal body) | `--text-body` | `--brand-text-primary: #333333` |
+| Heading / dialog header | `#414c55` | `dialog.css`:7 | `--text-heading` | spec only / not built |
+| Muted / secondary text | `#666` | `demo-falkinstein.css`:193, 306 | `--text-muted` | `--brand-text-secondary: #666666` |
+| Disabled / placeholder text | `#999` | `vendor/app.css`:51, `datepicker.css`:27, 90 | `--text-disabled` | `--brand-text-muted: #969696` (nearest deployed; value differs) |
+| Inactive nav text | `#a3a4a6` | `demo-falkinstein.css`:316, 320 | `--text-inactive` | spec only / not built |
+| Code-snippet inline | `#c7254e` | `demo-falkinstein.css`:189 | `--text-code` | spec only / not built |
+| Border / divider light | `#eee` | `demo-falkinstein.css`:274, 334-336, 338 | `--border-light` | `--brand-divider: #eeeeee` |
+| Form input background | n/a (OLD inline) | form fields | n/a | `--brand-input-bg: #f4f4f4` |
+| Form input border | `#ccc` (Bootstrap 4 default) | form fields | n/a | `--brand-input-border: #cccccc` |
+| Background body | `#fff` | universal | `--bg-body` | spec only / not built |
+| Background sidenav (light layout) | `#fff` | implied via theme `default-style` | `--bg-sidenav` | spec only / not built (sidebar uses `--brand-sidebar-bg` dark color) |
+| Background card | `#fff` | `demo-falkinstein.css`:267, 303 | `--bg-card` | spec only / not built |
+| Background hover light | `#f7f7f7` | `vendor/app.css`:7 (login form) | `--bg-hover-light` | spec only / not built |
 
 ### Accent secondaries (shared across all OLD themes -- NOT per-tenant)
 
 These three appear in feature tiles / dashboard cards. NEW keeps them
-shared.
+shared. They are spec only / not built in `_brand.scss` (Phase 19b target).
 
-| Token | OLD value | Usage | NEW CSS var |
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | Slate | `#607d8b` | dashboard tile bg, `demo-falkinstein.css`:211, 300 | `--color-slate` |
 | Teal | `#3ca99e` | dashboard tile bg, `demo-falkinstein.css`:218 | `--color-teal` |
@@ -112,7 +132,9 @@ shared.
 
 ### Overlay / scrim
 
-| Token | OLD value | Usage | NEW CSS var |
+These are spec only / not built in `_brand.scss` (Phase 19b target).
+
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | Modal scrim | `rgba(0,0,0,.5)` | `dialog.css`:13 | `--scrim-modal` |
 | Image overlay (login) | `rgba(0,0,0,.25)` (`bg-dark opacity-25`) | `login.component.html`:3 | `--scrim-image` |
@@ -120,38 +142,47 @@ shared.
 
 ## Typography tokens
 
-| Token | OLD value | OLD source | NEW CSS var |
-|---|---|---|---|
-| Font family base | `Roboto, "Segoe UI", "Lucida Grande", Verdana, Arial, Helvetica, sans-serif` | `index.html`:10 + `dialog.css`:8 | `--font-family-base` |
-| Font weight light | `300` | Roboto link | `--fw-light` |
-| Font weight normal | `400` | Roboto link | `--fw-normal` |
-| Font weight medium | `500` | Roboto link, `vendor/app.css`:46 (sidebar nav-link) | `--fw-medium` |
-| Font weight bold | `700` | Roboto link, `app.css`:24 (.btn) | `--fw-bold` |
-| Font weight black | `900` | Roboto link | `--fw-black` |
-| Font size base | `1rem` (16px -- Bootstrap 4 default) | not overridden | `--fs-base` |
-| Font size sm (sidebar heading) | `.75rem` (uppercase) | `vendor/app.css`:64 | `--fs-sm` |
-| Font size dialog header | `13px` | `dialog.css`:23 | `--fs-dialog-header` |
-| Font size login button | `15px` | `vendor/app.css`:23 | `--fs-button-login` |
-| Font size socal-label | `.894rem` | `demo-falkinstein.css`:46 | `--fs-label` |
-| Font size app-brand-text | `1.1rem` | `demo-falkinstein.css`:71 | `--fs-app-brand` |
-| Font size dialog title | `20px/24px` | `dialog.css`:8 | `--fs-dialog-title`, `--lh-dialog-title` |
-| Font size toast message | `14px` (default) / 18px title | `toast.css`:166 | `--fs-toast`, `--fs-toast-title` |
-| Line height tight | `1.2` (Bootstrap 4 default) | -- | `--lh-tight` |
-| Line height base | `1.5` (Bootstrap 4 default) | -- | `--lh-base` |
-| Login button line-height (forced override) | `40px` | `demo-falkinstein.css`:20 | `--lh-button-pull-right` |
+Deployed names in `_brand.scss` use `--brand-font-*` prefixes. Spec names (`--font-family-base`,
+`--fw-*`, `--fs-*`, `--lh-*`) are not in `_brand.scss` and are spec only / not built.
+
+| Token | OLD value | OLD source | Spec CSS var (not built) | Deployed CSS var (`_brand.scss`) |
+|---|---|---|---|---|
+| Font family base | `Roboto, "Segoe UI", "Lucida Grande", Verdana, Arial, Helvetica, sans-serif` | `index.html`:10 + `dialog.css`:8 | `--font-family-base` | `--brand-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif` |
+| Font weight light | `300` | Roboto link | `--fw-light` | spec only / not built |
+| Font weight normal | `400` | Roboto link | `--fw-normal` | spec only / not built |
+| Font weight medium | `500` | Roboto link, `vendor/app.css`:46 (sidebar nav-link) | `--fw-medium` | spec only / not built |
+| Font weight bold | `700` | Roboto link, `app.css`:24 (.btn) | `--fw-bold` | spec only / not built |
+| Font weight black | `900` | Roboto link | `--fw-black` | spec only / not built |
+| Font size xs | `12px` | OLD form labels (small) | n/a | `--brand-font-size-xs: 12px` |
+| Font size sm | `13px` | `dialog.css`:23 (dialog header) | `--fs-sm` / `--fs-dialog-header` | `--brand-font-size-sm: 13px` |
+| Font size base | `14px` (labels and body) | OLD body copy | `--fs-base` (spec was 1rem/16px) | `--brand-font-size-base: 14px` |
+| Font size md | `16px` | form fields (most pages) | n/a | `--brand-font-size-md: 16px` |
+| Font size lg | `18px` | login form fields | `--fs-toast-title` (18px toast title shared) | `--brand-font-size-lg: 18px` |
+| Font size button (login) | `22px` | primary login button OLD | `--fs-button-login` (spec was 15px -- value differs) | `--brand-font-size-button: 22px` |
+| Font size socal-label | `.894rem` | `demo-falkinstein.css`:46 | `--fs-label` | spec only / not built |
+| Font size app-brand-text | `1.1rem` | `demo-falkinstein.css`:71 | `--fs-app-brand` | spec only / not built |
+| Font size dialog title | `20px/24px` | `dialog.css`:8 | `--fs-dialog-title`, `--lh-dialog-title` | spec only / not built |
+| Font size toast message | `14px` / 18px title | `toast.css`:166 | `--fs-toast`, `--fs-toast-title` | spec only / not built |
+| Line height tight | `1.2` (Bootstrap 4 default) | -- | `--lh-tight` | spec only / not built |
+| Line height base | `1.5` (Bootstrap 4 default) | -- | `--lh-base` | spec only / not built |
+| Login button line-height | `40px` | `demo-falkinstein.css`:20 | `--lh-button-pull-right` | spec only / not built |
 
 OLD references the system fallback chain `'Segoe UI','Lucida Grande',Verdana`
 inside `dialog.css`:8 only -- the rest of the app inherits the body's
-Roboto. NEW keeps the system fallback chain in `--font-family-base` so
-dialogs render with the same fallback if Roboto fails to load.
+Roboto. The deployed `--brand-font-family` uses a shorter fallback chain
+(`'Helvetica Neue', Arial, sans-serif`) which matches Phase 19a scope.
+Phase 19b should add the full dialog fallback chain if needed.
 
 ## Spacing tokens
 
 OLD uses Bootstrap 4's `rem` scale for most components plus a handful of
-custom values. NEW exposes the seen values as a token scale; per-feature
-docs cite by name.
+custom values. These are spec only / not built in `_brand.scss` (Phase 19b target).
+Use Bootstrap 4 utility classes or inline values until they are added.
 
-| Token | OLD value | OLD source | NEW CSS var |
+Deployed layout dimensions (in `_brand.scss`): `--brand-sidebar-width: 282px`,
+`--brand-sidebar-width-collapsed: 70px`, `--brand-navbar-height: 86px`.
+
+| Token | OLD value | OLD source | Spec CSS var (not built) |
 |---|---|---|---|
 | Space xxs | `.25rem` (4px) | `demo-falkinstein.css`:128 | `--space-xxs` |
 | Space xs | `.375rem` (6px) | `demo-falkinstein.css`:154 | `--space-xs` |
@@ -168,7 +199,9 @@ docs cite by name.
 
 ## Border-radius tokens
 
-| Token | OLD value | Usage | NEW CSS var |
+These are spec only / not built in `_brand.scss` (Phase 19b target).
+
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | Radius sm | `2px` | form-control + btn (`vendor/app.css`:18), layout-example-block (`demo-falkinstein.css`:187) | `--radius-sm` |
 | Radius md | `3px` | toast-card (`toast.css`:139), alertbox (`dialog.css`:36) | `--radius-md` |
@@ -176,12 +209,14 @@ docs cite by name.
 | Radius pill | `50%` | app-brand-logo (`demo-falkinstein.css`:56), avatar | `--radius-pill` |
 
 OLD's button + form-control radius is `2px` -- noticeably tighter than
-Bootstrap 4's default `0.25rem`. NEW preserves OLD's value via
-`--radius-sm` so external pages keep the OLD look.
+Bootstrap 4's default `0.25rem`. NEW must preserve OLD's value via
+`--radius-sm` once Phase 19b adds it.
 
 ## Box-shadow tokens
 
-| Token | OLD value | Usage | NEW CSS var |
+These are spec only / not built in `_brand.scss` (Phase 19b target).
+
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | Shadow login form | `0px 2px 2px 2px rgba(0, 0, 0, 0.3)` | `vendor/app.css`:8 | `--shadow-login-form` |
 | Shadow modal | `0 4px 23px 5px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.15)` | `dialog.css`:40 | `--shadow-modal` |
@@ -194,9 +229,11 @@ Bootstrap 4's default `0.25rem`. NEW preserves OLD's value via
 ## Breakpoints (Bootstrap 4 -- shared)
 
 OLD does not override Bootstrap 4's media-query map. NEW preserves the
-exact values; per-feature docs cite breakpoint names.
+exact values; per-feature docs cite breakpoint names. Note: `--bp-*` CSS
+variables are spec only / not built in `_brand.scss` -- use SCSS `$breakpoint-*`
+variables or Angular CDK breakpoints until Phase 19b adds them.
 
-| Token | OLD value | NEW CSS var |
+| Token | OLD value | Spec CSS var (not built) |
 |---|---|---|
 | Breakpoint sm | `576px` | `--bp-sm` |
 | Breakpoint md | `768px` | `--bp-md` |
@@ -208,16 +245,20 @@ collapses); see `demo-falkinstein.css`:94-99 (`@media (min-width: 992px)`).
 
 ## Z-index tokens
 
-| Token | OLD value | Usage | NEW CSS var |
+These are spec only / not built in `_brand.scss` (Phase 19b target).
+
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | z dialog | `9999` | `dialog.css`:24 | `--z-dialog` |
 | z sidebar (in `vendor/app.css` shell) | `100` | `vendor/app.css`:31 | `--z-sidebar` |
-| z toast | implied above dialog | -- | `--z-toast` (NEW: `10000`) |
-| z popup | implied below dialog | `popup.css` | `--z-popup` (NEW: `9000`) |
+| z toast | implied above dialog | -- | `--z-toast` (planned: `10000`) |
+| z popup | implied below dialog | `popup.css` | `--z-popup` (planned: `9000`) |
 
 ## Motion tokens
 
-| Token | OLD value | Usage | NEW CSS var |
+These are spec only / not built in `_brand.scss` (Phase 19b target).
+
+| Token | OLD value | Usage | Spec CSS var (not built) |
 |---|---|---|---|
 | Transition modal scale | `all 0.5s ease-in-out` | `dialog.css`:63 | `--motion-modal` |
 | Transition opacity | `200ms opacity` | `dialog.css`:12 | `--motion-opacity` |
@@ -225,115 +266,76 @@ collapses); see `demo-falkinstein.css`:94-99 (`@media (min-width: 992px)`).
 
 ## NEW implementation contract (`angular/src/styles/_brand.scss`)
 
-The same `_brand.scss` file referenced from `_branding.md` Section
-"Brand-token surface model" is the runtime carrier. Concrete
-declaration template:
+`angular/src/styles/_brand.scss` is the runtime carrier (Phase 19a, verified 2026-06-01 vs main).
+The block below is the ACTUAL deployed content. Variables in the "spec only / not built"
+column of the tables above (e.g. `--color-success`, `--text-body`, `--fw-light`, `--space-*`,
+`--radius-*`, `--shadow-*`, `--z-*`, `--motion-*`) are NOT in this file and will be added
+in Phase 19b.
 
 ```scss
+// Brand tokens -- ground truth from OLD Patient Portal at P:\PatientPortalOld
+//
+// Phase 19a (CSS variables + typography only).
+// Phase 19b will map these onto LeptonX's --lpx-* variables and customize the
+// AuthServer login layout.
+
 :root {
-  /* ----- Brand layer (per-tenant override) ----- */
-  --brand-primary: #06519f;
-  --brand-primary-text: #005494;
-  --brand-primary-focus-shadow: rgba(0, 84, 148, 0.3);
-  --brand-primary-focus-border: rgba(0, 84, 148, 0.5);
-  --brand-logo-url: url('/assets/branding/default/logo.png');
-  --brand-fav-url: url('/assets/branding/default/fav.png');
-  --brand-clinic-name: 'Clinic';
+  // -- Color palette (verbatim OLD hex values) ---------------------------------
+  --brand-primary: #055495;           // links, primary actions, hover-active
+  --brand-primary-hover: #005494;     // primary button hover
+  --brand-accent: #9dc13b;            // form-field icons, success-ish accent
+  --brand-button-active: #006ffc;     // active button state
+  --brand-link: #00a2dc;              // edit / inline link color
+  --brand-error: #fe5a5b;             // delete / error color
 
-  /* ----- Status colors (shared) ----- */
-  --color-success: #51a351;
-  --color-danger: #bd362f;
-  --color-danger-button: #e6514a;
-  --color-warning: #f89406;
-  --color-info: #2f96b4;
+  --brand-sidebar-bg: #0a4778;        // sidenav background (level 0)
+  --brand-sidebar-bg-2: #0a3354;      // sidenav nested level 1
+  --brand-sidebar-bg-3: #0b3a60;      // sidenav nested level 2
 
-  /* ----- Neutrals + accents (shared) ----- */
-  --text-body: #333;
-  --text-heading: #414c55;
-  --text-muted: #666;
-  --text-disabled: #999;
-  --text-inactive: #a3a4a6;
-  --text-code: #c7254e;
-  --border-light: #eee;
-  --bg-body: #fff;
-  --bg-sidenav: #fff;
-  --bg-card: #fff;
-  --bg-hover-light: #f7f7f7;
-  --color-slate: #607d8b;
-  --color-teal: #3ca99e;
-  --color-gray: #9e9e9e;
-  --scrim-modal: rgba(0, 0, 0, 0.5);
-  --scrim-image: rgba(0, 0, 0, 0.25);
-  --scrim-inset: rgba(0, 0, 0, 0.04);
+  // -- Form control surfaces --------------------------------------------------
+  --brand-input-bg: #f4f4f4;
+  --brand-input-border: #cccccc;
 
-  /* ----- Typography (shared) ----- */
-  --font-family-base: 'Roboto', 'Segoe UI', 'Lucida Grande', Verdana, Arial, Helvetica, sans-serif;
-  --fw-light: 300;
-  --fw-normal: 400;
-  --fw-medium: 500;
-  --fw-bold: 700;
-  --fw-black: 900;
-  --fs-base: 1rem;
-  --fs-sm: 0.75rem;
-  --fs-label: 0.894rem;
-  --fs-app-brand: 1.1rem;
-  --fs-dialog-header: 13px;
-  --fs-dialog-title: 20px;
-  --lh-dialog-title: 24px;
-  --fs-button-login: 15px;
-  --fs-toast: 14px;
-  --fs-toast-title: 18px;
-  --lh-tight: 1.2;
-  --lh-base: 1.5;
+  // -- Typography colors ------------------------------------------------------
+  --brand-text-primary: #333333;
+  --brand-text-secondary: #666666;
+  --brand-text-muted: #969696;
+  --brand-divider: #eeeeee;
 
-  /* ----- Spacing (shared) ----- */
-  --space-xxs: 0.25rem;
-  --space-xs: 0.375rem;
-  --space-sm: 0.5rem;
-  --space-md: 0.9375rem;
-  --space: 1rem;
-  --space-lg: 1.125rem;
-  --space-xl: 1.875rem;
-  --space-xxl: 5rem;
-  --space-login-form: 30px;
-  --space-card: 30px;
+  // -- Typography stack -------------------------------------------------------
+  --brand-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --brand-font-size-xs: 12px;
+  --brand-font-size-sm: 13px;
+  --brand-font-size-base: 14px;       // labels and body copy
+  --brand-font-size-md: 16px;         // form fields (most pages)
+  --brand-font-size-lg: 18px;         // login form fields
+  --brand-font-size-button: 22px;     // primary login button
 
-  /* ----- Radius (shared) ----- */
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 5px;
-  --radius-pill: 50%;
+  // -- Layout dimensions ------------------------------------------------------
+  --brand-sidebar-width: 282px;
+  --brand-sidebar-width-collapsed: 70px;
+  --brand-navbar-height: 86px;
 
-  /* ----- Shadows (shared) ----- */
-  --shadow-login-form: 0px 2px 2px 2px rgba(0, 0, 0, 0.3);
-  --shadow-modal: 0 4px 23px 5px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.15);
-  --shadow-toast: 0 0 12px #999;
-  --shadow-sidenav-inset: inset -1px 0 0 rgba(0, 0, 0, 0.1);
-  --shadow-input-focus: 0 1px 2px 0 rgba(0, 84, 148, 0.3) inset;
+  // -- Logo + asset slots -----------------------------------------------------
+  --brand-logo-header-url: url('/assets/images/header-logo.png');
+  --brand-logo-collapsed-url: url('/assets/images/fav-logo.png');
+  --brand-logo-login-url: url('/assets/images/Doctor.png');
+  --brand-login-bg-url: url('/assets/images/login-bg.jpg');
 
-  /* ----- Z-index (shared) ----- */
-  --z-popup: 9000;
-  --z-dialog: 9999;
-  --z-toast: 10000;
-
-  /* ----- Motion (shared) ----- */
-  --motion-modal: all 0.5s ease-in-out;
-  --motion-opacity: 200ms opacity;
-}
-
-/* Per-tenant override example */
-[data-tenant='falkinstein'] {
-  --brand-primary: #06519f;
-  --brand-primary-text: #005494;
-  --brand-logo-url: url('/assets/branding/falkinstein/logo.png');
-  --brand-clinic-name: 'Dr. Yuri Falkinstein, MD';
+  // -- Tenant-overridable identity strings ------------------------------------
+  --brand-clinic-name: 'Appointment Portal';
 }
 ```
 
-Per-feature design docs reference variables by name. Example:
+Per-feature design docs reference deployed variables by name. Example:
 
 > "Approve button uses `background: var(--brand-primary)` and
 > `color: #fff` per `demo-falkinstein.css`:41-42."
+
+The spec variables (`--color-*`, `--text-body`, `--border-light`, `--bg-*`, `--space-*`,
+`--radius-*`, `--shadow-*`, `--z-*`, `--motion-*`) listed in the tables above are
+targeted for Phase 19b. Do not reference them in component SCSS until they are added
+to `_brand.scss`.
 
 ## Strict-parity exceptions allowed
 
@@ -360,6 +362,19 @@ Every concrete value extracted above was found in the OLD source files
 listed in frontmatter. There is no invented token. If a per-feature
 design doc surfaces a value not in this table, treat that as a gap and
 extend this doc before the per-feature doc lands.
+
+Deployment status summary (verified 2026-06-01 vs `angular/src/styles/_brand.scss`):
+
+- **Deployed (Phase 19a):** `--brand-primary` (`#055495`), `--brand-primary-hover`,
+  `--brand-accent`, `--brand-button-active`, `--brand-link`, `--brand-error`,
+  `--brand-sidebar-bg` / `-2` / `-3`, `--brand-input-bg`, `--brand-input-border`,
+  `--brand-text-primary`, `--brand-text-secondary`, `--brand-text-muted`,
+  `--brand-divider`, `--brand-font-family`, `--brand-font-size-xs/sm/base/md/lg/button`,
+  `--brand-sidebar-width` / `-collapsed`, `--brand-navbar-height`,
+  `--brand-logo-*-url`, `--brand-login-bg-url`, `--brand-clinic-name`. (30 variables)
+- **Spec only / Phase 19b target:** `--color-*`, `--text-*`, `--border-light`,
+  `--bg-*`, `--scrim-*`, `--font-family-base`, `--fw-*`, `--fs-*`, `--lh-*`,
+  `--space-*`, `--radius-*`, `--shadow-*`, `--bp-*`, `--z-*`, `--motion-*`.
 
 ## Doc template appendix (for per-feature `<feature>-design.md`)
 

@@ -1,5 +1,7 @@
 # Data Seeding
 
+> Purpose: Describes the data seeding architecture, seed contributors, and default credentials for the HCS Case Evaluation Portal. Audience: backend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Database](./) > Data Seeding
 
 ## Overview

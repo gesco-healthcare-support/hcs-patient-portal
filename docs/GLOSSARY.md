@@ -2,6 +2,8 @@
 
 # HCS Case Evaluation Portal Glossary
 
+> Purpose: Define all business, technical, and ABP terms used across the portal. Audience: all contributors. Last verified: 2026-06-01 vs main.
+
 A comprehensive glossary of terms used throughout the HCS Case Evaluation Portal, a healthcare workers' compensation IME scheduling application built with .NET 10, Angular 20, and ABP Framework.
 
 ---
@@ -87,5 +89,5 @@ A comprehensive glossary of terms used throughout the HCS Case Evaluation Portal
 
 - [Domain Overview](business-domain/DOMAIN-OVERVIEW.md) - Business domain concepts and workflows
 - [Architecture Overview](architecture/OVERVIEW.md) - System architecture and design decisions
-- [Domain Model](backend/DOMAIN-MODEL.md) - Entity relationships and aggregate boundaries
+- [Domain Model](database/EF-CORE-DESIGN.md) - Entity relationships and aggregate boundaries
 - [Enums and Constants](backend/ENUMS-AND-CONSTANTS.md) - Status codes, enumerations, and constant values

@@ -9,7 +9,7 @@ product-doc: none -- excluded from product intent (vestigial ABP scaffold)
 
 Vestigial ABP Framework sample entity left over from initial scaffolding. Not a business feature; retained because the test project's `BookAppServiceTests` still exercises the ABP application-service plumbing (one of the few features with any test coverage at all).
 
-> Books has no product-intent doc -- vestigial ABP scaffold. Excluded from `docs/product/` per the 2026-04-23 gap-analysis. Do not extend; remove together with the seed contributor and tests when ABP scaffold cleanup is scheduled.
+> Books has no product-intent doc -- it is a vestigial ABP scaffold entity, not a real feature. Do not extend; remove it together with the seed contributor and tests when ABP scaffold cleanup is scheduled.
 
 ## File Map
 
@@ -95,8 +95,6 @@ No Angular UI -- this entity is managed via API only.
 ## Links
 
 - Root architecture: [CLAUDE.md](/CLAUDE.md)
-- Reference pattern: [CLAUDE.md#reference-pattern-appointments](/CLAUDE.md#reference-pattern-appointments)
-- Product doc: none (vestigial scaffold; excluded from `docs/product/`)
 
 <!-- MANUAL:START -->
 <!-- MANUAL:END -->

@@ -60,6 +60,27 @@ OLD bugs: **31 found, none need porting** -- each is either a defect NEW already
 fixes or a dead/commented-out path in OLD. Listed per-area under "OLD bugs (do not
 port)" so they are not mistaken for parity gaps.
 
+### Recently resolved (2026-05-29, PRs #268-272)
+
+The following gaps were closed after this audit was generated. The per-area docs
+retain their original rows; this note prevents the roll-up counts above from being
+read as the current open backlog.
+
+- **#268** -- Email wording parity (04-emails `G-04-05` booking "Pending" -> "Requested"
+  fan-out; `G-04-09` subject-line identity suffix): resolved by #268 (2026-05-29).
+- **#269** -- DA toggle + self-represented confirmation modal on AA toggle-off
+  (01-booking `G-01-08`): resolved by #269 (2026-05-29).
+- **#270** -- Per-role packet access gating (03-documents equivalent row `E8`):
+  resolved by #270 (2026-05-29).
+- **#271** -- Document upload at request time; package-doc queue on submission
+  (03-documents equivalent rows `E7` / `E3`): resolved by #271 (2026-05-29).
+- **#272** -- Audited SSN reveal endpoint, Design B (tracked in
+  `docs/parity/_parity-flags.md` as `PF-001`): resolved by #272 (2026-05-29).
+
+The raw decision-point count (**~86**) above reflects the state at audit generation
+and has not been recomputed here. Subtract five items from the open tally when
+triaging the remaining backlog.
+
 ---
 
 ## The biggest decisions (whole capabilities)
