@@ -12,6 +12,10 @@ import {
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
+import {
+  AddressAutocompleteComponent,
+  AddressFieldMap,
+} from '../../shared/address/address-autocomplete.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 import { Observable, Subscription } from 'rxjs';
 
@@ -49,7 +53,12 @@ import { Observable, Subscription } from 'rxjs';
 @Component({
   selector: 'app-appointment-add-attorney-section',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AppLookupSelectComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    AppLookupSelectComponent,
+    AddressAutocompleteComponent,
+  ],
   templateUrl: './appointment-add-attorney-section.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -82,6 +91,19 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
    * template. `applicantAttorney` or `defenseAttorney`. */
   get prefix(): string {
     return this.role + 'Attorney';
+  }
+
+  // F2 (2026-05-29): attorney address autocomplete (no suite field). Cached
+  // because `prefix` is stable once `role` is bound; a fresh object each CD
+  // would needlessly churn the OnPush child input.
+  private cachedAddressFields?: AddressFieldMap;
+  get addressFields(): AddressFieldMap {
+    return (this.cachedAddressFields ??= {
+      street: this.prefix + 'Street',
+      city: this.prefix + 'City',
+      state: this.prefix + 'StateId',
+      zip: this.prefix + 'ZipCode',
+    });
   }
 
   /** Card heading -- "Applicant Attorney Details" or "Defense Attorney Details". */

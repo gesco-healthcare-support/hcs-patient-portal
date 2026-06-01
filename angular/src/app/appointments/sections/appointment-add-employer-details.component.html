@@ -37,12 +37,12 @@
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-        <input
-          class="form-control"
-          formControlName="employerStreet"
-          maxlength="255"
+        <!-- F2 (2026-05-29): autocomplete fills street/city/state/zip. -->
+        <app-address-autocomplete
+          [group]="form"
+          [fields]="addressFields"
           placeholder="STREET"
-        />
+        ></app-address-autocomplete>
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
