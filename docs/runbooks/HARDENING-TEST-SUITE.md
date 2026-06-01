@@ -1,5 +1,7 @@
 # Patient Portal Hardening Test Suite
 
+> Purpose: Repeatable end-to-end + API + DB validation runbook for the core booking pipeline. Audience: QA engineer / Adrian. Last verified: 2026-06-01 vs main.
+
 **Purpose.** Repeatable end-to-end + API + DB validation of the core booking
 pipeline (slot-gen -> register -> book -> approve -> packet -> upload ->
 scope -> auth), runnable against a Docker stack that starts near-empty (only

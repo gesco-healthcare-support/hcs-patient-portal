@@ -2,13 +2,15 @@
 
 # Authorization & Permission Matrix
 
-> For known security vulnerabilities and remediation status, see [Security Issues](../issues/SECURITY.md).
+> Purpose: Document the permission surface, role mapping, and multi-tenancy enforcement rules. Audience: backend developers, security reviewers. Last verified: 2026-06-01 vs main.
+
+> For known security vulnerabilities and remediation status, see [Security Issues](THREAT-MODEL.md).
 
 This document summarizes the permission surface and its mapping to roles, entities, and API endpoints. For permission implementation details (definition provider, localization, child-permission registration), see [backend/PERMISSIONS.md](../backend/PERMISSIONS.md).
 
 **Source of truth:** `src/HealthcareSupport.CaseEvaluation.Application.Contracts/Permissions/CaseEvaluationPermissions.cs`
 
-**Last verified:** 2026-04-13
+**Last verified:** 2026-06-01
 
 ---
 
@@ -28,7 +30,8 @@ The root group is `CaseEvaluation`. All permissions are nested under it.
 | WcabOffices | yes | yes | yes | yes | Host |
 | Doctors | yes | yes | yes | yes | Tenant |
 | DoctorAvailabilities | yes | yes | yes | yes | Tenant |
-| Patients | yes | yes | yes | yes | Both (Patient lacks IMultiTenant) |
+| Patients | yes | yes | yes | yes | Both |
+| Patients.RevealSsn | yes | -- | -- | -- | Both |
 | Appointments | yes | yes | yes | yes | Tenant |
 | AppointmentEmployerDetails | yes | yes | yes | yes | Tenant |
 | AppointmentAccessors | yes | yes | yes | yes | Tenant |
@@ -78,7 +81,7 @@ Feature-specific custom methods (e.g., `AppointmentsAppService.UpdateStatusAsync
 
 **Tenant-scoped entities:** Doctors, DoctorAvailabilities, Appointments, AppointmentEmployerDetails, AppointmentAccessors, ApplicantAttorneys, AppointmentApplicantAttorneys. Automatically filtered by `IMultiTenant` data filter.
 
-**Mixed (cautionary):** Patients. Has `TenantId` but does not implement `IMultiTenant`. Application code must apply tenant scoping manually on every query. See [DATA-FLOWS.md](DATA-FLOWS.md#cross-tenant-phi-risk-critical).
+**Tenant-scoped (auto-filtered):** Patients. Implements `IMultiTenant` since FEAT-09 (2026-05-05); ABP's data filter scopes all queries to `CurrentTenant.Id` automatically. Host or IT Admin paths that must enumerate across tenants must explicitly opt in via `IDataFilter.Disable<IMultiTenant>()`, matching the pattern used in `DoctorsAppService`. See [DATA-FLOWS.md](DATA-FLOWS.md) for SSN egress rules.
 
 **Cross-tenant escape hatch:** `DoctorsAppService` uses `IDataFilter.Disable<IMultiTenant>()` to enumerate doctors across tenants from host context. This is the only sanctioned use of the disable pattern in the Application layer. Any new code disabling `IMultiTenant` filter requires explicit ADR.
 

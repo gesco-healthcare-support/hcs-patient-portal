@@ -4,6 +4,10 @@ import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } fr
 import { PagedResultDto, RestService } from '@abp/ng.core';
 import { Subscription } from 'rxjs';
 import type { LookupDto } from '../../proxy/shared/models';
+import {
+  AddressAutocompleteComponent,
+  AddressFieldMap,
+} from '../../shared/address/address-autocomplete.component';
 
 /**
  * Front-end transient shape for the "add injury" booking-form modal.
@@ -102,7 +106,7 @@ export interface ClaimExaminerPrefill {
 @Component({
   selector: 'app-appointment-add-claim-information',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AddressAutocompleteComponent],
   templateUrl: './appointment-add-claim-information.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -119,6 +123,23 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
   // before buildInjuryForm runs (it pushes into the array).
   private injuryToggleSubscriptions: Subscription[] = [];
   injuryForm: FormGroup = this.buildInjuryForm();
+
+  // F2 (2026-05-29): address autocomplete maps for the two modal groups
+  // (insurance + claim examiner). Both carry a suite ("STE").
+  readonly insuranceAddressFields: AddressFieldMap = {
+    street: 'injuryInsuranceStreet',
+    suite: 'injuryInsuranceSte',
+    city: 'injuryInsuranceCity',
+    state: 'injuryInsuranceStateId',
+    zip: 'injuryInsuranceZip',
+  };
+  readonly claimExaminerAddressFields: AddressFieldMap = {
+    street: 'injuryClaimExaminerStreet',
+    suite: 'injuryClaimExaminerSte',
+    city: 'injuryClaimExaminerCity',
+    state: 'injuryClaimExaminerStateId',
+    zip: 'injuryClaimExaminerZip',
+  };
   isInjuryModalOpen = false;
   injuryEditingIndex = -1;
   injuryModalError: string | null = null;
@@ -263,15 +284,15 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
     ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
-  /** OLD parity: customValdiationForClaimExaminer -- 8 fields toggle
+  /** OLD parity: customValdiationForClaimExaminer -- the fields below toggle
    * Validators.required when the include switch is on (email also gets
-   * Validators.email). STE stays optional. */
+   * Validators.email). STE stays optional. 2026-06-01: Fax is now optional too,
+   * so injuryClaimExaminerFax is intentionally omitted from this list. */
   private applyClaimExaminerRequiredValidators(group: FormGroup, required: boolean): void {
     const fields: Array<{ key: string; extra?: any[] }> = [
       { key: 'injuryClaimExaminerName' },
       { key: 'injuryClaimExaminerEmail', extra: [Validators.email] },
       { key: 'injuryClaimExaminerPhone' },
-      { key: 'injuryClaimExaminerFax' },
       { key: 'injuryClaimExaminerStreet' },
       { key: 'injuryClaimExaminerCity' },
       { key: 'injuryClaimExaminerStateId' },

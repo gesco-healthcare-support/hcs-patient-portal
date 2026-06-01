@@ -1,6 +1,8 @@
 # Engineering Roadmap — Path to Alpha
 
-Living technical companion to `docs/status-reports/2026-05-18-status-for-manager.md`.
+> Purpose: Developer-facing companion to the manager status report; tracks every roadmap item with code refs, bug IDs, and plan docs. Audience: Adrian (sole dev). Last verified: 2026-06-01 vs main.
+
+Living technical companion to `docs/status-reports/2026-05-18-status-for-manager.md` (point-in-time snapshot as of 2026-05-18; does not reflect fixes that shipped after that date).
 
 The status report is for leadership and describes the work in non-technical terms. **This doc is for the developer.** Every line item from the status report appears here with: the code paths that implement (or need to implement) it, the existing plan doc reference, the bug-ID cross-reference, and what's actually left to do. Update it as items ship — it's a working document, not a snapshot.
 
@@ -122,6 +124,10 @@ Status of every BUG/OBS entry that was open at session start:
 - BUG-024 (reject accepts empty reason) — **fixed** (DTO `[Required]` + `AppointmentInvalidTransition` 400 mapping)
 - BUG-026 (DuplicateEmail literal `{0}`) — **fixed** (en.json wording)
 
+**Fixed after last refresh (2026-05-24, PR refs):**
+- BUG-012 (AA/DA Firm Name client-required + localized server error) — **fixed PR #238** (2026-05-24). See struck-through row in table below.
+- BUG-036 (packet generation silently fails / Hangfire succeeds but zero packet rows) — **fixed PR #247** (2026-05-24). Filtered unique index on `IsDeleted = 0` + `EnqueueAsync` wrapped in `OnCompleted` to close the Hangfire UoW race.
+
 **Still open before alpha:**
 
 | ID | Severity | Title | Component | Fix shape |
@@ -130,7 +136,7 @@ Status of every BUG/OBS entry that was open at session start:
 | BUG-008 | medium | PUT /me concurrency stamp goes stale on submit retry | `angular/.../patients/me` + `Application/Patients/PatientAppService.UpdateMeAsync` | Return fresh stamp in response DTO; merge into form state before retry |
 | BUG-009 | medium | BookingDateInsideLeadTime surfaces as "internal error" | `Application/Appointments/AppointmentAppService.cs` + `Domain.Shared/Localization` | Localized message gap; add the key or use `WithData("DefaultMessage", ...)` |
 | BUG-010 | medium | Synthetic .test user emails silently dropped | `docker/appsettings.secrets.json` + MailKit | Detect synthetic domains, route to local pickup folder |
-| BUG-012 | medium | AA/DA Firm Name lacks client `required` + server localized error | `AuthServer wwwroot/global-scripts.js` + `Application/ExternalSignups` | Set `required` on injected input; throw `UserFriendlyException` with localized message |
+| ~~BUG-012~~ | ~~medium~~ | ~~AA/DA Firm Name lacks client `required` + server localized error~~ | ~~`AuthServer wwwroot/global-scripts.js` + `Application/ExternalSignups`~~ | **Fixed PR #238 (2026-05-24)** |
 | BUG-014 | medium | Portal/AuthServer URLs hardcoded in settings defaults | `Domain/Settings/CaseEvaluationSettingDefinitionProvider.cs:43,53` | Inject `IConfiguration`, source defaults from env vars |
 | BUG-018 | medium | SMTP rate-limit reported as misleading "Configure ACS credentials" | `Domain/Appointments/Jobs/SendAppointmentEmailJob.cs:104,156` | Token-bucket throttle ~2.5/sec + categorize SMTP failures + update log strings |
 | BUG-022 | medium | BookingDatePastMaxHorizon thrown for dates inside configured range | `AppointmentBookingValidators.cs` + `BookingPolicyValidator.cs` | **Defer — Slot rework Phase 3 rewrites this validator anyway** |
@@ -140,7 +146,6 @@ Status of every BUG/OBS entry that was open at session start:
 | OBS-21 | low | claimE1 verification click did not flip EmailConfirmed | AuthServer EmailConfirmation.cshtml.cs OR mail delivery | Reproduce; byte-compare API log URL vs email body |
 | OBS-22 | low | dotnet/ng watchers miss source edits via bind-mount on Windows | `Dockerfile.dev` files | Workaround: `docker compose restart`. Better fix bundled in Slot rework Phase 2 pre-flight |
 | OBS-15..19 | observation | Booking-flow UX / role-section visibility | `angular/src/app/appointments/` | All in the booking-flow neighborhood; fold into Slot Phases 4-5 where the picker is being rewritten anyway |
-| OBS-2..7 | stub | Stub entries needing rehydration | n/a | Content debt — rehydrate before treating as actionable |
 
 **Seed data gaps:**
 - **SEED-2** (open) — no `DemoDoctorDataSeedContributor`. OLD has no "+ New Doctor" UI, so doctors MUST come from seed. **Hard blocker for booking on fresh DBs.** Spec drafted inside the doc.

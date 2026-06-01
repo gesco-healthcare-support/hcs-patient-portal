@@ -1,5 +1,7 @@
 # Angular Architecture
 
+> Purpose: Describes the Angular 20 SPA bootstrap sequence, provider list, feature module structure, and key source files. Audience: frontend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Frontend](./) > Angular Architecture
 
 ## Overview
@@ -26,13 +28,14 @@ flowchart TD
     D --> F[provideAnimations]
     D --> G[provideAbpCore<br/>environment + registerLocale]
     D --> H[provideAbpOAuth]
+    D --> FIX[CHECK_AUTHENTICATION_STATE_FN_KEY override<br/>ABP 10.0.2 bug workaround]
     D --> I[ABP Module Configs]
-    D --> J[LeptonX Theme]
+    D --> J[LeptonX Theme + utilities]
     D --> K[Route Providers]
     I --> I1[provideIdentityConfig]
     I --> I2[provideSettingManagementConfig]
     I --> I3[provideFeatureManagementConfig]
-    I --> I4[provideAccountAdminConfig<br/>provideAccountPublicConfig]
+    I --> I4[provideAccountAdminConfig]
     I --> I5[provideCommercialUiConfig]
     I --> I6[provideGdprConfig]
     I --> I7[provideLanguageManagementConfig]
@@ -41,17 +44,22 @@ flowchart TD
     I --> I10[provideAuditLoggingConfig]
     I --> I11[provideOpeniddictproConfig]
     I --> I12[provideTextTemplateManagementConfig]
-    J --> J1[provideThemeLeptonX]
-    J --> J2[provideSideMenuLayout]
-    J --> J3[provideLogo + withEnvironmentOptions]
+    J --> J1[provideThemeLeptonX<br/>defaultTheme light]
+    J --> J2[provideAppInitializer<br/>LPX_THEME backfill]
+    J --> J3[provideSideMenuLayout]
+    J --> J4[provideLogo + withEnvironmentOptions]
+    J --> J5[provideAbpThemeShared<br/>HTTP errors + validation]
+    J --> J6[provideNgxMask]
+    J --> J7[importProvidersFrom RxReactiveFormsModule]
+    J --> J8[AddressValidationProvider factory]
     K --> K1[APP_ROUTE_PROVIDER]
     K --> K2[DOCTOR_MANAGEMENT_ROUTE_PROVIDER]
-    K --> K3[Entity Route Providers x10]
+    K --> K3[Entity Route Providers x12]
 ```
 
 ## app.config.ts Providers
 
-The `appConfig` registers the following providers in order:
+The `appConfig` registers 38 provider entries in order (26 framework/utility entries followed by 12 route providers):
 
 | Provider | Purpose |
 |----------|---------|
@@ -60,13 +68,19 @@ The `appConfig` registers the following providers in order:
 | `provideAnimations()` | Angular animations |
 | `provideAbpCore(withOptions({ environment, registerLocaleFn }))` | ABP framework core with environment and locale |
 | `provideAbpOAuth()` | OAuth/OIDC authentication |
+| `{ provide: CHECK_AUTHENTICATION_STATE_FN_KEY, useValue: fn }` | ABP 10.0.2 bug workaround: `checkAccessToken` crashes in strict mode because it reads `this.injector` instead of the injector parameter. The override clears OAuth storage via the injector argument instead. Remove when upgrading past ABP 10.1.0. |
 | `provideIdentityConfig()` | Identity module UI |
 | `provideSettingManagementConfig()` | Settings module UI |
 | `provideFeatureManagementConfig()` | Feature management UI |
-| `provideAccountAdminConfig()` / `provideAccountPublicConfig()` | Account pages |
+| `provideAccountAdminConfig()` | Account admin pages (Account Public removed 2026-05-15; auth UI now served by AuthServer Razor pages) |
 | `provideCommercialUiConfig()` | Commercial UI components (LookupSelect, etc.) |
-| `provideThemeLeptonX()` / `provideSideMenuLayout()` | LeptonX theme with side menu layout |
-| `provideAbpThemeShared(withHttpErrorConfig, withValidationBluePrint)` | HTTP error screens (401/403/404/500) and validation |
+| `provideThemeLeptonX(withThemeLeptonXOptions(...))` | LeptonX theme; `defaultTheme: 'light'`, system option disabled |
+| `provideAppInitializer(...)` | Backfills `LPX_THEME = 'light'` for returning users whose localStorage still holds `'system'` |
+| `provideSideMenuLayout()` | Side-menu shell layout |
+| `provideNgxMask()` | Drives SSN on-screen redaction (`[hiddenInput]="true"` shows `*` while typing) |
+| `importProvidersFrom(RxReactiveFormsModule)` | Adds named domain validators (`socialSecurityNumber`, conditional required, digit) on top of Angular `Validators.*` |
+| `{ provide: AddressValidationProvider, useFactory: fn }` | Injects `SmartyAddressProvider` when `environment.addressValidation.smartyKey` is set; falls back to `MockAddressProvider` otherwise |
+| `provideAbpThemeShared(withHttpErrorConfig, withValidationBluePrint)` | HTTP error screens (401/403/404/500) and validation blueprint |
 | `provideLogo(withEnvironmentOptions(environment))` | Logo configuration |
 | `provideGdprConfig(withCookieConsentOptions)` | GDPR cookie/privacy consent |
 | `provideLanguageManagementConfig()` | Language management UI |
@@ -75,7 +89,24 @@ The `appConfig` registers the following providers in order:
 | `provideAuditLoggingConfig()` | Audit log viewer |
 | `provideOpeniddictproConfig()` | OpenIddict management UI |
 | `provideTextTemplateManagementConfig()` | Text template management |
-| Entity route providers (x11) | Menu registration for each feature module |
+| Feature entity route providers (x12) | Menu registration for each feature module (see list below) |
+
+Feature entity route provider tokens (12, registered at the end of the providers array):
+
+- `STATES_STATE_ROUTE_PROVIDER`
+- `APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER`
+- `APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER`
+- `APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER`
+- `DOCTOR_MANAGEMENT_ROUTE_PROVIDER`
+- `LOCATIONS_LOCATION_ROUTE_PROVIDER`
+- `DOCTORS_DOCTOR_ROUTE_PROVIDER`
+- `DOCTOR_AVAILABILITIES_DOCTOR_AVAILABILITY_ROUTE_PROVIDER`
+- `PATIENTS_PATIENT_ROUTE_PROVIDER`
+- `APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER`
+- `APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER`
+- `DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER`
+
+Note: `APP_ROUTE_PROVIDER` (Home/Dashboard menu registration) is also a route provider token but is registered at position 2 in the providers array, immediately after `provideRouter`.
 
 ## ABP Angular Packages
 
@@ -127,6 +158,8 @@ oAuthConfig: {
 
 ## Feature Modules
 
+The app contains 22 feature directories under `angular/src/app/` (excluding `proxy/` and `shared/`).
+
 ```mermaid
 flowchart TD
     APP[AppComponent] --> HOME[home]
@@ -135,11 +168,16 @@ flowchart TD
     APP --> DOC_MGMT[Doctor Management]
     APP --> CONFIG[Configurations]
     APP --> ATTORNEYS[applicant-attorneys]
+    APP --> DEF_ATT[defense-attorneys]
+    APP --> USER_MGMT[User Management]
+    APP --> APPTS[appointments]
     APP --> ABP_BUILTIN[ABP Built-in Modules]
 
     APT_MGMT --> AT[appointment-types]
     APT_MGMT --> AS[appointment-statuses]
     APT_MGMT --> AL[appointment-languages]
+    APT_MGMT --> ADOC[appointment-documents]
+    APT_MGMT --> APKT[appointment-packet]
 
     DOC_MGMT --> LOC[locations]
     DOC_MGMT --> WCAB[wcab-offices]
@@ -149,7 +187,9 @@ flowchart TD
 
     CONFIG --> ST[states]
 
-    APP --> APPTS[appointments]
+    USER_MGMT --> IUSR[internal-users]
+    USER_MGMT --> EUSR[external-users]
+
     APPTS --> APPTS_LIST[Appointment List]
     APPTS --> APPTS_ADD[Appointment Add]
     APPTS --> APPTS_VIEW[Appointment View]
@@ -169,7 +209,7 @@ flowchart TD
 
 ## Proxy Services
 
-All proxy services live in `angular/src/app/proxy/` and are auto-generated from the backend API via ABP CLI. Each entity has a `service.ts` + `models.ts` + `index.ts`. See [Proxy Services](PROXY-SERVICES.md) for details.
+All proxy services live in `angular/src/app/proxy/` and are auto-generated from the backend API via ABP CLI. Each entity has a `service.ts` + `models.ts` + `index.ts`. The Angular proxy is auto-generated (see `angular/src/app/CLAUDE.md`).
 
 ## Styles
 
@@ -198,5 +238,5 @@ Third-party style dependencies are loaded via `angular.json` and include ngx-dat
 **Related Documentation:**
 - [Component Patterns](COMPONENT-PATTERNS.md)
 - [Routing & Navigation](ROUTING-AND-NAVIGATION.md)
-- [Proxy Services](PROXY-SERVICES.md)
+- Proxy Services (the Angular proxy is auto-generated; see `angular/src/app/CLAUDE.md`)
 - [Architecture Overview](../architecture/OVERVIEW.md)

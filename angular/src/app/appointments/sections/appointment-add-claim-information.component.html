@@ -292,13 +292,11 @@
                 </div>
                 <div class="col-md-3 mb-2">
                   <label class="form-label">Street</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="255"
-                    formControlName="injuryInsuranceStreet"
-                    name="injuryInsuranceStreet"
-                  />
+                  <!-- F2 (2026-05-29): autocomplete fills street/ste/city/state/zip. -->
+                  <app-address-autocomplete
+                    [group]="injuryForm"
+                    [fields]="insuranceAddressFields"
+                  ></app-address-autocomplete>
                 </div>
                 <div class="col-md-1 mb-2">
                   <label class="form-label">STE</label>
@@ -403,7 +401,7 @@
                   />
                 </div>
                 <div class="col-md-3 mb-2">
-                  <label class="form-label">Fax *</label>
+                  <label class="form-label">Fax</label>
                   <input
                     type="text"
                     class="form-control"
@@ -419,18 +417,12 @@
                 </div>
                 <div class="col-md-3 mb-2">
                   <label class="form-label">Street *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerStreet')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerStreet')?.touched
-                    "
-                    maxlength="255"
-                    formControlName="injuryClaimExaminerStreet"
-                    name="injuryClaimExaminerStreet"
+                  <!-- F2 (2026-05-29): autocomplete fills street/ste/city/state/zip. -->
+                  <app-address-autocomplete
+                    [group]="injuryForm"
+                    [fields]="claimExaminerAddressFields"
                     placeholder="STREET"
-                  />
+                  ></app-address-autocomplete>
                 </div>
                 <div class="col-md-1 mb-2">
                   <label class="form-label">STE</label>

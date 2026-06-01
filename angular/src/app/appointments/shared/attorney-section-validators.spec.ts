@@ -1,4 +1,4 @@
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import {
   ATTORNEY_SECTION_SUFFIXES,
   applyAttorneySectionValidators,
@@ -43,8 +43,12 @@ describe('attorney-section-validators', () => {
   });
 
   describe('ATTORNEY_SECTION_SUFFIXES', () => {
-    it('declares 9 entries -- OLD Mandatory Fields modal + split Last Name (BUG-042)', () => {
-      expect(ATTORNEY_SECTION_SUFFIXES.length).toBe(9);
+    it('declares 8 entries -- Fax removed 2026-06-01 (now optional)', () => {
+      expect(ATTORNEY_SECTION_SUFFIXES.length).toBe(8);
+    });
+
+    it('does NOT include FaxNumber (fax is optional)', () => {
+      expect(ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'FaxNumber')).toBeUndefined();
     });
 
     it('includes FirmName with maxLength 50', () => {
@@ -79,6 +83,21 @@ describe('attorney-section-validators', () => {
           .withContext(`applicantAttorney${name} should have required error on null`)
           .toBe(true);
       }
+    });
+
+    it('leaves a FaxNumber control optional (maxLength only) even when section enabled', () => {
+      // Fax is no longer a section suffix, so the helper must not touch it: a
+      // control carrying its own maxLength(19) stays optional + length-capped.
+      const faxForm = fb.group({
+        applicantAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
+      });
+
+      applyAttorneySectionValidators(faxForm, 'applicantAttorney', true);
+
+      const fax = faxForm.get('applicantAttorneyFaxNumber')!;
+      expect(fax.hasError('required')).toBe(false);
+      fax.setValue('x'.repeat(20));
+      expect(fax.hasError('maxlength')).toBe(true);
     });
 
     it('clears Validators.required from all suffix-fields when required=false', () => {

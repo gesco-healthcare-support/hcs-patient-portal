@@ -1,4 +1,6 @@
-# Main Worktree Userflow Testing — Comprehensive Hand-off
+# Main Worktree Userflow Testing -- Comprehensive Hand-off
+
+> Purpose: Guide the Claude Code session in systematically testing every userflow in the NEW Patient Portal against the OLD reference implementation, surfacing gaps as structured bug tickets. Audience: Claude Code session assigned to userflow testing in the main worktree. Last verified: 2026-06-01 vs main.
 
 **Audience:** the Claude Code session running in `W:\patient-portal\main`
 whose job is to systematically test every userflow in the NEW Patient
