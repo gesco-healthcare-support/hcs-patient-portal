@@ -378,11 +378,22 @@ public class AppointmentChangeRequestsApprovalAppService :
             occurredAt: DateTime.UtcNow,
             doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
 
-        // 2026-05-15 (slot rework plan 3) -- ReleaseSlotIfReservedAsync
-        // call removed. Reserved is no longer a transient "held while
-        // pending" state; it is a manual-close override owned by the
-        // doctor's-admin. A change-request rejection must not flip a
-        // closed slot back to Available.
+        // Gate 2 (2026-06-01) / OLD parity (AppointmentChangeRequestDomain.cs:600):
+        // a reschedule submit puts the user-picked slot into Reserved as a transient
+        // hold; rejecting the request must release that hold so the slot rejoins the
+        // bookable pool. Guarded and idempotent -- release ONLY the slot this request
+        // reserved, and ONLY if it is still Reserved, so a slot a doctor's-admin
+        // genuinely closed in the meantime is never reopened.
+        if (changeRequest.NewDoctorAvailabilityId.HasValue)
+        {
+            var reservedSlot = await _doctorAvailabilityRepository.FindAsync(
+                changeRequest.NewDoctorAvailabilityId.Value);
+            if (reservedSlot != null && reservedSlot.BookingStatusId == BookingStatus.Reserved)
+            {
+                reservedSlot.BookingStatusId = BookingStatus.Available;
+                await _doctorAvailabilityRepository.UpdateAsync(reservedSlot, autoSave: true);
+            }
+        }
 
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestRejectedEto
         {
