@@ -5,6 +5,10 @@ import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { SsnInputComponent } from '../../shared/components/ssn-input.component';
+import {
+  AddressAutocompleteComponent,
+  AddressFieldMap,
+} from '../../shared/address/address-autocomplete.component';
 import { Observable } from 'rxjs';
 import { genderOptions } from '../../proxy/enums/gender.enum';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
@@ -56,12 +60,24 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     AppLookupSelectComponent,
     NgbDatepickerModule,
     SsnInputComponent,
+    AddressAutocompleteComponent,
   ],
   templateUrl: './appointment-add-patient-demographics.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppointmentAddPatientDemographicsComponent {
   @Input({ required: true }) form!: FormGroup;
+
+  // F2 (2026-05-29): control-name map for the patient address autocomplete.
+  // "Unit #" is the `address` control; state is the StateId <select>.
+  readonly addressFields: AddressFieldMap = {
+    street: 'street',
+    suite: 'address',
+    city: 'city',
+    state: 'stateId',
+    zip: 'zipCode',
+  };
+
   @Input({ required: true }) isExternalUserNonPatient = false;
   @Input({ required: true }) isItAdmin = false;
   @Input({ required: true }) patientListCache: LookupDto<string>[] = [];

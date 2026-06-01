@@ -33,3 +33,14 @@ export const environment = {
     },
   },
 } as Environment;
+
+/**
+ * F2 / address validation (2026-05-29) -- Smarty config. Empty `smartyKey`
+ * keeps the mock provider; set the embedded ("website") key + allow-list the
+ * host in Smarty to activate live autocomplete + USPS standardization.
+ */
+export const addressValidation = {
+  smartyKey: '',
+  autocompleteUrl: 'https://us-autocomplete-pro.api.smarty.com/lookup',
+  verifyUrl: 'https://us-street.api.smarty.com/street-address',
+};

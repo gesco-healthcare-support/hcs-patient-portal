@@ -21,6 +21,18 @@ import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import {
+  AddressValidationProvider,
+  AddressInput,
+  StandardizedAddress,
+} from '../shared/address/address-validation.provider';
+import { AddressFieldMap } from '../shared/address/address-autocomplete.component';
+import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
+import {
+  ConfirmAddressDialogComponent,
+  AddressChoice,
+  AddressDiffItem,
+} from '../shared/address/confirm-address-dialog.component';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentCreateDto } from '../proxy/appointments/models';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
@@ -90,6 +102,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddAttorneySectionComponent,
     AppointmentAddPatientDemographicsComponent,
     AppointmentAddScheduleComponent,
+    ConfirmAddressDialogComponent,
   ],
   providers: [
     ListService,
@@ -121,6 +134,68 @@ export class AppointmentAddComponent {
   private readonly toaster = inject(ToasterService);
   // 2026-05-28 -- self-represented confirmation modal on AA toggle-off.
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly addressProvider = inject(AddressValidationProvider);
+
+  // F2 (2026-05-29): pre-submit address standardization. When the provider
+  // returns a USPS-standardized form that differs from what was typed, this
+  // holds the diff items for the inline confirm dialog; `addressDialogResolve`
+  // bridges the user's choice back to the awaiting submit flow. Covers the four
+  // main-form address groups; the per-injury insurance + claim-examiner
+  // addresses are standardized at autocomplete-pick time (see plan T3 note).
+  addressDialogItems: AddressDiffItem[] | null = null;
+  private addressDialogResolve?: (choices: Record<string, AddressChoice>) => void;
+  private readonly addressGroupsForStandardization: {
+    key: string;
+    label: string;
+    fields: AddressFieldMap;
+    isEnabled: () => boolean;
+  }[] = [
+    {
+      key: 'patient',
+      label: 'Patient address',
+      fields: {
+        street: 'street',
+        suite: 'address',
+        city: 'city',
+        state: 'stateId',
+        zip: 'zipCode',
+      },
+      isEnabled: () => true,
+    },
+    {
+      key: 'employer',
+      label: 'Employer address',
+      fields: {
+        street: 'employerStreet',
+        city: 'employerCity',
+        state: 'employerStateId',
+        zip: 'employerZipCode',
+      },
+      isEnabled: () => true,
+    },
+    {
+      key: 'applicantAttorney',
+      label: 'Applicant attorney address',
+      fields: {
+        street: 'applicantAttorneyStreet',
+        city: 'applicantAttorneyCity',
+        state: 'applicantAttorneyStateId',
+        zip: 'applicantAttorneyZipCode',
+      },
+      isEnabled: () => !!this.form.get('applicantAttorneyEnabled')?.value,
+    },
+    {
+      key: 'defenseAttorney',
+      label: 'Defense attorney address',
+      fields: {
+        street: 'defenseAttorneyStreet',
+        city: 'defenseAttorneyCity',
+        state: 'defenseAttorneyStateId',
+        zip: 'defenseAttorneyZipCode',
+      },
+      isEnabled: () => !!this.form.get('defenseAttorneyEnabled')?.value,
+    },
+  ];
 
   // B8 (2026-05-06): NgbDatepicker defaults to a +/-10-year navigation
   // window. For DOB we want the full century. Setting [minDate]/[maxDate]
@@ -1020,6 +1095,11 @@ export class AppointmentAddComponent {
     }
     this.claimInformationMissing = false;
 
+    // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
+    // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
+    // any provider error so submission is never blocked.
+    await this.standardizeAddressesBeforeSubmit();
+
     this.isSaving = true;
     try {
       const rawSubmit = this.form.getRawValue();
@@ -1122,6 +1202,122 @@ export class AppointmentAddComponent {
 
   save(): void {
     this.onSubmit();
+  }
+
+  // F2 (2026-05-29): validate each enabled, non-empty address group, and where
+  // the provider returns a differing standardized form, prompt the user (one
+  // consolidated dialog) to use it or keep theirs, applying the choices before
+  // the booking POSTs. Any failure (state lookup, provider) is swallowed so the
+  // booking is never blocked by the address service.
+  private async standardizeAddressesBeforeSubmit(): Promise<void> {
+    let stateOptions: StateLookupOption[];
+    try {
+      const res = await firstValueFrom(
+        this.getStateLookup({ maxResultCount: 1000, skipCount: 0, filter: '' }),
+      );
+      stateOptions = (res?.items ?? []).map((i) => ({
+        id: String(i.id),
+        name: i.displayName ?? '',
+      }));
+    } catch {
+      return;
+    }
+
+    const stateName = (id: unknown): string =>
+      stateOptions.find((o) => o.id === String(id ?? ''))?.name ?? '';
+
+    const items: AddressDiffItem[] = [];
+    const pending: { key: string; fields: AddressFieldMap; std: StandardizedAddress }[] = [];
+
+    for (const grp of this.addressGroupsForStandardization) {
+      if (!grp.isEnabled()) continue;
+      const street = (this.form.get(grp.fields.street)?.value ?? '').toString().trim();
+      if (!street) continue;
+
+      const input: AddressInput = {
+        street,
+        suite: grp.fields.suite ? (this.form.get(grp.fields.suite)?.value ?? null) : null,
+        city: this.form.get(grp.fields.city)?.value ?? null,
+        state: stateName(this.form.get(grp.fields.state)?.value),
+        zip: this.form.get(grp.fields.zip)?.value ?? null,
+      };
+
+      let result;
+      try {
+        result = await firstValueFrom(this.addressProvider.validate(input));
+      } catch {
+        continue;
+      }
+      if (result.status === 'error' || !result.standardized || result.matchesInput) continue;
+
+      const std = result.standardized;
+      const suggestedState = stateName(resolveStateId(std.state, stateOptions)) || std.state;
+      items.push({
+        key: grp.key,
+        label: grp.label,
+        enteredLines: this.formatAddressLines(
+          input.street,
+          input.suite,
+          input.city,
+          input.state,
+          input.zip,
+        ),
+        suggestedLines: this.formatAddressLines(
+          std.street,
+          std.suite,
+          std.city,
+          suggestedState,
+          std.zip,
+        ),
+      });
+      pending.push({ key: grp.key, fields: grp.fields, std });
+    }
+
+    if (items.length === 0) return;
+
+    const choices = await new Promise<Record<string, AddressChoice>>((resolve) => {
+      this.addressDialogResolve = resolve;
+      this.addressDialogItems = items;
+    });
+    this.addressDialogItems = null;
+    this.addressDialogResolve = undefined;
+
+    for (const p of pending) {
+      if (choices[p.key] !== 'suggested') continue;
+      const patch: Record<string, unknown> = {
+        [p.fields.street]: p.std.street,
+        [p.fields.city]: p.std.city,
+        [p.fields.zip]: p.std.zip,
+      };
+      if (p.fields.suite && p.std.suite) patch[p.fields.suite] = p.std.suite;
+      const stateId = resolveStateId(p.std.state, stateOptions);
+      if (stateId) patch[p.fields.state] = stateId;
+      this.form.patchValue(patch);
+    }
+  }
+
+  /** Builds two display lines ("street suite" / "city, ST zip") for the dialog. */
+  private formatAddressLines(
+    street?: string | null,
+    suite?: string | null,
+    city?: string | null,
+    state?: string | null,
+    zip?: string | null,
+  ): string[] {
+    const line1 = [street, suite]
+      .map((s) => (s ?? '').trim())
+      .filter(Boolean)
+      .join(' ');
+    const cityState = [city, state]
+      .map((s) => (s ?? '').trim())
+      .filter(Boolean)
+      .join(', ');
+    const line2 = [cityState, (zip ?? '').trim()].filter(Boolean).join(' ');
+    return [line1, line2].filter((s) => s.trim().length > 0);
+  }
+
+  onAddressDialogResolved(choices: Record<string, AddressChoice>): void {
+    this.addressDialogResolve?.(choices);
   }
 
   reset(): void {

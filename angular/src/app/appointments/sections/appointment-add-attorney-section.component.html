@@ -105,13 +105,12 @@
         </div>
         <div class="col-md-3 mb-3">
           <label class="form-label fw-semibold">Street *</label>
-          <input
-            class="form-control"
-            [formControlName]="prefix + 'Street'"
+          <!-- F2 (2026-05-29): autocomplete fills street/city/state/zip. -->
+          <app-address-autocomplete
+            [group]="form"
+            [fields]="addressFields"
             placeholder="STREET"
-            maxlength="255"
-            [class.is-invalid]="isFieldInvalid(prefix + 'Street')"
-          />
+          ></app-address-autocomplete>
         </div>
         <div class="col-md-3 mb-3">
           <label class="form-label fw-semibold">City *</label>

@@ -3,6 +3,10 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
+import {
+  AddressAutocompleteComponent,
+  AddressFieldMap,
+} from '../../shared/address/address-autocomplete.component';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 import { Observable } from 'rxjs';
 
@@ -23,12 +27,26 @@ import { Observable } from 'rxjs';
 @Component({
   selector: 'app-appointment-add-employer-details',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe, AppLookupSelectComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    LocalizationPipe,
+    AppLookupSelectComponent,
+    AddressAutocompleteComponent,
+  ],
   templateUrl: './appointment-add-employer-details.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppointmentAddEmployerDetailsComponent {
   @Input({ required: true }) form!: FormGroup;
+
+  // F2 (2026-05-29): employer address autocomplete (no suite field).
+  readonly addressFields: AddressFieldMap = {
+    street: 'employerStreet',
+    city: 'employerCity',
+    state: 'employerStateId',
+    zip: 'employerZipCode',
+  };
   @Input({ required: true }) getStateLookup!: (
     input: LookupRequestDto,
   ) => Observable<PagedResultDto<LookupDto<string>>>;
