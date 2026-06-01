@@ -10,12 +10,9 @@ Thin manually-written ASP.NET Core controllers that expose AppService methods ov
 
 ## Conventions
 
-1. **Controllers are manual, not auto-wired.** ABP supports auto-controller generation from AppServices; this project disables it via `[RemoteService(IsEnabled = false)]` on every AppService so that routes are explicit. Every new AppService requires a matching controller here. See docs/decisions/002-manual-controllers-not-auto.md.
+1. **Controllers are manual, not auto-wired.** ABP auto-controller generation is disabled via `[RemoteService(IsEnabled = false)]` on every AppService (see root CLAUDE.md for the attribute rule). Every new AppService requires a matching controller here. See docs/decisions/002-manual-controllers-not-auto.md.
 
-2. **Controllers implement the AppService interface.** Signature: `public class {Entities}Controller : AbpController, I{Entities}AppService`. Each method delegates directly:
-   ```csharp
-   public Task<AppointmentDto> GetAsync(Guid id) => _appointmentsAppService.GetAsync(id);
-   ```
+2. **Controllers implement the AppService interface.** Signature: `public class {Entities}Controller : AbpController, I{Entities}AppService`. Each method is a one-line delegation to the injected AppService -- no logic, no DTO construction, no validation in the controller.
 
 3. **Two route namespaces.**
    - `api/app/*` -- authenticated surface; the default for all CRUD controllers.
@@ -26,7 +23,7 @@ Thin manually-written ASP.NET Core controllers that expose AppService methods ov
 
 5. **Split-controller pattern for phase-scoped sub-surfaces.** When a new workflow phase adds endpoints to a feature that already has an in-flight controller, create a sibling controller rather than editing the existing one. Examples: `AppointmentApprovalController` (`api/app/appointment-approvals`) sits beside `AppointmentController`; `AppointmentChangeRequestApprovalController` (`api/app/appointment-change-request-approvals`) sits beside `AppointmentChangeRequestController`. A cleanup PR can converge them once the in-flight controller settles.
 
-6. **CaseEvaluationController is not yet the base.** The scaffolded base (`Controllers/CaseEvaluationController.cs`) sets the localization resource but no controller currently extends it. Do not refactor all 40+ controllers to extend it without auditing each one first.
+6. **CaseEvaluationController is not yet the base.** The scaffolded base sets the localization resource but no controller currently extends it. Do not refactor all controllers to extend it without auditing each one first.
 
 7. **Excel download-token CSRF pattern.** Controllers that serve file downloads (currently `WcabOfficeController`) use a two-step flow: `GET .../download-token` issues a short-lived `DownloadTokenResultDto`, then `GET .../as-excel-file?token=...` redeems it. Reuse this pattern for all new file-download endpoints -- do not add direct streaming endpoints without the token guard.
 

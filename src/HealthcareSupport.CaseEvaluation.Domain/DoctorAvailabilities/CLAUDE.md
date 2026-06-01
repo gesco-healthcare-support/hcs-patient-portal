@@ -12,11 +12,11 @@ appointment booking, and surfaced in Angular grouped by location + date with con
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailability.cs` | Aggregate root -- date + time slot, `BookingStatusId`, `LocationId` (req), `AppointmentTypeId` (opt) |
 | Domain | `Domain/DoctorAvailabilities/DoctorAvailabilityManager.cs` | Thin create/update over repo; no overlap or state validation |
 | Domain | `Domain/DoctorAvailabilities/IDoctorAvailabilityRepository.cs` | Custom repo -- nav-prop list/get, range filters on date/time/status/location/type |
-| Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (11 methods, two bulk-delete modes) |
-| Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + two bulk deletes; `[RemoteService(IsEnabled=false)]` |
+| Contracts | `Application.Contracts/DoctorAvailabilities/` | DTOs + `IDoctorAvailabilitiesAppService` (CRUD, bulk-generate preview, three delete modes) |
+| Application | `Application/DoctorAvailabilities/DoctorAvailabilitiesAppService.cs` | CRUD + preview + three delete modes; `[RemoteService(IsEnabled=false)]` |
 | EF Core | `EntityFrameworkCore/DoctorAvailabilities/EfCoreDoctorAvailabilityRepository.cs` | LEFT JOIN Location + AppointmentType; `filterText` arm is a no-op (`e => true`) |
 | HttpApi | `HttpApi/Controllers/DoctorAvailabilities/DoctorAvailabilityController.cs` | Manual controller `api/app/doctor-availabilities`, 11 routes |
-| Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | 20 facts (18 active + 2 Skip gap-encoders) |
+| Tests | `Application.Tests/DoctorAvailabilities/DoctorAvailabilitiesAppServiceTests.cs` | Active facts + 2 Skip gap-encoders (see Gotchas #2/#3) |
 | Angular | `angular/src/app/doctor-availabilities/` | List + detail modal + bulk-generate + abstract/concrete view-services |
 
 ## Capacity model
@@ -81,13 +81,6 @@ true, so `filterText` does nothing even though it flows through DTO / AppService
   methods require `DoctorAvailabilities.Default`. Likely a code-gen miss.
 - Angular groups API results by location + date in the browser-side abstract service; there
   is no server-side grouping endpoint.
-
-## Tests (summary)
-
-18 active facts cover: `LocationId`-empty guards on all four mutating/deleting entry points
-(4), `GeneratePreviewAsync` null/empty input (2), per-item guard clauses (6), slot math and
-boundary cases (5), empty-list `GetListAsync` (1). Two Skip-tagged gap-encoders pin the
-concurrent-create race and the mutable-booked-status invariant gap for future work.
 
 ## Gotchas
 

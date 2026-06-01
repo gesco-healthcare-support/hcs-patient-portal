@@ -8,24 +8,15 @@ reference them via cross-context FKs.
 
 ## Entity shape
 
-```
-Location : FullAuditedAggregateRoot<Guid>  (NO IMultiTenant)
-  Name              string  [max 50, required]
-  Address           string? [max 100]
-  City              string? [max 50]
-  ZipCode           string? [max 15]
-  ParkingFee        decimal  (required, no DB default -- callers must supply it)
-  IsActive          bool     (defaults true on CreateDto)
-  StateId           Guid?    (FK -> State, SetNull on delete)
-  AppointmentTypeId Guid?    (FK -> AppointmentType, SetNull on delete)
-  DoctorLocations   ICollection<DoctorLocation>
-```
+See `Location.cs`. Key fields: `Name` (required), `ParkingFee` (required decimal,
+no DB default), `IsActive` (defaults true on CreateDto), `StateId?` (SetNull),
+`AppointmentTypeId?` (SetNull), `DoctorLocations` collection.
 
 ## Conventions
 
 **Host-only scoping.** `Location` has no `IMultiTenant`. Its DbContext config sits
-inside `if (builder.IsHostDatabase())` in `CaseEvaluationDbContext.OnModelCreating`
-(lines 51-66) and is absent from `CaseEvaluationTenantDbContext` for the entity itself.
+inside an `if (builder.IsHostDatabase())` guard in `CaseEvaluationDbContext` and is
+absent from `CaseEvaluationTenantDbContext` for the entity itself.
 Tenant users can still read Locations via `GetListAsync` -- confirmed by
 `LocationsAreVisible_FromTenantContext` -- because EF resolves the host table through
 the shared connection, not TenantId filtering.

@@ -1,6 +1,7 @@
 # NotificationTemplates -- per-tenant email/SMS template management
 
-59-code seeded catalog; IT Admin can read + update bodies but cannot create or delete rows.
+Seeded catalog of template codes; IT Admin can read + update bodies but cannot create or
+delete rows.
 
 ## What lives here
 
@@ -11,7 +12,7 @@
 | `EmailBodyResources.cs` | Loads embedded HTML from `EmailBodies/*.html`; returns `null` on a missing file |
 | `EmailSubjects.cs` | `ByCode` dict of OLD-verbatim subjects keyed by template code |
 | `NotificationTemplateDataSeedContributor.cs` | Seeds 2 type rows (host pass) then one template row per code per tenant (tenant pass) |
-| `EmailBodies/` | 41 of 59 embedded `.html` body files (remaining 18 are stub-only) |
+| `EmailBodies/` | Embedded `.html` body files; some codes are stub-only (no HTML file yet) |
 
 Domain.Shared constants: `NotificationTemplateConsts` (`Domain.Shared/NotificationTemplates/`).
 Variable substitution utility: `Domain/Notifications/TemplateVariableSubstitutor.cs`.
@@ -21,10 +22,10 @@ Variable substitution utility: `Domain/Notifications/TemplateVariableSubstitutor
 ### Template addressing
 
 Always address templates by the string constants in `NotificationTemplateConsts.Codes`, never
-by inline string literals. The 59 codes split into three origin groups:
-- 16 DB-managed (OLD `TemplateCode` int enum).
-- 43 on-disk HTML (OLD `EmailTemplate` static class / `wwwroot/EmailTemplates/`).
-- 5 NEW codes added post-OLD (Phase 2.A per-recipient dispatch + invite/internal-user welcome).
+by inline string literals. Codes split into three origin groups:
+- DB-managed codes (OLD `TemplateCode` int enum).
+- On-disk HTML codes (OLD `EmailTemplate` static class / `wwwroot/EmailTemplates/`).
+- NEW codes added post-OLD (Phase 2.A per-recipient dispatch + invite/internal-user welcome).
 
 ### Adding a new template code
 

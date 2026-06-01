@@ -5,19 +5,18 @@ has a corresponding AppService here.
 
 ## What Lives Here
 
-- **38 feature folders** (39+ counting any added after this doc): Appointments, Doctors,
-  Patients, DoctorAvailabilities, ApplicantAttorneys, DefenseAttorneys, AppointmentAccessors,
-  AppointmentApplicantAttorneys, AppointmentDefenseAttorneys, AppointmentBodyParts,
-  AppointmentChangeRequests, AppointmentClaimExaminers, AppointmentDocuments,
-  AppointmentEmployerDetails, AppointmentInjuryDetails, AppointmentLanguages,
-  AppointmentPrimaryInsurances, AppointmentStatuses, AppointmentTypeFieldConfigs,
-  AppointmentTypes, Books, CustomFields, Dashboards, DefenseAttorneys,
-  DoctorPreferredLocations, Documents, Emailing, ExternalAccount, ExternalSignups,
-  InternalUsers, Locations, Notifications, NotificationTemplates, PackageDetails,
-  States, SystemParameters, UserProfile, Users, WcabOffices
+- Feature folders (Appointments, Doctors, Patients, DoctorAvailabilities, ApplicantAttorneys,
+  DefenseAttorneys, AppointmentAccessors, AppointmentApplicantAttorneys,
+  AppointmentDefenseAttorneys, AppointmentBodyParts, AppointmentChangeRequests,
+  AppointmentClaimExaminers, AppointmentDocuments, AppointmentEmployerDetails,
+  AppointmentInjuryDetails, AppointmentLanguages, AppointmentPrimaryInsurances,
+  AppointmentStatuses, AppointmentTypeFieldConfigs, AppointmentTypes, Books, CustomFields,
+  Dashboards, DoctorPreferredLocations, Documents, Emailing, ExternalAccount, ExternalSignups,
+  InternalUsers, Locations, Notifications, NotificationTemplates, PackageDetails, States,
+  SystemParameters, UserProfile, Users, WcabOffices)
 - **Cross-cutting files** at the project root:
   - `CaseEvaluationApplicationMappers.cs` -- primary Mapperly mapper file; split across
-    6 partial files (`*.AppointmentChangeRequests.cs`, `*.CustomFields.cs`,
+    partial files (`*.AppointmentChangeRequests.cs`, `*.CustomFields.cs`,
     `*.DoctorPreferredLocations.cs`, `*.NotificationTemplates.cs`, `*.PackageDetails.cs`)
   - `CaseEvaluationApplicationModule.cs` -- ABP module definition
   - `CaseEvaluationAppService.cs` -- base class; wires localization + permission helpers
@@ -37,9 +36,7 @@ Fix in a dedicated chore ticket; do not silently add more `ApplicationService` s
 
 ### RemoteService attribute
 
-IMPORTANT: Every AppService MUST carry `[RemoteService(IsEnabled = false)]`. Without it,
-ABP auto-exposes duplicate routes alongside the manual controller, causing 500s on ambiguous
-route resolution.
+See root CLAUDE.md for the `[RemoteService(IsEnabled = false)]` rule.
 
 Known deviation: `ExternalSignupAppService` is missing this attribute. It may register
 duplicate routes. Do not extend this pattern.
@@ -70,8 +67,8 @@ lives in `Patients/PatientsAppService.cs`. Do not bypass masking on any other pa
 
 ## Gotchas
 
-- `CaseEvaluationApplicationMappers.cs` is one logical unit spread across 6 `partial` files.
-  Searching only the root file misses mappers for CustomFields, NotificationTemplates,
+- `CaseEvaluationApplicationMappers.cs` is one logical unit spread across multiple `partial`
+  files. Searching only the root file misses mappers for CustomFields, NotificationTemplates,
   PackageDetails, DoctorPreferredLocations, and AppointmentChangeRequests.
 - `Books/BookAppService.cs` also extends `ApplicationService` directly (scaffold leftover).
 - `ExternalSignups/` is not a standard entity CRUD feature -- it operates on ABP's

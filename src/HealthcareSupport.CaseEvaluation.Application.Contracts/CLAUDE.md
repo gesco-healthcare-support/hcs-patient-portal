@@ -20,17 +20,10 @@ DTOs, AppService interfaces, and permission constants. This is the contract surf
    - `{Entity}WithNavigationPropertiesDto` -- read model with joined related entities
    - `Get{Entities}Input` -- list/filter input
    - **Do not** use `CreateUpdate{Entity}Dto` -- that is ABP's older combined pattern; this project keeps create and update separate.
-2. **Permissions are nested static classes.** Pattern:
-   ```csharp
-   public static class Appointments
-   {
-       public const string Default = GroupName + ".Appointments";
-       public const string Create  = Default + ".Create";
-       public const string Edit    = Default + ".Edit";
-       public const string Delete  = Default + ".Delete";
-   }
-   ```
-   Every new permission must also be registered in `CaseEvaluationPermissionDefinitionProvider.cs` -- otherwise it will not appear in the admin UI.
+2. **Permissions are nested static classes.** See `CaseEvaluationPermissions.cs` for the
+   nested-static pattern. Every new permission must also be registered in
+   `CaseEvaluationPermissionDefinitionProvider.cs` -- otherwise it will not appear in the
+   admin UI.
 3. **`Shared/` holds cross-cutting DTOs only.** If a DTO is specific to one feature, put it in that feature folder. Examples of legitimate Shared DTOs: `LookupDto<TKey>`, common filter base classes.
 4. **This project references Domain.Shared only.** It must not reference Domain or EntityFrameworkCore -- keeping that separation is what lets the Angular proxy generator compile against contracts without the full backend.
 
@@ -66,14 +59,7 @@ separate `{Entity}CreateDto` and `{Entity}UpdateDto` classes.
 
 | File | Purpose |
 |------|---------|
-| `Permissions/CaseEvaluationPermissions.cs` | All permission string constants |
-| `Permissions/CaseEvaluationPermissionDefinitionProvider.cs` | Registers permissions with ABP |
-| `CaseEvaluationDtoExtensions.cs` | ABP extension property configuration |
-| `{Feature}/I{Entity}AppService.cs` | Service interface per feature |
-| `Notifications/INotificationDispatcher.cs` | In-process notification dispatch facade |
-| `Notifications/INotificationTemplateRenderer.cs` | In-process template render only |
-| `Patients/SsnRevealDto.cs` | Full-SSN payload for the audited reveal endpoint |
-| `Shared/` | Cross-cutting DTOs |
+| `Patients/SsnRevealDto.cs` | Full-SSN payload for the audited reveal endpoint (non-obvious -- see Gotchas) |
 
 ## Related Docs
 

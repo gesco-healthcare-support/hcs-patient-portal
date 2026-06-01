@@ -15,7 +15,7 @@ AppServices orchestrate, managers enforce.
 | `AppointmentDocuments/AppointmentDocument.cs` | Document aggregate; `CreateQueued()` static factory |
 | `AppointmentDocuments/AppointmentPacketManager.cs` | `EnsureGeneratingAsync` / `MarkGeneratedAsync` / `MarkFailedAsync` for PDF packet lifecycle |
 | `Invitations/InvitationManager.cs` | Token issue / validate / accept with SHA256 hash storage |
-| `BlobContainers/` | 7 ABP `[BlobContainerName]` marker classes (see below) |
+| `BlobContainers/` | ABP `[BlobContainerName]` marker classes (see Blob containers section below) |
 | `Data/CaseEvaluationDbMigrationService.cs` | Host + tenant migration runner; calls `IDataSeeder` then iterates tenants |
 
 ## Framework subfolders
@@ -78,7 +78,7 @@ with past dates can still be edited.
 
 ## Blob containers
 
-Seven `[BlobContainerName]` marker classes, all in `BlobContainers/`:
+Each blob container is a `[BlobContainerName]` marker class under `BlobContainers/`:
 
 | Class | Container name |
 |---|---|

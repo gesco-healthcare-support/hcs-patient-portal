@@ -10,28 +10,20 @@ No standalone Angular UI -- join rows are created during the Appointments bookin
 
 | File | Purpose |
 |---|---|
-| `AppointmentApplicantAttorney.cs` | Aggregate root: `FullAuditedAggregateRoot<Guid>`, `IMultiTenant`, 3 required FK fields |
+| `AppointmentApplicantAttorney.cs` | Aggregate root: `FullAuditedAggregateRoot<Guid>`, `IMultiTenant`; pure link record (see below) |
 | `AppointmentApplicantAttorneyManager.cs` | Domain service: `CreateAsync` / `UpdateAsync`; add invariants here, not in AppService |
 | `AppointmentApplicantAttorneyWithNavigationProperties.cs` | Read model bundling Appointment + ApplicantAttorney + IdentityUser (NOT an EF-mapped type) |
 | `IAppointmentApplicantAttorneyRepository.cs` | Custom repo: `GetWithNav` / `GetListWithNav` / `GetList` / `GetCount` |
 
-## Entity shape
-
-```
-AppointmentApplicantAttorney : FullAuditedAggregateRoot<Guid>, IMultiTenant
-  TenantId            : Guid?   (settable; ABP data filter applies at runtime)
-  AppointmentId       : Guid    (FK, required)
-  ApplicantAttorneyId : Guid    (FK, required)
-  IdentityUserId      : Guid    (FK, required)
-```
-
-Constructor accepts all 3 FKs + Id. No additional settable fields; this is a pure link record.
+Constructor accepts all 3 FKs + Id. No additional settable fields; this is a pure link record
+(`AppointmentId`, `ApplicantAttorneyId`, `IdentityUserId` all required).
 
 ## Conventions
 
-- **Mapper location.** Riok.Mapperly partials are in `CaseEvaluationApplicationMappers.cs`
-  (~lines 363-373). The Entity->Dto mapper class name ends in "Mappers" (plural) -- code-gen
-  artifact, do not rename without checking all call sites.
+- **Mapper location.** Riok.Mapperly partials for this feature are the
+  `AppointmentApplicantAttorneyMappers` partial class in `CaseEvaluationApplicationMappers.cs`.
+  The mapper class name ends in "Mappers" (plural) -- code-gen artifact, do not rename
+  without checking all call sites.
 - **Lookup endpoints reuse parent mappers.** The three AppService lookups
   (`GetAppointmentLookupAsync`, `GetApplicantAttorneyLookupAsync`, `GetIdentityUserLookupAsync`)
   use the `LookupDto<Guid>` mappers from their respective parent features. No

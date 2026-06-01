@@ -10,39 +10,20 @@ IdentityUser), and self-service profile for the logged-in patient.
 | `Patient.cs` | Aggregate root; see Entity Shape below |
 | `PatientManager.cs` | Domain service: `CreateAsync`, `UpdateAsync`, `FindOrCreateAsync` (fuzzy match) |
 | `PatientWithNavigationProperties.cs` | Projection: Patient + State? + AppointmentLanguage? + IdentityUser? + Tenant? |
-| `IPatientRepository.cs` | Custom repo: `GetWithNavigationPropertiesAsync`, `FindBestMatchAsync`, GetList/Count (18+ filters) |
+| `IPatientRepository.cs` | Custom repo: `GetWithNavigationPropertiesAsync`, `FindBestMatchAsync`, `GetListAsync`/`GetCountAsync` with rich filter set |
 
-## Entity Shape
+## Entity shape
 
-```
-Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
-+-- TenantId              : Guid?   (IMultiTenant; ABP auto-filter scopes reads by CurrentTenant.Id)
-+-- FirstName             : string  [max 50, req]
-+-- LastName              : string  [max 50, req]
-+-- MiddleName            : string? [max 50]
-+-- Email                 : string  [max 50, req]
-+-- GenderId              : Gender  (Male=1, Female=2, Other=3)
-+-- DateOfBirth           : DateTime
-+-- PhoneNumber           : string? [max 20]
-+-- SocialSecurityNumber  : string? [max 20]  (PII; plaintext; see SSN gotcha)
-+-- Address               : string? [max 100]
-+-- City                  : string? [max 50]
-+-- ZipCode               : string? [max 15]
-+-- RefferedBy            : string? [max 50]  (typo; propagates to DB column; needs migration to fix)
-+-- CellPhoneNumber       : string? [max 12]
-+-- PhoneNumberTypeId     : PhoneNumberType   (Work=28, Home=29; non-sequential, inherited from legacy)
-+-- Street                : string? [max 255]
-+-- InterpreterVendorName : string? [max 255]
-+-- ApptNumber            : string? [max 100]
-+-- OthersLanguageName    : string? [max 100]
-+-- StateId               : Guid?   (FK -> State, SetNull)
-+-- AppointmentLanguageId : Guid?   (FK -> AppointmentLanguage, SetNull)
-+-- IdentityUserId        : Guid    (FK -> IdentityUser, NoAction, required)
-```
-
-IMultiTenant was added via FEAT-09 (ADR-006 T4, 2026-05-05). Cross-tenant visibility for
-host/IT-Admin paths is opt-in via `IDataFilter<IMultiTenant>.Disable()` -- mirroring
-`DoctorsAppService` -- when `CurrentTenant.Id == null`.
+See `Patient.cs` for all fields. Key structural facts:
+- `SocialSecurityNumber` is `string? [max 20]`, stored plaintext (PII; see SSN gotcha).
+- `RefferedBy` is `string? [max 50]` -- the typo propagates to the DB column name; fixing it
+  requires a migration.
+- `PhoneNumberTypeId` uses non-sequential legacy values `Work=28 / Home=29`.
+- `IdentityUserId` FK is `NoAction` (required); `StateId` and `AppointmentLanguageId` are
+  `SetNull` (optional).
+- `IMultiTenant` was added via FEAT-09 (ADR-006 T4, 2026-05-05). Cross-tenant visibility
+  for host/IT-Admin paths is opt-in via `IDataFilter<IMultiTenant>.Disable()` -- mirroring
+  `DoctorsAppService` -- when `CurrentTenant.Id == null`.
 
 ## Conventions
 
@@ -55,15 +36,12 @@ trimmed email; if found return it; if not, find-or-create an IdentityUser with
 
 ### SSN never-clear rule
 
-`PatientManager.UpdateAsync` only overwrites `SocialSecurityNumber` when the incoming value
-is non-empty. Sending blank on admin update, profile update, or booking update leaves the
-stored value unchanged. The layer CLAUDE.md covers this rule; do NOT bypass it.
+Defined in the Domain layer CLAUDE.md. Do not bypass it.
 
 ### Fuzzy match before insert
 
-Call `PatientMatching.Normalise` / `NormaliseSsn` / `NormalisePhone` BEFORE
-`IPatientRepository.FindBestMatchAsync`. The layer CLAUDE.md defines the threshold
-(3 of 6 keys). `PatientManager.FindOrCreateAsync` is the entry point.
+Normalisation and threshold rules (3 of 6 keys) are defined in the Domain layer CLAUDE.md.
+Entry point: `PatientManager.FindOrCreateAsync`.
 
 ### Length validation is double-enforced
 

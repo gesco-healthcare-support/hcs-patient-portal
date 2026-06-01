@@ -7,7 +7,7 @@ EF Core persistence layer. Only project that touches SQL Server directly.
 - `EntityFrameworkCore/CaseEvaluationDbContext.cs` -- host context (`MultiTenancySides.Both`); all entity `OnModelCreating` config is inline here
 - `EntityFrameworkCore/CaseEvaluationTenantDbContext.cs` -- tenant context (`MultiTenancySides.Tenant`); entity config duplicated verbatim for every both-side entity
 - `EntityFrameworkCore/CaseEvaluationEntityFrameworkCoreModule.cs` -- registers DbContexts and custom repos via `options.AddRepository<>`
-- `Migrations/` -- code-first migrations; added via `dotnet ef migrations add`
+- `Migrations/` -- code-first migrations; see docs/database/MIGRATION-GUIDE.md for the `dotnet ef` command and required project flags
 - `{Feature}/EfCore{Entity}Repository.cs` -- custom repo impl per feature
 
 ## Conventions
@@ -29,12 +29,12 @@ manually. Omitting this filter exposes PHI across tenants. See docs/security/DAT
 
 ### Repo registration
 
-14 custom repos are registered via `options.AddRepository<Entity, EfCoreImpl>()` on
-`CaseEvaluationDbContext` (see module file). `CaseEvaluationTenantDbContext` uses only
-`AddDefaultRepositories`. A new `IRepository<T>` for a custom type requires both:
+A new `IRepository<T>` for a custom type requires both:
 1. An `EfCore{Entity}Repository` class in the appropriate feature folder.
 2. An `options.AddRepository<T, EfCore{Entity}Repository>()` call in the module.
+
 Missing step 2 means DI resolves the untyped default repo, bypassing your custom joins.
+`CaseEvaluationTenantDbContext` uses only `AddDefaultRepositories`.
 
 ### AppointmentPacket unique index
 
@@ -43,16 +43,6 @@ The index on `(TenantId, AppointmentId, Kind)` carries the filter
 - `IsDeleted = 0` -- lets a soft-deleted row be replaced by a regenerated INSERT (BUG-036).
 - `TenantId IS NOT NULL` -- excludes any host-scoped test rows from the constraint.
 This index is declared in both DbContexts.
-
-### Migrations
-
-Run from repo root:
-```
-dotnet ef migrations add <Name> \
-  --project src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore \
-  --startup-project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
-```
-Run DbMigrator before starting services to apply and seed.
 
 ### Navigation property pattern
 
@@ -74,3 +64,4 @@ Custom repo methods use explicit LINQ joins, not navigation properties, to popul
 - docs/security/DATA-FLOWS.md
 - docs/database/EF-CORE-DESIGN.md
 - docs/database/SCHEMA-REFERENCE.md
+- docs/database/MIGRATION-GUIDE.md

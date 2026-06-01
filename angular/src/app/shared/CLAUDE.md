@@ -65,9 +65,11 @@ Patched fork of ABP's `LookupSelectComponent` (forked from
 `@volo/abp.commercial.ng.ui` 10.0.2). The only change: `override get()` adds
 `this.cdRef.markForCheck()` after `this.datas = items`. Without this, OnPush
 parents skip the `@for` binding after the async load, leaving dropdowns
-silently empty. IMPORTANT: use `<app-lookup-select>` everywhere a lookup-select
-sits inside an OnPush parent; stock `<abp-lookup-select>` will appear to work
-and then break when the parent stops receiving mutable inputs.
+silently empty.
+
+IMPORTANT: use `<app-lookup-select>` everywhere a lookup-select sits inside an
+OnPush parent; stock `<abp-lookup-select>` will appear to work and then break
+when the parent stops receiving mutable inputs.
 
 If ABP upgrades its template in a future release, audit
 `AppLookupSelectComponent`'s copied template alongside the upgrade.
@@ -126,13 +128,12 @@ to `/dashboard`; external user returns `true`.
 
 ### performFullLogout (full-logout.ts)
 
-IMPORTANT: never call `AuthService.logout()` directly. The library leaves
-`__tenant` and `XSRF-TOKEN` cookies in place. `performFullLogout(injector)`
-expires both cookies client-side before delegating to the library. The
-AuthServer-side mirror (in `AuthServer/Pages/Account/Logout.cshtml.cs`) also
-expires them; both sides run defensively because the SPA and AuthServer
-operate on different ports and the cookie may not always be overwritten by
-the server-side Set-Cookie.
+Never call `AuthService.logout()` directly. The library leaves `__tenant` and
+`XSRF-TOKEN` cookies in place. `performFullLogout(injector)` expires both
+cookies client-side before delegating to the library. The AuthServer-side mirror
+(in `AuthServer/Pages/Account/Logout.cshtml.cs`) also expires them; both sides
+run defensively because the SPA and AuthServer operate on different ports and the
+cookie may not always be overwritten by the server-side Set-Cookie.
 
 ### SessionIdentityWatcherService (session-identity-watcher.service.ts)
 

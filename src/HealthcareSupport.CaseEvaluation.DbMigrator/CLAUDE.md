@@ -9,7 +9,7 @@
 ## Where the real work lives (NOT here)
 
 - `src/HealthcareSupport.CaseEvaluation.Domain/Data/CaseEvaluationDbMigrationService.cs` -- migration orchestration (host DB + every tenant DB).
-- `src/HealthcareSupport.CaseEvaluation.Domain/<Feature>/*DataSeedContributor.cs` -- 15 `IDataSeedContributor` impls; ABP DI discovers them automatically.
+- `src/HealthcareSupport.CaseEvaluation.Domain/<Feature>/*DataSeedContributor.cs` -- `IDataSeedContributor` impls; ABP DI discovers them automatically.
 - Add new seed contributors in the Domain layer, not here.
 
 ## Conventions
@@ -18,11 +18,12 @@
 The `db-migrator` service in `docker-compose.yml` sets `restart: "no"` and waits on
 `sql-server`, `redis`, and `minio` healthy before starting.
 `authserver` and `api` use `condition: service_completed_successfully` on `db-migrator`,
-so they never start against an unmigrated DB.
+so they never start against an unmigrated DB. See docs/database/MIGRATION-GUIDE.md for
+the equivalent local `dotnet run` invocation.
 
 **Local dev without Redis.**
-Pass `--disable-redis` to `dotnet run`; the module sets `Redis:IsEnabled=false` in
-`PreConfigureServices` before any Redis connection is attempted.
+Pass `--disable-redis`; the module sets `Redis:IsEnabled=false` in `PreConfigureServices`
+before any Redis connection is attempted.
 
 **Config layering.**
 `appsettings.Local.json` is loaded as an optional override (not in source control).

@@ -32,9 +32,10 @@ for list/detail reads.
 
 ## Permissions
 
-Four constants (`Default`, `Create`, `Edit`, `Delete`) in `CaseEvaluationPermissions.cs`
-(lines 102+). In practice: `GetListAsync` uses bare `[Authorize]`, reads use `.Default`,
-Delete uses `.Delete`. Create and Update are mixed -- see Gotchas.
+Four constants (`Default`, `Create`, `Edit`, `Delete`) under the `AppointmentEmployerDetails`
+nested class in `CaseEvaluationPermissions`. In practice: `GetListAsync` uses bare
+`[Authorize]`, reads use `.Default`, Delete uses `.Delete`. Create and Update are mixed --
+see Gotchas.
 
 ## Business Rules
 
