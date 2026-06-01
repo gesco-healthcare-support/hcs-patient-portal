@@ -104,6 +104,21 @@ be called in `ngOnDestroy` (already implemented). If you copy this pattern to an
 component, reproduce the `ngOnDestroy` cleanup or you will create a memory leak / runaway
 requests after navigation.
 
+## Notable single-component features
+
+**internal-users** (`InternalUsersFormComponent`) -- no abstract base. Branches on
+`currentTenant.id`: IT Admin gets an editable picker (GET `/api/app/internal-users/tenants`);
+tenant admin gets a disabled pre-filled dropdown. Use `form.getRawValue()` on submit --
+`form.value` silently drops disabled controls. Temporary password is never shown (emailed
+via Hangfire only). Role allow-list (`Clinic Staff`, `Staff Supervisor`) mirrors backend
+`CreatableRoleNames`. After `form.reset()`, re-apply `disable()` when `tenantLocked()`.
+
+**external-users** (`InviteExternalUserComponent`) -- posts a tokenized invite; response
+`inviteUrl` is shown with a Copy button as SMTP fallback (do not remove it). `ExternalUserType`
+is NUMERIC (`Patient=1, ClaimExaminer=2, ApplicantAttorney=3, DefenseAttorney=4`). Dropdown
+order (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) differs from numeric
+order intentionally -- do not reorder. Permission: `CaseEvaluation.UserManagement.InviteExternalUser`.
+
 ## Related
 
 - docs/frontend/ANGULAR-ARCHITECTURE.md

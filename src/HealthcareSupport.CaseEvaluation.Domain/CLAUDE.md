@@ -130,9 +130,9 @@ custom data collection).
 one `IsActive` row per type is enforced at the AppService layer. No domain manager.
 
 **DefenseAttorneys** -- full entity with `IdentityUserId` + `StateId` FK + firm fields.
-No `AppointmentDefenseAttorney` join entity (asymmetric vs. `ApplicantAttorney`, which does
-have a join entity). Attorney data hangs directly off `Appointment` via denormalized email
-fields.
+Linked to appointments via the `AppointmentDefenseAttorney` join entity (own manager +
+repository), symmetric with `ApplicantAttorney` / `AppointmentApplicantAttorney`. `Appointment`
+also carries denormalized DA email fields for quick display.
 
 ## Gotchas
 
