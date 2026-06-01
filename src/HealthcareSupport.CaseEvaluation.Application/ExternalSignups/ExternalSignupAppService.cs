@@ -1064,7 +1064,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return userType switch
         {
             ExternalUserType.Patient => "Patient",
-            ExternalUserType.Adjuster => "Adjuster",
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",

@@ -2,27 +2,20 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
 /// <summary>
 /// External-user role enum for the public registration + invitation flows.
-/// Moved to Domain.Shared 2026-05-15 because the <see cref="Invitations.Invitation"/>
-/// domain entity references it; the prior Application.Contracts location
-/// blocked Domain from reading the type. Same namespace + same numeric
-/// values so consumers in Application + AppService + Angular proxy keep
-/// their existing using directives + wire payloads unchanged.
+/// Lives in Domain.Shared (since 2026-05-15) because the
+/// <see cref="Invitations.Invitation"/> domain entity references it.
 ///
-/// <para>OLD parity (Phase 8, 2026-05-03; <c>Roles.cs:14-17</c>) defines four
-/// external roles: Patient, Adjuster, PatientAttorney (renamed
-/// <c>ApplicantAttorney</c> in NEW per <c>_old-docs-index.md</c> naming
-/// override), and DefenseAttorney.</para>
+/// <para>Four external roles, matching OLD's <c>Roles.cs:14-17</c>: Patient,
+/// Adjuster (renamed <c>ClaimExaminer</c> in NEW), PatientAttorney (renamed
+/// <c>ApplicantAttorney</c>), and DefenseAttorney. The single value-5
+/// claim-examiner party is modeled once, as <c>ClaimExaminer = 2</c>.</para>
 ///
-/// <para><c>ClaimExaminer</c> is a NEW deviation that contradicts the locked
-/// memory <c>project_role-model.md</c> ("Claim Examiner is metadata not a
-/// role"). It is retained for now because Session A's tenant-invite flow
-/// (<c>InviteExternalUserAsync</c>) and the Angular invite component
-/// reference it. Phase 8 audit gap G1 tracks the eventual cleanup; for the
-/// moment, the value persists with a documented deviation.</para>
-///
-/// <para>Numeric values: do NOT renumber. Existing rows in test seeds and
-/// Angular references hardcode 1-4. <c>Adjuster = 5</c> is new in Phase 8;
-/// adding at the end preserves wire compatibility.</para>
+/// <para>G-06-05 (2026-06-01): the stray <c>Adjuster = 5</c> value was removed.
+/// It was a redundant second name for the role NEW already calls
+/// <c>ClaimExaminer</c> -- the role seeder, every role classifier, and the demo
+/// data only ever used "Claim Examiner", so "Adjuster" was an unseeded,
+/// permission-less dead-end. Do NOT renumber the remaining values; test seeds
+/// and Angular references hardcode 1-4.</para>
 /// </summary>
 public enum ExternalUserType
 {
@@ -30,5 +23,4 @@ public enum ExternalUserType
     ClaimExaminer = 2,
     ApplicantAttorney = 3,
     DefenseAttorney = 4,
-    Adjuster = 5,
 }
