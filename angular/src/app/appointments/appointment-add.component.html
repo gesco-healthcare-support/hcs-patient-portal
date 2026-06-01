@@ -205,4 +205,12 @@
 
   <!-- #121 phase T2 (2026-05-13): authorized-user modal now lives
        inside <app-appointment-add-authorized-users> above. -->
+
+  <!-- F2 (2026-05-29): pre-submit USPS-standardization prompt. -->
+  @if (addressDialogItems) {
+    <app-confirm-address-dialog
+      [items]="addressDialogItems"
+      (resolved)="onAddressDialogResolved($event)"
+    ></app-confirm-address-dialog>
+  }
 </div>
