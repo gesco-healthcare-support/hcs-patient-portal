@@ -24,32 +24,18 @@ mapping, JWT issuer validation, CORS, data-protection).
 
 ### Hangfire recurring jobs
 
-9 jobs registered in `ConfigureHangfireRecurringJobs()` via
-`RecurringJob.AddOrUpdate`. All run in `America/Los_Angeles` (with
-`Pacific Standard Time` Windows fallback). Cron chain (PT, daily):
+Recurring jobs are registered in `ConfigureHangfireRecurringJobs()` via `RecurringJob.AddOrUpdate`.
+All run in `America/Los_Angeles` (with `Pacific Standard Time` Windows fallback). Job classes
+live in `Domain/*/Notifications/Jobs/`; only registration lives here. For the full cron
+schedule see docs/api/MIDDLEWARE-AND-PIPELINE.md.
 
-| Job class (Domain layer) | Cron | Time (PT) |
-|---|---|---|
-| `JointDeclarationAutoCancelJob` | `0 6 * * *` | 06:00 |
-| `AppointmentDayReminderJob` | `0 7 * * *` | 07:00 |
-| `CancellationRescheduleReminderJob` | `0 8 * * *` | 08:00 |
-| `RequestSchedulingReminderJob` | `0 8 * * *` | 08:00 |
-| `DueDateApproachingJob` | `15 8 * * *` | 08:15 |
-| `PackageDocumentReminderJob` | `30 8 * * *` | 08:30 |
-| `DueDateDocumentIncompleteJob` | `45 8 * * *` | 08:45 |
-| `PendingDailyDigestJob` | `0 9 * * *` | 09:00 |
-| `InternalStaffQueueDigestJob` | `15 9 * * *` | 09:15 |
-
-Job CLASSES live in `Domain/*/Notifications/Jobs/`. Only job
-REGISTRATION lives here. Every job iterates tenants by disabling the
-`IMultiTenant` filter then switching `ICurrentTenant` per tenant --
-omitting the `ICurrentTenant.Change` loop processes all tenants as
-host-scope (no data returned, silent failure).
+Every job iterates tenants by disabling the `IMultiTenant` filter then switching
+`ICurrentTenant` per tenant -- omitting the `ICurrentTenant.Change` loop processes all
+tenants as host-scope (no data returned, silent failure).
 
 ### Rate limiter
 
-Three anonymous endpoint families are rate-limited
-(see `ConfigurePasswordResetRateLimiter`):
+Three anonymous endpoint families are rate-limited (see `ConfigurePasswordResetRateLimiter`):
 
 | Path prefix | Partition strategy | Limit |
 |---|---|---|
@@ -57,14 +43,15 @@ Three anonymous endpoint families are rate-limited
 | `/api/public/appointment-documents` POST upload-by-code | per-verification-code (5/hr) | single layer |
 | `/api/public/external-signup/register` POST | per-IP (5/hr) | single layer |
 
-`PasswordResetEmailPeekMiddleware` runs before `UseRateLimiter()` and
-stashes the `email` field from the JSON body into
-`HttpContext.Items["pwd-reset.email"]`. The partitioner reads that key
-first; fallback chain is `?email=` query -> JWT `sub` -> client IP.
+`PasswordResetEmailPeekMiddleware` must run before `UseRateLimiter` and after `UseAuthorization`
+(see Middleware order below). The global limiter returns `GetNoLimiter` for unmatched paths;
+new anonymous endpoints that need abuse protection require a new partition here.
 
-New anonymous endpoints that need abuse protection require a new
-partition in `ConfigurePasswordResetRateLimiter` -- the global limiter
-returns `GetNoLimiter` for unmatched paths.
+### Middleware order
+
+`PasswordResetEmailPeekMiddleware` must run before `UseRateLimiter` (so the body-peek stash
+is ready when the partitioner executes) and after `UseAuthorization` (so the JWT `sub` claim
+is available as a fallback partition key). Full pipeline: docs/api/MIDDLEWARE-AND-PIPELINE.md.
 
 ### Exception-to-HTTP-status mapping
 
@@ -83,16 +70,13 @@ permissions failure and does not show an error message to the user.
 
 ### Upload caps (two-tier)
 
-Framework cap: 12 MB (`KestrelServerOptions.Limits.MaxRequestBodySize`
-and `FormOptions.MultipartBodyLengthLimit`). App-layer cap: 10 MB
-(enforced in `AppointmentDocumentsAppService`). The 2 MB headroom
-prevents multipart boundary overhead from tripping the raw 413 before
-the localized `BusinessException` can fire.
-
-IMPORTANT: do not collapse the two caps to a single value -- the gap is
-intentional. The framework 413 has no localized message; the app-layer
-413 carries `data.MaxBytes` + `data.ActualBytes` so the SPA can render
-"max 10 MB" with the actual size.
+IMPORTANT: do not collapse the two caps to a single value -- the gap is intentional.
+Framework cap: 12 MB (`KestrelServerOptions.Limits.MaxRequestBodySize` and
+`FormOptions.MultipartBodyLengthLimit`). App-layer cap: 10 MB (enforced in
+`AppointmentDocumentsAppService`). The 2 MB headroom prevents multipart boundary overhead
+from tripping the raw 413 before the localized `BusinessException` can fire. The framework
+413 has no localized message; the app-layer 413 carries `data.MaxBytes` + `data.ActualBytes`
+so the SPA can render "max 10 MB" with the actual size.
 
 ### JWT issuer validator (ADR-006/ADR-007)
 
@@ -111,20 +95,6 @@ each wrapped in `Directory.Exists(...)`. Do not remove the guard:
 Docker containers do not mount the host source tree, so the path does
 not exist there. Removing the guard replaces embedded locale JSON with
 an empty directory, making every `L("Key")` call return the literal key.
-
-### Middleware order
-
-```
-Localization -> Routing -> StaticAssets -> StudioLink -> SecurityHeaders
--> Cors -> Authentication -> MultiTenancy -> UnitOfWork -> DynamicClaims
--> Authorization -> PasswordResetEmailPeekMiddleware -> RateLimiter
--> Swagger -> HangfireDashboard -> Auditing -> SerilogEnrichers -> Endpoints
-```
-
-`PasswordResetEmailPeekMiddleware` must come before `UseRateLimiter` so
-the body-peek stash is ready when the partitioner executes.
-`UseRateLimiter` comes after `UseAuthorization` so the JWT `sub` claim
-is available as a fallback partition key.
 
 ---
 

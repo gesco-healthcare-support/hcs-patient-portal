@@ -24,7 +24,8 @@ rows start as Pending.
 
 `PacketKind` -- `Patient=1 / Doctor=2 / AttorneyClaimExaminer=3`. All three are generated
 for every appointment type (gate removed 2026-05-29). Doctor kind is generated and stored
-but never emailed -- mirrors OLD asymmetry (`AppointmentDocumentDomain.cs:561-634`).
+but never emailed -- mirrors OLD asymmetry (search `AppointmentDocumentDomain.cs` for
+`DoctorPacket` email-send logic).
 
 `PacketGenerationStatus` -- `Generating=1 / Generated=2 / Failed=3`. UI shows spinner /
 Download button / error + Regenerate button respectively.

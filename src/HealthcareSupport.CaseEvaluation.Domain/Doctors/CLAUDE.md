@@ -56,7 +56,7 @@ filter -- from host context they require `_currentTenant.Change(tenantId)`.
 2. Cascade vs NoAction. Host DB uses `Cascade` for `DoctorAppointmentType` and
    `DoctorLocation` join FK; tenant DB uses `NoAction`. Deleting a Doctor in tenant context
    fails at the DB level if join rows exist -- delete join rows first.
-3. Explicit `HasOne<Tenant>()` FK on host only. `CaseEvaluationDbContext` line 96 adds
+3. Explicit `HasOne<Tenant>()` FK on host only. `CaseEvaluationDbContext` adds
    `HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(SetNull)`. The
    tenant `DbContext` omits this FK entirely.
 4. No uniqueness guard. Neither `DoctorManager` nor `DoctorsAppService` checks for

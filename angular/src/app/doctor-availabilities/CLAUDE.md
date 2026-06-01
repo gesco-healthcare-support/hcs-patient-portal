@@ -25,28 +25,17 @@ the list page links to `add`; the toolbar action links to `generate`. Do not spl
 ### LookupTypeaheadMtmComponent -- always call toIdArray() before the API
 
 `LookupTypeaheadMtmComponent` (`abp-lookup-typeahead-mtm`) writes `{ id, name }` objects
-into the form control, NOT bare Guid strings. The backend DTO expects `Guid[]`.
-
-IMPORTANT: always collapse via `toIdArray()` before building the payload. Passing raw
-objects causes a server 400 -- the error will NOT appear at compile time.
-
-```typescript
-// in buildPayload():
-appointmentTypeIds: this.toIdArray(value.appointmentTypeIds),
-```
-
-`toIdArray()` handles both the object shape and the raw-string shape safely.
+into the form control, NOT bare Guid strings. The backend DTO expects `Guid[]`. Always
+collapse via `toIdArray()` before building the payload -- passing raw objects causes a
+server 400 that will NOT appear at compile time. `toIdArray()` handles both the object
+shape and the raw-string shape safely.
 
 ### selectedDays sentinel -- empty array means "all days"
 
-The backend interprets `selectedDays: []` as "run on every day of the week."
-When all 7 checkboxes are checked, `buildPayload()` sends `[]`, NOT `[0,1,2,3,4,5,6]`.
-
-```typescript
-const selectedDays = checkedDays.length === 7 ? [] : checkedDays;
-```
-
-Never pass a full 7-element array; the server treats it as a no-day filter (undefined behavior).
+The backend interprets `selectedDays: []` as "run on every day of the week." When all 7
+checkboxes are checked, `buildPayload()` sends `[]`, NOT `[0,1,2,3,4,5,6]`. Never pass
+a full 7-element array; the server treats it as a no-day filter (undefined behavior). See
+`buildPayload()` in `doctor-availability-generate.component.ts` for the conditional logic.
 
 ### Time normalization -- normalizeTime()
 

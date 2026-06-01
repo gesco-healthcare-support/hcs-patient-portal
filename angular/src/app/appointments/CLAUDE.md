@@ -2,7 +2,7 @@
 
 ## What Lives Here
 
-- `appointment-add.component.ts` -- the booker; owns the 55-field reactive FormGroup.
+- `appointment-add.component.ts` -- the booker; owns the reactive FormGroup.
 - `sections/` -- 7 template-only section components (Schedule, PatientDemographics,
   AuthorizedUsers, EmployerDetails, AttorneySection, ClaimInformation, CustomFields).
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff
@@ -37,9 +37,10 @@ Add the same guard to any future per-type fetch in this component.
 
 ### AppointmentTypeFieldConfigDto is inlined, not in proxy/
 
-The type at the top of `appointment-add.component.ts` (lines 79-87) is inlined
-because `abp generate-proxy` has not yet been run after the W2-5 backend ship. Do
-NOT move it to `proxy/` by hand; regenerate the proxy and delete the inline copy.
+The type is defined at the top of `appointment-add.component.ts` (search for
+`AppointmentTypeFieldConfigDto`) because `abp generate-proxy` has not yet been run
+after the W2-5 backend ship. Do NOT move it to `proxy/` by hand; regenerate the
+proxy and delete the inline copy.
 
 ### AA/DA section toggle-off must open an ABP confirmation modal BEFORE clearing validators
 
@@ -97,7 +98,7 @@ skip the pre-fill so they can book on behalf of any party.
 - `form.reset()` nulls `applicantAttorneyEnabled` and `defenseAttorneyEnabled`.
   `reset()` must be followed by `patchValue({ applicantAttorneyEnabled: true,
 defenseAttorneyEnabled: true })` to restore the required-validator state.
-  (See `reset()` in appointment-add.component.ts, BUG-044 comment.)
+  (See `reset()` in `appointment-add.component.ts`, BUG-044 comment.)
 - `appointmentDate` is stored as a combined ISO datetime (date + time merged at
   submit via `combineAppointmentDateAndTime`). Never pass the raw date-picker value
   directly to the API.

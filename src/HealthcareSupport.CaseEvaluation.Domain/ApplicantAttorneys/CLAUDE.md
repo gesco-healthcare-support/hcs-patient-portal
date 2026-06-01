@@ -8,7 +8,7 @@ and ties one `IdentityUser` account to a firm profile. Linked to `Appointment` v
 
 | File | Purpose |
 |---|---|
-| `ApplicantAttorney.cs` | Aggregate root: `IMultiTenant`, 11 string fields + 2 FKs (`StateId`, `IdentityUserId`) |
+| `ApplicantAttorney.cs` | Aggregate root: `IMultiTenant`; FKs `StateId`, `IdentityUserId` |
 | `ApplicantAttorneyManager.cs` | DomainService: `CreateAsync` / `UpdateAsync` with `Check.Length` on all string fields |
 | `ApplicantAttorneyWithNavigationProperties.cs` | Projection wrapper: `State` + `IdentityUser` nav props |
 | `IApplicantAttorneyRepository.cs` | Custom repo: nav-prop queries, filter by FirmName/PhoneNumber/City/StateId/IdentityUserId |
@@ -41,8 +41,8 @@ added under BUG-042. No symmetric divergence remains in the entity shape.
 
 ### Multi-tenancy
 
-`IMultiTenant: yes`. DbContext config exists in BOTH `CaseEvaluationDbContext` (line 245)
-and `CaseEvaluationTenantDbContext` (line 155) -- no `IsHostDatabase()` guard.
+`IMultiTenant: yes`. DbContext config exists in BOTH `CaseEvaluationDbContext` and
+`CaseEvaluationTenantDbContext` -- no `IsHostDatabase()` guard.
 `StateId` FK points to the host-scoped `State` entity with `SetNull` on delete.
 
 ## Gotchas

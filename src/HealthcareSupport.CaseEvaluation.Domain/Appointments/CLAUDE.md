@@ -17,37 +17,20 @@ Used by admin staff (CRUD), bookers (full booking flow), and accessor-scoped att
 
 ## Entity shape
 
-```
-Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
-  TenantId                   : Guid?
-  PanelNumber                : string? [max 50]
-  AppointmentDate            : DateTime
-  IsPatientAlreadyExist      : bool
-  RequestConfirmationNumber  : string [max 50, required]   auto-generated "A#####"
-  DueDate                    : DateTime?
-  InternalUserComments       : string? [max 250]
-  AppointmentApproveDate     : DateTime?
-  AppointmentStatus          : AppointmentStatusType
-  PatientId                  : Guid (required)  FK -> Patient
-  IdentityUserId             : Guid (required)  FK -> IdentityUser (booking user)
-  AppointmentTypeId          : Guid (required)  FK -> AppointmentType (host-scoped)
-  LocationId                 : Guid (required)  FK -> Location (host-scoped)
-  DoctorAvailabilityId       : Guid (required)  FK -> DoctorAvailability
-```
-
-All 5 required FKs are `OnDelete: NoAction`. Tenant isolation is via ABP's automatic
-`IMultiTenant` data filter; no manual `WHERE TenantId = ...` in the repository.
-
-Inbound FKs (FK lives on the other entity, all tenant-scoped, `NoAction`):
-`AppointmentEmployerDetail`, `AppointmentAccessor`, `AppointmentApplicantAttorney`.
+See `Appointment.cs` for all fields. Key structural facts:
+- All 5 required FKs (`PatientId`, `IdentityUserId`, `AppointmentTypeId`, `LocationId`,
+  `DoctorAvailabilityId`) are `OnDelete: NoAction`.
+- `RequestConfirmationNumber` is auto-generated as `"A#####"`; client value is ignored.
+- Tenant isolation is via ABP's automatic `IMultiTenant` data filter; no manual
+  `WHERE TenantId = ...` in the repository.
+- Inbound FKs (FK lives on the other entity, all tenant-scoped, `NoAction`):
+  `AppointmentEmployerDetail`, `AppointmentAccessor`, `AppointmentApplicantAttorney`.
 
 ## State machine
 
-IMPORTANT: NEVER set `Appointment.AppointmentStatus` directly. Use
-`AppointmentManager.ApplyTransitionAsync` (called via `ApproveAsync`, `RejectAsync`,
-`RequestRescheduleAsync`). Direct assignment bypasses the guard, skips
-`AppointmentStatusChangedEto`, and leaves `AppointmentApproveDate` / `RejectionNotes` unset.
-The layer CLAUDE.md has the full transition diagram.
+Never set `Appointment.AppointmentStatus` directly; always use
+`AppointmentManager.ApplyTransitionAsync`. See the Domain layer CLAUDE.md for the full
+transition diagram and rule.
 
 ## Business rules
 
@@ -100,11 +83,11 @@ The layer CLAUDE.md has the full transition diagram.
    in the same tenant can deep-link to any appointment by ID.
 
 2. **Three parallel form patterns in Angular.** Modal (FormBuilder reactive), Add page
-   (FormBuilder reactive, ~1,594 lines), View page (plain ngModel). The ngModel form is
-   the divergence risk; reactive validation and async slot lookup do not apply to it.
+   (FormBuilder reactive), View page (plain ngModel). The ngModel form is the divergence
+   risk; reactive validation and async slot lookup do not apply to it.
 
-3. **`console.log('Date check:', ...)` in `appointment-add.component.ts` line 1546.**
-   Production-bound debug log in the date-validation path.
+3. **Remove the `'Date check:'` debug log in `appointment-add.component.ts`** (date-validation
+   path) before release.
 
 4. **Proxy `getList` sends 18 query params; `GetAppointmentsInput` exposes 7.** The server
    ignores the extras. The proxy was generated against a richer input shape and is out of sync.
@@ -116,9 +99,9 @@ The layer CLAUDE.md has the full transition diagram.
 ## Angular UI surface (summary)
 
 Five components: list page, abstract list directive, detail modal, full-page Add
-(`/appointments/add`, ~1,594 lines, standalone), and View page (`/appointments/view/:id`,
-~969 lines, standalone ngModel). Routes registered in `appointment-routes.ts`. Auto-generated
-proxy at `angular/src/app/proxy/appointments/`.
+(`/appointments/add`, standalone), and View page (`/appointments/view/:id`, standalone
+ngModel). Routes registered in `appointment-routes.ts`. Auto-generated proxy at
+`angular/src/app/proxy/appointments/`.
 
 ## Related
 
