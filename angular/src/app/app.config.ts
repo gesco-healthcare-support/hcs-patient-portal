@@ -34,11 +34,12 @@ import {
 import { provideNgxMask } from 'ngx-mask';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
-import { ApplicationConfig, Injector, importProvidersFrom } from '@angular/core';
+import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { environment } from '../environments/environment';
+import { environment, addressValidation } from '../environments/environment';
 import { APP_ROUTES } from './app.routes';
 import { APP_ROUTE_PROVIDER } from './route.provider';
 import { STATES_STATE_ROUTE_PROVIDER } from './states/state/providers/state-route.provider';
@@ -55,6 +56,7 @@ import { APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER } from './applica
 import { DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER } from './defense-attorneys/defense-attorney/providers/defense-attorney-route.provider';
 import { AddressValidationProvider } from './shared/address/address-validation.provider';
 import { MockAddressProvider } from './shared/address/mock-address.provider';
+import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -124,10 +126,24 @@ export const appConfig: ApplicationConfig = {
     // of Angular's standard Validators.* set.
     provideNgxMask(),
     importProvidersFrom(RxReactiveFormsModule),
-    // F2 / address validation (2026-05-29) -- vendor-neutral address provider.
-    // Defaults to the deterministic mock; the Smarty adapter (Adrian decision
-    // 2026-05-31) replaces this binding at T4 when the API key is configured.
-    { provide: AddressValidationProvider, useClass: MockAddressProvider },
+    // F2 / address validation -- Smarty adapter when an embedded key is
+    // configured, otherwise the deterministic mock (dev / key-not-yet-set).
+    // Set `addressValidation.smartyKey` in src/environments/environment*.ts +
+    // allow-list the host in Smarty to activate live autocomplete + USPS
+    // standardization; no code change required.
+    {
+      provide: AddressValidationProvider,
+      useFactory: () => {
+        const cfg = addressValidation;
+        return cfg.smartyKey
+          ? new SmartyAddressProvider(inject(HttpClient), {
+              key: cfg.smartyKey,
+              autocompleteUrl: cfg.autocompleteUrl,
+              verifyUrl: cfg.verifyUrl,
+            })
+          : new MockAddressProvider();
+      },
+    },
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {
