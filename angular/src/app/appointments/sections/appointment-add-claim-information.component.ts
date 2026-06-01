@@ -442,10 +442,48 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
     this.injuryModalError = null;
   }
 
+  /**
+   * OLD parity (appointment.domain.ts checkDateValidationForInjury): reject a
+   * future Date Of Injury, and for a cumulative-trauma injury reject an inverted
+   * range, a future end date, or a zero-width range. The patient DOB is not in
+   * this modal, so the injury-before-birth rule is enforced server-side only
+   * (matching OLD). Returns the first failing message, or null when dates pass.
+   */
+  private checkInjuryDates(): string | null {
+    const fromValue = this.injuryForm.get('injuryDateOfInjury')?.value;
+    const toValue = this.injuryForm.get('injuryToDateOfInjury')?.value;
+    const isCumulative = this.injuryForm.get('injuryCumulative')?.value === true;
+    const now = new Date();
+
+    if (isCumulative && fromValue && toValue) {
+      const from = new Date(fromValue);
+      const to = new Date(toValue);
+      if (from > to) {
+        return "Injury 'From' date must be earlier than the 'To' date.";
+      }
+      if (to > now) {
+        return "Injury 'To' date cannot be in the future.";
+      }
+      if (from.getTime() === to.getTime()) {
+        return "Injury 'From' and 'To' dates must be different.";
+      }
+    } else if (fromValue) {
+      if (new Date(fromValue) > now) {
+        return 'Injury date cannot be in the future.';
+      }
+    }
+    return null;
+  }
+
   saveInjuryModal(): void {
     this.injuryForm.markAllAsTouched();
     if (this.injuryForm.invalid) {
       this.injuryModalError = 'Please complete the required fields highlighted below.';
+      return;
+    }
+    const dateError = this.checkInjuryDates();
+    if (dateError) {
+      this.injuryModalError = dateError;
       return;
     }
     this.injuryModalError = null;
