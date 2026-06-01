@@ -577,7 +577,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     firstName: input.FirstName ?? string.Empty,
                     lastName: input.LastName ?? string.Empty,
                     email: input.Email,
-                    genderId: Gender.Male,
+                    // G-06-08 (2026-06-01): do not fabricate a real gender on a
+                    // real patient. Unspecified + MinValue are "not provided yet"
+                    // sentinels; the booking form requires real values at booking.
+                    genderId: Gender.Unspecified,
                     dateOfBirth: DateTime.MinValue,
                     phoneNumberTypeId: PhoneNumberType.Home
                 );

@@ -1598,7 +1598,7 @@ export class AppointmentAddComponent {
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
-          genderId: (patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
@@ -1712,7 +1712,7 @@ export class AppointmentAddComponent {
           lastName: profile.patient.lastName ?? null,
           middleName: profile.patient.middleName ?? null,
           email: profile.patient.email ?? null,
-          genderId: (profile.patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(profile.patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(
             profile.patient.dateOfBirth as string | null,
           ),
@@ -1770,6 +1770,21 @@ export class AppointmentAddComponent {
       return null;
     }
     return value;
+  }
+
+  /**
+   * G-06-08 (2026-06-01): a registered-but-not-yet-booked patient carries
+   * Gender.Unspecified (0) -- the registration sentinel, never a real choice.
+   * Treat it (and any missing value) as "not provided" so the booking form's
+   * gender dropdown is not pre-selected with a fabricated value. Mirrors the
+   * normalizePatientDateOfBirth guard for the DOB sentinel.
+   */
+  private normalizePatientGender(value: unknown): number | null {
+    const id = value as number | null | undefined;
+    if (id === undefined || id === null || id === 0) {
+      return null;
+    }
+    return id;
   }
 
   onPatientSelected(patientId: string | null): void {
@@ -1832,7 +1847,7 @@ export class AppointmentAddComponent {
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
-          genderId: (patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
