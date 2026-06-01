@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Events;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -189,6 +190,42 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             CurrentUser.Id);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(rejected);
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
+    public virtual async Task<AppointmentDto> DirectCancelAppointmentAsync(Guid id, DirectCancelAppointmentInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        // Only the two terminal cancel outcomes are valid for a direct staff
+        // cancel; the UI radio enforces this, but guard the API too.
+        if (input.CancellationOutcome != AppointmentStatusType.CancelledNoBill &&
+            input.CancellationOutcome != AppointmentStatusType.CancelledLate)
+        {
+            throw new UserFriendlyException(L["Appointment:InvalidCancellationOutcome"]);
+        }
+
+        // Delegate the Approved -> CancelledNoBill/Late transition to the manager:
+        // it validates the source state via the state machine, stamps
+        // CancellationReason + CancelledById, and publishes
+        // AppointmentStatusChangedEto. The terminal status frees the slot via the
+        // capacity model. Phase 1 email scope excludes a cancellation notification,
+        // so no email Eto is published here (deferred with the other gated handlers).
+        Appointment cancelled;
+        try
+        {
+            cancelled = await _appointmentManager.DirectCancelAsync(
+                id, input.CancellationOutcome, input.Reason, CurrentUser.Id);
+        }
+        catch (BusinessException ex) { throw _exceptionTranslator.Translate(ex); }
+
+        _logger.LogInformation(
+            "AppointmentApprovalAppService.DirectCancelAppointmentAsync: appointment {AppointmentId} cancelled ({Outcome}) by {UserId}.",
+            cancelled.Id,
+            input.CancellationOutcome,
+            CurrentUser.Id);
+
+        return ObjectMapper.Map<Appointment, AppointmentDto>(cancelled);
     }
 
     /// <summary>
