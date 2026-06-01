@@ -53,17 +53,24 @@ public sealed class RevokePreviousSessionsHandler
         var subject = context.Principal?.GetClaim(Claims.Subject);
         if (string.IsNullOrWhiteSpace(subject))
         {
+            _logger.LogWarning(
+                "Single-session: authorization_code token request had no subject; skipping revocation.");
             return;
         }
 
         var revoked = 0;
         await foreach (var token in _tokenManager.FindBySubjectAsync(subject))
         {
-            // Prior, still-valid refresh tokens only. Access-token entries are
-            // self-contained JWTs (revoking the entry has no effect at the API),
-            // and the auth code being redeemed is a different token type.
+            // Prior, still-valid REFRESH tokens only. The stored token Type is a
+            // long URN (urn:ietf:params:oauth:token-type:refresh_token), NOT the
+            // short "refresh_token" hint, so match on the suffix rather than the
+            // TokenTypeHints constant (which caused this to silently no-op). The
+            // new login's tokens are not persisted yet, and the redeemed auth code
+            // is no longer Valid, so only prior sessions are affected. Access-token
+            // entries are skipped: they are self-contained JWTs validated locally
+            // at the API, so revoking the entry would have no effect anyway.
             var type = await _tokenManager.GetTypeAsync(token);
-            if (!string.Equals(type, TokenTypeHints.RefreshToken, StringComparison.Ordinal))
+            if (type is null || !type.EndsWith("refresh_token", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -79,12 +86,9 @@ public sealed class RevokePreviousSessionsHandler
             }
         }
 
-        if (revoked > 0)
-        {
-            _logger.LogInformation(
-                "Single-session: revoked {Count} prior refresh token(s) for subject {Subject} on a new login.",
-                revoked,
-                subject);
-        }
+        _logger.LogInformation(
+            "Single-session: revoked {Count} prior refresh token(s) for subject {Subject} on a new login.",
+            revoked,
+            subject);
     }
 }
