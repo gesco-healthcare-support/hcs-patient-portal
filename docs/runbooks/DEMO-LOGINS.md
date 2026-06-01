@@ -1,5 +1,7 @@
 # Demo Logins
 
+> Purpose: Copy-paste credential cheat sheet for manual testing and demos. Audience: Developer. Last verified: 2026-06-01 vs main.
+
 Copy-paste cheat sheet for manual testing and demos. All users below were created by `scripts/Master-Seed.ps1` in the current local Docker environment.
 
 > **DEV-ONLY.** Do NOT use these credentials or this password in any deployed/staging/production environment. Rotate `TEST_PASSWORD` in `.env.local` before any deployment. Source of truth for the password: `.env.local` -> `TEST_PASSWORD`.

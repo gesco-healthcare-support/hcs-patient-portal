@@ -1,5 +1,7 @@
 # Testing Strategy
 
+> Purpose: Describes the test projects, framework stack, data seeding approach, and test pyramid for the Patient Portal backend. Audience: developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [DevOps](./) > Testing Strategy
 
 > Backend test coverage (live counts + per-entity rollup): see [docs/testing/coverage-status.md](../testing/coverage-status.md). Last verified 2026-04-24.
@@ -177,6 +179,6 @@ flowchart TB
 ---
 
 **Related:**
-- [Development Setup](DEVELOPMENT-SETUP.md)
-- [Solution Structure](../architecture/SOLUTION-STRUCTURE.md)
-- [Domain Services](../backend/DOMAIN-SERVICES.md)
+- [Development Setup](../runbooks/DOCKER-DEV.md)
+- [Solution Structure](../architecture/OVERVIEW.md)
+- Domain services are documented per-feature in the Domain CLAUDE.md files

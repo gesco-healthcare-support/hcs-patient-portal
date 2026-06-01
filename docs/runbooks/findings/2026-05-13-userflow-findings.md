@@ -45,12 +45,6 @@ Each entry below links to a per-bug file in `bugs/`. One bug per file is the can
 | ID | Status | Title |
 | --- | --- | --- |
 | [OBS-1](bugs/OBS-1-register-form-field-inventory.md) | open | Register form field inventory (OLD vs NEW) |
-| [OBS-2](bugs/OBS-2-stub.md) | stub | (needs rehydration) |
-| [OBS-3](bugs/OBS-3-stub.md) | stub | (needs rehydration) |
-| [OBS-4](bugs/OBS-4-stub.md) | stub | (needs rehydration) — CE page firm-name visibility |
-| [OBS-5](bugs/OBS-5-stub.md) | stub | (needs rehydration) |
-| [OBS-6](bugs/OBS-6-stub.md) | stub | (needs rehydration) |
-| [OBS-7](bugs/OBS-7-stub.md) | stub | (needs rehydration) |
 | [OBS-8](bugs/OBS-8-firmname-aa-da-only.md) | open | Firm Name AA/DA-only visibility matrix |
 | [OBS-9](bugs/OBS-9-port-pinning-env.md) | superseded | Two-stack port-pinning attempt |
 | [OBS-10](bugs/OBS-10-appointment-types-vs-plan.md) | open | Appointment types seeded vs plan expectation (Re-Eval/Consultation missing) |

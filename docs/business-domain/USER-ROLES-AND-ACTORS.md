@@ -1,5 +1,7 @@
 # User Roles and Actors
 
+> Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
 
 ## Overview
@@ -178,11 +180,45 @@ This pattern allows fine-grained, per-appointment access control without grantin
 
 ---
 
+## External Layout Roles
+
+All four external roles share the same simplified portal layout (no LeptonX sidebar; custom
+`TopHeaderNavbarComponent` replaces the LeptonX topbar):
+
+| Role                   | Gets external layout |
+|------------------------|:--------------------:|
+| **Patient**            | Y                    |
+| **Applicant Attorney** | Y                    |
+| **Defense Attorney**   | Y                    |
+| **Claim Examiner**     | Y                    |
+
+This is enforced in two places in the Angular app (both verified against code on main):
+
+- `angular/src/app/shared/auth/external-user-roles.ts` -- `EXTERNAL_USER_ROLES` constant
+  lists all four role names; `hasOnlyExternalRoles` (routing guard) and `hasAnyExternalRole`
+  (CSS toggle) both operate on this constant.
+- `angular/src/app/home/home.component.ts` -- `isPatientUser` getter explicitly includes
+  all four: `'patient'`, `'applicant attorney'`, `'defense attorney'`, `'claim examiner'`.
+
+Note: the code snippets in [Role-Based UI](../frontend/ROLE-BASED-UI.md) show only three
+roles in some inline snippets; those snippets are stale. The canonical source is
+`external-user-roles.ts` and the `isPatientUser` getter above.
+
+---
+
 ## External User Lookup
 
-The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of all external users, filtered to the roles: Patient, Applicant Attorney, and Defense Attorney. This is used in the UI when assigning appointment accessors or booking on behalf of another user.
+The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of
+external users filtered to the roles: **Patient** and **Applicant Attorney** only.
+Defense Attorney and Claim Examiner are intentionally excluded from this picker -- per
+design decision D-2, their saved profiles are not surfaced in any lookup, dropdown, or
+autocomplete to other tenant users. This lookup is used in the UI when assigning
+appointment accessors or booking on behalf of another user.
 
-The `GetMyProfileAsync` method allows authenticated external users to retrieve their own profile, including their assigned role.
+The `GetMyProfileAsync` method allows authenticated external users to retrieve their own
+profile, including their assigned role. Note: the role resolution in `GetMyProfileAsync`
+checks for Patient, Applicant Attorney, and Defense Attorney; Claim Examiner is not
+currently included in that check (the field returns an empty string for CE users).
 
 ---
 

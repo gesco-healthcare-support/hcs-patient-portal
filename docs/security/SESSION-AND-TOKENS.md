@@ -1,5 +1,7 @@
 # Session and Tokens
 
+> Purpose: Inventory of every auth artifact stored client-side, its lifetime, and its invalidation path. Audience: backend and frontend engineers. Last verified: 2026-06-01 vs main.
+
 Inventory of every authentication-related artifact this app stores
 client-side, where it lives, what writes it, what reads it, and how it
 is invalidated. Written 2026-05-13 as part of the Issue #106 auth /

@@ -2,6 +2,8 @@
 
 # Application Services
 
+> Purpose: Reference for the Application Service layer -- base class, DTO mapping, and per-service inventory. Audience: backend developer. Last verified: 2026-06-01 vs main.
+
 The Application Service layer orchestrates use cases by coordinating domain services, repositories, and infrastructure concerns. All custom application services inherit from a shared base class and follow ABP Framework conventions.
 
 ---
@@ -63,15 +65,35 @@ WithNavigationProperties mappers also exist (e.g., `AppointmentWithNavigationPro
 
 ---
 
-## AppointmentsAppService (454 lines)
+## AppService Inventory
+
+The Application project contains **38 feature folders** (Application CLAUDE.md). This document covers the five most complex services in depth. The remaining services follow the standard CRUD pattern described in the [Standard CRUD Services](#standard-crud-services) section below.
+
+**Major services (covered in depth below):**
+- `AppointmentsAppService` -- most complex; 24 injected dependencies, multi-step booking pipeline
+- `PatientsAppService` -- patient lifecycle, self-service profile, SSN masking, SSN reveal endpoint
+- `DoctorAvailabilitiesAppService` -- slot CRUD, bulk generation, slot preview
+- `ExternalSignupAppService` -- anonymous self-registration for Patient / Attorney / CE roles
+- `DoctorTenantAppService` -- doctor-as-tenant provisioning (extends ABP SaaS `TenantAppService`)
+- `UserExtendedAppService` -- syncs Doctor entity when admin edits an IdentityUser
+- `AppointmentChangeRequestsAppService` -- change request submission and approval workflow
+- `AppointmentDocumentsAppService` -- document upload, acceptance/rejection, packet generation
+- `InternalUsersAppService` -- internal staff user management
+- `NotificationTemplatesAppService` -- email template CRUD and rendering
+
+---
+
+## AppointmentsAppService
 
 **File:** `src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs`
 **Implements:** `IAppointmentsAppService`
 **Authorization:** `[Authorize]` on class, permission-specific attributes on individual methods
 
-This is the most complex service in the application. It coordinates appointment creation with confirmation number generation, availability slot booking, and applicant attorney linkage.
+This is the most complex service in the application. It coordinates appointment creation with confirmation number generation, capacity-aware slot validation, attorney linkage, and SSN masking on all patient DTO exits.
 
 ### Dependencies
+
+The constructor injects **24 dependencies** (verified against the constructor signature):
 
 | Dependency | Purpose |
 |---|---|
@@ -81,30 +103,46 @@ This is the most complex service in the application. It coordinates appointment 
 | `IRepository<IdentityUser, Guid>` | ABP identity user access |
 | `IRepository<AppointmentType, Guid>` | Appointment type lookup |
 | `IRepository<Location, Guid>` | Location lookup |
-| `IRepository<DoctorAvailability, Guid>` | Availability slot access |
+| `IRepository<DoctorAvailability, Guid>` | Availability slot access (loaded with M2M `AppointmentTypes`) |
 | `IRepository<Doctor, Guid>` | Doctor entity (for filtered lookups) |
-| `IRepository<ApplicantAttorney, Guid>` | Attorney entity access |
+| `IRepository<ApplicantAttorney, Guid>` | Applicant attorney entity access |
 | `IAppointmentApplicantAttorneyRepository` | Appointment-attorney link repository |
-| `ApplicantAttorneyManager` | Domain service for attorney create/update |
-| `AppointmentApplicantAttorneyManager` | Domain service for link create/update |
+| `ApplicantAttorneyManager` | Domain service for applicant attorney create/update |
+| `AppointmentApplicantAttorneyManager` | Domain service for applicant attorney link |
+| `IRepository<DefenseAttorney, Guid>` | Defense attorney entity access |
+| `IAppointmentDefenseAttorneyRepository` | Appointment-defense-attorney link repository |
+| `DefenseAttorneyManager` | Domain service for defense attorney create/update |
+| `AppointmentDefenseAttorneyManager` | Domain service for defense attorney link |
+| `IRepository<AppointmentInjuryDetail, Guid>` | Injury detail rows (CE visibility filter) |
+| `IRepository<AppointmentClaimExaminer, Guid>` | Claim examiner rows (CE visibility filter) |
+| `ILocalEventBus` | Publishes `AppointmentStatusChangedEto` + `AppointmentSubmittedEto` |
+| `BookingPolicyValidator` | Lead-time and per-type max-time gate |
+| `IRepository<AppointmentAccessor, Guid>` | Accessor rows for read-access policy |
+| `IRepository<CustomFieldValue, Guid>` | Per-appointment custom-field answers |
+| `AppointmentReadAccessGuard` | Shared read-gate (used by documents service too) |
+| `IStringLocalizer<CaseEvaluationResource>` | Typed localizer for static helper methods |
 
 ### Methods
 
 | Method | Auth | Description |
 |---|---|---|
-| `GetListAsync(GetAppointmentsInput)` | `[Authorize]` | Paginated list with navigation properties (Patient, AppointmentType, Location, DoctorAvailability). Filters by text, panel number, date range, user, accessor, type, location. |
-| `GetWithNavigationPropertiesAsync(Guid)` | `[Authorize]` | Single appointment with all navigation properties. |
+| `GetListAsync(GetAppointmentsInput)` | `[Authorize]` | Paginated list with navigation properties. Applies SSN masking via `SsnVisibility.MaskToLast4` on every returned `PatientDto`. External-role callers see only appointments they are involved on. |
+| `GetWithNavigationPropertiesAsync(Guid)` | `[Authorize]` | Single appointment with all navigation properties. Applies read-access guard and SSN masking. |
+| `GetByConfirmationNumberAsync(string)` | `[Authorize]` | Lookup by confirmation number. Applies same access guard and SSN masking. |
 | `GetAsync(Guid)` | `Appointments.Default` | Single appointment entity (without navigation properties). |
-| `CreateAsync(AppointmentCreateDto)` | `[Authorize]` | Creates appointment with full validation, generates confirmation number, updates DoctorAvailability to Booked. |
-| `UpdateAsync(Guid, AppointmentUpdateDto)` | `[Authorize]` | Updates appointment via `AppointmentManager.UpdateAsync`. Validates required fields. |
-| `DeleteAsync(Guid)` | `Appointments.Delete` | Deletes appointment. |
+| `CreateAsync(AppointmentCreateDto)` | `Appointments.Create` | Creates appointment. Validates required fields, entity existence, and slot availability (capacity probe + type match + location/date/time checks). Generates confirmation number. Does NOT mutate `DoctorAvailability.BookingStatusId`; slot fullness is determined by active-appointment-count vs `Capacity` at booking time. Publishes `AppointmentStatusChangedEto` + `AppointmentSubmittedEto`. |
+| `ReSubmitAsync(string, AppointmentCreateDto)` | `Appointments.Create` | Re-submit against a prior appointment: reuses the source confirmation number. |
+| `CreateRevalAsync(string, AppointmentCreateDto)` | `Appointments.Create` | Reval booking: generates a fresh confirmation number, links to source. |
+| `UpdateAsync(Guid, AppointmentUpdateDto)` | `[Authorize]` | Updates appointment via `AppointmentManager.UpdateAsync`. On slot change, publishes `AppointmentStatusChangedEto` with old + new slot IDs. |
+| `DeleteAsync(Guid)` | `Appointments.Delete` | Publishes `AppointmentStatusChangedEto` (ToStatus = null) then deletes. |
+| `GetPendingCountAsync()` | `Appointments.Edit` | Returns count of Pending appointments in the tenant (sidebar badge). |
 | `GetApplicantAttorneyDetailsForBookingAsync(Guid?, string?)` | `[Authorize]` | Resolves attorney by IdentityUserId or email. Returns `ApplicantAttorneyDetailsDto` or null. |
-| `GetAppointmentApplicantAttorneyAsync(Guid)` | `[Authorize]` | Gets the attorney linked to a specific appointment. |
-| `UpsertApplicantAttorneyForAppointmentAsync(Guid, ApplicantAttorneyDetailsDto)` | `[Authorize]` | Creates or updates an `ApplicantAttorney` and its link to the appointment (`AppointmentApplicantAttorney`). |
-| `GetPatientLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for patients (filtered by email). |
-| `GetIdentityUserLookupAsync(LookupRequestDto)` | `Appointments.Default` | Dropdown lookup for identity users (filtered by email). |
-| `GetAppointmentTypeLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for appointment types scoped to the doctor's configured types. |
-| `GetLocationLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for locations scoped to the doctor's configured locations. |
+| `GetAppointmentApplicantAttorneyAsync(Guid)` | `[Authorize]` | Gets the applicant attorney linked to a specific appointment. |
+| `UpsertApplicantAttorneyForAppointmentAsync(Guid, ApplicantAttorneyDetailsDto)` | `[Authorize]` | Creates or updates an `ApplicantAttorney` and its `AppointmentApplicantAttorney` link row. |
+| `GetPatientLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for patients (filtered by email; narrowed by role for AA/DA callers). |
+| `GetIdentityUserLookupAsync(LookupRequestDto)` | `Appointments.Default` | Dropdown lookup for identity users (filtered by email; narrowed for AA/DA callers). |
+| `GetAppointmentTypeLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for appointment types (tenant-scoped; IMultiTenant filter applied). |
+| `GetLocationLookupAsync(LookupRequestDto)` | `[Authorize]` | Dropdown lookup for locations (tenant-scoped; IMultiTenant filter applied). |
 | `GetDoctorAvailabilityLookupAsync(LookupRequestDto)` | None explicit | Dropdown lookup for doctor availability slots. |
 
 ### Confirmation Number Generation
@@ -121,26 +159,38 @@ The private method `GenerateNextRequestConfirmationNumberAsync()` produces seque
 
 Before creating an appointment, `CreateAsync` validates:
 
-1. Required field checks (PatientId, IdentityUserId, AppointmentTypeId, LocationId, DoctorAvailabilityId)
-2. Entity existence checks (patient, user, appointment type, location, availability slot)
-3. Slot is still `BookingStatus.Available`
-4. Slot's `LocationId` matches the input `LocationId`
-5. If the slot has an `AppointmentTypeId`, it must match the input
-6. Slot's `AvailableDate` must match the input `AppointmentDate`
-7. Selected time must fall within the slot's `FromTime`..`ToTime` range
+1. Required GUID checks (PatientId, IdentityUserId, AppointmentTypeId, LocationId, DoctorAvailabilityId -- all must be non-empty)
+2. Entity existence checks (patient, identity user, appointment type, location, availability slot)
+3. AME appointment type requires an attorney caller (Applicant Attorney or Defense Attorney) for external users
+4. Slot is not manually closed (`BookingStatus.Reserved` blocks with `AppointmentBookingSlotClosed`)
+5. Active-appointment-count for the slot is less than `DoctorAvailability.Capacity` (default 3); fullness throws `AppointmentBookingSlotFull`. `BookingStatus.Booked` is treated as Available -- the count probe is authoritative.
+6. If the slot's `AppointmentTypes` collection is non-empty, the requested type must be a member (empty set = any type accepted)
+7. Slot's `LocationId` matches the input `LocationId`
+8. Slot's `AvailableDate` must match the input `AppointmentDate`
+9. Selected time must fall within the slot's `[FromTime, ToTime)` range
+10. Lead-time and per-type max-time gates via `BookingPolicyValidator`
 
 After validation passes, the method:
-- Generates the next confirmation number
-- Calls `AppointmentManager.CreateAsync(...)` (domain service)
-- Sets the DoctorAvailability's `BookingStatusId` to `BookingStatus.Booked`
+- Generates the next confirmation number (wrapped in `ConfirmationNumberRetryPolicy` to handle concurrent bookings)
+- Calls `AppointmentManager.CreateAsync(...)` (domain service) -- status is `Approved` for internal callers, `Pending` for external
+- Does **not** mutate `DoctorAvailability.BookingStatusId`; slot capacity is tracked by active-appointment-count
+- Publishes `AppointmentStatusChangedEto` (slot sync notification) and `AppointmentSubmittedEto` (email triggers)
+
+### SlotCascadeHandler (log-only stub)
+
+**File:** `src/HealthcareSupport.CaseEvaluation.Domain/Appointments/Handlers/SlotCascadeHandler.cs`
+
+`SlotCascadeHandler` subscribes to `AppointmentStatusChangedEto` but performs **no slot mutations**. After the 2026-05-15 slot rework, `DoctorAvailability.BookingStatusId` is a manual-close override only; the previous 14-state appointment-status to slot-status mapping was removed. The handler logs the transition at `Debug` level and returns. It remains wired so future plans can add side effects without re-wiring ABP's local event bus; downstream notification and audit handlers receive the event unmodified.
 
 ---
 
-## PatientsAppService (382 lines)
+## PatientsAppService
 
 **File:** `src/HealthcareSupport.CaseEvaluation.Application/Patients/PatientsAppService.cs`
 **Implements:** `IPatientsAppService`
 **Class-level:** `[RemoteService(IsEnabled = false)]` (not auto-exposed as API -- controller wraps it)
+
+**SSN masking rule:** Every method that returns a `PatientDto` or `PatientWithNavigationPropertiesDto` calls `SsnVisibility.MaskToLast4(dto)` before returning. The SSN is always masked to `***-**-NNNN` on standard payloads. The only exception is `GetFullSsnAsync` (see below).
 
 ### Dependencies
 
@@ -171,6 +221,7 @@ After validation passes, the method:
 | `UpdateAsync(Guid, PatientUpdateDto)` | `Patients.Edit` | Admin patient update via `PatientManager`. |
 | `UpdatePatientForAppointmentBookingAsync(Guid, PatientUpdateDto)` | `[Authorize]` | Partial update during booking flow -- preserves fields not provided in the input by falling back to current values. |
 | `DeleteAsync(Guid)` | `Patients.Delete` | Deletes patient. |
+| `GetFullSsnAsync(Guid)` | `Patients.RevealSsn` | Returns the full unmasked SSN in `SsnRevealDto`. Gated by `Patients.RevealSsn` permission AND `SsnRevealAccess.CanReveal` (internal callers OR record owner only). ABP HTTP audit log records each call. This is the ONLY endpoint that returns the full SSN. |
 | `GetStateLookupAsync(LookupRequestDto)` | `[Authorize]` | State dropdown lookup. |
 | `GetAppointmentLanguageLookupAsync(LookupRequestDto)` | `[Authorize]` | Language dropdown lookup. |
 | `GetIdentityUserLookupAsync(LookupRequestDto)` | `Patients.Default` | Identity user dropdown lookup. |
@@ -392,20 +443,24 @@ sequenceDiagram
     participant Manager as AppointmentManager
     participant Repo as AppointmentRepository
     participant AvailRepo as DoctorAvailabilityRepository
+    participant Bus as ILocalEventBus
 
     Client->>AppService: CreateAsync(AppointmentCreateDto)
-    AppService->>AppService: Validate required fields
+    AppService->>AppService: ValidateCreateGuids (5 Guid.Empty checks)
     AppService->>Repo: Verify Patient, User, Type, Location exist
-    AppService->>AvailRepo: FindAsync(DoctorAvailabilityId)
-    AppService->>AppService: Validate slot is Available
-    AppService->>AppService: Validate location, type, date, time match
+    AppService->>AvailRepo: WithDetailsAsync(AppointmentTypes) for slot
+    AppService->>AppService: ValidateDoctorAvailabilityForBookingAsync
+    Note right of AppService: Reserved=closed; active-count>=Capacity=full; type membership; location/date/time
+    AppService->>AppService: BookingPolicyValidator (lead-time + max-time)
     AppService->>Repo: Query max RequestConfirmationNumber
     AppService->>AppService: GenerateNextRequestConfirmationNumberAsync()
-    Note right of AppService: e.g., "A00001" -> "A00002"
-    AppService->>Manager: CreateAsync(patientId, userId, typeId, locationId, slotId, date, confirmationNumber, status, ...)
+    Note right of AppService: e.g., "A00001" -> "A00002" (retried up to 5x on collision)
+    AppService->>Manager: CreateAsync(patientId, userId, typeId, locationId, slotId, date, confirmationNumber, initialStatus, ...)
     Manager->>Repo: InsertAsync(appointment)
     Manager-->>AppService: Appointment entity
-    AppService->>AvailRepo: UpdateAsync(slot.BookingStatusId = Booked)
+    Note right of AppService: Slot BookingStatusId is NOT mutated; capacity tracked by active-count
+    AppService->>Bus: PublishAsync(AppointmentStatusChangedEto)
+    AppService->>Bus: PublishAsync(AppointmentSubmittedEto)
     AppService->>AppService: ObjectMapper.Map -> AppointmentDto
     AppService-->>Client: AppointmentDto
 ```
@@ -524,8 +579,7 @@ classDiagram
 
 ## Related Documentation
 
-- [Domain Services](DOMAIN-SERVICES.md) -- Manager classes used by application services
-- [Repositories](REPOSITORIES.md) -- Custom repository interfaces and navigation property queries
 - [Permissions](PERMISSIONS.md) -- Permission constants referenced in `[Authorize]` attributes
-- [API Endpoints Reference](../api/ENDPOINTS-REFERENCE.md) -- HTTP controllers that expose these services
-- [Proxy Services](../frontend/PROXY-SERVICES.md) -- Angular client-side proxies that call these services
+- [API Architecture](../api/API-ARCHITECTURE.md) -- HTTP controller layer and routing conventions
+- [Angular Architecture](../frontend/ANGULAR-ARCHITECTURE.md) -- Angular project structure and proxy generation
+- [Enums and Constants](ENUMS-AND-CONSTANTS.md) -- `AppointmentStatusType`, `BookingStatus`, and other shared enums

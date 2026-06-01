@@ -1,5 +1,7 @@
 # Routing & Navigation
 
+> Purpose: Documents the Angular route tree, guards, lazy-loading strategy, and ABP menu registration for the patient portal SPA. Audience: frontend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Frontend](./) > Routing & Navigation
 
 ## Overview
@@ -12,11 +14,10 @@ The application uses Angular's standalone router with lazy loading via `loadComp
 flowchart TD
     ROOT["/ (root)"]
 
-    ROOT --> HOME["/ <br/> HomeComponent <br/> no guard"]
+    ROOT --> HOME["/ <br/> HomeComponent <br/> canMatch: postLoginRedirectGuard"]
     ROOT --> DASH["/dashboard <br/> DashboardComponent <br/> authGuard + permissionGuard"]
 
     ROOT --> ABP_ROUTES["ABP Built-in Routes"]
-    ABP_ROUTES --> ACCT["/account <br/> loadChildren"]
     ABP_ROUTES --> GDPR_M["/gdpr <br/> loadChildren"]
     ABP_ROUTES --> IDENT["/identity <br/> loadChildren"]
     ABP_ROUTES --> LANG["/language-management <br/> loadChildren"]
@@ -40,6 +41,7 @@ flowchart TD
     APPTS --> APPTS_LIST["/appointments <br/> AppointmentComponent <br/> authGuard + permissionGuard"]
     APPTS --> APPTS_ADD["/appointments/add <br/> AppointmentAddComponent <br/> authGuard only"]
     APPTS --> APPTS_VIEW["/appointments/view/:id <br/> AppointmentViewComponent <br/> authGuard only"]
+    APPTS --> APPTS_CL["/appointments/view/:id/change-log <br/> AppointmentChangeLogsComponent <br/> authGuard + permissionGuard"]
 
     ROOT --> DOC_MGMT["Doctor Management"]
     DOC_MGMT --> LOCS["/doctor-management/locations <br/> LocationComponent <br/> authGuard + permissionGuard"]
@@ -52,6 +54,11 @@ flowchart TD
     DOC_MGMT --> PAT_PROF["/doctor-management/patients/my-profile <br/> PatientProfileComponent <br/> authGuard only"]
 
     ROOT --> ATTORNEYS["/applicant-attorneys <br/> ApplicantAttorneyComponent <br/> authGuard + permissionGuard"]
+    ROOT --> DA["/defense-attorneys <br/> DefenseAttorneyComponent <br/> authGuard + permissionGuard"]
+
+    ROOT --> USER_MGMT["User Management"]
+    USER_MGMT --> INVITE["/users/invite <br/> InviteExternalUserComponent <br/> authGuard + permissionGuard"]
+    USER_MGMT --> INT_USERS["/internal-users <br/> InternalUsersFormComponent <br/> authGuard + permissionGuard"]
 ```
 
 ## Route Details Table
@@ -60,14 +67,13 @@ flowchart TD
 
 | Path | Component | Guard | Notes |
 |------|-----------|-------|-------|
-| `/` | `HomeComponent` | None | Role-based landing page |
+| `/` | `HomeComponent` | `canMatch: postLoginRedirectGuard` | Fires before route match; redirects internal/anonymous users before the HomeComponent chunk downloads. External users land on HomeComponent. |
 | `/dashboard` | `DashboardComponent` | `authGuard` + `permissionGuard` | Policy: `CaseEvaluation.Dashboard.Host \|\| CaseEvaluation.Dashboard.Tenant` |
 
 ### ABP Built-in Routes
 
 | Path | Load Strategy | Notes |
 |------|---------------|-------|
-| `/account` | `loadChildren` | Login, register, password reset |
 | `/gdpr` | `loadChildren` | GDPR management |
 | `/identity` | `loadChildren` | Users, roles, organization units |
 | `/language-management` | `loadChildren` | Language resources |
@@ -100,6 +106,7 @@ flowchart TD
 | `/appointments` | `AppointmentComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.Appointments` |
 | `/appointments/add` | `AppointmentAddComponent` | `authGuard` only | No permission required (any logged-in user) |
 | `/appointments/view/:id` | `AppointmentViewComponent` | `authGuard` only | No permission required (any logged-in user) |
+| `/appointments/view/:id/change-log` | `AppointmentChangeLogsComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.AppointmentChangeLogs` |
 
 ### Doctor Management Routes
 
@@ -119,13 +126,22 @@ flowchart TD
 | Path | Component | Guard | Permission |
 |------|-----------|-------|------------|
 | `/applicant-attorneys` | `ApplicantAttorneyComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.ApplicantAttorneys` |
+| `/defense-attorneys` | `DefenseAttorneyComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.DefenseAttorneys` |
+
+### User Management Routes
+
+| Path | Component | Guard | Permission |
+|------|-----------|-------|------------|
+| `/users/invite` | `InviteExternalUserComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.UserManagement.InviteExternalUser` |
+| `/internal-users` | `InternalUsersFormComponent` | `authGuard` + `permissionGuard` | `CaseEvaluation.InternalUsers.Create` |
 
 ## Guards
 
-| Guard | Source | Purpose |
-|-------|--------|---------|
-| `authGuard` | `@abp/ng.core` | Requires authenticated user; redirects to login if not |
-| `permissionGuard` | `@abp/ng.core` | Requires specific ABP permission defined in route's `requiredPolicy`; shows 403 if denied |
+| Guard | Source | Hook | Purpose |
+|-------|--------|------|---------|
+| `postLoginRedirectGuard` | `shared/auth/post-login-redirect.guard.ts` | `canMatch` on `/` | Fires before the route is matched (before the HomeComponent chunk downloads). Redirects authenticated internal users to `/dashboard`; redirects unauthenticated users to the AuthServer OAuth challenge; lets external users through to `HomeComponent`. |
+| `authGuard` | `@abp/ng.core` | `canActivate` | Requires authenticated user; redirects to AuthServer login if not. |
+| `permissionGuard` | `@abp/ng.core` | `canActivate` | Requires specific ABP permission defined in route's `requiredPolicy`; shows 403 if denied. |
 
 **Important:** Routes with only `authGuard` (no `permissionGuard`) are accessible to any logged-in user, including external users (Patient, Attorney). This is by design for `/appointments/add`, `/appointments/view/:id`, and `/doctor-management/patients/my-profile`.
 
@@ -146,7 +162,7 @@ Menus are registered separately from routes via ABP `RoutesService`, using route
 
 | Provider | Menu Items |
 |----------|------------|
-| `APP_ROUTE_PROVIDER` | Home (`/`), Dashboard (`/dashboard`) |
+| `APP_ROUTE_PROVIDER` | Home (`/`), Dashboard (`/dashboard`), User Management parent (`/users/invite`, `/internal-users`) |
 | `DOCTOR_MANAGEMENT_ROUTE_PROVIDER` | Doctor Management parent, Locations, WCAB Offices, Doctor Availabilities |
 | `STATES_STATE_ROUTE_PROVIDER` | Configurations parent, States |
 | `APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER` | Appointment Management parent, Appointment Types |
@@ -158,6 +174,7 @@ Menus are registered separately from routes via ABP `RoutesService`, using route
 | `PATIENTS_PATIENT_ROUTE_PROVIDER` | Patients |
 | `APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER` | Appointments |
 | `APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER` | Applicant Attorneys |
+| `DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER` | Defense Attorneys |
 
 ### Sidebar Menu Structure
 
@@ -179,6 +196,10 @@ flowchart TD
     M_DOC_MGMT --> M_DA["Doctor Availabilities <br/> fas fa-calendar-check <br/> order: 3"]
     M_DOC_MGMT --> M_PATS["Patients <br/> fas fa-file-alt <br/> order: 4"]
     SIDEBAR --> M_ATTYS["Applicant Attorneys <br/> fas fa-file-alt <br/> policy: CaseEvaluation.ApplicantAttorneys"]
+    SIDEBAR --> M_DA2["Defense Attorneys <br/> fas fa-file-alt <br/> policy: CaseEvaluation.DefenseAttorneys"]
+    SIDEBAR --> M_USR_MGMT["User Management <br/> fas fa-users-cog <br/> order: 100 <br/> policy: CaseEvaluation.UserManagement"]
+    M_USR_MGMT --> M_INVITE["Invite External User <br/> fas fa-envelope <br/> order: 1 <br/> policy: CaseEvaluation.UserManagement.InviteExternalUser"]
+    M_USR_MGMT --> M_INT_USERS["Internal Users <br/> fas fa-user-plus <br/> order: 2 <br/> policy: CaseEvaluation.InternalUsers.Create"]
     SIDEBAR --> M_ABP["ABP Modules <br/> (Identity, SaaS, etc.)"]
 ```
 
