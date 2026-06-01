@@ -53,6 +53,8 @@ import { PATIENTS_PATIENT_ROUTE_PROVIDER } from './patients/patient/providers/pa
 import { APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER } from './appointments/appointment/providers/appointment-route.provider';
 import { APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER } from './applicant-attorneys/applicant-attorney/providers/applicant-attorney-route.provider';
 import { DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER } from './defense-attorneys/defense-attorney/providers/defense-attorney-route.provider';
+import { AddressValidationProvider } from './shared/address/address-validation.provider';
+import { MockAddressProvider } from './shared/address/mock-address.provider';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -122,6 +124,10 @@ export const appConfig: ApplicationConfig = {
     // of Angular's standard Validators.* set.
     provideNgxMask(),
     importProvidersFrom(RxReactiveFormsModule),
+    // F2 / address validation (2026-05-29) -- vendor-neutral address provider.
+    // Defaults to the deterministic mock; the Smarty adapter (Adrian decision
+    // 2026-05-31) replaces this binding at T4 when the API key is configured.
+    { provide: AddressValidationProvider, useClass: MockAddressProvider },
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {
