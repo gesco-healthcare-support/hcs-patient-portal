@@ -55,6 +55,14 @@
                 >
                   {{ '::Appointment:Action:Reject' | abpLocalization }}
                 </button>
+              } @else if (action === 'cancel') {
+                <button
+                  type="button"
+                  class="btn btn-warning btn-sm"
+                  (click)="dispatchAction('cancel')"
+                >
+                  {{ '::Appointment:Action:CancelAppointment' | abpLocalization }}
+                </button>
               }
             }
           }
@@ -101,6 +109,12 @@
         [(visible)]="rejectModalVisible"
         (succeeded)="onActionSucceeded($event)"
       ></app-reject-appointment-modal>
+
+      <app-cancel-appointment-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="cancelModalVisible"
+        (succeeded)="onActionSucceeded($event)"
+      ></app-cancel-appointment-modal>
 
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
