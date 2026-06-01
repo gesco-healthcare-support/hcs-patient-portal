@@ -133,6 +133,31 @@ internal static class AppointmentBookingValidators
         return CountMatchingDeduplicationFields(incoming, existing) >= threshold;
     }
 
+    /// <summary>
+    /// OLD parity (AppointmentDomain.CommonValidation, the "Please insert
+    /// different email-id" gate): the patient, applicant attorney, and defense
+    /// attorney on one appointment must use distinct email addresses so each
+    /// party's notifications reach the right inbox. Returns <c>true</c> when two
+    /// or more of the supplied emails collide (case-insensitive, trimmed);
+    /// null or blank values are ignored.
+    /// </summary>
+    internal static bool HasDuplicateStakeholderEmail(params string?[] emails)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var email in emails)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                continue;
+            }
+            if (!seen.Add(email.Trim()))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static bool StringMatches(string? a, string? b)
     {
         if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
