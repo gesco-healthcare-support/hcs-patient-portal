@@ -327,17 +327,13 @@
               <label class="form-label fw-semibold">
                 {{ '::SocialSecurityNumber' | abpLocalization }}
               </label>
-              <input
-                type="text"
-                class="form-control"
+              <app-ssn-input
                 formControlName="patientSocialSecurityNumber"
-                [class.is-invalid]="isFieldInvalid('patientSocialSecurityNumber')"
-                mask="000-00-0000"
-                [dropSpecialCharacters]="true"
-                maxlength="11"
-                autocomplete="off"
-                inputmode="numeric"
-              />
+                [invalid]="isFieldInvalid('patientSocialSecurityNumber')"
+                [patientId]="appointment?.patient?.id"
+                [patientIdentityUserId]="appointment?.patient?.identityUserId"
+                [currentMaskedSsn]="appointment?.patient?.socialSecurityNumber"
+              ></app-ssn-input>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>

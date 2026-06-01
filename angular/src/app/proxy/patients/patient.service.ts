@@ -1,4 +1,4 @@
-import type { CreatePatientForAppointmentBookingInput, GetPatientsInput, PatientCreateDto, PatientDto, PatientUpdateDto, PatientWithNavigationPropertiesDto } from './models';
+import type { CreatePatientForAppointmentBookingInput, GetPatientsInput, PatientCreateDto, PatientDto, PatientUpdateDto, PatientWithNavigationPropertiesDto, SsnRevealDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -42,6 +42,14 @@ export class PatientService {
       method: 'GET',
       url: '/api/app/patients/appointment-language-lookup',
       params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getFullSsn = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, SsnRevealDto>({
+      method: 'GET',
+      url: `/api/app/patients/${id}/ssn`,
     },
     { apiName: this.apiName,...config });
   

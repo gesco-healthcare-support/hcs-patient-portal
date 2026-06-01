@@ -138,3 +138,7 @@ export interface PatientWithNavigationPropertiesDto {
   tenant?: SaasTenantDto | null;
   isExisting?: boolean;
 }
+
+export interface SsnRevealDto {
+  socialSecurityNumber?: string | null;
+}

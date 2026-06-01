@@ -4,16 +4,15 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
 /// <summary>
-/// F4-01 (2026-05-25) -- pure tests for <see cref="SsnVisibility"/>.
-/// The helper redacts <see cref="PatientDto.SocialSecurityNumber"/>
-/// at the AppService mapping boundary based on caller role and
-/// record ownership.
+/// F1 / Design B (2026-05-29) -- pure tests for <see cref="SsnVisibility"/>.
+/// The helper now masks <see cref="PatientDto.SocialSecurityNumber"/> to the
+/// last 4 UNCONDITIONALLY at the AppService mapping boundary (no role /
+/// ownership inputs). The full value is served only by the audited reveal
+/// endpoint, which does not use this helper.
 ///
 /// Acceptance grid:
-///   internal role           -> full value
-///   record owner            -> full value (even if external role)
-///   external non-owner      -> "***-**-LAST4"
-///   null / empty SSN        -> unchanged
+///   any value (>= 4 chars)  -> "***-**-LAST4"
+///   null / empty SSN        -> unchanged (passthrough)
 ///   shorter than 4 chars    -> mask-only ("***-**-")
 ///
 /// Synthetic test values are hex strings (per .claude/rules/test-data.md);
@@ -26,119 +25,96 @@ public class SsnVisibilityUnitTests
     // ---------------- string overload ----------------
 
     [Fact]
-    public void RedactForCaller_InternalCaller_KeepsFullSsn()
+    public void MaskToLast4_AnyValue_ReturnsMaskedLast4()
     {
-        var result = SsnVisibility.RedactForCaller(SyntheticSsn, isInternalCaller: true, isRecordOwner: false);
-        result.ShouldBe(SyntheticSsn);
-    }
-
-    [Fact]
-    public void RedactForCaller_RecordOwner_KeepsFullSsnEvenWhenExternal()
-    {
-        var result = SsnVisibility.RedactForCaller(SyntheticSsn, isInternalCaller: false, isRecordOwner: true);
-        result.ShouldBe(SyntheticSsn);
-    }
-
-    [Fact]
-    public void RedactForCaller_ExternalNonOwner_ReturnsMaskedLast4()
-    {
-        var result = SsnVisibility.RedactForCaller(SyntheticSsn, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(SyntheticSsn);
         result.ShouldBe(SsnVisibility.MaskedPrefix + "f789");
     }
 
     [Fact]
-    public void RedactForCaller_NullSsn_ReturnsNull()
+    public void MaskToLast4_NullSsn_ReturnsNull()
     {
-        var result = SsnVisibility.RedactForCaller((string?)null, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4((string?)null);
         result.ShouldBeNull();
     }
 
     [Fact]
-    public void RedactForCaller_EmptySsn_ReturnsEmpty()
+    public void MaskToLast4_EmptySsn_ReturnsEmpty()
     {
-        var result = SsnVisibility.RedactForCaller(string.Empty, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(string.Empty);
         result.ShouldBe(string.Empty);
     }
 
     [Fact]
-    public void RedactForCaller_ShortSsn_ReturnsMaskOnly()
+    public void MaskToLast4_ShortSsn_ReturnsMaskOnly()
     {
-        var result = SsnVisibility.RedactForCaller("abc", isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4("abc");
         result.ShouldBe(SsnVisibility.MaskedPrefix);
     }
 
     [Fact]
-    public void RedactForCaller_ExactlyFourChars_ReturnsMaskPlusValue()
+    public void MaskToLast4_ExactlyFourChars_ReturnsMaskPlusValue()
     {
-        var result = SsnVisibility.RedactForCaller("abcd", isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4("abcd");
         result.ShouldBe(SsnVisibility.MaskedPrefix + "abcd");
     }
 
     // ---------------- PatientDto overload ----------------
 
     [Fact]
-    public void RedactForCaller_PatientDto_ExternalNonOwner_MasksSsnInPlace()
+    public void MaskToLast4_PatientDto_MasksSsnInPlace()
     {
         var dto = new PatientDto { SocialSecurityNumber = SyntheticSsn };
-        var result = SsnVisibility.RedactForCaller(dto, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(dto);
         result.ShouldNotBeNull();
         result!.SocialSecurityNumber.ShouldBe(SsnVisibility.MaskedPrefix + "f789");
     }
 
     [Fact]
-    public void RedactForCaller_PatientDto_InternalCaller_LeavesSsnIntact()
+    public void MaskToLast4_PatientDto_ReturnsSameInstance()
     {
         var dto = new PatientDto { SocialSecurityNumber = SyntheticSsn };
-        var result = SsnVisibility.RedactForCaller(dto, isInternalCaller: true, isRecordOwner: false);
-        result.ShouldNotBeNull();
-        result!.SocialSecurityNumber.ShouldBe(SyntheticSsn);
-    }
-
-    [Fact]
-    public void RedactForCaller_PatientDto_ReturnsSameInstance()
-    {
-        var dto = new PatientDto { SocialSecurityNumber = SyntheticSsn };
-        var result = SsnVisibility.RedactForCaller(dto, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(dto);
         ReferenceEquals(dto, result).ShouldBeTrue();
     }
 
     [Fact]
-    public void RedactForCaller_PatientDto_Null_ReturnsNull()
+    public void MaskToLast4_PatientDto_Null_ReturnsNull()
     {
-        var result = SsnVisibility.RedactForCaller((PatientDto?)null, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4((PatientDto?)null);
         result.ShouldBeNull();
     }
 
     // ---------------- PatientWithNavigationPropertiesDto overload ----------------
 
     [Fact]
-    public void RedactForCaller_WithNav_ExternalNonOwner_MasksWrappedPatient()
+    public void MaskToLast4_WithNav_MasksWrappedPatient()
     {
         var dto = new PatientWithNavigationPropertiesDto
         {
             Patient = new PatientDto { SocialSecurityNumber = SyntheticSsn },
         };
-        var result = SsnVisibility.RedactForCaller(dto, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(dto);
         result.ShouldNotBeNull();
         result!.Patient!.SocialSecurityNumber.ShouldBe(SsnVisibility.MaskedPrefix + "f789");
     }
 
     [Fact]
-    public void RedactForCaller_WithNav_NullPatient_NoOp()
+    public void MaskToLast4_WithNav_NullPatient_NoOp()
     {
         // PatientWithNavigationPropertiesDto.Patient is declared non-nullable
         // with a `null!` default; treat that runtime-null shape as the
         // "no Patient mapped" edge case.
         var dto = new PatientWithNavigationPropertiesDto { Patient = null! };
-        var result = SsnVisibility.RedactForCaller(dto, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4(dto);
         result.ShouldNotBeNull();
         result!.Patient.ShouldBeNull();
     }
 
     [Fact]
-    public void RedactForCaller_WithNav_Null_ReturnsNull()
+    public void MaskToLast4_WithNav_Null_ReturnsNull()
     {
-        var result = SsnVisibility.RedactForCaller((PatientWithNavigationPropertiesDto?)null, isInternalCaller: false, isRecordOwner: false);
+        var result = SsnVisibility.MaskToLast4((PatientWithNavigationPropertiesDto?)null);
         result.ShouldBeNull();
     }
 }

@@ -4,7 +4,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
-import { NgxMaskDirective } from 'ngx-mask';
+import { SsnInputComponent } from '../../shared/components/ssn-input.component';
 import { Observable } from 'rxjs';
 import { genderOptions } from '../../proxy/enums/gender.enum';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
@@ -55,7 +55,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     LocalizationPipe,
     AppLookupSelectComponent,
     NgbDatepickerModule,
-    NgxMaskDirective,
+    SsnInputComponent,
   ],
   templateUrl: './appointment-add-patient-demographics.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
