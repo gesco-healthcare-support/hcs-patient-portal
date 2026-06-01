@@ -27,7 +27,9 @@ export const ATTORNEY_SECTION_SUFFIXES: ReadonlyArray<{
   { name: 'LastName', maxLength: 50 },
   { name: 'FirmName', maxLength: 50 },
   { name: 'PhoneNumber', maxLength: 20 },
-  { name: 'FaxNumber', maxLength: 19 },
+  // 2026-06-01: Fax is optional. FaxNumber intentionally NOT in this list so
+  // the section toggle never marks it required; its maxLength(19) lives on the
+  // control declaration in appointment-add / appointment-view.
   { name: 'Street', maxLength: 255 },
   { name: 'City', maxLength: 50 },
   { name: 'StateId', maxLength: 0 },

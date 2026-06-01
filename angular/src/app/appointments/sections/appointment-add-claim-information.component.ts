@@ -284,15 +284,15 @@ export class AppointmentAddClaimInformationComponent implements OnDestroy {
     ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
-  /** OLD parity: customValdiationForClaimExaminer -- 8 fields toggle
+  /** OLD parity: customValdiationForClaimExaminer -- the fields below toggle
    * Validators.required when the include switch is on (email also gets
-   * Validators.email). STE stays optional. */
+   * Validators.email). STE stays optional. 2026-06-01: Fax is now optional too,
+   * so injuryClaimExaminerFax is intentionally omitted from this list. */
   private applyClaimExaminerRequiredValidators(group: FormGroup, required: boolean): void {
     const fields: Array<{ key: string; extra?: any[] }> = [
       { key: 'injuryClaimExaminerName' },
       { key: 'injuryClaimExaminerEmail', extra: [Validators.email] },
       { key: 'injuryClaimExaminerPhone' },
-      { key: 'injuryClaimExaminerFax' },
       { key: 'injuryClaimExaminerStreet' },
       { key: 'injuryClaimExaminerCity' },
       { key: 'injuryClaimExaminerStateId' },
