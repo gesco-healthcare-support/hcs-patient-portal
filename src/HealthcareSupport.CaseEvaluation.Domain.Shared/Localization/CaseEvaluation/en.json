@@ -272,6 +272,7 @@
     "Appointment:AttorneyFirmNameRequired": "Firm Name is required for the attorney section.",
     "Appointment:DuplicateStakeholderEmail": "Each party (patient, applicant attorney, defense attorney) must use a different email address.",
     "Appointment:InvalidCancellationOutcome": "Choose a cancellation outcome of No-Bill or Late.",
+    "Appointment:ReturningPatientBadge": "Matched to existing patient record",
     "Appointment.AccessDenied": "You do not have permission to access this appointment.",
     "Appointment:AmeRequiresAttorneyRole": "Only Applicant Attorneys and Defense Attorneys can request an AME or AME-REVAL appointment. Please contact your attorney to schedule this evaluation.",
     "Appointment:ApplicantAttorneySelfRepresentedTitle": "Is the Applicant Self-Represented?",

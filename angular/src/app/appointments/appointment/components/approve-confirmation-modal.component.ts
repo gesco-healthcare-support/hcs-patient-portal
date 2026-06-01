@@ -146,7 +146,6 @@ export class ApproveConfirmationModalComponent implements OnChanges {
     this.approvalService
       .approveAppointment(this.appointmentId, {
         primaryResponsibleUserId: v.primaryResponsibleUserId ?? '',
-        overridePatientMatch: false,
         internalUserComments: v.internalUserComments?.trim() || null,
       })
       .subscribe({

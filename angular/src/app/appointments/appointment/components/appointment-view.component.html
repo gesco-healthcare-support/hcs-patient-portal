@@ -27,6 +27,17 @@
             >
             {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
           </span>
+          @if (appointment.appointment?.isPatientAlreadyExist) {
+            <!--
+              G-02-08 (OLD parity): OLD's approve screen showed a read-only
+              "merged with existing patient" card. NEW surfaces the same
+              dedup-match result (now populated by G-01-03) as a read-only
+              badge -- there is no un-merge action (OLD never had one).
+            -->
+            <span class="badge bg-info text-dark align-middle ms-2 fs-6 fw-normal">
+              {{ '::Appointment:ReturningPatientBadge' | abpLocalization }}
+            </span>
+          }
         </h2>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           @if (canTakeOfficeAction) {

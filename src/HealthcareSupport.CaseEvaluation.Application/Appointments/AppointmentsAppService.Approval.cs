@@ -111,17 +111,6 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         {
             appointment.InternalUserComments = input.InternalUserComments;
         }
-        var overridden = AppointmentApprovalValidator.ShouldOverridePatientMatch(appointment, input);
-        if (overridden)
-        {
-            // OLD parity (`AppointmentDomain.cs`:217): when the staff
-            // approver overrides the dedup match, the appointment is
-            // treated as a NEW patient. Phase 12 records the decision
-            // by clearing the dedup flag; the actual patient-row split
-            // (creating a new Patient row + relinking) is downstream
-            // work in Session A's manager rewrite.
-            appointment.IsPatientAlreadyExist = false;
-        }
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
         // Delegate the state-machine transition to Session A's manager.
@@ -143,17 +132,15 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             TenantId = approved.TenantId,
             AppointmentTypeId = approved.AppointmentTypeId,
             PrimaryResponsibleUserId = input.PrimaryResponsibleUserId,
-            PatientMatchOverridden = overridden,
             ApprovedByUserId = CurrentUser.Id ?? Guid.Empty,
             OccurredAt = DateTime.UtcNow,
         });
 
         _logger.LogInformation(
-            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId} with responsible {ResponsibleUserId}, override={Override}.",
+            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId} with responsible {ResponsibleUserId}.",
             approved.Id,
             CurrentUser.Id,
-            input.PrimaryResponsibleUserId,
-            overridden);
+            input.PrimaryResponsibleUserId);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(approved);
     }
