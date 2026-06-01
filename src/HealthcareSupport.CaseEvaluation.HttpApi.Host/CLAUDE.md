@@ -159,5 +159,5 @@ is available as a fallback partition key.
 ## Related
 
 - docs/decisions/006-subdomain-tenant-routing.md -- subdomain tenant routing rationale
-- docs/adrs/ADR-007-host-aware-tenant-resolver.md -- HostAwareDomainTenantResolveContributor
+- docs/decisions/007-host-aware-tenant-resolver.md -- HostAwareDomainTenantResolveContributor
 - docs/api/MIDDLEWARE-AND-PIPELINE.md -- full middleware pipeline reference

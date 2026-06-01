@@ -117,6 +117,7 @@
 - **What it does / user impact:** Extra click + different default vs OLD; changes the booking interaction. Low risk but is a user-visible behavior difference.
 - **Plain-English:** NEW asks "is the applicant representing themselves?" if you skip the attorney section. OLD just let you skip it.
 - **Keep in NEW?** ( ) Yes  ( ) No  ( ) Decide later
+- **Resolution:** Resolved by #269 (2026-05-29): AA add modal + DA section toggle shipped.
 
 ## Equivalent -- different implementation (no action; checked for coverage)
 - **Confirmation number format**: OLD `ApplicationUtility.GenerateConfirmationNumber` = `"A" + id.ToString("D5")` keyed on int PK; NEW `AppointmentsAppService.GenerateNextRequestConfirmationNumberAsync` + `AppointmentBookingValidators.FormatConfirmationNumber` produce `A#####` via MAX(existing)+1 with overflow guard at 99999. Same output format + uniqueness; NEW adds a unique index + retry policy (race fix). Outcome same.

@@ -259,6 +259,7 @@ status. NEW code names are `NotificationTemplateConsts.Codes.*`.
   "Requested." Staff still get the approve/reject email.
 - **Keep in NEW?** Keep NEW behavior (it is an intentional, approved
   improvement). Flag only because it is a deliberate deviation, not 1:1.
+- **Resolution:** Resolved by #268 (2026-05-29): approved wording shipped.
 
 ### G-04-06 -- Approved-email CC (`clinicStaffEmail`) not reproduced
 
@@ -350,6 +351,7 @@ status. NEW code names are `NotificationTemplateConsts.Codes.*`.
   ADJ numbers; the leading product name was trimmed.
 - **Keep in NEW?** Keep -- intentional cosmetic shortening; identity
   suffix is faithfully reproduced.
+- **Resolution:** Resolved by #268 (2026-05-29): approved wording shipped.
 
 ### G-04-10 -- Failed sends are swallowed (no retry) by design
 
