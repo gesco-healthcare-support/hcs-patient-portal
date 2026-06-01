@@ -61,6 +61,13 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
                 {
                     await GrantAllAsync(roleName, BookingBaselineGrants());
                 }
+
+                // F1 / Design B (2026-05-29) -- among the external roles, ONLY
+                // the Patient may reveal an SSN, and only their own record
+                // (SsnRevealAccess enforces the owner check at the AppService).
+                // Applicant Attorney / Defense Attorney / Claim Examiner never
+                // reveal SSNs, so they are not granted Patients.RevealSsn.
+                await GrantAllAsync("Patient", new[] { $"{Group}.Patients.RevealSsn" });
             }
         }
     }

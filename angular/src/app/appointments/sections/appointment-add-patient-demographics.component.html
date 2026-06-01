@@ -129,16 +129,8 @@
         <label class="form-label fw-semibold">
           {{ '::SocialSecurityNumber' | abpLocalization }}
         </label>
-        <input
-          type="text"
-          class="form-control"
-          formControlName="socialSecurityNumber"
-          mask="000-00-0000"
-          [dropSpecialCharacters]="true"
-          maxlength="11"
-          autocomplete="off"
-          inputmode="numeric"
-        />
+        <!-- F1 / Design B: SSN never pre-filled; mask-on-type + copy-block. -->
+        <app-ssn-input formControlName="socialSecurityNumber"></app-ssn-input>
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>

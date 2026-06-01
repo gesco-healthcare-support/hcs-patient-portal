@@ -117,12 +117,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds);
         var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds);
         var dtoItems = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items);
-        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
-        // for external non-owners. See docs/plans/2026-05-25-ssn-role-visibility.md.
-        var isInternalForSsn = !IsExternalCaller();
+        // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
+        // to the last 4 for ALL callers. See docs/plans/2026-05-29-ssn-redact-on-type.md.
         foreach (var dtoItem in dtoItems)
         {
-            ApplyPatientSsnVisibility(dtoItem, isInternalForSsn);
+            ApplyPatientSsnVisibility(dtoItem);
         }
         return new PagedResultDto<AppointmentWithNavigationPropertiesDto>
         {
@@ -258,9 +257,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Phase 13b (2026-05-04) -- mask InternalUserComments for external
         // users so the field is not exposed via the API JSON payload.
         ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
-        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
-        // for external non-owners.
-        ApplyPatientSsnVisibility(dto, !IsExternalCaller());
+        // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
+        // to the last 4 for ALL callers.
+        ApplyPatientSsnVisibility(dto);
         return dto;
     }
 
@@ -292,9 +291,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
             (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
         ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
-        // F4-01 (2026-05-25) -- redact nested PatientDto.SocialSecurityNumber
-        // for external non-owners.
-        ApplyPatientSsnVisibility(dto, !IsExternalCaller());
+        // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
+        // to the last 4 for ALL callers.
+        ApplyPatientSsnVisibility(dto);
         return dto;
     }
 
@@ -312,20 +311,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
-    /// F4-01 (2026-05-25) -- redacts the nested <see cref="PatientDto.SocialSecurityNumber"/>
-    /// on an appointment-with-nav DTO unless the caller is internal or
-    /// owns the patient record. See
-    /// <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
-    /// and docs/plans/2026-05-25-ssn-role-visibility.md.
+    /// F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- masks the
+    /// nested <see cref="PatientDto.SocialSecurityNumber"/> on an
+    /// appointment-with-nav DTO to the last 4 for ALL callers. The full value
+    /// is served only by the audited reveal endpoint
+    /// (<c>PatientsAppService.GetFullSsnAsync</c>).
+    /// See <see cref="HealthcareSupport.CaseEvaluation.Patients.SsnVisibility"/>
+    /// and docs/plans/2026-05-29-ssn-redact-on-type.md.
     /// </summary>
-    private void ApplyPatientSsnVisibility(AppointmentWithNavigationPropertiesDto dto, bool isInternalCaller)
+    private static void ApplyPatientSsnVisibility(AppointmentWithNavigationPropertiesDto dto)
     {
         if (dto?.Patient == null)
         {
             return;
         }
-        var isOwner = CurrentUser.Id.HasValue && dto.Patient.IdentityUserId == CurrentUser.Id.Value;
-        HealthcareSupport.CaseEvaluation.Patients.SsnVisibility.RedactForCaller(dto.Patient, isInternalCaller, isOwner);
+        HealthcareSupport.CaseEvaluation.Patients.SsnVisibility.MaskToLast4(dto.Patient);
     }
 
     /// <summary>
@@ -832,6 +832,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             tenantId: appointment.TenantId,
             bookerUserId: appointment.IdentityUserId,
             patientId: appointment.PatientId,
+            appointmentTypeId: appointment.AppointmentTypeId,
             requestConfirmationNumber: appointment.RequestConfirmationNumber,
             appointmentDate: appointment.AppointmentDate,
             submittedAt: DateTime.UtcNow));

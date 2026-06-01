@@ -4,7 +4,6 @@ using System.IO;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
-using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
@@ -56,26 +55,7 @@ public class GenerateAppointmentPacketJob :
     AsyncBackgroundJob<GenerateAppointmentPacketArgs>,
     ITransientDependency
 {
-    /// <summary>
-    /// True for AppointmentType names that trigger the AttorneyClaimExaminer
-    /// packet. Mirrors OLD's per-type branches at
-    /// <c>AppointmentDocumentDomain.cs:643, :689, :740, :801</c> via case-
-    /// insensitive substring match on "PQME" or "AME". This matches both the
-    /// short codes ("PQME", "AME", "PQME-REVAL", "AME-REVAL") and the
-    /// DbMigrator-seeded long names ("Panel QME",
-    /// "Agreed Medical Examination (AME)"), keeping the live AttyCE branch
-    /// correct under both naming conventions. Aligns with
-    /// <c>AppointmentBookingValidators.ResolveMaxTimeDaysForType</c>
-    /// (AppointmentBookingValidators.cs:62-88).
-    /// </summary>
-    private static bool IsAttorneyClaimExaminerType(string? typeName)
-    {
-        var name = (typeName ?? string.Empty).ToUpperInvariant();
-        return name.Contains("PQME") || name.Contains("AME");
-    }
-
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
     private readonly AppointmentPacketManager _packetManager;
     private readonly IBlobContainer<AppointmentPacketsContainer> _packetsContainer;
     private readonly IPacketTokenResolver _tokenResolver;
@@ -88,7 +68,6 @@ public class GenerateAppointmentPacketJob :
 
     public GenerateAppointmentPacketJob(
         IRepository<Appointment, Guid> appointmentRepository,
-        IRepository<AppointmentType, Guid> appointmentTypeRepository,
         AppointmentPacketManager packetManager,
         IBlobContainer<AppointmentPacketsContainer> packetsContainer,
         IPacketTokenResolver tokenResolver,
@@ -100,7 +79,6 @@ public class GenerateAppointmentPacketJob :
         ILogger<GenerateAppointmentPacketJob> logger)
     {
         _appointmentRepository = appointmentRepository;
-        _appointmentTypeRepository = appointmentTypeRepository;
         _packetManager = packetManager;
         _packetsContainer = packetsContainer;
         _tokenResolver = tokenResolver;
@@ -128,17 +106,23 @@ public class GenerateAppointmentPacketJob :
 
     private async Task GenerateInsideTenantAsync(GenerateAppointmentPacketArgs args)
     {
-        var appointment = await _appointmentRepository.GetAsync(args.AppointmentId);
-        var appointmentType = await _appointmentTypeRepository.FindAsync(appointment.AppointmentTypeId);
+        // Existence guard -- throws EntityNotFoundException if the appointment
+        // was deleted between enqueue and run (preserves prior behavior).
+        await _appointmentRepository.GetAsync(args.AppointmentId);
 
         // Resolve once -- the same context applies to all 3 templates.
         var context = await _tokenResolver.ResolveAsync(args.AppointmentId);
 
-        var kindsToGenerate = new List<PacketKind> { PacketKind.Patient, PacketKind.Doctor };
-        if (appointmentType != null && IsAttorneyClaimExaminerType(appointmentType.Name))
+        // F5 (2026-05-29): every appointment type generates all three packets.
+        // The AttorneyClaimExaminer packet was previously gated to PQME/AME via
+        // a substring match that silently missed "Panel QME" (the space breaks
+        // Contains("PQME")); the gate is removed so all types get it.
+        var kindsToGenerate = new List<PacketKind>
         {
-            kindsToGenerate.Add(PacketKind.AttorneyClaimExaminer);
-        }
+            PacketKind.Patient,
+            PacketKind.Doctor,
+            PacketKind.AttorneyClaimExaminer,
+        };
 
         foreach (var kind in kindsToGenerate)
         {

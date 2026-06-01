@@ -144,17 +144,12 @@
                   {{ '::SocialSecurityNumber' | abpLocalization }}
                 </label>
 
-                <input
-                  id="patient-social-security-number"
-                  type="text"
+                <app-ssn-input
                   formControlName="socialSecurityNumber"
-                  class="form-control"
-                  mask="000-00-0000"
-                  [dropSpecialCharacters]="true"
-                  maxlength="11"
-                  autocomplete="off"
-                  inputmode="numeric"
-                />
+                  [patientId]="service.selected?.patient?.id"
+                  [patientIdentityUserId]="service.selected?.patient?.identityUserId"
+                  [currentMaskedSsn]="service.selected?.patient?.socialSecurityNumber"
+                ></app-ssn-input>
               </div>
 
               <div class="mb-3">

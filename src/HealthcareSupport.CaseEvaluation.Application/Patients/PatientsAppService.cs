@@ -367,7 +367,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.ConcurrencyStamp ?? currentPatient.ConcurrencyStamp
         );
 
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize]
@@ -390,6 +390,31 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             ApplySsnVisibility(dto);
             return dto;
         }
+    }
+
+    // F1 / Design B (2026-05-29) -- dedicated, audited SSN reveal endpoint.
+    // Standard payloads carry only the masked last-4 (see ApplySsnVisibility);
+    // this returns the full value. Two gates: the Patients.RevealSsn permission
+    // (declarative) AND the internal-or-owner check in SsnRevealAccess (so a
+    // Patient can reveal only their OWN SSN, while internal staff may reveal
+    // any). ABP's HTTP audit log records each call (caller + patient id in the
+    // route: GET api/app/patients/{id}/ssn).
+    [Authorize(CaseEvaluationPermissions.Patients.RevealSsn)]
+    public virtual async Task<SsnRevealDto> GetFullSsnAsync(Guid id)
+    {
+        var isHost = CurrentTenant.Id == null;
+        Patient patient;
+        using (isHost ? _dataFilter.Disable() : null)
+        {
+            patient = await _patientRepository.GetAsync(id);
+        }
+
+        if (!SsnRevealAccess.CanReveal(CurrentUser.Roles, CurrentUser.Id, patient.IdentityUserId))
+        {
+            throw new AbpAuthorizationException("Not authorized to reveal this patient's SSN.");
+        }
+
+        return new SsnRevealDto { SocialSecurityNumber = patient.SocialSecurityNumber };
     }
 
     [Authorize]
@@ -466,7 +491,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         }
 
         var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize(CaseEvaluationPermissions.Patients.Edit)]
@@ -486,7 +511,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         {
             patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
         }
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     [Authorize]
@@ -522,7 +547,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.ConcurrencyStamp
         );
 
-        return ObjectMapper.Map<Patient, PatientDto>(patient);
+        return MapToMaskedDto(patient);
     }
 
     private async Task<PatientWithNavigationProperties> GetCurrentPatientWithNavigationAsync()
@@ -559,48 +584,39 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         return current;
     }
 
-    // F4-01 (2026-05-25) -- role-aware SSN redaction. Applied at every
-    // read-path return so external attorneys / claim examiners cannot see
-    // a full SSN they do not own. Internal staff and record owners get
-    // the full value. See docs/plans/2026-05-25-ssn-role-visibility.md.
-    private bool IsInternalCallerForSsn()
-    {
-        return BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
-    }
-
-    private bool IsRecordOwnerForSsn(Guid patientIdentityUserId)
-    {
-        return CurrentUser.Id.HasValue && patientIdentityUserId == CurrentUser.Id.Value;
-    }
-
+    // F4-01 (2026-05-25) origin; F1 / Design B (2026-05-29) -- every patient
+    // read- AND write-path return now masks SSN to the last 4 for ALL callers
+    // (internal staff and the record owner included). The full value crosses
+    // the wire only via GetFullSsnAsync (the audited reveal endpoint), whose
+    // internal-or-owner authorization lives in the pure SsnRevealAccess helper.
+    // See docs/plans/2026-05-29-ssn-redact-on-type.md.
     private void ApplySsnVisibility(PatientDto? dto)
     {
-        if (dto == null)
-        {
-            return;
-        }
-        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.IdentityUserId));
+        SsnVisibility.MaskToLast4(dto);
     }
 
     private void ApplySsnVisibility(PatientWithNavigationPropertiesDto? dto)
     {
-        if (dto?.Patient == null)
-        {
-            return;
-        }
-        SsnVisibility.RedactForCaller(dto, IsInternalCallerForSsn(), IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+        SsnVisibility.MaskToLast4(dto);
     }
 
     private void ApplySsnVisibilityToList(IEnumerable<PatientWithNavigationPropertiesDto> dtos)
     {
-        var isInternal = IsInternalCallerForSsn();
         foreach (var dto in dtos)
         {
-            if (dto?.Patient == null)
-            {
-                continue;
-            }
-            SsnVisibility.RedactForCaller(dto, isInternal, IsRecordOwnerForSsn(dto.Patient.IdentityUserId));
+            SsnVisibility.MaskToLast4(dto);
         }
+    }
+
+    // F1 / Design B (2026-05-29) -- the write-path returns (Create / Update /
+    // UpdateMyProfile / UpdatePatientForAppointmentBooking) previously echoed
+    // the full SSN to every caller because they mapped straight from the
+    // entity (the F4-01 write-back gap). Mask them on the way out, same as the
+    // read paths.
+    private PatientDto MapToMaskedDto(Patient patient)
+    {
+        var dto = ObjectMapper.Map<Patient, PatientDto>(patient);
+        SsnVisibility.MaskToLast4(dto);
+        return dto;
     }
 }

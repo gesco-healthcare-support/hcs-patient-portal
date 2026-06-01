@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
-using HealthcareSupport.CaseEvaluation.Appointments.Events;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using Microsoft.Extensions.Logging;
@@ -15,12 +15,13 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
-/// Phase 12 (2026-05-04) / Phase 14 (2026-05-04) -- subscribes to
-/// <see cref="AppointmentApprovedEto"/> and queues
+/// Phase 12/14 (2026-05-04); F3 (2026-05-29) -- subscribes to
+/// <see cref="AppointmentSubmittedEto"/> (moved from AppointmentApprovedEto so
+/// the required-document rows exist from request time) and queues
 /// <see cref="AppointmentDocument"/> rows in
 /// <see cref="DocumentStatus.Pending"/> status, one per active
 /// <see cref="DocumentPackage"/> linked to the
-/// <see cref="PackageDetail"/> for the approved appointment's
+/// <see cref="PackageDetail"/> for the requested appointment's
 /// <c>AppointmentTypeId</c>.
 ///
 /// <para>OLD parity:
@@ -38,11 +39,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// link.</para>
 /// </summary>
 public class PackageDocumentQueueHandler :
-    ILocalEventHandler<AppointmentApprovedEto>,
+    ILocalEventHandler<AppointmentSubmittedEto>,
     ITransientDependency
 {
     private readonly IPackageDetailRepository _packageDetailRepository;
     private readonly IRepository<Document, Guid> _documentRepository;
+    private readonly IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PackageDocumentQueueHandler> _logger;
@@ -50,19 +52,21 @@ public class PackageDocumentQueueHandler :
     public PackageDocumentQueueHandler(
         IPackageDetailRepository packageDetailRepository,
         IRepository<Document, Guid> documentRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
         AppointmentDocumentManager documentManager,
         ICurrentTenant currentTenant,
         ILogger<PackageDocumentQueueHandler> logger)
     {
         _packageDetailRepository = packageDetailRepository;
         _documentRepository = documentRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
         _documentManager = documentManager;
         _currentTenant = currentTenant;
         _logger = logger;
     }
 
     [UnitOfWork]
-    public virtual async Task HandleEventAsync(AppointmentApprovedEto eventData)
+    public virtual async Task HandleEventAsync(AppointmentSubmittedEto eventData)
     {
         if (eventData == null)
         {
@@ -71,6 +75,20 @@ public class PackageDocumentQueueHandler :
 
         using (_currentTenant.Change(eventData.TenantId))
         {
+            // F3 (2026-05-29) idempotency: this handler now fires on submission.
+            // Skip if the appointment already has queued package documents (a
+            // queued row carries a VerificationCode; ad-hoc uploads do not), so a
+            // re-delivered submission event cannot double-insert the rows.
+            var existingQueryable = await _appointmentDocumentRepository.GetQueryableAsync();
+            if (existingQueryable.Any(d =>
+                    d.AppointmentId == eventData.AppointmentId && d.VerificationCode != null))
+            {
+                _logger.LogInformation(
+                    "PackageDocumentQueueHandler: appointment {AppointmentId} already has queued package documents; skipping.",
+                    eventData.AppointmentId);
+                return;
+            }
+
             // Resolve the active PackageDetail rows for the appointment's
             // type. PackageDetail's IsActive gate + the AppointmentTypeId
             // FK both filter; OLD's spec says the staff approver picks

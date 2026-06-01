@@ -89,6 +89,13 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
+
+        // F1 / Design B (2026-05-29) -- gates the dedicated SSN reveal endpoint
+        // (GetFullSsnAsync). Standard payloads carry only the masked last-4;
+        // this permission, plus the internal-or-owner check in SsnRevealAccess,
+        // is required to retrieve the full value. Granted to the internal roles
+        // and (for own-record reveal) the Patient role; never to AA/DA/CE.
+        public const string RevealSsn = Default + ".RevealSsn";
     }
 
     public static class Appointments

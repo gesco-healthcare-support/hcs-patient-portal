@@ -52,6 +52,7 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         patientPermission.AddChild(CaseEvaluationPermissions.Patients.Create, L("Permission:Create"));
         patientPermission.AddChild(CaseEvaluationPermissions.Patients.Edit, L("Permission:Edit"));
         patientPermission.AddChild(CaseEvaluationPermissions.Patients.Delete, L("Permission:Delete"));
+        patientPermission.AddChild(CaseEvaluationPermissions.Patients.RevealSsn, L("Permission:RevealSsn"));
         var appointmentPermission = myGroup.AddPermission(CaseEvaluationPermissions.Appointments.Default, L("Permission:Appointments"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Create, L("Permission:Create"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Edit, L("Permission:Edit"));

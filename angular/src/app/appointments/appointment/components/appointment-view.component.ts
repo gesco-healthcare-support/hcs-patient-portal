@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { NgxMaskDirective } from 'ngx-mask';
+import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 import {
   ConfigStateService,
   ListResultDto,
@@ -123,7 +123,7 @@ type ApplicantAttorneyLookupResult = {
     RejectAppointmentModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
-    NgxMaskDirective,
+    SsnInputComponent,
   ],
   templateUrl: './appointment-view.component.html',
 })
@@ -396,7 +396,10 @@ export class AppointmentViewComponent implements OnInit {
             patientCellPhoneNumber: patient?.cellPhoneNumber ?? '',
             patientPhoneNumber: patient?.phoneNumber ?? '',
             patientPhoneNumberTypeId: (patient?.phoneNumberTypeId as number | undefined) ?? null,
-            patientSocialSecurityNumber: patient?.socialSecurityNumber ?? '',
+            // F1 / Design B (2026-05-29): SSN is never pre-filled. The field
+            // starts empty; the stored value is viewed via the reveal endpoint,
+            // and an empty submit leaves the stored SSN unchanged (backend rule).
+            patientSocialSecurityNumber: '',
             patientStreet: patient?.street ?? '',
             patientAddress: patient?.address ?? '',
             patientApptNumber: patient?.apptNumber ?? '',

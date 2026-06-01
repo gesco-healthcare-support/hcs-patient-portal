@@ -90,7 +90,17 @@ public class PatientManager : DomainService
         patient.PhoneNumberTypeId = phoneNumberTypeId;
         patient.MiddleName = middleName;
         patient.PhoneNumber = phoneNumber;
-        patient.SocialSecurityNumber = socialSecurityNumber;
+        // F1 / Design B (2026-05-29): the SSN field is never pre-filled into any
+        // edit/booking form, so an update that carries no SSN means "leave the
+        // stored value unchanged" -- NOT "clear it". Only overwrite when a value
+        // is actually provided. This guards all three update callers
+        // (admin UpdateAsync, UpdateMyProfileAsync, UpdatePatientForAppointment
+        // BookingAsync). A typed SSN still overwrites. SSN is the only field
+        // with this rule because it is the only never-pre-filled field.
+        if (!string.IsNullOrEmpty(socialSecurityNumber))
+        {
+            patient.SocialSecurityNumber = socialSecurityNumber;
+        }
         patient.Address = address;
         patient.City = city;
         patient.ZipCode = zipCode;

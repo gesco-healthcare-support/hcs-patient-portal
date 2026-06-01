@@ -145,6 +145,60 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         }
     }
 
+    // ------------------------------------------------------------------------
+    // F1 / Design B (2026-05-29) -- SSN is never pre-filled into any form, so
+    // an update carrying a null/empty SSN must NOT wipe the stored value. The
+    // rule lives in PatientManager.UpdateAsync (so all three update callers --
+    // admin UpdateAsync, UpdateMyProfileAsync, UpdatePatientForAppointment
+    // BookingAsync -- inherit it). A typed SSN still overwrites.
+    // Synthetic SSN values are hex-shaped per .claude/rules/test-data.md.
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task PatientManager_UpdateAsync_WhenSsnNullOrEmpty_KeepsExistingSsn()
+    {
+        const string syntheticSsn = "abc123def";
+
+        // Tenant scope so the IMultiTenant filter resolves the seeded patient
+        // (PatientManager.UpdateAsync does not disable the filter; the
+        // AppService does, but here we exercise the manager rule directly).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var seeded = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+
+            // Arrange: set a known SSN.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, syntheticSsn));
+
+            // Act: a null SSN (the never-pre-filled empty field) must not wipe it.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, null));
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(syntheticSsn);
+
+            // Act: an empty-string SSN must also leave the stored value intact.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, string.Empty));
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(syntheticSsn);
+        }
+    }
+
+    [Fact]
+    public async Task PatientManager_UpdateAsync_WhenSsnProvided_OverwritesExistingSsn()
+    {
+        const string firstSsn = "aaa111bbb";
+        const string secondSsn = "ccc222ddd";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var seeded = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, firstSsn));
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, secondSsn));
+
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(secondSsn);
+        }
+    }
+
     [Fact]
     public async Task DeleteAsync_RemovesPatient()
     {
@@ -458,6 +512,28 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             PhoneNumberTypeId = PhoneNumberType.Work,
             IdentityUserId = IdentityUsersTestData.Patient1UserId,
             TenantId = TenantsTestData.TenantARef
+        };
+    }
+
+    // Mirrors an existing patient's required fields into a create-shaped DTO,
+    // varying only the SSN. Fed to InvokeManagerUpdateAsync, which calls
+    // PatientManager.UpdateAsync with no concurrency stamp -- letting the SSN
+    // tests issue back-to-back manager updates without a concurrency conflict.
+    private static PatientCreateDto CreateDtoFrom(Patient p, string? ssn)
+    {
+        return new PatientCreateDto
+        {
+            FirstName = p.FirstName,
+            LastName = p.LastName,
+            Email = p.Email,
+            GenderId = p.GenderId,
+            DateOfBirth = p.DateOfBirth,
+            PhoneNumberTypeId = p.PhoneNumberTypeId,
+            IdentityUserId = p.IdentityUserId,
+            TenantId = p.TenantId,
+            StateId = p.StateId,
+            AppointmentLanguageId = p.AppointmentLanguageId,
+            SocialSecurityNumber = ssn,
         };
     }
 

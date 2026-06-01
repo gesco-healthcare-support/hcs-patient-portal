@@ -27,7 +27,7 @@ import {
   NgbTimeAdapter,
   NgbNavModule,
 } from '@ng-bootstrap/ng-bootstrap';
-import { NgxMaskDirective } from 'ngx-mask';
+import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 
 @Component({
   selector: 'app-patient-profile',
@@ -44,7 +44,7 @@ import { NgxMaskDirective } from 'ngx-mask';
     AutofocusDirective,
     NgbDatepickerModule,
     NgbNavModule,
-    NgxMaskDirective,
+    SsnInputComponent,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },
@@ -238,6 +238,11 @@ export class PatientProfileComponent implements OnInit {
             dateOfBirth: this.normalizePatientDateOfBirth(
               response.patient.dateOfBirth as unknown as string | null,
             ),
+            // F1 / Design B (2026-05-29): SSN is never pre-filled. The spread
+            // above carries only the masked last-4 now, but we still blank the
+            // field so nothing is pre-populated; the stored value is viewed via
+            // the reveal endpoint and an empty submit leaves it unchanged.
+            socialSecurityNumber: null,
           });
         });
     }
