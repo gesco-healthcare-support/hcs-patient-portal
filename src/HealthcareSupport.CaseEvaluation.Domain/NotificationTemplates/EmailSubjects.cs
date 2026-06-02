@@ -67,6 +67,16 @@ internal static class EmailSubjects
     public const string PasswordChange =
         "Your password has been successfully changed - Appointment portal";
 
+    /// <summary>
+    /// OLD <c>UserQueryDomain.cs</c>:88 -- "Patient Appointment Portal - "
+    /// + bracketed patient identity + " - User query". NEW brand prefix
+    /// shortened to "Appointment Portal" per the lifecycle-email convention.
+    /// The identity is empty for general (no-confirmation-number) queries
+    /// routed to the IT-Admin pool.
+    /// </summary>
+    public const string UserQuery =
+        "Appointment Portal - ##EmailSubjectIdentity## - User query";
+
     // ----------------------------------------------------------------------
     // Phase 2.A (Category 2, 2026-05-08): per-recipient "Appointment Requested"
     // subjects. Replaces OLD's PatientAppointmentPending subject for the
@@ -288,6 +298,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PatientAppointmentRejected] = PatientAppointmentRejected,
             [NotificationTemplateConsts.Codes.ResetPassword] = ResetPassword,
             [NotificationTemplateConsts.Codes.PasswordChange] = PasswordChange,
+            [NotificationTemplateConsts.Codes.UserQuery] = UserQuery,
             [NotificationTemplateConsts.Codes.AppointmentRequestedOffice] = AppointmentRequestedOffice,
             [NotificationTemplateConsts.Codes.AppointmentRequestedRegistered] = AppointmentRequestedRegistered,
             [NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered] = AppointmentRequestedUnregistered,

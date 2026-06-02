@@ -17,6 +17,7 @@ using HealthcareSupport.CaseEvaluation.DoctorPreferredLocations;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Invitations;
+using HealthcareSupport.CaseEvaluation.UserQueries;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -62,6 +63,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
     public DbSet<NotificationTemplateType> NotificationTemplateTypes { get; set; } = null!;
     public DbSet<Invitation> Invitations { get; set; } = null!;
+    public DbSet<UserQuery> UserQueries { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
@@ -707,6 +709,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
         // index is cheap defense). Email and InvitedByUserId carry
         // audit information; AcceptedAt + AcceptedByUserId are nullable
         // until the recipient completes registration.
+        // Submit-Query / Contact-Us storage. Single Message column (max 500),
+        // submitter + tenant captured by ABP audit + the IMultiTenant filter.
+        builder.Entity<UserQuery>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "UserQueries", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(UserQuery.TenantId));
+            b.Property(x => x.Message).IsRequired().HasMaxLength(UserQueryConsts.MessageMaxLength);
+        });
+
         builder.Entity<Invitation>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Invitations", CaseEvaluationConsts.DbSchema);
