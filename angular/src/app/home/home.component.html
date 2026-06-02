@@ -5,7 +5,10 @@
       [userName]="displayUserName"
       [roleName]="displayRoleName"
       (profileClick)="openMyProfile()"
+      (helpClick)="openSubmitQuery()"
     />
+
+    <app-submit-query-modal [(visible)]="submitQueryVisible" />
 
     <div class="row g-3 mb-4">
       <div class="col-md-6">

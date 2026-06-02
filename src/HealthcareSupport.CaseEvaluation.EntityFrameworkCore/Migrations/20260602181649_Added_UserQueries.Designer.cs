@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.MultiTenancy;
@@ -13,9 +14,11 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Migrations
 {
     [DbContext(typeof(CaseEvaluationDbContext))]
-    partial class CaseEvaluationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260602181649_Added_UserQueries")]
+    partial class Added_UserQueries
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1441,10 +1444,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(200)")
                         .HasColumnName("Description");
 
-                    b.Property<int?>("EvaluationType")
-                        .HasColumnType("int")
-                        .HasColumnName("EvaluationType");
-
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -1458,10 +1457,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<Guid?>("LastModifierId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
-
-                    b.Property<int?>("MaxTimeCategory")
-                        .HasColumnType("int")
-                        .HasColumnName("MaxTimeCategory");
 
                     b.Property<string>("Name")
                         .IsRequired()
