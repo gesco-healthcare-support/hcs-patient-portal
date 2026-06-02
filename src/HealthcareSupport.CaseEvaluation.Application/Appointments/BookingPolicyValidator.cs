@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Localization;
@@ -45,10 +46,10 @@ public class BookingPolicyValidator : ITransientDependency
     /// <summary>
     /// Throws <see cref="BusinessException"/> when the slot's
     /// <paramref name="slotDate"/> falls inside the lead-time window or
-    /// past the per-AppointmentType max horizon. Resolves the max-time
-    /// per <see cref="AppointmentType.Name"/> via Phase 11a
+    /// past the per-AppointmentType max horizon. Resolves the max-time from
+    /// the type's <see cref="AppointmentType.MaxTimeCategory"/> via
     /// <see cref="AppointmentBookingValidators.ResolveMaxTimeDaysForType"/>
-    /// (PQME / PQME-REVAL / AME / AME-REVAL / OTHER routing).
+    /// (data-driven PQME / AME / OTHER horizons).
     ///
     /// Uses <see cref="DateTime.Today"/> for the comparison anchor;
     /// callers in tests can swap by extracting the static helper
@@ -69,7 +70,7 @@ public class BookingPolicyValidator : ITransientDependency
 
         var appointmentType = await _appointmentTypeRepository.GetAsync(appointmentTypeId);
 
-        var result = EvaluateBookingPolicy(slotDate, DateTime.Today, appointmentType.Name, systemParameter);
+        var result = EvaluateBookingPolicy(slotDate, DateTime.Today, appointmentType.MaxTimeCategory, systemParameter);
         switch (result.Outcome)
         {
             case BookingPolicyOutcome.Allowed:
@@ -98,7 +99,7 @@ public class BookingPolicyValidator : ITransientDependency
     internal static BookingPolicyResult EvaluateBookingPolicy(
         DateTime slotDate,
         DateTime today,
-        string? appointmentTypeName,
+        AppointmentMaxTimeCategory? maxTimeCategory,
         SystemParameter systemParameter)
     {
         if (systemParameter == null) throw new ArgumentNullException(nameof(systemParameter));
@@ -111,7 +112,7 @@ public class BookingPolicyValidator : ITransientDependency
             return new BookingPolicyResult(BookingPolicyOutcome.InsideLeadTime, systemParameter.AppointmentLeadTime);
         }
 
-        var maxDays = AppointmentBookingValidators.ResolveMaxTimeDaysForType(appointmentTypeName, systemParameter);
+        var maxDays = AppointmentBookingValidators.ResolveMaxTimeDaysForType(maxTimeCategory, systemParameter);
         if (!AppointmentBookingValidators.IsSlotWithinMaxTime(slotDate, today, maxDays))
         {
             return new BookingPolicyResult(BookingPolicyOutcome.PastMaxHorizon, maxDays);

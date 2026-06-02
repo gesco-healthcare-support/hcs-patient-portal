@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Shared;
+using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ public interface IAppointmentsAppService : IApplicationService
     Task<AppointmentDto> GetAsync(Guid id);
     Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetIdentityUserLookupAsync(LookupRequestDto input);
-    Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input);
+    Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input, EvaluationType? evaluationContext = null);
     Task<PagedResultDto<LookupDto<Guid>>> GetLocationLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetDoctorAvailabilityLookupAsync(LookupRequestDto input);
     Task DeleteAsync(Guid id);

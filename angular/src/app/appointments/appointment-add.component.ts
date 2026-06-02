@@ -321,6 +321,10 @@ export class AppointmentAddComponent {
           filter: input.filter,
           skipCount: input.skipCount,
           maxResultCount: input.maxResultCount,
+          // EvaluationType server enum: 0 = Normal (initial), 1 = Re (re-evaluation).
+          // Restricts the dropdown to types bookable in the current context
+          // (initial shows Normal + Both; re-eval shows Re + Both).
+          evaluationContext: this.isReevaluation ? 1 : 0,
         },
       },
       { apiName: 'Default' },

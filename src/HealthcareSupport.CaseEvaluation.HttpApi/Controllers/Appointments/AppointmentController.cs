@@ -8,6 +8,7 @@ using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.Appointments;
 
@@ -60,9 +61,9 @@ public class AppointmentController : AbpController, IAppointmentsAppService
 
     [HttpGet]
     [Route("appointment-type-lookup")]
-    public virtual Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
+    public virtual Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input, EvaluationType? evaluationContext = null)
     {
-        return _appointmentsAppService.GetAppointmentTypeLookupAsync(input);
+        return _appointmentsAppService.GetAppointmentTypeLookupAsync(input, evaluationContext);
     }
 
     [HttpGet]

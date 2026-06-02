@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Doctors;
+using HealthcareSupport.CaseEvaluation.Enums;
 using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
@@ -18,13 +19,32 @@ public class AppointmentType : FullAuditedEntity<Guid>
 
     [CanBeNull]
     public virtual string? Description { get; set; }
+
+    /// <summary>
+    /// Booking-dropdown classification (Normal / Re / Both). Drives which
+    /// types appear on the initial vs re-evaluation booking path. Null is
+    /// treated as "show in all contexts".
+    /// </summary>
+    public virtual EvaluationType? EvaluationType { get; set; }
+
+    /// <summary>
+    /// Selects the per-tenant max-time horizon for booking this type. Null
+    /// falls back to the OTHER horizon.
+    /// </summary>
+    public virtual AppointmentMaxTimeCategory? MaxTimeCategory { get; set; }
+
     public virtual ICollection<DoctorAppointmentType> DoctorAppointmentTypes { get; set; } = new Collection<DoctorAppointmentType>();
 
     protected AppointmentType()
     {
     }
 
-    public AppointmentType(Guid id, string name, string? description = null)
+    public AppointmentType(
+        Guid id,
+        string name,
+        string? description = null,
+        EvaluationType? evaluationType = null,
+        AppointmentMaxTimeCategory? maxTimeCategory = null)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
@@ -32,5 +52,7 @@ public class AppointmentType : FullAuditedEntity<Guid>
         Check.Length(description, nameof(description), AppointmentTypeConsts.DescriptionMaxLength, 0);
         Name = name;
         Description = description;
+        EvaluationType = evaluationType;
+        MaxTimeCategory = maxTimeCategory;
     }
 }
