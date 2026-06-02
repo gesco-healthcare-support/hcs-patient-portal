@@ -505,12 +505,23 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .ToDynamicListAsync<Guid>();
     }
     [Authorize]
-    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
+    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input, EvaluationType? evaluationContext = null)
     {
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
+        //
+        // evaluationContext (passed by the booking form) restricts the list to
+        // types bookable in that context: an initial booking shows Normal + Both;
+        // a re-evaluation shows Re + Both. Unclassified (null) types always show.
+        // A null context (e.g. advanced search) applies no evaluation filter.
         var query = (await _appointmentTypeRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!))
+            .WhereIf(
+                evaluationContext.HasValue,
+                x => x.EvaluationType == null
+                     || x.EvaluationType == EvaluationType.Both
+                     || x.EvaluationType == evaluationContext)
+            .OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
