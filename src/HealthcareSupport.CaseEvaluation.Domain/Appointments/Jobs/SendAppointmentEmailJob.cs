@@ -19,14 +19,14 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 /// so the originating HTTP request returns immediately regardless of SMTP
 /// latency.
 ///
-/// <para><b>One-shot at MVP:</b> SMTP exceptions are caught and logged as
-/// warnings. Because no exception leaks, Hangfire records the job as
-/// "Succeeded" and never retries. Intentional while ACS placeholder
-/// credentials are in <c>appsettings.secrets.json</c>: the appointment
-/// request still completes, with a log breadcrumb explaining why
-/// delivery did not happen. When real ACS credentials land, remove the
-/// try/catch so failures propagate and Hangfire's default retry policy
-/// kicks in.</para>
+/// <para><b>Failure handling (G-04-10, 2026-06-02):</b> SMTP exceptions
+/// propagate out of <see cref="ExecuteAsync"/> so Hangfire's AutomaticRetry
+/// engages and an exhausted send lands in the Failed state (a dead-letter),
+/// retriable from <c>/hangfire</c>. Real SMTP credentials are configured in
+/// <c>appsettings.secrets.json</c>, so successful sends do not retry -- only
+/// genuine transport failures do. The retry policy (5 attempts, then keep
+/// Failed) is set globally in
+/// <c>CaseEvaluationHttpApiHostModule.ConfigureHangfire</c>.</para>
 ///
 /// <para>Phase 4 (Category 4, 2026-05-10) adds packet-attachment
 /// support. When <see cref="SendAppointmentEmailArgs.PacketRef"/> is set,
@@ -89,22 +89,13 @@ public class SendAppointmentEmailJob :
 
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
     {
-        try
-        {
-            await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
-            Logger.LogInformation(
-                "SendAppointmentEmailJob: delivered ({Context}) to {To}.",
-                args.Context,
-                args.To);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(
-                ex,
-                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To}. Configure ACS credentials to deliver. Job will not retry until Attempts policy is raised.",
-                args.Context,
-                args.To);
-        }
+        // G-04-10 (2026-06-02): no swallow -- a send failure propagates so
+        // Hangfire retries and, once exhausted, dead-letters the job.
+        await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
+        Logger.LogInformation(
+            "SendAppointmentEmailJob: delivered ({Context}) to {To}.",
+            args.Context,
+            args.To);
     }
 
     private async Task SendWithAttachmentAsync(SendAppointmentEmailArgs args, PacketAttachmentRef packetRef)
@@ -149,18 +140,14 @@ public class SendAppointmentEmailJob :
                 "SendAppointmentEmailJob: delivered ({Context}) to {To} with attachment {FileName} ({Bytes} bytes).",
                 args.Context, args.To, attachment.FileName, attachment.Bytes.Length);
         }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(
-                ex,
-                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To} with attachment. Configure ACS credentials to deliver.",
-                args.Context, args.To);
-        }
         finally
         {
-            // Always callback so AttyCE retention rule sees both success
-            // and failure paths -- the provider's NoOp on Patient/Doctor
-            // makes the call safe regardless of kind.
+            // G-04-10 (2026-06-02): no catch -- a send failure propagates after
+            // this finally so Hangfire retries + dead-letters. The callback is
+            // idempotent under retry: NotifySendCompletedAsync no-ops on
+            // success=false and on Patient/Doctor kinds, and prunes the AttyCE
+            // row only once on success. An exhausted send leaves the AttyCE row
+            // for manual resend, which is the intended retention fallback.
             try
             {
                 await _packetAttachmentProvider.NotifySendCompletedAsync(packetRef.PacketId, success);
