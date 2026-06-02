@@ -77,6 +77,11 @@
               }
             }
           }
+          @if (canReRequest) {
+            <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
+              {{ '::Appointment:Action:ReRequest' | abpLocalization }}
+            </button>
+          }
           <button
             type="button"
             class="btn btn-primary btn-sm"
