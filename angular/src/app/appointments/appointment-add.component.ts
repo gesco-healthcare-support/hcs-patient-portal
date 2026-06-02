@@ -21,6 +21,7 @@ import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import {
   AddressValidationProvider,
   AddressInput,
@@ -34,9 +35,11 @@ import {
   AddressDiffItem,
 } from '../shared/address/confirm-address-dialog.component';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
-import type { AppointmentCreateDto } from '../proxy/appointments/models';
+import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments/models';
+import { AppointmentService } from '../proxy/appointments/appointment.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type {
+  PatientDto,
   PatientUpdateDto,
   PatientWithNavigationPropertiesDto,
 } from '../proxy/patients/models';
@@ -119,6 +122,9 @@ export class AppointmentAddComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
+  // G-01-07: proxy service for the reval/re-request endpoints
+  // (getByConfirmationNumber + createReval + reSubmit).
+  private readonly appointmentProxyService = inject(AppointmentService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
   // Slot rework plan 5 (2026-05-15) -- the booking picker now reads from
@@ -252,14 +258,40 @@ export class AppointmentAddComponent {
   // + claim examiner) to a single appointment via the modal. injuryDrafts holds
   // the in-memory list rendered as a table; injuryEditing holds the row being
   // edited in the modal (or a fresh draft for "Add").
-  // W-H-1 / D-1 (Adrian 2026-04-30): Path B re-evaluation. The route enters
-  // here as either `?type=1` (Initial) or `?type=2` (Re-evaluation). For
-  // MVP we surface the distinction via the page heading + a flag carried
-  // through to the submit payload. Future enhancements (filter
-  // AppointmentType lookup to PQMEREEVAL/AMEREEVAL only, surface a
-  // "prior appointment" picker, send a different email subject) hook off
-  // this same flag.
-  isReevaluation = false;
+  // G-01-07 (2026-06-02): the booking form serves three modes, decided from
+  // the route query params in the constructor:
+  //   'new'       -- `?type=1` or no type. Plain create.
+  //   'reval'     -- `?type=2` (Re-evaluation, OLD IsRevolutionForm). The
+  //                  booker enters a prior APPROVED confirmation number, loads
+  //                  it, and the form prefills from that source. Submits via
+  //                  createReval (server generates a fresh confirmation #).
+  //   'reRequest' -- `?mode=rerequest&source=<conf#>` (OLD IsReRequestForm),
+  //                  launched from a REJECTED appointment's view page. Auto-
+  //                  loads + prefills from the source. Submits via reSubmit
+  //                  (server reuses the source confirmation #).
+  bookingMode: 'new' | 'reval' | 'reRequest' = 'new';
+  // The source confirmation number once a prior appointment has been loaded
+  // for prefill. Null until loaded; gates the reval/re-request submit path.
+  sourceConfirmationNumber: string | null = null;
+  isLoadingSource = false;
+  sourceLoadMessage = '';
+
+  /** Reval mode (`?type=2`). Keeps the existing lookup-filter + heading wiring. */
+  get isReevaluation(): boolean {
+    return this.bookingMode === 'reval';
+  }
+
+  /** Re-request mode (launched from a rejected appointment's view page). */
+  get isReRequest(): boolean {
+    return this.bookingMode === 'reRequest';
+  }
+
+  /** Localization key for the page heading, by mode. */
+  get headingKey(): string {
+    if (this.bookingMode === 'reval') return '::ReEvaluationAppointment';
+    if (this.bookingMode === 'reRequest') return '::ReRequestAppointment';
+    return '::NewAppointment';
+  }
 
   // #121 phase T4 (2026-05-13) -- injury list stays at parent because
   // submit consumes it (persistInjuryDraftsIfProvided + Bug C email
@@ -321,10 +353,12 @@ export class AppointmentAddComponent {
           filter: input.filter,
           skipCount: input.skipCount,
           maxResultCount: input.maxResultCount,
-          // EvaluationType server enum: 0 = Normal (initial), 1 = Re (re-evaluation).
-          // Restricts the dropdown to types bookable in the current context
-          // (initial shows Normal + Both; re-eval shows Re + Both).
-          evaluationContext: this.isReevaluation ? 1 : 0,
+          // EvaluationType server enum: 0 = Normal (initial), 1 = Re (re-eval).
+          // Initial -> Normal+Both; reval -> Re+Both. Re-request resubmits the
+          // SAME appointment, so its source type (any classification, prefilled
+          // below) must stay selectable -> send no filter (undefined = all).
+          evaluationContext:
+            this.bookingMode === 'reval' ? 1 : this.bookingMode === 'reRequest' ? undefined : 0,
         },
       },
       { apiName: 'Default' },
@@ -502,11 +536,20 @@ export class AppointmentAddComponent {
   }
 
   constructor() {
-    // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
-    // queryParamMap.subscribe so deep-links + future programmatic switches
-    // both flip the flag.
+    // G-01-07: resolve the booking mode from the route. `?type=2` is reval
+    // (the booker enters a prior confirmation number + loads); `?mode=rerequest
+    // &source=<conf#>` is re-request (launched from a rejected appointment and
+    // auto-loaded). queryParamMap.subscribe so deep-links work.
     this.route.queryParamMap.subscribe((params) => {
-      this.isReevaluation = params.get('type') === '2';
+      if (params.get('mode') === 'rerequest') {
+        this.bookingMode = 'reRequest';
+        const source = (params.get('source') ?? '').trim();
+        if (source && this.sourceConfirmationNumber !== source) {
+          void this.loadSourceForPrefill(source, 'reRequest');
+        }
+      } else {
+        this.bookingMode = params.get('type') === '2' ? 'reval' : 'new';
+      }
     });
 
     this.form
@@ -1060,8 +1103,299 @@ export class AppointmentAddComponent {
    */
   readonly isFieldInvalidBound = (fieldName: string): boolean => this.isFieldInvalid(fieldName);
 
+  // ===== G-01-07: reval / re-request source lookup + prefill =====
+
+  /**
+   * Reval entry (OLD getRevelAppointmentForm): the booker types a prior
+   * APPROVED confirmation number and loads it. Bound to the "Load prior
+   * appointment" button shown on the booking form in reval mode.
+   */
+  loadRevalSource(confirmationNumber: string): void {
+    const conf = (confirmationNumber ?? '').trim();
+    if (!conf) {
+      this.sourceLoadMessage = 'Enter the prior appointment confirmation number.';
+      return;
+    }
+    void this.loadSourceForPrefill(conf, 'reval');
+  }
+
+  /**
+   * Look up a source appointment by confirmation number and prefill the form
+   * from its full intake. Mirrors OLD bindFormGroup(Revel/ReRequest): copy
+   * everything forward, child PKs reset (implicit -- the produced drafts carry
+   * no ids). Slot/date/time are NOT prefilled -- the booker picks a fresh,
+   * currently-available slot. The status gate is client-side defensive; the
+   * server re-validates on submit via LoadReval/ResubmitSourceAsync.
+   */
+  private async loadSourceForPrefill(
+    confirmationNumber: string,
+    flow: 'reval' | 'reRequest',
+  ): Promise<void> {
+    if (this.isLoadingSource) return;
+    this.isLoadingSource = true;
+    this.sourceLoadMessage = '';
+    try {
+      const source = await firstValueFrom(
+        this.appointmentProxyService.getByConfirmationNumber(confirmationNumber),
+      );
+      const appt = source?.appointment;
+      if (!appt?.id) {
+        this.sourceLoadMessage = 'No appointment was found for that confirmation number.';
+        return;
+      }
+      const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, flow);
+      if (gate) {
+        this.sourceLoadMessage = gate;
+        return;
+      }
+      await this.applySourceToForm(appt, source.patient ?? null);
+      this.sourceConfirmationNumber = confirmationNumber;
+      this.sourceLoadMessage =
+        'Prior appointment loaded. Review the details, choose a new date and time, then submit.';
+    } catch {
+      this.sourceLoadMessage =
+        'Unable to load that appointment. Check the confirmation number and try again.';
+    } finally {
+      this.isLoadingSource = false;
+    }
+  }
+
+  /** Defensive status gate: reval needs Approved, re-request needs Rejected. */
+  private checkSourceStatusForFlow(
+    status: AppointmentStatusType | undefined,
+    flow: 'reval' | 'reRequest',
+  ): string | null {
+    if (flow === 'reval' && status !== AppointmentStatusType.Approved) {
+      return 'You can re-evaluate only an approved appointment.';
+    }
+    if (flow === 'reRequest' && status !== AppointmentStatusType.Rejected) {
+      return 'You can re-request only a rejected appointment.';
+    }
+    return null;
+  }
+
+  /** Fetch the source child intake (same endpoints the view page uses) and
+   * apply it to the form + drafts. */
+  private async applySourceToForm(appt: AppointmentDto, patient: PatientDto | null): Promise<void> {
+    const id = appt.id!;
+    const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
+      this.fetchSourceEmployer(id),
+      this.fetchSourceApplicantAttorney(id),
+      this.fetchSourceDefenseAttorney(id),
+      this.fetchSourceInjuries(id),
+      this.fetchSourceAccessors(id),
+    ]);
+
+    this.applySourcePatient(patient);
+
+    const prefill = buildRevalPrefill({
+      appointment: appt,
+      employer,
+      applicantAttorney,
+      defenseAttorney,
+      injuries,
+      accessors,
+      authorizedUserOptions: this.externalAuthorizedUserOptions,
+    });
+    // formPatch is a dynamic key/value bag (employer + attorney + panel/due);
+    // cast to bypass the strongly-typed FormGroup value shape at this one site.
+    this.form.patchValue(prefill.formPatch as any, { emitEvent: false });
+    this.injuryDrafts = prefill.injuryDrafts;
+    this.appointmentAuthorizedUsers = prefill.authorizedUsers;
+    this.applicantAttorneyId = prefill.applicantAttorneyId;
+    this.applicantAttorneyConcurrencyStamp = prefill.applicantAttorneyConcurrencyStamp;
+    this.defenseAttorneyId = prefill.defenseAttorneyId;
+    this.defenseAttorneyConcurrencyStamp = prefill.defenseAttorneyConcurrencyStamp;
+    this.applyAttorneyEnabledFromSource(!!applicantAttorney, 'applicantAttorney');
+    this.applyAttorneyEnabledFromSource(!!defenseAttorney, 'defenseAttorney');
+
+    // Type + location LAST, WITH events, so the slot picker + field-config +
+    // custom-field cascades run for the prefilled type/location. Date/time stay
+    // null so the booker must select a fresh, currently-available slot.
+    this.form.patchValue({ locationId: appt.locationId ?? null });
+    this.form.patchValue({ appointmentTypeId: appt.appointmentTypeId ?? null });
+  }
+
+  private async fetchSourceEmployer(appointmentId: string): Promise<any> {
+    try {
+      const res = await firstValueFrom(
+        this.restService.request<any, PagedResultDto<any>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-employer-details',
+            params: { appointmentId, skipCount: 0, maxResultCount: 1 },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return res?.items?.[0]?.appointmentEmployerDetail ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchSourceApplicantAttorney(appointmentId: string): Promise<any> {
+    try {
+      return await firstValueFrom(
+        this.restService.request<any, any>(
+          { method: 'GET', url: `/api/app/appointments/${appointmentId}/applicant-attorney` },
+          { apiName: 'Default' },
+        ),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchSourceDefenseAttorney(appointmentId: string): Promise<any> {
+    try {
+      return await firstValueFrom(
+        this.restService.request<any, any>(
+          { method: 'GET', url: `/api/app/appointments/${appointmentId}/defense-attorney` },
+          { apiName: 'Default' },
+        ),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchSourceInjuries(appointmentId: string): Promise<any[]> {
+    try {
+      const items = await firstValueFrom(
+        this.restService.request<any, any[]>(
+          {
+            method: 'GET',
+            url: `/api/app/appointment-injury-details/by-appointment/${appointmentId}`,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchSourceAccessors(appointmentId: string): Promise<any[]> {
+    try {
+      const res = await firstValueFrom(
+        this.restService.request<any, PagedResultDto<any>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-accessors',
+            params: { appointmentId, skipCount: 0, maxResultCount: 100 },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return res?.items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Reuse the source patient (a standalone entity, not a child of the
+   * appointment) -- set patientId + currentPatientProfile so submit updates
+   * that patient and stamps isPatientAlreadyExist. SSN is never pre-filled.
+   */
+  private applySourcePatient(patient: PatientDto | null): void {
+    if (!patient?.id) return;
+    this.currentPatientProfile = {
+      patient,
+      isExisting: true,
+    } as PatientWithNavigationPropertiesDto;
+    this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
+    this.form.patchValue(
+      {
+        patientId: patient.id,
+        identityUserId: patient.identityUserId ?? this.currentUser?.id ?? null,
+        firstName: patient.firstName ?? null,
+        lastName: patient.lastName ?? null,
+        middleName: patient.middleName ?? null,
+        email: patient.email ?? null,
+        genderId: this.normalizePatientGender(patient.genderId),
+        dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+        cellPhoneNumber: patient.cellPhoneNumber ?? null,
+        phoneNumber: patient.phoneNumber ?? null,
+        phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+        socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+        street: patient.street ?? null,
+        address: patient.address ?? null,
+        city: patient.city ?? null,
+        stateId: patient.stateId ?? null,
+        zipCode: patient.zipCode ?? null,
+        appointmentLanguageId: patient.appointmentLanguageId ?? null,
+        interpreterVendorName: patient.interpreterVendorName ?? null,
+        needsInterpreter: !!patient.interpreterVendorName,
+        refferedBy: patient.refferedBy ?? null,
+      },
+      { emitEvent: false },
+    );
+  }
+
+  /**
+   * Set an attorney section's Enabled flag from the source (present -> on),
+   * keeping it on when the booker's own role makes the section mandatory.
+   * Re-applies the conditional validators so an ABSENT source attorney does
+   * not leave a required-but-empty section that would block submit.
+   */
+  private applyAttorneyEnabledFromSource(
+    present: boolean,
+    prefix: 'applicantAttorney' | 'defenseAttorney',
+  ): void {
+    const control = this.form.get(`${prefix}Enabled`);
+    if (!control) return;
+    const mandatory =
+      prefix === 'applicantAttorney'
+        ? this.isApplicantAttorney && !this.isItAdmin
+        : this.isDefenseAttorney && !this.isItAdmin;
+    const enabled = present || mandatory;
+    control.setValue(enabled, { emitEvent: false });
+    this.applyConditionalEmailValidator(`${prefix}Email`, enabled);
+    applyAttorneySectionValidators(this.form, prefix, enabled);
+  }
+
+  /**
+   * Route the create call by mode: reval -> createReval (server generates a
+   * fresh confirmation #); re-request -> reSubmit (server reuses the source
+   * confirmation #); otherwise the plain create. The post-create child
+   * cascade is identical for all three, so prefilled drafts persist as fresh
+   * rows on the new appointment.
+   */
+  private createAppointmentForCurrentMode(payload: AppointmentCreateDto): Promise<any> {
+    if (this.bookingMode === 'reval' && this.sourceConfirmationNumber) {
+      return firstValueFrom(
+        this.appointmentProxyService.createReval(this.sourceConfirmationNumber, payload),
+      );
+    }
+    if (this.bookingMode === 'reRequest' && this.sourceConfirmationNumber) {
+      return firstValueFrom(
+        this.appointmentProxyService.reSubmit(this.sourceConfirmationNumber, payload),
+      );
+    }
+    return firstValueFrom(
+      this.restService.request<any, any>(
+        { method: 'POST', url: '/api/app/appointments', body: payload },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
   async onSubmit(): Promise<void> {
     const raw = this.form.getRawValue();
+    // G-01-07: reval + re-request must be anchored to a loaded source (the
+    // server endpoints take the source confirmation # in the route). Block
+    // submit until one is loaded so we never silently fall through to a plain
+    // create for a re-eval/re-request.
+    if (this.bookingMode !== 'new' && !this.sourceConfirmationNumber) {
+      this.sourceLoadMessage =
+        this.bookingMode === 'reval'
+          ? 'Look up the prior approved appointment by confirmation number before submitting.'
+          : 'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+      return;
+    }
     if (this.isExternalUserNonPatient && !raw.patientId) {
       const requiredForNew = raw.firstName && raw.lastName && raw.email && raw.dateOfBirth;
       if (!requiredForNew) {
@@ -1163,16 +1497,7 @@ export class AppointmentAddComponent {
         customFieldValues: this.serializeCustomFieldValues(),
       };
 
-      const createdAppointment = await firstValueFrom(
-        this.restService.request<any, any>(
-          {
-            method: 'POST',
-            url: '/api/app/appointments',
-            body: payload,
-          },
-          { apiName: 'Default' },
-        ),
-      );
+      const createdAppointment = await this.createAppointmentForCurrentMode(payload);
 
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
