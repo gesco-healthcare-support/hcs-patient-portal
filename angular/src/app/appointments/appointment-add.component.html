@@ -9,13 +9,7 @@
   <div
     class="appointment-add__toolbar d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3"
   >
-    <h2 class="mb-0">
-      {{
-        isReevaluation
-          ? ('::ReEvaluationAppointment' | abpLocalization)
-          : ('::NewAppointment' | abpLocalization)
-      }}
-    </h2>
+    <h2 class="mb-0">{{ headingKey | abpLocalization }}</h2>
     <div class="appointment-add__actions d-flex align-items-center gap-2">
       <button type="button" class="btn btn-primary btn-sm" (click)="save()">
         Book an appointment
@@ -24,6 +18,39 @@
       <button type="button" class="btn btn-secondary btn-sm" (click)="goBack()">Back</button>
     </div>
   </div>
+
+  <!-- G-01-07: reval prior-appointment lookup. Shown only in reval mode; the
+       booker enters a prior APPROVED confirmation number and loads it to
+       prefill the form. Re-request mode auto-loads from the route, so it shows
+       only the status message (no input). -->
+  @if (isReevaluation) {
+    <div class="appointment-add__reval card card-body mt-3">
+      <label class="form-label fw-semibold mb-1" for="revalSourceConfirmation">
+        {{ '::PriorConfirmationNumber' | abpLocalization }}
+      </label>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <input
+          id="revalSourceConfirmation"
+          #revalSourceConfirmation
+          type="text"
+          class="form-control"
+          style="max-width: 16rem"
+          [disabled]="isLoadingSource"
+        />
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          [disabled]="isLoadingSource"
+          (click)="loadRevalSource(revalSourceConfirmation.value)"
+        >
+          {{ '::LoadPriorAppointment' | abpLocalization }}
+        </button>
+      </div>
+    </div>
+  }
+  @if (sourceLoadMessage) {
+    <div class="alert alert-info py-2 mt-3 mb-0" role="alert">{{ sourceLoadMessage }}</div>
+  }
 
   <form
     [formGroup]="form"

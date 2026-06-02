@@ -549,6 +549,38 @@ export class AppointmentViewComponent implements OnInit {
     return [];
   }
 
+  /**
+   * G-01-07: the booker may re-request a REJECTED appointment they created
+   * (OLD parity: the appointment-edit "Re-Request" button gated on
+   * status == Rejected && createdById == loginUser). creatorId is the ABP
+   * audit author = the original booker; identityUserId is the patient's user,
+   * so creatorId is the correct "did I create this" check.
+   */
+  get canReRequest(): boolean {
+    const creatorId = this.appointment?.appointment?.creatorId;
+    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
+    return (
+      this.currentStatus === AppointmentStatusType.Rejected &&
+      !!creatorId &&
+      creatorId === currentUserId
+    );
+  }
+
+  /**
+   * Navigate to the booking form in re-request mode, carrying the source
+   * confirmation number. The booking form auto-loads + prefills from the
+   * rejected source and submits via reSubmit (which reuses the source conf #).
+   */
+  reRequest(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    this.router.navigate(['/appointments/add'], {
+      queryParams: { mode: 'rerequest', source: conf },
+    });
+  }
+
   /** Triggered when the office clicks Approve, Reject, or Cancel in the toolbar. */
   dispatchAction(action: TransitionAction): void {
     if (!this.appointment?.appointment?.id) {
