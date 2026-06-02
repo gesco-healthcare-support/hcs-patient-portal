@@ -20,5 +20,10 @@
       <span class="top-header-navbar__divider">|</span>
       <a href="javascript:void(0)" (click)="onProfileClick()">My profile</a>
     }
+
+    @if (showHelp) {
+      <span class="top-header-navbar__divider">|</span>
+      <a href="javascript:void(0)" (click)="onHelpClick()">Help</a>
+    }
   </div>
 </div>
