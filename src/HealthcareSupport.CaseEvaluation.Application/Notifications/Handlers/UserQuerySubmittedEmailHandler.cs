@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using Microsoft.Extensions.Logging;
@@ -38,8 +39,6 @@ public class UserQuerySubmittedEmailHandler :
     ILocalEventHandler<UserQuerySubmittedEto>,
     ITransientDependency
 {
-    private const string ItAdminRoleName = "IT Admin";
-
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
@@ -154,16 +153,27 @@ public class UserQuerySubmittedEmailHandler :
     private async Task<List<NotificationRecipient>> ResolveItAdminRecipientsAsync()
     {
         var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
-        var users = await _userManager.GetUsersInRoleAsync(ItAdminRoleName);
-        foreach (var user in users)
+
+        // "IT Admin" is a HOST-scoped role (seeded with TenantId = null). This
+        // handler runs inside _currentTenant.Change(eventData.TenantId), where
+        // the IMultiTenant filter on IdentityUser would exclude every
+        // host-level IT-Admin and silently drop the email. Resolve the pool in
+        // host scope so the fallback recipients are actually found.
+        using (_currentTenant.Change(null))
         {
-            if (string.IsNullOrWhiteSpace(user.Email))
+            var users = await _userManager.GetUsersInRoleAsync(
+                InternalUserRoleDataSeedContributor.ItAdminRoleName);
+            foreach (var user in users)
             {
-                continue;
+                if (string.IsNullOrWhiteSpace(user.Email))
+                {
+                    continue;
+                }
+                byEmail[user.Email] = new NotificationRecipient(
+                    email: user.Email, role: RecipientRole.OfficeAdmin, isRegistered: true);
             }
-            byEmail[user.Email] = new NotificationRecipient(
-                email: user.Email, role: RecipientRole.OfficeAdmin, isRegistered: true);
         }
+
         return byEmail.Values.ToList();
     }
 }
