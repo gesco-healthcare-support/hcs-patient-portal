@@ -101,7 +101,7 @@ function mapInjuryToDraft(
   const ce = item.claimExaminer;
   const bodyParts = (item.bodyParts ?? [])
     .map((b) => (b?.bodyPartDescription ?? '').trim())
-    .filter((p) => p.length > 0);
+    .filter(Boolean);
   return {
     isCumulativeInjury: !!d?.isCumulativeInjury,
     dateOfInjury: d?.dateOfInjury ?? null,

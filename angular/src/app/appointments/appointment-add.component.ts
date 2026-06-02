@@ -293,6 +293,18 @@ export class AppointmentAddComponent {
     return '::NewAppointment';
   }
 
+  /**
+   * EvaluationType filter for the appointment-type dropdown (server enum:
+   * 0 = Normal, 1 = Re). Initial booking shows Normal+Both; reval shows Re+Both;
+   * re-request resubmits the SAME appointment, so its source type (any
+   * classification, prefilled) must stay selectable -> no filter (all types).
+   */
+  get appointmentTypeEvaluationContext(): 0 | 1 | undefined {
+    if (this.bookingMode === 'reval') return 1;
+    if (this.bookingMode === 'reRequest') return undefined;
+    return 0;
+  }
+
   // #121 phase T4 (2026-05-13) -- injury list stays at parent because
   // submit consumes it (persistInjuryDraftsIfProvided + Bug C email
   // fan-out resolver). Passed into the section by reference; the
@@ -353,12 +365,7 @@ export class AppointmentAddComponent {
           filter: input.filter,
           skipCount: input.skipCount,
           maxResultCount: input.maxResultCount,
-          // EvaluationType server enum: 0 = Normal (initial), 1 = Re (re-eval).
-          // Initial -> Normal+Both; reval -> Re+Both. Re-request resubmits the
-          // SAME appointment, so its source type (any classification, prefilled
-          // below) must stay selectable -> send no filter (undefined = all).
-          evaluationContext:
-            this.bookingMode === 'reval' ? 1 : this.bookingMode === 'reRequest' ? undefined : 0,
+          evaluationContext: this.appointmentTypeEvaluationContext,
         },
       },
       { apiName: 'Default' },
@@ -543,6 +550,10 @@ export class AppointmentAddComponent {
     this.route.queryParamMap.subscribe((params) => {
       if (params.get('mode') === 'rerequest') {
         this.bookingMode = 'reRequest';
+        // Re-request prefills from the source appointment, not the booker's own
+        // profile, so the self-profile load is skipped (see the guard below).
+        // Clear its loading flag here; loadSourceForPrefill owns the load state.
+        this.isProfileLoading = false;
         const source = (params.get('source') ?? '').trim();
         if (source && this.sourceConfirmationNumber !== source) {
           void this.loadSourceForPrefill(source, 'reRequest');
@@ -571,7 +582,14 @@ export class AppointmentAddComponent {
       .get('appointmentTime')
       ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
-    this.loadCurrentPatientProfile();
+    // In re-request mode the form prefills from the SOURCE appointment, so
+    // loading the booker's own profile here would race the prefill and null
+    // out the patient + employer controls. Skip it -- the prefill sets the
+    // (reused) source patient instead. Reval is button-triggered after
+    // construction, so its profile load has already settled.
+    if (this.bookingMode !== 'reRequest') {
+      this.loadCurrentPatientProfile();
+    }
     this.loadExternalAuthorizedUsers();
 
     // Wave 4 / #15 (2026-05-07): cache the English language GUID and
@@ -1180,8 +1198,8 @@ export class AppointmentAddComponent {
     const id = appt.id!;
     const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
       this.fetchSourceEmployer(id),
-      this.fetchSourceApplicantAttorney(id),
-      this.fetchSourceDefenseAttorney(id),
+      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/applicant-attorney`),
+      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/defense-attorney`),
       this.fetchSourceInjuries(id),
       this.fetchSourceAccessors(id),
     ]);
@@ -1211,7 +1229,10 @@ export class AppointmentAddComponent {
 
     // Type + location LAST, WITH events, so the slot picker + field-config +
     // custom-field cascades run for the prefilled type/location. Date/time stay
-    // null so the booker must select a fresh, currently-available slot.
+    // null so the booker selects a fresh, currently-available slot. ORDER IS
+    // LOAD-BEARING: patch locationId first (its valueChanges early-returns while
+    // appointmentTypeId is still null), then appointmentTypeId (which runs the
+    // slot fetch with both present). Two calls keep the ordering explicit.
     this.form.patchValue({ locationId: appt.locationId ?? null });
     this.form.patchValue({ appointmentTypeId: appt.appointmentTypeId ?? null });
   }
@@ -1234,26 +1255,11 @@ export class AppointmentAddComponent {
     }
   }
 
-  private async fetchSourceApplicantAttorney(appointmentId: string): Promise<any> {
+  /** GET a nullable per-appointment sub-resource, swallowing errors to null. */
+  private async fetchSourceAppointmentResource(url: string): Promise<any> {
     try {
       return await firstValueFrom(
-        this.restService.request<any, any>(
-          { method: 'GET', url: `/api/app/appointments/${appointmentId}/applicant-attorney` },
-          { apiName: 'Default' },
-        ),
-      );
-    } catch {
-      return null;
-    }
-  }
-
-  private async fetchSourceDefenseAttorney(appointmentId: string): Promise<any> {
-    try {
-      return await firstValueFrom(
-        this.restService.request<any, any>(
-          { method: 'GET', url: `/api/app/appointments/${appointmentId}/defense-attorney` },
-          { apiName: 'Default' },
-        ),
+        this.restService.request<any, any>({ method: 'GET', url }, { apiName: 'Default' }),
       );
     } catch {
       return null;
@@ -1390,10 +1396,13 @@ export class AppointmentAddComponent {
     // submit until one is loaded so we never silently fall through to a plain
     // create for a re-eval/re-request.
     if (this.bookingMode !== 'new' && !this.sourceConfirmationNumber) {
-      this.sourceLoadMessage =
-        this.bookingMode === 'reval'
-          ? 'Look up the prior approved appointment by confirmation number before submitting.'
-          : 'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+      if (this.bookingMode === 'reval') {
+        this.sourceLoadMessage =
+          'Look up the prior approved appointment by confirmation number before submitting.';
+      } else {
+        this.sourceLoadMessage =
+          'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+      }
       return;
     }
     if (this.isExternalUserNonPatient && !raw.patientId) {
@@ -2282,8 +2291,28 @@ export class AppointmentAddComponent {
           this.defenseAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'defense attorney',
           );
+          // G-01-07: a re-request auto-prefill can build the authorized-user
+          // drafts before this lookup resolves, leaving userRole blank. Backfill
+          // the role once the options arrive (mirrors the view page).
+          this.backfillAuthorizedUserRoles();
         },
       });
+  }
+
+  /** Re-resolve userRole on prefilled authorized users once the lookup loads. */
+  private backfillAuthorizedUserRoles(): void {
+    if (
+      this.appointmentAuthorizedUsers.length === 0 ||
+      this.externalAuthorizedUserOptions.length === 0
+    ) {
+      return;
+    }
+    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.map((user) => {
+      const option = this.externalAuthorizedUserOptions.find(
+        (x) => x.identityUserId === user.identityUserId,
+      );
+      return option ? { ...user, userRole: option.userRole || user.userRole } : user;
+    });
   }
 
   onApplicantAttorneyEmailSearch(event: Event): void {
