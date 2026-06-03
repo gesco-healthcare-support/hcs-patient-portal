@@ -17,7 +17,7 @@ public class BookingFlowRolesUnitTests
     [InlineData("Clinic Staff", true)]
     [InlineData("Staff Supervisor", true)]
     [InlineData("IT Admin", true)]
-    [InlineData("Doctor", true)]
+    [InlineData("Doctor", false)] // IR1 (2026-06-03): Doctor is a reference entity, not a user role
     [InlineData("Patient", false)]
     [InlineData("Applicant Attorney", false)]
     [InlineData("Defense Attorney", false)]
@@ -130,7 +130,7 @@ public class BookingFlowRolesUnitTests
     }
 
     [Fact]
-    public void InternalUserRoles_PinnedAtFiveCanonicalRoles()
+    public void InternalUserRoles_PinnedAtFourCanonicalRoles()
     {
         // Drift guard: if the seed contributor renames a role, this
         // surfaces immediately so the booking flow's fast-path stays
@@ -139,8 +139,9 @@ public class BookingFlowRolesUnitTests
         BookingFlowRoles.InternalUserRoles.ShouldContain("Clinic Staff");
         BookingFlowRoles.InternalUserRoles.ShouldContain("Staff Supervisor");
         BookingFlowRoles.InternalUserRoles.ShouldContain("IT Admin");
-        BookingFlowRoles.InternalUserRoles.ShouldContain("Doctor");
-        BookingFlowRoles.InternalUserRoles.Count.ShouldBe(5);
+        // IR1 (2026-06-03): "Doctor" removed -- reference entity, not a user role.
+        BookingFlowRoles.InternalUserRoles.ShouldNotContain("Doctor");
+        BookingFlowRoles.InternalUserRoles.Count.ShouldBe(4);
     }
 
     // OBS-23 (2026-05-21) -- AME role gate. Tests cover the two new

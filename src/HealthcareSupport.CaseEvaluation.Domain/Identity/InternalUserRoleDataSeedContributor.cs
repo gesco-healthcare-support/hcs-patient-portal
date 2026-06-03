@@ -16,9 +16,12 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 ///                       Grants every CaseEvaluation.* permission EXCEPT Dashboard.Tenant
 ///                       (which is MultiTenancySides.Tenant only and cannot be granted in
 ///                       host scope).
-///  - Staff Supervisor : TENANT-scoped (per-tenant copy). Grants Dashboard.Tenant + every
-///                       operational entity Default+Create+Edit (no Delete; hard-delete
-///                       is IT Admin only).
+///  - Staff Supervisor : TENANT-scoped (per-tenant copy) and the TOP tenant role (IR1,
+///                       2026-06-03). Grants Dashboard.Tenant + every operational entity
+///                       Default+Create+Edit+Delete. Deletes are SOFT (all tenant entities
+///                       are FullAudited/ISoftDelete, so removals are recoverable + audited;
+///                       no hard purge exists). Also creates internal users
+///                       (InternalUsers.Create) within its own tenant.
 ///  - Clinic Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
 ///                       (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
 ///
@@ -270,9 +273,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // (Clinic Staff / Staff Supervisor). 2026-05-19: the permission is
         // now MultiTenancySides.Both because the per-tenant `admin` role
         // also creates internal users in its own tenant (granted in the
-        // per-tenant pass). Staff Supervisor + Clinic Staff still do NOT
-        // receive this grant -- creating new users stays an admin-tier
-        // power per OLD parity.
+        // per-tenant pass). 2026-06-03 (IR1): Staff Supervisor ALSO receives
+        // this grant (top tenant role -- see StaffSupervisorGrants). Clinic
+        // Staff still does NOT -- creating users stays a supervisor/admin power.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
 
@@ -287,10 +290,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     }
 
     /// <summary>
-    /// Staff Supervisor (TENANT scope): Dashboard.Tenant + every operational entity
-    /// .Default/.Create/.Edit (no .Delete; hard-delete is IT-Admin-only). All lookup
-    /// reads. Locations.Edit/.Create so the supervisor can manage their clinic's
-    /// location list.
+    /// Staff Supervisor (TENANT scope, top tenant role per IR1 2026-06-03):
+    /// Dashboard.Tenant + every operational entity .Default/.Create/.Edit/.Delete
+    /// (soft-delete -- FullAudited/ISoftDelete; no hard purge). All lookup reads
+    /// (write/delete on the lookup masters AppointmentTypes/Languages/WcabOffices is
+    /// granted separately by IP1/IP2/IP5). Locations .Create/.Edit/.Delete to manage
+    /// the clinic location list. InternalUsers.Create to add Clinic Staff + Supervisors.
     ///
     /// D.1 / W-I-2 (2026-04-30): added the previously-missing supervisory powers
     /// flagged in the Wave 2 demo-lifecycle review. The supervisor must be able
@@ -307,12 +312,17 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         }
         yield return Create("Locations");
         yield return Edit("Locations");
+        yield return Delete("Locations");
 
         foreach (var entity in OperationalEntities)
         {
             yield return Default(entity);
             yield return Create(entity);
             yield return Edit(entity);
+            // IR1 (2026-06-03): top tenant role may soft-delete operational rows.
+            // All entities are FullAudited/ISoftDelete -- recoverable + audited,
+            // not a hard purge.
+            yield return Delete(entity);
         }
 
         // F1 / Design B (2026-05-29) -- SSN reveal endpoint (internal staff
@@ -324,6 +334,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("AppointmentDocuments");
         yield return Create("AppointmentDocuments");
         yield return Edit("AppointmentDocuments");
+        yield return Delete("AppointmentDocuments");
         yield return Approve("AppointmentDocuments");
 
         // D.1 / W-I-2: AppointmentPackets read + regenerate.
@@ -359,6 +370,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // recipients can self-register on the tenant portal.
         yield return Default("UserManagement");
         yield return $"{Group}.UserManagement.InviteExternalUser";
+
+        // IR1 (2026-06-03) -- as the top tenant role, Staff Supervisor creates
+        // internal users (Clinic Staff + Staff Supervisor) within its tenant.
+        // InternalUsers is MultiTenancySides.Both so the tenant-side grant is
+        // valid; InternalUsersAppService.CreatableRoleNames bounds creatable
+        // roles to the two tenant tiers. IT Admin (host) stays seed-only.
+        yield return Default("InternalUsers");
+        yield return $"{Group}.InternalUsers.Create";
     }
 
     /// <summary>

@@ -322,18 +322,18 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
-    /// 2026-05-15 -- IT Admin can create new internal users (Clinic
-    /// Staff, Staff Supervisor). Host-scoped surface
-    /// (<c>MultiTenancySides.Host</c>) because IT Admin operates from
-    /// <c>admin.localhost</c>; the new user is placed inside the
-    /// tenant carried on the input DTO. External role creation
-    /// (Patient / Applicant Attorney / Defense Attorney / Claim
-    /// Examiner) is intentionally a different surface
+    /// Internal-user creation (Clinic Staff, Staff Supervisor).
+    /// Registered <c>MultiTenancySides.Both</c> (see
+    /// CaseEvaluationPermissionDefinitionProvider) -- IT Admin holds it
+    /// host-side, tenant roles hold it within their own tenant; the new
+    /// user is placed inside the tenant carried on the input DTO.
+    /// Holders (IR1, 2026-06-03): IT Admin (host) and Staff Supervisor
+    /// (top tenant role) -- a Supervisor may create Clinic Staff and
+    /// Staff Supervisors in its tenant. Clinic Staff does NOT receive it.
+    /// External role creation (Patient / Applicant Attorney / Defense
+    /// Attorney / Claim Examiner) is a different surface
     /// (<see cref="UserManagement.InviteExternalUser"/>); IT Admin
     /// self-creation is rejected (IT Admin accounts are seeded only).
-    /// Staff Supervisor + Clinic Staff intentionally do NOT receive
-    /// this permission -- OLD parity is that only IT Admin creates
-    /// internal accounts.
     /// </summary>
     public static class InternalUsers
     {
