@@ -900,6 +900,26 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     DisableGlobalLocks = true,
                 });
         });
+
+        // G-04-10 (2026-06-02): replace Hangfire's default 10-attempt retry
+        // with an explicit 5-attempt policy that KEEPS an exhausted job in the
+        // Failed state (a dead-letter) for manual retry from /hangfire, instead
+        // of discarding it. AutomaticRetry is a global job filter, so this also
+        // covers jobs enqueued through ABP's IBackgroundJobManager adapter
+        // (e.g. SendAppointmentEmailJob). Applies to all background jobs;
+        // tightening 10 -> 5 is a deliberate SLA choice for transactional work.
+        // Docs: https://docs.hangfire.io/en/latest/background-processing/dealing-with-exceptions.html
+        foreach (var existing in GlobalJobFilters.Filters
+                     .Where(f => f.Instance is AutomaticRetryAttribute)
+                     .ToList())
+        {
+            GlobalJobFilters.Filters.Remove(existing.Instance);
+        }
+        GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
+        {
+            Attempts = 5,
+            OnAttemptsExceeded = AttemptsExceededAction.Fail,
+        });
     }
 
     private static void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
