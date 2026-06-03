@@ -11,7 +11,8 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 /// Seeds 2 SYNTHETIC demo locations so a fresh dev DB is walkable. Real HCS clinic
 /// addresses are deployment data (per-tenant operational), not host seed -- per the
 /// Wave 0 plan, that import path is post-MVP. Both demo rows reference California
-/// and the QME appointment type. Host-scoped; idempotent via simple count-guard
+/// and the AME appointment type (AF1: QME is no longer seeded). Host-scoped; idempotent
+/// via simple count-guard
 /// (this seed is finite and replaced by deployment data).
 /// </summary>
 public class LocationDataSeedContributor : IDataSeedContributor, ITransientDependency
@@ -39,7 +40,7 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
             new Location(
                 id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
                 stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Qme,
+                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Ame,
                 name: "Demo Clinic North",
                 parkingFee: 0m,
                 isActive: true,
@@ -52,7 +53,7 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
             new Location(
                 id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
                 stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Qme,
+                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Ame,
                 name: "Demo Clinic South",
                 parkingFee: 0m,
                 isActive: true,

@@ -19,10 +19,14 @@ public static class CaseEvaluationSeedIds
 
     public static class AppointmentTypes
     {
-        // Qme is referenced by Location (default appointment type for demo clinics).
-        public static readonly Guid Qme = new("a0a00002-0000-4000-9000-000000000001");
-        public static readonly Guid PanelQme = new("a0a00002-0000-4000-9000-000000000002");
+        // AF1 (2026-06-03): only AME, IME, PQME are seeded. The other four GUIDs below are no
+        // longer seeded but are retained as stable ids because tests still reference them as
+        // sample non-AME appointment-type ids (e.g. DocumentUploadGateUnitTests).
         public static readonly Guid Ame = new("a0a00002-0000-4000-9000-000000000003");
+        public static readonly Guid Ime = new("a0a00002-0000-4000-9000-000000000007");
+        public static readonly Guid PanelQme = new("a0a00002-0000-4000-9000-000000000002"); // PQME
+        // Retained for test fixtures only; not seeded post-AF1.
+        public static readonly Guid Qme = new("a0a00002-0000-4000-9000-000000000001");
         public static readonly Guid RecordReview = new("a0a00002-0000-4000-9000-000000000004");
         public static readonly Guid Deposition = new("a0a00002-0000-4000-9000-000000000005");
         public static readonly Guid SupplementalMedicalReport = new("a0a00002-0000-4000-9000-000000000006");
