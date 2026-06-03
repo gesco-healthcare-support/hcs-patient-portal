@@ -62,7 +62,13 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete)]
     public virtual async Task DeleteByIdsAsync(List<Guid> appointmentDocumentTypeIds)
     {
-        await _appointmentDocumentTypeRepository.DeleteManyAsync(appointmentDocumentTypeIds);
+        // Route through the manager (not a raw DeleteManyAsync) so the
+        // system-row guard applies to the bulk path too -- the UI hides
+        // reserved rows, but a hand-crafted request must not delete one.
+        foreach (var id in appointmentDocumentTypeIds)
+        {
+            await _appointmentDocumentTypeManager.DeleteAsync(id);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete)]

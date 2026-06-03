@@ -44,6 +44,11 @@ public class EfCoreAppointmentDocumentTypeRepository : EfCoreRepository<CaseEval
 
     public virtual async Task<bool> NameExistsAsync(string name, Guid? appointmentTypeId, Guid? excludeId = null, CancellationToken cancellationToken = default)
     {
+        // Uniqueness is enforced only among ACTIVE rows: a soft-retired
+        // (IsActive=false) row with the same name does not block re-using that
+        // name, which is the intended "retire then recreate" behavior.
+        // ToLower on both sides keeps the check case-insensitive on SQLite test
+        // runners as well as the case-insensitive default SQL Server collation.
         var loweredName = name.ToLower();
         var query = (await GetQueryableAsync())
             .Where(e => e.IsActive && e.Name.ToLower() == loweredName);

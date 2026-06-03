@@ -63,7 +63,9 @@ G-03-01, G-03-03, G-03-05, G-10-10.
 
 ### PR1 -- Document-type master + admin management page
 - Backend: `AppointmentDocumentType` entity + repo + manager (name-uniqueness
-  per appointment type; in-use check before delete -- both are OLD-bug fixes),
+  per appointment type + reserved-system-row guard -- OLD-bug fixes; the
+  in-use-before-delete guard moves to PR2 because it needs the
+  `AppointmentDocument.AppointmentDocumentTypeId` FK shipped there),
   DTOs, permissions group (`AppointmentDocumentTypes` Default/Create/Edit/Delete)
   granted to IT Admin + Staff Supervisor only, AppService + Mapperly mappers,
   dual-DbContext config + 1 migration, manual controller, seed of the system
@@ -72,7 +74,8 @@ G-03-01, G-03-03, G-03-05, G-10-10.
   (`appointment-management/document-types`), modeled on `appointment-status`;
   list is organized/filterable by appointment type. Proxy regen.
 - Verify: IT Admin + Supervisor can CRUD per-type lists; Clinic Staff + external
-  cannot; "Generated Packet" is not editable; name-uniqueness + in-use-delete guard.
+  cannot; "Generated Packet" is not editable/deletable; name-uniqueness holds.
+  (In-use-before-delete guard is verified in PR2, once the FK exists.)
 
 ### PR2 -- Wire types into uploads (+ generated tagging + source id)
 - Backend: add the 3 columns to `AppointmentDocument` (+ migration); thread
@@ -80,6 +83,9 @@ G-03-01, G-03-03, G-03-05, G-10-10.
   + `AppointmentDocumentDto`; auto-tag queued rows with the system category and
   set `SourceDocumentId` in `PackageDocumentQueueHandler` (documentId already in
   scope); thread `sourceDocumentId` through `CreateQueued`/`CreateQueuedAsync`.
+  Add the in-use-before-delete guard to `AppointmentDocumentTypeManager.DeleteAsync`
+  (deferred from PR1): block deleting a type still referenced by an
+  `AppointmentDocument`.
 - Angular: add the Document Type `<select>` + "Other -> custom label" to the
   upload form (RestService FormData; shows for internal + external). Show the
   type label in the document list.
