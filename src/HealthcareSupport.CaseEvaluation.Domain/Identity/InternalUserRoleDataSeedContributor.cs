@@ -143,6 +143,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         "States",
         "AppointmentTypes",
         "AppointmentStatuses",
+        // G-03-01 (2026-06-03): per-appointment-type document-category master.
+        // IT Admin gets full CRUD here; Staff Supervisor gets Default/Create/Edit
+        // via an explicit block (kept out of OperationalEntities so Clinic Staff
+        // does not inherit read access in PR1). Delete stays IT-Admin-only.
+        "AppointmentDocumentTypes",
         "AppointmentLanguages",
         "Locations",
         "WcabOffices",
@@ -348,6 +353,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("NotificationTemplates");
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
+
+        // G-03-01 (2026-06-03) -- Staff Supervisor co-owns the document-category
+        // master with IT Admin. Default/Create/Edit only: retiring a type is a
+        // soft IsActive=false (preserves historical rows); hard-delete stays
+        // IT-Admin-only, consistent with this role's no-Delete convention.
+        yield return Default("AppointmentDocumentTypes");
+        yield return Create("AppointmentDocumentTypes");
+        yield return Edit("AppointmentDocumentTypes");
 
         // Phase A (2026-05-05) -- supervisor uploads a signature so OLD packets
         // they are responsible for include a stamped image (per OLD parity).

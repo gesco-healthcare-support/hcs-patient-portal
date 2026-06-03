@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -53,6 +54,7 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<State, States.EfCoreStateRepository>();
             options.AddRepository<AppointmentType, AppointmentTypes.EfCoreAppointmentTypeRepository>();
             options.AddRepository<AppointmentStatus, AppointmentStatuses.EfCoreAppointmentStatusRepository>();
+            options.AddRepository<AppointmentDocumentType, AppointmentDocumentTypes.EfCoreAppointmentDocumentTypeRepository>();
             options.AddRepository<AppointmentLanguage, AppointmentLanguages.EfCoreAppointmentLanguageRepository>();
             options.AddRepository<Location, Locations.EfCoreLocationRepository>();
             options.AddRepository<WcabOffice, WcabOffices.EfCoreWcabOfficeRepository>();

@@ -28,6 +28,7 @@ using Volo.Saas.Tenants;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -74,6 +75,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<Location> Locations { get; set; } = null!;
     public DbSet<AppointmentLanguage> AppointmentLanguages { get; set; } = null!;
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; } = null!;
+    public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
 
@@ -176,6 +178,22 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
             });
         }
+
+        // G-03-01: tenant-scoped document-category master. IMultiTenant, so it
+        // lives in BOTH the host and tenant DBs -- NOT wrapped in IsHostDatabase.
+        // AppointmentTypeId is a loose Guid reference (no FK): AppointmentType is
+        // host-only and absent from tenant DBs, so a constraint cannot span them.
+        builder.Entity<AppointmentDocumentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
+            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.IsSystem).HasColumnName("IsSystem");
+            b.Property(x => x.IsActive).HasColumnName("IsActive");
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
+        });
 
         if (builder.IsHostDatabase())
         {

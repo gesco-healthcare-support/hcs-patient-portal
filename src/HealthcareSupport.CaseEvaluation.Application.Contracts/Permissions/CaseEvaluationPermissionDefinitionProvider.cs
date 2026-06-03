@@ -28,6 +28,11 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Create, L("Permission:Create"));
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Edit, L("Permission:Edit"));
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Delete, L("Permission:Delete"));
+        // G-03-01 (2026-06-03) -- per-appointment-type document category master.
+        var appointmentDocumentTypePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocumentTypes.Default, L("Permission:AppointmentDocumentTypes"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Create, L("Permission:Create"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Edit, L("Permission:Edit"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete, L("Permission:Delete"));
         var appointmentLanguagePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentLanguages.Default, L("Permission:AppointmentLanguages"));
         appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Create, L("Permission:Create"));
         appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Edit, L("Permission:Edit"));
