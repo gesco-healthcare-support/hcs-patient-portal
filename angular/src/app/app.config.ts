@@ -45,6 +45,7 @@ import { APP_ROUTE_PROVIDER } from './route.provider';
 import { STATES_STATE_ROUTE_PROVIDER } from './states/state/providers/state-route.provider';
 import { APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER } from './appointment-types/appointment-type/providers/appointment-type-route.provider';
 import { APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER } from './appointment-statuses/appointment-status/providers/appointment-status-route.provider';
+import { APPOINTMENT_DOCUMENT_TYPES_APPOINTMENT_DOCUMENT_TYPE_ROUTE_PROVIDER } from './appointment-document-types/appointment-document-type/providers/appointment-document-type-route.provider';
 import { APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER } from './appointment-languages/appointment-language/providers/appointment-language-route.provider';
 import { DOCTOR_MANAGEMENT_ROUTE_PROVIDER } from './doctor-management/providers/doctor-management-route.provider';
 import { LOCATIONS_LOCATION_ROUTE_PROVIDER } from './locations/location/providers/location-route.provider';
@@ -172,6 +173,7 @@ export const appConfig: ApplicationConfig = {
     STATES_STATE_ROUTE_PROVIDER,
     APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER,
     APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER,
+    APPOINTMENT_DOCUMENT_TYPES_APPOINTMENT_DOCUMENT_TYPE_ROUTE_PROVIDER,
     APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER,
     DOCTOR_MANAGEMENT_ROUTE_PROVIDER,
     LOCATIONS_LOCATION_ROUTE_PROVIDER,
