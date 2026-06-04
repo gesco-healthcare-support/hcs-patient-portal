@@ -15,6 +15,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { PermissionService, RestService } from '@abp/ng.core';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
 import { AppointmentDocumentDto } from '../proxy/appointment-documents/models';
+import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
 
@@ -107,6 +108,14 @@ export class AppointmentDocumentsComponent implements OnChanges {
   documentName = '';
   selectedFile: File | null = null;
 
+  // G-03-03 (PR2): document-type picker. Options are the active, non-system
+  // categories the admin created for this appointment's type; '' = no type,
+  // OTHER_TYPE_VALUE = the "Other" free-text option.
+  documentTypes: LookupDto<string>[] = [];
+  selectedDocumentTypeId = '';
+  otherDocumentTypeName = '';
+  readonly OTHER_TYPE_VALUE = '__other__';
+
   rejectingDoc: AppointmentDocumentDto | null = null;
   rejectionReason = '';
   isSubmittingReject = false;
@@ -121,7 +130,35 @@ export class AppointmentDocumentsComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['appointmentId'] && this.appointmentId) {
       this.refresh();
+      this.loadDocumentTypeOptions();
     }
+  }
+
+  loadDocumentTypeOptions(): void {
+    if (!this.appointmentId) {
+      return;
+    }
+    // RestService (not the generated proxy method): ABP mis-types the
+    // List<LookupDto<Guid>> return as a single object, so call it directly
+    // with the correct array type -- same RestService pattern this component
+    // uses for the multipart upload below.
+    this.restService
+      .request<null, LookupDto<string>[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointments/${this.appointmentId}/documents/document-type-options`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (rows) => {
+          this.documentTypes = rows ?? [];
+        },
+        error: () => {
+          // Non-fatal: the picker simply offers no admin-defined types.
+          this.documentTypes = [];
+        },
+      });
   }
 
   refresh(): void {
@@ -156,9 +193,22 @@ export class AppointmentDocumentsComponent implements OnChanges {
       this.toaster.error(`File exceeds the ${this.maxBytes / (1024 * 1024)} MB upload cap.`);
       return;
     }
+    if (
+      this.selectedDocumentTypeId === this.OTHER_TYPE_VALUE &&
+      !this.otherDocumentTypeName.trim()
+    ) {
+      this.toaster.error('Enter a label for the "Other" document type.');
+      return;
+    }
+
     const form = new FormData();
     form.append('file', this.selectedFile, this.selectedFile.name);
     form.append('documentName', this.documentName.trim() || this.selectedFile.name);
+    if (this.selectedDocumentTypeId === this.OTHER_TYPE_VALUE) {
+      form.append('otherDocumentTypeName', this.otherDocumentTypeName.trim());
+    } else if (this.selectedDocumentTypeId) {
+      form.append('appointmentDocumentTypeId', this.selectedDocumentTypeId);
+    }
 
     this.isUploading = true;
     this.restService
@@ -175,6 +225,8 @@ export class AppointmentDocumentsComponent implements OnChanges {
           this.toaster.success('Document uploaded.');
           this.documentName = '';
           this.selectedFile = null;
+          this.selectedDocumentTypeId = '';
+          this.otherDocumentTypeName = '';
           const input = document.getElementById('document-file-input') as HTMLInputElement | null;
           if (input) {
             input.value = '';
@@ -322,5 +374,16 @@ export class AppointmentDocumentsComponent implements OnChanges {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  documentTypeLabel(doc: AppointmentDocumentDto): string | null {
+    if (doc.otherDocumentTypeName) {
+      return doc.otherDocumentTypeName;
+    }
+    if (doc.appointmentDocumentTypeId) {
+      const match = this.documentTypes.find((t) => t.id === doc.appointmentDocumentTypeId);
+      return match?.displayName ?? null;
+    }
+    return null;
   }
 }

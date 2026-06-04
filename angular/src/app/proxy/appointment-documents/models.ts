@@ -18,6 +18,8 @@ export interface AppointmentDocumentDto extends FullAuditedEntityDto<string> {
   rejectionReason?: string | null;
   responsibleUserId?: string | null;
   rejectedByUserId?: string | null;
+  appointmentDocumentTypeId?: string | null;
+  otherDocumentTypeName?: string | null;
 }
 
 export interface AppointmentPacketDto extends FullAuditedEntityDto<string> {
@@ -47,5 +49,7 @@ export interface RejectDocumentInput {
 
 export interface UploadAppointmentDocumentForm {
   documentName?: string | null;
+  appointmentDocumentTypeId?: string | null;
+  otherDocumentTypeName?: string | null;
   file?: IFormFile;
 }

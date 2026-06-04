@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
@@ -27,6 +28,12 @@ public class AppointmentDocumentController : AbpController
     public virtual Task<List<AppointmentDocumentDto>> GetListAsync(Guid appointmentId)
     {
         return _service.GetListByAppointmentAsync(appointmentId);
+    }
+
+    [HttpGet("document-type-options")]
+    public virtual Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
+    {
+        return _service.GetDocumentTypeOptionsAsync(appointmentId);
     }
 
     [HttpPost]

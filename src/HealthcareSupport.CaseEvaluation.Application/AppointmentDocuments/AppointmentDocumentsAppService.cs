@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
 using Volo.Abp;
@@ -145,6 +146,34 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             .OrderByDescending(x => x.CreationTime)
             .ToList();
         return ObjectMapper.Map<List<AppointmentDocument>, List<AppointmentDocumentDto>>(rows);
+    }
+
+    /// <summary>
+    /// G-03-03 (PR2): document-type options for the upload picker. Any uploader
+    /// (internal or external) on this appointment may read them -- gated by the
+    /// upload permission + the per-appointment read-access guard, NOT the
+    /// admin-only AppointmentDocumentTypes.Default. Returns active, non-system
+    /// categories scoped to the appointment's own type (plus the "applies to
+    /// all types" rows). The reserved "Generated Packet" system row is excluded.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
+    public virtual async Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        var queryable = await _documentTypeRepository.GetQueryableAsync();
+        var query = queryable
+            .Where(t => t.IsActive
+                        && !t.IsSystem
+                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointment.AppointmentTypeId))
+            .OrderBy(t => t.Name)
+            .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
+        return await AsyncExecuter.ToListAsync(query);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]

@@ -7705,6 +7705,43 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
             },
+            "GetDocumentTypeOptionsAsyncByAppointmentId": {
+              "uniqueName": "GetDocumentTypeOptionsAsyncByAppointmentId",
+              "name": "GetDocumentTypeOptionsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/documents/document-type-options",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.Shared.LookupDto<System.Guid>>",
+                "typeSimple": "[HealthcareSupport.CaseEvaluation.Shared.LookupDto<string>]"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
             "UploadAsyncByAppointmentIdAndForm": {
               "uniqueName": "UploadAsyncByAppointmentIdAndForm",
               "name": "UploadAsync",
@@ -7745,6 +7782,30 @@
                 {
                   "nameOnMethod": "form",
                   "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
                   "jsonName": null,
                   "type": "System.String",
                   "typeSimple": "string",
@@ -8167,6 +8228,30 @@
                 },
                 {
                   "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
                   "name": "File",
                   "jsonName": null,
                   "type": "Microsoft.AspNetCore.Http.IFormFile",
@@ -8225,6 +8310,30 @@
                 {
                   "nameOnMethod": "form",
                   "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
                   "jsonName": null,
                   "type": "System.String",
                   "typeSimple": "string",
@@ -8504,6 +8613,30 @@
                 {
                   "nameOnMethod": "form",
                   "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
                   "jsonName": null,
                   "type": "System.String",
                   "typeSimple": "string",
@@ -43051,6 +43184,32 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        },
+        {
+          "name": "AppointmentDocumentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "OtherDocumentTypeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
@@ -47227,6 +47386,32 @@
       "properties": [
         {
           "name": "DocumentName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDocumentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "OtherDocumentTypeName",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
