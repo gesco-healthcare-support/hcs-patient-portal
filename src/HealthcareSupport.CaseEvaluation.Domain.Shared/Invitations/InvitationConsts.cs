@@ -43,4 +43,11 @@ public static class InvitationConsts
     /// the value enforced on <c>InviteExternalUserDto.Email</c>.
     /// </summary>
     public const int EmailMaxLength = 256;
+
+    /// <summary>
+    /// Maximum First/Last name column length on the Invitation row. Mirrors
+    /// the accept-time <c>ExternalUserSignUpDto.FirstName</c> / <c>LastName</c>
+    /// StringLength so the invite-time and accept-time name budgets agree.
+    /// </summary>
+    public const int NameMaxLength = 128;
 }

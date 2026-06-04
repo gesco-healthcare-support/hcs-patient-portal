@@ -40,6 +40,20 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string Email { get; protected set; } = null!;
 
     /// <summary>
+    /// Recipient first name captured at invite time (optional). Used to
+    /// personalize the invite email greeting and pre-fill the register
+    /// form; the recipient may override it at registration. Nullable --
+    /// the inviter may not know the name.
+    /// </summary>
+    public virtual string? FirstName { get; protected set; }
+
+    /// <summary>
+    /// Recipient last name captured at invite time (optional). See
+    /// <see cref="FirstName"/>.
+    /// </summary>
+    public virtual string? LastName { get; protected set; }
+
+    /// <summary>
     /// External role the invite grants. Constrained to the four external
     /// roles by the calling AppService; the column itself accepts any
     /// enum value (defensive layering -- server-side validation re-runs
@@ -96,7 +110,9 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
         ExternalUserType userType,
         string tokenHash,
         DateTime expiresAt,
-        Guid invitedByUserId)
+        Guid invitedByUserId,
+        string? firstName = null,
+        string? lastName = null)
     {
         Id = id;
         TenantId = tenantId;
@@ -105,6 +121,8 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
         TokenHash = tokenHash;
         ExpiresAt = expiresAt;
         InvitedByUserId = invitedByUserId;
+        FirstName = firstName;
+        LastName = lastName;
     }
 
     /// <summary>

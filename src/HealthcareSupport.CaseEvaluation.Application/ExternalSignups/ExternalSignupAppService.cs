@@ -521,8 +521,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 tenantId: CurrentTenant.Id
             )
             {
-                Name = input.FirstName,
-                Surname = input.LastName,
+                // UM1 (2026-06-04): recipient-typed name wins; fall back to the
+                // name the inviter stored on the invitation so a blank register
+                // form still produces a personalized account.
+                Name = !string.IsNullOrWhiteSpace(input.FirstName)
+                    ? input.FirstName
+                    : acceptedInvitation?.FirstName,
+                Surname = !string.IsNullOrWhiteSpace(input.LastName)
+                    ? input.LastName
+                    : acceptedInvitation?.LastName,
             };
 
             // Phase 8 (2026-05-03) -- mark this row as an external user
@@ -894,12 +901,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // CurrentUser is guaranteed set (perm-gated AppService).
         var invitedByUserId = CurrentUser.Id ?? Guid.Empty;
         var normalizedEmail = input.Email.Trim().ToLowerInvariant();
+        // Names are trimmed but NOT lowercased (display values).
+        var firstName = string.IsNullOrWhiteSpace(input.FirstName) ? null : input.FirstName.Trim();
+        var lastName = string.IsNullOrWhiteSpace(input.LastName) ? null : input.LastName.Trim();
 
         var (invitation, rawToken) = await _invitationManager.IssueAsync(
             tenantId: tenantId.Value,
             email: normalizedEmail,
             userType: input.UserType,
-            invitedByUserId: invitedByUserId);
+            invitedByUserId: invitedByUserId,
+            firstName: firstName,
+            lastName: lastName);
 
         // BUG-029 v3 fix (2026-05-21): invite URL now routes through
         // IAccountUrlBuilder, which composes the tenant subdomain.
@@ -924,7 +936,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         role: MapToRecipientRole(input.UserType),
                         isRegistered: false),
                 },
-                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt),
+                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
                 contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
         }
         catch (Exception)
@@ -969,6 +981,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             RoleName = ToRoleName(invitation.UserType),
             TenantName = tenantName,
             ExpiresAt = invitation.ExpiresAt,
+            FirstName = invitation.FirstName,
+            LastName = invitation.LastName,
         };
     }
 
@@ -977,28 +991,32 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// Tokens are referenced in
     /// <c>src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/InviteExternalUser.html</c>
     /// as <c>##TenantName##</c>, <c>##RoleName##</c>, <c>##URL##</c>,
-    /// <c>##ExpiresAt##</c>. <c>##PatientFullName##</c> is left blank --
-    /// we do not collect a name at invite time.
+    /// <c>##ExpiresAt##</c>, <c>##Greeting##</c>. UM1 (2026-06-04): the invite
+    /// now optionally collects the recipient name; <c>##Greeting##</c> renders
+    /// "Hi First Last," when a name is present and falls back to "Hello," when
+    /// blank (fixes the OBS-27 empty "Hi ," greeting).
     /// </summary>
     private static IReadOnlyDictionary<string, object?> BuildInvitationVariables(
-        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc)
+        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
+        string? firstName = null, string? lastName = null)
     {
         // Format expiry as a short human-readable UTC date so all tenants
         // see the same calendar day regardless of viewer locale; the
         // recipient does not need timezone precision to know "this link
         // works through Tuesday".
         var expiresAtLabel = expiresAtUtc.ToString("MMMM d, yyyy");
+        var fullName = $"{firstName} {lastName}".Trim();
+        var greeting = string.IsNullOrWhiteSpace(fullName) ? "Hello," : $"Hi {fullName},";
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["TenantName"] = tenantName,
             ["RoleName"] = roleName,
             ["URL"] = inviteUrl,
             ["ExpiresAt"] = expiresAtLabel,
-            ["PatientFullName"] = string.Empty,
-            // Defensive zero-fills for tokens the per-tenant edit UI may
-            // reference even when the dispatcher doesn't supply them.
-            ["PatientFirstName"] = string.Empty,
-            ["PatientLastName"] = string.Empty,
+            ["Greeting"] = greeting,
+            ["PatientFullName"] = fullName,
+            ["PatientFirstName"] = firstName ?? string.Empty,
+            ["PatientLastName"] = lastName ?? string.Empty,
             ["PatientEmail"] = string.Empty,
         };
     }

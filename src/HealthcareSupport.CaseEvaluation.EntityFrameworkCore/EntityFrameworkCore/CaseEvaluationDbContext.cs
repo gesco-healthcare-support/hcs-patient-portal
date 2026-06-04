@@ -713,6 +713,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(Invitation.TenantId));
             b.Property(x => x.Email).IsRequired().HasMaxLength(InvitationConsts.EmailMaxLength);
+            b.Property(x => x.FirstName).HasMaxLength(InvitationConsts.NameMaxLength);
+            b.Property(x => x.LastName).HasMaxLength(InvitationConsts.NameMaxLength);
             b.Property(x => x.UserType).IsRequired();
             b.Property(x => x.TokenHash).IsRequired().HasMaxLength(InvitationConsts.TokenHashLength);
             b.Property(x => x.ExpiresAt).IsRequired();
