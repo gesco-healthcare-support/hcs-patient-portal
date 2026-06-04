@@ -25,4 +25,11 @@ public class AppointmentDocumentDto : FullAuditedEntityDto<Guid>
 
     /// <summary>W2-11: user who rejected the document.</summary>
     public Guid? RejectedByUserId { get; set; }
+
+    /// <summary>
+    /// AF5 (2026-06-04): true when this document is the PQME panel strike list
+    /// (staff venue-verification document). Lets the staff document list badge
+    /// it. Set on the upload path that tags the strike-list file (AF6).
+    /// </summary>
+    public bool IsPanelStrikeList { get; set; }
 }

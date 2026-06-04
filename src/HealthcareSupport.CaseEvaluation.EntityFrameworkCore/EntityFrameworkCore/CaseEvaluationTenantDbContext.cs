@@ -260,6 +260,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.RejectedByUserId).HasColumnName("RejectedByUserId");
             b.Property(x => x.IsAdHoc).HasColumnName("IsAdHoc");
             b.Property(x => x.IsJointDeclaration).HasColumnName("IsJointDeclaration");
+            b.Property(x => x.IsPanelStrikeList).HasColumnName("IsPanelStrikeList");
             b.Property(x => x.VerificationCode).HasColumnName("VerificationCode");
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.Status });
