@@ -271,7 +271,6 @@
     "Appointment:AccessDenied": "You do not have permission to access this appointment.",
     "Appointment:AttorneyFirmNameRequired": "Firm Name is required for the attorney section.",
     "Appointment.AccessDenied": "You do not have permission to access this appointment.",
-    "Appointment:AmeRequiresAttorneyRole": "Only Applicant Attorneys and Defense Attorneys can request an AME or AME-REVAL appointment. Please contact your attorney to schedule this evaluation.",
     "Appointment:ApplicantAttorneySelfRepresentedTitle": "Is the Applicant Self-Represented?",
     "Appointment:ApplicantAttorneySelfRepresentedMessage": "If no, contact Applicant's attorneys for the information.",
     "Appointment:DefenseAttorneyAssignedTitle": "Defense Attorney",
