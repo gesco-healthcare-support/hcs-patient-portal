@@ -326,6 +326,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Edit("AppointmentLanguages");
         yield return Delete("AppointmentLanguages");
 
+        // IP5 (2026-06-03): Staff Supervisor manages the WcabOffices lookup master.
+        yield return Create("WcabOffices");
+        yield return Edit("WcabOffices");
+        yield return Delete("WcabOffices");
+
         foreach (var entity in OperationalEntities)
         {
             yield return Default(entity);
