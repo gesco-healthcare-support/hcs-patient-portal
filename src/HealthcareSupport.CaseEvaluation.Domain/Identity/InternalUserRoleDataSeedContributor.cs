@@ -321,6 +321,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Edit("AppointmentTypes");
         yield return Delete("AppointmentTypes");
 
+        // IP2 (2026-06-03): Staff Supervisor manages the AppointmentLanguages lookup master.
+        yield return Create("AppointmentLanguages");
+        yield return Edit("AppointmentLanguages");
+        yield return Delete("AppointmentLanguages");
+
         foreach (var entity in OperationalEntities)
         {
             yield return Default(entity);
