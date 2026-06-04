@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
@@ -45,19 +46,26 @@ public class DocumentUploadedEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
+    private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DocumentUploadedEmailHandler> _logger;
+    // E3 (2026-06-04): tenant-aware login link for the shared To+CC body.
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public DocumentUploadedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
+        IAppointmentRecipientResolver recipientResolver,
         ICurrentTenant currentTenant,
-        ILogger<DocumentUploadedEmailHandler> logger)
+        ILogger<DocumentUploadedEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
+        _recipientResolver = recipientResolver;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -83,32 +91,31 @@ public class DocumentUploadedEmailHandler :
                 eventData.UploadedByUserId ?? ctx.DocumentUploadedByUserId,
                 ctx.PatientEmail ?? ctx.BookerEmail);
 
-            var responsibleEmail = await _contextResolver.ResolveResponsibleUserEmailAsync(ctx.ResponsibleUserId);
-
-            var recipients = new List<NotificationRecipient>();
-            if (!string.IsNullOrWhiteSpace(uploaderEmail))
-            {
-                recipients.Add(new NotificationRecipient(
-                    email: uploaderEmail!,
-                    role: RecipientRole.Patient,
-                    isRegistered: eventData.UploadedByUserId.HasValue));
-            }
-            if (!string.IsNullOrWhiteSpace(responsibleEmail))
-            {
-                recipients.Add(new NotificationRecipient(
-                    email: responsibleEmail!,
-                    role: RecipientRole.OfficeAdmin,
-                    isRegistered: true));
-            }
-
-            if (recipients.Count == 0)
+            if (string.IsNullOrWhiteSpace(uploaderEmail))
             {
                 _logger.LogInformation(
-                    "DocumentUploadedEmailHandler: no recipients resolved for document {DocumentId} on appointment {AppointmentId}; skipping.",
+                    "DocumentUploadedEmailHandler: no uploader email resolved for document {DocumentId} on appointment {AppointmentId}; skipping.",
                     eventData.AppointmentDocumentId,
                     eventData.AppointmentId);
                 return;
             }
+
+            // E3 (2026-06-04): single To+CC message -- To the uploader, CC every
+            // other appointment party. UPLOAD keeps the office mailbox in the CC
+            // (staff want a copy of new uploads). The dispatcher dedups the To
+            // address out of the CC list.
+            var parties = await _recipientResolver.ResolveAsync(
+                eventData.AppointmentId, NotificationKind.DocumentUploaded);
+            var to = new NotificationRecipient(
+                email: uploaderEmail!,
+                role: RecipientRole.Patient,
+                isRegistered: eventData.UploadedByUserId.HasValue);
+            var cc = parties
+                .Select(p => new NotificationRecipient(
+                    email: p.To,
+                    role: p.Role ?? RecipientRole.Patient,
+                    isRegistered: p.IsRegistered))
+                .ToList();
 
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
@@ -130,11 +137,34 @@ public class DocumentUploadedEmailHandler :
                 ctx.IsAdHoc,
                 ctx.IsJointDeclaration);
 
-            await _dispatcher.DispatchAsync(
+            // E3: shared "log in or register to view" CTA -- tenant login link
+            // (register reachable from the login page), consistent with E2.
+            var loginUrl = await BuildLoginUrlAsync(
+                eventData.TenantId, parties.Count > 0 ? parties[0].TenantName : _currentTenant.Name);
+            var dispatchVariables = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
+            {
+                ["LoginUrl"] = loginUrl,
+            };
+
+            await _dispatcher.DispatchToWithCcAsync(
                 templateCode: templateCode,
-                recipients: recipients,
-                variables: variables,
+                to: to,
+                cc: cc,
+                variables: dispatchVariables,
                 contextTag: $"DocumentUploaded/{templateCode}/{eventData.AppointmentDocumentId}");
         }
+    }
+
+    /// <summary>
+    /// E3 (2026-06-04): tenant login link for the shared document body. Reuses
+    /// E1's login-URL composer for a link shape identical to the E2 booking
+    /// email; no per-recipient email pre-fill (the body is CC'd to many).
+    /// <paramref name="tenantName"/> only adds the optional <c>?__tenant=</c>
+    /// hint -- the tenant is already in the auth-server subdomain.
+    /// </summary>
+    private async Task<string> BuildLoginUrlAsync(Guid? tenantId, string? tenantName)
+    {
+        var authServerBaseUrl = await _accountUrlBuilder.BuildAuthServerRootUrlAsync(tenantId);
+        return BookingSubmissionEmailHandler.BuildLoginUrl(authServerBaseUrl, tenantName, string.Empty);
     }
 }
