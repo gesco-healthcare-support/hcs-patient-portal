@@ -152,17 +152,13 @@ public class BookingSubmissionEmailHandler :
             var appointmentFromTime = FormatTimeOnlyOrEmpty(availability?.FromTime);
             var appointmentToTime = FormatTimeOnlyOrEmpty(availability?.ToTime);
 
-            // Phase 2.A (Category 2, 2026-05-08): per-recipient
-            // "Appointment Requested" stakeholder fan-out. Replaces the
-            // earlier inline-HTML implementation in Domain
-            // SubmissionEmailHandler (now deleted) -- same role-aware
-            // content (registered party gets "log in to view"; unregistered
-            // AA/DA/CE gets "register as [role]" with a tenant-prefilled
-            // AuthServer link), but rendered through the per-tenant
-            // NotificationTemplate path. Three template codes
-            // (AppointmentRequestedOffice / Registered / Unregistered)
-            // partition the audience. NO CC on this fan-out per Adrian
-            // override 2026-05-08.
+            // E1 (2026-06-03): single-message ex-parte addressing. The
+            // appointment-request notice is ONE email To the booker with the
+            // other parties CC'd, using a shared non-role-aware body; the office
+            // mailbox keeps its own separate notice. Supersedes the earlier
+            // per-recipient role-aware fan-out (Decision 2.1, 2026-05-08) --
+            // separate per-party emails for the same notice are ex-parte
+            // communication.
             try
             {
                 await DispatchAppointmentRequestedAsync(
@@ -194,33 +190,22 @@ public class BookingSubmissionEmailHandler :
     }
 
     /// <summary>
-    /// Phase 2.A (Category 2, 2026-05-08) -- per-recipient
-    /// "Appointment Requested" stakeholder fan-out. For each recipient
-    /// returned by <see cref="IAppointmentRecipientResolver"/>, classify
-    /// into one of three audience buckets and dispatch the matching
-    /// template code:
-    /// <list type="bullet">
-    ///   <item><b>Office mailbox</b> (<see cref="RecipientRole.OfficeAdmin"/>) ->
-    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedOffice"/>.
-    ///         "New appointment request" + portal queue link.</item>
-    ///   <item><b>Registered party</b> (any other role with
-    ///         <c>IsRegistered=true</c>) ->
-    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedRegistered"/>.
-    ///         "Log in to view" + portal CTA.</item>
-    ///   <item><b>Unregistered party</b> (any other role with
-    ///         <c>IsRegistered=false</c>) ->
-    ///         <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered"/>.
-    ///         "Register as [role]" + AuthServer register link with
-    ///         <c>?__tenant=&amp;email=</c> pre-fill so the new account
-    ///         lands in the right tenant + saves the typed-but-unregistered
-    ///         email a re-entry.</item>
-    /// </list>
+    /// E1 (2026-06-03) -- "Appointment Requested" ex-parte single-message
+    /// dispatch. Resolves stakeholders via
+    /// <see cref="IAppointmentRecipientResolver"/>, then sends ONE email
+    /// addressed To the booker (or, if the booker is not a party, the patient)
+    /// with every other party CC'd, rendered once from the shared
+    /// non-role-aware
+    /// <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedRegistered"/>
+    /// body ("log in or register to view" + a tenant login link). The office
+    /// mailbox (<see cref="RecipientRole.OfficeAdmin"/>) is NOT a party: it
+    /// keeps its own separate internal "new request" notice via
+    /// <see cref="NotificationTemplateConsts.Codes.AppointmentRequestedOffice"/>.
     ///
-    /// <para>NO CC on this fan-out per Adrian directive 2026-05-08
-    /// (Decision 2.1). The office mailbox already receives its own
-    /// dedicated email via the <see cref="RecipientRole.OfficeAdmin"/>
-    /// path; appending <see cref="SystemParameter.CcEmailIds"/> entries
-    /// would duplicate.</para>
+    /// <para>Supersedes Decision 2.1 (2026-05-08), which sent a separate
+    /// role-aware email per recipient -- separate per-party emails for the same
+    /// notice are ex-parte communication. The per-recipient Unregistered
+    /// "register as [role]" template is no longer used by this flow.</para>
     /// </summary>
     private async Task DispatchAppointmentRequestedAsync(
         AppointmentSubmittedEto eventData,
@@ -260,65 +245,114 @@ public class BookingSubmissionEmailHandler :
         var patientName = ResolvePatientName(patient);
         var dateLine = appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt");
 
-        // Classify + dispatch per recipient. One DispatchAsync call per
-        // recipient so each gets its own variable bag (RoleDisplayName
-        // matters per recipient, RegisterUrl needs the recipient email).
-        // Group by template code so the renderer's template-load happens
-        // once per audience bucket rather than per-recipient -- the
-        // dispatcher batches recipients sharing a (templateCode, variables)
-        // tuple, but our variables differ per recipient (RoleDisplayName,
-        // RegisterUrl) so we dispatch per-recipient.
-        foreach (var args in recipients)
+        // E1 (2026-06-03) -- ex-parte single-message addressing (supersedes
+        // Decision 2.1's per-recipient fan-out: separate per-party emails for
+        // the SAME notice are ex-parte communication). The notice goes out as
+        // ONE email addressed To the booker with the other parties CC'd, using
+        // a single non-role-aware body. The office mailbox is NOT a party -- it
+        // keeps its own separate internal "new request" notice.
+        var addressing = PartitionAppointmentRequested(recipients, bookerUser?.Email);
+
+        if (addressing.To != null)
         {
-            // SendAppointmentEmailArgs.Role is nullable -- the resolver
-            // sets it for every stakeholder fan-out today, but defending
-            // against null avoids a NRE if a future caller publishes a
-            // role-less AppointmentSubmittedEto. Default to Patient (the
-            // most-permissive booker fallback the deleted Domain handler
-            // also used) which routes to the Registered/Unregistered
-            // template variants based on IsRegistered.
-            var role = args.Role ?? RecipientRole.Patient;
-            var templateCode = ClassifyTemplateCode(role, args.IsRegistered);
-            var variables = BuildAppointmentRequestedVariables(
-                eventData,
-                ctx,
-                args,
-                bookerName,
-                patientName,
-                dateLine,
-                portalBaseUrl,
-                authServerBaseUrl);
-            var single = new[]
+            // Shared, non-role-aware body (E2): "log in or register to view"
+            // with a tenant login link. The body is rendered once and shared by
+            // every recipient on the message, so it carries NO per-recipient
+            // register pre-fill (LoginUrl is tenant-only, no email pre-fill).
+            var sharedVariables = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["AppointmentRequestConfirmationNumber"] = eventData.RequestConfirmationNumber,
+                ["AppointmentDateTime"] = dateLine,
+                ["BookerFullName"] = bookerName,
+                ["PatientFirstName"] = ctx.PatientFirstName ?? patientName,
+                ["PatientLastName"] = ctx.PatientLastName ?? string.Empty,
+                ["LoginUrl"] = BuildLoginUrl(authServerBaseUrl, addressing.To.TenantName, string.Empty),
+            };
+            AddBrandPlaceholders(sharedVariables);
+
+            var toRecipient = new NotificationRecipient(
+                email: addressing.To.To,
+                role: addressing.To.Role,
+                isRegistered: addressing.To.IsRegistered);
+            var ccRecipients = addressing.Cc
+                .Select(r => new NotificationRecipient(
+                    email: r.To, role: r.Role, isRegistered: r.IsRegistered))
+                .ToList();
+
+            await _dispatcher.DispatchToWithCcAsync(
+                templateCode: NotificationTemplateConsts.Codes.AppointmentRequestedRegistered,
+                to: toRecipient,
+                cc: ccRecipients,
+                variables: sharedVariables,
+                contextTag: $"AppointmentRequested/{eventData.AppointmentId}");
+        }
+
+        // Office mailbox: separate internal "new request" queue notice
+        // (unchanged -- office is internal staff, not an ex-parte party).
+        foreach (var office in addressing.Office)
+        {
+            var officeVariables = BuildAppointmentRequestedVariables(
+                eventData, ctx, office, bookerName, patientName, dateLine,
+                portalBaseUrl, authServerBaseUrl);
+            var officeRecipient = new[]
             {
                 new NotificationRecipient(
-                    email: args.To,
-                    role: args.Role,
-                    isRegistered: args.IsRegistered),
+                    email: office.To, role: office.Role, isRegistered: office.IsRegistered),
             };
             await _dispatcher.DispatchAsync(
-                templateCode: templateCode,
-                recipients: single,
-                variables: variables,
-                contextTag: $"AppointmentRequested/{args.Role}/{eventData.AppointmentId}");
+                templateCode: NotificationTemplateConsts.Codes.AppointmentRequestedOffice,
+                recipients: officeRecipient,
+                variables: officeVariables,
+                contextTag: $"AppointmentRequested/Office/{eventData.AppointmentId}");
         }
     }
 
     /// <summary>
-    /// Phase 2.A: maps a recipient's (role, isRegistered) pair to the
-    /// matching <see cref="NotificationTemplateConsts.Codes"/> entry.
-    /// OfficeAdmin always lands on the Office template; other roles split
-    /// on registration status.
+    /// E1 (2026-06-03): split resolved recipients into the ex-parte addressing
+    /// for the appointment-request notice. Extracted <c>internal static</c> for
+    /// unit-testability (matches the BuildLoginUrl / BuildRegisterUrl pattern).
+    /// Rules: the office mailbox (<see cref="RecipientRole.OfficeAdmin"/>) is
+    /// NOT a party and is returned separately; To = the booker if the booker's
+    /// email is among the parties, else the patient-role party, else the first
+    /// party; Cc = every other party (the To address excluded).
     /// </summary>
-    private static string ClassifyTemplateCode(RecipientRole role, bool isRegistered)
+    internal static AppointmentRequestedAddressing PartitionAppointmentRequested(
+        IReadOnlyList<SendAppointmentEmailArgs> recipients,
+        string? bookerEmail)
     {
-        if (role == RecipientRole.OfficeAdmin)
+        var office = recipients
+            .Where(r => r.Role == RecipientRole.OfficeAdmin)
+            .ToList();
+        var parties = recipients
+            .Where(r => (r.Role ?? RecipientRole.Patient) != RecipientRole.OfficeAdmin)
+            .ToList();
+
+        if (parties.Count == 0)
         {
-            return NotificationTemplateConsts.Codes.AppointmentRequestedOffice;
+            return new AppointmentRequestedAddressing(null, new List<SendAppointmentEmailArgs>(), office);
         }
-        return isRegistered
-            ? NotificationTemplateConsts.Codes.AppointmentRequestedRegistered
-            : NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered;
+
+        var to =
+            (string.IsNullOrWhiteSpace(bookerEmail)
+                ? null
+                : parties.FirstOrDefault(r =>
+                    string.Equals(r.To, bookerEmail, StringComparison.OrdinalIgnoreCase)))
+            ?? parties.FirstOrDefault(r => (r.Role ?? RecipientRole.Patient) == RecipientRole.Patient)
+            ?? parties[0];
+
+        var cc = parties.Where(r => !ReferenceEquals(r, to)).ToList();
+        return new AppointmentRequestedAddressing(to, cc, office);
     }
+
+    /// <summary>
+    /// E1 (2026-06-03): result of <see cref="PartitionAppointmentRequested"/> --
+    /// the single To party, the CC'd parties, and the (separate) office mailbox
+    /// recipients for the appointment-request notice.
+    /// </summary>
+    internal sealed record AppointmentRequestedAddressing(
+        SendAppointmentEmailArgs? To,
+        IReadOnlyList<SendAppointmentEmailArgs> Cc,
+        IReadOnlyList<SendAppointmentEmailArgs> Office);
 
     /// <summary>
     /// Phase 2.A: build the variable bag for the per-recipient
