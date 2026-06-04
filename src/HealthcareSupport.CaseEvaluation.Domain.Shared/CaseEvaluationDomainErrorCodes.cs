@@ -778,4 +778,18 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentDocumentTypeNameAlreadyExists =
         "CaseEvaluation:AppointmentDocumentType.NameAlreadyExists";
+
+    /// <summary>
+    /// G-03-03 (PR2, 2026-06-04) -- raised by
+    /// <c>AppointmentDocumentTypeManager.DeleteAsync</c> when the targeted
+    /// category is still referenced by at least one <c>AppointmentDocument</c>
+    /// (via <c>AppointmentDocumentTypeId</c>). Forces staff to retire the
+    /// category (set inactive) rather than delete it out from under existing
+    /// documents, preserving the type label on historical rows. Mapped to
+    /// HTTP 409 Conflict in <c>CaseEvaluationHttpApiHostModule</c> (the request
+    /// is well-formed and authorized; it conflicts with current state).
+    /// Localization key <c>AppointmentDocumentType:InUse</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeInUse =
+        "CaseEvaluation:AppointmentDocumentType.InUse";
 }

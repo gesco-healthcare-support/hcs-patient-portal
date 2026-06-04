@@ -281,6 +281,13 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.IsAdHoc).HasColumnName("IsAdHoc");
             b.Property(x => x.IsJointDeclaration).HasColumnName("IsJointDeclaration");
             b.Property(x => x.VerificationCode).HasColumnName("VerificationCode");
+            // G-03-03/05 (PR2): document-type linkage (mirrors the host context).
+            // AppointmentDocumentTypeId is a loose Guid reference (no FK);
+            // OtherDocumentTypeName holds the "Other" free-text label;
+            // SourceDocumentId is internal bookkeeping for queued package rows.
+            b.Property(x => x.AppointmentDocumentTypeId).HasColumnName("AppointmentDocumentTypeId");
+            b.Property(x => x.OtherDocumentTypeName).HasColumnName("OtherDocumentTypeName").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength);
+            b.Property(x => x.SourceDocumentId).HasColumnName("SourceDocumentId");
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.Status });
             b.HasIndex(x => x.VerificationCode);

@@ -251,6 +251,7 @@
     "AppointmentDocument:FileTooLarge": "File is too large. Maximum allowed size is 10 MB.",
     "AppointmentDocumentType:SystemReadOnly": "This is a built-in category and cannot be edited or deleted.",
     "AppointmentDocumentType:NameAlreadyExists": "A document type with this name already exists for the selected appointment type. Choose a different name.",
+    "AppointmentDocumentType:InUse": "This document type is in use by one or more documents and cannot be deleted. Set it inactive instead to stop offering it on new uploads.",
     "Doctor:OnePerTenantViolated": "This clinic already has a doctor profile. The system supports one doctor per clinic. Edit the existing profile instead, or contact the IT administrator if the clinic needs a different doctor.",
     "Doctor:CannotDeleteWithDependents": "This doctor cannot be removed because the clinic still has {count} {entity} record(s). Cancel or reassign the dependent records, then try again.",
     "DoctorAvailability:CannotUpdateBookedOrReserved": "This slot cannot be modified because it has been reserved or booked. Cancel or reschedule the linked appointment first.",

@@ -28,7 +28,9 @@ public class AppointmentDocumentManager : DomainService
         string blobName,
         string? contentType,
         long fileSize,
-        Guid uploadedByUserId)
+        Guid uploadedByUserId,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null)
     {
         Check.NotNull(appointmentId, nameof(appointmentId));
         if (appointmentId == Guid.Empty)
@@ -53,7 +55,9 @@ public class AppointmentDocumentManager : DomainService
             blobName,
             contentType,
             fileSize,
-            uploadedByUserId);
+            uploadedByUserId,
+            appointmentDocumentTypeId,
+            otherDocumentTypeName);
 
         return await _appointmentDocumentRepository.InsertAsync(entity);
     }
@@ -75,7 +79,9 @@ public class AppointmentDocumentManager : DomainService
     public virtual async Task<AppointmentDocument> CreateQueuedAsync(
         Guid? tenantId,
         Guid appointmentId,
-        string documentName)
+        string documentName,
+        Guid? sourceDocumentId = null,
+        Guid? appointmentDocumentTypeId = null)
     {
         if (appointmentId == Guid.Empty)
         {
@@ -91,7 +97,9 @@ public class AppointmentDocumentManager : DomainService
             tenantId: tenantId,
             appointmentId: appointmentId,
             documentName: documentName,
-            verificationCode: Guid.NewGuid());
+            verificationCode: Guid.NewGuid(),
+            sourceDocumentId: sourceDocumentId,
+            appointmentDocumentTypeId: appointmentDocumentTypeId);
 
         return await _appointmentDocumentRepository.InsertAsync(entity);
     }

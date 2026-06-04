@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Localization;
@@ -46,6 +47,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly IBlobContainer<AppointmentDocumentsContainer> _blobContainer;
     private readonly ICurrentTenant _currentTenant;
@@ -66,6 +68,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         IRepository<AppointmentDocument, Guid> documentRepository,
         IRepository<AppointmentPacket, Guid> packetRepository,
         IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentDocumentTypeRepository documentTypeRepository,
         AppointmentDocumentManager documentManager,
         IBlobContainer<AppointmentDocumentsContainer> blobContainer,
         ICurrentTenant currentTenant,
@@ -79,6 +82,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
+        _documentTypeRepository = documentTypeRepository;
         _documentManager = documentManager;
         _packetRepository = packetRepository;
         _blobContainer = blobContainer;
@@ -152,7 +156,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         string fileName,
         string? contentType,
         long fileSize,
-        Stream content)
+        Stream content,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null)
     {
         if (appointmentId == Guid.Empty)
         {
@@ -175,6 +181,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // Issue #114 (2026-05-13): gate before any blob save so the
         // user can't trigger a write at all if they're not a party.
         await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        // G-03-03 (PR2): validate the document-type selection server-side
+        // before any blob write (fail fast). Returns the trimmed values to
+        // persist.
+        var (resolvedTypeId, resolvedOtherName) =
+            await ResolveDocumentTypeSelectionAsync(appointmentDocumentTypeId, otherDocumentTypeName);
 
         // W2-11: magic-byte validation BEFORE any blob save. Browser-supplied
         // ContentType + extension are trivially spoofable; the file header
@@ -201,7 +213,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             blobName: blobName,
             contentType: contentType,
             fileSize: fileSize,
-            uploadedByUserId: CurrentUser.Id ?? Guid.Empty);
+            uploadedByUserId: CurrentUser.Id ?? Guid.Empty,
+            appointmentDocumentTypeId: resolvedTypeId,
+            otherDocumentTypeName: resolvedOtherName);
 
         // Phase 14: this generic upload path is the ad-hoc / general
         // document path (OLD's AppointmentNewDocuments table). NEW
@@ -673,6 +687,43 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private async Task<bool> IsInternalActorAsync()
     {
         return await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.AppointmentDocuments.Approve);
+    }
+
+    /// <summary>
+    /// G-03-03 (PR2): validate + normalize the uploader's document-type
+    /// selection. A type id and an "Other" free-text label are mutually
+    /// exclusive; a supplied type id must resolve to an active, non-system
+    /// category in the current tenant (the FindAsync IMultiTenant filter
+    /// rejects ids from other tenants). Returns the (type id, trimmed Other
+    /// label) to persist on the document.
+    /// </summary>
+    private async Task<(Guid? typeId, string? otherName)> ResolveDocumentTypeSelectionAsync(
+        Guid? appointmentDocumentTypeId,
+        string? otherDocumentTypeName)
+    {
+        var otherName = string.IsNullOrWhiteSpace(otherDocumentTypeName)
+            ? null
+            : otherDocumentTypeName.Trim();
+
+        if (appointmentDocumentTypeId.HasValue && otherName != null)
+        {
+            throw new UserFriendlyException("Choose either a document type or \"Other\", not both.");
+        }
+        if (otherName != null && otherName.Length > AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength)
+        {
+            throw new UserFriendlyException(
+                $"The custom document type label must be {AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength} characters or fewer.");
+        }
+        if (appointmentDocumentTypeId.HasValue)
+        {
+            var type = await _documentTypeRepository.FindAsync(appointmentDocumentTypeId.Value);
+            if (type == null || !type.IsActive || type.IsSystem)
+            {
+                throw new UserFriendlyException("The selected document type is not available.");
+            }
+        }
+
+        return (appointmentDocumentTypeId, otherName);
     }
 
     /// <summary>

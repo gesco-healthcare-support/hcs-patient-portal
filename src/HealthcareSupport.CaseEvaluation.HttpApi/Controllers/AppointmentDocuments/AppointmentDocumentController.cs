@@ -46,7 +46,9 @@ public class AppointmentDocumentController : AbpController
             form.File.FileName,
             form.File.ContentType,
             form.File.Length,
-            stream);
+            stream,
+            form.AppointmentDocumentTypeId,
+            form.OtherDocumentTypeName);
     }
 
     [HttpGet("{id}/download")]
@@ -144,5 +146,12 @@ public class AppointmentDocumentController : AbpController
 public class UploadAppointmentDocumentForm
 {
     public string? DocumentName { get; set; }
+
+    /// <summary>G-03-03 (PR2): chosen document category id (omit for "Other" or untyped).</summary>
+    public Guid? AppointmentDocumentTypeId { get; set; }
+
+    /// <summary>G-03-03 (PR2): free-text label when the uploader picks "Other".</summary>
+    public string? OtherDocumentTypeName { get; set; }
+
     public IFormFile File { get; set; } = null!;
 }
