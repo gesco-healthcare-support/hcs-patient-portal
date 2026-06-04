@@ -151,10 +151,6 @@ internal static class EmailSubjects
     public const string AppointmentRequestedRegistered =
         "Appointment Requested - ##AppointmentRequestConfirmationNumber##";
 
-    /// <summary>Unregistered party subject -- "register as [role]" body inside.</summary>
-    public const string AppointmentRequestedUnregistered =
-        "Appointment Requested - register to view ##AppointmentRequestConfirmationNumber##";
-
     // ----------------------------------------------------------------------
     // Phase 7 (Category 7, 2026-05-10): OLD SchedulerDomain reminder subjects.
     // Wording from OLD SchedulerDomain.cs SendSMTPMail call sites:
@@ -290,7 +286,6 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PasswordChange] = PasswordChange,
             [NotificationTemplateConsts.Codes.AppointmentRequestedOffice] = AppointmentRequestedOffice,
             [NotificationTemplateConsts.Codes.AppointmentRequestedRegistered] = AppointmentRequestedRegistered,
-            [NotificationTemplateConsts.Codes.AppointmentRequestedUnregistered] = AppointmentRequestedUnregistered,
             [NotificationTemplateConsts.Codes.PatientAppointmentCheckedIn] = PatientAppointmentCheckedIn,
             [NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut] = PatientAppointmentCheckedOut,
             [NotificationTemplateConsts.Codes.PatientAppointmentNoShow] = PatientAppointmentNoShow,
