@@ -18,6 +18,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -84,6 +85,13 @@ public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase
 {
     public override partial AppointmentStatusDto Map(AppointmentStatus source);
     public override partial void Map(AppointmentStatus source, AppointmentStatusDto destination);
+}
+
+[Mapper]
+public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
+{
+    public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
+    public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
 }
 
 [Mapper]

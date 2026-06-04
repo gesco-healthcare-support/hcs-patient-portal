@@ -43,6 +43,21 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- tenant-scoped, per-appointment-type document
+    /// category master. Granted to IT Admin + Staff Supervisor only (the two
+    /// roles Adrian designated as list owners); Clinic Staff and all external
+    /// roles never receive it. Reserved IsSystem rows ("Generated Packet")
+    /// stay read-only regardless of the grant -- enforced in the domain manager.
+    /// </summary>
+    public static class AppointmentDocumentTypes
+    {
+        public const string Default = GroupName + ".AppointmentDocumentTypes";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     public static class AppointmentLanguages
     {
         public const string Default = GroupName + ".AppointmentLanguages";

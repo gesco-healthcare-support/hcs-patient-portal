@@ -24,6 +24,7 @@ using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.UserQueries;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -68,6 +69,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<DoctorPreferredLocation> DoctorPreferredLocations { get; set; } = null!;
     public DbSet<AppointmentLanguage> AppointmentLanguages { get; set; } = null!;
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; } = null!;
+    public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
 
@@ -99,6 +101,20 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
+        });
+        // G-03-01: tenant-scoped document-category master (verbatim duplicate of
+        // the host-context block, per the dual-DbContext convention). Loose
+        // AppointmentTypeId column -- no FK (AppointmentType is absent here).
+        builder.Entity<AppointmentDocumentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
+            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.IsSystem).HasColumnName("IsSystem");
+            b.Property(x => x.IsActive).HasColumnName("IsActive");
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
         });
         builder.Entity<AppointmentLanguage>(b =>
         {

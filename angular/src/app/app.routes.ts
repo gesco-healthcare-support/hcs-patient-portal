@@ -5,6 +5,7 @@ import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-co
 import { STATE_ROUTES } from './states/state/state-routes';
 import { APPOINTMENT_TYPE_ROUTES } from './appointment-types/appointment-type/appointment-type-routes';
 import { APPOINTMENT_STATUS_ROUTES } from './appointment-statuses/appointment-status/appointment-status-routes';
+import { APPOINTMENT_DOCUMENT_TYPE_ROUTES } from './appointment-document-types/appointment-document-type/appointment-document-type-routes';
 import { APPOINTMENT_LANGUAGE_ROUTES } from './appointment-languages/appointment-language/appointment-language-routes';
 import { LOCATION_ROUTES } from './locations/location/location-routes';
 import { WCAB_OFFICE_ROUTES } from './wcab-offices/wcab-office/wcab-office-routes';
@@ -89,6 +90,7 @@ export const APP_ROUTES: Routes = [
   { path: 'configurations/states', children: STATE_ROUTES },
   { path: 'appointment-management/appointment-types', children: APPOINTMENT_TYPE_ROUTES },
   { path: 'appointment-management/appointment-statuses', children: APPOINTMENT_STATUS_ROUTES },
+  { path: 'appointment-management/document-types', children: APPOINTMENT_DOCUMENT_TYPE_ROUTES },
   { path: 'appointment-management/appointment-languages', children: APPOINTMENT_LANGUAGE_ROUTES },
   { path: 'appointments', children: APPOINTMENT_ROUTES },
   { path: 'doctor-management/locations', children: LOCATION_ROUTES },

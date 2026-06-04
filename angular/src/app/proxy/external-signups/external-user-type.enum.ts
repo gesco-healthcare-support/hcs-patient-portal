@@ -5,7 +5,6 @@ export enum ExternalUserType {
   ClaimExaminer = 2,
   ApplicantAttorney = 3,
   DefenseAttorney = 4,
-  Adjuster = 5,
 }
 
 export const externalUserTypeOptions = mapEnumToOptions(ExternalUserType);

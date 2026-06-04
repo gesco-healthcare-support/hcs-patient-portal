@@ -105,7 +105,6 @@ export interface AppointmentWithNavigationPropertiesDto {
 
 export interface ApproveAppointmentInput {
   primaryResponsibleUserId: string;
-  overridePatientMatch?: boolean;
   internalUserComments?: string | null;
 }
 
@@ -124,6 +123,11 @@ export interface DefenseAttorneyDetailsDto {
   stateId?: string | null;
   zipCode?: string | null;
   concurrencyStamp?: string | null;
+}
+
+export interface DirectCancelAppointmentInput {
+  cancellationOutcome: AppointmentStatusType;
+  reason: string;
 }
 
 export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {

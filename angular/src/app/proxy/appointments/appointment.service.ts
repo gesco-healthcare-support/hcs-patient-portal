@@ -2,6 +2,7 @@ import type { ApplicantAttorneyDetailsDto, AppointmentCreateDto, AppointmentDto,
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
+import type { EvaluationType } from '../enums/evaluation-type.enum';
 import type { LookupDto, LookupRequestDto } from '../shared/models';
 
 @Injectable({
@@ -79,11 +80,11 @@ export class AppointmentService {
     { apiName: this.apiName,...config });
   
 
-  getAppointmentTypeLookup = (input: LookupRequestDto, config?: Partial<Rest.Config>) =>
+  getAppointmentTypeLookup = (input: LookupRequestDto, evaluationContext?: EvaluationType, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>({
       method: 'GET',
       url: '/api/app/appointments/appointment-type-lookup',
-      params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filter: input.filter, skipCount: input.skipCount, maxResultCount: input.maxResultCount, evaluationContext },
     },
     { apiName: this.apiName,...config });
   

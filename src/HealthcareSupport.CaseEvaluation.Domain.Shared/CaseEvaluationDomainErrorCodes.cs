@@ -751,4 +751,31 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentBookingSlotTypeMismatch =
         "CaseEvaluation:Appointment.BookingSlotTypeMismatch";
+
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- raised by
+    /// <c>AppointmentDocumentTypeManager.UpdateAsync / DeleteAsync</c> when
+    /// the targeted row is a reserved <c>IsSystem</c> category (e.g. the
+    /// seeded "Generated Packet" tag auto-applied to generated documents).
+    /// System rows are not editable or deletable by admins; the picker hides
+    /// them. Mapped to HTTP 400 Bad Request in
+    /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 for
+    /// <c>BusinessException</c> would make the SPA treat it as a permission
+    /// failure rather than the input-validation failure it is). Localization
+    /// key <c>AppointmentDocumentType:SystemReadOnly</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeSystemReadOnly =
+        "CaseEvaluation:AppointmentDocumentType.SystemReadOnly";
+
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- raised by
+    /// <c>AppointmentDocumentTypeManager.CreateAsync / UpdateAsync</c> when
+    /// another active row already uses the same name for the same
+    /// <c>AppointmentTypeId</c> scope (case-insensitive). Restores the name
+    /// uniqueness the legacy CRUD never enforced. Mapped to HTTP 400 Bad
+    /// Request in <c>CaseEvaluationHttpApiHostModule</c>. Localization key
+    /// <c>AppointmentDocumentType:NameAlreadyExists</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeNameAlreadyExists =
+        "CaseEvaluation:AppointmentDocumentType.NameAlreadyExists";
 }

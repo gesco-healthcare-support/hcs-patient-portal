@@ -211,6 +211,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             // tests can verify the mappings without booting the full
             // host (see CaseEvaluationHttpApiHostModuleTests).
             MapAppointmentDocumentErrorCodes(options);
+
+            // G-03-01 (2026-06-03) -- document-category master guards
+            // (AppointmentDocumentTypeManager). Both are client-input /
+            // precondition violations: a duplicate name per appointment type,
+            // or an attempt to edit/delete a reserved system row. HTTP 400 so
+            // the SPA shows the localized message instead of ABP's default 403
+            // (which it would treat as a permission failure with no message).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeNameAlreadyExists,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
         });
     }
 
