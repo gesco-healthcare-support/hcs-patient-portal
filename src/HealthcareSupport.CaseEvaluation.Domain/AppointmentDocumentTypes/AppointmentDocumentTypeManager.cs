@@ -27,12 +27,20 @@ public class AppointmentDocumentTypeManager : DomainService
         Check.Length(name, nameof(name), AppointmentDocumentTypeConsts.NameMaxLength);
         await EnsureNameIsUniqueAsync(name, appointmentTypeId, excludeId: null);
 
+        // Stamp the owning tenant explicitly from the resolved request tenant.
+        // ABP auto-populates IMultiTenant.TenantId on insert only for entities
+        // whose constructor leaves it unset; this entity's constructor assigns
+        // TenantId (defaulting to null when omitted), so a plain create persisted
+        // a null-tenant row -- invisible to the tenant-scoped list, and the null
+        // tenant also tripped ABP's cross-tenant audit guard, leaving CreatorId
+        // null. The data seeder stamps its tenant the same way.
         var entity = new AppointmentDocumentType(
             GuidGenerator.Create(),
             name,
             appointmentTypeId,
             isActive,
-            isSystem: false);
+            isSystem: false,
+            tenantId: CurrentTenant.Id);
         return await _appointmentDocumentTypeRepository.InsertAsync(entity);
     }
 
