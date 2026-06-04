@@ -63,6 +63,10 @@ public sealed class AppointmentExceptionTranslator : ITransientDependency
             => "Appointment:BookingSlotClosed",
         CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch
             => "Appointment:BookingSlotTypeMismatch",
+        CaseEvaluationDomainErrorCodes.AppointmentPanelNumberRequiredForPqme
+            => "Appointment:PanelNumberRequiredForPqme",
+        CaseEvaluationDomainErrorCodes.AppointmentPanelNumberNotAllowedForType
+            => "Appointment:PanelNumberNotAllowedForType",
         CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition
             => "Appointment:InvalidTransition",
         CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail

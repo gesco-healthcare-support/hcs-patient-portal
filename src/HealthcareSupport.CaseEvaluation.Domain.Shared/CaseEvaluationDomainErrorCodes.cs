@@ -738,4 +738,33 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentBookingSlotTypeMismatch =
         "CaseEvaluation:Appointment.BookingSlotTypeMismatch";
+
+    /// <summary>
+    /// AF4 (2026-06-04) -- raised by <c>AppointmentManager.CreateAsync /
+    /// UpdateAsync</c> when the appointment type is the seeded PQME type
+    /// (<c>CaseEvaluationSeedIds.AppointmentTypes.PanelQme</c>) but no Panel
+    /// Number was supplied. Only a PQME carries a state-issued panel number,
+    /// so it is required for that type. The Angular booking + view/edit forms
+    /// attach a conditional <c>Validators.required</c> for immediate feedback;
+    /// this domain check is the authoritative guard. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c>. Localization key
+    /// <c>Appointment:PanelNumberRequiredForPqme</c>.
+    /// </summary>
+    public const string AppointmentPanelNumberRequiredForPqme =
+        "CaseEvaluation:Appointment.PanelNumberRequiredForPqme";
+
+    /// <summary>
+    /// AF3 (2026-06-04) -- raised by <c>AppointmentManager.CreateAsync /
+    /// UpdateAsync</c> when a Panel Number is supplied for any non-PQME type
+    /// (AME / IME). Only PQME appointments get a state-issued panel number, so
+    /// a value on an AME/IME means the wrong type was chosen or the number was
+    /// fabricated -- the submission is rejected rather than normalized. The
+    /// Angular forms disable + clear the field for non-PQME so legitimate
+    /// submissions never carry one; this is the defense-in-depth backstop for a
+    /// tampered/bypassed client (closes the OBS-24 UI-only-enforcement gap for
+    /// this field). Mapped to HTTP 400 in <c>CaseEvaluationHttpApiHostModule</c>.
+    /// Localization key <c>Appointment:PanelNumberNotAllowedForType</c>.
+    /// </summary>
+    public const string AppointmentPanelNumberNotAllowedForType =
+        "CaseEvaluation:Appointment.PanelNumberNotAllowedForType";
 }

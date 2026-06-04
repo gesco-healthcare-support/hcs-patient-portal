@@ -270,6 +270,8 @@
     "Appointment:AccessorRoleMismatch": "Your added accessor '{0}' is already registered in our system with different user type. Please select proper Accessor user's type and try again",
     "Appointment:AccessDenied": "You do not have permission to access this appointment.",
     "Appointment:AttorneyFirmNameRequired": "Firm Name is required for the attorney section.",
+    "Appointment:PanelNumberRequiredForPqme": "Panel Number is required for a PQME appointment.",
+    "Appointment:PanelNumberNotAllowedForType": "Panel Number applies only to PQME appointments. Remove it or select the PQME appointment type.",
     "Appointment.AccessDenied": "You do not have permission to access this appointment.",
     "Appointment:ApplicantAttorneySelfRepresentedTitle": "Is the Applicant Self-Represented?",
     "Appointment:ApplicantAttorneySelfRepresentedMessage": "If no, contact Applicant's attorneys for the information.",

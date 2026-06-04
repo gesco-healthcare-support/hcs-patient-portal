@@ -199,6 +199,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
                 System.Net.HttpStatusCode.BadRequest);
 
+            // AF3 + AF4 (2026-06-04) -- Panel Number / appointment-type
+            // coupling enforced in AppointmentManager. Both are client-input
+            // validation failures (required for PQME / not allowed for AME-IME);
+            // HTTP 400 fits, not ABP's default 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberRequiredForPqme,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberNotAllowedForType,
+                System.Net.HttpStatusCode.BadRequest);
+
             // BUG-025 (2026-05-21) -- AppointmentDocuments upload size
             // rejections. Extracted to a named static helper so unit
             // tests can verify the mappings without booting the full
