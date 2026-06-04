@@ -200,6 +200,12 @@ export class AppointmentViewComponent implements OnInit {
   // validity. External roles (Patient/AA/DA/CE) have the whole form
   // disabled in ngOnInit, so these validators only affect internal staff
   // editing existing records.
+  // AF3 + AF4 (2026-06-04): mirrors CaseEvaluationSeedIds.AppointmentTypes.PanelQme.
+  // The appointment type is fixed on this view/edit form (type changes are
+  // cancel+rebook per AP1), so the Panel Number state is applied once from the
+  // loaded appointmentTypeId in ngOnInit. No proxy enum exists for seed-data GUIDs.
+  private readonly PQME_TYPE_ID = 'a0a00002-0000-4000-9000-000000000002';
+
   readonly form: FormGroup = this.fb.group({
     // top-level
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
@@ -413,6 +419,12 @@ export class AppointmentViewComponent implements OnInit {
           },
           { emitEvent: false },
         );
+        // AF3 + AF4 (2026-06-04): apply the Panel Number state once from the
+        // loaded (fixed) appointment type. PQME -> enabled + required; AME/IME ->
+        // cleared + disabled (cleans up any legacy value on edit). Runs BEFORE the
+        // read-only gate below so that, for a patient viewer, the subsequent global
+        // form.disable() still wins and the field stays locked.
+        this.applyPanelNumberStateForType(data.appointment?.appointmentTypeId ?? null);
         // #122 (2026-05-14): O5 strict-parity read-only gate. External roles
         // (Patient / AA / DA / CE) see the form fields visually locked via
         // form.disable(); internal staff edit freely. Server permission
@@ -427,6 +439,29 @@ export class AppointmentViewComponent implements OnInit {
         this.isLoading = false;
       },
     });
+  }
+
+  /**
+   * AF3 + AF4 (2026-06-04): Panel Number state machine keyed off the PQME type,
+   * mirroring AppointmentAddComponent.applyPanelNumberStateForType. PQME -> the
+   * field is enabled + required; any other type (AME / IME) -> the value is
+   * cleared, validators drop to length-only, and the control is disabled (cleans
+   * up any legacy value on edit instead of blocking the save). The form saves via
+   * getRawValue(), so a disabled control still serializes. AppointmentManager
+   * enforces the same rule server-side as the authoritative guard.
+   */
+  private applyPanelNumberStateForType(typeId: string | null): void {
+    const control = this.form.get('panelNumber');
+    if (!control) return;
+    if (typeId === this.PQME_TYPE_ID) {
+      control.enable({ emitEvent: false });
+      control.setValidators([Validators.required, Validators.maxLength(50)]);
+    } else {
+      control.setValue(null, { emitEvent: false });
+      control.setValidators([Validators.maxLength(50)]);
+      control.disable({ emitEvent: false });
+    }
+    control.updateValueAndValidity({ emitEvent: false });
   }
 
   goBack(): void {

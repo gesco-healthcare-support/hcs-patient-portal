@@ -382,6 +382,14 @@ export class AppointmentAddComponent {
       { apiName: 'Default' },
     );
 
+  // AF3 + AF4 (2026-06-04): mirrors CaseEvaluationSeedIds.AppointmentTypes.PanelQme.
+  // The appointmentTypeId valueChanges arg IS the type GUID string; there is no
+  // generated proxy enum for seed-data GUIDs, so the canonical PQME id is mirrored
+  // here as a local constant (kept in sync with the C# seed id).
+  private readonly PQME_TYPE_ID = 'a0a00002-0000-4000-9000-000000000002';
+  // Drives the Panel Number required-star affordance in the schedule section.
+  isPqmeType = false;
+
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
     appointmentDate: [null as string | null, [Validators.required]],
@@ -516,6 +524,11 @@ export class AppointmentAddComponent {
       // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
       // which re-binds `customFieldsValues` on AppointmentType change.
       this.loadCustomFieldsForAppointmentType(appointmentTypeId);
+      // AF3 + AF4: toggle Panel Number enabled/required (PQME) vs cleared/
+      // disabled (AME/IME) on every type change. Synchronous (no HTTP), so it
+      // needs no request-version counter; it stays inside this subscriber to
+      // remain ordered with the other per-type updates.
+      this.applyPanelNumberStateForType(appointmentTypeId);
     });
     this.form
       .get('appointmentDate')
@@ -593,6 +606,10 @@ export class AppointmentAddComponent {
     this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
     applyAttorneySectionValidators(this.form, 'defenseAttorney', daInitialEnabled);
     this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
+    // AF3 + AF4: apply the Panel Number state once for the initial type. The
+    // type starts null (no selection), so Panel Number begins cleared + disabled
+    // until a PQME type is chosen.
+    this.applyPanelNumberStateForType(this.form.get('appointmentTypeId')?.value ?? null);
 
     // B11-followup (2026-05-07): the earlier "hide AA/DA for CE" auto-
     // flip-off is no longer needed -- shouldShowApplicantAttorneySection
@@ -647,6 +664,32 @@ export class AppointmentAddComponent {
       ? [Validators.required, Validators.email, Validators.maxLength(50)]
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * AF3 + AF4 (2026-06-04): Panel Number state machine keyed off the PQME type.
+   * PQME -> the field is enabled + required (a PQME carries a state-issued panel
+   * number). Any other type (AME / IME) -> the value is cleared, validators drop
+   * to length-only, and the control is disabled, so a legitimate submission never
+   * carries a panel number for a non-PQME type. AppointmentManager enforces the
+   * same rule server-side as the authoritative guard; this is the primary UX.
+   * Mirrors applyConditionalEmailValidator: setValidators + value reset +
+   * updateValueAndValidity with { emitEvent: false } so it does not re-enter the
+   * appointmentTypeId valueChanges subscriber that calls it.
+   */
+  private applyPanelNumberStateForType(typeId: string | null): void {
+    const control = this.form.get('panelNumber');
+    if (!control) return;
+    this.isPqmeType = typeId === this.PQME_TYPE_ID;
+    if (this.isPqmeType) {
+      control.enable({ emitEvent: false });
+      control.setValidators([Validators.required, Validators.maxLength(50)]);
+    } else {
+      control.setValue(null, { emitEvent: false });
+      control.setValidators([Validators.maxLength(50)]);
+      control.disable({ emitEvent: false });
+    }
     control.updateValueAndValidity({ emitEvent: false });
   }
 
