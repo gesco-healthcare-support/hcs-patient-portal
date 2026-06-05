@@ -999,30 +999,55 @@
           </div>
           <div class="modal-body" [formGroup]="authorizedUserForm">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Email</label>
-                <select
-                  class="form-select"
-                  formControlName="identityUserId"
-                  (change)="onAuthorizedUserIdentityChange()"
-                >
-                  <option [ngValue]="null">Select email</option>
-                  @for (option of externalAuthorizedUserOptions; track option.identityUserId) {
-                    <option [ngValue]="option.identityUserId">{{ option.email }}</option>
-                  }
-                </select>
-              </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">First Name</label>
-                <input class="form-control" formControlName="firstName" readonly />
+                <input
+                  class="form-control"
+                  type="text"
+                  formControlName="firstName"
+                  maxlength="64"
+                />
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">Last Name</label>
-                <input class="form-control" formControlName="lastName" readonly />
+                <input class="form-control" type="text" formControlName="lastName" maxlength="64" />
               </div>
               <div class="col-md-6">
-                <label class="form-label fw-semibold">User Role</label>
-                <input class="form-control" formControlName="userRole" readonly />
+                <label class="form-label fw-semibold">
+                  Email
+                  <span class="text-danger">*</span>
+                </label>
+                <input
+                  class="form-control"
+                  type="email"
+                  formControlName="email"
+                  maxlength="256"
+                  placeholder="name@example.com"
+                />
+                @if (
+                  authorizedUserForm.get('email')?.touched &&
+                  authorizedUserForm.get('email')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Enter a valid email address.</div>
+                }
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                  User Role
+                  <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" formControlName="userRole">
+                  <option value="">Select role</option>
+                  @for (role of roleOptions; track role) {
+                    <option [value]="role">{{ role }}</option>
+                  }
+                </select>
+                @if (
+                  authorizedUserForm.get('userRole')?.touched &&
+                  authorizedUserForm.get('userRole')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Role is required.</div>
+                }
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Rights</label>

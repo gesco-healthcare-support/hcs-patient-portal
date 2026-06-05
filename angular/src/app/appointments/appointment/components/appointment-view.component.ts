@@ -164,6 +164,9 @@ export class AppointmentViewComponent implements OnInit {
     { value: 23, label: 'View' },
     { value: 24, label: 'Edit' },
   ];
+  // Group J: valid accessor roles -- email is free-typed, role chosen from
+  // the seeded external roles. Order mirrors the invite-user dropdown.
+  readonly roleOptions = ['Patient', 'Applicant Attorney', 'Defense Attorney', 'Claim Examiner'];
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserRow[] = [];
   isAuthorizedUserModalOpen = false;
@@ -306,12 +309,14 @@ export class AppointmentViewComponent implements OnInit {
   // `form` because it represents draft state for a per-row append/edit
   // operation that submits via its own POST/PUT, not via save().
   readonly authorizedUserForm: FormGroup = this.fb.group({
+    // identityUserId is set only when EDITING a persisted accessor (the
+    // update contract still keys by it); CREATE resolves the typed email.
     identityUserId: [null as string | null],
-    firstName: [''],
-    lastName: [''],
-    email: [''],
-    userRole: [''],
-    accessTypeId: [23 as number],
+    firstName: ['', [Validators.maxLength(64)]],
+    lastName: ['', [Validators.maxLength(64)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    userRole: ['', [Validators.required]],
+    accessTypeId: [23 as number, [Validators.required]],
   });
 
   readonly getStateLookup = (input: LookupRequestDto) =>
@@ -799,6 +804,11 @@ export class AppointmentViewComponent implements OnInit {
       userRole: '',
       accessTypeId: 23,
     });
+    // CREATE: identity fields are free-typed.
+    this.authorizedUserForm.get('firstName')?.enable();
+    this.authorizedUserForm.get('lastName')?.enable();
+    this.authorizedUserForm.get('email')?.enable();
+    this.authorizedUserForm.get('userRole')?.enable();
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -813,6 +823,12 @@ export class AppointmentViewComponent implements OnInit {
       userRole: item.userRole,
       accessTypeId: item.accessTypeId,
     });
+    // EDIT: the person is fixed (the update contract changes only the
+    // rights); show identity read-only, edit just View/Edit.
+    this.authorizedUserForm.get('firstName')?.disable();
+    this.authorizedUserForm.get('lastName')?.disable();
+    this.authorizedUserForm.get('email')?.disable();
+    this.authorizedUserForm.get('userRole')?.disable();
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -820,61 +836,58 @@ export class AppointmentViewComponent implements OnInit {
     this.isAuthorizedUserModalOpen = false;
   }
 
-  onAuthorizedUserIdentityChange(): void {
-    const identityUserId = this.authorizedUserForm.get('identityUserId')?.value as string | null;
-    const selected = this.externalAuthorizedUserOptions.find(
-      (x) => x.identityUserId === identityUserId,
-    );
-    this.authorizedUserForm.patchValue(
-      {
-        firstName: selected?.firstName ?? '',
-        lastName: selected?.lastName ?? '',
-        email: selected?.email ?? '',
-        userRole: selected?.userRole ?? '',
-      },
-      { emitEvent: false },
-    );
-  }
-
   async saveAuthorizedUserFromModal(): Promise<void> {
     const appointmentId = this.appointment?.appointment?.id;
+    if (!appointmentId) {
+      return;
+    }
+    if (this.authorizedUserForm.invalid) {
+      this.authorizedUserForm.markAllAsTouched();
+      return;
+    }
+
     const draft = this.authorizedUserForm.getRawValue();
-    if (!appointmentId || !draft.identityUserId) {
-      return;
-    }
-
-    const duplicate = this.appointmentAuthorizedUsers.some(
-      (x) =>
-        x.identityUserId === draft.identityUserId && x.accessorId !== this.editingAuthorizedUserId,
-    );
-    if (duplicate) {
-      return;
-    }
-
-    const body = {
-      appointmentId,
-      identityUserId: draft.identityUserId,
-      accessTypeId: draft.accessTypeId,
-    };
 
     if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserId) {
+      // EDIT changes only the rights; the update contract keys by the
+      // existing identityUserId.
       await firstValueFrom(
         this.restService.request<any, any>(
           {
             method: 'PUT',
             url: `/api/app/appointment-accessors/${this.editingAuthorizedUserId}`,
-            body,
+            body: {
+              appointmentId,
+              identityUserId: draft.identityUserId,
+              accessTypeId: draft.accessTypeId,
+            },
           },
           { apiName: 'Default' },
         ),
       );
     } else {
+      const email = (draft.email ?? '').trim();
+      // Dedup by email -- the typed email is the accessor's identity key.
+      const duplicate = this.appointmentAuthorizedUsers.some(
+        (x) => x.email.toLowerCase() === email.toLowerCase(),
+      );
+      if (duplicate) {
+        return;
+      }
+      // CREATE resolves the email to a user or provisions + invites one.
       await firstValueFrom(
         this.restService.request<any, any>(
           {
             method: 'POST',
             url: '/api/app/appointment-accessors',
-            body,
+            body: {
+              appointmentId,
+              email,
+              firstName: (draft.firstName ?? '').trim() || undefined,
+              lastName: (draft.lastName ?? '').trim() || undefined,
+              role: draft.userRole,
+              accessTypeId: draft.accessTypeId,
+            },
           },
           { apiName: 'Default' },
         ),

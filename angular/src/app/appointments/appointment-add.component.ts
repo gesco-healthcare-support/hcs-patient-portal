@@ -2268,10 +2268,10 @@ export class AppointmentAddComponent {
 
   // #121 phase T2 (2026-05-13) -- modal + table helpers all moved to
   // AppointmentAddAuthorizedUsersComponent: openAdd / openEdit / close /
-  // saveFromModal / remove / getAccessTypeLabel / onAuthorizedUserIdentityChanged.
-  // The parent retains only the loadExternalAuthorizedUsers fetch
-  // because two other sections (Applicant + Defense Attorney) also
-  // consume the same lookup result.
+  // saveFromModal / remove / getAccessTypeLabel. Group J (2026-06-05)
+  // dropped the user-picker, so the section no longer consumes this
+  // lookup; the parent retains loadExternalAuthorizedUsers only because
+  // the Applicant + Defense Attorney sections still use the result.
 
   private loadExternalAuthorizedUsers(): void {
     this.restService
@@ -2729,7 +2729,10 @@ export class AppointmentAddComponent {
             url: '/api/app/appointment-accessors',
             body: {
               appointmentId,
-              identityUserId: item.identityUserId,
+              email: item.email,
+              firstName: item.firstName || undefined,
+              lastName: item.lastName || undefined,
+              role: item.userRole,
               accessTypeId: item.accessTypeId,
             },
           },
