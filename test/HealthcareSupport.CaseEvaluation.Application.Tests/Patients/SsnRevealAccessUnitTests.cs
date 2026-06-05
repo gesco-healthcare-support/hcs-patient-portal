@@ -87,4 +87,27 @@ public class SsnRevealAccessUnitTests
             patientIdentityUserId: PatientUserId);
         result.ShouldBeFalse();
     }
+
+    // IP6 (2026-06-05): an unclaimed patient has a null IdentityUserId. Internal
+    // staff may still reveal; no external caller can "own" an identity-less
+    // record, so the owner branch must return false.
+    [Fact]
+    public void CanReveal_NullPatientIdentity_InternalRole_ReturnsTrue()
+    {
+        var result = SsnRevealAccess.CanReveal(
+            new[] { (string?)"Clinic Staff" },
+            callerIdentityUserId: OtherUserId,
+            patientIdentityUserId: null);
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CanReveal_NullPatientIdentity_ExternalCaller_ReturnsFalse()
+    {
+        var result = SsnRevealAccess.CanReveal(
+            new[] { (string?)"Patient" },
+            callerIdentityUserId: OtherUserId,
+            patientIdentityUserId: null);
+        result.ShouldBeFalse();
+    }
 }

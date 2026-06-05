@@ -199,8 +199,14 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         // is first-wins dedup-by-email, so these calls only land for true
         // patient bookers (or appointments where the patient row's email
         // is distinct from any other party).
-        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
-        AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
+        // IP6 (2026-06-05): IdentityUserId is nullable -- an unclaimed patient
+        // record has no login. Skip the booker-identity pass when absent; the
+        // patient-row pass below still contributes the patient's email.
+        if (appointment.IdentityUserId.HasValue)
+        {
+            var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId.Value);
+            AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
+        }
 
         var patient = await _patientRepository.FindAsync(appointment.PatientId);
         AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");

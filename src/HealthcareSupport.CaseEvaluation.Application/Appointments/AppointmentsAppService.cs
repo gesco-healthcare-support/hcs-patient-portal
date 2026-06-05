@@ -649,10 +649,16 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected patient does not exist."]);
         }
 
-        var identityUser = await _identityUserRepository.FindAsync(input.IdentityUserId);
-        if (identityUser == null)
+        // IP6 (2026-06-05): IdentityUserId is optional -- a record-only booking
+        // persists the appointment with no patient login. Validate existence
+        // only when an identity is actually supplied (claimed/legacy bookings).
+        if (input.IdentityUserId.HasValue)
         {
-            throw new UserFriendlyException(L["The selected user does not exist."]);
+            var identityUser = await _identityUserRepository.FindAsync(input.IdentityUserId.Value);
+            if (identityUser == null)
+            {
+                throw new UserFriendlyException(L["The selected user does not exist."]);
+            }
         }
 
         var appointmentType = await _appointmentTypeRepository.FindAsync(input.AppointmentTypeId);
@@ -806,7 +812,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         await _localEventBus.PublishAsync(new AppointmentSubmittedEto(
             appointmentId: appointment.Id,
             tenantId: appointment.TenantId,
-            bookerUserId: appointment.IdentityUserId,
+            // IP6 (2026-06-05): null identity (unclaimed patient) maps to the
+            // handler's existing Guid.Empty "no booker" sentinel -> the booker
+            // confirmation email is skipped (no patient login to notify).
+            bookerUserId: appointment.IdentityUserId ?? Guid.Empty,
             patientId: appointment.PatientId,
             appointmentTypeId: appointment.AppointmentTypeId,
             requestConfirmationNumber: appointment.RequestConfirmationNumber,

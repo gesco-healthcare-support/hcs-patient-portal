@@ -20,9 +20,11 @@ public class PatientManager : DomainService
         _patientRepository = patientRepository;
     }
 
-    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
+        // identityUserId is now nullable (IP6 2026-06-05): a Patient may exist
+        // as a record with no login. Booking inserts null; the claim flow links
+        // an identity later. Admin/profile callers still pass a real id.
         // firstName / lastName accept empty string at create-time. The minimal
         // register form does not collect names; the booker fills them later
         // through the booking form's patient section. Keep length validation
@@ -53,9 +55,8 @@ public class PatientManager : DomainService
         return await _patientRepository.InsertAsync(patient);
     }
 
-    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
     {
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
         Check.NotNullOrWhiteSpace(lastName, nameof(lastName));
@@ -134,7 +135,7 @@ public class PatientManager : DomainService
     /// </summary>
     public virtual async Task<(Patient Patient, bool WasExisting)> FindOrCreateAsync(
         Guid? tenantId,
-        Guid identityUserId,
+        Guid? identityUserId,
         string firstName,
         string lastName,
         string email,

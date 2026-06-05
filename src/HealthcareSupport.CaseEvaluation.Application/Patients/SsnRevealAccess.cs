@@ -26,13 +26,17 @@ internal static class SsnRevealAccess
     internal static bool CanReveal(
         IEnumerable<string?>? callerRoles,
         Guid? callerIdentityUserId,
-        Guid patientIdentityUserId)
+        Guid? patientIdentityUserId)
     {
         if (BookingFlowRoles.IsInternalUserCaller(callerRoles))
         {
             return true;
         }
+        // IP6 (2026-06-05): an unclaimed patient (null IdentityUserId) has no
+        // owner, so only internal callers reach the reveal -- the owner branch
+        // requires both ids present and equal.
         return callerIdentityUserId.HasValue
-            && callerIdentityUserId.Value == patientIdentityUserId;
+            && patientIdentityUserId.HasValue
+            && callerIdentityUserId.Value == patientIdentityUserId.Value;
     }
 }

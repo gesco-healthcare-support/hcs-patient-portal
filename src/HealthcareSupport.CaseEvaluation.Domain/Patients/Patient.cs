@@ -80,7 +80,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 
@@ -88,7 +88,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         Id = id;
         Check.NotNull(firstName, nameof(firstName));

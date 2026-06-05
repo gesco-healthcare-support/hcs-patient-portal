@@ -19,7 +19,9 @@ public class AppointmentCreateDto
     public AppointmentStatusType AppointmentStatus { get; set; } = Enum.GetValues<AppointmentStatusType>()[0];
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- booking persists the appointment with no
+    // patient login (the record-only model).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 

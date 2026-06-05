@@ -38,10 +38,9 @@ public class AppointmentManager : DomainService
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
     }
 
-    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
+    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
     {
         Check.NotNull(patientId, nameof(patientId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
         Check.NotNull(locationId, nameof(locationId));
         Check.NotNull(doctorAvailabilityId, nameof(doctorAvailabilityId));
@@ -191,10 +190,9 @@ public class AppointmentManager : DomainService
         return source;
     }
 
-    public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Appointment> UpdateAsync(Guid id, Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string? panelNumber = null, DateTime? dueDate = null, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNull(patientId, nameof(patientId));
-        Check.NotNull(identityUserId, nameof(identityUserId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
         Check.NotNull(locationId, nameof(locationId));
         Check.NotNull(doctorAvailabilityId, nameof(doctorAvailabilityId));
