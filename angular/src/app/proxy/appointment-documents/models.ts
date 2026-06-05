@@ -18,6 +18,7 @@ export interface AppointmentDocumentDto extends FullAuditedEntityDto<string> {
   rejectionReason?: string | null;
   responsibleUserId?: string | null;
   rejectedByUserId?: string | null;
+  isPanelStrikeList?: boolean;
 }
 
 export interface AppointmentPacketDto extends FullAuditedEntityDto<string> {
