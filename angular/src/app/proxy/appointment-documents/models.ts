@@ -2,6 +2,7 @@ import type { FullAuditedEntityDto } from '@abp/ng.core';
 import type { DocumentStatus } from './document-status.enum';
 import type { PacketKind } from './packet-kind.enum';
 import type { PacketGenerationStatus } from './packet-generation-status.enum';
+import type { RequiredDocumentState } from './required-document-state.enum';
 import type { PatientPortalDocumentSource } from './patient-portal-document-source.enum';
 import type { IFormFile } from '../microsoft/asp-net-core/http/models';
 
@@ -31,6 +32,12 @@ export interface AppointmentPacketDto extends FullAuditedEntityDto<string> {
   generatedAt?: string;
   regeneratedAt?: string | null;
   errorMessage?: string | null;
+}
+
+export interface MissingRequiredDocumentDto {
+  documentId?: string;
+  name?: string;
+  state?: RequiredDocumentState;
 }
 
 export interface PatientPortalDocumentDto {

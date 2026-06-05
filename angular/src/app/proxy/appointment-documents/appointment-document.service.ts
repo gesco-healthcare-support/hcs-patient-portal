@@ -1,4 +1,4 @@
-import type { AppointmentDocumentDto, PatientPortalDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
+import type { AppointmentDocumentDto, MissingRequiredDocumentDto, PatientPortalDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
@@ -56,6 +56,14 @@ export class AppointmentDocumentService {
     this.restService.request<any, AppointmentDocumentDto[]>({
       method: 'GET',
       url: `/api/app/appointments/${appointmentId}/documents`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getMissingRequiredDocuments = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, MissingRequiredDocumentDto[]>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/documents/missing-required`,
     },
     { apiName: this.apiName,...config });
   
