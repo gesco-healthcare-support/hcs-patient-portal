@@ -90,7 +90,7 @@ export class AppointmentAddClaimInformationComponent {
    * groups without formGroupName scopes; serialization back into the
    * nested AppointmentInjuryDraft happens in saveInjuryModal.
    *
-   * Always-required: dateOfInjury, claimNumber, bodyPartsSummary.
+   * Always-required: dateOfInjury, claimNumber, bodyPartsSummary, wcabAdj (CI3).
    * Conditionally required: injuryInsuranceName when insurance toggle
    * is on; 8 CE fields when CE toggle is on.
    */
@@ -117,7 +117,7 @@ export class AppointmentAddClaimInformationComponent {
             ],
       ),
       injuryWcabOfficeId: [src.wcabOfficeId],
-      injuryWcabAdj: [src.wcabAdj],
+      injuryWcabAdj: [src.wcabAdj, [Validators.required]],
     });
 
     return group;

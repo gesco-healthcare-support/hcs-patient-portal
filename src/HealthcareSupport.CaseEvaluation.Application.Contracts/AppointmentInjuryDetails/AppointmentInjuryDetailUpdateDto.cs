@@ -20,8 +20,9 @@ public class AppointmentInjuryDetailUpdateDto : IHasConcurrencyStamp
     [Required]
     public bool IsCumulativeInjury { get; set; }
 
+    [Required]
     [StringLength(AppointmentInjuryDetailConsts.WcabAdjMaxLength)]
-    public string? WcabAdj { get; set; }
+    public string WcabAdj { get; set; } = null!;
 
     [Required]
     [StringLength(AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength)]

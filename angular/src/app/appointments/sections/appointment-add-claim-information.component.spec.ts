@@ -38,6 +38,7 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
     component.openAddInjuryModal();
     component.injuryForm.get('injuryDateOfInjury')!.setValue('2025-03-15');
     component.injuryForm.get('injuryClaimNumber')!.setValue(claimNumber);
+    component.injuryForm.get('injuryWcabAdj')!.setValue('ADJ-CI3'); // CI3: ADJ# now required
   }
 
   it('seeds exactly one required body-part row when the modal opens', () => {

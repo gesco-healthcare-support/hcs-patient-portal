@@ -34,7 +34,8 @@ public class AppointmentInjuryDetailManager : DomainService
         Check.Length(claimNumber, nameof(claimNumber), AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
         Check.NotNullOrWhiteSpace(bodyPartsSummary, nameof(bodyPartsSummary));
         Check.Length(bodyPartsSummary, nameof(bodyPartsSummary), AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
-        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength, 0);
+        Check.NotNullOrWhiteSpace(wcabAdj, nameof(wcabAdj));
+        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength);
 
         // OLD AppointmentInjuryDetailDomain.AddValidation: same (Appointment, ClaimNumber, DateOfInjury) tuple cannot repeat.
         var queryable = await _appointmentInjuryDetailRepository.GetQueryableAsync();
@@ -77,7 +78,8 @@ public class AppointmentInjuryDetailManager : DomainService
         Check.Length(claimNumber, nameof(claimNumber), AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
         Check.NotNullOrWhiteSpace(bodyPartsSummary, nameof(bodyPartsSummary));
         Check.Length(bodyPartsSummary, nameof(bodyPartsSummary), AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
-        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength, 0);
+        Check.NotNullOrWhiteSpace(wcabAdj, nameof(wcabAdj));
+        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength);
 
         var queryable = await _appointmentInjuryDetailRepository.GetQueryableAsync();
         var duplicate = queryable.Any(x =>

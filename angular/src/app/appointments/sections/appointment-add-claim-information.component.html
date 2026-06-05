@@ -175,10 +175,14 @@
               </select>
             </div>
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">ADJ#</label>
+              <label class="form-label fw-semibold">ADJ# *</label>
               <input
                 type="text"
                 class="form-control"
+                [class.is-invalid]="
+                  injuryForm.get('injuryWcabAdj')?.invalid &&
+                  injuryForm.get('injuryWcabAdj')?.touched
+                "
                 maxlength="50"
                 formControlName="injuryWcabAdj"
                 name="injuryWcabAdj"

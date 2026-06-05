@@ -866,7 +866,8 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                     dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     claimNumber: "CLM-TEST-0001",
                     isCumulativeInjury: false,
-                    bodyPartsSummary: "Lower back"),
+                    bodyPartsSummary: "Lower back",
+                    wcabAdj: "ADJ-CI3"),
                 autoSave: true);
 
             // CI1 (2026-06-05): approval also requires an active Claim Examiner.
@@ -910,7 +911,8 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                     dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     claimNumber: "CLM-CI1-0001",
                     isCumulativeInjury: false,
-                    bodyPartsSummary: "Lower back"),
+                    bodyPartsSummary: "Lower back",
+                    wcabAdj: "ADJ-CI3"),
                 autoSave: true);
 
             var manager = GetRequiredService<AppointmentManager>();
@@ -1213,7 +1215,8 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                     dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     claimNumber: "CLM-T6-LIST",
                     isCumulativeInjury: false,
-                    bodyPartsSummary: "Test"),
+                    bodyPartsSummary: "Test",
+                    wcabAdj: "ADJ-CI3"),
                 autoSave: true);
 
             var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
