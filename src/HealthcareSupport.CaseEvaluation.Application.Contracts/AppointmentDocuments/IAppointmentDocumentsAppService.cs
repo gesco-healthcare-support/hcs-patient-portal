@@ -19,6 +19,16 @@ public interface IAppointmentDocumentsAppService
     Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId);
 
     /// <summary>
+    /// G-03 (PR3): the required documents for this appointment that are not yet
+    /// Accepted, each with its current state, for the missing-required-documents
+    /// indicator. "Required" = the active package template(s) for the appointment's
+    /// type (union); satisfied only when an uploaded document links back by
+    /// <c>SourceDocumentId</c> AND is Accepted. Same gate as the document list
+    /// (Default + per-appointment read-access guard).
+    /// </summary>
+    Task<List<MissingRequiredDocumentDto>> GetMissingRequiredDocumentsAsync(Guid appointmentId);
+
+    /// <summary>
     /// Stream-based ad-hoc upload entry point. Marks the new row
     /// <c>IsAdHoc = true</c>; ad-hoc uploads have no status / due-date
     /// gate (mirrors OLD <c>AppointmentNewDocumentDomain</c>). The
