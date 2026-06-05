@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -21,15 +22,20 @@ public class AppointmentManager : DomainService
     // BUG-043 / T8 (2026-05-27) -- counts Claim Information rows to gate the
     // Pending->Approved transition (see ApplyTransitionAsync).
     protected IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
+    // CI1 (2026-06-05) -- counts active Claim Examiner rows to gate the
+    // Pending->Approved transition (CE is a required party; see ApplyTransitionAsync).
+    protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
         ILocalEventBus localEventBus,
-        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository)
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
+        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository)
     {
         _appointmentRepository = appointmentRepository;
         _localEventBus = localEventBus;
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
+        _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
     }
 
     public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
@@ -271,6 +277,19 @@ public class AppointmentManager : DomainService
             if (injuryCount < 1)
             {
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail)
+                    .WithData("appointmentId", appointment.Id);
+            }
+
+            // CI1 (2026-06-05) -- CE became a required first-class party. Mirror
+            // the injury-detail gate: Pending->Approved requires at least one
+            // active Claim Examiner. Server backstop behind the client-side
+            // CE-section gate; the create-as-Approved fast-path is out of scope
+            // (attaches parties after creation), same as the injury guard.
+            var claimExaminerCount = await _appointmentClaimExaminerRepository.CountAsync(
+                ce => ce.AppointmentId == appointment.Id && ce.IsActive);
+            if (claimExaminerCount < 1)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer)
                     .WithData("appointmentId", appointment.Id);
             }
         }

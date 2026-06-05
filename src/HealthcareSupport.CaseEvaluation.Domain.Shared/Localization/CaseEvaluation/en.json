@@ -599,6 +599,7 @@
     "Appointment:NotPendingForRejection": "Appointment Already Rejected",
     "Appointment:RejectionRequiresNotes": "Please provide rejection notes before rejecting the appointment.",
     "Appointment:ApprovalRequiresInjuryDetail": "At least one Claim Information entry is required before the appointment can be approved.",
+    "Appointment:ApprovalRequiresClaimExaminer": "A Claim Examiner is required before the appointment can be approved.",
     "Document:UploadAfterApproval": "Please upload documents after appointment is approved.",
     "Document:UploadAfterDueDate": "You can not upload document after specified due date.",
     "Document:JdfRequiresAmeAppointment": "Appointment type is not valid. Please upload appropriate document.",

@@ -371,6 +371,19 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail";
 
     /// <summary>
+    /// CI1 (2026-06-05) -- raised by
+    /// <c>AppointmentManager.ApplyTransitionAsync</c> on the Approve trigger
+    /// when the appointment has no active Claim Examiner. CE became a required
+    /// first-class party in CI1; this is the server backstop behind the
+    /// client-side CE-section gate. Gated only on Pending->Approved (the
+    /// create-as-Approved internal fast-path attaches parties after creation
+    /// and is out of scope, same as the injury-detail guard). Localization key
+    /// <c>Appointment:ApprovalRequiresClaimExaminer</c>.
+    /// </summary>
+    public const string AppointmentApprovalRequiresClaimExaminer =
+        "CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer";
+
+    /// <summary>
     /// Phase 11i (2026-05-04) -- raised by
     /// <c>AppointmentAccessorManager.CreateOrLinkAsync</c> when an
     /// existing IdentityUser is found by email but already holds a role

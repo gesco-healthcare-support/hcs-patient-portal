@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -844,7 +845,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
     }
 
     [Fact]
-    public async Task ApproveAsync_Succeeds_WhenAppointmentHasInjuryDetail()
+    public async Task ApproveAsync_Succeeds_WhenAppointmentHasInjuryAndClaimExaminer()
     {
         var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
             scratchDate: DateTime.Today.AddDays(49),
@@ -868,10 +869,56 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
                     bodyPartsSummary: "Lower back"),
                 autoSave: true);
 
+            // CI1 (2026-06-05): approval also requires an active Claim Examiner.
+            var claimExaminerRepository = GetRequiredService<IRepository<AppointmentClaimExaminer, Guid>>();
+            await claimExaminerRepository.InsertAsync(
+                new AppointmentClaimExaminer(Guid.NewGuid(), appointment.Id, isActive: true)
+                {
+                    Name = "Jane Examiner",
+                    Email = "ce@gesco.com",
+                },
+                autoSave: true);
+
             var manager = GetRequiredService<AppointmentManager>();
             var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
 
             approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+        }
+    }
+
+    [Fact]
+    public async Task ApproveAsync_Throws_WhenAppointmentHasNoClaimExaminer()
+    {
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(63),
+            scratchFromTime: new TimeOnly(10, 0),
+            scratchToTime: new TimeOnly(11, 0));
+        var appointment = await InsertPendingAppointmentInTenantAAsync(
+            scratchSlot.Id,
+            scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
+            "A-CI1-NOCE");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Inject an injury so the injury-detail gate passes and the
+            // claim-examiner gate is the one under test.
+            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+            await injuryRepository.InsertAsync(
+                new AppointmentInjuryDetail(
+                    Guid.NewGuid(),
+                    appointment.Id,
+                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    claimNumber: "CLM-CI1-0001",
+                    isCumulativeInjury: false,
+                    bodyPartsSummary: "Lower back"),
+                autoSave: true);
+
+            var manager = GetRequiredService<AppointmentManager>();
+
+            var ex = await Should.ThrowAsync<BusinessException>(
+                () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer);
         }
     }
 
