@@ -76,6 +76,7 @@ import {
   type StagedDocumentUpload,
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
+import { isStrikeListGateBlocked } from '../appointment-documents/strike-list-gate';
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -404,6 +405,12 @@ export class AppointmentAddComponent {
   // re-POSTs to the SAME appointment instead of creating a duplicate.
   private createdAppointmentIdForRetry?: string;
 
+  // AF6 (2026-06-05): PQME-only opt-in. When checked, the booker must mark one
+  // staged document as the panel strike list before submit; unchecked, a PQME
+  // submits with no strike-list requirement.
+  hasPanelStrikeList = false;
+  panelStrikeListMissing = false;
+
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
     appointmentDate: [null as string | null, [Validators.required]],
@@ -543,6 +550,13 @@ export class AppointmentAddComponent {
       // needs no request-version counter; it stays inside this subscriber to
       // remain ordered with the other per-type updates.
       this.applyPanelNumberStateForType(appointmentTypeId);
+      // AF6: the panel-strike-list opt-in is PQME-only. Leaving PQME clears the
+      // checkbox + any designation so a non-PQME booking carries no strike list.
+      if (!this.isPqmeType) {
+        this.hasPanelStrikeList = false;
+        this.panelStrikeListMissing = false;
+        this.clearStrikeListDesignation();
+      }
     });
     this.form
       .get('appointmentDate')
@@ -1122,8 +1136,29 @@ export class AppointmentAddComponent {
         this.toaster.error(`${file.name}: ${error}`);
         continue;
       }
-      this.stagedDocuments.push({ file, status: 'staged' });
+      this.stagedDocuments.push({ file, status: 'staged', isStrikeList: false });
     }
+  }
+
+  // ----- AF6 (2026-06-05): PQME panel-strike-list opt-in + designation -----
+
+  onHasPanelStrikeListChange(checked: boolean): void {
+    this.hasPanelStrikeList = checked;
+    this.panelStrikeListMissing = false;
+    if (!checked) {
+      // Opting out clears any prior designation so a later re-check starts fresh.
+      this.clearStrikeListDesignation();
+    }
+  }
+
+  designateStrikeList(index: number): void {
+    // Exactly one staged document is the strike list; selecting one clears the rest.
+    this.stagedDocuments.forEach((doc, i) => (doc.isStrikeList = i === index));
+    this.panelStrikeListMissing = false;
+  }
+
+  private clearStrikeListDesignation(): void {
+    this.stagedDocuments.forEach((doc) => (doc.isStrikeList = false));
   }
 
   removeStagedDocument(index: number): void {
@@ -1177,6 +1212,8 @@ export class AppointmentAddComponent {
         const form = new FormData();
         form.append('file', staged.file, staged.file.name);
         form.append('documentName', staged.file.name);
+        // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
+        form.append('isPanelStrikeList', String(staged.isStrikeList));
         await firstValueFrom(
           this.restService.request<FormData, unknown>(
             {
@@ -1236,6 +1273,18 @@ export class AppointmentAddComponent {
       return;
     }
     this.claimInformationMissing = false;
+
+    // AF6: PQME panel-strike-list gate. When the booker opted in
+    // (hasPanelStrikeList), block submit until one staged document is marked as
+    // the strike list. Client-side only (locked decision); mirrors the BUG-043
+    // flag/message/return shape above so an invalid PQME booking never persists.
+    if (isStrikeListGateBlocked(this.isPqmeType, this.hasPanelStrikeList, this.stagedDocuments)) {
+      this.panelStrikeListMissing = true;
+      this.patientLoadMessage =
+        'Please mark which uploaded document is the panel strike list before saving.';
+      return;
+    }
+    this.panelStrikeListMissing = false;
 
     // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
     // Runs on the mock until the Smarty adapter ships; degrades to a no-op on

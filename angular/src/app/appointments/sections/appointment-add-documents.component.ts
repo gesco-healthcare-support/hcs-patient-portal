@@ -7,6 +7,8 @@ export interface StagedDocumentUpload {
   file: File;
   status: StagedDocumentStatus;
   error?: string;
+  /** AF6: true when the booker marked this staged doc as the PQME panel strike list. */
+  isStrikeList: boolean;
 }
 
 /**
@@ -32,10 +34,22 @@ export class AppointmentAddDocumentsComponent {
   @Input() stagedDocuments: StagedDocumentUpload[] = [];
   /** Locks the picker + remove buttons while the post-create upload loop runs. */
   @Input() disabled = false;
+  /** AF6: PQME-only UI (the strike-list checkbox + per-row selector) shows only when true. */
+  @Input() isPqme = false;
+  /** AF6: bound to the parent's hasPanelStrikeList flag (opt-in strike-list requirement). */
+  @Input() hasPanelStrikeList = false;
 
   @Output() filesSelected = new EventEmitter<File[]>();
   @Output() removeDocument = new EventEmitter<number>();
   @Output() retryUploads = new EventEmitter<void>();
+  /** AF6: the PQME "I have the panel strike list" checkbox toggled. */
+  @Output() hasPanelStrikeListChange = new EventEmitter<boolean>();
+  /** AF6: the booker designated staged document [index] as the panel strike list. */
+  @Output() selectStrikeList = new EventEmitter<number>();
+
+  onHasPanelStrikeListChange(event: Event): void {
+    this.hasPanelStrikeListChange.emit((event.target as HTMLInputElement).checked);
+  }
 
   get hasFailedUploads(): boolean {
     return this.stagedDocuments.some((d) => d.status === 'failed');

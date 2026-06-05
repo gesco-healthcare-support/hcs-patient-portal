@@ -19,6 +19,27 @@
       (change)="onFilesSelected($event)"
     />
 
+    @if (isPqme) {
+      <div class="form-check mb-3">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="has-panel-strike-list"
+          [checked]="hasPanelStrikeList"
+          [disabled]="disabled"
+          (change)="onHasPanelStrikeListChange($event)"
+        />
+        <label class="form-check-label" for="has-panel-strike-list">
+          I have the panel strike list for this PQME appointment
+        </label>
+        @if (hasPanelStrikeList) {
+          <div class="form-text">
+            Mark which uploaded document below is the panel strike list -- required to submit.
+          </div>
+        }
+      </div>
+    }
+
     @if (stagedDocuments.length > 0) {
       <div class="border rounded">
         @for (doc of stagedDocuments; track doc.file.name + doc.file.size; let i = $index) {
@@ -36,10 +57,29 @@
               @if (doc.status === 'failed') {
                 <span class="badge bg-danger">Failed</span>
               }
+              @if (doc.isStrikeList) {
+                <span class="badge bg-info text-dark">Panel strike list</span>
+              }
               @if (doc.error) {
                 <div class="text-danger small">{{ doc.error }}</div>
               }
             </div>
+            @if (isPqme && hasPanelStrikeList) {
+              <div class="form-check mb-0">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="panel-strike-list-selector"
+                  [id]="'strike-list-' + i"
+                  [checked]="doc.isStrikeList"
+                  [disabled]="disabled"
+                  (change)="selectStrikeList.emit(i)"
+                />
+                <label class="form-check-label small text-nowrap" [for]="'strike-list-' + i">
+                  Strike list
+                </label>
+              </div>
+            }
             @if (doc.status === 'staged' || doc.status === 'failed') {
               <button
                 type="button"
