@@ -45,6 +45,12 @@ The `VerificationCode` lets the patient upload through an emailed link without a
 authenticated session. Anonymous uploads require an explicit `_currentTenant.Change(tenantId)`
 scope -- see the Domain layer CLAUDE.md blob-container section for why.
 
+PR4: that link points at the guard-free SPA page `public/document-upload/:id/:verificationCode`
+(Angular `eLayoutType.empty`, no auth guard) which POSTs to the existing `[AllowAnonymous]`
+`PublicDocumentUploadController` (per-code 5/hr rate-limited). `IAccountUrlBuilder.BuildPublicDocumentUploadUrlAsync`
+composes the tenant-aware link; wiring it into a request email is deferred (the future email
+handler calls it). Restores the legacy "Click here to upload" flow.
+
 ### Document-type + required-document tracking (PR2/PR3)
 
 `AppointmentDocument` carries three nullable columns from the document-type feature:

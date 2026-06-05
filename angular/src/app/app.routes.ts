@@ -1,4 +1,4 @@
-import { authGuard, permissionGuard } from '@abp/ng.core';
+import { authGuard, eLayoutType, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
@@ -29,6 +29,20 @@ export const APP_ROUTES: Routes = [
     // shared/auth/post-login-redirect.guard.ts for the three outcomes.
     canMatch: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
+  },
+  {
+    // PR4 -- public, no-login document upload reached by a per-document
+    // verification-code link. Intentionally guard-free (NO canMatch /
+    // canActivate) so an anonymous patient reaches it without an OAuth
+    // redirect; eLayoutType.empty drops the authenticated app shell. The
+    // page authorizes via the code; the backend endpoint is [AllowAnonymous]
+    // + per-code rate-limited.
+    path: 'public/document-upload/:id/:verificationCode',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./public-document-upload/public-document-upload.component').then(
+        (c) => c.PublicDocumentUploadComponent,
+      ),
   },
   {
     path: 'dashboard',

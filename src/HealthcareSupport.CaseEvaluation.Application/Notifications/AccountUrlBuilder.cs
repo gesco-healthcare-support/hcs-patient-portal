@@ -60,6 +60,28 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
             ("inviteToken", WebUtility.UrlEncode(rawToken)));
     }
 
+    public async Task<string> BuildPublicDocumentUploadUrlAsync(Guid tenantId, Guid documentId, Guid verificationCode)
+    {
+        // Explicit guard rejects default(Guid) with a clear message; without
+        // it a Guid.Empty would flow into the tenant lookup as a generic
+        // EntityNotFoundException. Mirrors the auth-URL methods.
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "tenantId must not be Guid.Empty; the public upload link is tenant-specific.",
+                nameof(tenantId));
+        }
+
+        // PortalBaseUrl (the SPA), NOT the AuthServer: the upload page is an
+        // anonymous SPA route. It authorizes by the verification code, so the
+        // id + code are path segments (plain GUIDs -- nothing to URL-encode).
+        var baseUrl = await ResolveAndComposeAsync(
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
+            tenantId,
+            allowNullTenant: false);
+        return AppendPath(baseUrl, $"/public/document-upload/{documentId}/{verificationCode}");
+    }
+
     public Task<string> BuildPortalRootUrlAsync(Guid? tenantId) =>
         ResolveAndComposeAsync(
             CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,

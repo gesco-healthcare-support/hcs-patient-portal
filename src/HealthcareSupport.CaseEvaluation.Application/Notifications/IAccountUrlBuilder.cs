@@ -66,6 +66,16 @@ public interface IAccountUrlBuilder
     Task<string> BuildInviteUrlAsync(Guid tenantId, string rawToken);
 
     /// <summary>
+    /// Builds the SPA-hosted public document-upload URL the future
+    /// document-request email will send to the patient. The page is
+    /// anonymous and authorizes by the per-document verification code,
+    /// so the document id + code travel as path segments (no token to
+    /// URL-encode). Format:
+    /// <c>{tenantPrefix}{portalBaseUrl}/public/document-upload/{documentId}/{verificationCode}</c>.
+    /// </summary>
+    Task<string> BuildPublicDocumentUploadUrlAsync(Guid tenantId, Guid documentId, Guid verificationCode);
+
+    /// <summary>
     /// Returns the SPA root URL for the given tenant (e.g.
     /// <c>http://falkinstein.localhost:4200</c>). Used by callers
     /// that build SPA deep-links (appointment view, dashboard).
