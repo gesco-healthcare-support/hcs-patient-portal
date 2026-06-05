@@ -154,7 +154,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         string fileName,
         string? contentType,
         long fileSize,
-        Stream content)
+        Stream content,
+        bool isPanelStrikeList = false)
     {
         if (appointmentId == Guid.Empty)
         {
@@ -210,6 +211,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // unifies via the IsAdHoc flag (Phase 1.6). Package + JDF
         // uploads use the dedicated methods below.
         entity.IsAdHoc = true;
+        // AF6 (2026-06-05): tag the booker-marked PQME panel strike list (AF5
+        // flag) so staff can identify it for venue verification.
+        entity.IsPanelStrikeList = isPanelStrikeList;
         entity.Status = initialStatus;
         if (initialStatus == DocumentStatus.Accepted)
         {

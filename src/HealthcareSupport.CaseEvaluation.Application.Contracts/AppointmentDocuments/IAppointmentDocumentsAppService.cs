@@ -23,7 +23,8 @@ public interface IAppointmentDocumentsAppService
         string fileName,
         string? contentType,
         long fileSize,
-        Stream content);
+        Stream content,
+        bool isPanelStrikeList = false);
 
     /// <summary>
     /// Phase 14: package-document upload. Updates an existing
