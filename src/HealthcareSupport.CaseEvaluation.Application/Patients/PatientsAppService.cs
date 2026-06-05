@@ -242,7 +242,12 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                     Surname = input.LastName,
                 };
 
-                var tempPassword = CaseEvaluationConsts.AdminPasswordDefaultValue;
+                // SEC-05 / Q-12 / NEW-SEC-04 (IP6, 2026-06-05): never mint with the
+                // SHARED seeded admin default -- anyone who knew it could authenticate
+                // as any booking-created patient. Use a per-account random password
+                // instead. INTERIM: the record-only rework (same item) stops minting
+                // an account at booking entirely.
+                var tempPassword = GenerateTempPassword();
                 var createResult = await _userManager.CreateAsync(identityUser, tempPassword);
                 if (!createResult.Succeeded)
                 {
@@ -618,5 +623,35 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var dto = ObjectMapper.Map<Patient, PatientDto>(patient);
         SsnVisibility.MaskToLast4(dto);
         return dto;
+    }
+
+    // SEC-05 / Q-12 / NEW-SEC-04 (IP6, 2026-06-05): per-account, cryptographically
+    // random temp password for the booking-minted patient login, replacing the
+    // shared CaseEvaluationConsts.AdminPasswordDefaultValue. The account is never
+    // EmailConfirmed and is unusable until the patient claims it via self-register,
+    // so the value itself is throwaway -- it only needs to be non-shared and to
+    // satisfy the ABP password policy (one each of upper/lower/digit/symbol).
+    // RandomNumberGenerator mirrors InternalUsersAppService.GenerateParityPassword.
+    // Internal (not private) so PatientTempPasswordUnitTests can verify the
+    // non-shared + policy contract host-side via InternalsVisibleTo.
+    // INTERIM: removed when the record-only rework stops minting at booking.
+    internal static string GenerateTempPassword()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lower = "abcdefghijkmnpqrstuvwxyz";
+        const string digit = "23456789";
+        const string symbol = "!@#$%*?";
+        const string all = upper + lower + digit + symbol;
+
+        var chars = new char[16];
+        chars[0] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
+        chars[1] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
+        chars[2] = digit[RandomNumberGenerator.GetInt32(digit.Length)];
+        chars[3] = symbol[RandomNumberGenerator.GetInt32(symbol.Length)];
+        for (var i = 4; i < chars.Length; i++)
+        {
+            chars[i] = all[RandomNumberGenerator.GetInt32(all.Length)];
+        }
+        return new string(chars);
     }
 }
