@@ -69,6 +69,7 @@ import {
   type ClaimExaminerPrefill,
 } from './sections/appointment-add-claim-information.component';
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
+import { AppointmentAddClaimPartiesSectionComponent } from './sections/appointment-add-claim-parties-section.component';
 import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
 import {
@@ -106,6 +107,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddEmployerDetailsComponent,
     AppointmentAddClaimInformationComponent,
     AppointmentAddAttorneySectionComponent,
+    AppointmentAddClaimPartiesSectionComponent,
     AppointmentAddPatientDemographicsComponent,
     AppointmentAddScheduleComponent,
     AppointmentAddDocumentsComponent,
@@ -502,6 +504,33 @@ export class AppointmentAddComponent {
     claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    // CI1 (2026-06-05): appointment-level Primary Insurance (optional) + Claim
+    // Examiner (REQUIRED -- Name + Email) -- one each per appointment, replacing
+    // the per-injury insurance/CE captured in the claim-information modal. CI2
+    // removes the now-orphaned per-injury controls. Posted once after create.
+    appointmentInsuranceName: [null as string | null, [Validators.maxLength(50)]],
+    appointmentInsuranceSuite: [null as string | null, [Validators.maxLength(255)]],
+    appointmentInsurancePhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    appointmentInsuranceFaxNumber: [null as string | null, [Validators.maxLength(20)]],
+    appointmentInsuranceStreet: [null as string | null, [Validators.maxLength(255)]],
+    appointmentInsuranceCity: [null as string | null, [Validators.maxLength(50)]],
+    appointmentInsuranceStateId: [null as string | null],
+    appointmentInsuranceZip: [null as string | null, [Validators.maxLength(10)]],
+    appointmentClaimExaminerName: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
+    appointmentClaimExaminerEmail: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50), Validators.email],
+    ],
+    appointmentClaimExaminerSuite: [null as string | null, [Validators.maxLength(255)]],
+    appointmentClaimExaminerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    appointmentClaimExaminerFax: [null as string | null, [Validators.maxLength(20)]],
+    appointmentClaimExaminerStreet: [null as string | null, [Validators.maxLength(255)]],
+    appointmentClaimExaminerCity: [null as string | null, [Validators.maxLength(50)]],
+    appointmentClaimExaminerStateId: [null as string | null],
+    appointmentClaimExaminerZip: [null as string | null, [Validators.maxLength(10)]],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
     // OLD's `appointment.customFieldsValues` FormArray rebuilt on
     // appointmentTypeId change. Each child FormGroup carries the static
@@ -1337,9 +1366,10 @@ export class AppointmentAddComponent {
         // address -- mirrors how the resolver's `Appointment.ClaimExaminerEmail`
         // column gets read for the CE-email-col walk. Without this sync, the column
         // saves NULL for non-CE bookers and the CE leg of the fan-out silently drops.
-        claimExaminerEmail:
-          this.injuryDrafts[0]?.claimExaminer?.email?.trim() ||
-          (rawAfter.claimExaminerEnabled ? (rawAfter.claimExaminerEmail ?? undefined) : undefined),
+        // CI1 (2026-06-05): the canonical CE email is now the appointment-level
+        // Claim Examiner section (required), not the per-injury modal. The
+        // resolver reads Appointment.ClaimExaminerEmail for the CE-email-col walk.
+        claimExaminerEmail: (rawAfter.appointmentClaimExaminerEmail ?? '').trim() || undefined,
         // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
         // Empty / whitespace values are dropped to match OLD's "no answer"
         // semantics; the backend AppService also drops them defensively.
@@ -1360,6 +1390,8 @@ export class AppointmentAddComponent {
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
       await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.createAppointmentPrimaryInsuranceIfProvided(createdAppointment?.id);
+      await this.createAppointmentClaimExaminerIfProvided(createdAppointment?.id);
       await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
 
@@ -2903,6 +2935,72 @@ export class AppointmentAddComponent {
   // injuryWcabOfficeName. Parent keeps persistInjuryDraftsIfProvided
   // below because the POST cascade is part of the submit flow.
 
+  // CI1 (2026-06-05): one Claim Examiner per appointment (required). Posted
+  // after create; Name + Email are guaranteed present by the parent
+  // Validators.required gate, so this always inserts when an appointment exists.
+  private async createAppointmentClaimExaminerIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId) {
+      return;
+    }
+    const raw = this.form.getRawValue();
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: '/api/app/appointment-claim-examiners',
+          body: {
+            appointmentId,
+            isActive: true,
+            name: raw.appointmentClaimExaminerName,
+            email: raw.appointmentClaimExaminerEmail,
+            suite: raw.appointmentClaimExaminerSuite,
+            phoneNumber: raw.appointmentClaimExaminerPhoneNumber,
+            fax: raw.appointmentClaimExaminerFax,
+            street: raw.appointmentClaimExaminerStreet,
+            city: raw.appointmentClaimExaminerCity,
+            zip: raw.appointmentClaimExaminerZip,
+            stateId: raw.appointmentClaimExaminerStateId,
+          },
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
+  // CI1 (2026-06-05): one optional Primary Insurance per appointment. Posted
+  // after create only when a company name was entered.
+  private async createAppointmentPrimaryInsuranceIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId) {
+      return;
+    }
+    const raw = this.form.getRawValue();
+    const name = (raw.appointmentInsuranceName ?? '').trim();
+    if (!name) {
+      return;
+    }
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: '/api/app/appointment-primary-insurances',
+          body: {
+            appointmentId,
+            isActive: true,
+            name: raw.appointmentInsuranceName,
+            suite: raw.appointmentInsuranceSuite,
+            phoneNumber: raw.appointmentInsurancePhoneNumber,
+            faxNumber: raw.appointmentInsuranceFaxNumber,
+            street: raw.appointmentInsuranceStreet,
+            city: raw.appointmentInsuranceCity,
+            zip: raw.appointmentInsuranceZip,
+            stateId: raw.appointmentInsuranceStateId,
+          },
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
   private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
     if (!appointmentId || this.injuryDrafts.length === 0) {
       return;
@@ -2952,57 +3050,9 @@ export class AppointmentAddComponent {
         );
       }
 
-      // Insurance: only persist if booker enabled the section.
-      if (draft.primaryInsurance.isActive) {
-        await firstValueFrom(
-          this.restService.request<any, any>(
-            {
-              method: 'POST',
-              url: '/api/app/appointment-primary-insurances',
-              body: {
-                appointmentInjuryDetailId: injuryId,
-                isActive: true,
-                name: draft.primaryInsurance.name,
-                suite: draft.primaryInsurance.suite,
-                attention: draft.primaryInsurance.attention,
-                phoneNumber: draft.primaryInsurance.phoneNumber,
-                faxNumber: draft.primaryInsurance.faxNumber,
-                street: draft.primaryInsurance.street,
-                city: draft.primaryInsurance.city,
-                zip: draft.primaryInsurance.zip,
-                stateId: draft.primaryInsurance.stateId,
-              },
-            },
-            { apiName: 'Default' },
-          ),
-        );
-      }
-
-      // Claim Examiner: only persist if booker enabled the section.
-      if (draft.claimExaminer.isActive) {
-        await firstValueFrom(
-          this.restService.request<any, any>(
-            {
-              method: 'POST',
-              url: '/api/app/appointment-claim-examiners',
-              body: {
-                appointmentInjuryDetailId: injuryId,
-                isActive: true,
-                name: draft.claimExaminer.name,
-                suite: draft.claimExaminer.suite,
-                email: draft.claimExaminer.email,
-                phoneNumber: draft.claimExaminer.phoneNumber,
-                fax: draft.claimExaminer.fax,
-                street: draft.claimExaminer.street,
-                city: draft.claimExaminer.city,
-                zip: draft.claimExaminer.zip,
-                stateId: draft.claimExaminer.stateId,
-              },
-            },
-            { apiName: 'Default' },
-          ),
-        );
-      }
+      // CI1 (2026-06-05): per-injury insurance/CE POSTs removed -- insurance +
+      // CE are now single appointment-level records posted once after create
+      // (createAppointmentPrimaryInsuranceIfProvided / ...ClaimExaminer...).
     }
   }
 }

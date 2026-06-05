@@ -825,6 +825,18 @@
           <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
         </div>
         <div class="card-body">
+          <!-- CI1 (2026-06-05): single appointment-level Claim Examiner +
+               Insurance (moved off the per-injury rows). -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <span class="fw-semibold">Claim Examiner:</span>
+              {{ appointmentClaimExaminerName || '--' }}
+            </div>
+            <div class="col-md-6">
+              <span class="fw-semibold">Insurance Company:</span>
+              {{ appointmentInsuranceCompanyName || '--' }}
+            </div>
+          </div>
           @if (injuryDetails.length === 0) {
             <div class="text-secondary">No claim information added yet.</div>
           } @else {
@@ -837,8 +849,6 @@
                     <th>WCAB</th>
                     <th>ADJ #</th>
                     <th>Body Parts</th>
-                    <th>Insurance Company</th>
-                    <th>Claim Examiner</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -863,8 +873,6 @@
                           {{ injury.bodyPartsSummary }}
                         }
                       </td>
-                      <td>{{ injury.insuranceCompanyName }}</td>
-                      <td>{{ injury.claimExaminerName }}</td>
                     </tr>
                   }
                 </tbody>

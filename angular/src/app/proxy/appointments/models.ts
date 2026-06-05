@@ -11,6 +11,8 @@ import type { AppointmentDefenseAttorneyWithNavigationPropertiesDto } from '../a
 import type { AppointmentEmployerDetailWithNavigationPropertiesDto } from '../appointment-employer-details/models';
 import type { AppointmentInjuryDetailWithNavigationPropertiesDto } from '../appointment-injury-details/models';
 import type { AppointmentAccessorDto } from '../appointment-accessors/models';
+import type { AppointmentClaimExaminerDto } from '../appointment-claim-examiners/models';
+import type { AppointmentPrimaryInsuranceDto } from '../appointment-primary-insurances/models';
 
 export interface ApplicantAttorneyDetailsDto {
   applicantAttorneyId?: string | null;
@@ -101,6 +103,8 @@ export interface AppointmentWithNavigationPropertiesDto {
   appointmentEmployerDetail?: AppointmentEmployerDetailWithNavigationPropertiesDto | null;
   appointmentInjuryDetails?: AppointmentInjuryDetailWithNavigationPropertiesDto[];
   appointmentAccessors?: AppointmentAccessorDto[];
+  claimExaminer?: AppointmentClaimExaminerDto | null;
+  primaryInsurance?: AppointmentPrimaryInsuranceDto | null;
 }
 
 export interface ApproveAppointmentInput {

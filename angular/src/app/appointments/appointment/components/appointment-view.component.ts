@@ -185,6 +185,10 @@ export class AppointmentViewComponent implements OnInit {
   // booking form (appointment-add) supports add/edit/delete on these rows; the
   // view page surfaces them as a table only at MVP.
   injuryDetails: AppointmentInjuryDetailRow[] = [];
+  // CI1 (2026-06-05): single appointment-level Claim Examiner + Insurance,
+  // read from the appointment nav-props (data.claimExaminer / data.primaryInsurance).
+  appointmentClaimExaminerName = '';
+  appointmentInsuranceCompanyName = '';
 
   // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
   // so future shared section components (e.g. <app-patient-demographics>) can
@@ -382,6 +386,8 @@ export class AppointmentViewComponent implements OnInit {
         );
         this.loadEmployerDetails(data.appointment?.id);
         this.bindApplicantAttorneyFromResponse(data);
+        this.appointmentClaimExaminerName = data.claimExaminer?.name ?? '';
+        this.appointmentInsuranceCompanyName = data.primaryInsurance?.name ?? '';
         // S-5.4 (W-A-7): the AppointmentWithNavigationPropertiesDto does not
         // include the DA join (only AA), so DA must be fetched via a dedicated
         // GET against /{id}/defense-attorney. Same for the Claim Information

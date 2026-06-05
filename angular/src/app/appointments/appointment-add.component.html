@@ -150,6 +150,15 @@
       </div>
     }
 
+    <!-- CI1 (2026-06-05): appointment-level Insurance + Claim Examiner,
+         rendered below the attorney sections. Replaces the per-injury
+         insurance/CE cards in the claim-information modal (removed by CI2). -->
+    <app-appointment-add-claim-parties-section
+      [form]="form"
+      [getStateLookup]="getStateLookup"
+      [isFieldInvalid]="isFieldInvalidBound"
+    />
+
     <!-- #121 phase T4 (2026-05-13): Claim Information section.
          Extracted to <app-appointment-add-claim-information>. List
          + modal + 27-control FormGroup + lookups + cumulative-date
