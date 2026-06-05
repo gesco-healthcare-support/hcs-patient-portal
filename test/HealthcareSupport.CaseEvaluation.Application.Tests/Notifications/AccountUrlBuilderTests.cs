@@ -111,6 +111,28 @@ public class AccountUrlBuilderTests
         url.ShouldBe("http://localhost:4200");
     }
 
+    [Fact]
+    public async Task BuildPublicDocumentUploadUrlAsync_KnownTenant_ComposesPortalUrlWithPathParams()
+    {
+        var sut = NewBuilder(portalUrl: ConfiguredPortalUrl, tenantName: TenantName);
+        var documentId = new Guid("11111111-1111-4111-8111-111111111111");
+        var code = new Guid("22222222-2222-4222-8222-222222222222");
+
+        var url = await sut.BuildPublicDocumentUploadUrlAsync(FalkinsteinTenantId, documentId, code);
+
+        url.ShouldBe(
+            $"http://falkinstein.localhost:4200/public/document-upload/{documentId}/{code}");
+    }
+
+    [Fact]
+    public async Task BuildPublicDocumentUploadUrlAsync_EmptyTenantId_ThrowsArgumentException()
+    {
+        var sut = NewBuilder(portalUrl: ConfiguredPortalUrl, tenantName: TenantName);
+
+        await Should.ThrowAsync<ArgumentException>(() =>
+            sut.BuildPublicDocumentUploadUrlAsync(Guid.Empty, Guid.NewGuid(), Guid.NewGuid()));
+    }
+
     // ------------------------------------------------------------------
     // Hard-fail paths
     // ------------------------------------------------------------------
