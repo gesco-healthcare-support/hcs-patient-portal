@@ -66,7 +66,6 @@ import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-a
 import {
   AppointmentAddClaimInformationComponent,
   type AppointmentInjuryDraft,
-  type ClaimExaminerPrefill,
 } from './sections/appointment-add-claim-information.component';
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
 import { AppointmentAddClaimPartiesSectionComponent } from './sections/appointment-add-claim-parties-section.component';
@@ -283,21 +282,21 @@ export class AppointmentAddComponent {
   claimInformationMissing = false;
 
   /**
-   * #121 phase T4 (2026-05-13) -- computed Input passed to the
-   * claim-information section. Returns name + email when the booker is
-   * the Claim Examiner role on a fresh appointment (mirrors OLD
-   * appointment-add.component.ts:145-149); returns null otherwise so
-   * the section skips the prefill.
+   * CI1/CI2 (2026-06-05): when a Claim Examiner books, pre-fill the
+   * appointment-level Claim Examiner section with their own name + email.
+   * OLD parity (appointment-add.component.ts:145-149) prefilled the per-injury
+   * modal; CI1 moved CE to the appointment level, so the prefill moves with it.
+   * Called once from the constructor.
    */
-  get claimExaminerPrefillForInjuryModal(): ClaimExaminerPrefill | null {
-    if (!this.isClaimExaminerRole || this.isItAdmin) return null;
+  private prefillAppointmentClaimExaminerForRole(): void {
+    if (!this.isClaimExaminerRole || this.isItAdmin) return;
     const user = this.currentUser;
-    if (!user) return null;
+    if (!user) return;
     const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
-    return {
-      name: fullName || user.userName || null,
-      email: user.email ?? null,
-    };
+    this.form.patchValue({
+      appointmentClaimExaminerName: fullName || user.userName || null,
+      appointmentClaimExaminerEmail: user.email ?? null,
+    });
   }
   // #121 phase T2 (2026-05-13) -- the AppointmentAuthorizedUserDraft[]
   // array stays at parent because it carries the data the submit flow
@@ -595,6 +594,7 @@ export class AppointmentAddComponent {
       ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
     this.loadCurrentPatientProfile();
+    this.prefillAppointmentClaimExaminerForRole();
     this.loadExternalAuthorizedUsers();
 
     // Wave 4 / #15 (2026-05-07): cache the English language GUID and
