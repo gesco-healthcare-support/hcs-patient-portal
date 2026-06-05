@@ -116,6 +116,13 @@ export class AppointmentDocumentsComponent implements OnChanges {
   otherDocumentTypeName = '';
   readonly OTHER_TYPE_VALUE = '__other__';
 
+  // PR3 type filter (client-side over the loaded list). '' = all types;
+  // OTHER_FILTER = the "Other / Uncategorized" bucket (free-text-labelled and
+  // untyped documents, i.e. those with no admin category id).
+  readonly ALL_FILTER = '';
+  readonly OTHER_FILTER = '__other_uncat__';
+  selectedFilterTypeId: string = this.ALL_FILTER;
+
   rejectingDoc: AppointmentDocumentDto | null = null;
   rejectionReason = '';
   isSubmittingReject = false;
@@ -125,6 +132,40 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   get canApprove(): boolean {
     return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Approve');
+  }
+
+  // Distinct admin categories present in the loaded documents (only those whose
+  // label resolves), for the filter dropdown.
+  get filterTypeOptions(): { id: string; label: string }[] {
+    const byId = new Map<string, string>();
+    for (const doc of this.documents) {
+      const id = doc.appointmentDocumentTypeId;
+      if (!id || byId.has(id)) {
+        continue;
+      }
+      const label = this.documentTypes.find((t) => t.id === id)?.displayName;
+      if (label) {
+        byId.set(id, label);
+      }
+    }
+    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+  }
+
+  // True when any loaded document has no admin category (free-text "Other" or untyped).
+  get hasUncategorized(): boolean {
+    return this.documents.some((doc) => !doc.appointmentDocumentTypeId);
+  }
+
+  get filteredDocuments(): AppointmentDocumentDto[] {
+    if (this.selectedFilterTypeId === this.ALL_FILTER) {
+      return this.documents;
+    }
+    if (this.selectedFilterTypeId === this.OTHER_FILTER) {
+      return this.documents.filter((doc) => !doc.appointmentDocumentTypeId);
+    }
+    return this.documents.filter(
+      (doc) => doc.appointmentDocumentTypeId === this.selectedFilterTypeId,
+    );
   }
 
   ngOnChanges(changes: SimpleChanges): void {

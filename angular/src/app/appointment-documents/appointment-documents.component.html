@@ -81,8 +81,27 @@
     } @else if (documents.length === 0) {
       <div class="text-muted small">No documents uploaded yet.</div>
     } @else {
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <label class="form-label small text-muted mb-0" for="document-filter-select">
+          Filter by type
+        </label>
+        <select
+          id="document-filter-select"
+          class="form-select form-select-sm w-auto"
+          [(ngModel)]="selectedFilterTypeId"
+          [name]="'document-filter-select'"
+        >
+          <option [value]="ALL_FILTER">All types</option>
+          @for (opt of filterTypeOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+          @if (hasUncategorized) {
+            <option [value]="OTHER_FILTER">Other / Uncategorized</option>
+          }
+        </select>
+      </div>
       <div class="border rounded">
-        @for (doc of documents; track doc.id) {
+        @for (doc of filteredDocuments; track doc.id) {
           <div class="doc-row">
             <i class="fa fa-file fa-lg text-primary"></i>
             <div class="flex-grow-1">
@@ -149,6 +168,9 @@
               <i class="fa fa-trash"></i>
             </button>
           </div>
+        }
+        @if (filteredDocuments.length === 0) {
+          <div class="text-muted small p-2">No documents match this filter.</div>
         }
       </div>
     }
