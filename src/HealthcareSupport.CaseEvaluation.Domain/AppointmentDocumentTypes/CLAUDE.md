@@ -3,7 +3,7 @@
 Per-tenant, per-appointment-type list of document categories. Restores (and
 extends) the legacy `AppointmentDocumentType` lookup dropped at MVP. Internal
 staff (IT Admin / Staff Supervisor) curate one list per office; the list drives
-the document-upload picker (wired in a later slice). Modeled on the
+the document-upload picker on the appointment-documents form. Modeled on the
 host-scoped `AppointmentStatuses` lookup-CRUD scaffold, but `IMultiTenant`
 because each office owns its own list.
 
