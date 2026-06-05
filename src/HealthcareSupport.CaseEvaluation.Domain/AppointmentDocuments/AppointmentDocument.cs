@@ -85,6 +85,30 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public virtual Guid? VerificationCode { get; set; }
 
+    /// <summary>
+    /// G-03-03 (PR2): the document category chosen by the uploader. FK-less
+    /// reference to <c>AppointmentDocumentType</c> (the type list is
+    /// tenant-scoped and curated separately; no DB FK so a retired type does
+    /// not cascade). Null when the uploader picked "Other" (see
+    /// <see cref="OtherDocumentTypeName"/>) or left it unset.
+    /// </summary>
+    public virtual Guid? AppointmentDocumentTypeId { get; set; }
+
+    /// <summary>
+    /// G-03-03 (PR2): free-text label captured when the uploader picks the
+    /// "Other" option; the document is shown under this label, never the word
+    /// "Other". Mutually exclusive with <see cref="AppointmentDocumentTypeId"/>.
+    /// Max <see cref="AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength"/>.
+    /// </summary>
+    public virtual string? OtherDocumentTypeName { get; set; }
+
+    /// <summary>
+    /// G-03-05 (PR2): for queued package rows, the master <c>Document</c> this
+    /// row was generated from. Null for ad-hoc uploads. Internal bookkeeping --
+    /// never surfaced in the UI.
+    /// </summary>
+    public virtual Guid? SourceDocumentId { get; set; }
+
     protected AppointmentDocument()
     {
     }
@@ -98,7 +122,9 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string blobName,
         string? contentType,
         long fileSize,
-        Guid uploadedByUserId)
+        Guid uploadedByUserId,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null)
     {
         Id = id;
         TenantId = tenantId;
@@ -109,6 +135,8 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         ContentType = contentType;
         FileSize = fileSize;
         UploadedByUserId = uploadedByUserId;
+        AppointmentDocumentTypeId = appointmentDocumentTypeId;
+        OtherDocumentTypeName = otherDocumentTypeName;
 
         Check.NotNullOrWhiteSpace(DocumentName, nameof(documentName));
         Check.Length(DocumentName, nameof(documentName), AppointmentDocumentConsts.DocumentNameMaxLength);
@@ -117,6 +145,7 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.NotNullOrWhiteSpace(BlobName, nameof(blobName));
         Check.Length(BlobName, nameof(blobName), AppointmentDocumentConsts.BlobNameMaxLength);
         Check.Length(ContentType, nameof(contentType), AppointmentDocumentConsts.ContentTypeMaxLength);
+        Check.Length(OtherDocumentTypeName, nameof(otherDocumentTypeName), AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength);
     }
 
     /// <summary>
@@ -149,7 +178,9 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Guid? tenantId,
         Guid appointmentId,
         string documentName,
-        Guid verificationCode)
+        Guid verificationCode,
+        Guid? sourceDocumentId = null,
+        Guid? appointmentDocumentTypeId = null)
     {
         Check.NotNullOrWhiteSpace(documentName, nameof(documentName));
         Check.Length(documentName, nameof(documentName), AppointmentDocumentConsts.DocumentNameMaxLength);
@@ -166,9 +197,13 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
             blobName: PendingPlaceholder,
             contentType: null,
             fileSize: 0,
-            uploadedByUserId: Guid.Empty);
+            uploadedByUserId: Guid.Empty,
+            // G-03-05 (PR2): generated/queued package docs are auto-tagged with
+            // the reserved system category and carry the source master document.
+            appointmentDocumentTypeId: appointmentDocumentTypeId);
         entity.Status = DocumentStatus.Pending;
         entity.VerificationCode = verificationCode;
+        entity.SourceDocumentId = sourceDocumentId;
         return entity;
     }
 }

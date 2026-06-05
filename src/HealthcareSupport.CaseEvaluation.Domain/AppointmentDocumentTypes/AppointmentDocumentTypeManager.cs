@@ -1,24 +1,30 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 
 /// <summary>
 /// Owns the invariants the legacy app lacked (its CRUD validated nothing):
-/// name uniqueness per appointment type, and protection of the reserved
-/// <see cref="AppointmentDocumentType.IsSystem"/> rows from edit/delete. The
-/// in-use-before-delete guard is added once documents can reference a type
-/// (the AppointmentDocument FK ships in the next slice).
+/// name uniqueness per appointment type, protection of the reserved
+/// <see cref="AppointmentDocumentType.IsSystem"/> rows from edit/delete, and
+/// (PR2) an in-use-before-delete guard now that
+/// <see cref="AppointmentDocument.AppointmentDocumentTypeId"/> can reference a type.
 /// </summary>
 public class AppointmentDocumentTypeManager : DomainService
 {
     protected IAppointmentDocumentTypeRepository _appointmentDocumentTypeRepository;
+    protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
-    public AppointmentDocumentTypeManager(IAppointmentDocumentTypeRepository appointmentDocumentTypeRepository)
+    public AppointmentDocumentTypeManager(
+        IAppointmentDocumentTypeRepository appointmentDocumentTypeRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
     {
         _appointmentDocumentTypeRepository = appointmentDocumentTypeRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
     public virtual async Task<AppointmentDocumentType> CreateAsync(string name, Guid? appointmentTypeId, bool isActive = true)
@@ -67,7 +73,23 @@ public class AppointmentDocumentTypeManager : DomainService
             return;
         }
         EnsureNotSystem(entity);
+        await EnsureNotInUseAsync(id);
         await _appointmentDocumentTypeRepository.DeleteAsync(entity);
+    }
+
+    /// <summary>
+    /// G-03-03 (PR2): block deleting a category still referenced by an uploaded
+    /// or queued document (via <see cref="AppointmentDocument.AppointmentDocumentTypeId"/>).
+    /// Staff retire the category (IsActive = false) instead, so the type label
+    /// on historical documents is preserved. The IMultiTenant filter scopes the
+    /// check to the current tenant.
+    /// </summary>
+    private async Task EnsureNotInUseAsync(Guid id)
+    {
+        if (await _appointmentDocumentRepository.AnyAsync(d => d.AppointmentDocumentTypeId == id))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse);
+        }
     }
 
     private static void EnsureNotSystem(AppointmentDocumentType entity)

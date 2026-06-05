@@ -2,6 +2,7 @@ import type { AppointmentDocumentDto, PatientPortalDocumentDto, RejectDocumentIn
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
+import type { LookupDto } from '../shared/models';
 
 @Injectable({
   providedIn: 'root',
@@ -39,6 +40,14 @@ export class AppointmentDocumentService {
     this.restService.request<any, PatientPortalDocumentDto[]>({
       method: 'GET',
       url: `/api/app/appointments/${appointmentId}/documents/combined`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getDocumentTypeOptions = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, LookupDto<string>>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/documents/document-type-options`,
     },
     { apiName: this.apiName,...config });
   

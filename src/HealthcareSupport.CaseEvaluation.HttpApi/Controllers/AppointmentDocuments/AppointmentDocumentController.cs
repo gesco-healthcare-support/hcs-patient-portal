@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
@@ -29,6 +30,12 @@ public class AppointmentDocumentController : AbpController
         return _service.GetListByAppointmentAsync(appointmentId);
     }
 
+    [HttpGet("document-type-options")]
+    public virtual Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
+    {
+        return _service.GetDocumentTypeOptionsAsync(appointmentId);
+    }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     public virtual async Task<AppointmentDocumentDto> UploadAsync(
@@ -46,7 +53,9 @@ public class AppointmentDocumentController : AbpController
             form.File.FileName,
             form.File.ContentType,
             form.File.Length,
-            stream);
+            stream,
+            form.AppointmentDocumentTypeId,
+            form.OtherDocumentTypeName);
     }
 
     [HttpGet("{id}/download")]
@@ -144,5 +153,12 @@ public class AppointmentDocumentController : AbpController
 public class UploadAppointmentDocumentForm
 {
     public string? DocumentName { get; set; }
+
+    /// <summary>G-03-03 (PR2): chosen document category id (omit for "Other" or untyped).</summary>
+    public Guid? AppointmentDocumentTypeId { get; set; }
+
+    /// <summary>G-03-03 (PR2): free-text label when the uploader picks "Other".</summary>
+    public string? OtherDocumentTypeName { get; set; }
+
     public IFormFile File { get; set; } = null!;
 }

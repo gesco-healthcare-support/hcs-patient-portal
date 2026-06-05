@@ -224,6 +224,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeSystemReadOnly,
                 System.Net.HttpStatusCode.BadRequest);
+
+            // G-03-03 (PR2) -- deleting a document category still referenced by
+            // a document. The request is well-formed and authorized; it
+            // conflicts with current state, so HTTP 409 Conflict (not 400).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse,
+                System.Net.HttpStatusCode.Conflict);
         });
     }
 

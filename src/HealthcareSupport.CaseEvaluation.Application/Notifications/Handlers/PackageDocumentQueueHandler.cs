@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
@@ -45,6 +46,7 @@ public class PackageDocumentQueueHandler :
     private readonly IPackageDetailRepository _packageDetailRepository;
     private readonly IRepository<Document, Guid> _documentRepository;
     private readonly IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
+    private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<PackageDocumentQueueHandler> _logger;
@@ -53,6 +55,7 @@ public class PackageDocumentQueueHandler :
         IPackageDetailRepository packageDetailRepository,
         IRepository<Document, Guid> documentRepository,
         IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
+        IAppointmentDocumentTypeRepository documentTypeRepository,
         AppointmentDocumentManager documentManager,
         ICurrentTenant currentTenant,
         ILogger<PackageDocumentQueueHandler> logger)
@@ -60,6 +63,7 @@ public class PackageDocumentQueueHandler :
         _packageDetailRepository = packageDetailRepository;
         _documentRepository = documentRepository;
         _appointmentDocumentRepository = appointmentDocumentRepository;
+        _documentTypeRepository = documentTypeRepository;
         _documentManager = documentManager;
         _currentTenant = currentTenant;
         _logger = logger;
@@ -144,6 +148,23 @@ public class PackageDocumentQueueHandler :
                 .ToList();
             var documentNamesById = documents.ToDictionary(d => d.Id, d => d.Name);
 
+            // G-03-05 (PR2): queued package rows are auto-tagged with the
+            // tenant's reserved "Generated Packet" system category (one IsSystem
+            // row per tenant, seeded with the tenant). Resolve it once. Defensive:
+            // if a tenant somehow lacks the seeded row, leave the rows untagged
+            // rather than fail the whole queue.
+            var typeQueryable = await _documentTypeRepository.GetQueryableAsync();
+            var systemTypeId = typeQueryable
+                .Where(t => t.IsSystem)
+                .Select(t => (Guid?)t.Id)
+                .FirstOrDefault();
+            if (systemTypeId == null)
+            {
+                _logger.LogWarning(
+                    "PackageDocumentQueueHandler: no IsSystem document category found for tenant {TenantId}; queued rows will be left untagged.",
+                    eventData.TenantId);
+            }
+
             var queuedCount = 0;
             foreach (var package in matchingPackages)
             {
@@ -164,7 +185,9 @@ public class PackageDocumentQueueHandler :
                     await _documentManager.CreateQueuedAsync(
                         tenantId: eventData.TenantId,
                         appointmentId: eventData.AppointmentId,
-                        documentName: documentName);
+                        documentName: documentName,
+                        sourceDocumentId: documentId,
+                        appointmentDocumentTypeId: systemTypeId);
                     queuedCount++;
                 }
             }

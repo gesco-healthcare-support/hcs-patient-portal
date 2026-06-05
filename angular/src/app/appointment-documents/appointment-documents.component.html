@@ -26,6 +26,37 @@
         />
       </div>
       <div>
+        <label class="form-label small text-muted" for="document-type-select">Document Type</label>
+        <select
+          id="document-type-select"
+          class="form-select form-select-sm"
+          [(ngModel)]="selectedDocumentTypeId"
+          [name]="'document-type-select'"
+        >
+          <option value="">-- None --</option>
+          @for (type of documentTypes; track type.id) {
+            <option [value]="type.id">{{ type.displayName }}</option>
+          }
+          <option [value]="OTHER_TYPE_VALUE">Other...</option>
+        </select>
+      </div>
+      @if (selectedDocumentTypeId === OTHER_TYPE_VALUE) {
+        <div class="flex-grow-1">
+          <label class="form-label small text-muted" for="other-type-input">
+            Other Document Type
+          </label>
+          <input
+            id="other-type-input"
+            type="text"
+            class="form-control form-control-sm"
+            [(ngModel)]="otherDocumentTypeName"
+            placeholder="Type the document category"
+            [name]="'other-type-input'"
+            maxlength="100"
+          />
+        </div>
+      }
+      <div>
         <label class="form-label small text-muted" for="document-file-input">File</label>
         <input
           id="document-file-input"
@@ -60,6 +91,9 @@
                 <span class="badge badge-status {{ statusBadgeClass(doc.status) }}">
                   {{ statusLabel(doc.status) }}
                 </span>
+                @if (documentTypeLabel(doc); as typeLabel) {
+                  <span class="badge bg-info text-dark">{{ typeLabel }}</span>
+                }
               </div>
               <div class="doc-meta">
                 {{ doc.fileName }} &middot; {{ formatBytes(doc.fileSize) }}

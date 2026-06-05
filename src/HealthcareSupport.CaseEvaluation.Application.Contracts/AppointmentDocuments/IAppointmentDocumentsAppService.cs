@@ -2,12 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Shared;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
 public interface IAppointmentDocumentsAppService
 {
     Task<List<AppointmentDocumentDto>> GetListByAppointmentAsync(Guid appointmentId);
+
+    /// <summary>
+    /// G-03-03 (PR2): active, non-system document-type options for the upload
+    /// picker, scoped to the appointment's type (+ "all types" rows). Readable
+    /// by any uploader on the appointment (gated by the upload permission +
+    /// read-access guard), unlike the admin-only doc-type list.
+    /// </summary>
+    Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId);
 
     /// <summary>
     /// Stream-based ad-hoc upload entry point. Marks the new row
@@ -23,7 +32,9 @@ public interface IAppointmentDocumentsAppService
         string fileName,
         string? contentType,
         long fileSize,
-        Stream content);
+        Stream content,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null);
 
     /// <summary>
     /// Phase 14: package-document upload. Updates an existing

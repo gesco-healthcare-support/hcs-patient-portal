@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
@@ -31,6 +32,7 @@ public class PackageDocumentQueueHandlerTests
         var packageDetailRepository = Substitute.For<IPackageDetailRepository>();
         var documentRepository = Substitute.For<IRepository<Document, Guid>>();
         var appointmentDocumentRepository = Substitute.For<IRepository<AppointmentDocument, Guid>>();
+        var documentTypeRepository = Substitute.For<IAppointmentDocumentTypeRepository>();
         var manager = Substitute.For<AppointmentDocumentManager>(
             Substitute.For<IRepository<AppointmentDocument, Guid>>());
         var currentTenant = Substitute.For<ICurrentTenant>();
@@ -51,6 +53,7 @@ public class PackageDocumentQueueHandlerTests
             packageDetailRepository,
             documentRepository,
             appointmentDocumentRepository,
+            documentTypeRepository,
             manager,
             currentTenant,
             NullLogger<PackageDocumentQueueHandler>.Instance);
@@ -64,6 +67,6 @@ public class PackageDocumentQueueHandlerTests
 
         // Guard short-circuits before any package resolution / row creation.
         await manager.DidNotReceive().CreateQueuedAsync(
-            Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<string>());
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Guid?>());
     }
 }

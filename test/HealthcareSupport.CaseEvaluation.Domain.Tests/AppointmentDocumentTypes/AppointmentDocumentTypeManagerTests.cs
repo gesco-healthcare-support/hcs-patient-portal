@@ -1,8 +1,11 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Xunit;
@@ -19,6 +22,7 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
 {
     private readonly AppointmentDocumentTypeManager _manager;
     private readonly IAppointmentDocumentTypeRepository _repository;
+    private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
 
@@ -26,6 +30,7 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
     {
         _manager = GetRequiredService<AppointmentDocumentTypeManager>();
         _repository = GetRequiredService<IAppointmentDocumentTypeRepository>();
+        _documentRepository = GetRequiredService<IRepository<AppointmentDocument, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
         _dataFilter = GetRequiredService<IDataFilter>();
     }
@@ -71,6 +76,49 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
                 var persisted = await _repository.FindAsync(createdId);
                 persisted.ShouldNotBeNull();
                 persisted!.TenantId.ShouldBe(TenantsTestData.TenantARef);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Manager_DeleteAsync_WhenReferencedByADocument_ThrowsInUse()
+    {
+        // Regression guard for the PR2 in-use-before-delete rule: a category
+        // still referenced by an AppointmentDocument cannot be deleted (staff
+        // retire it instead), so the type label on existing documents is kept.
+        var typeId = Guid.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var type = await _manager.CreateAsync(
+                    name: "Referenced Category",
+                    appointmentTypeId: null,
+                    isActive: true);
+                typeId = type.Id;
+
+                var document = new AppointmentDocument(
+                    id: Guid.NewGuid(),
+                    tenantId: TenantsTestData.TenantARef,
+                    appointmentId: AppointmentsTestData.Appointment1Id,
+                    documentName: "Tagged Document",
+                    fileName: "scan.pdf",
+                    blobName: "blob-key",
+                    contentType: "application/pdf",
+                    fileSize: 1024,
+                    uploadedByUserId: Guid.NewGuid(),
+                    appointmentDocumentTypeId: typeId);
+                await _documentRepository.InsertAsync(document, autoSave: true);
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var ex = await Should.ThrowAsync<BusinessException>(
+                    async () => await _manager.DeleteAsync(typeId));
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse);
             }
         });
     }
