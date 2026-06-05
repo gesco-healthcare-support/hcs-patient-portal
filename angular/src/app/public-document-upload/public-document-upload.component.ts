@@ -156,17 +156,21 @@ export class PublicDocumentUploadComponent {
   }
 
   private messageFor(err: HttpErrorResponse): string {
-    if (err.status === 429) {
-      return 'Too many attempts. Please wait a while and try again.';
+    // Drive the message by status, not the server body: this is an anonymous
+    // page, so we avoid leaking which check failed (no enumeration oracle for a
+    // bad vs valid code) and never surface ABP's generic/dev-oriented text.
+    switch (err.status) {
+      case 429:
+        return 'Too many attempts. Please wait a while and try again.';
+      case 413:
+        return 'That file is too large. Please upload a file up to 10 MB.';
+      case 403:
+      case 404:
+        return 'This upload link is invalid or has expired, or the appointment is no longer accepting documents.';
+      case 0:
+        return 'Network error. Check your connection and try again.';
+      default:
+        return 'Sorry, we could not upload your document. Please try again.';
     }
-    // ABP wraps business errors as { error: { code, message } }.
-    const abpMessage = err.error?.error?.message as string | undefined;
-    if (abpMessage) {
-      return abpMessage;
-    }
-    if (err.status === 0) {
-      return 'Network error. Check your connection and try again.';
-    }
-    return 'This upload link is invalid or has expired.';
   }
 }
