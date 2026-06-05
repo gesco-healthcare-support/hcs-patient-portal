@@ -7773,8 +7773,8 @@
                 }
               ],
               "returnValue": {
-                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto>",
-                "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]"
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
@@ -43419,6 +43419,41 @@
           "jsonName": null,
           "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.RequiredDocumentState",
           "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "RequiredCount",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Missing",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,

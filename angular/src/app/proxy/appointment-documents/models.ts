@@ -40,6 +40,11 @@ export interface MissingRequiredDocumentDto {
   state?: RequiredDocumentState;
 }
 
+export interface MissingRequiredDocumentsResultDto {
+  requiredCount?: number;
+  missing?: MissingRequiredDocumentDto[];
+}
+
 export interface PatientPortalDocumentDto {
   id?: string;
   source?: PatientPortalDocumentSource;
