@@ -71,6 +71,11 @@ import {
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
 import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
+import {
+  AppointmentAddDocumentsComponent,
+  type StagedDocumentUpload,
+} from './sections/appointment-add-documents.component';
+import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -102,6 +107,7 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddAttorneySectionComponent,
     AppointmentAddPatientDemographicsComponent,
     AppointmentAddScheduleComponent,
+    AppointmentAddDocumentsComponent,
     ConfirmAddressDialogComponent,
   ],
   providers: [
@@ -389,6 +395,14 @@ export class AppointmentAddComponent {
   private readonly PQME_TYPE_ID = 'a0a00002-0000-4000-9000-000000000002';
   // Drives the Panel Number required-star affordance in the schedule section.
   isPqmeType = false;
+
+  // AF7 (2026-06-05): documents staged in the booking form, uploaded after the
+  // appointment is created (two-phase). Mutated in place; the documents section
+  // uses default change detection so it renders these updates.
+  stagedDocuments: StagedDocumentUpload[] = [];
+  // Set to the created appointment id once it exists, so an upload retry
+  // re-POSTs to the SAME appointment instead of creating a duplicate.
+  private createdAppointmentIdForRetry?: string;
 
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
@@ -1099,6 +1113,91 @@ export class AppointmentAddComponent {
    */
   readonly isFieldInvalidBound = (fieldName: string): boolean => this.isFieldInvalid(fieldName);
 
+  // ----- AF7 (2026-06-05): pre-submit document staging + post-create upload -----
+
+  onDocumentsSelected(files: File[]): void {
+    for (const file of files) {
+      const error = validateDocumentFile(file);
+      if (error) {
+        this.toaster.error(`${file.name}: ${error}`);
+        continue;
+      }
+      this.stagedDocuments.push({ file, status: 'staged' });
+    }
+  }
+
+  removeStagedDocument(index: number): void {
+    const doc = this.stagedDocuments[index];
+    // Do not yank a file mid-upload or after it has already uploaded.
+    if (!doc || doc.status === 'uploading' || doc.status === 'uploaded') {
+      return;
+    }
+    this.stagedDocuments.splice(index, 1);
+  }
+
+  /**
+   * Re-POST any not-yet-uploaded staged documents to the already-created
+   * appointment. Surfaced by the documents section's Retry button after a
+   * partial failure; navigates home once every file is uploaded.
+   */
+  async retryStagedUploads(): Promise<void> {
+    if (this.isSaving) {
+      return;
+    }
+    this.isSaving = true;
+    try {
+      if (await this.uploadStagedDocuments(this.createdAppointmentIdForRetry)) {
+        this.router.navigateByUrl('/');
+      }
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  /**
+   * Upload every not-yet-uploaded staged document to the created appointment via
+   * the existing ad-hoc endpoint (reuses its 10 MB size + magic-byte format
+   * validation; the booker is authorized as appointment Creator -- zero backend
+   * change). Returns true only when all staged files are uploaded. On a per-file
+   * failure the file is marked 'failed' and kept for retry -- no rollback, which
+   * matches the existing non-atomic child-POST behavior.
+   */
+  private async uploadStagedDocuments(appointmentId?: string): Promise<boolean> {
+    if (!appointmentId || this.stagedDocuments.length === 0) {
+      return true;
+    }
+    let allUploaded = true;
+    for (const staged of this.stagedDocuments) {
+      if (staged.status === 'uploaded') {
+        continue;
+      }
+      staged.status = 'uploading';
+      staged.error = undefined;
+      try {
+        const form = new FormData();
+        form.append('file', staged.file, staged.file.name);
+        form.append('documentName', staged.file.name);
+        await firstValueFrom(
+          this.restService.request<FormData, unknown>(
+            {
+              method: 'POST',
+              url: `/api/app/appointments/${appointmentId}/documents`,
+              body: form,
+            },
+            { apiName: 'Default' },
+          ),
+        );
+        staged.status = 'uploaded';
+      } catch (err: unknown) {
+        staged.status = 'failed';
+        const httpErr = err as { error?: { error?: { message?: string } } };
+        staged.error = httpErr?.error?.error?.message ?? 'Upload failed.';
+        allUploaded = false;
+      }
+    }
+    return allUploaded;
+  }
+
   async onSubmit(): Promise<void> {
     const raw = this.form.getRawValue();
     if (this.isExternalUserNonPatient && !raw.patientId) {
@@ -1214,6 +1313,18 @@ export class AppointmentAddComponent {
       await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
       await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
+
+      // AF7: upload staged documents to the now-created appointment. On a
+      // partial failure keep the booker on the page (the appointment stays
+      // Pending) so they can retry against the existing id -- no rollback,
+      // matching the non-atomic child-POST behavior above.
+      this.createdAppointmentIdForRetry = createdAppointment?.id;
+      if (!(await this.uploadStagedDocuments(createdAppointment?.id))) {
+        this.toaster.warn(
+          'Appointment created, but some documents failed to upload. Retry from the Documents section.',
+        );
+        return;
+      }
 
       this.router.navigateByUrl('/');
     } catch (err: unknown) {

@@ -167,6 +167,18 @@
       </div>
     }
 
+    <!-- AF7 (2026-06-05): pre-submit document upload. Sibling block between
+         Claim Information and Authorized Users (Authorized Users is hidden for
+         CE bookers, so this cannot nest inside that @if). Files stage here and
+         upload after create; the parent owns the staged File[] + upload loop. -->
+    <app-appointment-add-documents
+      [stagedDocuments]="stagedDocuments"
+      [disabled]="isSaving"
+      (filesSelected)="onDocumentsSelected($event)"
+      (removeDocument)="removeStagedDocument($event)"
+      (retryUploads)="retryStagedUploads()"
+    />
+
     <!-- #121 phase T2 (2026-05-13): "Additional Authorized User"
          section. Extracted to <app-appointment-add-authorized-users>.
          B11 (2026-05-06): Claim Examiner bookers (= OLD's Adjuster)
