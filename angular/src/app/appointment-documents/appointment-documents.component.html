@@ -60,6 +60,9 @@
                 <span class="badge badge-status {{ statusBadgeClass(doc.status) }}">
                   {{ statusLabel(doc.status) }}
                 </span>
+                @if (doc.isPanelStrikeList) {
+                  <span class="badge bg-info text-dark">Panel Strike List</span>
+                }
               </div>
               <div class="doc-meta">
                 {{ doc.fileName }} &middot; {{ formatBytes(doc.fileSize) }}
