@@ -62,4 +62,8 @@ public static class EmbeddedTemplateResources
         PacketKind.AttorneyClaimExaminer => "AttorneyClaimExaminerPacket.docx",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No embedded template registered for this PacketKind."),
     };
+
+    // NB: the HTML (WeasyPrint) pipeline embeds NO templates here -- the packet-renderer sidecar
+    // owns them (its generators are the single source of truth). The job sends a template NAME +
+    // token map to the sidecar; see PacketTemplateNames and IHtmlPacketRenderer.
 }
