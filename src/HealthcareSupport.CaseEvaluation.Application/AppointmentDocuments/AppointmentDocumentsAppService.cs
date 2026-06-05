@@ -194,7 +194,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// read-access guard) so any party to the appointment sees what is outstanding.
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
-    public virtual async Task<List<MissingRequiredDocumentDto>> GetMissingRequiredDocumentsAsync(Guid appointmentId)
+    public virtual async Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
     {
         if (appointmentId == Guid.Empty)
         {
@@ -217,7 +217,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         if (requiredDocumentIds.Count == 0)
         {
-            return new List<MissingRequiredDocumentDto>();
+            return new MissingRequiredDocumentsResultDto();
         }
 
         var masterQueryable = await _masterDocumentRepository.GetQueryableAsync();
@@ -237,14 +237,18 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             required.Select(r => (r.Id, r.Name)),
             existing.Select(e => (e.SourceDocumentId, e.Status)));
 
-        return missing
-            .Select(m => new MissingRequiredDocumentDto
-            {
-                DocumentId = m.DocumentId,
-                Name = m.Name,
-                State = m.State,
-            })
-            .ToList();
+        return new MissingRequiredDocumentsResultDto
+        {
+            RequiredCount = required.Count,
+            Missing = missing
+                .Select(m => new MissingRequiredDocumentDto
+                {
+                    DocumentId = m.DocumentId,
+                    Name = m.Name,
+                    State = m.State,
+                })
+                .ToList(),
+        };
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]

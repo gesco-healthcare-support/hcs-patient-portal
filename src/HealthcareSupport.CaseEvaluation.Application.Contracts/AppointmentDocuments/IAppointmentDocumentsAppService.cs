@@ -26,7 +26,7 @@ public interface IAppointmentDocumentsAppService
     /// <c>SourceDocumentId</c> AND is Accepted. Same gate as the document list
     /// (Default + per-appointment read-access guard).
     /// </summary>
-    Task<List<MissingRequiredDocumentDto>> GetMissingRequiredDocumentsAsync(Guid appointmentId);
+    Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId);
 
     /// <summary>
     /// Stream-based ad-hoc upload entry point. Marks the new row

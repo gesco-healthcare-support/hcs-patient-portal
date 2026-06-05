@@ -37,7 +37,7 @@ public class AppointmentDocumentController : AbpController
     }
 
     [HttpGet("missing-required")]
-    public virtual Task<List<MissingRequiredDocumentDto>> GetMissingRequiredDocumentsAsync(Guid appointmentId)
+    public virtual Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
     {
         return _service.GetMissingRequiredDocumentsAsync(appointmentId);
     }
