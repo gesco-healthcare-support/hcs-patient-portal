@@ -1,4 +1,3 @@
-using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using Microsoft.AspNetCore.Authorization;
@@ -26,7 +25,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
 {
     private readonly AppointmentChangeRequestManager _manager;
     private readonly IAppointmentRepository _appointmentRepository;
-    private readonly IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
+    private readonly AppointmentReadAccessGuard _readAccessGuard;
     // Phase 16 (2026-05-04) -- lead-time + per-AppointmentType max-time
     // gates reuse the booking-flow validator. The slot lookup happens
     // here so we can resolve the slot's AvailableDate before the
@@ -37,13 +36,13 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
     public AppointmentChangeRequestsAppService(
         AppointmentChangeRequestManager manager,
         IAppointmentRepository appointmentRepository,
-        IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository,
+        AppointmentReadAccessGuard readAccessGuard,
         BookingPolicyValidator bookingPolicyValidator,
         IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository)
     {
         _manager = manager;
         _appointmentRepository = appointmentRepository;
-        _appointmentAccessorRepository = appointmentAccessorRepository;
+        _readAccessGuard = readAccessGuard;
         _bookingPolicyValidator = bookingPolicyValidator;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
     }
@@ -128,28 +127,10 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
 
     private async Task EnsureCanEditAsync(Guid appointmentId)
     {
-        var appointment = await _appointmentRepository.FindAsync(appointmentId);
-        if (appointment == null)
-        {
-            throw new EntityNotFoundException(typeof(Appointment), appointmentId);
-        }
-
-        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
-        var isInternal = BookingFlowRoles.IsInternalUserCaller(callerRoles);
-
-        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
-        var entries = await AsyncExecuter.ToListAsync(
-            accessorQuery
-                .Where(a => a.AppointmentId == appointmentId)
-                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
-
-        var canEdit = AppointmentAccessRules.CanEdit(
-            callerUserId: CurrentUser.Id,
-            callerIsInternalUser: isInternal,
-            appointmentCreatorId: appointment.CreatorId,
-            accessorEntries: entries);
-
-        if (!canEdit)
+        // Same slim edit rule (internal / creator / Edit-accessor) as before, now
+        // centralised in AppointmentReadAccessGuard.CanEditAsync. Keep this flow's own
+        // error code so the change-request contract is unchanged.
+        if (!await _readAccessGuard.CanEditAsync(appointmentId))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestEditAccessRequired)
                 .WithData("appointmentId", appointmentId);
