@@ -225,6 +225,7 @@
     "FirstName": "First Name",
     "LastName": "Last Name",
     "Email": "Email",
+    "Role": "Role",
     "Gender": "Gender",
     "MinFirstName": "Min First Name",
     "MinLastName": "Min Last Name",

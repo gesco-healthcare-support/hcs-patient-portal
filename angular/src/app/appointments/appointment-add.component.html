@@ -199,10 +199,7 @@
          see no co-accessor table per OLD `showFormBaseOnRole` (OLD
          HTML line 600); parent decides via shouldShowAuthorizedUserSection. -->
     @if (shouldShowAuthorizedUserSection()) {
-      <app-appointment-add-authorized-users
-        [users]="appointmentAuthorizedUsers"
-        [userOptions]="externalAuthorizedUserOptions"
-      />
+      <app-appointment-add-authorized-users [users]="appointmentAuthorizedUsers" />
     }
 
     <!-- #121 phase T1 (2026-05-13): "Additional Details" custom-fields

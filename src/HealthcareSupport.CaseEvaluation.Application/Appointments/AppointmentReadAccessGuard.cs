@@ -167,4 +167,53 @@ public class AppointmentReadAccessGuard : ITransientDependency
                 message: _l["Appointment:AccessDenied"]);
         }
     }
+
+    /// <summary>
+    /// Edit-access predicate using the SLIM <see cref="AppointmentAccessRules.CanEdit"/>
+    /// rule (internal user / appointment creator / Edit-accessor). This is the same
+    /// rule the appointment change-request flow uses, centralised here so callers do
+    /// not duplicate the accessor hydration. Returns a bool so each caller throws its
+    /// own exception (e.g. the change-request keeps its own error code).
+    ///
+    /// NOTE: the full 7-pathway CanEdit (which also admits patient / AA / DA / CE) is
+    /// deliberately NOT used here -- gating the core appointment Update with the right
+    /// rule is a separate deferred slice (UpdateAsync is currently un-gated).
+    /// </summary>
+    public async Task<bool> CanEditAsync(Guid appointmentId)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        return await CanEditAsync(appointment);
+    }
+
+    public async Task<bool> CanEditAsync(Appointment appointment)
+    {
+        var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
+        var isInternal = BookingFlowRoles.IsInternalUserCaller(callerRoles);
+
+        var accessorQuery = await _accessorRepository.GetQueryableAsync();
+        var accessorEntries = await _asyncExecuter.ToListAsync(
+            accessorQuery
+                .Where(a => a.AppointmentId == appointment.Id)
+                .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
+
+        return AppointmentAccessRules.CanEdit(
+            callerUserId: _currentUser.Id,
+            callerIsInternalUser: isInternal,
+            appointmentCreatorId: appointment.CreatorId,
+            accessorEntries: accessorEntries);
+    }
+
+    /// <summary>
+    /// Throwing variant of <see cref="CanEditAsync(Guid)"/> for callers that just want
+    /// deny-by-default (e.g. accessor mutations). Throws the shared access-denied error.
+    /// </summary>
+    public async Task EnsureCanEditAsync(Guid appointmentId)
+    {
+        if (!await CanEditAsync(appointmentId))
+        {
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
+                message: _l["Appointment:AccessDenied"]);
+        }
+    }
 }
