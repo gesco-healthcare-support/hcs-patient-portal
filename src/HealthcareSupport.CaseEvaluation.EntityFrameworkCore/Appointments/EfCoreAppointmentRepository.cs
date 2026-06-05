@@ -75,6 +75,7 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             await LoadEmployerDetailAsync(dbContext, result, id, cancellationToken);
             await LoadInjuryDetailsAsync(dbContext, result, id, cancellationToken);
             await LoadAccessorsAsync(dbContext, result, id, cancellationToken);
+            await LoadClaimPartiesAsync(dbContext, result, id, cancellationToken);
         }
 
         return result!;
@@ -150,12 +151,6 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         var bodyParts = await dbContext.Set<AppointmentBodyPart>()
             .Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId))
             .ToListAsync(ct);
-        var claimExaminers = await dbContext.Set<AppointmentClaimExaminer>()
-            .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId))
-            .ToListAsync(ct);
-        var primaryInsurances = await dbContext.Set<AppointmentPrimaryInsurance>()
-            .Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId))
-            .ToListAsync(ct);
         var wcabOfficeIds = injuries
             .Where(i => i.WcabOfficeId.HasValue)
             .Select(i => i.WcabOfficeId!.Value)
@@ -176,8 +171,6 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                     ? wcabOffices.FirstOrDefault(w => w.Id == injury.WcabOfficeId.Value)
                     : null,
                 BodyParts = bodyParts.Where(b => b.AppointmentInjuryDetailId == injury.Id).ToList(),
-                ClaimExaminer = claimExaminers.FirstOrDefault(c => c.AppointmentInjuryDetailId == injury.Id),
-                PrimaryInsurance = primaryInsurances.FirstOrDefault(p => p.AppointmentInjuryDetailId == injury.Id),
             })
             .ToList();
     }
@@ -191,6 +184,25 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         result.AppointmentAccessors = await dbContext.Set<AppointmentAccessor>()
             .Where(a => a.AppointmentId == id)
             .ToListAsync(ct);
+    }
+
+    // CI1 (2026-06-05): single appointment-level Claim Examiner + Primary
+    // Insurance (one each per appointment). Prefer the active row; the booking
+    // form posts at most one of each.
+    private static async Task LoadClaimPartiesAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        result.ClaimExaminer = await dbContext.Set<AppointmentClaimExaminer>()
+            .Where(c => c.AppointmentId == id)
+            .OrderByDescending(c => c.IsActive)
+            .FirstOrDefaultAsync(ct);
+        result.PrimaryInsurance = await dbContext.Set<AppointmentPrimaryInsurance>()
+            .Where(p => p.AppointmentId == id)
+            .OrderByDescending(p => p.IsActive)
+            .FirstOrDefaultAsync(ct);
     }
 
     public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default)
@@ -245,12 +257,6 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         var bodyParts = await dbContext.Set<AppointmentBodyPart>()
             .Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId))
             .ToListAsync(ct);
-        var claimExaminers = await dbContext.Set<AppointmentClaimExaminer>()
-            .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId))
-            .ToListAsync(ct);
-        var primaryInsurances = await dbContext.Set<AppointmentPrimaryInsurance>()
-            .Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId))
-            .ToListAsync(ct);
         var wcabOfficeIds = injuries
             .Where(i => i.WcabOfficeId.HasValue)
             .Select(i => i.WcabOfficeId!.Value)
@@ -274,8 +280,6 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                         ? wcabOffices.FirstOrDefault(w => w.Id == injury.WcabOfficeId.Value)
                         : null,
                     BodyParts = bodyParts.Where(b => b.AppointmentInjuryDetailId == injury.Id).ToList(),
-                    ClaimExaminer = claimExaminers.FirstOrDefault(c => c.AppointmentInjuryDetailId == injury.Id),
-                    PrimaryInsurance = primaryInsurances.FirstOrDefault(p => p.AppointmentInjuryDetailId == injury.Id),
                 })
                 .ToList();
         }

@@ -128,22 +128,14 @@ public class AppointmentReadAccessGuard : ITransientDependency
                 .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
                 .Select(l => l.IdentityUserId!.Value));
 
-        // ClaimExaminer two-hop: AppointmentClaimExaminer rows are linked
-        // via AppointmentInjuryDetail.AppointmentId. Match by email
-        // (case-insensitive in the rule itself) since CE has no
-        // IdentityUser join.
-        var injuryQuery = await _injuryDetailRepository.GetQueryableAsync();
-        var injuryIds = await _asyncExecuter.ToListAsync(
-            injuryQuery.Where(i => i.AppointmentId == appointment.Id).Select(i => i.Id));
-        var ceEmails = new List<string>();
-        if (injuryIds.Count > 0)
-        {
-            var ceQuery = await _claimExaminerRepository.GetQueryableAsync();
-            ceEmails = await _asyncExecuter.ToListAsync(
-                ceQuery
-                    .Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId) && c.Email != null)
-                    .Select(c => c.Email!));
-        }
+        // ClaimExaminer (CI1 2026-06-05): now a single appointment-level row, so
+        // the link is direct (CE.AppointmentId). Match by email
+        // (case-insensitive in the rule itself) since CE has no IdentityUser join.
+        var ceQuery = await _claimExaminerRepository.GetQueryableAsync();
+        var ceEmails = await _asyncExecuter.ToListAsync(
+            ceQuery
+                .Where(c => c.AppointmentId == appointment.Id && c.Email != null)
+                .Select(c => c.Email!));
 
         var accessResult = AppointmentAccessRules.CanRead(
             callerUserId: _currentUser.Id,

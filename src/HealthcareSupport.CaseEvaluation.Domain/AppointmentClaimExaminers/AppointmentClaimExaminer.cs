@@ -16,7 +16,7 @@ public class AppointmentClaimExaminer : FullAuditedAggregateRoot<Guid>, IMultiTe
 {
     public virtual Guid? TenantId { get; set; }
 
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     [CanBeNull]
     public virtual string? Name { get; set; }
@@ -54,10 +54,10 @@ public class AppointmentClaimExaminer : FullAuditedAggregateRoot<Guid>, IMultiTe
     {
     }
 
-    public AppointmentClaimExaminer(Guid id, Guid appointmentInjuryDetailId, bool isActive)
+    public AppointmentClaimExaminer(Guid id, Guid appointmentId, bool isActive)
     {
         Id = id;
-        AppointmentInjuryDetailId = appointmentInjuryDetailId;
+        AppointmentId = appointmentId;
         IsActive = isActive;
     }
 }

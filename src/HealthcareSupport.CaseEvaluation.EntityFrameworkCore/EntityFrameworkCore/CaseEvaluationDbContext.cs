@@ -681,7 +681,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Street).HasColumnName(nameof(AppointmentClaimExaminer.Street)).HasMaxLength(AppointmentClaimExaminerConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(AppointmentClaimExaminer.City)).HasMaxLength(AppointmentClaimExaminerConsts.CityMaxLength);
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentClaimExaminer.Zip)).HasMaxLength(AppointmentClaimExaminerConsts.ZipMaxLength);
-            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
         builder.Entity<AppointmentPrimaryInsurance>(b =>
@@ -691,13 +691,12 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentPrimaryInsurance.TenantId));
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentPrimaryInsurance.Name)).HasMaxLength(AppointmentPrimaryInsuranceConsts.NameMaxLength);
             b.Property(x => x.Suite).HasColumnName(nameof(AppointmentPrimaryInsurance.Suite)).HasMaxLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength);
-            b.Property(x => x.Attention).HasColumnName(nameof(AppointmentPrimaryInsurance.Attention)).HasMaxLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength);
             b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.PhoneNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength);
             b.Property(x => x.FaxNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.FaxNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength);
             b.Property(x => x.Street).HasColumnName(nameof(AppointmentPrimaryInsurance.Street)).HasMaxLength(AppointmentPrimaryInsuranceConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(AppointmentPrimaryInsurance.City)).HasMaxLength(AppointmentPrimaryInsuranceConsts.CityMaxLength);
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
-            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
 

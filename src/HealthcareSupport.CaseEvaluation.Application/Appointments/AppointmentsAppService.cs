@@ -202,25 +202,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var daLinkAppointmentIds = await AsyncExecuter.ToListAsync(
             daLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
 
-        // 5. Claim Examiner by email (case-insensitive). CE has no IdentityUser
-        // join today; per Adrian D-2 the per-appointment AppointmentClaimExaminer
-        // row's Email is the link. Two-hop: AppointmentClaimExaminer.AppointmentInjuryDetailId
-        // -> AppointmentInjuryDetail.AppointmentId.
+        // 5. Claim Examiner by email (case-insensitive). CI1 (2026-06-05): CE is
+        // now a single appointment-level row, so the link is direct -- the CE
+        // row's AppointmentId (no injury hop).
         var ceAppointmentIds = new List<Guid>();
         if (!string.IsNullOrWhiteSpace(userEmail))
         {
             var emailLower = userEmail.Trim().ToLower();
-            var injuryIdsForCe = await AsyncExecuter.ToListAsync(
+            ceAppointmentIds = await AsyncExecuter.ToListAsync(
                 ceQuery
                     .Where(c => c.Email != null && c.Email.ToLower() == emailLower)
-                    .Select(c => c.AppointmentInjuryDetailId));
-            if (injuryIdsForCe.Count > 0)
-            {
-                ceAppointmentIds = await AsyncExecuter.ToListAsync(
-                    injuryQuery
-                        .Where(i => injuryIdsForCe.Contains(i.Id))
-                        .Select(i => i.AppointmentId));
-            }
+                    .Select(c => c.AppointmentId));
         }
 
         // 6. Accessor grants -- already supported by repo when AccessorIdentityUserId

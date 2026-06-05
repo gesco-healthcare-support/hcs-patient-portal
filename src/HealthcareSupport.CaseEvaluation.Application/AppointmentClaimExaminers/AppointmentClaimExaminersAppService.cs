@@ -36,7 +36,7 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     public virtual async Task<PagedResultDto<AppointmentClaimExaminerDto>> GetListAsync(GetAppointmentClaimExaminersInput input)
     {
         var queryable = await _repository.GetQueryableAsync();
-        var query = queryable.WhereIf(input.AppointmentInjuryDetailId.HasValue, x => x.AppointmentInjuryDetailId == input.AppointmentInjuryDetailId!.Value);
+        var query = queryable.WhereIf(input.AppointmentId.HasValue, x => x.AppointmentId == input.AppointmentId!.Value);
         var totalCount = query.Count();
         var sorting = string.IsNullOrWhiteSpace(input.Sorting) ? AppointmentClaimExaminerConsts.GetDefaultSorting(false) : input.Sorting;
         var items = await query.OrderBy(sorting).PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<AppointmentClaimExaminer>();
@@ -75,12 +75,12 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     [Authorize(CaseEvaluationPermissions.AppointmentClaimExaminers.Create)]
     public virtual async Task<AppointmentClaimExaminerDto> CreateAsync(AppointmentClaimExaminerCreateDto input)
     {
-        if (input.AppointmentInjuryDetailId == Guid.Empty)
+        if (input.AppointmentId == Guid.Empty)
         {
-            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentInjuryDetail"]]);
+            throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
         var entity = await _manager.CreateAsync(
-            input.AppointmentInjuryDetailId,
+            input.AppointmentId,
             input.IsActive,
             input.Name,
             input.Suite,
@@ -97,13 +97,13 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     [Authorize(CaseEvaluationPermissions.AppointmentClaimExaminers.Edit)]
     public virtual async Task<AppointmentClaimExaminerDto> UpdateAsync(Guid id, AppointmentClaimExaminerUpdateDto input)
     {
-        if (input.AppointmentInjuryDetailId == Guid.Empty)
+        if (input.AppointmentId == Guid.Empty)
         {
-            throw new UserFriendlyException(L["The {0} field is required.", L["AppointmentInjuryDetail"]]);
+            throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
         }
         var entity = await _manager.UpdateAsync(
             id,
-            input.AppointmentInjuryDetailId,
+            input.AppointmentId,
             input.IsActive,
             input.Name,
             input.Suite,

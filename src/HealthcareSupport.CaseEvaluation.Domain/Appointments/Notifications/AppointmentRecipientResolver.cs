@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
-using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
-using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
-using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -44,9 +41,6 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
     private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
-    private readonly IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
-    private readonly IRepository<AppointmentClaimExaminer, Guid> _claimExaminerRepository;
-    private readonly IRepository<AppointmentPrimaryInsurance, Guid> _primaryInsuranceRepository;
     private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
     private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
@@ -61,9 +55,6 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
         IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
-        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
-        IRepository<AppointmentClaimExaminer, Guid> claimExaminerRepository,
-        IRepository<AppointmentPrimaryInsurance, Guid> primaryInsuranceRepository,
         IRepository<AppointmentEmployerDetail, Guid> employerDetailRepository,
         ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
@@ -77,9 +68,6 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
         _defenseAttorneyRepository = defenseAttorneyRepository;
-        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
-        _claimExaminerRepository = claimExaminerRepository;
-        _primaryInsuranceRepository = primaryInsuranceRepository;
         _employerDetailRepository = employerDetailRepository;
         _settingProvider = settingProvider;
         _currentTenant = currentTenant;
@@ -173,32 +161,11 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             AddIfPresent(daUser?.Email, RecipientRole.DefenseAttorney, $"da/{link.Id}");
         }
 
-        // 5. Claim Examiner + Primary Insurance contact -- via injury details (W2-8).
-        var injuries = await _appointmentInjuryDetailRepository.GetListAsync(appointmentId: appointmentId, maxResultCount: 10);
-        foreach (var injury in injuries)
-        {
-            var examinerQuery = await _claimExaminerRepository.GetQueryableAsync();
-            var examiners = examinerQuery
-                .Where(x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive)
-                .ToList();
-            foreach (var examiner in examiners)
-            {
-                AddIfPresent(examiner.Email, RecipientRole.ClaimExaminer, $"examiner/{examiner.Id}");
-            }
-
-            // PrimaryInsurance has no Email column today (OLD didn't either; carriers
-            // are usually contacted through the claim examiner or the "Attention"
-            // field). Future schema enhancement adds an Email; until then the
-            // InsuranceCarrierContact branch is a no-op for this injury row.
-            var insuranceQuery = await _primaryInsuranceRepository.GetQueryableAsync();
-            var insurances = insuranceQuery
-                .Where(x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive)
-                .ToList();
-            foreach (var _ in insurances)
-            {
-                // No email column. Skip silently. Logged at Debug once per call to avoid noise.
-            }
-        }
+        // 5. Claim Examiner: CI1 (2026-06-05) moved CE to a single
+        //    appointment-level record and OBS-35 converges the CE email onto
+        //    the Appointment.ClaimExaminerEmail column pass in step 7 below, so
+        //    there is no longer a per-injury CE loop here. Primary Insurance
+        //    has no Email column, so it was never an email recipient.
 
         // 6. Employer -- AppointmentEmployerDetail has no Email today; per intent
         //    self-insured employers WOULD receive notifications. Schema enhancement
