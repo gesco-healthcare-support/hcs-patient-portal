@@ -7742,6 +7742,43 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
             },
+            "GetMissingRequiredDocumentsAsyncByAppointmentId": {
+              "uniqueName": "GetMissingRequiredDocumentsAsyncByAppointmentId",
+              "name": "GetMissingRequiredDocumentsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/documents/missing-required",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
             "UploadAsyncByAppointmentIdAndForm": {
               "uniqueName": "UploadAsyncByAppointmentIdAndForm",
               "name": "UploadAsync",
@@ -43344,6 +43381,89 @@
       "genericArguments": null,
       "properties": null
     },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "DocumentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "State",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.RequiredDocumentState",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "RequiredCount",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Missing",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
     "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketGenerationStatus": {
       "baseType": "System.Enum",
       "isEnum": true,
@@ -43511,6 +43631,22 @@
           "isNullable": false
         }
       ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.RequiredDocumentState": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "NotUploaded",
+        "AwaitingReview",
+        "Rejected"
+      ],
+      "enumValues": [
+        0,
+        1,
+        2
+      ],
+      "genericArguments": null,
+      "properties": null
     },
     "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto": {
       "baseType": null,

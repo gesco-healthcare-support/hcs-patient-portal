@@ -7,8 +7,10 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -49,6 +51,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
+    private readonly IPackageDetailRepository _packageDetailRepository;
+    private readonly IRepository<Document, Guid> _masterDocumentRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly IBlobContainer<AppointmentDocumentsContainer> _blobContainer;
     private readonly ICurrentTenant _currentTenant;
@@ -70,6 +74,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         IRepository<AppointmentPacket, Guid> packetRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         IAppointmentDocumentTypeRepository documentTypeRepository,
+        IPackageDetailRepository packageDetailRepository,
+        IRepository<Document, Guid> masterDocumentRepository,
         AppointmentDocumentManager documentManager,
         IBlobContainer<AppointmentDocumentsContainer> blobContainer,
         ICurrentTenant currentTenant,
@@ -84,6 +90,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
         _documentTypeRepository = documentTypeRepository;
+        _packageDetailRepository = packageDetailRepository;
+        _masterDocumentRepository = masterDocumentRepository;
         _documentManager = documentManager;
         _packetRepository = packetRepository;
         _blobContainer = blobContainer;
@@ -174,6 +182,73 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             .OrderBy(t => t.Name)
             .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
         return await AsyncExecuter.ToListAsync(query);
+    }
+
+    /// <summary>
+    /// G-03 (PR3): required documents for this appointment not yet Accepted, each
+    /// with its current state, for the missing-required-documents indicator.
+    /// "Required" = the active package template(s) for the appointment's type
+    /// (union), mirroring PackageDocumentQueueHandler's resolution; a requirement
+    /// is satisfied only when an uploaded document links back by SourceDocumentId
+    /// AND is Accepted. Same gate as the document list (Default + per-appointment
+    /// read-access guard) so any party to the appointment sees what is outstanding.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
+    public virtual async Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        // Required = active Documents linked (active) to the active PackageDetail(s)
+        // for this appointment's type. Unions multiple active packages, matching
+        // PackageDocumentQueueHandler's tolerance.
+        var packageQueryable = await _packageDetailRepository.GetQueryableAsync();
+        var requiredDocumentIds = await AsyncExecuter.ToListAsync(
+            packageQueryable
+                .Where(p => p.IsActive && p.AppointmentTypeId == appointment.AppointmentTypeId)
+                .SelectMany(p => p.DocumentPackages)
+                .Where(dp => dp.IsActive)
+                .Select(dp => dp.DocumentId)
+                .Distinct());
+
+        if (requiredDocumentIds.Count == 0)
+        {
+            return new MissingRequiredDocumentsResultDto();
+        }
+
+        var masterQueryable = await _masterDocumentRepository.GetQueryableAsync();
+        var required = await AsyncExecuter.ToListAsync(
+            masterQueryable
+                .Where(d => requiredDocumentIds.Contains(d.Id) && d.IsActive)
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.Id, d.Name }));
+
+        var documentQueryable = await _documentRepository.GetQueryableAsync();
+        var existing = await AsyncExecuter.ToListAsync(
+            documentQueryable
+                .Where(x => x.AppointmentId == appointmentId)
+                .Select(x => new { x.SourceDocumentId, x.Status }));
+
+        var missing = RequiredDocumentEvaluator.Evaluate(
+            required.Select(r => (r.Id, r.Name)),
+            existing.Select(e => (e.SourceDocumentId, e.Status)));
+
+        return new MissingRequiredDocumentsResultDto
+        {
+            RequiredCount = required.Count,
+            Missing = missing
+                .Select(m => new MissingRequiredDocumentDto
+                {
+                    DocumentId = m.DocumentId,
+                    Name = m.Name,
+                    State = m.State,
+                })
+                .ToList(),
+        };
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]

@@ -12,6 +12,33 @@
   </div>
 
   <div class="card-body">
+    @if (requiredCount > 0) {
+      @if (allRequiredReceived) {
+        <div class="alert alert-success py-2 px-3 mb-3">
+          <i class="fa fa-circle-check me-1"></i>
+          All {{ requiredCount }} required document{{ requiredCount === 1 ? '' : 's' }} received.
+        </div>
+      } @else {
+        <div class="alert alert-warning py-2 px-3 mb-3">
+          <div class="fw-semibold mb-1">
+            <i class="fa fa-triangle-exclamation me-1"></i>
+            {{ missingRequired.length }} of {{ requiredCount }} required document{{
+              requiredCount === 1 ? '' : 's'
+            }}
+            outstanding
+          </div>
+          <ul class="mb-0 ps-3 small">
+            @for (doc of missingRequired; track doc.documentId) {
+              <li>
+                {{ doc.name }}
+                <span class="text-muted">({{ requiredStateLabel(doc.state) }})</span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    }
+
     <div class="upload-form mb-3">
       <div class="flex-grow-1">
         <label class="form-label small text-muted" for="document-name-input">Document Name</label>
@@ -81,8 +108,27 @@
     } @else if (documents.length === 0) {
       <div class="text-muted small">No documents uploaded yet.</div>
     } @else {
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <label class="form-label small text-muted mb-0" for="document-filter-select">
+          Filter by type
+        </label>
+        <select
+          id="document-filter-select"
+          class="form-select form-select-sm w-auto"
+          [(ngModel)]="selectedFilterTypeId"
+          [name]="'document-filter-select'"
+        >
+          <option [value]="ALL_FILTER">All types</option>
+          @for (opt of filterTypeOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+          @if (hasUncategorized) {
+            <option [value]="OTHER_FILTER">Other / Uncategorized</option>
+          }
+        </select>
+      </div>
       <div class="border rounded">
-        @for (doc of documents; track doc.id) {
+        @for (doc of filteredDocuments; track doc.id) {
           <div class="doc-row">
             <i class="fa fa-file fa-lg text-primary"></i>
             <div class="flex-grow-1">
@@ -149,6 +195,9 @@
               <i class="fa fa-trash"></i>
             </button>
           </div>
+        }
+        @if (filteredDocuments.length === 0) {
+          <div class="text-muted small p-2">No documents match this filter.</div>
         }
       </div>
     }

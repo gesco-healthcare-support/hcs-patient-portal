@@ -14,7 +14,12 @@ import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { PermissionService, RestService } from '@abp/ng.core';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
-import { AppointmentDocumentDto } from '../proxy/appointment-documents/models';
+import {
+  AppointmentDocumentDto,
+  MissingRequiredDocumentDto,
+  MissingRequiredDocumentsResultDto,
+} from '../proxy/appointment-documents/models';
+import { RequiredDocumentState } from '../proxy/appointment-documents/required-document-state.enum';
 import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
@@ -116,6 +121,16 @@ export class AppointmentDocumentsComponent implements OnChanges {
   otherDocumentTypeName = '';
   readonly OTHER_TYPE_VALUE = '__other__';
 
+  // PR3 type filter (client-side over the loaded list). '' = all types;
+  // OTHER_FILTER = the "Other / Uncategorized" bucket (free-text-labelled and
+  // untyped documents, i.e. those with no admin category id).
+  readonly ALL_FILTER = '';
+  readonly OTHER_FILTER = '__other_uncat__';
+  selectedFilterTypeId: string = this.ALL_FILTER;
+
+  // PR3 missing-required indicator. Null until loaded / on error (then hidden).
+  requiredStatus: MissingRequiredDocumentsResultDto | null = null;
+
   rejectingDoc: AppointmentDocumentDto | null = null;
   rejectionReason = '';
   isSubmittingReject = false;
@@ -125,6 +140,64 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   get canApprove(): boolean {
     return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Approve');
+  }
+
+  // Distinct admin categories present in the loaded documents (only those whose
+  // label resolves), for the filter dropdown.
+  get filterTypeOptions(): { id: string; label: string }[] {
+    const byId = new Map<string, string>();
+    for (const doc of this.documents) {
+      const id = doc.appointmentDocumentTypeId;
+      if (!id || byId.has(id)) {
+        continue;
+      }
+      const label = this.documentTypes.find((t) => t.id === id)?.displayName;
+      if (label) {
+        byId.set(id, label);
+      }
+    }
+    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+  }
+
+  // True when any loaded document has no admin category (free-text "Other" or untyped).
+  get hasUncategorized(): boolean {
+    return this.documents.some((doc) => !doc.appointmentDocumentTypeId);
+  }
+
+  get filteredDocuments(): AppointmentDocumentDto[] {
+    if (this.selectedFilterTypeId === this.ALL_FILTER) {
+      return this.documents;
+    }
+    if (this.selectedFilterTypeId === this.OTHER_FILTER) {
+      return this.documents.filter((doc) => !doc.appointmentDocumentTypeId);
+    }
+    return this.documents.filter(
+      (doc) => doc.appointmentDocumentTypeId === this.selectedFilterTypeId,
+    );
+  }
+
+  get requiredCount(): number {
+    return this.requiredStatus?.requiredCount ?? 0;
+  }
+
+  get missingRequired(): MissingRequiredDocumentDto[] {
+    return this.requiredStatus?.missing ?? [];
+  }
+
+  // True only when the appointment type has required documents and all are Accepted.
+  get allRequiredReceived(): boolean {
+    return this.requiredCount > 0 && this.missingRequired.length === 0;
+  }
+
+  requiredStateLabel(state: RequiredDocumentState | undefined): string {
+    switch (state) {
+      case RequiredDocumentState.AwaitingReview:
+        return 'Awaiting review';
+      case RequiredDocumentState.Rejected:
+        return 'Rejected';
+      default:
+        return 'Not uploaded';
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -173,6 +246,25 @@ export class AppointmentDocumentsComponent implements OnChanges {
       },
       error: () => {
         this.isLoading = false;
+      },
+    });
+    this.loadMissingRequired();
+  }
+
+  // Outstanding required documents for the indicator. Reloaded with the list so
+  // it reflects each approve / reject / upload / delete. Proxy types the return
+  // correctly here (unlike document-type-options), so the generated method is used.
+  loadMissingRequired(): void {
+    if (!this.appointmentId) {
+      return;
+    }
+    this.service.getMissingRequiredDocuments(this.appointmentId).subscribe({
+      next: (result) => {
+        this.requiredStatus = result;
+      },
+      error: () => {
+        // Non-fatal: hide the indicator rather than block the panel.
+        this.requiredStatus = null;
       },
     });
   }
