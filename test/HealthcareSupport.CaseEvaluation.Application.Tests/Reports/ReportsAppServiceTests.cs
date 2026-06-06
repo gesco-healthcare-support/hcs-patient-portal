@@ -1,5 +1,7 @@
+using System.Text;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
+using QuestPDF.Infrastructure;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Modularity;
@@ -20,6 +22,13 @@ public abstract class ReportsAppServiceTests<TStartupModule> : CaseEvaluationApp
 {
     private readonly IReportsAppService _reportsAppService;
     private readonly ICurrentTenant _currentTenant;
+
+    static ReportsAppServiceTests()
+    {
+        // The integration harness boots the Domain module (which sets this), but
+        // set it defensively so the PDF export never throws on a missing license.
+        QuestPDF.Settings.License = LicenseType.Community;
+    }
 
     protected ReportsAppServiceTests()
     {
@@ -79,6 +88,37 @@ public abstract class ReportsAppServiceTests<TStartupModule> : CaseEvaluationApp
         {
             await Should.ThrowAsync<UserFriendlyException>(
                 async () => await _reportsAppService.GetListAsync(new GetAppointmentReportInput()));
+        }
+    }
+
+    [Fact]
+    public async Task GetReportPdfAsync_returns_a_pdf_for_the_filtered_set()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _reportsAppService.GetReportPdfAsync(new GetAppointmentReportInput
+            {
+                AppointmentStatus = AppointmentStatusType.Approved,
+            });
+
+            result.ContentType.ShouldBe("application/pdf");
+            result.FileName.ShouldEndWith(".pdf");
+
+            using var buffer = new MemoryStream();
+            await result.Content.CopyToAsync(buffer);
+            var bytes = buffer.ToArray();
+            bytes.Length.ShouldBeGreaterThan(0);
+            Encoding.ASCII.GetString(bytes, 0, 5).ShouldBe("%PDF-");
+        }
+    }
+
+    [Fact]
+    public async Task GetReportPdfAsync_throws_when_no_filter_supplied()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await Should.ThrowAsync<UserFriendlyException>(
+                async () => await _reportsAppService.GetReportPdfAsync(new GetAppointmentReportInput()));
         }
     }
 }
