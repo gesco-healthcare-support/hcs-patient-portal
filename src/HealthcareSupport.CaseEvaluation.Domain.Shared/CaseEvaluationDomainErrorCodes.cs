@@ -780,4 +780,45 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentPanelNumberNotAllowedForType =
         "CaseEvaluation:Appointment.PanelNumberNotAllowedForType";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when
+    /// another (non-deleted) Location already carries the same Name (case-insensitive; the
+    /// update path excludes the row being edited). Location is host-scoped (not IMultiTenant),
+    /// so the uniqueness check is global. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 would read as a permission
+    /// failure). Carries <c>WithData("name", name)</c>. Localization key
+    /// <c>Location:DuplicateName</c>.
+    /// </summary>
+    public const string LocationDuplicateName =
+        "CaseEvaluation:Location.DuplicateName";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when the
+    /// supplied ParkingFee is negative. Defense-in-depth behind the DTO <c>[Range]</c> + the
+    /// Angular <c>Validators.min(0)</c> mirror. Mapped to HTTP 400. Localization key
+    /// <c>Location:ParkingFeeNegative</c>.
+    /// </summary>
+    public const string LocationParkingFeeNegative =
+        "CaseEvaluation:Location.ParkingFeeNegative";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when a
+    /// non-blank ZipCode does not match US 5-digit or ZIP+4 format. Defense-in-depth behind the
+    /// DTO <c>[RegularExpression]</c> + the Angular <c>Validators.pattern</c> mirror. Mapped to
+    /// HTTP 400. Localization key <c>Location:ZipCodeInvalid</c>.
+    /// </summary>
+    public const string LocationZipCodeInvalid =
+        "CaseEvaluation:Location.ZipCodeInvalid";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.EnsureCanDeleteAsync</c> (invoked from
+    /// every <c>LocationsAppService</c> delete path) when the Location is still referenced by an
+    /// Appointment or DoctorAvailability slot. The reference count disables the IMultiTenant
+    /// filter so a cross-tenant reference still blocks deletion of the host-scoped Location.
+    /// Carries <c>WithData("entity", ...)</c> + <c>WithData("count", ...)</c> for a friendly
+    /// message. Mapped to HTTP 400. Localization key <c>Location:InUse</c>.
+    /// </summary>
+    public const string LocationInUse =
+        "CaseEvaluation:Location.InUse";
 }

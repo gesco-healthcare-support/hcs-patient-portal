@@ -46,8 +46,11 @@ export abstract class AbstractLocationDetailViewService {
       name: [name ?? null, [Validators.required, Validators.maxLength(50)]],
       address: [address ?? null, [Validators.maxLength(100)]],
       city: [city ?? null, [Validators.maxLength(50)]],
-      zipCode: [zipCode ?? null, [Validators.maxLength(15)]],
-      parkingFee: [parkingFee ?? null, [Validators.required]],
+      zipCode: [
+        zipCode ?? null,
+        [Validators.maxLength(15), Validators.pattern(/^(\d{5}(-\d{4})?)?$/)],
+      ],
+      parkingFee: [parkingFee ?? null, [Validators.required, Validators.min(0)]],
       isActive: [isActive ?? true, []],
       stateId: [stateId ?? null, []],
       appointmentTypeId: [appointmentTypeId ?? null, []],
