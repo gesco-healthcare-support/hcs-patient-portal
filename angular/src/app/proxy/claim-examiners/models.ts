@@ -2,12 +2,10 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 import type { StateDto } from '../states/models';
 import type { IdentityUserDto } from '../volo/abp/identity/models';
 
-export interface ApplicantAttorneyCreateDto {
+export interface ClaimExaminerCreateDto {
   firstName?: string | null;
   lastName?: string | null;
-  firmName?: string | null;
-  firmAddress?: string | null;
-  webAddress?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
   street?: string | null;
@@ -17,28 +15,10 @@ export interface ApplicantAttorneyCreateDto {
   identityUserId?: string | null;
 }
 
-export interface ApplicantAttorneyDto extends FullAuditedEntityDto<string> {
+export interface ClaimExaminerDto extends FullAuditedEntityDto<string> {
   firstName?: string | null;
   lastName?: string | null;
-  firmName?: string | null;
-  firmAddress?: string | null;
-  webAddress?: string | null;
-  phoneNumber?: string | null;
-  faxNumber?: string | null;
-  street?: string | null;
-  city?: string | null;
-  zipCode?: string | null;
-  stateId?: string | null;
-  identityUserId?: string;
-  concurrencyStamp?: string;
-}
-
-export interface ApplicantAttorneyUpdateDto {
-  firstName?: string | null;
-  lastName?: string | null;
-  firmName?: string | null;
-  firmAddress?: string | null;
-  webAddress?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
   street?: string | null;
@@ -49,15 +29,29 @@ export interface ApplicantAttorneyUpdateDto {
   concurrencyStamp?: string;
 }
 
-export interface ApplicantAttorneyWithNavigationPropertiesDto {
-  applicantAttorney?: ApplicantAttorneyDto;
+export interface ClaimExaminerUpdateDto {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  faxNumber?: string | null;
+  street?: string | null;
+  city?: string | null;
+  zipCode?: string | null;
+  stateId?: string | null;
+  identityUserId?: string | null;
+  concurrencyStamp?: string;
+}
+
+export interface ClaimExaminerWithNavigationPropertiesDto {
+  claimExaminer?: ClaimExaminerDto;
   state?: StateDto | null;
   identityUser?: IdentityUserDto | null;
 }
 
-export interface GetApplicantAttorneysInput extends PagedAndSortedResultRequestDto {
+export interface GetClaimExaminersInput extends PagedAndSortedResultRequestDto {
   filterText?: string | null;
-  firmName?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   city?: string | null;
   stateId?: string | null;
