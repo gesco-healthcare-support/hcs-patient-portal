@@ -25,7 +25,10 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 public class LocationManager : DomainService
 {
     // US ZIP: 5 digits, optionally + 4 (ZIP+4). Blank is allowed (optional field).
-    private static readonly Regex ZipCodeFormat = new(@"^\d{5}(-\d{4})?$", RegexOptions.Compiled);
+    // A match timeout is supplied as defense-in-depth (ReDoS hardening) even though
+    // this anchored pattern has no catastrophic-backtracking risk.
+    private static readonly Regex ZipCodeFormat =
+        new(@"^\d{5}(-\d{4})?$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     protected ILocationRepository _locationRepository;
     protected IRepository<Appointment, Guid> _appointmentRepository;

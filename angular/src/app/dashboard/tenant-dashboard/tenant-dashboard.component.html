@@ -49,7 +49,9 @@
           <div
             class="card h-100 dashboard-card text-decoration-none"
             role="button"
+            tabindex="0"
             (click)="openChangeRequests()"
+            (keyup.enter)="openChangeRequests()"
           >
             <div class="card-body">
               <div class="text-muted small">Pending Change Requests</div>
