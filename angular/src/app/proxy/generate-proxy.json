@@ -21741,6 +21741,174 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController": {
+          "controllerName": "Report",
+          "controllerGroupName": "Report",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.Reports.IReportsAppService",
+              "name": "IReportsAppService",
+              "methods": [
+                {
+                  "name": "GetListAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetListAsyncByInput": {
+              "uniqueName": "GetListAsyncByInput",
+              "name": "GetListAsync",
+              "httpMethod": "GET",
+              "url": "api/app/reports",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "FilterText",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "LocationId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentStatus",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+                  "typeSimple": "enum?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMin",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMax",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Reports.IReportsAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.States.StateController": {
           "controllerName": "State",
           "controllerGroupName": "State",
@@ -54920,6 +55088,245 @@
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentTypeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LocationName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDate",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "DateOfBirth",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "PhoneNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "SocialSecurityNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput": {
+      "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "FilterText",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LocationId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDateMin",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDateMax",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
