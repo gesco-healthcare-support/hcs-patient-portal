@@ -261,6 +261,14 @@ internal static class EmailSubjects
     public const string AppointmentRescheduleRequestRejected =
         "Appointment Portal - ##EmailSubjectIdentity## - Your reschedule request has been rejected";
 
+    /// <summary>Group K (G-02-03): admin-initiated reschedule one-shot (OLD AppointmentRescheduleRequestByAdmin).</summary>
+    public const string AppointmentRescheduleRequestByAdmin =
+        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment has been rescheduled by our team";
+
+    /// <summary>Group K (G-02-03): intake-form-changed notification (OLD AppointmentChangeLogs).</summary>
+    public const string AppointmentChangeLogs =
+        "Appointment Portal - ##EmailSubjectIdentity## - Intake details updated";
+
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:658.</summary>
     public const string ClinicalStaffCancellation =
         "Appointment Portal - ##EmailSubjectIdentity## - Appointment request has been cancelled";
@@ -337,6 +345,8 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.AppointmentRescheduleRequest] = AppointmentRescheduleRequest,
             [NotificationTemplateConsts.Codes.AppointmentRescheduleRequestApproved] = AppointmentRescheduleRequestApproved,
             [NotificationTemplateConsts.Codes.AppointmentRescheduleRequestRejected] = AppointmentRescheduleRequestRejected,
+            [NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin] = AppointmentRescheduleRequestByAdmin,
+            [NotificationTemplateConsts.Codes.AppointmentChangeLogs] = AppointmentChangeLogs,
             [NotificationTemplateConsts.Codes.ClinicalStaffCancellation] = ClinicalStaffCancellation,
 
             // 2026-05-15 -- admin-issued invitation.

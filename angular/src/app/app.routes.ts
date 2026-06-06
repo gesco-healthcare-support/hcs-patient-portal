@@ -141,6 +141,15 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
   },
   {
+    path: 'appointment-change-logs',
+    loadComponent: () =>
+      import('./appointment-change-logs/appointment-change-log-list.component').then(
+        (c) => c.AppointmentChangeLogListComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
+  },
+  {
     path: 'doctor-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(
