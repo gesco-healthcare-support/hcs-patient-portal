@@ -106,6 +106,13 @@ public static class CaseEvaluationSettings
         public const string Sec31_5ElapsedDayAnchors = Notifications + ".Reminders.Sec31_5ElapsedDayAnchors";
         public const string Sec34eElapsedDayAnchors = Notifications + ".Reminders.Sec34eElapsedDayAnchors";
         public const string AppointmentDayTMinusAnchors = Notifications + ".Reminders.AppointmentDayTMinusAnchors";
+
+        // Group L (2026-06-05) -- T-minus day anchors for the two document
+        // reminder jobs that previously hardcoded their windows. Defaults match
+        // the prior hardcoded values, so the cadence does not change until an
+        // admin edits them.
+        public const string DueDateApproachingAnchors = Notifications + ".Reminders.DueDateApproachingAnchors";
+        public const string DueDateDocumentIncompleteAnchors = Notifications + ".Reminders.DueDateDocumentIncompleteAnchors";
         public const string Sec31_5Cron = Notifications + ".Reminders.Sec31_5Cron";
         public const string Sec34eCron = Notifications + ".Reminders.Sec34eCron";
         public const string AppointmentDayCron = Notifications + ".Reminders.AppointmentDayCron";
