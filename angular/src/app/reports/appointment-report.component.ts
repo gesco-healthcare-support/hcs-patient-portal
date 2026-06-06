@@ -8,7 +8,9 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { EnvironmentService, LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import {
   AppointmentReportRowDto,
   GetAppointmentReportInput,
@@ -43,6 +45,8 @@ export class AppointmentReportComponent implements OnInit {
   private readonly locationService = inject(LocationService);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly http = inject(HttpClient);
+  private readonly environmentService = inject(EnvironmentService);
 
   readonly statusOptions = appointmentStatusTypeOptions;
   typeOptions: { id: string; name: string }[] = [];
@@ -110,6 +114,74 @@ export class AppointmentReportComponent implements OnInit {
     this.totalCount = 0;
     this.hasSearched = false;
     this.pageIndex = 0;
+  }
+
+  exportPdf(): void {
+    this.validationError = '';
+
+    if (!this.hasAnyFilter()) {
+      this.validationError = 'Enter at least one search value.';
+      return;
+    }
+    if (!this.isDateRangeValid()) {
+      this.validationError = 'Enter both From and To dates, with From on or before To.';
+      return;
+    }
+
+    void this.downloadPdf();
+  }
+
+  // Authenticated blob download: HttpClient (with ABP's auth interceptor) +
+  // a synthetic anchor click. NEVER window.open -- a new tab carries no Bearer
+  // token and the export 401s. (See angular/src/app/CLAUDE.md.)
+  private async downloadPdf(): Promise<void> {
+    const base = this.environmentService.getApiUrl('Default') ?? '';
+    const raw = this.filterForm.getRawValue();
+
+    let params = new HttpParams();
+    if (raw.filterText) params = params.set('filterText', raw.filterText);
+    if (raw.appointmentTypeId) params = params.set('appointmentTypeId', raw.appointmentTypeId);
+    if (raw.locationId) params = params.set('locationId', raw.locationId);
+    if (raw.appointmentStatus) params = params.set('appointmentStatus', raw.appointmentStatus);
+    if (raw.appointmentDateMin) params = params.set('appointmentDateMin', raw.appointmentDateMin);
+    if (raw.appointmentDateMax) params = params.set('appointmentDateMax', raw.appointmentDateMax);
+
+    try {
+      const response = await firstValueFrom(
+        this.http.get(`${base}/api/app/reports/export-pdf`, {
+          params,
+          observe: 'response',
+          responseType: 'blob',
+        }),
+      );
+
+      const blob = response.body;
+      if (!blob) {
+        this.validationError = 'Empty export response from the server.';
+        this.cdr.markForCheck();
+        return;
+      }
+
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disposition);
+      const fileName = match ? decodeURIComponent(match[1]) : 'appointment-request-report.pdf';
+
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      }
+    } catch {
+      this.validationError = 'Export failed. Please try again.';
+      this.cdr.markForCheck();
+    }
   }
 
   load(): void {
