@@ -113,9 +113,10 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
 
         // G-08-01 (2026-06-06): read-only Appointment Request Report. No
-        // Create/Edit/Delete -- reports are read-only. The Export child (PDF)
-        // is registered with G-08-03.
-        myGroup.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
+        // Create/Edit/Delete -- reports are read-only. G-08-03 (2026-06-06) adds
+        // the Export child gating the PDF export of the filtered set.
+        var reportsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
+        reportsPermission.AddChild(CaseEvaluationPermissions.Reports.Export, L("Permission:Reports.Export"));
 
         // W2-5: per-AppointmentType field-config admin. Default lets the booker
         // form read the apply-on-change config; Create/Edit/Delete gate admin

@@ -236,13 +236,14 @@ public static class CaseEvaluationPermissions
     /// G-08-01 (2026-06-06) -- the Appointment Request Report: a cross-appointment,
     /// PHI-masked operational worklist for internal staff (Clinic Staff, Staff
     /// Supervisor, IT Admin). External roles never receive it. <c>Default</c> gates
-    /// the read-only grid; the <c>Export</c> child (G-08-03 PDF) is added in a
-    /// follow-up slice. Full SSN is never emitted here -- only the masked last-4;
-    /// a full reveal still routes through <see cref="Patients.RevealSsn"/>.
+    /// the read-only grid; <c>Export</c> (G-08-03, 2026-06-06) gates the PDF export
+    /// of the same filtered set. Full SSN is never emitted here -- only the masked
+    /// last-4; a full reveal still routes through <see cref="Patients.RevealSsn"/>.
     /// </summary>
     public static class Reports
     {
         public const string Default = GroupName + ".Reports";
+        public const string Export = Default + ".Export";
     }
 
     /// <summary>
