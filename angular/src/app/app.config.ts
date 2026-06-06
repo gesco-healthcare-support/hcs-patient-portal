@@ -54,6 +54,7 @@ import { PATIENTS_PATIENT_ROUTE_PROVIDER } from './patients/patient/providers/pa
 import { APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER } from './appointments/appointment/providers/appointment-route.provider';
 import { APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER } from './applicant-attorneys/applicant-attorney/providers/applicant-attorney-route.provider';
 import { DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER } from './defense-attorneys/defense-attorney/providers/defense-attorney-route.provider';
+import { CLAIM_EXAMINERS_CLAIM_EXAMINER_ROUTE_PROVIDER } from './claim-examiners/claim-examiner/providers/claim-examiner-route.provider';
 import { AddressValidationProvider } from './shared/address/address-validation.provider';
 import { MockAddressProvider } from './shared/address/mock-address.provider';
 import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
@@ -181,5 +182,6 @@ export const appConfig: ApplicationConfig = {
     APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER,
     APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER,
     DEFENSE_ATTORNEYS_DEFENSE_ATTORNEY_ROUTE_PROVIDER,
+    CLAIM_EXAMINERS_CLAIM_EXAMINER_ROUTE_PROVIDER,
   ],
 };
