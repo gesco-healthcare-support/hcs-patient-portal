@@ -994,6 +994,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
     public virtual async Task<AppointmentDto> UpdateAsync(Guid id, AppointmentUpdateDto input)
     {
         if (input.PatientId == Guid.Empty)
