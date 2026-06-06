@@ -619,6 +619,7 @@
     "Menu:UserManagement": "User Management",
     "Menu:InviteExternalUser": "Invite External User",
     "Menu:InternalUsers": "Internal Users",
+    "Menu:AppointmentChangeLogs": "Appointment Change Logs",
     "InternalUser:InvalidRole": "Role '{AttemptedRole}' is not allowed for internal-user creation. Allowed roles: {AllowedRoles}.",
     "InternalUser:RoleMissing": "Role '{RoleName}' does not exist in this tenant. Run the data seed.",
     "InternalUser:DuplicateEmail": "An account with this email already exists.",
