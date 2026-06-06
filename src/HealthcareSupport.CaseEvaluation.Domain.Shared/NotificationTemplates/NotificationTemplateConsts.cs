@@ -188,6 +188,15 @@ public static class NotificationTemplateConsts
         public const string InternalUserCreated = "InternalUserCreated";
 
         /// <summary>
+        /// Group L (2026-06-06) -- dedicated Joint Declaration Form upload
+        /// reminder. G-05-02 Option B: the JDF row rides the shared
+        /// package-document reminder cadence but renders a distinct,
+        /// recognizable JDF email instead of the generic
+        /// <see cref="UploadPendingDocuments"/> body.
+        /// </summary>
+        public const string JointDeclarationUploadReminder = "JointDeclarationUploadReminder";
+
+        /// <summary>
         /// All 59 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
@@ -232,6 +241,9 @@ public static class NotificationTemplateConsts
 
             // 2026-05-15 -- IT Admin internal-user welcome email.
             InternalUserCreated,
+
+            // Group L (2026-06-06) -- dedicated JDF upload reminder (G-05-02 Option B).
+            JointDeclarationUploadReminder,
         };
     }
 }
