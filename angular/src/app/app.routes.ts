@@ -150,6 +150,13 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
   },
   {
+    path: 'reports',
+    loadComponent: () =>
+      import('./reports/appointment-report.component').then((c) => c.AppointmentReportComponent),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.Reports' },
+  },
+  {
     path: 'doctor-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(
