@@ -195,6 +195,15 @@ internal static class EmailSubjects
     public const string AppointmentDocumentIncomplete =
         "Appointment Document Incomplete";
 
+    /// <summary>
+    /// Group L (2026-06-06) -- distinct JDF reminder subject (G-05-02
+    /// Option B). OLD reused "Please Upload Pending Documents" for the JDF
+    /// reminder (SchedulerDomain.cs:229); NEW makes it recognizable as the
+    /// gating AME document.
+    /// </summary>
+    public const string JointDeclarationUploadReminder =
+        "Please Upload Your Joint Declaration Form";
+
     // ----------------------------------------------------------------------
     // Phase 4 (Category 4, 2026-05-10): per-recipient packet email subject.
     // OLD wording verified at AppointmentDocumentDomain.cs:513 / :670 / :806:
@@ -330,6 +339,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.UploadPendingDocuments] = UploadPendingDocuments,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
             [NotificationTemplateConsts.Codes.AppointmentDocumentIncomplete] = AppointmentDocumentIncomplete,
+            [NotificationTemplateConsts.Codes.JointDeclarationUploadReminder] = JointDeclarationUploadReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.
             [NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment] = AppointmentDocumentAddWithAttachment,

@@ -5,12 +5,14 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
@@ -36,8 +38,6 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
     public const string RecurringJobId = "appt-duedate-document-incomplete";
     public const string CronExpression = "45 8 * * *";
 
-    private const int ReminderDaysBeforeDueDate = 7;
-
     private static readonly AppointmentStatusType[] EligibleStatuses =
     {
         AppointmentStatusType.Pending,
@@ -50,6 +50,7 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILocalEventBus _localEventBus;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<DueDateDocumentIncompleteJob> _logger;
 
     public DueDateDocumentIncompleteJob(
@@ -58,6 +59,7 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
         IDataFilter dataFilter,
         ICurrentTenant currentTenant,
         ILocalEventBus localEventBus,
+        ISettingProvider settingProvider,
         ILogger<DueDateDocumentIncompleteJob> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -65,6 +67,7 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
         _dataFilter = dataFilter;
         _currentTenant = currentTenant;
         _localEventBus = localEventBus;
+        _settingProvider = settingProvider;
         _logger = logger;
     }
 
@@ -91,13 +94,22 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime todayDate, DateTime nowUtc)
     {
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        {
+            return;
+        }
+
+        var cadence = new ReminderCadence(
+            await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.RemindersPolicy.DueDateDocumentIncompleteAnchors));
+
         var apptQueryable = await _appointmentRepository.GetQueryableAsync();
-        var targetDate = todayDate.AddDays(ReminderDaysBeforeDueDate);
         var candidates = apptQueryable
             .Where(a => a.DueDate.HasValue && EligibleStatuses.Contains(a.AppointmentStatus))
             .Select(a => new { a.Id, a.DueDate })
             .ToList()
-            .Where(a => a.DueDate!.Value.Date == targetDate)
+            .Select(a => new { a.Id, DaysUntil = (int)(a.DueDate!.Value.Date - todayDate).TotalDays })
+            .Where(a => cadence.ShouldFire(a.DaysUntil))
             .ToList();
 
         if (candidates.Count == 0)
@@ -127,7 +139,7 @@ public class DueDateDocumentIncompleteJob : ITransientDependency
             {
                 AppointmentId = candidate.Id,
                 TenantId = tenantId,
-                DaysUntilDue = ReminderDaysBeforeDueDate,
+                DaysUntilDue = candidate.DaysUntil,
                 PendingDocList = docList,
                 OccurredAt = nowUtc,
             });

@@ -135,8 +135,17 @@ public class PackageDocumentReminderEmailHandler :
                 ["ClinicName"] = _currentTenant.Name ?? string.Empty,
             };
 
+            // Group L (2026-06-06), G-05-02 Option B: JDF rows share the
+            // package-document reminder cadence but render a distinct,
+            // recognizable JDF template instead of the generic
+            // UploadPendingDocuments body. No second cron, no row-selection
+            // change -- so no duplicate-send risk.
+            var templateCode = eventData.IsJointDeclaration
+                ? NotificationTemplateConsts.Codes.JointDeclarationUploadReminder
+                : NotificationTemplateConsts.Codes.UploadPendingDocuments;
+
             await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.UploadPendingDocuments,
+                templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,
                 contextTag: $"PackageDocumentReminder/{(eventData.IsJointDeclaration ? "JDF" : "Package")}/{eventData.AppointmentDocumentId}");

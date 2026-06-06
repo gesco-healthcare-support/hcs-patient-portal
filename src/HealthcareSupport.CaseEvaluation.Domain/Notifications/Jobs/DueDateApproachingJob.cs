@@ -4,12 +4,14 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
@@ -34,8 +36,6 @@ public class DueDateApproachingJob : ITransientDependency
     public const string RecurringJobId = "appt-duedate-approaching";
     public const string CronExpression = "15 8 * * *";
 
-    private static readonly int[] ReminderDaysBeforeDueDate = { 14, 7, 3 };
-
     // Exclude terminal / dead-end statuses so a cancelled or completed
     // appointment that happens to land in a 14/7/3-day window doesn't
     // fire spurious reminders. Status guard mirrors OLD's "active
@@ -51,6 +51,7 @@ public class DueDateApproachingJob : ITransientDependency
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILocalEventBus _localEventBus;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<DueDateApproachingJob> _logger;
 
     public DueDateApproachingJob(
@@ -58,12 +59,14 @@ public class DueDateApproachingJob : ITransientDependency
         IDataFilter dataFilter,
         ICurrentTenant currentTenant,
         ILocalEventBus localEventBus,
+        ISettingProvider settingProvider,
         ILogger<DueDateApproachingJob> logger)
     {
         _appointmentRepository = appointmentRepository;
         _dataFilter = dataFilter;
         _currentTenant = currentTenant;
         _localEventBus = localEventBus;
+        _settingProvider = settingProvider;
         _logger = logger;
     }
 
@@ -90,6 +93,15 @@ public class DueDateApproachingJob : ITransientDependency
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime todayDate, DateTime nowUtc)
     {
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        {
+            return;
+        }
+
+        var cadence = new ReminderCadence(
+            await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.RemindersPolicy.DueDateApproachingAnchors));
+
         var queryable = await _appointmentRepository.GetQueryableAsync();
         var candidates = queryable
             .Where(a => a.DueDate.HasValue && EligibleStatuses.Contains(a.AppointmentStatus))
@@ -101,7 +113,7 @@ public class DueDateApproachingJob : ITransientDependency
         {
             var dueDate = candidate.DueDate!.Value.Date;
             var daysUntil = (int)(dueDate - todayDate).TotalDays;
-            if (!ReminderDaysBeforeDueDate.Contains(daysUntil))
+            if (!cadence.ShouldFire(daysUntil))
             {
                 continue;
             }

@@ -88,6 +88,14 @@ public class PackageDocumentReminderJob : ITransientDependency
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime nowUtc)
     {
+        // Group L (2026-06-05): honor the master reminders gate. This job keeps
+        // its at-or-past cutoff model (not the exact-day anchor model the other
+        // reminder jobs use), so only the on/off gate is added here.
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        {
+            return;
+        }
+
         var cutoffDays = await _settingProvider.GetAsync<int>(
             CaseEvaluationSettings.DocumentsPolicy.PackageDocumentReminderDays);
         if (cutoffDays <= 0)
