@@ -12,6 +12,7 @@ import { DOCTOR_ROUTES } from './doctors/doctor/doctor-routes';
 import { DOCTOR_AVAILABILITY_ROUTES } from './doctor-availabilities/doctor-availability/doctor-availability-routes';
 import { PATIENT_ROUTES } from './patients/patient/patient-routes';
 import { APPOINTMENT_ROUTES } from './appointments/appointment/appointment-routes';
+import { CHANGE_REQUEST_ROUTES } from './appointments/change-requests/change-request-routes';
 import { AppointmentAddComponent } from './appointments/appointment-add.component';
 import { APPLICANT_ATTORNEY_ROUTES } from './applicant-attorneys/applicant-attorney/applicant-attorney-routes';
 import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/defense-attorney-routes';
@@ -92,6 +93,7 @@ export const APP_ROUTES: Routes = [
   { path: 'appointment-management/appointment-statuses', children: APPOINTMENT_STATUS_ROUTES },
   { path: 'appointment-management/appointment-languages', children: APPOINTMENT_LANGUAGE_ROUTES },
   { path: 'appointments', children: APPOINTMENT_ROUTES },
+  { path: 'appointments/change-requests', children: CHANGE_REQUEST_ROUTES },
   { path: 'doctor-management/locations', children: LOCATION_ROUTES },
   { path: 'doctor-management/wcab-offices', children: WCAB_OFFICE_ROUTES },
   { path: 'doctor-management/doctors', children: DOCTOR_ROUTES },

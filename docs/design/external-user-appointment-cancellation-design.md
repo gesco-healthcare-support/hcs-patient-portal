@@ -1,6 +1,6 @@
 ---
 feature: external-user-appointment-cancellation
-status: draft
+status: superseded
 audited: 2026-05-04
 old-source:
   - patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/add/appointment-change-request-add.component.html
@@ -17,6 +17,13 @@ strict-parity: true
 ---
 
 # external-user-appointment-cancellation -- design
+
+> **SUPERSEDED by AP1 (2026-06-06).** Implemented in
+> `angular/src/app/appointments/appointment/components/cancellation-request-modal.component.*`,
+> launched from BOTH the appointments-list row dropdown (internal staff, auto-approve NoBill)
+> and the read-only Review page (external bookers, submit to Pending). The modal uses the ABP
+> `<abp-modal>` + `[(visible)]` pattern (the in-use stack), not a generic/MatDialog host. See
+> `docs/plans/2026-06-06-appointment-change-request-ui.md`.
 
 A modal launched from the appointment view page (or list row context
 menu) that lets an authorized user submit a cancellation request on an

@@ -7,10 +7,12 @@ import {
   ConfigStateService,
   ListResultDto,
   LocalizationPipe,
+  LocalizationService,
   PagedResultDto,
   PermissionDirective,
   RestService,
 } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 import type {
   AppointmentDto,
   AppointmentUpdateDto,
@@ -27,6 +29,10 @@ import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
+import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
+import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
+import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
@@ -121,6 +127,8 @@ type ApplicantAttorneyLookupResult = {
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
+    RescheduleRequestModalComponent,
+    CancellationRequestModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     SsnInputComponent,
@@ -134,11 +142,17 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
+  private readonly toaster = inject(ToasterService);
+  private readonly localization = inject(LocalizationService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
+  // AP1 (decision 4): external-initiated change-request entry on the read-only
+  // Review page (Approved appointments only).
+  rescheduleRequestVisible = false;
+  cancelRequestVisible = false;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -617,6 +631,52 @@ export class AppointmentViewComponent implements OnInit {
         this.appointment = data;
       },
     });
+  }
+
+  /**
+   * AP1 (decision 4): external bookers (Patient / AA / DA / CE) may request a
+   * reschedule or cancellation on an Approved appointment from the read-only
+   * Review page. Internal staff use the appointments-list dropdown instead.
+   */
+  get canRequestChange(): boolean {
+    return (
+      this.isPatientUser &&
+      this.currentStatus === AppointmentStatusType.Approved &&
+      !!this.appointment?.appointment?.id
+    );
+  }
+
+  openRescheduleRequest(): void {
+    this.cancelRequestVisible = false;
+    this.rescheduleRequestVisible = true;
+  }
+
+  openCancelRequest(): void {
+    this.rescheduleRequestVisible = false;
+    this.cancelRequestVisible = true;
+  }
+
+  /**
+   * External submissions stay Pending (no `.Approve` permission, so no
+   * auto-approve chain). Toast confirmation + refresh so the status pill flips
+   * to RescheduleRequested / CancellationRequested.
+   */
+  onChangeRequestSucceeded(dto: AppointmentChangeRequestDto): void {
+    this.toaster.success(
+      this.localization.instant(
+        dto.changeRequestType === ChangeRequestType.Cancel
+          ? '::Appointment:Toast:CancelRequested'
+          : '::Appointment:Toast:RescheduleRequested',
+      ),
+    );
+    const id = this.appointment?.appointment?.id;
+    if (id) {
+      this.appointmentService.getWithNavigationProperties(id).subscribe({
+        next: (data) => {
+          this.appointment = data;
+        },
+      });
+    }
   }
 
   save(): Promise<void> {

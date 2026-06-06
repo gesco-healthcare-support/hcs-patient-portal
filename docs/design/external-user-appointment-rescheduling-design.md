@@ -2,7 +2,7 @@
 feature: external-user-appointment-rescheduling
 date: 2026-05-04
 phase: 17-frontend (backend phases 11c, 11j done; supervisor orchestration pending)
-status: draft
+status: superseded
 old-source: patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/add/
 old-html: appointment-change-request-add.component.html
 old-ts: appointment-change-request-add.component.ts
@@ -12,6 +12,15 @@ screenshots: pending (OLD server on port 4201; capture deferred to batch pass)
 ---
 
 # Design: External User -- Appointment Rescheduling Modal
+
+> **SUPERSEDED by AP1 (2026-06-06).** Implemented in
+> `angular/src/app/appointments/appointment/components/reschedule-request-modal.component.*`.
+> Two corrections to this draft: (1) the modal uses the in-use ABP `<abp-modal>`
+> (`ModalComponent`) + `[(visible)]` pattern, NOT Angular Material `MatDialog`; (2) the
+> reschedule flow is unified for internal + external -- internal staff who hold
+> `AppointmentChangeRequests.Approve` auto-approve (NoBill) immediately after submit, while
+> external bookers submit to Pending for the supervisor queue. The slot picker reads
+> `getDoctorAvailabilityLookup`. See `docs/plans/2026-06-06-appointment-change-request-ui.md`.
 
 ## 1. Routes
 

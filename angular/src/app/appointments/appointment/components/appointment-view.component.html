@@ -58,6 +58,18 @@
               }
             }
           }
+          @if (canRequestChange) {
+            <button type="button" class="btn btn-warning btn-sm" (click)="openRescheduleRequest()">
+              {{ '::Appointment:Action:Reschedule' | abpLocalization }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm"
+              (click)="openCancelRequest()"
+            >
+              {{ '::Appointment:Action:Cancel' | abpLocalization }}
+            </button>
+          }
           <button
             type="button"
             class="btn btn-primary btn-sm"
@@ -101,6 +113,20 @@
         [(visible)]="rejectModalVisible"
         (succeeded)="onActionSucceeded($event)"
       ></app-reject-appointment-modal>
+
+      <app-reschedule-request-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [locationId]="appointment.appointment?.locationId ?? null"
+        [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+        [(visible)]="rescheduleRequestVisible"
+        (succeeded)="onChangeRequestSucceeded($event)"
+      ></app-reschedule-request-modal>
+
+      <app-cancellation-request-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="cancelRequestVisible"
+        (succeeded)="onChangeRequestSucceeded($event)"
+      ></app-cancellation-request-modal>
 
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
