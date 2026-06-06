@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -41,6 +42,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly PatientManager _patientManager;
     private readonly IPatientRepository _patientRepository;
+    private readonly IClaimExaminerRepository _claimExaminerRepository;
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -94,6 +96,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
         IPatientRepository patientRepository,
+        IClaimExaminerRepository claimExaminerRepository,
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
@@ -119,6 +122,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _tenantRepository = tenantRepository;
         _patientManager = patientManager;
         _patientRepository = patientRepository;
+        _claimExaminerRepository = claimExaminerRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
@@ -756,7 +760,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             await AutoLinkPatientAsync(user.Id);
         }
-        // ClaimExaminer: see method docstring for rationale.
+        else if (userType == ExternalUserType.ClaimExaminer)
+        {
+            await AutoLinkClaimExaminerAsync(user.Id, normalizedEmail);
+        }
     }
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
@@ -919,6 +926,28 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             appointment.IdentityUserId = identityUserId;
             await _appointmentRepository.UpdateAsync(appointment);
+        }
+    }
+
+    /// <summary>
+    /// UM3/UM4 (2026-06-05): claim any unlinked Claim Examiner master rows created
+    /// by an admin with this email + a null IdentityUserId, so the freshly-
+    /// registered CE owns their master record. The per-appointment
+    /// AppointmentClaimExaminer is free-text (no IdentityUserId-keyed join), so
+    /// there is nothing further to back-link.
+    /// </summary>
+    private async Task AutoLinkClaimExaminerAsync(Guid identityUserId, string normalizedEmail)
+    {
+        var unlinkedQuery = await _claimExaminerRepository.GetQueryableAsync();
+        var unlinked = await AsyncExecuter.ToListAsync(
+            unlinkedQuery.Where(c =>
+                c.IdentityUserId == null
+                && c.Email != null
+                && c.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinked)
+        {
+            master.IdentityUserId = identityUserId;
+            await _claimExaminerRepository.UpdateAsync(master);
         }
     }
 
