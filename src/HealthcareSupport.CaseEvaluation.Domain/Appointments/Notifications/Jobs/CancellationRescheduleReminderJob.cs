@@ -2,12 +2,15 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -28,8 +31,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 /// </summary>
 public class CancellationRescheduleReminderJob : ITransientDependency
 {
-    private static readonly int[] ReminderElapsedDays = { 45, 55 };
-
     private static readonly AppointmentStatusType[] InScopeStatuses =
     {
         AppointmentStatusType.CancellationRequested,
@@ -42,6 +43,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
     private readonly ICurrentTenant _currentTenant;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<CancellationRescheduleReminderJob> _logger;
 
     public CancellationRescheduleReminderJob(
@@ -50,6 +52,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
         ICurrentTenant currentTenant,
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
+        ISettingProvider settingProvider,
         ILogger<CancellationRescheduleReminderJob> logger)
     {
         _appointmentRepository = appointmentRepository;
@@ -57,6 +60,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
         _currentTenant = currentTenant;
         _recipientResolver = recipientResolver;
         _backgroundJobManager = backgroundJobManager;
+        _settingProvider = settingProvider;
         _logger = logger;
     }
 
@@ -93,12 +97,22 @@ public class CancellationRescheduleReminderJob : ITransientDependency
 
     private async Task<int> ProcessTenantAsync()
     {
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        {
+            return 0;
+        }
+
+        var cadence = new ReminderCadence(
+            await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors));
+
         var nowUtc = DateTime.UtcNow.Date;
         var queryable = await _appointmentRepository.GetQueryableAsync();
         var eligible = queryable
             .Where(a => InScopeStatuses.Contains(a.AppointmentStatus))
             .ToList()
-            .Where(a => ReminderElapsedDays.Any(d => a.LastModificationTime?.Date == nowUtc.AddDays(-d)))
+            .Where(a => a.LastModificationTime.HasValue &&
+                        cadence.ShouldFire((int)(nowUtc - a.LastModificationTime.Value.Date).TotalDays))
             .ToList();
 
         var enqueued = 0;
