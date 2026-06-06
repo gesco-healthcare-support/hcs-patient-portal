@@ -99,6 +99,20 @@ public class CaseEvaluationDomainModule : AbpModule
             client.Timeout = TimeSpan.FromSeconds(60);
         });
 
+        // Phase 1 (2026-06-05): packet-renderer sidecar typed HttpClient for the packet
+        // pipeline's HTML -> fillable PDF conversion (WeasyPrint). URL from configuration
+        // (env var `PacketRenderer__Url` in docker-compose); the fallback hostname matches the
+        // packet-renderer compose service so dev stacks work without explicit env-var setup.
+        // 60s timeout matches the worst-case 15-page patient-packet render. Coexists with the
+        // Gotenberg client above until the DOCX path is decommissioned (per-kind feature flag
+        // selects which converter the job uses).
+        var packetRendererUrl = pdfConfiguration["PacketRenderer:Url"] ?? "http://packet-renderer:3001";
+        context.Services.AddHttpClient<IHtmlPacketRenderer, WeasyPrintPacketRenderer>(client =>
+        {
+            client.BaseAddress = new Uri(packetRendererUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
 
 
         // Adrian (2026-04-30 / W-A-10): the previous `#if DEBUG` guard never fired in the

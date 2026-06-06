@@ -68,6 +68,22 @@ public class PacketTokenContext
     /// <summary>OLD: <c>##Patients.PhoneNumber##</c> (AttorneyClaimExaminer Packet only)</summary>
     public string PatientPhoneNumber { get; set; } = string.Empty;
 
+    /// <summary>
+    /// NEW token <c>##Patients.InterpreterRequired##</c> (PQME QME notice only). "Yes" when the
+    /// patient needs an interpreter, "No" otherwise. There is NO OLD parity (OLD had no token)
+    /// and NO stored boolean on the Patient -- the resolver infers it from the patient's
+    /// language + interpreter-vendor fields. See <see cref="PacketTokenResolver"/>.
+    /// </summary>
+    public string PatientInterpreterRequired { get; set; } = string.Empty;
+
+    /// <summary>
+    /// NEW token <c>##Patients.InterpreterLanguage##</c> (PQME QME notice only). The (uppercased)
+    /// non-English language the interpreter is needed for; empty string when no interpreter is
+    /// needed. Sourced from the <c>AppointmentLanguage</c> lookup, falling back to
+    /// <c>OthersLanguageName</c>. See <see cref="PacketTokenResolver"/>.
+    /// </summary>
+    public string PatientInterpreterLanguage { get; set; } = string.Empty;
+
     // -- Appointments group (vAppointmentDetail view) ---------------------
 
     /// <summary>OLD: <c>##Appointments.RequestConfirmationNumber##</c></summary>

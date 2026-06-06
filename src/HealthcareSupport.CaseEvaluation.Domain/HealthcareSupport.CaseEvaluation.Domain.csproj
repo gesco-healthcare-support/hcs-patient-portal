@@ -24,6 +24,10 @@
          layout. Loaded via EmbeddedTemplateResources.LoadTemplate keyed
          on PacketKind. -->
     <EmbeddedResource Include="AppointmentDocuments\Templates\Resources\*.docx" />
+
+    <!-- NB: the HTML (WeasyPrint) pipeline embeds NO templates. The packet-renderer sidecar
+         owns the HTML templates (its generators are the single source of truth); the job sends
+         a template name + token map. See docker/packet-renderer/ and Pdf/PacketTemplateNames. -->
   </ItemGroup>
 
   <ItemGroup>

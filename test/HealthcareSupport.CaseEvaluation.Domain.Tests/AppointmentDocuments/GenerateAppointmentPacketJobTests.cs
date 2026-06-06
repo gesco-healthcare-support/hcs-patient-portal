@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Enums;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -93,6 +94,54 @@ public class GenerateAppointmentPacketJobTests
             Arg.Any<Guid>(), Arg.Any<string>());
     }
 
+    [Fact]
+    public async Task DoctorFlagOn_RoutesDoctorThroughHtml_OthersThroughDocx()
+    {
+        var fixture = new JobFixture(htmlDoctor: true);
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        // Only the Doctor kind takes the HTML pipeline (sidecar renderer); Patient +
+        // AttorneyClaimExaminer stay on the DOCX -> Gotenberg converter. All three mark Generated.
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.Doctor,
+            Arg.Any<IReadOnlyDictionary<string, string>>(),
+            Arg.Any<CancellationToken>());
+        await fixture.Converter.Received(2).ConvertAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
+        await fixture.PacketManager.Received(3).MarkGeneratedAsync(Arg.Any<Guid>(), Arg.Any<string?>());
+    }
+
+    [Fact]
+    public async Task AttorneyFlagOn_PanelQmeType_RequestsPqmeTemplate()
+    {
+        var fixture = new JobFixture(htmlAttorney: true, appointmentType: "PANEL QME");
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        // Panel QME selects the DWC QME Appointment Notification Form template.
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.AttorneyPqme,
+            Arg.Any<IReadOnlyDictionary<string, string>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AttorneyFlagOn_NonPanelType_RequestsAmeImeTemplate()
+    {
+        var fixture = new JobFixture(htmlAttorney: true, appointmentType: "AGREED MEDICAL EXAMINATION (AME)");
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        // Non-panel types use the shared AME/IME notice template.
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.AttorneyAme,
+            Arg.Any<IReadOnlyDictionary<string, string>>(),
+            Arg.Any<CancellationToken>());
+    }
+
     private sealed class JobFixture
     {
         public IRepository<Appointment, Guid> AppointmentRepository { get; }
@@ -101,13 +150,22 @@ public class GenerateAppointmentPacketJobTests
         public IPacketTokenResolver TokenResolver { get; }
         public IDocxTemplateRenderer Renderer { get; }
         public IDocxToPdfConverter Converter { get; }
+        public IHtmlPacketRenderer PacketRenderer { get; }
+        public IConfiguration Configuration { get; }
         public ICurrentTenant CurrentTenant { get; }
         public ILocalEventBus EventBus { get; }
         public IUnitOfWorkManager UnitOfWorkManager { get; }
         public GenerateAppointmentPacketJob Job { get; }
         public GenerateAppointmentPacketArgs Args { get; }
 
-        public JobFixture()
+        // Flags default to false (DOCX) so the legacy-path tests above need no arguments; the
+        // routing tests opt a single kind into the HTML pipeline and set the appointment type
+        // that drives AttorneyCE notice selection.
+        public JobFixture(
+            bool htmlPatient = false,
+            bool htmlDoctor = false,
+            bool htmlAttorney = false,
+            string appointmentType = "")
         {
             AppointmentRepository = Substitute.For<IRepository<Appointment, Guid>>();
 
@@ -130,7 +188,8 @@ public class GenerateAppointmentPacketJobTests
                 .Returns(Task.CompletedTask);
 
             TokenResolver = Substitute.For<IPacketTokenResolver>();
-            TokenResolver.ResolveAsync(Arg.Any<Guid>()).Returns(new PacketTokenContext());
+            TokenResolver.ResolveAsync(Arg.Any<Guid>())
+                .Returns(new PacketTokenContext { AppointmentType = appointmentType });
 
             Renderer = Substitute.For<IDocxTemplateRenderer>();
             Renderer.Render(Arg.Any<byte[]>(), Arg.Any<PacketTokenContext>())
@@ -139,6 +198,22 @@ public class GenerateAppointmentPacketJobTests
             Converter = Substitute.For<IDocxToPdfConverter>();
             Converter.ConvertAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
                 .Returns(new byte[] { 0x00 });
+
+            PacketRenderer = Substitute.For<IHtmlPacketRenderer>();
+            PacketRenderer.RenderAsync(
+                    Arg.Any<string>(),
+                    Arg.Any<IReadOnlyDictionary<string, string>>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(new byte[] { 0x00 });
+
+            Configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Packets:HtmlPipeline:Patient"] = htmlPatient ? "true" : "false",
+                    ["Packets:HtmlPipeline:Doctor"] = htmlDoctor ? "true" : "false",
+                    ["Packets:HtmlPipeline:Attorney"] = htmlAttorney ? "true" : "false",
+                })
+                .Build();
 
             CurrentTenant = Substitute.For<ICurrentTenant>();
             CurrentTenant.Id.Returns(TenantId);
@@ -159,6 +234,8 @@ public class GenerateAppointmentPacketJobTests
                 TokenResolver,
                 Renderer,
                 Converter,
+                PacketRenderer,
+                Configuration,
                 CurrentTenant,
                 EventBus,
                 UnitOfWorkManager,

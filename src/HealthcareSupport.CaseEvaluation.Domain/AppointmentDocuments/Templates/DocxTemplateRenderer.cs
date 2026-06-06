@@ -38,13 +38,12 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
     private const long SignatureWidthEmu = 880000L;
     private const long SignatureHeightEmu = 880000L;
 
-    /// <summary>The signature placeholder is excluded from the string-token
-    /// map and handled separately by <see cref="StampSignature"/>.</summary>
-    private const string SignaturePlaceholder = "##Appointments.Signature##";
-
-    private static readonly Regex TokenRegex = new(
-        @"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##",
-        RegexOptions.Compiled);
+    /// <summary>
+    /// Token plumbing (<c>##Group.Field##</c> map, recognizer regex, and the
+    /// signature placeholder) lives in <see cref="PacketTokenMap"/> so the HTML
+    /// renderer reuses the exact same mapping. This renderer adds only the
+    /// OpenXml-specific run-walking and signature image stamping on top.
+    /// </summary>
 
     /// <summary>
     /// 2026-05-12 (Path 2 of packet-pagination fix): conservative
@@ -92,7 +91,7 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
             // MarginThresholdEmu for the rationale.
             TightenLargeMargins(doc.MainDocumentPart!.Document);
 
-            var tokenMap = BuildTokenMap(context);
+            var tokenMap = PacketTokenMap.Build(context);
 
             ReplaceTokensInPart(doc.MainDocumentPart!.Document, tokenMap);
             foreach (var headerPart in doc.MainDocumentPart!.HeaderParts)
@@ -176,7 +175,7 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
         }
 
         var combined = string.Concat(texts.Select(t => t.Text ?? string.Empty));
-        var matches = TokenRegex.Matches(combined);
+        var matches = PacketTokenMap.TokenRegex.Matches(combined);
         if (matches.Count == 0)
         {
             return;
@@ -202,7 +201,7 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
             // StampSignature replaces it with an inline image after this
             // pass. If the signature is null at runtime, the placeholder
             // is cleared by StampSignature instead.
-            if (key == SignaturePlaceholder)
+            if (key == PacketTokenMap.SignaturePlaceholder)
             {
                 continue;
             }
@@ -274,7 +273,7 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
             if (texts.Count == 0) continue;
 
             var combined = string.Concat(texts.Select(t => t.Text ?? string.Empty));
-            var idx = combined.IndexOf(SignaturePlaceholder, System.StringComparison.Ordinal);
+            var idx = combined.IndexOf(PacketTokenMap.SignaturePlaceholder, System.StringComparison.Ordinal);
             if (idx < 0) continue;
 
             // Collect contributing Text elements
@@ -283,7 +282,7 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
             placeholderTexts.Clear();
 
             var cursor = 0;
-            var placeholderEnd = idx + SignaturePlaceholder.Length;
+            var placeholderEnd = idx + PacketTokenMap.SignaturePlaceholder.Length;
             foreach (var t in texts)
             {
                 var len = t.Text?.Length ?? 0;
@@ -306,9 +305,9 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
         // by collapsing all the placeholder's host Texts into the first one,
         // minus the placeholder substring itself.
         var combinedAll = string.Concat(placeholderTexts.Select(t => t.Text ?? string.Empty));
-        var phIdx = combinedAll.IndexOf(SignaturePlaceholder, System.StringComparison.Ordinal);
+        var phIdx = combinedAll.IndexOf(PacketTokenMap.SignaturePlaceholder, System.StringComparison.Ordinal);
         var before = combinedAll.Substring(0, phIdx);
-        var after = combinedAll.Substring(phIdx + SignaturePlaceholder.Length);
+        var after = combinedAll.Substring(phIdx + PacketTokenMap.SignaturePlaceholder.Length);
 
         firstPlaceholderText.Text = before + after;
         firstPlaceholderText.Space = SpaceProcessingModeValues.Preserve;
@@ -395,90 +394,4 @@ public class DocxTemplateRenderer : IDocxTemplateRenderer, ITransientDependency
             });
     }
 
-    // -- Token map construction ---------------------------------------------
-
-    /// <summary>
-    /// Reflects over PacketTokenContext's string properties and builds the
-    /// <c>##Group.Field##</c> -&gt; value map. The mapping below mirrors
-    /// the OLD token names to PacketTokenContext property names recorded
-    /// in the audit doc Section 5.
-    /// </summary>
-    private static IReadOnlyDictionary<string, string> BuildTokenMap(PacketTokenContext c)
-    {
-        return new Dictionary<string, string>(System.StringComparer.Ordinal)
-        {
-            // Patients group
-            ["##Patients.FirstName##"] = c.PatientFirstName,
-            ["##Patients.LastName##"] = c.PatientLastName,
-            ["##Patients.MiddleName##"] = c.PatientMiddleName,
-            ["##Patients.DateOfBirth##"] = c.PatientDateOfBirth,
-            ["##Patients.SocialSecurityNumber##"] = c.PatientSocialSecurityNumber,
-            ["##Patients.Street##"] = c.PatientStreet,
-            ["##Patients.City##"] = c.PatientCity,
-            ["##Patients.State##"] = c.PatientState,
-            ["##Patients.ZipCode##"] = c.PatientZipCode,
-            ["##Patients.PhoneNumber##"] = c.PatientPhoneNumber,
-
-            // Appointments group (Signature is intentionally omitted -- handled by StampSignature)
-            ["##Appointments.RequestConfirmationNumber##"] = c.RequestConfirmationNumber,
-            ["##Appointments.AvailableDate##"] = c.AvailableDate,
-            ["##Appointments.AppointmenTime##"] = c.AppointmentTime,    // typo preserved verbatim from OLD
-            ["##Appointments.AppointmentType##"] = c.AppointmentType,
-            ["##Appointments.Location##"] = c.LocationName,
-            ["##Appointments.LocationAddress##"] = c.LocationAddress,
-            ["##Appointments.LocationCity##"] = c.LocationCity,
-            ["##Appointments.LocationState##"] = c.LocationState,
-            ["##Appointments.LocationZipCode##"] = c.LocationZipCode,
-            ["##Appointments.LocationParkingFee##"] = c.LocationParkingFee,
-            ["##Appointments.PrimaryResponsibleUserName##"] = c.PrimaryResponsibleUserName,
-            ["##Appointments.AppointmentCreatedDate##"] = c.AppointmentCreatedDate,
-            ["##Appointments.PanelNumber##"] = c.PanelNumber,
-
-            // EmployerDetails group
-            ["##EmployerDetails.EmployerName##"] = c.EmployerName,
-            ["##EmployerDetails.Street##"] = c.EmployerStreet,
-            ["##EmployerDetails.City##"] = c.EmployerCity,
-            ["##EmployerDetails.State##"] = c.EmployerState,
-            ["##EmployerDetails.Zip##"] = c.EmployerZip,
-
-            // PatientAttorneys group
-            ["##PatientAttorneys.AttorneyName##"] = c.PatientAttorneyName,
-            ["##PatientAttorneys.Street##"] = c.PatientAttorneyStreet,
-            ["##PatientAttorneys.City##"] = c.PatientAttorneyCity,
-            ["##PatientAttorneys.State##"] = c.PatientAttorneyState,
-            ["##PatientAttorneys.Zip##"] = c.PatientAttorneyZip,
-
-            // DefenseAttorneys group
-            ["##DefenseAttorneys.AttorneyName##"] = c.DefenseAttorneyName,
-            ["##DefenseAttorneys.Street##"] = c.DefenseAttorneyStreet,
-            ["##DefenseAttorneys.City##"] = c.DefenseAttorneyCity,
-            ["##DefenseAttorneys.State##"] = c.DefenseAttorneyState,
-            ["##DefenseAttorneys.Zip##"] = c.DefenseAttorneyZip,
-
-            // InjuryDetails group (multi-row space-concatenated by the resolver)
-            ["##InjuryDetails.ClaimNumber##"] = c.InjuryClaimNumber,
-            ["##InjuryDetails.DateOfInjury##"] = c.InjuryDateOfInjury,
-            ["##InjuryDetails.WcabAdj##"] = c.InjuryWcabAdj,
-            ["##InjuryDetails.WcabOfficeName##"] = c.InjuryWcabOfficeName,
-            ["##InjuryDetails.WcabOfficeAddress##"] = c.InjuryWcabOfficeAddress,
-            ["##InjuryDetails.WcabOfficeCity##"] = c.InjuryWcabOfficeCity,
-            ["##InjuryDetails.WcabOfficeState##"] = c.InjuryWcabOfficeState,
-            ["##InjuryDetails.WcabOfficeZipCode##"] = c.InjuryWcabOfficeZipCode,
-            ["##InjuryDetails.PrimaryInsuranceName##"] = c.InjuryPrimaryInsuranceName,
-            ["##InjuryDetails.PrimaryInsuranceStreet##"] = c.InjuryPrimaryInsuranceStreet,
-            ["##InjuryDetails.PrimaryInsuranceCity##"] = c.InjuryPrimaryInsuranceCity,
-            ["##InjuryDetails.PrimaryInsuranceState##"] = c.InjuryPrimaryInsuranceState,
-            ["##InjuryDetails.PrimaryInsuranceZip##"] = c.InjuryPrimaryInsuranceZip,
-            ["##InjuryDetails.PrimaryInsurancePhoneNumber##"] = c.InjuryPrimaryInsurancePhoneNumber,
-            ["##InjuryDetails.ClaimExaminerName##"] = c.InjuryClaimExaminerName,
-            ["##InjuryDetails.ClaimExaminerStreet##"] = c.InjuryClaimExaminerStreet,
-            ["##InjuryDetails.ClaimExaminerCity##"] = c.InjuryClaimExaminerCity,
-            ["##InjuryDetails.ClaimExaminerState##"] = c.InjuryClaimExaminerState,
-            ["##InjuryDetails.ClaimExaminerZip##"] = c.InjuryClaimExaminerZip,
-            ["##InjuryDetails.ClaimExaminerPhoneNumber##"] = c.InjuryClaimExaminerPhoneNumber,
-
-            // Others group
-            ["##Others.DateNow##"] = c.DateNow,
-        };
-    }
 }
