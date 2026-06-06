@@ -19,12 +19,14 @@ public class SsnRevealAccessUnitTests
     private static readonly Guid PatientUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid OtherUserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
+    // "Doctor" was removed from the internal-caller set in IR1 (2026-06-03,
+    // BookingFlowRoles) -- it is no longer a presented internal persona, so it
+    // is intentionally absent here (its old [InlineData("Doctor")] was stale).
     [Theory]
     [InlineData("Clinic Staff")]
     [InlineData("Staff Supervisor")]
     [InlineData("IT Admin")]
     [InlineData("admin")]
-    [InlineData("Doctor")]
     public void CanReveal_InternalRole_ReturnsTrueEvenWhenNotOwner(string internalRole)
     {
         var result = SsnRevealAccess.CanReveal(
