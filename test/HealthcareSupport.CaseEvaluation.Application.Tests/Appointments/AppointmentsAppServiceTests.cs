@@ -258,23 +258,11 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "KNOWN GAP: CreateAsync only requires [Authorize] (any authenticated user), not [Authorize(CaseEvaluationPermissions.Appointments.Create)]. UI checks the permission but API does not. Tracked in src/HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md under 'Business Rules' rule 5.")]
-    public Task CreateAsync_WithoutAppointmentsCreatePermission_ShouldThrow()
-    {
-        // Expected behaviour (not yet implemented):
-        // Invoking CreateAsync as an authenticated user who does NOT have
-        // CaseEvaluation.Appointments.Create should throw AbpAuthorizationException.
-        return Task.CompletedTask;
-    }
-
-    [Fact(Skip = "KNOWN GAP: UpdateAsync only requires [Authorize]. Mirror of the Create permission gap. Tracked in the same CLAUDE.md section.")]
-    public Task UpdateAsync_WithoutAppointmentsEditPermission_ShouldThrow()
-    {
-        // Expected behaviour (not yet implemented):
-        // Invoking UpdateAsync as an authenticated user who does NOT have
-        // CaseEvaluation.Appointments.Edit should throw AbpAuthorizationException.
-        return Task.CompletedTask;
-    }
+    // Permission-gate coverage for Create/Update moved to the deterministic
+    // reflection guard in AppointmentsAppServiceAuthorizationTests (the SQLite
+    // harness does not seed role->permission grants, so behavioral denial here
+    // could only ever be a Skip stub). UpdateAsync is now gated by
+    // Appointments.Edit; the gap those stubs tracked is closed.
 
     // =====================================================================
     // Wave-2 PR-W2A: happy-path CRUD using seeded Appointment1/2 + slot
