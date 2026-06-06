@@ -7,7 +7,7 @@ and records the context, decision, consequences, and alternatives considered.
 ## How to Add a New ADR
 
 1. Copy the template below into a new file: `NNN-short-title.md`
-2. Number sequentially (next available: 012)
+2. Number sequentially (next available: 016)
 3. Fill in all sections -- keep it concise (40-80 lines)
 4. Set Status to `Proposed` until reviewed, then `Accepted`
 5. If a decision is later reversed, set Status to `Superseded by ADR-NNN`
@@ -27,6 +27,10 @@ and records the context, decision, consequences, and alternatives considered.
 | [009](009-audited-ssn-reveal.md) | Audited SSN reveal (design B) | Accepted | 2026-05-29 |
 | [010](010-pdf-packets-replace-docx.md) | PDF packets replace DOCX | Accepted | 2026-05-29 |
 | [011](011-per-role-packet-access.md) | Per-role packet access (PacketVisibility) | Accepted | 2026-05-29 |
+| [012](012-audit-change-log-redaction.md) | Appointment change-log redaction + diff-at-update email | Accepted | 2026-06-06 |
+| [013](013-config-driven-reminder-cadence.md) | Config-driven reminder cadence (Group L / G-05) | Accepted | 2026-06-06 |
+| [014](014-appointment-edit-authorization.md) | Appointment edit authorization (permission gate) | Accepted | 2026-06-06 |
+| [015](015-reporting-grid-and-pdf.md) | Reporting grid + PDF export (Group M) | Accepted | 2026-06-06 |
 
 ## Template
 
