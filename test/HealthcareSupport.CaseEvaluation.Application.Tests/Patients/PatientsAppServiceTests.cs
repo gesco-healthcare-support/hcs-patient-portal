@@ -218,31 +218,46 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     // ------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task CreateAsync_WithoutIdentityUser_CreatesRecordOnlyPatient()
     {
+        // IP6: booking no longer mints a login; patients are record-only with a
+        // nullable IdentityUserId. The old required-identity gate was removed.
         var input = BuildValidCreateDto();
-        input.IdentityUserId = Guid.Empty;
+        input.IdentityUserId = null;
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.CreateAsync(input));
+        var created = await _patientsAppService.CreateAsync(input);
+
+        created.ShouldNotBeNull();
+        created.Id.ShouldNotBe(Guid.Empty);
+        created.IdentityUserId.ShouldBeNull();
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task UpdateAsync_WithoutIdentityUser_Succeeds()
     {
+        // IP6: a record-only patient can be updated while staying loginless.
+        // Use a fresh record-only patient so seeded Patient1 is untouched.
+        var createInput = BuildValidCreateDto();
+        createInput.IdentityUserId = null;
+        var created = await _patientsAppService.CreateAsync(createInput);
+
         var update = new PatientUpdateDto
         {
-            FirstName = "X",
-            LastName = "Y",
-            Email = "xy@test.local",
+            FirstName = "Renamed-RecordOnly",
+            LastName = "Patient",
+            Email = created.Email,
             GenderId = Gender.Male,
             DateOfBirth = PatientsTestData.FixedDateOfBirth,
             PhoneNumberTypeId = PhoneNumberType.Work,
-            IdentityUserId = Guid.Empty,
+            IdentityUserId = null,
+            TenantId = TenantsTestData.TenantARef,
+            ConcurrencyStamp = created.ConcurrencyStamp,
         };
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update));
+        var result = await _patientsAppService.UpdateAsync(created.Id, update);
+
+        result.FirstName.ShouldBe("Renamed-RecordOnly");
+        result.IdentityUserId.ShouldBeNull();
     }
 
     // ------------------------------------------------------------------------

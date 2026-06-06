@@ -856,6 +856,10 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
             "A-T8-WITHINJURY");
 
+        // CI1: the inserts below use autoSave; without an ambient UoW the
+        // repository DbContext is disposed before manager.ApproveAsync runs.
+        await WithUnitOfWorkAsync(async () =>
+        {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
@@ -885,6 +889,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
 
             approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
         }
+        });
     }
 
     [Fact]
@@ -899,6 +904,10 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             scratchSlot.AvailableDate.Date.AddHours(10).AddMinutes(15),
             "A-CI1-NOCE");
 
+        // CI1: the insert below uses autoSave; without an ambient UoW the
+        // repository DbContext is disposed before manager.ApproveAsync runs.
+        await WithUnitOfWorkAsync(async () =>
+        {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             // Inject an injury so the injury-detail gate passes and the
@@ -922,6 +931,7 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
 
             ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer);
         }
+        });
     }
 
     // =====================================================================
