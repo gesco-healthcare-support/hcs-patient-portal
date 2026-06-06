@@ -418,7 +418,9 @@ export class AppointmentAddComponent {
     requestConfirmationNumber: ['A' as string | null, [Validators.maxLength(50)]],
     dueDate: [null as string | null],
     patientId: [null as string | null, [Validators.required]],
-    identityUserId: [null as string | null, [Validators.required]],
+    // IP6 (2026-06-05): optional -- a record-only patient has no login, so the
+    // appointment is booked with a null identity (claimed later on self-register).
+    identityUserId: [null as string | null],
     appointmentTypeId: [null as string | null, [Validators.required]],
     locationId: [null as string | null, [Validators.required]],
     appointmentTime: [null as string | null, [Validators.required]],
@@ -1346,7 +1348,7 @@ export class AppointmentAddComponent {
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
         patientId: rawAfter.patientId ?? '',
-        identityUserId: rawAfter.identityUserId ?? '',
+        identityUserId: rawAfter.identityUserId ?? null,
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
@@ -1573,7 +1575,7 @@ export class AppointmentAddComponent {
   }
 
   openMyProfile(): void {
-    this.router.navigateByUrl('/doctor-management/patients/my-profile');
+    this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
   clearAppointmentDate(): void {
@@ -1824,7 +1826,7 @@ export class AppointmentAddComponent {
         this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
         this.form.patchValue({
           patientId: patient.id,
-          identityUserId: patient.identityUserId ?? this.currentUser?.id ?? null,
+          identityUserId: patient.identityUserId ?? null,
           firstName: patient.firstName ?? null,
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,

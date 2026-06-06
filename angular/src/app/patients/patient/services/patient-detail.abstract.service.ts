@@ -94,7 +94,8 @@ export abstract class AbstractPatientDetailViewService {
       othersLanguageName: [othersLanguageName ?? null, [Validators.maxLength(100)]],
       stateId: [stateId ?? null, []],
       appointmentLanguageId: [appointmentLanguageId ?? null, []],
-      identityUserId: [identityUserId ?? null, [Validators.required]],
+      // IP6 (2026-06-05): optional -- a record-only patient may have no login.
+      identityUserId: [identityUserId ?? null, []],
       tenantId: [tenantId ?? null, []],
     });
   }

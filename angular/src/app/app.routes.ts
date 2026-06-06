@@ -125,7 +125,7 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
   },
   {
-    path: 'doctor-management/patients/my-profile',
+    path: 'user-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(
         (c) => c.PatientProfileComponent,
@@ -133,7 +133,7 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   { path: 'doctor-management/doctor-availabilities', children: DOCTOR_AVAILABILITY_ROUTES },
-  { path: 'doctor-management/patients', children: PATIENT_ROUTES },
+  { path: 'user-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
   { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
   // 2026-05-15 -- admin invite UI for external users. Gated by the
