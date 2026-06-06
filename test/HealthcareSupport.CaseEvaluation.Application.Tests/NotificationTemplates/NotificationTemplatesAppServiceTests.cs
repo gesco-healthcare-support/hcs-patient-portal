@@ -62,7 +62,7 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task GetListAsync_ReturnsAllSeeded64Codes()
+    public async Task GetListAsync_ReturnsAllSeeded65Codes()
     {
         await EnsureSeededAsync(TenantsTestData.TenantARef);
 
@@ -76,10 +76,12 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
             // 2026-05-12: Cat 2-7 expansion + packet / reminder / digest
             // handlers added 3 NEW-only codes (OLD baseline was 59 -> 62).
             // 2026-05-15: tokenized-invite (#202) + IT-Admin internal-user-
-            // creation (#203) each added one more NEW-only code, bringing
-            // the seeded count to 64.
-            result.TotalCount.ShouldBe(64);
-            result.Items.Count.ShouldBe(64);
+            // creation (#203) each added one more NEW-only code (-> 64).
+            // 2026-06-06 (Group L): JointDeclarationUploadReminder added a
+            // distinct JDF reminder template (G-05-02 Option B), bringing the
+            // seeded count to 65.
+            result.TotalCount.ShouldBe(65);
+            result.Items.Count.ShouldBe(65);
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.AppointmentApproved)
                 .ShouldBeTrue();
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.JointAgreementLetterUploaded)
