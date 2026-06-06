@@ -40,6 +40,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly PatientManager _patientManager;
+    private readonly IPatientRepository _patientRepository;
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -92,6 +93,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IdentityRoleManager roleManager,
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
+        IPatientRepository patientRepository,
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
@@ -116,6 +118,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _roleManager = roleManager;
         _tenantRepository = tenantRepository;
         _patientManager = patientManager;
+        _patientRepository = patientRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
@@ -572,22 +575,43 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
             if (input.UserType == ExternalUserType.Patient)
             {
-                // FirstName/LastName are not collected on the minimal register
-                // form (Adrian, 2026-04-30). Normalize null to "" so the Patient
-                // row is created with empty name fields; the booker fills these
-                // in later via the booking form's patient section.
-                await _patientManager.CreateAsync(
-                    stateId: null,
-                    appointmentLanguageId: null,
-                    identityUserId: user.Id,
-                    tenantId: CurrentTenant.Id,
-                    firstName: input.FirstName ?? string.Empty,
-                    lastName: input.LastName ?? string.Empty,
-                    email: input.Email,
-                    genderId: Gender.Male,
-                    dateOfBirth: DateTime.MinValue,
-                    phoneNumberTypeId: PhoneNumberType.Home
-                );
+                // IP6 (2026-06-05): link-by-email. Booking now creates a
+                // record-only Patient (null IdentityUserId). On self-register,
+                // CLAIM that existing record instead of creating a second row
+                // (the old behavior left two Patient rows -- see the
+                // AutoLinkAppointmentsForUserAsync docstring). Patient is
+                // IMultiTenant, so the query is auto-scoped to CurrentTenant.
+                var normalizedPatientEmail = input.Email.Trim().ToLower();
+                var patientQuery = await _patientRepository.GetQueryableAsync();
+                var unclaimedPatient = await AsyncExecuter.FirstOrDefaultAsync(
+                    patientQuery.Where(p =>
+                        p.IdentityUserId == null
+                        && p.Email.ToLower() == normalizedPatientEmail));
+                if (unclaimedPatient != null)
+                {
+                    unclaimedPatient.IdentityUserId = user.Id;
+                    await _patientRepository.UpdateAsync(unclaimedPatient);
+                }
+                else
+                {
+                    // No prior booking record for this email. FirstName/LastName
+                    // are not collected on the minimal register form (Adrian,
+                    // 2026-04-30); normalize null to "" so the Patient row is
+                    // created with empty name fields, filled later via the
+                    // booking form's patient section.
+                    await _patientManager.CreateAsync(
+                        stateId: null,
+                        appointmentLanguageId: null,
+                        identityUserId: user.Id,
+                        tenantId: CurrentTenant.Id,
+                        firstName: input.FirstName ?? string.Empty,
+                        lastName: input.LastName ?? string.Empty,
+                        email: input.Email,
+                        genderId: Gender.Male,
+                        dateOfBirth: DateTime.MinValue,
+                        phoneNumberTypeId: PhoneNumberType.Home
+                    );
+                }
             }
             else if (input.UserType == ExternalUserType.ApplicantAttorney)
             {
@@ -627,6 +651,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             if (acceptedInvitation != null && !string.IsNullOrWhiteSpace(input.InviteToken))
             {
                 await _invitationManager.AcceptAsync(input.InviteToken, user.Id);
+
+                // OBS-25 (IP6, 2026-06-05): the invite token already proved the
+                // recipient owns this email, so confirm it here -- the claim is
+                // one click, with no separate verification step. Non-invite
+                // registrations still run the email-confirmation flow below.
+                user.SetEmailConfirmed(true);
+                await _userManager.UpdateAsync(user);
             }
 
             // 2026-05-18 (B-4, Adrian directive reverses 2026-05-06):
@@ -669,7 +700,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             //
             // See docs/plans/2026-05-18-auto-send-verification-at-registration.md
             // for the v1->v5 design evolution (v5 = current).
-            if (!string.IsNullOrWhiteSpace(user.Email))
+            if (!string.IsNullOrWhiteSpace(user.Email) && !user.EmailConfirmed)
             {
                 var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 await _accountEmailer.SendEmailConfirmationLinkAsync(
@@ -694,12 +725,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     ///   join row needs a DefenseAttorneyId, so we create the entity here. It
     ///   stays out of all lookup/pre-fill surfaces because GetExternalUserLookupAsync
     ///   excludes the DA role and there is no DA management UI at MVP).
-    /// - Patient: not handled here -- the registration block already creates a
-    ///   Patient row with the new user's IdentityUserId, but the appointment's
-    ///   PatientId points at a different Patient row created via the booker's
-    ///   get-or-create-by-email flow. Reconciling those two Patient rows is a
-    ///   merge concern outside the scope of this hook; for fan-out (step 6.1)
-    ///   the appointment-level PatientEmail column is sufficient.
+    /// - Patient: handled via AutoLinkPatientAsync (IP6, 2026-06-05). The
+    ///   register block now CLAIMS the record-only Patient row that booking
+    ///   created (sets IdentityUserId by email) rather than creating a second
+    ///   row; this hook then back-links that patient's appointments
+    ///   (Appointment.IdentityUserId). Visibility keys off Patient.IdentityUserId.
     /// - ClaimExaminer: skipped -- there is no IdentityUser-bound join entity
     ///   for CE at MVP (AppointmentClaimExaminer hangs off AppointmentInjuryDetail
     ///   and has no IdentityUserId column). Step 6.1 fan-out reaches the CE via
@@ -722,7 +752,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             await AutoLinkDefenseAttorneyAsync(user.Id, normalizedEmail);
         }
-        // Patient and ClaimExaminer: see method docstring for rationale.
+        else if (userType == ExternalUserType.Patient)
+        {
+            await AutoLinkPatientAsync(user.Id);
+        }
+        // ClaimExaminer: see method docstring for rationale.
     }
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
@@ -854,6 +888,37 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 appointmentId,
                 defenseAttorney.Id,
                 identityUserId);
+        }
+    }
+
+    /// <summary>
+    /// IP6 (2026-06-05): back-link a freshly-registered patient's appointments.
+    /// The register block has already CLAIMED the record-only Patient row (set
+    /// IdentityUserId by email); here we stamp Appointment.IdentityUserId on
+    /// that patient's appointments that booking left null, so party/booker email
+    /// resolution and any IdentityUserId-keyed reads stay coherent. Visibility
+    /// itself keys off Patient.IdentityUserId, so it already works post-claim.
+    /// </summary>
+    private async Task AutoLinkPatientAsync(Guid identityUserId)
+    {
+        var patientQuery = await _patientRepository.GetQueryableAsync();
+        var patientIds = await AsyncExecuter.ToListAsync(
+            patientQuery
+                .Where(p => p.IdentityUserId == identityUserId)
+                .Select(p => p.Id));
+        if (patientIds.Count == 0)
+        {
+            return;
+        }
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var appointments = await AsyncExecuter.ToListAsync(
+            appointmentQuery.Where(a =>
+                a.IdentityUserId == null && patientIds.Contains(a.PatientId)));
+        foreach (var appointment in appointments)
+        {
+            appointment.IdentityUserId = identityUserId;
+            await _appointmentRepository.UpdateAsync(appointment);
         }
     }
 
