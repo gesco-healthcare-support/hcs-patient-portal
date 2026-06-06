@@ -38,7 +38,7 @@ export interface AppointmentCreateDto {
   dueDate?: string | null;
   appointmentStatus?: AppointmentStatusType;
   patientId?: string;
-  identityUserId?: string;
+  identityUserId?: string | null;
   appointmentTypeId?: string;
   locationId?: string;
   doctorAvailabilityId?: string;
@@ -62,7 +62,7 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   rejectionNotes?: string | null;
   rejectedById?: string | null;
   patientId?: string;
-  identityUserId?: string;
+  identityUserId?: string | null;
   appointmentTypeId?: string;
   locationId?: string;
   doctorAvailabilityId?: string;
@@ -79,7 +79,7 @@ export interface AppointmentUpdateDto {
   requestConfirmationNumber?: string;
   dueDate?: string | null;
   patientId?: string;
-  identityUserId?: string;
+  identityUserId?: string | null;
   appointmentTypeId?: string;
   locationId?: string;
   doctorAvailabilityId?: string;
