@@ -471,14 +471,9 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         result.IsExisting.ShouldBeTrue();
     }
 
-    [Fact(Skip = "HARNESS GAP (not a security gap): the shared-admin-password defect is FIXED. GetOrCreatePatientForAppointmentBookingAsync now mints a per-account random password (PatientsAppService.GenerateTempPassword), covered host-side by PatientTempPasswordUnitTests (NEW-SEC-04). This booking-INTEGRATION assertion stays skipped only because the runtime-create arm (new-email -> mint) still lacks a test harness (same blocker noted on GetOrCreatePatient_WhenEmailMatchesPatient1). IP6 T4 then removes minting at booking entirely, retiring this case.")]
-    public Task GetOrCreatePatient_DoesNotUseHardcodedAdminPassword()
+    [Fact(Skip = "HARNESS GAP: the runtime-create arm (new-email booking) still lacks a test harness (same blocker noted on GetOrCreatePatient_WhenEmailMatchesPatient1). IP6 record-only (2026-06-05): booking mints NO IdentityUser and sets no password -- the SEC-05 / Q-12 / NEW-SEC-04 shared-password defect is closed by removal, not patched. When the harness supports runtime create, assert: a new-email booking creates a Patient with a null IdentityUserId, mints no IdentityUser, and grants no Patient role (the claim + role happen later in RegisterAsync).")]
+    public Task GetOrCreatePatient_RecordOnly_MintsNoLogin()
     {
-        // Security property now enforced at the source (GenerateTempPassword)
-        // and proven by PatientTempPasswordUnitTests. The integration-level
-        // assertion below (minted user's password != admin default) awaits the
-        // runtime-create harness; until then it would fail for harness, not
-        // security, reasons -- so it is left skipped rather than flaky-red.
         return Task.CompletedTask;
     }
 

@@ -1,14 +1,12 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Volo.Saas.Tenants;
-using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
 using Microsoft.AspNetCore.Authorization;
@@ -31,8 +29,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
 {
     protected IPatientRepository _patientRepository;
     protected PatientManager _patientManager;
-    protected IdentityUserManager _userManager;
-    protected IdentityRoleManager _roleManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> _appointmentLanguageRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
@@ -53,12 +49,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
 
-    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IdentityUserManager userManager, IdentityRoleManager roleManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IDataFilter<IMultiTenant> dataFilter)
+    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IDataFilter<IMultiTenant> dataFilter)
     {
         _patientRepository = patientRepository;
         _patientManager = patientManager;
-        _userManager = userManager;
-        _roleManager = roleManager;
         _stateRepository = stateRepository;
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _identityUserRepository = identityUserRepository;
@@ -229,48 +223,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 }
             }
 
-            var identityUser = await _userManager.FindByEmailAsync(input.Email.Trim());
-            if (identityUser == null)
-            {
-                identityUser = new IdentityUser(
-                    GuidGenerator.Create(),
-                    userName: input.Email.Trim(),
-                    email: input.Email.Trim(),
-                    tenantId: CurrentTenant.Id)
-                {
-                    Name = input.FirstName,
-                    Surname = input.LastName,
-                };
-
-                // SEC-05 / Q-12 / NEW-SEC-04 (IP6, 2026-06-05): never mint with the
-                // SHARED seeded admin default -- anyone who knew it could authenticate
-                // as any booking-created patient. Use a per-account random password
-                // instead. INTERIM: the record-only rework (same item) stops minting
-                // an account at booking entirely.
-                var tempPassword = GenerateTempPassword();
-                var createResult = await _userManager.CreateAsync(identityUser, tempPassword);
-                if (!createResult.Succeeded)
-                {
-                    throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
-                }
-            }
-            else
-            {
-                identityUser.Name = input.FirstName;
-                identityUser.Surname = input.LastName;
-                await _userManager.UpdateAsync(identityUser);
-            }
-
-            if (!await _userManager.IsInRoleAsync(identityUser, "Patient"))
-            {
-                var role = await _roleManager.FindByNameAsync("Patient");
-                if (role == null)
-                {
-                    role = new IdentityRole(GuidGenerator.Create(), "Patient", CurrentTenant.Id);
-                    await _roleManager.CreateAsync(role);
-                }
-                await _userManager.AddToRoleAsync(identityUser, "Patient");
-            }
+            // IP6 (2026-06-05): record-only model. Booking inserts a Patient
+            // record with NO login -- it no longer mints an IdentityUser, grants
+            // the Patient role, or sets any password. The SEC-05 shared-password
+            // defect is removed by deletion, not patched. The patient claims a
+            // login later via the appointment-request email's register link;
+            // ExternalSignupAppService.RegisterAsync then links the record by
+            // email and assigns the Patient role at that point.
 
             // W1-0 (W0-8 carry-over): delegate to PatientManager.FindOrCreateAsync so the
             // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
@@ -283,7 +242,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             // patient was inserted by FindOrCreate.
             var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
                 tenantId: CurrentTenant.Id,
-                identityUserId: identityUser.Id,
+                identityUserId: null,
                 firstName: input.FirstName,
                 lastName: input.LastName,
                 email: input.Email.Trim(),
@@ -623,35 +582,5 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var dto = ObjectMapper.Map<Patient, PatientDto>(patient);
         SsnVisibility.MaskToLast4(dto);
         return dto;
-    }
-
-    // SEC-05 / Q-12 / NEW-SEC-04 (IP6, 2026-06-05): per-account, cryptographically
-    // random temp password for the booking-minted patient login, replacing the
-    // shared CaseEvaluationConsts.AdminPasswordDefaultValue. The account is never
-    // EmailConfirmed and is unusable until the patient claims it via self-register,
-    // so the value itself is throwaway -- it only needs to be non-shared and to
-    // satisfy the ABP password policy (one each of upper/lower/digit/symbol).
-    // RandomNumberGenerator mirrors InternalUsersAppService.GenerateParityPassword.
-    // Internal (not private) so PatientTempPasswordUnitTests can verify the
-    // non-shared + policy contract host-side via InternalsVisibleTo.
-    // INTERIM: removed when the record-only rework stops minting at booking.
-    internal static string GenerateTempPassword()
-    {
-        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const string lower = "abcdefghijkmnpqrstuvwxyz";
-        const string digit = "23456789";
-        const string symbol = "!@#$%*?";
-        const string all = upper + lower + digit + symbol;
-
-        var chars = new char[16];
-        chars[0] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
-        chars[1] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
-        chars[2] = digit[RandomNumberGenerator.GetInt32(digit.Length)];
-        chars[3] = symbol[RandomNumberGenerator.GetInt32(symbol.Length)];
-        for (var i = 4; i < chars.Length; i++)
-        {
-            chars[i] = all[RandomNumberGenerator.GetInt32(all.Length)];
-        }
-        return new string(chars);
     }
 }
