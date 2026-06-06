@@ -75,6 +75,10 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Create, L("Permission:Create"));
         applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Edit, L("Permission:Edit"));
         applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Delete, L("Permission:Delete"));
+        var claimExaminerPermission = myGroup.AddPermission(CaseEvaluationPermissions.ClaimExaminers.Default, L("Permission:ClaimExaminers"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Create, L("Permission:Create"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Edit, L("Permission:Edit"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Delete, L("Permission:Delete"));
         var appointmentApplicantAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Default, L("Permission:AppointmentApplicantAttorneys"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));

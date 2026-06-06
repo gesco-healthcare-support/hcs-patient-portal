@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -41,6 +42,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 {
     public DbSet<AppointmentApplicantAttorney> AppointmentApplicantAttorneys { get; set; } = null!;
     public DbSet<ApplicantAttorney> ApplicantAttorneys { get; set; } = null!;
+    public DbSet<ClaimExaminer> ClaimExaminers { get; set; } = null!;
     public DbSet<AppointmentDefenseAttorney> AppointmentDefenseAttorneys { get; set; } = null!;
     public DbSet<DefenseAttorney> DefenseAttorneys { get; set; } = null!;
     public DbSet<AppointmentInjuryDetail> AppointmentInjuryDetails { get; set; } = null!;
@@ -609,6 +611,22 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.City).HasColumnName(nameof(ApplicantAttorney.City)).HasMaxLength(ApplicantAttorneyConsts.CityMaxLength);
             b.Property(x => x.ZipCode).HasColumnName(nameof(ApplicantAttorney.ZipCode)).HasMaxLength(ApplicantAttorneyConsts.ZipCodeMaxLength);
             b.Property(x => x.Email).HasColumnName(nameof(ApplicantAttorney.Email)).HasMaxLength(ApplicantAttorneyConsts.EmailMaxLength);
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        builder.Entity<ClaimExaminer>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ClaimExaminers", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(ClaimExaminer.TenantId));
+            b.Property(x => x.FirstName).HasColumnName(nameof(ClaimExaminer.FirstName)).HasMaxLength(ClaimExaminerConsts.FirstNameMaxLength);
+            b.Property(x => x.LastName).HasColumnName(nameof(ClaimExaminer.LastName)).HasMaxLength(ClaimExaminerConsts.LastNameMaxLength);
+            b.Property(x => x.Email).HasColumnName(nameof(ClaimExaminer.Email)).HasMaxLength(ClaimExaminerConsts.EmailMaxLength);
+            b.Property(x => x.PhoneNumber).HasColumnName(nameof(ClaimExaminer.PhoneNumber)).HasMaxLength(ClaimExaminerConsts.PhoneNumberMaxLength);
+            b.Property(x => x.FaxNumber).HasColumnName(nameof(ClaimExaminer.FaxNumber)).HasMaxLength(ClaimExaminerConsts.FaxNumberMaxLength);
+            b.Property(x => x.Street).HasColumnName(nameof(ClaimExaminer.Street)).HasMaxLength(ClaimExaminerConsts.StreetMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(ClaimExaminer.City)).HasMaxLength(ClaimExaminerConsts.CityMaxLength);
+            b.Property(x => x.ZipCode).HasColumnName(nameof(ClaimExaminer.ZipCode)).HasMaxLength(ClaimExaminerConsts.ZipCodeMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });

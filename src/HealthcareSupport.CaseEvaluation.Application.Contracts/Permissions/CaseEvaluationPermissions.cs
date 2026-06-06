@@ -152,6 +152,15 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    // UM3/UM4 (2026-06-05): standalone, reusable Claim Examiner master directory.
+    public static class ClaimExaminers
+    {
+        public const string Default = GroupName + ".ClaimExaminers";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     public static class AppointmentApplicantAttorneys
     {
         public const string Default = GroupName + ".AppointmentApplicantAttorneys";
