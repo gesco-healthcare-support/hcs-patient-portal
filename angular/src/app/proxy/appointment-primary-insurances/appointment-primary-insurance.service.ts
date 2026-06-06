@@ -41,7 +41,7 @@ export class AppointmentPrimaryInsuranceService {
     this.restService.request<any, PagedResultDto<AppointmentPrimaryInsuranceDto>>({
       method: 'GET',
       url: '/api/app/appointment-primary-insurances',
-      params: { filterText: input.filterText, appointmentInjuryDetailId: input.appointmentInjuryDetailId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, appointmentId: input.appointmentId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

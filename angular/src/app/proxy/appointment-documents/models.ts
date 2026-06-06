@@ -49,4 +49,5 @@ export interface RejectDocumentInput {
 export interface UploadAppointmentDocumentForm {
   documentName?: string | null;
   file?: IFormFile;
+  isPanelStrikeList?: boolean;
 }

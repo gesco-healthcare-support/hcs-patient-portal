@@ -9,7 +9,7 @@ export interface AppointmentInjuryDetailCreateDto {
   toDateOfInjury?: string | null;
   claimNumber: string;
   isCumulativeInjury: boolean;
-  wcabAdj?: string | null;
+  wcabAdj: string;
   bodyPartsSummary: string;
   wcabOfficeId?: string | null;
 }
@@ -32,7 +32,7 @@ export interface AppointmentInjuryDetailUpdateDto {
   toDateOfInjury?: string | null;
   claimNumber: string;
   isCumulativeInjury: boolean;
-  wcabAdj?: string | null;
+  wcabAdj: string;
   bodyPartsSummary: string;
   wcabOfficeId?: string | null;
   concurrencyStamp?: string;
