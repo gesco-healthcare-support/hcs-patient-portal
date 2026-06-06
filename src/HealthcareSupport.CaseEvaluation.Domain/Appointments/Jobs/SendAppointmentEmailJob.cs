@@ -91,11 +91,36 @@ public class SendAppointmentEmailJob :
     {
         try
         {
-            await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
+            if (args.Cc != null && args.Cc.Count > 0)
+            {
+                // E1 (2026-06-03): single addressed notice with CC. The simple
+                // IEmailSender.SendAsync(to,...) overload has no CC, so build a
+                // MailMessage when CC recipients are present.
+                using var mail = new MailMessage
+                {
+                    Subject = args.Subject,
+                    Body = args.Body,
+                    IsBodyHtml = args.IsBodyHtml,
+                };
+                mail.To.Add(args.To);
+                foreach (var cc in args.Cc)
+                {
+                    if (!string.IsNullOrWhiteSpace(cc))
+                    {
+                        mail.CC.Add(cc);
+                    }
+                }
+                await _emailSender.SendAsync(mail);
+            }
+            else
+            {
+                await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
+            }
             Logger.LogInformation(
-                "SendAppointmentEmailJob: delivered ({Context}) to {To}.",
+                "SendAppointmentEmailJob: delivered ({Context}) to {To} (cc={CcCount}).",
                 args.Context,
-                args.To);
+                args.To,
+                args.Cc?.Count ?? 0);
         }
         catch (Exception ex)
         {
@@ -133,6 +158,14 @@ public class SendAppointmentEmailJob :
                 IsBodyHtml = args.IsBodyHtml,
             };
             mail.To.Add(args.To);
+            // E1 (2026-06-03): CC the other parties on the single notice.
+            foreach (var cc in args.Cc ?? new System.Collections.Generic.List<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(cc))
+                {
+                    mail.CC.Add(cc);
+                }
+            }
 
             using var ms = new System.IO.MemoryStream(attachment.Bytes);
             var mailAttachment = new Attachment(ms, attachment.FileName, attachment.ContentType);

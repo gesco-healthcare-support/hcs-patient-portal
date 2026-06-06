@@ -186,6 +186,24 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.DoctorCannotDeleteWithDependents,
                 System.Net.HttpStatusCode.BadRequest);
 
+            // IP4 (2026-06-05) -- Location master-data integrity guards in
+            // LocationManager. All four are client-input / precondition
+            // violations (duplicate name, negative fee, bad zip, in-use delete);
+            // HTTP 400 fits, not ABP's default 403 (which the SPA would treat as
+            // a permission failure).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationDuplicateName,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationParkingFeeNegative,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationZipCodeInvalid,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationInUse,
+                System.Net.HttpStatusCode.BadRequest);
+
             // 2026-05-15 -- capacity-aware booking gate
             // (AppointmentsAppService.ValidateDoctorAvailabilityForBooking).
             // All three are client-input precondition violations; HTTP 400 fits.
@@ -199,11 +217,15 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
                 System.Net.HttpStatusCode.BadRequest);
 
-            // OBS-23 (2026-05-21) -- non-attorney external users blocked
-            // from creating AME / AME-REVAL appointments. Client-input
-            // policy violation; HTTP 400, not 403.
+            // AF3 + AF4 (2026-06-04) -- Panel Number / appointment-type
+            // coupling enforced in AppointmentManager. Both are client-input
+            // validation failures (required for PQME / not allowed for AME-IME);
+            // HTTP 400 fits, not ABP's default 403.
             options.Map(
-                CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberRequiredForPqme,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberNotAllowedForType,
                 System.Net.HttpStatusCode.BadRequest);
 
             // BUG-025 (2026-05-21) -- AppointmentDocuments upload size

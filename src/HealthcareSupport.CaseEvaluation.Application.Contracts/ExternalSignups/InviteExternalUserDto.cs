@@ -29,6 +29,18 @@ public class InviteExternalUserDto
     public string Email { get; set; } = null!;
 
     /// <summary>
+    /// Optional recipient first name. Persisted on the Invitation, used to
+    /// personalize the invite email greeting and pre-fill the register form
+    /// (the recipient may override it at registration).
+    /// </summary>
+    [StringLength(128)]
+    public string? FirstName { get; set; }
+
+    /// <summary>Optional recipient last name. See <see cref="FirstName"/>.</summary>
+    [StringLength(128)]
+    public string? LastName { get; set; }
+
+    /// <summary>
     /// External role the invitation grants. Restricted to the four
     /// external roles: Patient, ApplicantAttorney, DefenseAttorney,
     /// ClaimExaminer. The AppService rejects any other value with 400.

@@ -98,24 +98,16 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Create)]
     public virtual async Task<ApplicantAttorneyDto> CreateAsync(ApplicantAttorneyCreateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        var applicantAttorney = await _applicantAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode);
+        // BUG-042 / UM4 (2026-06-05): persist First/Last name (the manager already
+        // accepts them) and allow a record with no login (identity now optional).
+        var applicantAttorney = await _applicantAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<ApplicantAttorney, ApplicantAttorneyDto>(applicantAttorney);
     }
 
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Edit)]
     public virtual async Task<ApplicantAttorneyDto> UpdateAsync(Guid id, ApplicantAttorneyUpdateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
-        var applicantAttorney = await _applicantAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp);
+        var applicantAttorney = await _applicantAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<ApplicantAttorney, ApplicantAttorneyDto>(applicantAttorney);
     }
 }

@@ -66,11 +66,17 @@ import { AppointmentAddEmployerDetailsComponent } from './sections/appointment-a
 import {
   AppointmentAddClaimInformationComponent,
   type AppointmentInjuryDraft,
-  type ClaimExaminerPrefill,
 } from './sections/appointment-add-claim-information.component';
 import { AppointmentAddAttorneySectionComponent } from './sections/appointment-add-attorney-section.component';
+import { AppointmentAddClaimPartiesSectionComponent } from './sections/appointment-add-claim-parties-section.component';
 import { AppointmentAddPatientDemographicsComponent } from './sections/appointment-add-patient-demographics.component';
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
+import {
+  AppointmentAddDocumentsComponent,
+  type StagedDocumentUpload,
+} from './sections/appointment-add-documents.component';
+import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
+import { isStrikeListGateBlocked } from '../appointment-documents/strike-list-gate';
 
 // W2-5: per-AppointmentType field-config row, returned by
 // GET /api/app/appointment-type-field-configs/by-appointment-type/:id.
@@ -100,8 +106,10 @@ type AppointmentTypeFieldConfigDto = {
     AppointmentAddEmployerDetailsComponent,
     AppointmentAddClaimInformationComponent,
     AppointmentAddAttorneySectionComponent,
+    AppointmentAddClaimPartiesSectionComponent,
     AppointmentAddPatientDemographicsComponent,
     AppointmentAddScheduleComponent,
+    AppointmentAddDocumentsComponent,
     ConfirmAddressDialogComponent,
   ],
   providers: [
@@ -274,21 +282,21 @@ export class AppointmentAddComponent {
   claimInformationMissing = false;
 
   /**
-   * #121 phase T4 (2026-05-13) -- computed Input passed to the
-   * claim-information section. Returns name + email when the booker is
-   * the Claim Examiner role on a fresh appointment (mirrors OLD
-   * appointment-add.component.ts:145-149); returns null otherwise so
-   * the section skips the prefill.
+   * CI1/CI2 (2026-06-05): when a Claim Examiner books, pre-fill the
+   * appointment-level Claim Examiner section with their own name + email.
+   * OLD parity (appointment-add.component.ts:145-149) prefilled the per-injury
+   * modal; CI1 moved CE to the appointment level, so the prefill moves with it.
+   * Called once from the constructor.
    */
-  get claimExaminerPrefillForInjuryModal(): ClaimExaminerPrefill | null {
-    if (!this.isClaimExaminerRole || this.isItAdmin) return null;
+  private prefillAppointmentClaimExaminerForRole(): void {
+    if (!this.isClaimExaminerRole || this.isItAdmin) return;
     const user = this.currentUser;
-    if (!user) return null;
+    if (!user) return;
     const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
-    return {
-      name: fullName || user.userName || null,
-      email: user.email ?? null,
-    };
+    this.form.patchValue({
+      appointmentClaimExaminerName: fullName || user.userName || null,
+      appointmentClaimExaminerEmail: user.email ?? null,
+    });
   }
   // #121 phase T2 (2026-05-13) -- the AppointmentAuthorizedUserDraft[]
   // array stays at parent because it carries the data the submit flow
@@ -382,13 +390,37 @@ export class AppointmentAddComponent {
       { apiName: 'Default' },
     );
 
+  // AF3 + AF4 (2026-06-04): mirrors CaseEvaluationSeedIds.AppointmentTypes.PanelQme.
+  // The appointmentTypeId valueChanges arg IS the type GUID string; there is no
+  // generated proxy enum for seed-data GUIDs, so the canonical PQME id is mirrored
+  // here as a local constant (kept in sync with the C# seed id).
+  private readonly PQME_TYPE_ID = 'a0a00002-0000-4000-9000-000000000002';
+  // Drives the Panel Number required-star affordance in the schedule section.
+  isPqmeType = false;
+
+  // AF7 (2026-06-05): documents staged in the booking form, uploaded after the
+  // appointment is created (two-phase). Mutated in place; the documents section
+  // uses default change detection so it renders these updates.
+  stagedDocuments: StagedDocumentUpload[] = [];
+  // Set to the created appointment id once it exists, so an upload retry
+  // re-POSTs to the SAME appointment instead of creating a duplicate.
+  private createdAppointmentIdForRetry?: string;
+
+  // AF6 (2026-06-05): PQME-only opt-in. When checked, the booker must mark one
+  // staged document as the panel strike list before submit; unchecked, a PQME
+  // submits with no strike-list requirement.
+  hasPanelStrikeList = false;
+  panelStrikeListMissing = false;
+
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
     appointmentDate: [null as string | null, [Validators.required]],
     requestConfirmationNumber: ['A' as string | null, [Validators.maxLength(50)]],
     dueDate: [null as string | null],
     patientId: [null as string | null, [Validators.required]],
-    identityUserId: [null as string | null, [Validators.required]],
+    // IP6 (2026-06-05): optional -- a record-only patient has no login, so the
+    // appointment is booked with a null identity (claimed later on self-register).
+    identityUserId: [null as string | null],
     appointmentTypeId: [null as string | null, [Validators.required]],
     locationId: [null as string | null, [Validators.required]],
     appointmentTime: [null as string | null, [Validators.required]],
@@ -473,6 +505,33 @@ export class AppointmentAddComponent {
     claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
     claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    // CI1 (2026-06-05): appointment-level Primary Insurance (optional) + Claim
+    // Examiner (REQUIRED -- Name + Email) -- one each per appointment, replacing
+    // the per-injury insurance/CE captured in the claim-information modal. CI2
+    // removes the now-orphaned per-injury controls. Posted once after create.
+    appointmentInsuranceName: [null as string | null, [Validators.maxLength(50)]],
+    appointmentInsuranceSuite: [null as string | null, [Validators.maxLength(255)]],
+    appointmentInsurancePhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    appointmentInsuranceFaxNumber: [null as string | null, [Validators.maxLength(20)]],
+    appointmentInsuranceStreet: [null as string | null, [Validators.maxLength(255)]],
+    appointmentInsuranceCity: [null as string | null, [Validators.maxLength(50)]],
+    appointmentInsuranceStateId: [null as string | null],
+    appointmentInsuranceZip: [null as string | null, [Validators.maxLength(10)]],
+    appointmentClaimExaminerName: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
+    appointmentClaimExaminerEmail: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50), Validators.email],
+    ],
+    appointmentClaimExaminerSuite: [null as string | null, [Validators.maxLength(255)]],
+    appointmentClaimExaminerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    appointmentClaimExaminerFax: [null as string | null, [Validators.maxLength(20)]],
+    appointmentClaimExaminerStreet: [null as string | null, [Validators.maxLength(255)]],
+    appointmentClaimExaminerCity: [null as string | null, [Validators.maxLength(50)]],
+    appointmentClaimExaminerStateId: [null as string | null],
+    appointmentClaimExaminerZip: [null as string | null, [Validators.maxLength(10)]],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
     // OLD's `appointment.customFieldsValues` FormArray rebuilt on
     // appointmentTypeId change. Each child FormGroup carries the static
@@ -516,6 +575,18 @@ export class AppointmentAddComponent {
       // selected AppointmentType. Mirrors OLD's `clearFormDataAsPerAppointmentType`
       // which re-binds `customFieldsValues` on AppointmentType change.
       this.loadCustomFieldsForAppointmentType(appointmentTypeId);
+      // AF3 + AF4: toggle Panel Number enabled/required (PQME) vs cleared/
+      // disabled (AME/IME) on every type change. Synchronous (no HTTP), so it
+      // needs no request-version counter; it stays inside this subscriber to
+      // remain ordered with the other per-type updates.
+      this.applyPanelNumberStateForType(appointmentTypeId);
+      // AF6: the panel-strike-list opt-in is PQME-only. Leaving PQME clears the
+      // checkbox + any designation so a non-PQME booking carries no strike list.
+      if (!this.isPqmeType) {
+        this.hasPanelStrikeList = false;
+        this.panelStrikeListMissing = false;
+        this.clearStrikeListDesignation();
+      }
     });
     this.form
       .get('appointmentDate')
@@ -525,6 +596,7 @@ export class AppointmentAddComponent {
       ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
     this.loadCurrentPatientProfile();
+    this.prefillAppointmentClaimExaminerForRole();
     this.loadExternalAuthorizedUsers();
 
     // Wave 4 / #15 (2026-05-07): cache the English language GUID and
@@ -593,6 +665,10 @@ export class AppointmentAddComponent {
     this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
     applyAttorneySectionValidators(this.form, 'defenseAttorney', daInitialEnabled);
     this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
+    // AF3 + AF4: apply the Panel Number state once for the initial type. The
+    // type starts null (no selection), so Panel Number begins cleared + disabled
+    // until a PQME type is chosen.
+    this.applyPanelNumberStateForType(this.form.get('appointmentTypeId')?.value ?? null);
 
     // B11-followup (2026-05-07): the earlier "hide AA/DA for CE" auto-
     // flip-off is no longer needed -- shouldShowApplicantAttorneySection
@@ -647,6 +723,32 @@ export class AppointmentAddComponent {
       ? [Validators.required, Validators.email, Validators.maxLength(50)]
       : [Validators.email, Validators.maxLength(50)];
     control.setValidators(validators);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * AF3 + AF4 (2026-06-04): Panel Number state machine keyed off the PQME type.
+   * PQME -> the field is enabled + required (a PQME carries a state-issued panel
+   * number). Any other type (AME / IME) -> the value is cleared, validators drop
+   * to length-only, and the control is disabled, so a legitimate submission never
+   * carries a panel number for a non-PQME type. AppointmentManager enforces the
+   * same rule server-side as the authoritative guard; this is the primary UX.
+   * Mirrors applyConditionalEmailValidator: setValidators + value reset +
+   * updateValueAndValidity with { emitEvent: false } so it does not re-enter the
+   * appointmentTypeId valueChanges subscriber that calls it.
+   */
+  private applyPanelNumberStateForType(typeId: string | null): void {
+    const control = this.form.get('panelNumber');
+    if (!control) return;
+    this.isPqmeType = typeId === this.PQME_TYPE_ID;
+    if (this.isPqmeType) {
+      control.enable({ emitEvent: false });
+      control.setValidators([Validators.required, Validators.maxLength(50)]);
+    } else {
+      control.setValue(null, { emitEvent: false });
+      control.setValidators([Validators.maxLength(50)]);
+      control.disable({ emitEvent: false });
+    }
     control.updateValueAndValidity({ emitEvent: false });
   }
 
@@ -1056,6 +1158,114 @@ export class AppointmentAddComponent {
    */
   readonly isFieldInvalidBound = (fieldName: string): boolean => this.isFieldInvalid(fieldName);
 
+  // ----- AF7 (2026-06-05): pre-submit document staging + post-create upload -----
+
+  onDocumentsSelected(files: File[]): void {
+    for (const file of files) {
+      const error = validateDocumentFile(file);
+      if (error) {
+        this.toaster.error(`${file.name}: ${error}`);
+        continue;
+      }
+      this.stagedDocuments.push({ file, status: 'staged', isStrikeList: false });
+    }
+  }
+
+  // ----- AF6 (2026-06-05): PQME panel-strike-list opt-in + designation -----
+
+  onHasPanelStrikeListChange(checked: boolean): void {
+    this.hasPanelStrikeList = checked;
+    this.panelStrikeListMissing = false;
+    if (!checked) {
+      // Opting out clears any prior designation so a later re-check starts fresh.
+      this.clearStrikeListDesignation();
+    }
+  }
+
+  designateStrikeList(index: number): void {
+    // Exactly one staged document is the strike list; selecting one clears the rest.
+    this.stagedDocuments.forEach((doc, i) => (doc.isStrikeList = i === index));
+    this.panelStrikeListMissing = false;
+  }
+
+  private clearStrikeListDesignation(): void {
+    this.stagedDocuments.forEach((doc) => (doc.isStrikeList = false));
+  }
+
+  removeStagedDocument(index: number): void {
+    const doc = this.stagedDocuments[index];
+    // Do not yank a file mid-upload or after it has already uploaded.
+    if (!doc || doc.status === 'uploading' || doc.status === 'uploaded') {
+      return;
+    }
+    this.stagedDocuments.splice(index, 1);
+  }
+
+  /**
+   * Re-POST any not-yet-uploaded staged documents to the already-created
+   * appointment. Surfaced by the documents section's Retry button after a
+   * partial failure; navigates home once every file is uploaded.
+   */
+  async retryStagedUploads(): Promise<void> {
+    if (this.isSaving) {
+      return;
+    }
+    this.isSaving = true;
+    try {
+      if (await this.uploadStagedDocuments(this.createdAppointmentIdForRetry)) {
+        this.router.navigateByUrl('/');
+      }
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  /**
+   * Upload every not-yet-uploaded staged document to the created appointment via
+   * the existing ad-hoc endpoint (reuses its 10 MB size + magic-byte format
+   * validation; the booker is authorized as appointment Creator -- zero backend
+   * change). Returns true only when all staged files are uploaded. On a per-file
+   * failure the file is marked 'failed' and kept for retry -- no rollback, which
+   * matches the existing non-atomic child-POST behavior.
+   */
+  private async uploadStagedDocuments(appointmentId?: string): Promise<boolean> {
+    if (!appointmentId || this.stagedDocuments.length === 0) {
+      return true;
+    }
+    let allUploaded = true;
+    for (const staged of this.stagedDocuments) {
+      if (staged.status === 'uploaded') {
+        continue;
+      }
+      staged.status = 'uploading';
+      staged.error = undefined;
+      try {
+        const form = new FormData();
+        form.append('file', staged.file, staged.file.name);
+        form.append('documentName', staged.file.name);
+        // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
+        form.append('isPanelStrikeList', String(staged.isStrikeList));
+        await firstValueFrom(
+          this.restService.request<FormData, unknown>(
+            {
+              method: 'POST',
+              url: `/api/app/appointments/${appointmentId}/documents`,
+              body: form,
+            },
+            { apiName: 'Default' },
+          ),
+        );
+        staged.status = 'uploaded';
+      } catch (err: unknown) {
+        staged.status = 'failed';
+        const httpErr = err as { error?: { error?: { message?: string } } };
+        staged.error = httpErr?.error?.error?.message ?? 'Upload failed.';
+        allUploaded = false;
+      }
+    }
+    return allUploaded;
+  }
+
   async onSubmit(): Promise<void> {
     const raw = this.form.getRawValue();
     if (this.isExternalUserNonPatient && !raw.patientId) {
@@ -1095,6 +1305,18 @@ export class AppointmentAddComponent {
     }
     this.claimInformationMissing = false;
 
+    // AF6: PQME panel-strike-list gate. When the booker opted in
+    // (hasPanelStrikeList), block submit until one staged document is marked as
+    // the strike list. Client-side only (locked decision); mirrors the BUG-043
+    // flag/message/return shape above so an invalid PQME booking never persists.
+    if (isStrikeListGateBlocked(this.isPqmeType, this.hasPanelStrikeList, this.stagedDocuments)) {
+      this.panelStrikeListMissing = true;
+      this.patientLoadMessage =
+        'Please mark which uploaded document is the panel strike list before saving.';
+      return;
+    }
+    this.panelStrikeListMissing = false;
+
     // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
     // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
     // any provider error so submission is never blocked.
@@ -1126,7 +1348,7 @@ export class AppointmentAddComponent {
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
         patientId: rawAfter.patientId ?? '',
-        identityUserId: rawAfter.identityUserId ?? '',
+        identityUserId: rawAfter.identityUserId ?? null,
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
@@ -1146,9 +1368,10 @@ export class AppointmentAddComponent {
         // address -- mirrors how the resolver's `Appointment.ClaimExaminerEmail`
         // column gets read for the CE-email-col walk. Without this sync, the column
         // saves NULL for non-CE bookers and the CE leg of the fan-out silently drops.
-        claimExaminerEmail:
-          this.injuryDrafts[0]?.claimExaminer?.email?.trim() ||
-          (rawAfter.claimExaminerEnabled ? (rawAfter.claimExaminerEmail ?? undefined) : undefined),
+        // CI1 (2026-06-05): the canonical CE email is now the appointment-level
+        // Claim Examiner section (required), not the per-injury modal. The
+        // resolver reads Appointment.ClaimExaminerEmail for the CE-email-col walk.
+        claimExaminerEmail: (rawAfter.appointmentClaimExaminerEmail ?? '').trim() || undefined,
         // B1 (2026-05-05): map the FormArray into CustomFieldValueInputDto[].
         // Empty / whitespace values are dropped to match OLD's "no answer"
         // semantics; the backend AppService also drops them defensively.
@@ -1169,8 +1392,22 @@ export class AppointmentAddComponent {
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
       await this.upsertDefenseAttorneyForAppointmentIfProvided(createdAppointment?.id);
+      await this.createAppointmentPrimaryInsuranceIfProvided(createdAppointment?.id);
+      await this.createAppointmentClaimExaminerIfProvided(createdAppointment?.id);
       await this.persistInjuryDraftsIfProvided(createdAppointment?.id);
       await this.createAppointmentAccessorsIfProvided(createdAppointment?.id);
+
+      // AF7: upload staged documents to the now-created appointment. On a
+      // partial failure keep the booker on the page (the appointment stays
+      // Pending) so they can retry against the existing id -- no rollback,
+      // matching the non-atomic child-POST behavior above.
+      this.createdAppointmentIdForRetry = createdAppointment?.id;
+      if (!(await this.uploadStagedDocuments(createdAppointment?.id))) {
+        this.toaster.warn(
+          'Appointment created, but some documents failed to upload. Retry from the Documents section.',
+        );
+        return;
+      }
 
       this.router.navigateByUrl('/');
     } catch (err: unknown) {
@@ -1338,7 +1575,7 @@ export class AppointmentAddComponent {
   }
 
   openMyProfile(): void {
-    this.router.navigateByUrl('/doctor-management/patients/my-profile');
+    this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
   clearAppointmentDate(): void {
@@ -1589,7 +1826,7 @@ export class AppointmentAddComponent {
         this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
         this.form.patchValue({
           patientId: patient.id,
-          identityUserId: patient.identityUserId ?? this.currentUser?.id ?? null,
+          identityUserId: patient.identityUserId ?? null,
           firstName: patient.firstName ?? null,
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,
@@ -2700,6 +2937,72 @@ export class AppointmentAddComponent {
   // injuryWcabOfficeName. Parent keeps persistInjuryDraftsIfProvided
   // below because the POST cascade is part of the submit flow.
 
+  // CI1 (2026-06-05): one Claim Examiner per appointment (required). Posted
+  // after create; Name + Email are guaranteed present by the parent
+  // Validators.required gate, so this always inserts when an appointment exists.
+  private async createAppointmentClaimExaminerIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId) {
+      return;
+    }
+    const raw = this.form.getRawValue();
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: '/api/app/appointment-claim-examiners',
+          body: {
+            appointmentId,
+            isActive: true,
+            name: raw.appointmentClaimExaminerName,
+            email: raw.appointmentClaimExaminerEmail,
+            suite: raw.appointmentClaimExaminerSuite,
+            phoneNumber: raw.appointmentClaimExaminerPhoneNumber,
+            fax: raw.appointmentClaimExaminerFax,
+            street: raw.appointmentClaimExaminerStreet,
+            city: raw.appointmentClaimExaminerCity,
+            zip: raw.appointmentClaimExaminerZip,
+            stateId: raw.appointmentClaimExaminerStateId,
+          },
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
+  // CI1 (2026-06-05): one optional Primary Insurance per appointment. Posted
+  // after create only when a company name was entered.
+  private async createAppointmentPrimaryInsuranceIfProvided(appointmentId?: string): Promise<void> {
+    if (!appointmentId) {
+      return;
+    }
+    const raw = this.form.getRawValue();
+    const name = (raw.appointmentInsuranceName ?? '').trim();
+    if (!name) {
+      return;
+    }
+    await firstValueFrom(
+      this.restService.request<any, any>(
+        {
+          method: 'POST',
+          url: '/api/app/appointment-primary-insurances',
+          body: {
+            appointmentId,
+            isActive: true,
+            name: raw.appointmentInsuranceName,
+            suite: raw.appointmentInsuranceSuite,
+            phoneNumber: raw.appointmentInsurancePhoneNumber,
+            faxNumber: raw.appointmentInsuranceFaxNumber,
+            street: raw.appointmentInsuranceStreet,
+            city: raw.appointmentInsuranceCity,
+            zip: raw.appointmentInsuranceZip,
+            stateId: raw.appointmentInsuranceStateId,
+          },
+        },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
   private async persistInjuryDraftsIfProvided(appointmentId?: string): Promise<void> {
     if (!appointmentId || this.injuryDrafts.length === 0) {
       return;
@@ -2749,57 +3052,9 @@ export class AppointmentAddComponent {
         );
       }
 
-      // Insurance: only persist if booker enabled the section.
-      if (draft.primaryInsurance.isActive) {
-        await firstValueFrom(
-          this.restService.request<any, any>(
-            {
-              method: 'POST',
-              url: '/api/app/appointment-primary-insurances',
-              body: {
-                appointmentInjuryDetailId: injuryId,
-                isActive: true,
-                name: draft.primaryInsurance.name,
-                suite: draft.primaryInsurance.suite,
-                attention: draft.primaryInsurance.attention,
-                phoneNumber: draft.primaryInsurance.phoneNumber,
-                faxNumber: draft.primaryInsurance.faxNumber,
-                street: draft.primaryInsurance.street,
-                city: draft.primaryInsurance.city,
-                zip: draft.primaryInsurance.zip,
-                stateId: draft.primaryInsurance.stateId,
-              },
-            },
-            { apiName: 'Default' },
-          ),
-        );
-      }
-
-      // Claim Examiner: only persist if booker enabled the section.
-      if (draft.claimExaminer.isActive) {
-        await firstValueFrom(
-          this.restService.request<any, any>(
-            {
-              method: 'POST',
-              url: '/api/app/appointment-claim-examiners',
-              body: {
-                appointmentInjuryDetailId: injuryId,
-                isActive: true,
-                name: draft.claimExaminer.name,
-                suite: draft.claimExaminer.suite,
-                email: draft.claimExaminer.email,
-                phoneNumber: draft.claimExaminer.phoneNumber,
-                fax: draft.claimExaminer.fax,
-                street: draft.claimExaminer.street,
-                city: draft.claimExaminer.city,
-                zip: draft.claimExaminer.zip,
-                stateId: draft.claimExaminer.stateId,
-              },
-            },
-            { apiName: 'Default' },
-          ),
-        );
-      }
+      // CI1 (2026-06-05): per-injury insurance/CE POSTs removed -- insurance +
+      // CE are now single appointment-level records posted once after create
+      // (createAppointmentPrimaryInsuranceIfProvided / ...ClaimExaminer...).
     }
   }
 }

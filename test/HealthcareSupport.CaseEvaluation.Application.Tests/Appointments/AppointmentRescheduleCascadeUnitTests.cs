@@ -95,7 +95,7 @@ public class AppointmentRescheduleCascadeUnitTests
     {
         var src = new AppointmentClaimExaminer(
             id: Guid.NewGuid(),
-            appointmentInjuryDetailId: Guid.NewGuid(),
+            appointmentId: Guid.NewGuid(),
             isActive: true);
         src.TenantId = Guid.NewGuid();
         src.Name = "Jane Doe";
@@ -109,13 +109,13 @@ public class AppointmentRescheduleCascadeUnitTests
         src.StateId = Guid.NewGuid();
 
         var newId = Guid.NewGuid();
-        var newInjuryId = Guid.NewGuid();
+        var newAppointmentId = Guid.NewGuid();
         var newTenant = Guid.NewGuid();
 
-        var clone = AppointmentRescheduleCloner.CloneClaimExaminerFor(src, newId, newInjuryId, newTenant);
+        var clone = AppointmentRescheduleCloner.CloneClaimExaminerFor(src, newId, newAppointmentId, newTenant);
 
         clone.Id.ShouldBe(newId);
-        clone.AppointmentInjuryDetailId.ShouldBe(newInjuryId);
+        clone.AppointmentId.ShouldBe(newAppointmentId);
         clone.TenantId.ShouldBe(newTenant);
         clone.IsActive.ShouldBe(src.IsActive);
         clone.Name.ShouldBe(src.Name);
@@ -134,12 +134,11 @@ public class AppointmentRescheduleCascadeUnitTests
     {
         var src = new AppointmentPrimaryInsurance(
             id: Guid.NewGuid(),
-            appointmentInjuryDetailId: Guid.NewGuid(),
+            appointmentId: Guid.NewGuid(),
             isActive: true);
         src.TenantId = Guid.NewGuid();
         src.Name = "ACME Insurance";
         src.Suite = "POL-001";
-        src.Attention = "Claims Dept";
         src.PhoneNumber = "555-0101";
         src.FaxNumber = "555-0299";
         src.Street = "456 Oak";
@@ -148,18 +147,17 @@ public class AppointmentRescheduleCascadeUnitTests
         src.StateId = Guid.NewGuid();
 
         var newId = Guid.NewGuid();
-        var newInjuryId = Guid.NewGuid();
+        var newAppointmentId = Guid.NewGuid();
         var newTenant = Guid.NewGuid();
 
-        var clone = AppointmentRescheduleCloner.ClonePrimaryInsuranceFor(src, newId, newInjuryId, newTenant);
+        var clone = AppointmentRescheduleCloner.ClonePrimaryInsuranceFor(src, newId, newAppointmentId, newTenant);
 
         clone.Id.ShouldBe(newId);
-        clone.AppointmentInjuryDetailId.ShouldBe(newInjuryId);
+        clone.AppointmentId.ShouldBe(newAppointmentId);
         clone.TenantId.ShouldBe(newTenant);
         clone.IsActive.ShouldBe(src.IsActive);
         clone.Name.ShouldBe(src.Name);
         clone.Suite.ShouldBe(src.Suite);
-        clone.Attention.ShouldBe(src.Attention);
         clone.PhoneNumber.ShouldBe(src.PhoneNumber);
         clone.FaxNumber.ShouldBe(src.FaxNumber);
         clone.Street.ShouldBe(src.Street);

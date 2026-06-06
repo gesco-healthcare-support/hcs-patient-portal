@@ -1,5 +1,11 @@
 # Doctors -- IME physician profiles, one per tenant
 
+Status (IP3, 2026-06-05): the Doctor entity is kept DORMANT and the Doctors nav item is
+hidden. Nothing operational reads a Doctor ROW (booking dropdowns query AppointmentType /
+Location directly; slots gate off `DoctorAvailability.AppointmentTypes`). The entity + tables
+are retained for a possible future multi-doctor model; revisit ADR-004 if that returns. The
+former `IdentityUserId` FK was already dropped (migration `20260502000305_Drop_Doctor_IdentityUserId`).
+
 Each tenant represents exactly one doctor's office; the schema allows N doctors per tenant
 but the product enforces 1:1. `DoctorAvailability` and `Appointment` carry NO `DoctorId`
 FK -- they reach the doctor via tenant scope.
@@ -11,21 +17,15 @@ FK -- they reach the doctor via tenant scope.
   `DoctorLocation` (composite PK, no own Guid).
 - `DoctorManager.cs` -- `CreateAsync` / `UpdateAsync`; `SetAppointmentTypesAsync` /
   `SetLocationsAsync` do replace-all collection sync (partial list REMOVES omitted IDs).
-- `IDoctorRepository.cs` -- nav-prop queries filtered by name, email, identityUserId,
+- `IDoctorRepository.cs` -- nav-prop queries filtered by name, email,
   appointmentTypeId, locationId.
-- `DoctorWithNavigationProperties.cs` -- projection: `Doctor` + `IdentityUser?` +
+- `DoctorWithNavigationProperties.cs` -- projection: `Doctor` +
   `List<AppointmentType>` + `List<Location>`.
 
 Entity shape: `FirstName`/`LastName` max 50, `Email` max 49 (see Gotchas), `Gender`
-(Male=1/Female=2/Other=3), optional `IdentityUserId` FK.
+(Male=1/Female=2/Other=3). No `IdentityUserId` -- a Doctor is a non-user reference entity.
 
 ## Conventions
-
-### UpdateAsync syncs the linked IdentityUser
-
-When `IdentityUserId.HasValue`, `DoctorsAppService.UpdateAsync` calls
-`_userManager.UpdateAsync(user)` setting `Name`, `Surname`, and `Email`. Failures throw
-`UserFriendlyException`. This side-effect is NOT visible in the method signature.
 
 ### Collection sync is replace-all
 
@@ -40,7 +40,7 @@ clearing -- it does NOT wipe existing rows.
 After `base.CreateAsync(input)`, it calls `CurrentTenant.Change(tenantId)` and then:
 creates/updates an admin `IdentityUser`, creates a `Doctor` row (`firstName = input.Name`,
 `lastName = ""`, `gender = Male`), and ensures a "Doctor" role exists. If a Doctor with
-that `IdentityUserId` already exists it is updated, not duplicated. `lastName = ""`
+that `Email` already exists it is updated, not duplicated. `lastName = ""`
 satisfies `Check.Length(min=0)` but will fail the standard form validation if re-saved
 without a real last name.
 
@@ -60,7 +60,7 @@ filter -- from host context they require `_currentTenant.Change(tenantId)`.
    `HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(SetNull)`. The
    tenant `DbContext` omits this FK entirely.
 4. No uniqueness guard. Neither `DoctorManager` nor `DoctorsAppService` checks for
-   duplicate Email or IdentityUserId at create time.
+   duplicate Email at create time.
 5. Two AppServices, two proxies. `DoctorsAppService` (CRUD) and `DoctorTenantAppService`
    (tenant provisioning, extends `Volo.Saas.Host.TenantAppService`, no `[Authorize]` of
    its own). Keep them separate -- the tenant service is host-only infrastructure.

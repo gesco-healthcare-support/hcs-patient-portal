@@ -20,6 +20,33 @@
           <ng-template ngbNavContent>
             <div class="mt-2 fade-in-top">
               <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-first-name">
+                  {{ '::FirstName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="applicant-attorney-first-name"
+                  formControlName="firstName"
+                  class="form-control"
+                  maxlength="50"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="applicant-attorney-last-name">
+                  {{ '::LastName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="applicant-attorney-last-name"
+                  formControlName="lastName"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
                 <label class="form-label" for="applicant-attorney-firm-name">
                   {{ '::FirmName' | abpLocalization }}
                 </label>
@@ -29,7 +56,6 @@
                   formControlName="firmName"
                   class="form-control"
                   maxlength="50"
-                  autofocus
                 />
               </div>
 
@@ -71,7 +97,7 @@
               </div>
               <div class="mb-3">
                 <label class="form-label" for="applicant-attorney-identity-user-id">
-                  {{ '::IdentityUser' | abpLocalization }} *
+                  {{ '::IdentityUser' | abpLocalization }}
                 </label>
                 <abp-lookup-select
                   cid="applicant-attorney-identity-user-id"

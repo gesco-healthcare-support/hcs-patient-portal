@@ -6,16 +6,13 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 
 public class AppointmentPrimaryInsuranceUpdateDto : IHasConcurrencyStamp
 {
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.NameMaxLength)]
     public string? Name { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength)]
     public string? Suite { get; set; }
-
-    [StringLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength)]
-    public string? Attention { get; set; }
 
     [StringLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength)]
     public string? PhoneNumber { get; set; }

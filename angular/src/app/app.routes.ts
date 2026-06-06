@@ -12,9 +12,11 @@ import { DOCTOR_ROUTES } from './doctors/doctor/doctor-routes';
 import { DOCTOR_AVAILABILITY_ROUTES } from './doctor-availabilities/doctor-availability/doctor-availability-routes';
 import { PATIENT_ROUTES } from './patients/patient/patient-routes';
 import { APPOINTMENT_ROUTES } from './appointments/appointment/appointment-routes';
+import { CHANGE_REQUEST_ROUTES } from './appointments/change-requests/change-request-routes';
 import { AppointmentAddComponent } from './appointments/appointment-add.component';
 import { APPLICANT_ATTORNEY_ROUTES } from './applicant-attorneys/applicant-attorney/applicant-attorney-routes';
 import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/defense-attorney-routes';
+import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-examiner-routes';
 
 export const APP_ROUTES: Routes = [
   {
@@ -91,6 +93,7 @@ export const APP_ROUTES: Routes = [
   { path: 'appointment-management/appointment-statuses', children: APPOINTMENT_STATUS_ROUTES },
   { path: 'appointment-management/appointment-languages', children: APPOINTMENT_LANGUAGE_ROUTES },
   { path: 'appointments', children: APPOINTMENT_ROUTES },
+  { path: 'appointments/change-requests', children: CHANGE_REQUEST_ROUTES },
   { path: 'doctor-management/locations', children: LOCATION_ROUTES },
   { path: 'doctor-management/wcab-offices', children: WCAB_OFFICE_ROUTES },
   { path: 'doctor-management/doctors', children: DOCTOR_ROUTES },
@@ -125,7 +128,7 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
   },
   {
-    path: 'doctor-management/patients/my-profile',
+    path: 'user-management/patients/my-profile',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile.component').then(
         (c) => c.PatientProfileComponent,
@@ -133,9 +136,10 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   { path: 'doctor-management/doctor-availabilities', children: DOCTOR_AVAILABILITY_ROUTES },
-  { path: 'doctor-management/patients', children: PATIENT_ROUTES },
+  { path: 'user-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
   { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
+  { path: 'claim-examiners', children: CLAIM_EXAMINER_ROUTES },
   // 2026-05-15 -- admin invite UI for external users. Gated by the
   // CaseEvaluation.UserManagement.InviteExternalUser permission so
   // external roles get a 403 page instead of seeing the form;

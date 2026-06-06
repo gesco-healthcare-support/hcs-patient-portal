@@ -29,8 +29,6 @@
               <th>Claim Number</th>
               <th>WCAB</th>
               <th>Body Parts</th>
-              <th>Insurance Company</th>
-              <th>Claim Examiner</th>
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -49,16 +47,6 @@
                 <td>{{ injury.claimNumber }}</td>
                 <td>{{ injuryWcabOfficeName(injury.wcabOfficeId) }}</td>
                 <td>{{ injury.bodyParts.join(', ') }}</td>
-                <td>
-                  @if (injury.primaryInsurance.isActive) {
-                    {{ injury.primaryInsurance.name }}
-                  }
-                </td>
-                <td>
-                  @if (injury.claimExaminer.isActive) {
-                    {{ injury.claimExaminer.name }}
-                  }
-                </td>
                 <td class="text-end">
                   <button
                     type="button"
@@ -187,10 +175,14 @@
               </select>
             </div>
             <div class="col-md-2 mb-3">
-              <label class="form-label fw-semibold">ADJ#</label>
+              <label class="form-label fw-semibold">ADJ# *</label>
               <input
                 type="text"
                 class="form-control"
+                [class.is-invalid]="
+                  injuryForm.get('injuryWcabAdj')?.invalid &&
+                  injuryForm.get('injuryWcabAdj')?.touched
+                "
                 maxlength="50"
                 formControlName="injuryWcabAdj"
                 name="injuryWcabAdj"
@@ -227,261 +219,6 @@
                 Add body part
                 <i class="fa fa-plus ms-1"></i>
               </button>
-            </div>
-          </div>
-
-          <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h6 class="mb-0 fw-bold">Insurance</h6>
-              <!--
-                Wave 2 #11 (2026-05-07): mirror OLD's <fieldset [disabled]="isAdjusterLogin">
-                wrap at appointment-add.component.html:378 of P:\PatientPortalOld. The CE
-                booker should not be able to toggle Insurance off; pre-filled values stay
-                visible (the @if below still renders). Parent computes
-                isInsuranceFieldsetDisabled (= isClaimExaminerRole && !isItAdmin).
-              -->
-              <!-- 2026-05-27 userflow-fixes-batch2 T3: Include toggle removed
-                   (D3) -- Insurance section is always rendered and its
-                   required fields always apply. -->
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Company Name *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryInsuranceName')?.invalid &&
-                      injuryForm.get('injuryInsuranceName')?.touched
-                    "
-                    maxlength="50"
-                    formControlName="injuryInsuranceName"
-                    name="injuryInsuranceName"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Attention</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="255"
-                    formControlName="injuryInsuranceAttention"
-                    name="injuryInsuranceAttention"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Phone Number</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="12"
-                    formControlName="injuryInsurancePhone"
-                    name="injuryInsurancePhone"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Fax</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="20"
-                    formControlName="injuryInsuranceFax"
-                    name="injuryInsuranceFax"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Street</label>
-                  <!-- F2 (2026-05-29): autocomplete fills street/ste/city/state/zip. -->
-                  <app-address-autocomplete
-                    [group]="injuryForm"
-                    [fields]="insuranceAddressFields"
-                  ></app-address-autocomplete>
-                </div>
-                <div class="col-md-1 mb-2">
-                  <label class="form-label">STE</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="255"
-                    formControlName="injuryInsuranceSte"
-                    name="injuryInsuranceSte"
-                  />
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">City</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="50"
-                    formControlName="injuryInsuranceCity"
-                    name="injuryInsuranceCity"
-                  />
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">State</label>
-                  <select
-                    class="form-select"
-                    formControlName="injuryInsuranceStateId"
-                    name="injuryInsuranceStateId"
-                  >
-                    <option [ngValue]="null">Select</option>
-                    @for (s of injuryStateOptions; track s.id) {
-                      <option [ngValue]="s.id">{{ s.displayName }}</option>
-                    }
-                  </select>
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">Zip</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="10"
-                    formControlName="injuryInsuranceZip"
-                    name="injuryInsuranceZip"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h6 class="mb-0 fw-bold">Claim Examiner</h6>
-              <!-- T3: Include toggle removed (D3); CE section always rendered
-                   and required. -->
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Name *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerName')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerName')?.touched
-                    "
-                    maxlength="50"
-                    formControlName="injuryClaimExaminerName"
-                    name="injuryClaimExaminerName"
-                    placeholder="NAME"
-                    [readonly]="isClaimExaminerReadOnly"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Email *</label>
-                  <input
-                    type="email"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerEmail')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerEmail')?.touched
-                    "
-                    maxlength="50"
-                    formControlName="injuryClaimExaminerEmail"
-                    name="injuryClaimExaminerEmail"
-                    placeholder="EMAIL"
-                    [readonly]="isClaimExaminerReadOnly"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Phone Number *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerPhone')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerPhone')?.touched
-                    "
-                    maxlength="12"
-                    formControlName="injuryClaimExaminerPhone"
-                    name="injuryClaimExaminerPhone"
-                    placeholder="PHONE NUMBER"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Fax</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerFax')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerFax')?.touched
-                    "
-                    maxlength="20"
-                    formControlName="injuryClaimExaminerFax"
-                    name="injuryClaimExaminerFax"
-                    placeholder="FAX"
-                  />
-                </div>
-                <div class="col-md-3 mb-2">
-                  <label class="form-label">Street *</label>
-                  <!-- F2 (2026-05-29): autocomplete fills street/ste/city/state/zip. -->
-                  <app-address-autocomplete
-                    [group]="injuryForm"
-                    [fields]="claimExaminerAddressFields"
-                    placeholder="STREET"
-                  ></app-address-autocomplete>
-                </div>
-                <div class="col-md-1 mb-2">
-                  <label class="form-label">STE</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    maxlength="50"
-                    formControlName="injuryClaimExaminerSte"
-                    name="injuryClaimExaminerSte"
-                    placeholder="STE"
-                  />
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">City *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerCity')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerCity')?.touched
-                    "
-                    maxlength="50"
-                    formControlName="injuryClaimExaminerCity"
-                    name="injuryClaimExaminerCity"
-                    placeholder="CITY"
-                  />
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">State *</label>
-                  <select
-                    class="form-select"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerStateId')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerStateId')?.touched
-                    "
-                    formControlName="injuryClaimExaminerStateId"
-                    name="injuryClaimExaminerStateId"
-                  >
-                    <option [ngValue]="null">Select</option>
-                    @for (s of injuryStateOptions; track s.id) {
-                      <option [ngValue]="s.id">{{ s.displayName }}</option>
-                    }
-                  </select>
-                </div>
-                <div class="col-md-2 mb-2">
-                  <label class="form-label">Zip *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    [class.is-invalid]="
-                      injuryForm.get('injuryClaimExaminerZip')?.invalid &&
-                      injuryForm.get('injuryClaimExaminerZip')?.touched
-                    "
-                    maxlength="10"
-                    formControlName="injuryClaimExaminerZip"
-                    name="injuryClaimExaminerZip"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>

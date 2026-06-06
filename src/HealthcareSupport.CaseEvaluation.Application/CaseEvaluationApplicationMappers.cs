@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -453,6 +454,36 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
     public override void AfterMap(ApplicantAttorney source, LookupDto<Guid> destination)
     {
         destination.DisplayName = source.FirmName ?? string.Empty;
+    }
+}
+
+// UM3/UM4 (2026-06-05): Claim Examiner master mappers (firm-less attorney shape).
+[Mapper]
+public partial class ClaimExaminerToClaimExaminerDtoMappers : MapperBase<ClaimExaminer, ClaimExaminerDto>
+{
+    public override partial ClaimExaminerDto Map(ClaimExaminer source);
+    public override partial void Map(ClaimExaminer source, ClaimExaminerDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class ClaimExaminerWithNavigationPropertiesToClaimExaminerWithNavigationPropertiesDtoMapper : MapperBase<ClaimExaminerWithNavigationProperties, ClaimExaminerWithNavigationPropertiesDto>
+{
+    public override partial ClaimExaminerWithNavigationPropertiesDto Map(ClaimExaminerWithNavigationProperties source);
+    public override partial void Map(ClaimExaminerWithNavigationProperties source, ClaimExaminerWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class ClaimExaminerToLookupDtoGuidMapper : MapperBase<ClaimExaminer, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(ClaimExaminer source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(ClaimExaminer source, LookupDto<Guid> destination);
+
+    public override void AfterMap(ClaimExaminer source, LookupDto<Guid> destination)
+    {
+        var name = $"{source.FirstName} {source.LastName}".Trim();
+        destination.DisplayName = string.IsNullOrWhiteSpace(name) ? (source.Email ?? string.Empty) : name;
     }
 }
 

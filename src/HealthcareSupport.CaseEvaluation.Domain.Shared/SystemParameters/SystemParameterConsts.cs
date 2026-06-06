@@ -11,8 +11,11 @@ public static class SystemParameterConsts
     public const int CcEmailIdsMaxLength = 500;
 
     public const int DefaultAppointmentLeadTime = 3;
+    // AF1 (2026-06-03): uniform 60-day booking horizon for all types. AME dropped from 90 to 60
+    // so every per-type bucket (PQME/AME/OTHER) caps bookings at 60 days from today. The minimum
+    // lead time (3 days) is unchanged. The per-type resolver is retained; defaults are uniform.
     public const int DefaultAppointmentMaxTimePQME = 60;
-    public const int DefaultAppointmentMaxTimeAME = 90;
+    public const int DefaultAppointmentMaxTimeAME = 60;
     public const int DefaultAppointmentMaxTimeOTHER = 60;
     public const int DefaultAppointmentCancelTime = 2;
     public const int DefaultAppointmentDueDays = 14;

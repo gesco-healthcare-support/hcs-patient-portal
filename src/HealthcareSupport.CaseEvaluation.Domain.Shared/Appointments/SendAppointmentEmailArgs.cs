@@ -14,6 +14,14 @@ public class SendAppointmentEmailArgs
 {
     public string To { get; set; } = string.Empty;
 
+    /// <summary>
+    /// E1 (2026-06-03): CC recipients for a single addressed notice (ex-parte:
+    /// one notice addressed To one party, the rest CC'd -- never separate
+    /// per-party emails for the same notice). Empty for legacy single-recipient
+    /// sends. SendAppointmentEmailJob adds these as MailMessage.CC entries.
+    /// </summary>
+    public System.Collections.Generic.List<string> Cc { get; set; } = new();
+
     public string Subject { get; set; } = string.Empty;
 
     public string Body { get; set; } = string.Empty;

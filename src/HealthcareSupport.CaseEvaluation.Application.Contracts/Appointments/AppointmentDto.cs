@@ -38,7 +38,8 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- booking no longer mints a patient login.
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 

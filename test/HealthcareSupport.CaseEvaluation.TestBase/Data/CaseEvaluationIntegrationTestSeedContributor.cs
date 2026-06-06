@@ -564,6 +564,12 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+
+            // AF3 + AF4 (2026-06-04): the PQME-typed row is NOT seeded here --
+            // the production AppointmentTypeDataSeedContributor already seeds
+            // AME/IME/PQME (canonical GUIDs) and runs in the test app, so the
+            // FK-enforced test DB can already persist a PQME appointment.
+            // Adding it here would be a duplicate-PK identity conflict.
         }
     }
 

@@ -46,7 +46,8 @@ public class AppointmentDocumentController : AbpController
             form.File.FileName,
             form.File.ContentType,
             form.File.Length,
-            stream);
+            stream,
+            form.IsPanelStrikeList);
     }
 
     [HttpGet("{id}/download")]
@@ -145,4 +146,12 @@ public class UploadAppointmentDocumentForm
 {
     public string? DocumentName { get; set; }
     public IFormFile File { get; set; } = null!;
+
+    /// <summary>
+    /// AF6 (2026-06-05): true when the booker marked this document as the PQME
+    /// panel strike list on the booking form. Defaults false; tags the row via
+    /// <c>AppointmentDocument.IsPanelStrikeList</c> (AF5) for staff venue
+    /// verification.
+    /// </summary>
+    public bool IsPanelStrikeList { get; set; }
 }

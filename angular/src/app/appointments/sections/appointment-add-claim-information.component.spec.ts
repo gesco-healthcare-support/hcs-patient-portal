@@ -28,30 +28,17 @@ describe('AppointmentAddClaimInformationComponent body parts (OBS-41)', () => {
   });
 
   /**
-   * Fills the always-required claim fields, including the Insurance + Claim
-   * Examiner sub-sections (T3 / 2026-05-27: their Include toggles were removed
-   * and their fields are now unconditionally required), so the modal form is
-   * valid and saveInjuryModal commits the draft.
+   * Fills the always-required injury fields (Date of Injury + Claim Number);
+   * each test then fills the body-part row(s) so the modal form is valid and
+   * saveInjuryModal commits the draft. CI2 (2026-06-05) removed the per-injury
+   * Insurance + Claim Examiner sub-sections (they moved to the appointment
+   * level), so they are no longer part of the scaffold.
    */
   function fillRequiredScaffold(claimNumber: string): void {
     component.openAddInjuryModal();
     component.injuryForm.get('injuryDateOfInjury')!.setValue('2025-03-15');
     component.injuryForm.get('injuryClaimNumber')!.setValue(claimNumber);
-    // Insurance (1 required field; synthetic).
-    component.injuryForm.get('injuryInsuranceName')!.setValue('Acme Insurance Co');
-    // Claim Examiner (8 required fields; synthetic, 555-prefixed phones per
-    // .claude/rules/test-data.md). StateId only needs a non-null value to
-    // satisfy Validators.required.
-    component.injuryForm.get('injuryClaimExaminerName')!.setValue('Test Examiner');
-    component.injuryForm.get('injuryClaimExaminerEmail')!.setValue('examiner@test.local');
-    component.injuryForm.get('injuryClaimExaminerPhone')!.setValue('555-0100');
-    component.injuryForm.get('injuryClaimExaminerFax')!.setValue('555-0101');
-    component.injuryForm.get('injuryClaimExaminerStreet')!.setValue('1 Test St');
-    component.injuryForm.get('injuryClaimExaminerCity')!.setValue('Testville');
-    component.injuryForm
-      .get('injuryClaimExaminerStateId')!
-      .setValue('00000000-0000-0000-0000-000000000001');
-    component.injuryForm.get('injuryClaimExaminerZip')!.setValue('90001');
+    component.injuryForm.get('injuryWcabAdj')!.setValue('ADJ-CI3'); // CI3: ADJ# now required
   }
 
   it('seeds exactly one required body-part row when the modal opens', () => {

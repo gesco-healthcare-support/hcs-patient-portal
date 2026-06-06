@@ -1,14 +1,12 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Volo.Saas.Tenants;
-using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
 using Microsoft.AspNetCore.Authorization;
@@ -31,8 +29,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
 {
     protected IPatientRepository _patientRepository;
     protected PatientManager _patientManager;
-    protected IdentityUserManager _userManager;
-    protected IdentityRoleManager _roleManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> _appointmentLanguageRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
@@ -53,12 +49,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // production-correctness compromise.
     private readonly IDataFilter<IMultiTenant> _dataFilter;
 
-    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IdentityUserManager userManager, IdentityRoleManager roleManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IDataFilter<IMultiTenant> dataFilter)
+    public PatientsAppService(IPatientRepository patientRepository, PatientManager patientManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage, Guid> appointmentLanguageRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<Volo.Saas.Tenants.Tenant, Guid> tenantRepository, IDataFilter<IMultiTenant> dataFilter)
     {
         _patientRepository = patientRepository;
         _patientManager = patientManager;
-        _userManager = userManager;
-        _roleManager = roleManager;
         _stateRepository = stateRepository;
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _identityUserRepository = identityUserRepository;
@@ -229,43 +223,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 }
             }
 
-            var identityUser = await _userManager.FindByEmailAsync(input.Email.Trim());
-            if (identityUser == null)
-            {
-                identityUser = new IdentityUser(
-                    GuidGenerator.Create(),
-                    userName: input.Email.Trim(),
-                    email: input.Email.Trim(),
-                    tenantId: CurrentTenant.Id)
-                {
-                    Name = input.FirstName,
-                    Surname = input.LastName,
-                };
-
-                var tempPassword = CaseEvaluationConsts.AdminPasswordDefaultValue;
-                var createResult = await _userManager.CreateAsync(identityUser, tempPassword);
-                if (!createResult.Succeeded)
-                {
-                    throw new UserFriendlyException(string.Join(", ", createResult.Errors.Select(x => x.Description)));
-                }
-            }
-            else
-            {
-                identityUser.Name = input.FirstName;
-                identityUser.Surname = input.LastName;
-                await _userManager.UpdateAsync(identityUser);
-            }
-
-            if (!await _userManager.IsInRoleAsync(identityUser, "Patient"))
-            {
-                var role = await _roleManager.FindByNameAsync("Patient");
-                if (role == null)
-                {
-                    role = new IdentityRole(GuidGenerator.Create(), "Patient", CurrentTenant.Id);
-                    await _roleManager.CreateAsync(role);
-                }
-                await _userManager.AddToRoleAsync(identityUser, "Patient");
-            }
+            // IP6 (2026-06-05): record-only model. Booking inserts a Patient
+            // record with NO login -- it no longer mints an IdentityUser, grants
+            // the Patient role, or sets any password. The SEC-05 shared-password
+            // defect is removed by deletion, not patched. The patient claims a
+            // login later via the appointment-request email's register link;
+            // ExternalSignupAppService.RegisterAsync then links the record by
+            // email and assigns the Patient role at that point.
 
             // W1-0 (W0-8 carry-over): delegate to PatientManager.FindOrCreateAsync so the
             // 3-of-6 fuzzy match (FirstName, LastName, DOB, SSN, Phone, ZipCode) catches
@@ -278,7 +242,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             // patient was inserted by FindOrCreate.
             var (patient, wasFound) = await _patientManager.FindOrCreateAsync(
                 tenantId: CurrentTenant.Id,
-                identityUserId: identityUser.Id,
+                identityUserId: null,
                 firstName: input.FirstName,
                 lastName: input.LastName,
                 email: input.Email.Trim(),
@@ -485,11 +449,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Create)]
     public virtual async Task<PatientDto> CreateAsync(PatientCreateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
         var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
         return MapToMaskedDto(patient);
     }
@@ -497,11 +456,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Edit)]
     public virtual async Task<PatientDto> UpdateAsync(Guid id, PatientUpdateDto input)
     {
-        if (input.IdentityUserId == Guid.Empty)
-        {
-            throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
-        }
-
         var isHost = CurrentTenant.Id == null;
         // PatientManager.UpdateAsync internally calls GetAsync(id) which
         // is subject to the IMultiTenant filter; wrap the call so admin

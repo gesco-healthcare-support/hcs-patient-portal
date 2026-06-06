@@ -32,8 +32,10 @@ public class AppointmentInjuryDetail : FullAuditedAggregateRoot<Guid>, IMultiTen
 
     public bool IsCumulativeInjury { get; set; }
 
-    [CanBeNull]
-    public virtual string? WcabAdj { get; set; }
+    // CI3 (2026-06-05): ADJ# is required per injury -- two-layer (DTO [Required]
+    // + UI Validators.required + this domain ctor guard), mirroring ClaimNumber.
+    [NotNull]
+    public virtual string WcabAdj { get; set; } = null!;
 
     [NotNull]
     public virtual string BodyPartsSummary { get; set; } = null!;
@@ -60,7 +62,8 @@ public class AppointmentInjuryDetail : FullAuditedAggregateRoot<Guid>, IMultiTen
         Check.Length(claimNumber, nameof(claimNumber), AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
         Check.NotNullOrWhiteSpace(bodyPartsSummary, nameof(bodyPartsSummary));
         Check.Length(bodyPartsSummary, nameof(bodyPartsSummary), AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
-        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength, 0);
+        Check.NotNullOrWhiteSpace(wcabAdj, nameof(wcabAdj));
+        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength);
         AppointmentId = appointmentId;
         DateOfInjury = dateOfInjury;
         ToDateOfInjury = toDateOfInjury;

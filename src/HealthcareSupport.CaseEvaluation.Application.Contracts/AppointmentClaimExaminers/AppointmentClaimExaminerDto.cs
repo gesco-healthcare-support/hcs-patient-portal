@@ -6,7 +6,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 
 public class AppointmentClaimExaminerDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 {
-    public Guid AppointmentInjuryDetailId { get; set; }
+    public Guid AppointmentId { get; set; }
     public string? Name { get; set; }
     public string? Suite { get; set; }
     public string? Email { get; set; }

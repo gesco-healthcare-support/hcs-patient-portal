@@ -18,7 +18,8 @@ public class AppointmentUpdateDto : IHasConcurrencyStamp
 
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- mirrors the nullable Appointment.IdentityUserId.
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 

@@ -248,13 +248,23 @@
                     {{ '::Appointment:Action:Review' | abpLocalization }}
                   </a>
 
-                  <button
-                    ngbDropdownItem
-                    *abpPermission="'CaseEvaluation.Appointments.Edit'"
-                    (click)="update(row)"
-                  >
-                    {{ 'AbpUi::Edit' | abpLocalization }}
-                  </button>
+                  @if (row.appointment.appointmentStatus === approvedStatus) {
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.Appointments'"
+                      (click)="openReschedule(row)"
+                    >
+                      {{ '::Appointment:Action:Reschedule' | abpLocalization }}
+                    </button>
+
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.Appointments'"
+                      (click)="openCancel(row)"
+                    >
+                      {{ '::Appointment:Action:Cancel' | abpLocalization }}
+                    </button>
+                  }
 
                   <button
                     ngbDropdownItem
@@ -357,4 +367,20 @@
   @if (serviceDetail.isVisible) {
     <app-appointment-detail-modal />
   }
+}
+
+@if (selectedRow) {
+  <app-reschedule-request-modal
+    [appointmentId]="selectedRow.appointment?.id ?? null"
+    [locationId]="selectedRow.appointment?.locationId ?? null"
+    [appointmentTypeId]="selectedRow.appointment?.appointmentTypeId ?? null"
+    [(visible)]="rescheduleVisible"
+    (succeeded)="onChangeRequestSucceeded($event)"
+  ></app-reschedule-request-modal>
+
+  <app-cancellation-request-modal
+    [appointmentId]="selectedRow.appointment?.id ?? null"
+    [(visible)]="cancelVisible"
+    (succeeded)="onChangeRequestSucceeded($event)"
+  ></app-cancellation-request-modal>
 }

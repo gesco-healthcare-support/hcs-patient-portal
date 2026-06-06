@@ -64,7 +64,9 @@ public class PatientUpdateDto : IHasConcurrencyStamp
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): optional -- mirrors the nullable Patient.IdentityUserId
+    // (record-only patients have no login until claimed).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 

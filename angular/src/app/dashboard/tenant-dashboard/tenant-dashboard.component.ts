@@ -70,4 +70,9 @@ export class TenantDashboardComponent implements OnInit {
   openByStatus(statusId: number): void {
     this.router.navigate(['/appointments'], { queryParams: { appointmentStatus: statusId } });
   }
+
+  /** AP1 (W3): deep-link the Pending Change Requests card to the supervisor reschedule queue. */
+  openChangeRequests(): void {
+    this.router.navigate(['/appointments/change-requests/reschedules']);
+  }
 }

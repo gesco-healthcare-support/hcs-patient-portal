@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -251,21 +252,16 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
     }
 
     // ------------------------------------------------------------------------
-    // Delete-constraint edges (inbound NoAction FKs on Location from
-    // DoctorAvailability and Appointment). Currently skipped -- the shared
-    // SQLite in-memory test connection ignores FK enforcement even after
-    // "Foreign Keys=True" in the connection string AND an explicit
-    // `PRAGMA foreign_keys = ON` on Open(); suspected cause is that ABP / EF
-    // pool a wrapper around the manually-opened connection that bypasses the
-    // opt-in. Test bodies below encode target behaviour and flip live when
-    // FEAT-14 is closed.
+    // Delete-constraint edges (Location referenced by DoctorAvailability /
+    // Appointment). IP4 (2026-06-05) moved the guard from DB-level FK
+    // enforcement (which the shared SQLite in-memory connection ignores) to a
+    // manager-level COUNT pre-check (LocationManager.EnsureCanDeleteAsync,
+    // invoked by LocationsAppService.DeleteAsync). A COUNT query works on
+    // SQLite, so these tests now run live and assert the localized
+    // LocationInUse BusinessException.
     // ------------------------------------------------------------------------
 
-    [Fact(Skip = "KNOWN GAP: SQLite in-memory test DB does not enforce foreign-key constraints "
-              + "against the shared manually-opened connection, despite \"Foreign Keys=True\" + "
-              + "explicit PRAGMA in CaseEvaluationEntityFrameworkCoreTestModule. Test body encodes "
-              + "target behaviour and will flip live once test-infra FK enforcement is fixed. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-fk-enforcement")]
+    [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByDoctorAvailability_Throws()
     {
         var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
@@ -290,15 +286,12 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
                 bookingStatusId: BookingStatus.Available), autoSave: true);
         }
 
-        await Should.ThrowAsync<Exception>(async () =>
+        var ex = await Should.ThrowAsync<BusinessException>(async () =>
             await _locationsAppService.DeleteAsync(disposable.Id));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 
-    [Fact(Skip = "KNOWN GAP: SQLite in-memory test DB does not enforce foreign-key constraints "
-              + "against the shared manually-opened connection, despite \"Foreign Keys=True\" + "
-              + "explicit PRAGMA in CaseEvaluationEntityFrameworkCoreTestModule. Test body encodes "
-              + "target behaviour and will flip live once test-infra FK enforcement is fixed. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-fk-enforcement")]
+    [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByAppointment_Throws()
     {
         var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
@@ -336,8 +329,9 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
                 appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
         }
 
-        await Should.ThrowAsync<Exception>(async () =>
+        var ex = await Should.ThrowAsync<BusinessException>(async () =>
             await _locationsAppService.DeleteAsync(disposable.Id));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 
     // ------------------------------------------------------------------------

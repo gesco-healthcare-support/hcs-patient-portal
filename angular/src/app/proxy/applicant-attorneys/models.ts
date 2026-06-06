@@ -3,6 +3,8 @@ import type { StateDto } from '../states/models';
 import type { IdentityUserDto } from '../volo/abp/identity/models';
 
 export interface ApplicantAttorneyCreateDto {
+  firstName?: string | null;
+  lastName?: string | null;
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
@@ -12,7 +14,7 @@ export interface ApplicantAttorneyCreateDto {
   city?: string | null;
   zipCode?: string | null;
   stateId?: string | null;
-  identityUserId?: string;
+  identityUserId?: string | null;
 }
 
 export interface ApplicantAttorneyDto extends FullAuditedEntityDto<string> {
@@ -32,6 +34,8 @@ export interface ApplicantAttorneyDto extends FullAuditedEntityDto<string> {
 }
 
 export interface ApplicantAttorneyUpdateDto {
+  firstName?: string | null;
+  lastName?: string | null;
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
@@ -41,7 +45,7 @@ export interface ApplicantAttorneyUpdateDto {
   city?: string | null;
   zipCode?: string | null;
   stateId?: string | null;
-  identityUserId?: string;
+  identityUserId?: string | null;
   concurrencyStamp?: string;
 }
 

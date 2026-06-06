@@ -2,13 +2,24 @@
 id: SEED-2
 title: DemoDoctorDataSeedContributor doesn't exist yet
 severity: n/a
-status: needs-rehydration
+status: superseded
 found: 2026-05-13
+resolved: 2026-06-05
 flow: data-seeding
 component: Domain/DoctorManagement/* (new seed contributor needed)
 ---
 
 # SEED-2 — DemoDoctor seed contributor missing
+
+> **SUPERSEDED / WON'T-FIX-BY-SEED (IP3, 2026-06-05).** The user-facing symptom (an empty
+> Doctors page) is resolved by IP3, which hides the Doctors nav item and keeps the Doctor
+> entity dormant -- NOT by seeding doctors. The "hard blocker" framing below is incorrect:
+> nothing operational reads a Doctor row. Booking dropdowns query `AppointmentType` and
+> `Location` directly; slot generation and the date/slot picker gate off
+> `DoctorAvailability` (which carries no `DoctorId` FK), so zero `AppDoctors` rows never block
+> slot generation or downstream booking (see the `slot-gen-no-doctor-required` decision). No
+> demo-doctor seed contributor will be written. Revisit only if a multi-doctor-per-tenant
+> model returns to scope (see ADR-004). Historical analysis retained below for context.
 
 ## Severity
 n/a (data seeding gap)

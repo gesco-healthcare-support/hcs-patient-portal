@@ -82,6 +82,11 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // IP4: friendly pre-delete guard (soft-delete stays soft). The manager
+        // throws LocationInUse when an Appointment or DoctorAvailability still
+        // references the location, so the SPA gets a localized 400 instead of a
+        // raw DB FK error.
+        await _locationManager.EnsureCanDeleteAsync(id);
         await _locationRepository.DeleteAsync(id);
     }
 
@@ -102,12 +107,24 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteByIdsAsync(List<Guid> locationIds)
     {
+        // IP4: bulk delete honors the same friendly pre-delete guard per id.
+        foreach (var id in locationIds)
+        {
+            await _locationManager.EnsureCanDeleteAsync(id);
+        }
         await _locationRepository.DeleteManyAsync(locationIds);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteAllAsync(GetLocationsInput input)
     {
+        // IP4: resolve the rows the filter would delete and pre-check each, so a
+        // filtered bulk delete cannot orphan a referenced location.
+        var matches = await _locationRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.Name, input.City, input.ZipCode, input.ParkingFeeMin, input.ParkingFeeMax, input.IsActive, input.StateId, input.AppointmentTypeId);
+        foreach (var match in matches)
+        {
+            await _locationManager.EnsureCanDeleteAsync(match.Location.Id);
+        }
         await _locationRepository.DeleteAllAsync(input.FilterText, input.Name, input.City, input.ZipCode, input.ParkingFeeMin, input.ParkingFeeMax, input.IsActive, input.StateId, input.AppointmentTypeId);
     }
 }
