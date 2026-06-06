@@ -37,4 +37,9 @@ public enum NotificationKind
     // handler so recipient resolution can be tagged distinctly from the
     // status-change Approved email.
     PacketAttyCEDelivery = 17,
+
+    // Group K (2026-06-06) -- intake-edit notification fan-out. The resolver
+    // returns all linked parties regardless of kind; this tag distinguishes
+    // the intake-changed email from the status-change Approved email.
+    IntakeChanged = 18,
 }

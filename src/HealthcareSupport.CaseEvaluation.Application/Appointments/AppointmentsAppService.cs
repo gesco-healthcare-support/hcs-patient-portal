@@ -7,6 +7,8 @@ using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Auditing;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
@@ -1027,6 +1029,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var existing = await _appointmentRepository.FindAsync(id);
         var oldSlotId = existing?.DoctorAvailabilityId;
 
+        // Group K (G-02-03): snapshot the editable intake fields BEFORE the
+        // manager mutates the tracked entity, so we can diff old vs new for the
+        // intake-changed email after the update commits.
+        var oldAppointmentDate = existing?.AppointmentDate ?? input.AppointmentDate;
+        var oldPanelNumber = existing?.PanelNumber;
+        var oldDueDate = existing?.DueDate;
+
         var appointment = await _appointmentManager.UpdateAsync(id, input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, input.PanelNumber, input.DueDate, input.ConcurrencyStamp);
 
         // S-5.1: update party emails alongside the core appointment fields.
@@ -1052,6 +1061,32 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 occurredAt: DateTime.UtcNow,
                 doctorAvailabilityId: appointment.DoctorAvailabilityId,
                 oldDoctorAvailabilityId: oldSlotId));
+        }
+
+        // Group K (G-02-03): notify stakeholders of intake field changes with a
+        // PHI-redacted diff. The diff is masked here (before the ETO is
+        // published) so no raw PHI crosses the event bus.
+        var intakeChanges = AppointmentIntakeDiff.Compute(
+            oldAppointmentDate, appointment.AppointmentDate,
+            oldPanelNumber, appointment.PanelNumber,
+            oldDueDate, appointment.DueDate);
+        if (intakeChanges.Count > 0)
+        {
+            await _localEventBus.PublishAsync(new AppointmentIntakeChangedEto
+            {
+                AppointmentId = appointment.Id,
+                TenantId = appointment.TenantId,
+                DateOrTimeChanged = AppointmentIntakeDiff.IsDateOrTimeChanged(
+                    oldAppointmentDate, appointment.AppointmentDate),
+                ChangedFields = intakeChanges.ConvertAll(r => new IntakeChangedField
+                {
+                    Section = "Appointment",
+                    FieldName = r.PropertyName,
+                    OldValue = r.OldValue,
+                    NewValue = r.NewValue,
+                    ValueRedacted = r.ValueRedacted,
+                }),
+            });
         }
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
