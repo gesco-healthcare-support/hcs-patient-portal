@@ -242,6 +242,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
 
+        // G-08-01 (2026-06-06) -- Appointment Request Report (read-only internal
+        // worklist). Default-only, like AppointmentChangeLogs.
+        yield return Default("Reports");
+
         // Phase 2.5 (2026-05-01) -- approval + change-request lifecycle.
         yield return Approve("Appointments");
         yield return Reject("Appointments");
@@ -337,6 +341,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
         // D.1 / W-I-2: read-only audit log access.
         yield return Default("AppointmentChangeLogs");
+
+        // G-08-01 (2026-06-06): Appointment Request Report (read-only).
+        yield return Default("Reports");
 
         // D.1 / W-I-2: read-only field-config access (the booker form fetches
         // these to render per-AppointmentType field state). Edit stays admin-only.
@@ -437,6 +444,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
         yield return Default("CustomFields");
+
+        // G-08-01 (2026-06-06): Appointment Request Report (read-only). Clinic
+        // Staff is a primary report audience (the front-desk worklist).
+        yield return Default("Reports");
 
         // Phase 2.5 (2026-05-01) -- clinic staff is the front-line approver
         // for new bookings. Change requests are read-only at this tier; only

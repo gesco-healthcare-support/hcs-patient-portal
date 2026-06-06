@@ -112,6 +112,11 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
 
+        // G-08-01 (2026-06-06): read-only Appointment Request Report. No
+        // Create/Edit/Delete -- reports are read-only. The Export child (PDF)
+        // is registered with G-08-03.
+        myGroup.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
+
         // W2-5: per-AppointmentType field-config admin. Default lets the booker
         // form read the apply-on-change config; Create/Edit/Delete gate admin
         // mutation paths.
