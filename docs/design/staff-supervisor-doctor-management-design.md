@@ -2,7 +2,7 @@
 feature: staff-supervisor-doctor-management
 date: 2026-05-04
 phase: 2-frontend (backend DoctorAppService + AvailabilityAppService + LocationAppService done; Angular UI exists)
-status: draft
+status: deferred
 old-source: patientappointment-portal/src/app/components/doctor-management/
 old-components:
   - doctors/edit/doctor-edit.component.ts + .html (doctor profile inline form)
@@ -17,11 +17,25 @@ screenshots: pending
 
 # Design: Staff Supervisor -- Doctor Management
 
+> **DEFERRED / NOT IMPLEMENTED (IP3, 2026-06-05).** The Doctor entity is kept DORMANT and the
+> Doctors nav item is hidden -- nothing operational reads a Doctor row. The following claims in
+> this draft are NOT in the product and must not be relied on:
+> - **Doctor Identity-User link / lookup** -- the `IdentityUserId` FK was dropped (migration
+>   `20260502000305_Drop_Doctor_IdentityUserId`); there is no identity-user field on the Doctor
+>   form and a Doctor is a non-user reference entity.
+> - **Doctor create/edit page** -- the Doctors page is hidden; no Create/Edit flow is exposed.
+> - **"Doctor data filters the booking form"** -- the booking form queries `AppointmentType` and
+>   `Location` directly and gates slots off `DoctorAvailability.AppointmentTypes`. It does NOT
+>   read the Doctor M2M assignments or `DoctorPreferredLocation`.
+>
+> Doctor Availability and Locations (sections 4-5) remain live. Revisit this design only if a
+> multi-doctor-per-tenant model returns to scope (see ADR-004).
+
 ## Overview
 
 Four sub-surfaces covered by this doc:
 
-1. **Doctor Profile CRUD** -- Edit the doctor's basic profile (name, email, gender, identity user link).
+1. **Doctor Profile CRUD** -- Edit the doctor's basic profile (name, email, gender). [DEFERRED -- page hidden; no identity-user link. See banner.]
 2. **Doctor Appointment Types** -- Assign which appointment types the doctor accepts.
 3. **Doctor Preferred Locations** -- Assign which clinic locations the doctor works at.
 4. **Doctor Availability** -- Generate and manage time-slot calendars (slot by dates or by weekdays).
@@ -31,8 +45,9 @@ OLD is **single-doctor-per-deploy**. The Doctor entity exists but the Doctor use
 (it was removed as cleanup task #7). The Staff Supervisor (and IT Admin) manage "the doctor".
 NEW supports multiple doctors but the Phase 1 demo has one doctor.
 
-Doctor management data drives the booking form's slot picker, location dropdown, and
-appointment-type dropdown. All three filtering rules flow from these records.
+NOTE (IP3, 2026-06-05): this aspirational claim is NOT implemented. The booking form queries
+`AppointmentType` and `Location` directly and gates slots off `DoctorAvailability.AppointmentTypes`;
+it does not read the Doctor entity's M2M assignments or `DoctorPreferredLocation`.
 
 ---
 
@@ -152,7 +167,6 @@ Opens via "Create" button or "Edit" action:
 |   Last Name (required)   [text]                      |
 |   Email                  [email]                     |
 |   Gender                 [select enum]               |
-|   Identity User          [lookup]                    |
 +-------------------------------------------------------+
 | TAB 2 -- Appointment Types:                          |
 |   [abp-lookup-typeahead-mtm]  (multi-to-many)        |
@@ -176,7 +190,7 @@ NEW source: `doctors/doctor/components/doctor-detail.component.html:1-140`
 | Last Name | text input (required) | text input (required) |
 | Email | email input | email input |
 | Gender | radio (Male/Female) | select (enum lookup -- includes Non-Binary) |
-| Identity User | n/a (doctor not a user in OLD) | lookup to ABP Identity user |
+| Identity User | n/a (doctor not a user in OLD) | n/a -- removed (IP3); Doctor is a non-user reference entity, no identity link |
 | Appointment Types | inline nested component (checkbox list) | Tab 2: multi-to-many typeahead |
 | Preferred Locations | inline nested component (checkbox list) | Tab 3: multi-to-many typeahead |
 
@@ -415,7 +429,7 @@ Token definitions: `_design-tokens.md`.
 | 2 | Doctor AppointmentTypes UI | Inline nested component with per-row checkbox | Tabbed modal with multi-to-many typeahead | UX improvement; functional parity preserved (same M:N relationship) |
 | 3 | Doctor Preferred Locations UI | Inline nested component with checkbox list | Tabbed modal with multi-to-many typeahead | Same as #2; functional parity preserved |
 | 4 | Gender field | Radio (Male / Female) | Select enum (includes Non-Binary) | Deliberate expansion per modern standards; OLD values still valid |
-| 5 | Doctor Identity User link | Doctor entity has no link to ABP Identity (Doctor role was removed) | NEW `IdentityUserId` on Doctor entity links to staff user who represents the doctor | NEW enhancement; required for permission scoping |
+| 5 | Doctor Identity User link | Doctor entity has no link to ABP Identity (Doctor role was removed) | n/a -- the `IdentityUserId` FK was dropped (IP3, migration `20260502000305_Drop_Doctor_IdentityUserId`); Doctor stays a non-user reference entity | Reverted; permission scoping uses the 3-role tenant model (IR1), not a per-Doctor identity |
 | 6 | Availability filters | Location, From Date, To Date only | Adds booking status, time range, appointment type filters | Enhancement; OLD's 3 filters preserved as subset |
 | 7 | WCAB Offices in Locations list | Radio toggle switches Location/WCAB in same list component | WCAB Offices are a separate list module | Architectural separation; same data, different navigation path |
 | 8 | Slot conflict check scope | Conflict detection per location per date (time overlap) | Same rule implemented in `BookingPolicyValidator` | Strict parity: `existingFromTime < newToTime AND existingToTime > newFromTime` |
@@ -440,11 +454,15 @@ Token definitions: `_design-tokens.md`.
 
 - [ ] Staff Supervisor navigates to Doctor Management and sees the doctor list
 - [ ] Create Doctor modal opens with 3 tabs (Doctor / Appointment Types / Locations)
-- [ ] Doctor tab: First Name, Last Name, Email, Gender, Identity User save correctly
-- [ ] Appointment Types tab: typeahead allows selecting/deselecting appointment types
-- [ ] Locations tab: typeahead allows selecting/deselecting clinic locations
-- [ ] Saved appointment-type assignments filter the booking form's appointment-type dropdown
-- [ ] Saved location preferences filter the booking form's location dropdown
+- [~] DEFERRED (IP3): the Doctor create/edit modal items below are not exposed -- the Doctors
+  page is hidden and the Doctor entity is dormant. Identity-User is not a field. The booking
+  form does NOT filter by Doctor appointment-type/location assignments (it queries
+  `AppointmentType`/`Location` directly and gates slots off `DoctorAvailability.AppointmentTypes`):
+  - [ ] ~~Doctor tab: First Name, Last Name, Email, Gender, Identity User save correctly~~
+  - [ ] ~~Appointment Types tab: typeahead allows selecting/deselecting appointment types~~
+  - [ ] ~~Locations tab: typeahead allows selecting/deselecting clinic locations~~
+  - [ ] ~~Saved appointment-type assignments filter the booking form's appointment-type dropdown~~
+  - [ ] ~~Saved location preferences filter the booking form's location dropdown~~
 - [ ] Doctor Availabilities list shows accordion table grouped by date+location
 - [ ] Parent row shows Available / Booked / Reserved / Total slot counts
 - [ ] Expanding a row shows individual slots with time range and status badge

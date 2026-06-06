@@ -1,8 +1,16 @@
 # ADR-004: One Doctor Per Tenant Multi-Tenancy Model
 
-**Status:** Accepted
+**Status:** Accepted (decision stands); the Doctor entity is currently DORMANT
 **Date:** 2026-04-10
 **Verified by:** code-inspect
+
+> Update 2026-06-05 (IP3): the Doctor entity is kept dormant and the Doctors nav item is
+> hidden -- nothing operational reads a Doctor row (booking queries AppointmentType /
+> Location directly; slots gate off `DoctorAvailability.AppointmentTypes`). The
+> `IdentityUserId` FK referenced below was dropped (migration
+> `20260502000305_Drop_Doctor_IdentityUserId`); a Doctor is a non-user reference entity,
+> matched by Email during tenant provisioning, with no live identity link. Revisit this ADR
+> if a multi-doctor-per-tenant model returns to scope.
 
 ## Context
 
@@ -24,8 +32,8 @@ Evidence from the codebase:
   `Tenant` entity via an explicit FK (`HasOne<Tenant>().HasForeignKey(x => x.TenantId)`)
 - The `DoctorTenantAppService` extends ABP's `TenantAppService` and overrides
   `CreateAsync` to atomically: (a) create a SaaS tenant, (b) create/find an admin
-  IdentityUser with a "Doctor" role, (c) create a Doctor profile linked to that user
-  and tenant
+  IdentityUser with a "Doctor" role, (c) create a Doctor profile in the new tenant
+  (matched by Email; no IdentityUserId link -- that FK was dropped)
 - `DoctorAvailability` (time slots) has a `TenantId` but no direct FK to Doctor --
   slots belong to the tenant, and since there is only one doctor per tenant, the
   relationship is implicit

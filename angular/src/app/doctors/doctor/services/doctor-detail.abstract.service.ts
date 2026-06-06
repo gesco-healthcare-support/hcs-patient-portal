@@ -19,15 +19,6 @@ export abstract class AbstractDoctorDetailViewService {
 
   public readonly getLocationLookup = this.proxyService.getLocationLookup;
 
-  // OLD parity: Doctor is a non-user reference entity. Pre-merge NEW
-  // (incorrectly) modeled Doctor.IdentityUserId; cleanup commit d1bbdab
-  // removed the entity FK + DoctorAppService.GetIdentityUserLookupAsync,
-  // and the proxy regen reflected the removal. The dropdown that consumed
-  // this lookup is dead UI; the residual form-control and template cleanup
-  // is tracked separately. See docs/research/proxy-regen-identity-lookup-fix.md.
-
-  public readonly getTenantLookup = this.proxyService.getTenantLookup;
-
   genderOptions = genderOptions;
 
   isBusy = false;
@@ -54,8 +45,7 @@ export abstract class AbstractDoctorDetailViewService {
   }
 
   buildForm() {
-    const { firstName, lastName, email, gender, identityUserId, tenantId } =
-      this.selected?.doctor || {};
+    const { firstName, lastName, email, gender } = this.selected?.doctor || {};
 
     const { appointmentTypes = [], locations = [] } = this.selected || {};
 
@@ -64,8 +54,6 @@ export abstract class AbstractDoctorDetailViewService {
       lastName: [lastName ?? null, [Validators.required, Validators.maxLength(50)]],
       email: [email ?? null, [Validators.required, Validators.maxLength(49), Validators.email]],
       gender: [gender ?? null, [Validators.required]],
-      identityUserId: [identityUserId ?? null, []],
-      tenantId: [tenantId ?? null, []],
       appointmentTypeIds: [appointmentTypes, []],
       locationIds: [locations, []],
     });
