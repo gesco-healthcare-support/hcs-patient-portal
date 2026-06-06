@@ -72,15 +72,21 @@ transition diagram and rule.
    creates or updates an `ApplicantAttorney` then upserts the single `AppointmentApplicantAttorney`
    link row (takes the first result of a `maxResultCount: 10` fetch).
 
-8. **Permission gap on Create/Update at the API.** Both carry only `[Authorize]`; any
-   authenticated user can call them. The Angular UI checks `Create`/`Edit` permissions.
-   Tracked as `[Fact(Skip="KNOWN GAP: ...")]` in the test file.
+8. **Create/Update are permission-gated at the API.** `CreateAsync` (and
+   `ReSubmitAsync`/`CreateRevalAsync`) require `Appointments.Create`; `UpdateAsync`
+   requires `Appointments.Edit` (internal-staff only -- external parties edit via
+   change-requests, matching OLD). Enforced by ABP's authorization interceptor on the
+   `[Authorize(permission)]` attributes; guarded by
+   `AppointmentsAppServiceAuthorizationTests` (reflection, since the SQLite harness
+   does not seed role->permission grants for behavioral denial).
 
 ## Gotchas
 
-1. **`view/:id` route has no `permissionGuard`.** Only `authGuard`. The server's
-   `GetWithNavigationPropertiesAsync` is also `[Authorize]` only, so any authenticated user
-   in the same tenant can deep-link to any appointment by ID.
+1. **`view/:id` route has only `authGuard` (no `permissionGuard`), but the server
+   enforces party-scoping.** `GetWithNavigationPropertiesAsync` calls `EnsureCanReadAsync`
+   (7-pathway access guard: internal user / creator / patient / AA / DA / CE / accessor),
+   so a deep-link to a non-party appointment is rejected server-side. The thin Angular
+   guard is intentional -- the API is the authority.
 
 2. **Three parallel form patterns in Angular.** Modal (FormBuilder reactive), Add page
    (FormBuilder reactive), View page (plain ngModel). The ngModel form is the divergence
