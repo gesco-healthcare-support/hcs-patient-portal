@@ -860,35 +860,35 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // repository DbContext is disposed before manager.ApproveAsync runs.
         await WithUnitOfWorkAsync(async () =>
         {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
-            await injuryRepository.InsertAsync(
-                new AppointmentInjuryDetail(
-                    Guid.NewGuid(),
-                    appointment.Id,
-                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    claimNumber: "CLM-TEST-0001",
-                    isCumulativeInjury: false,
-                    bodyPartsSummary: "Lower back",
-                    wcabAdj: "ADJ-CI3"),
-                autoSave: true);
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+                await injuryRepository.InsertAsync(
+                    new AppointmentInjuryDetail(
+                        Guid.NewGuid(),
+                        appointment.Id,
+                        dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                        claimNumber: "CLM-TEST-0001",
+                        isCumulativeInjury: false,
+                        bodyPartsSummary: "Lower back",
+                        wcabAdj: "ADJ-CI3"),
+                    autoSave: true);
 
-            // CI1 (2026-06-05): approval also requires an active Claim Examiner.
-            var claimExaminerRepository = GetRequiredService<IRepository<AppointmentClaimExaminer, Guid>>();
-            await claimExaminerRepository.InsertAsync(
-                new AppointmentClaimExaminer(Guid.NewGuid(), appointment.Id, isActive: true)
-                {
-                    Name = "Jane Examiner",
-                    Email = "ce@gesco.com",
-                },
-                autoSave: true);
+                // CI1 (2026-06-05): approval also requires an active Claim Examiner.
+                var claimExaminerRepository = GetRequiredService<IRepository<AppointmentClaimExaminer, Guid>>();
+                await claimExaminerRepository.InsertAsync(
+                    new AppointmentClaimExaminer(Guid.NewGuid(), appointment.Id, isActive: true)
+                    {
+                        Name = "Jane Examiner",
+                        Email = "ce@gesco.com",
+                    },
+                    autoSave: true);
 
-            var manager = GetRequiredService<AppointmentManager>();
-            var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
+                var manager = GetRequiredService<AppointmentManager>();
+                var approved = await manager.ApproveAsync(appointment.Id, Guid.NewGuid());
 
-            approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
-        }
+                approved.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+            }
         });
     }
 
@@ -908,29 +908,29 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         // repository DbContext is disposed before manager.ApproveAsync runs.
         await WithUnitOfWorkAsync(async () =>
         {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            // Inject an injury so the injury-detail gate passes and the
-            // claim-examiner gate is the one under test.
-            var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
-            await injuryRepository.InsertAsync(
-                new AppointmentInjuryDetail(
-                    Guid.NewGuid(),
-                    appointment.Id,
-                    dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    claimNumber: "CLM-CI1-0001",
-                    isCumulativeInjury: false,
-                    bodyPartsSummary: "Lower back",
-                    wcabAdj: "ADJ-CI3"),
-                autoSave: true);
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // Inject an injury so the injury-detail gate passes and the
+                // claim-examiner gate is the one under test.
+                var injuryRepository = GetRequiredService<IAppointmentInjuryDetailRepository>();
+                await injuryRepository.InsertAsync(
+                    new AppointmentInjuryDetail(
+                        Guid.NewGuid(),
+                        appointment.Id,
+                        dateOfInjury: new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                        claimNumber: "CLM-CI1-0001",
+                        isCumulativeInjury: false,
+                        bodyPartsSummary: "Lower back",
+                        wcabAdj: "ADJ-CI3"),
+                    autoSave: true);
 
-            var manager = GetRequiredService<AppointmentManager>();
+                var manager = GetRequiredService<AppointmentManager>();
 
-            var ex = await Should.ThrowAsync<BusinessException>(
-                () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
+                var ex = await Should.ThrowAsync<BusinessException>(
+                    () => manager.ApproveAsync(appointment.Id, Guid.NewGuid()));
 
-            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer);
-        }
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer);
+            }
         });
     }
 
