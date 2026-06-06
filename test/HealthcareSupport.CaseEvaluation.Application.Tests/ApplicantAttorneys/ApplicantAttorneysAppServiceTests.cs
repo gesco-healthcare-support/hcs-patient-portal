@@ -105,7 +105,7 @@ public abstract class ApplicantAttorneysAppServiceTests<TStartupModule> : CaseEv
         created.City.ShouldBe(input.City);
         created.ZipCode.ShouldBe(input.ZipCode);
         // FKs.
-        created.IdentityUserId.ShouldBe(input.IdentityUserId);
+        created.IdentityUserId.ShouldBe(input.IdentityUserId!.Value);
 
         // Re-fetch via the repository to prove the persistence layer accepted
         // the manager-post-ctor assignments. This test runs in host context so
