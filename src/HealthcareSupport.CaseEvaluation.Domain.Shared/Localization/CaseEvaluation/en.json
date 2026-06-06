@@ -435,6 +435,7 @@
     "Appointment:Action:Review": "Review",
     "Appointment:Action:ViewChangeLog": "View change log",
     "Permission:AppointmentChangeLogs": "View Change Logs",
+    "Permission:Reports": "Reports",
     "Permission:CustomFields": "Custom Fields (per-AppointmentType config)",
     "FieldName": "Field Name",
     "CustomField:Max10ActivePerAppointmentType": "Up to 10 active custom fields are allowed per Appointment Type. Deactivate or delete one before adding another.",
