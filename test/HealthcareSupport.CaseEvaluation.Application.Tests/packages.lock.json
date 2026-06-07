@@ -3618,6 +3618,7 @@
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "MiniExcel": "[1.41.4, )",
+          "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Account.Pro.Admin.Application": "[10.0.2, )",
