@@ -21,6 +21,7 @@ public abstract class ReportsAppServiceTests<TStartupModule> : CaseEvaluationApp
     where TStartupModule : IAbpModule
 {
     private readonly IReportsAppService _reportsAppService;
+    private readonly IAppointmentDemographicsAppService _demographicsAppService;
     private readonly ICurrentTenant _currentTenant;
 
     static ReportsAppServiceTests()
@@ -33,6 +34,7 @@ public abstract class ReportsAppServiceTests<TStartupModule> : CaseEvaluationApp
     protected ReportsAppServiceTests()
     {
         _reportsAppService = GetRequiredService<IReportsAppService>();
+        _demographicsAppService = GetRequiredService<IAppointmentDemographicsAppService>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
@@ -119,6 +121,22 @@ public abstract class ReportsAppServiceTests<TStartupModule> : CaseEvaluationApp
         {
             await Should.ThrowAsync<UserFriendlyException>(
                 async () => await _reportsAppService.GetReportPdfAsync(new GetAppointmentReportInput()));
+        }
+    }
+
+    [Fact]
+    public async Task GetDemographicsPdfAsync_returns_a_pdf_for_an_appointment()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var result = await _demographicsAppService.GetPdfAsync(AppointmentsTestData.Appointment1Id);
+
+            result.ContentType.ShouldBe("application/pdf");
+            result.FileName.ShouldEndWith(".pdf");
+
+            using var buffer = new MemoryStream();
+            await result.Content.CopyToAsync(buffer);
+            Encoding.ASCII.GetString(buffer.ToArray(), 0, 5).ShouldBe("%PDF-");
         }
     }
 }
