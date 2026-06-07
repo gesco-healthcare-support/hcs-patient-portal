@@ -1,7 +1,10 @@
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Reports.Pdf;
 using Microsoft.AspNetCore.Authorization;
+using QuestPDF.Fluent;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 
@@ -72,6 +75,42 @@ public class ReportsAppService : CaseEvaluationAppService, IReportsAppService
         {
             TotalCount = totalCount,
             Items = rows,
+        };
+    }
+
+    [Authorize(CaseEvaluationPermissions.Reports.Export)]
+    public virtual async Task<DownloadResult> GetReportPdfAsync(GetAppointmentReportInput input)
+    {
+        if (!ReportFilterValidator.HasAnyFilter(input))
+        {
+            throw new UserFriendlyException(L["Report:EnterAtLeastOneFilter"]);
+        }
+
+        if (!ReportFilterValidator.IsDateRangeValid(input.AppointmentDateMin, input.AppointmentDateMax))
+        {
+            throw new UserFriendlyException(L["Report:InvalidDateRange"]);
+        }
+
+        var sorting = ReportFilterValidator.ResolveSorting(input.Sorting);
+
+        // Export the FULL filtered set (no paging), unlike the paged grid.
+        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
+            filterText: input.FilterText,
+            appointmentDateMin: input.AppointmentDateMin,
+            appointmentDateMax: input.AppointmentDateMax,
+            appointmentTypeId: input.AppointmentTypeId,
+            locationId: input.LocationId,
+            appointmentStatus: input.AppointmentStatus,
+            sorting: sorting);
+
+        var rows = items.Select(ToMaskedRow).ToList();
+        var bytes = new AppointmentReportPdfDocument(rows).GeneratePdf();
+
+        return new DownloadResult
+        {
+            Content = new MemoryStream(bytes),
+            ContentType = "application/pdf",
+            FileName = "appointment-request-report.pdf",
         };
     }
 

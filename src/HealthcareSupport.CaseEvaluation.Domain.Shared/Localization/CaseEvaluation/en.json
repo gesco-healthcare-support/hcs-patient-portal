@@ -436,6 +436,7 @@
     "Appointment:Action:ViewChangeLog": "View change log",
     "Permission:AppointmentChangeLogs": "View Change Logs",
     "Permission:Reports": "Reports",
+    "Permission:Reports.Export": "Export Reports",
     "Report:EnterAtLeastOneFilter": "Enter at least one search value.",
     "Report:InvalidDateRange": "Enter both From and To dates, with From on or before To.",
     "Menu:Reports": "Reports",

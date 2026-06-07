@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="MiniExcel" Version="1.41.4" />
+    <!-- G-08-03 (2026-06-06): QuestPDF renders the report + demographics PDFs in
+         process (first real QuestPDF render). Version pinned to match the Domain
+         reference + the Community license set in CaseEvaluationDomainModule. -->
+    <PackageReference Include="QuestPDF" Version="2026.2.4" />
     <PackageReference Include="Volo.Abp.PermissionManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.FeatureManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.SettingManagement.Application" Version="10.0.2" />
