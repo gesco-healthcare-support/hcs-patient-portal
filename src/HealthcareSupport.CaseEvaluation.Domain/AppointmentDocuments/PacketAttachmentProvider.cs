@@ -110,7 +110,15 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
                 packet.BlobName, packet.Id);
         }
 
-        await _packetRepository.DeleteAsync(packet, autoSave: true, cancellationToken: cancellationToken);
+        // F3 fix (2026-06-07): one AttyCE packet row is shared by the
+        // per-recipient send jobs (AA / DA / CE), and each prunes it here on
+        // success. A tracked DeleteAsync carries the concurrency token, so the
+        // 2nd/3rd concurrent prune threw AbpDbConcurrencyException ("affected 0
+        // rows") -> the Hangfire job failed and retried -> the packet email was
+        // RE-SENT (duplicate). A set-based DeleteDirectAsync issues a single
+        // DELETE WHERE Id = ... with no concurrency token, so a row already
+        // pruned by a sibling job is a benign 0-row no-op (idempotent prune).
+        await _packetRepository.DeleteDirectAsync(p => p.Id == packetId, cancellationToken);
         _logger.LogInformation(
             "PacketAttachmentProvider: pruned AttyCE packet {PacketId} after successful email send.",
             packetId);
