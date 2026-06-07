@@ -21741,6 +21741,54 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController": {
+          "controllerName": "AppointmentDemographics",
+          "controllerGroupName": "AppointmentDemographics",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController",
+          "interfaces": [],
+          "actions": {
+            "GetPdfAsyncByAppointmentId": {
+              "uniqueName": "GetPdfAsyncByAppointmentId",
+              "name": "GetPdfAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-demographics/{appointmentId}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController": {
           "controllerName": "Report",
           "controllerGroupName": "Report",
