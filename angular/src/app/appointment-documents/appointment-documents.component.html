@@ -140,6 +140,9 @@
                 @if (documentTypeLabel(doc); as typeLabel) {
                   <span class="badge bg-info text-dark">{{ typeLabel }}</span>
                 }
+                @if (doc.isPanelStrikeList) {
+                  <span class="badge bg-info text-dark">Panel Strike List</span>
+                }
               </div>
               <div class="doc-meta">
                 {{ doc.fileName }} &middot; {{ formatBytes(doc.fileSize) }}

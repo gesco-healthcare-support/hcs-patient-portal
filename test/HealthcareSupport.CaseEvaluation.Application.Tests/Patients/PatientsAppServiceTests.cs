@@ -218,31 +218,46 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     // ------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task CreateAsync_WithoutIdentityUser_CreatesRecordOnlyPatient()
     {
+        // IP6: booking no longer mints a login; patients are record-only with a
+        // nullable IdentityUserId. The old required-identity gate was removed.
         var input = BuildValidCreateDto();
-        input.IdentityUserId = Guid.Empty;
+        input.IdentityUserId = null;
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.CreateAsync(input));
+        var created = await _patientsAppService.CreateAsync(input);
+
+        created.ShouldNotBeNull();
+        created.Id.ShouldNotBe(Guid.Empty);
+        created.IdentityUserId.ShouldBeNull();
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task UpdateAsync_WithoutIdentityUser_Succeeds()
     {
+        // IP6: a record-only patient can be updated while staying loginless.
+        // Use a fresh record-only patient so seeded Patient1 is untouched.
+        var createInput = BuildValidCreateDto();
+        createInput.IdentityUserId = null;
+        var created = await _patientsAppService.CreateAsync(createInput);
+
         var update = new PatientUpdateDto
         {
-            FirstName = "X",
-            LastName = "Y",
-            Email = "xy@test.local",
+            FirstName = "Renamed-RecordOnly",
+            LastName = "Patient",
+            Email = created.Email,
             GenderId = Gender.Male,
             DateOfBirth = PatientsTestData.FixedDateOfBirth,
             PhoneNumberTypeId = PhoneNumberType.Work,
-            IdentityUserId = Guid.Empty,
+            IdentityUserId = null,
+            TenantId = TenantsTestData.TenantARef,
+            ConcurrencyStamp = created.ConcurrencyStamp,
         };
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update));
+        var result = await _patientsAppService.UpdateAsync(created.Id, update);
+
+        result.FirstName.ShouldBe("Renamed-RecordOnly");
+        result.IdentityUserId.ShouldBeNull();
     }
 
     // ------------------------------------------------------------------------
@@ -471,15 +486,9 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         result.IsExisting.ShouldBeTrue();
     }
 
-    [Fact(Skip = "KNOWN GAP: GetOrCreatePatientForAppointmentBookingAsync uses CaseEvaluationConsts.AdminPasswordDefaultValue for runtime-created IdentityUser. Tracked: src/.../Domain/Patients/CLAUDE.md Known Gotchas (hardcoded admin password) AND docs/gap-analysis NEW-SEC-04. When an invite-token / temp-password flow replaces the hardcoded password, this Fact flips live.")]
-    public Task GetOrCreatePatient_DoesNotUseHardcodedAdminPassword()
+    [Fact(Skip = "HARNESS GAP: the runtime-create arm (new-email booking) still lacks a test harness (same blocker noted on GetOrCreatePatient_WhenEmailMatchesPatient1). IP6 record-only (2026-06-05): booking mints NO IdentityUser and sets no password -- the SEC-05 / Q-12 / NEW-SEC-04 shared-password defect is closed by removal, not patched. When the harness supports runtime create, assert: a new-email booking creates a Patient with a null IdentityUserId, mints no IdentityUser, and grants no Patient role (the claim + role happen later in RegisterAsync).")]
+    public Task GetOrCreatePatient_RecordOnly_MintsNoLogin()
     {
-        // Expected behaviour (not yet implemented):
-        // Newly-created IdentityUser should have a password that requires
-        // a flow-controlled set/reset (invite token, temp password, or
-        // SSO claim) rather than the hardcoded default. Today's behaviour
-        // grants every auto-created Patient the same admin-default password
-        // until they reset it -- a HIPAA-relevant credential exposure.
         return Task.CompletedTask;
     }
 

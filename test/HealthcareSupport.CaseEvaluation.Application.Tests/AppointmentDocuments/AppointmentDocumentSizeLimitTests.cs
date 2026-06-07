@@ -91,5 +91,11 @@ public class AppointmentDocumentSizeLimitTests
         // test deliberately alongside the constant.
         AppointmentDocumentsAppService.MaxFileSizeBytes.ShouldBe(10L * 1024 * 1024);
         AppointmentDocumentsAppService.MaxFileSizeBytes.ShouldBe(10_485_760L);
+
+        // AF7 (2026-06-05): the AppService cap aliases the Domain.Shared const
+        // (single source of truth), which the Domain manager + Angular client
+        // also mirror. Pin both so the client/server/domain caps cannot drift.
+        AppointmentDocumentConsts.MaxFileSizeBytes.ShouldBe(10L * 1024 * 1024);
+        AppointmentDocumentsAppService.MaxFileSizeBytes.ShouldBe(AppointmentDocumentConsts.MaxFileSizeBytes);
     }
 }

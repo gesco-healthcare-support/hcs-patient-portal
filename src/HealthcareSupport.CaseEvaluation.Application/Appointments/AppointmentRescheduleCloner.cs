@@ -196,21 +196,21 @@ internal static class AppointmentRescheduleCloner
     }
 
     /// <summary>
-    /// Clone an <see cref="AppointmentClaimExaminer"/> under a new
-    /// injury-detail row. The constructor only takes the IsActive
-    /// flag, so all the contact-info scalars are back-filled.
+    /// Clone an <see cref="AppointmentClaimExaminer"/> for a new appointment
+    /// (CI1: CE is appointment-level). All contact-info scalars are
+    /// back-filled post-construction.
     /// </summary>
     internal static AppointmentClaimExaminer CloneClaimExaminerFor(
         AppointmentClaimExaminer source,
         Guid newId,
-        Guid newInjuryDetailId,
+        Guid newAppointmentId,
         Guid? newTenantId)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
 
         var clone = new AppointmentClaimExaminer(
             id: newId,
-            appointmentInjuryDetailId: newInjuryDetailId,
+            appointmentId: newAppointmentId,
             isActive: source.IsActive);
 
         clone.TenantId = newTenantId;
@@ -227,28 +227,26 @@ internal static class AppointmentRescheduleCloner
     }
 
     /// <summary>
-    /// Clone an <see cref="AppointmentPrimaryInsurance"/> under a new
-    /// injury-detail row. Same back-fill shape as
-    /// <see cref="CloneClaimExaminerFor"/> -- the constructor takes
-    /// only IsActive; everything else is post-construction.
+    /// Clone an <see cref="AppointmentPrimaryInsurance"/> for a new appointment
+    /// (CI1: insurance is appointment-level). Everything else is
+    /// post-construction.
     /// </summary>
     internal static AppointmentPrimaryInsurance ClonePrimaryInsuranceFor(
         AppointmentPrimaryInsurance source,
         Guid newId,
-        Guid newInjuryDetailId,
+        Guid newAppointmentId,
         Guid? newTenantId)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
 
         var clone = new AppointmentPrimaryInsurance(
             id: newId,
-            appointmentInjuryDetailId: newInjuryDetailId,
+            appointmentId: newAppointmentId,
             isActive: source.IsActive);
 
         clone.TenantId = newTenantId;
         clone.Name = source.Name;
         clone.Suite = source.Suite;
-        clone.Attention = source.Attention;
         clone.PhoneNumber = source.PhoneNumber;
         clone.FaxNumber = source.FaxNumber;
         clone.Street = source.Street;

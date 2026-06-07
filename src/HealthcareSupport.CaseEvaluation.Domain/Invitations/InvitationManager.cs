@@ -59,12 +59,16 @@ public class InvitationManager : DomainService
     /// <param name="email">Recipient email; stored verbatim (lowercased by caller).</param>
     /// <param name="userType">External role the invitation grants.</param>
     /// <param name="invitedByUserId">Internal staff user issuing the invite.</param>
+    /// <param name="firstName">Optional recipient first name (greeting + register prefill).</param>
+    /// <param name="lastName">Optional recipient last name.</param>
     /// <returns>Tuple of (the persisted Invitation, the raw token).</returns>
     public virtual async Task<(Invitation Invitation, string RawToken)> IssueAsync(
         Guid tenantId,
         string email,
         ExternalUserType userType,
-        Guid invitedByUserId)
+        Guid invitedByUserId,
+        string? firstName = null,
+        string? lastName = null)
     {
         Check.NotNullOrWhiteSpace(email, nameof(email));
 
@@ -80,7 +84,9 @@ public class InvitationManager : DomainService
             userType: userType,
             tokenHash: tokenHash,
             expiresAt: expiresAt,
-            invitedByUserId: invitedByUserId);
+            invitedByUserId: invitedByUserId,
+            firstName: firstName,
+            lastName: lastName);
 
         await _invitationRepository.InsertAsync(invitation, autoSave: true);
         return (invitation, rawToken);

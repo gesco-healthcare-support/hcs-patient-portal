@@ -2,7 +2,7 @@
 feature: staff-supervisor-change-request-approval
 date: 2026-05-04
 phase: 17-frontend (backend endpoints pending)
-status: draft
+status: superseded
 old-source: patientappointment-portal/src/app/components/appointment-request/appointment-change-requests/
 old-components:
   - list/ (reschedule requests page)
@@ -16,6 +16,15 @@ screenshots: pending (OLD server on port 4201; capture deferred to batch pass)
 ---
 
 # Design: Staff Supervisor -- Change Request Approval (Cancel + Reschedule)
+
+> **SUPERSEDED by AP1 (2026-06-06).** Implemented in
+> `angular/src/app/appointments/change-requests/` -- one `ChangeRequestListComponent` drives
+> both the Pending Reschedules and Pending Cancellations queues (selected by route data) over
+> `getPending`, with approve (outcome NoBill/Late) + reject modals. Corrections to this draft:
+> the pages use a plain Bootstrap table + ABP `<abp-modal>`, NOT Angular Material
+> `mat-table` / `MatDialog`. Routes live at `/appointments/change-requests/{reschedules,cancellations}`
+> gated on `CaseEvaluation.AppointmentChangeRequests`. See
+> `docs/plans/2026-06-06-appointment-change-request-ui.md`.
 
 ## 1. Routes
 

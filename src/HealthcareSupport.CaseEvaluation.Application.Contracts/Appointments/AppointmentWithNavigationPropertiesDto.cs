@@ -1,8 +1,10 @@
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -35,4 +37,8 @@ public class AppointmentWithNavigationPropertiesDto
 
     /// <summary>Phase 13b (2026-05-04).</summary>
     public List<AppointmentAccessorDto> AppointmentAccessors { get; set; } = new();
+
+    /// <summary>CI1 (2026-06-05) -- single appointment-level CE + insurance.</summary>
+    public AppointmentClaimExaminerDto? ClaimExaminer { get; set; }
+    public AppointmentPrimaryInsuranceDto? PrimaryInsurance { get; set; }
 }

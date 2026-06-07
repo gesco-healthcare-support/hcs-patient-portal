@@ -89,13 +89,52 @@ public class SendAppointmentEmailJob :
 
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
     {
-        // G-04-10 (2026-06-02): no swallow -- a send failure propagates so
-        // Hangfire retries and, once exhausted, dead-letters the job.
-        await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
-        Logger.LogInformation(
-            "SendAppointmentEmailJob: delivered ({Context}) to {To}.",
-            args.Context,
-            args.To);
+        // Merge (2026-06-07): took main's E1 (2026-06-03) -- CC support + a
+        // logged catch that does NOT retry while ACS creds are unconfigured.
+        // This supersedes the parity G-04-10 (2026-06-02) no-swallow/propagate
+        // choice (E1 is the newer decision and avoids retry storms during the
+        // live bring-up); the failure is logged, not silently dropped.
+        try
+        {
+            if (args.Cc != null && args.Cc.Count > 0)
+            {
+                // E1 (2026-06-03): single addressed notice with CC. The simple
+                // IEmailSender.SendAsync(to,...) overload has no CC, so build a
+                // MailMessage when CC recipients are present.
+                using var mail = new MailMessage
+                {
+                    Subject = args.Subject,
+                    Body = args.Body,
+                    IsBodyHtml = args.IsBodyHtml,
+                };
+                mail.To.Add(args.To);
+                foreach (var cc in args.Cc)
+                {
+                    if (!string.IsNullOrWhiteSpace(cc))
+                    {
+                        mail.CC.Add(cc);
+                    }
+                }
+                await _emailSender.SendAsync(mail);
+            }
+            else
+            {
+                await _emailSender.SendAsync(args.To, args.Subject, args.Body, isBodyHtml: args.IsBodyHtml);
+            }
+            Logger.LogInformation(
+                "SendAppointmentEmailJob: delivered ({Context}) to {To} (cc={CcCount}).",
+                args.Context,
+                args.To,
+                args.Cc?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(
+                ex,
+                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To}. Configure ACS credentials to deliver. Job will not retry until Attempts policy is raised.",
+                args.Context,
+                args.To);
+        }
     }
 
     private async Task SendWithAttachmentAsync(SendAppointmentEmailArgs args, PacketAttachmentRef packetRef)
@@ -124,6 +163,14 @@ public class SendAppointmentEmailJob :
                 IsBodyHtml = args.IsBodyHtml,
             };
             mail.To.Add(args.To);
+            // E1 (2026-06-03): CC the other parties on the single notice.
+            foreach (var cc in args.Cc ?? new System.Collections.Generic.List<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(cc))
+                {
+                    mail.CC.Add(cc);
+                }
+            }
 
             using var ms = new System.IO.MemoryStream(attachment.Bytes);
             var mailAttachment = new Attachment(ms, attachment.FileName, attachment.ContentType);

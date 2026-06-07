@@ -10,8 +10,9 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 ///
 /// <para>Grid:</para>
 /// <list type="bullet">
-///   <item>Internal user (admin / Clinic Staff / Staff Supervisor / IT Admin
-///         / Doctor) -- all three kinds.</item>
+///   <item>Internal user (admin / Clinic Staff / Staff Supervisor / IT Admin)
+///         -- all three kinds. ("Doctor" was retired as an internal persona in
+///         IR1, 2026-06-03; re-add when a multi-doctor model lands.)</item>
 ///   <item>Patient -- the Patient packet only.</item>
 ///   <item>Applicant Attorney / Defense Attorney / Claim Examiner -- the
 ///         Attorney-CE packet only.</item>

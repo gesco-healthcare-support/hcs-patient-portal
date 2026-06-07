@@ -194,7 +194,7 @@ public class NotificationTemplatesValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void Codes_All_Has65Codes()
+    public void Codes_All_Has64Codes()
     {
         // OLD has 16 + 43 = 59 events. 2026-05-12: Cat 2-7 expansion +
         // packet-generation / reminder / digest handlers added 3 NEW-only
@@ -202,9 +202,10 @@ public class NotificationTemplatesValidatorUnitTests
         // tokenized-invite (#202) and IT-Admin internal-user-creation
         // (#203) features each added one more NEW-only code
         // (InviteExternalUser, InternalUserCreated), bringing the count to 64.
-        // 2026-06-06 (Group L): JointDeclarationUploadReminder added a distinct
-        // JDF reminder template (G-05-02 Option B), bringing the count to 65.
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(65);
+        // Merge (2026-06-07): Group L added JointDeclarationUploadReminder (+1)
+        // and E2 (2026-06-04) removed the dead AppointmentRequestedUnregistered
+        // (-1); the merged set keeps both changes, so the count is 64.
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(64);
     }
 
     [Fact]

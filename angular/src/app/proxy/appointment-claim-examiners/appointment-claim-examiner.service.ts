@@ -41,7 +41,7 @@ export class AppointmentClaimExaminerService {
     this.restService.request<any, PagedResultDto<AppointmentClaimExaminerDto>>({
       method: 'GET',
       url: '/api/app/appointment-claim-examiners',
-      params: { filterText: input.filterText, appointmentInjuryDetailId: input.appointmentInjuryDetailId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, appointmentId: input.appointmentId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

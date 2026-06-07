@@ -32,4 +32,10 @@ public class AppointmentDocumentDto : FullAuditedEntityDto<Guid>
     /// <summary>G-03-03 (PR2): free-text label when the uploader picked "Other"; the
     /// document is shown under this label. Null otherwise.</summary>
     public string? OtherDocumentTypeName { get; set; }
+    /// <summary>
+    /// AF5 (2026-06-04): true when this document is the PQME panel strike list
+    /// (staff venue-verification document). Lets the staff document list badge
+    /// it. Set on the upload path that tags the strike-list file (AF6).
+    /// </summary>
+    public bool IsPanelStrikeList { get; set; }
 }

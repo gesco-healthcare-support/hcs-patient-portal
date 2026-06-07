@@ -8,14 +8,17 @@ namespace HealthcareSupport.CaseEvaluation.DoctorPreferredLocations;
 
 /// <summary>
 /// IT Admin / Staff Supervisor surface for the Doctor-Location preference
-/// table that scopes the booking-form Location dropdown per doctor.
-/// Phase 7b (2026-05-03). Mirrors OLD's
+/// table (a per-doctor stored preference). Phase 7b (2026-05-03). Mirrors OLD's
 /// <c>DoctorPreferredLocationDomain</c> upsert pattern at
 /// <c>P:\PatientPortalOld\PatientAppointment.Domain\DoctorManagementModule\DoctorPreferredLocationDomain.cs</c>:45-108.
 ///
+/// NOTE (IP3, 2026-06-05): storage-only. The booking flow does NOT consume this table --
+/// <c>GetLocationLookupAsync</c> queries <c>Location</c> directly, so no Location dropdown is
+/// scoped by it, and there is no Angular component bound to it. Retained dormant alongside
+/// the dormant Doctor entity; wire a consumer before claiming it filters anything.
+///
 /// Authorization:
-///   - Class-level <c>[Authorize]</c> so authenticated booking flows can
-///     read the preference list (Phase 11 will consume it).
+///   - Class-level <c>[Authorize]</c> so authenticated callers can read the preference list.
 ///   - <c>ToggleAsync</c> overrides with
 ///     <c>DoctorPreferredLocations.Toggle</c> for the admin write path.
 /// </summary>

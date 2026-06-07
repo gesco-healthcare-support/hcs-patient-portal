@@ -107,6 +107,29 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
 
         ComposeInjuries(body);
 
+        // #296 (2026-06-07 merge) moved Claim Examiner + Primary Insurance from
+        // per-injury to per-appointment, so they render once here.
+        var insurance = _appointment.PrimaryInsurance;
+        if (insurance != null)
+        {
+            Section(body, "Insurance",
+                ("Company", insurance.Name),
+                ("Phone", insurance.PhoneNumber),
+                ("Fax", insurance.FaxNumber),
+                ("Address", ComposeAddress(insurance.Street, insurance.City, insurance.Zip)));
+        }
+
+        var examiner = _appointment.ClaimExaminer;
+        if (examiner != null)
+        {
+            Section(body, "Claim Examiner",
+                ("Name", examiner.Name),
+                ("Email", examiner.Email),
+                ("Phone", examiner.PhoneNumber),
+                ("Fax", examiner.Fax),
+                ("Address", ComposeAddress(examiner.Street, examiner.City, examiner.Zip)));
+        }
+
         var applicant = _appointment.AppointmentApplicantAttorney?.ApplicantAttorney;
         if (applicant != null)
         {
@@ -154,28 +177,6 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
                 ("Claim Number", injury?.ClaimNumber),
                 ("WCAB Office", injuryNav.WcabOffice?.Name),
                 ("Body Parts", bodyParts));
-
-            var insurance = injuryNav.PrimaryInsurance;
-            if (insurance != null)
-            {
-                Section(body, $"Insurance (Injury {index})",
-                    ("Company", insurance.Name),
-                    ("Attention", insurance.Attention),
-                    ("Phone", insurance.PhoneNumber),
-                    ("Fax", insurance.FaxNumber),
-                    ("Address", ComposeAddress(insurance.Street, insurance.City, insurance.Zip)));
-            }
-
-            var examiner = injuryNav.ClaimExaminer;
-            if (examiner != null)
-            {
-                Section(body, $"Claim Examiner (Injury {index})",
-                    ("Name", examiner.Name),
-                    ("Email", examiner.Email),
-                    ("Phone", examiner.PhoneNumber),
-                    ("Fax", examiner.Fax),
-                    ("Address", ComposeAddress(examiner.Street, examiner.City, examiner.Zip)));
-            }
         }
     }
 

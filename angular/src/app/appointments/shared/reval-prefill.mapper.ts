@@ -6,6 +6,8 @@ import type {
 import type { AppointmentEmployerDetailDto } from '../../proxy/appointment-employer-details/models';
 import type { AppointmentInjuryDetailWithNavigationPropertiesDto } from '../../proxy/appointment-injury-details/models';
 import type { AppointmentAccessorWithNavigationPropertiesDto } from '../../proxy/appointment-accessors/models';
+import type { AppointmentClaimExaminerDto } from '../../proxy/appointment-claim-examiners/models';
+import type { AppointmentPrimaryInsuranceDto } from '../../proxy/appointment-primary-insurances/models';
 import type { AppointmentInjuryDraft } from '../sections/appointment-add-claim-information.component';
 import type {
   AppointmentAuthorizedUserDraft,
@@ -38,6 +40,10 @@ export interface RevalPrefillSources {
   injuries: AppointmentInjuryDetailWithNavigationPropertiesDto[];
   accessors: AppointmentAccessorWithNavigationPropertiesDto[];
   authorizedUserOptions: ExternalAuthorizedUserOption[];
+  // #296: Claim Examiner + Primary Insurance are one-per-appointment now, so
+  // they arrive from the source appointment graph (not per injury).
+  claimExaminer: AppointmentClaimExaminerDto | null;
+  primaryInsurance: AppointmentPrimaryInsuranceDto | null;
 }
 
 export interface RevalPrefillResult {
@@ -92,13 +98,16 @@ function mapAttorneyFieldsToPatch(
   };
 }
 
-/** Injury nav-props row (with nested body parts / insurance / examiner) -> draft. */
+/**
+ * Injury nav-props row -> draft. #296 moved Claim Examiner + Primary Insurance
+ * off the per-injury graph to one-per-appointment, so they are no longer mapped
+ * here; see mapClaimExaminerToPatch / mapInsuranceToPatch for the appointment-
+ * level copy-forward.
+ */
 function mapInjuryToDraft(
   item: AppointmentInjuryDetailWithNavigationPropertiesDto,
 ): AppointmentInjuryDraft {
   const d = item.appointmentInjuryDetail;
-  const ins = item.primaryInsurance;
-  const ce = item.claimExaminer;
   const bodyParts = (item.bodyParts ?? [])
     .map((b) => (b?.bodyPartDescription ?? '').trim())
     .filter(Boolean);
@@ -111,30 +120,41 @@ function mapInjuryToDraft(
     wcabAdj: d?.wcabAdj ?? null,
     bodyParts,
     bodyPartsSummary: (d?.bodyPartsSummary ?? bodyParts.join(', ')).slice(0, 500),
-    primaryInsurance: {
-      isActive: !!ins?.isActive,
-      name: ins?.name ?? null,
-      suite: ins?.suite ?? null,
-      attention: ins?.attention ?? null,
-      phoneNumber: ins?.phoneNumber ?? null,
-      faxNumber: ins?.faxNumber ?? null,
-      street: ins?.street ?? null,
-      city: ins?.city ?? null,
-      stateId: ins?.stateId ?? null,
-      zip: ins?.zip ?? null,
-    },
-    claimExaminer: {
-      isActive: !!ce?.isActive,
-      name: ce?.name ?? null,
-      email: ce?.email ?? null,
-      phoneNumber: ce?.phoneNumber ?? null,
-      fax: ce?.fax ?? null,
-      street: ce?.street ?? null,
-      suite: ce?.suite ?? null,
-      city: ce?.city ?? null,
-      stateId: ce?.stateId ?? null,
-      zip: ce?.zip ?? null,
-    },
+  };
+}
+
+/**
+ * #296 -- copy the source appointment's Claim Examiner into the appointment-
+ * level booking controls so reval / re-request carry it forward (mirrors the
+ * OLD bindFormGroup copy of the examiner block).
+ */
+function mapClaimExaminerToPatch(ce: AppointmentClaimExaminerDto | null): Record<string, unknown> {
+  if (!ce) return {};
+  return {
+    appointmentClaimExaminerName: ce.name ?? null,
+    appointmentClaimExaminerEmail: ce.email ?? null,
+    appointmentClaimExaminerSuite: ce.suite ?? null,
+    appointmentClaimExaminerPhoneNumber: ce.phoneNumber ?? null,
+    appointmentClaimExaminerFax: ce.fax ?? null,
+    appointmentClaimExaminerStreet: ce.street ?? null,
+    appointmentClaimExaminerCity: ce.city ?? null,
+    appointmentClaimExaminerStateId: ce.stateId ?? null,
+    appointmentClaimExaminerZip: ce.zip ?? null,
+  };
+}
+
+/** #296 -- same copy-forward for the appointment's Primary Insurance block. */
+function mapInsuranceToPatch(ins: AppointmentPrimaryInsuranceDto | null): Record<string, unknown> {
+  if (!ins) return {};
+  return {
+    appointmentInsuranceName: ins.name ?? null,
+    appointmentInsuranceSuite: ins.suite ?? null,
+    appointmentInsurancePhoneNumber: ins.phoneNumber ?? null,
+    appointmentInsuranceFaxNumber: ins.faxNumber ?? null,
+    appointmentInsuranceStreet: ins.street ?? null,
+    appointmentInsuranceCity: ins.city ?? null,
+    appointmentInsuranceStateId: ins.stateId ?? null,
+    appointmentInsuranceZip: ins.zip ?? null,
   };
 }
 
@@ -173,6 +193,8 @@ export function buildRevalPrefill(sources: RevalPrefillSources): RevalPrefillRes
       ...mapEmployerToPatch(employer),
       ...mapAttorneyFieldsToPatch(applicantAttorney, 'applicantAttorney'),
       ...mapAttorneyFieldsToPatch(defenseAttorney, 'defenseAttorney'),
+      ...mapClaimExaminerToPatch(sources.claimExaminer),
+      ...mapInsuranceToPatch(sources.primaryInsurance),
     },
     injuryDrafts: (sources.injuries ?? []).map(mapInjuryToDraft),
     authorizedUsers: (sources.accessors ?? [])

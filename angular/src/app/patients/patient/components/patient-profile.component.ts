@@ -174,7 +174,7 @@ export class PatientProfileComponent implements OnInit {
   }
 
   openMyProfile(): void {
-    this.router.navigateByUrl('/doctor-management/patients/my-profile');
+    this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
   logout(): void {

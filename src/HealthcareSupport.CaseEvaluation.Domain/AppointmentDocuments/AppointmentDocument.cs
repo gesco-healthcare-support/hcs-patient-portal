@@ -78,6 +78,18 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual bool IsJointDeclaration { get; set; }
 
     /// <summary>
+    /// AF5 (2026-06-04) -- true when this row is the PQME panel strike list,
+    /// the document internal staff use to manually verify the appointment was
+    /// booked at the correct doctor office on the panel. Third instance of the
+    /// one-boolean-per-document-kind pattern (<see cref="IsAdHoc"/> /
+    /// <see cref="IsJointDeclaration"/>); kept instead of reviving the deferred
+    /// AppointmentDocumentType master (parity-v2/03 G-03-01). Set post-construct
+    /// on the upload path that tags the strike-list file (AF6); defaults false
+    /// for every other document.
+    /// </summary>
+    public virtual bool IsPanelStrikeList { get; set; }
+
+    /// <summary>
     /// Per-document GUID emailed to the patient as part of the package-doc
     /// upload link, allowing unauthenticated upload of THIS document only.
     /// Null for internal-user uploads and ad-hoc rows where no email link

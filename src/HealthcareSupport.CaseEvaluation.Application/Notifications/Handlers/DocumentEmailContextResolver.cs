@@ -63,7 +63,11 @@ public class DocumentEmailContextResolver : ITransientDependency
             ? null
             : await _patientRepository.FindAsync(appointment.PatientId);
 
-        var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId);
+        // IP6 (2026-06-05): IdentityUserId is nullable for unclaimed patient
+        // records; downstream BookerEmail/BookerFullName degrade to null.
+        var bookerUser = appointment.IdentityUserId.HasValue
+            ? await _identityUserRepository.FindAsync(appointment.IdentityUserId.Value)
+            : null;
 
         // Take the first injury detail for the appointment -- mirrors
         // OLD's `appointmentInjury = ...FirstOrDefault()` at

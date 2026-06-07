@@ -42,6 +42,7 @@ public class DocumentAcceptedEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
+    private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DocumentAcceptedEmailHandler> _logger;
@@ -51,6 +52,7 @@ public class DocumentAcceptedEmailHandler :
     public DocumentAcceptedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
+        IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentDocument, Guid> documentRepository,
         ICurrentTenant currentTenant,
         ILogger<DocumentAcceptedEmailHandler> logger,
@@ -58,6 +60,7 @@ public class DocumentAcceptedEmailHandler :
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
+        _recipientResolver = recipientResolver;
         _documentRepository = documentRepository;
         _currentTenant = currentTenant;
         _logger = logger;
@@ -96,13 +99,23 @@ public class DocumentAcceptedEmailHandler :
                 return;
             }
 
-            var recipients = new List<NotificationRecipient>
-            {
-                new NotificationRecipient(
-                    email: uploaderEmail!,
-                    role: RecipientRole.Patient,
-                    isRegistered: ctx.DocumentUploadedByUserId.HasValue),
-            };
+            // E3 (2026-06-04): single To+CC message -- To the uploader, CC the
+            // other appointment parties. APPROVAL excludes the office mailbox
+            // (office staff performed the approve). The dispatcher dedups the
+            // To address out of the CC list.
+            var parties = await _recipientResolver.ResolveAsync(
+                eventData.AppointmentId, NotificationKind.DocumentAccepted);
+            var to = new NotificationRecipient(
+                email: uploaderEmail!,
+                role: RecipientRole.Patient,
+                isRegistered: ctx.DocumentUploadedByUserId.HasValue);
+            var cc = parties
+                .Where(p => p.Role != RecipientRole.OfficeAdmin)
+                .Select(p => new NotificationRecipient(
+                    email: p.To,
+                    role: p.Role ?? RecipientRole.Patient,
+                    isRegistered: p.IsRegistered))
+                .ToList();
 
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
@@ -140,12 +153,33 @@ public class DocumentAcceptedEmailHandler :
                 }
             }
 
-            await _dispatcher.DispatchAsync(
+            // E3: shared "log in or register to view" CTA -- tenant login link
+            // (register reachable from the login page), consistent with E2.
+            var loginUrl = await BuildLoginUrlAsync(
+                eventData.TenantId, parties.Count > 0 ? parties[0].TenantName : _currentTenant.Name);
+            var dispatchVariables = new Dictionary<string, object?>(finalVariables, StringComparer.Ordinal)
+            {
+                ["LoginUrl"] = loginUrl,
+            };
+
+            await _dispatcher.DispatchToWithCcAsync(
                 templateCode: templateCode,
-                recipients: recipients,
-                variables: finalVariables,
+                to: to,
+                cc: cc,
+                variables: dispatchVariables,
                 contextTag: $"DocumentAccepted/{templateCode}/{eventData.AppointmentDocumentId}");
         }
+    }
+
+    /// <summary>
+    /// E3 (2026-06-04): tenant login link for the shared document body. Reuses
+    /// E1's login-URL composer for a link shape identical to the E2 booking
+    /// email; no per-recipient email pre-fill (the body is CC'd to many).
+    /// </summary>
+    private async Task<string> BuildLoginUrlAsync(Guid? tenantId, string? tenantName)
+    {
+        var authServerBaseUrl = await _accountUrlBuilder.BuildAuthServerRootUrlAsync(tenantId);
+        return BookingSubmissionEmailHandler.BuildLoginUrl(authServerBaseUrl, tenantName, string.Empty);
     }
 
     /// <summary>

@@ -122,4 +122,14 @@ public abstract class AppointmentDocumentsAppServiceTests<TStartupModule>
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
     }
+
+    // AF6 (2026-06-05): a successful-upload test that would assert the persisted
+    // IsPanelStrikeList tag is NOT possible in this harness -- the blob provider
+    // is MinIO (docker-internal `minio:9000`, unreachable from the host-run test
+    // process), so SaveBlobWithRollbackAsync throws before the row persists.
+    // (This is why the repo has no successful-upload tests at all -- only the
+    // pre-blob throw guards above.) The IsPanelStrikeList write is a defaulted
+    // pass-through param set beside entity.IsAdHoc; the read path is unit-tested
+    // in AppointmentDocumentDtoMapperStrikeListUnitTests, and the booking-form
+    // submit gate that drives it is unit-tested in strike-list-gate.spec.ts.
 }

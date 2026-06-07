@@ -2,7 +2,8 @@
 id: BUG-039
 title: Internal-staff "+ New Appointment Request" opens generated CRUD modal that bypasses BookingPolicyValidator + AppointmentManager
 severity: medium
-status: open
+status: resolved
+resolved: 2026-06-06
 found: 2026-05-14 hardening Phase 3.15
 promoted-from: OBS-19 (2026-05-22)
 flow: booking-internal-vs-external
@@ -10,6 +11,13 @@ component: angular/src/app/appointments/appointment/components/appointment.compo
 ---
 
 # BUG-039 - Internal-staff booking flow bypasses booking-policy invariants
+
+> **RESOLVED by AP1 (2026-06-06) -- Edit-half.** The Actions dropdown's "Edit" item
+> (`(click)="update(row)"` -> the generated ABP CRUD detail modal) was removed, closing the
+> Edit-half of this bug (and the folded-in OBS-19). The dropdown now offers Review / Reschedule
+> / Cancel / Delete; reschedule/cancel route through the capacity-safe change-request workflow.
+> The abstract base file + `update()` are retained for ABP-Suite regen parity (the modal is
+> simply no longer reachable). See `docs/plans/2026-06-06-appointment-change-request-ui.md`.
 
 > **Promoted from OBS-19 on 2026-05-22 after code verification.**
 >

@@ -16,6 +16,36 @@
       <form [formGroup]="form" (ngSubmit)="onSubmit()">
         <div class="row g-3">
           <div class="col-md-6">
+            <label for="invite-first-name" class="form-label fw-semibold">First Name</label>
+            <input
+              id="invite-first-name"
+              type="text"
+              class="form-control"
+              formControlName="firstName"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            @if (form.get('firstName')?.touched && form.get('firstName')?.hasError('maxlength')) {
+              <div class="text-danger small mt-1">First name is too long (max 128).</div>
+            }
+          </div>
+
+          <div class="col-md-6">
+            <label for="invite-last-name" class="form-label fw-semibold">Last Name</label>
+            <input
+              id="invite-last-name"
+              type="text"
+              class="form-control"
+              formControlName="lastName"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            @if (form.get('lastName')?.touched && form.get('lastName')?.hasError('maxlength')) {
+              <div class="text-danger small mt-1">Last name is too long (max 128).</div>
+            }
+          </div>
+
+          <div class="col-md-6">
             <label for="invite-email" class="form-label fw-semibold">
               Email
               <span class="text-danger">*</span>

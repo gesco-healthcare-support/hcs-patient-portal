@@ -105,22 +105,22 @@ public class AppointmentChangeLogsAppService : CaseEvaluationAppService, IAppoin
             injuryQuery.Where(i => i.AppointmentId == appointmentId).Select(i => i.Id));
 
         var bodyPartIds = new List<Guid>();
-        var claimExaminerIds = new List<Guid>();
-        var primaryInsuranceIds = new List<Guid>();
         if (injuryIds.Count > 0)
         {
             var bodyPartQuery = await _bodyPartRepository.GetQueryableAsync();
             bodyPartIds = await AsyncExecuter.ToListAsync(
                 bodyPartQuery.Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId)).Select(b => b.Id));
-
-            var claimExaminerQuery = await _claimExaminerRepository.GetQueryableAsync();
-            claimExaminerIds = await AsyncExecuter.ToListAsync(
-                claimExaminerQuery.Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId)).Select(c => c.Id));
-
-            var primaryInsuranceQuery = await _primaryInsuranceRepository.GetQueryableAsync();
-            primaryInsuranceIds = await AsyncExecuter.ToListAsync(
-                primaryInsuranceQuery.Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId)).Select(p => p.Id));
         }
+
+        // #296 (2026-06-07 merge): Claim Examiner + Primary Insurance are now
+        // per-appointment (not per-injury), so query them by AppointmentId.
+        var claimExaminerQuery = await _claimExaminerRepository.GetQueryableAsync();
+        var claimExaminerIds = await AsyncExecuter.ToListAsync(
+            claimExaminerQuery.Where(c => c.AppointmentId == appointmentId).Select(c => c.Id));
+
+        var primaryInsuranceQuery = await _primaryInsuranceRepository.GetQueryableAsync();
+        var primaryInsuranceIds = await AsyncExecuter.ToListAsync(
+            primaryInsuranceQuery.Where(p => p.AppointmentId == appointmentId).Select(p => p.Id));
 
         var raw = new List<RawEntityChange>();
         raw.AddRange(await LoadChangesForEntityAsync(appointmentId.ToString(), AppointmentAuditedEntities.Appointment));

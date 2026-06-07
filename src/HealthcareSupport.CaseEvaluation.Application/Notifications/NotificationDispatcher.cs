@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -86,6 +88,56 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
         {
             await EnqueueEmailAsync(recipient, rendered, contextTag, templateCode, tenantName, packetRef);
         }
+    }
+
+    public virtual async Task DispatchToWithCcAsync(
+        string templateCode,
+        NotificationRecipient to,
+        IReadOnlyCollection<NotificationRecipient> cc,
+        IReadOnlyDictionary<string, object?> variables,
+        string contextTag,
+        PacketAttachmentRef? packetRef = null,
+        CancellationToken cancellationToken = default)
+    {
+        Check.NotNullOrWhiteSpace(templateCode, nameof(templateCode));
+        Check.NotNull(to, nameof(to));
+        Check.NotNull(variables, nameof(variables));
+
+        if (string.IsNullOrWhiteSpace(to.Email))
+        {
+            _logger.LogWarning(
+                "NotificationDispatcher: DispatchToWithCc skipped -- empty To for template {TemplateCode} ({Context}).",
+                templateCode,
+                contextTag);
+            return;
+        }
+
+        var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
+
+        // Drop empty + the To address itself (case-insensitive), then de-dup.
+        var ccEmails = (cc ?? Array.Empty<NotificationRecipient>())
+            .Where(r => r != null
+                && !string.IsNullOrWhiteSpace(r.Email)
+                && !string.Equals(r.Email, to.Email, StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.Email)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var args = new SendAppointmentEmailArgs
+        {
+            To = to.Email,
+            Cc = ccEmails,
+            Subject = rendered.Subject,
+            Body = rendered.BodyEmail,
+            IsBodyHtml = true,
+            Context = contextTag,
+            Role = to.Role,
+            IsRegistered = to.IsRegistered,
+            TenantName = _currentTenant.Name,
+            TenantId = _currentTenant.Id,
+            PacketRef = packetRef,
+        };
+        await _backgroundJobManager.EnqueueAsync(args);
     }
 
     private async Task EnqueueEmailAsync(

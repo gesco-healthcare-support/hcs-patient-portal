@@ -1409,6 +1409,24 @@
     }
   }
 
+  // UM1 (2026-06-04): set an editable form field's value from the invite
+  // (first/last name). No-op when the value is blank or the field absent.
+  // Unlike email/role (which are locked), names stay editable so the
+  // recipient can correct them before registering.
+  function prefillEditableField(form, selectors, value) {
+    if (!value) {
+      return;
+    }
+    for (var i = 0; i < selectors.length; i++) {
+      var el = form.querySelector(selectors[i]);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    }
+  }
+
   async function applyInviteTokenPrefill(form) {
     var rawToken = readQueryParam('inviteToken');
     if (!rawToken) {
@@ -1428,6 +1446,9 @@
       if (response.status === 200) {
         var body = await response.json();
         setEmailRoleLocked(form, body.email, Number(body.userType));
+        // UM1 (2026-06-04): pre-fill the editable name fields from the invite.
+        prefillEditableField(form, ['#external-first-name', 'input[name="FirstName"]'], body.firstName);
+        prefillEditableField(form, ['#external-last-name', 'input[name="LastName"]'], body.lastName);
         renderInviteBanner(
           form,
           '<strong>You’ve been invited to register at ' + escapeHtml(body.tenantName) + '.</strong>'

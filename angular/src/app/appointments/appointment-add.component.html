@@ -92,6 +92,7 @@
       [markAppointmentDateDisabled]="markAppointmentDateDisabled"
       [isAvailableAppointmentDate]="isAvailableAppointmentDate"
       [isFieldInvalid]="isFieldInvalidBound"
+      [isPqmeType]="isPqmeType"
       (locationSelected)="onLocationSelected($event)"
       (appointmentDateCleared)="clearAppointmentDate()"
     />
@@ -176,20 +177,45 @@
       </div>
     }
 
+    <!-- CI1 (2026-06-05): appointment-level Insurance + Claim Examiner,
+         rendered below the attorney sections. Replaces the per-injury
+         insurance/CE cards in the claim-information modal (removed by CI2). -->
+    <app-appointment-add-claim-parties-section
+      [form]="form"
+      [getStateLookup]="getStateLookup"
+      [isFieldInvalid]="isFieldInvalidBound"
+    />
+
     <!-- #121 phase T4 (2026-05-13): Claim Information section.
          Extracted to <app-appointment-add-claim-information>. List
          + modal + 27-control FormGroup + lookups + cumulative-date
          logic + insurance/CE conditional validators all live in the
          child. Parent keeps injuryDrafts because submit consumes it. -->
-    <app-appointment-add-claim-information
-      [injuryDrafts]="injuryDrafts"
-      [isInsuranceFieldsetDisabled]="isInsuranceFieldsetDisabled"
-      [isClaimExaminerReadOnly]="isClaimExaminerRole && !isItAdmin"
-      [claimExaminerPrefill]="claimExaminerPrefillForInjuryModal"
-    />
+    <app-appointment-add-claim-information [injuryDrafts]="injuryDrafts" />
     @if (claimInformationMissing && injuryDrafts.length === 0) {
       <div class="alert alert-danger py-2 mb-4" role="alert">
         At least one Claim Information entry is required before booking.
+      </div>
+    }
+
+    <!-- AF7 (2026-06-05): pre-submit document upload. Sibling block between
+         Claim Information and Authorized Users (Authorized Users is hidden for
+         CE bookers, so this cannot nest inside that @if). Files stage here and
+         upload after create; the parent owns the staged File[] + upload loop. -->
+    <app-appointment-add-documents
+      [stagedDocuments]="stagedDocuments"
+      [disabled]="isSaving"
+      [isPqme]="isPqmeType"
+      [hasPanelStrikeList]="hasPanelStrikeList"
+      (filesSelected)="onDocumentsSelected($event)"
+      (removeDocument)="removeStagedDocument($event)"
+      (retryUploads)="retryStagedUploads()"
+      (hasPanelStrikeListChange)="onHasPanelStrikeListChange($event)"
+      (selectStrikeList)="designateStrikeList($event)"
+    />
+    @if (panelStrikeListMissing) {
+      <div class="alert alert-danger py-2 mb-4" role="alert">
+        Mark which uploaded document is the panel strike list before booking this PQME appointment.
       </div>
     }
 

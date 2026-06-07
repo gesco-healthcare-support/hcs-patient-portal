@@ -130,19 +130,6 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:AppointmentInvalidTransition";
 
     /// <summary>
-    /// 2026-05-21 (OBS-23) -- raised by
-    /// <c>AppointmentsAppService.CreateAsync</c> when a non-attorney
-    /// external user (Patient or Claim Examiner) attempts to create
-    /// an AME or AME-REVAL appointment. Mirrors OLD's
-    /// <c>RoleAppointmentType</c> join restriction; NEW uses a
-    /// hardcoded attorney allow-list since the join table was not
-    /// ported. Mapped to HTTP 400. Localization key
-    /// <c>Appointment:AmeRequiresAttorneyRole</c>.
-    /// </summary>
-    public const string AppointmentAmeRequiresAttorneyRole =
-        "CaseEvaluation:Appointment.AmeRequiresAttorneyRole";
-
-    /// <summary>
     /// 2026-05-15 -- raised by <c>InvitationManager.ValidateAsync</c>
     /// when the supplied invite token does not hash to any persisted
     /// <c>Invitation.TokenHash</c>. Treated as the generic-failure
@@ -382,6 +369,19 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentApprovalRequiresInjuryDetail =
         "CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail";
+
+    /// <summary>
+    /// CI1 (2026-06-05) -- raised by
+    /// <c>AppointmentManager.ApplyTransitionAsync</c> on the Approve trigger
+    /// when the appointment has no active Claim Examiner. CE became a required
+    /// first-class party in CI1; this is the server backstop behind the
+    /// client-side CE-section gate. Gated only on Pending->Approved (the
+    /// create-as-Approved internal fast-path attaches parties after creation
+    /// and is out of scope, same as the injury-detail guard). Localization key
+    /// <c>Appointment:ApprovalRequiresClaimExaminer</c>.
+    /// </summary>
+    public const string AppointmentApprovalRequiresClaimExaminer =
+        "CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer";
 
     /// <summary>
     /// Phase 11i (2026-05-04) -- raised by
@@ -792,4 +792,72 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string AppointmentDocumentTypeInUse =
         "CaseEvaluation:AppointmentDocumentType.InUse";
+    /// AF4 (2026-06-04) -- raised by <c>AppointmentManager.CreateAsync /
+    /// UpdateAsync</c> when the appointment type is the seeded PQME type
+    /// (<c>CaseEvaluationSeedIds.AppointmentTypes.PanelQme</c>) but no Panel
+    /// Number was supplied. Only a PQME carries a state-issued panel number,
+    /// so it is required for that type. The Angular booking + view/edit forms
+    /// attach a conditional <c>Validators.required</c> for immediate feedback;
+    /// this domain check is the authoritative guard. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c>. Localization key
+    /// <c>Appointment:PanelNumberRequiredForPqme</c>.
+    /// </summary>
+    public const string AppointmentPanelNumberRequiredForPqme =
+        "CaseEvaluation:Appointment.PanelNumberRequiredForPqme";
+
+    /// <summary>
+    /// AF3 (2026-06-04) -- raised by <c>AppointmentManager.CreateAsync /
+    /// UpdateAsync</c> when a Panel Number is supplied for any non-PQME type
+    /// (AME / IME). Only PQME appointments get a state-issued panel number, so
+    /// a value on an AME/IME means the wrong type was chosen or the number was
+    /// fabricated -- the submission is rejected rather than normalized. The
+    /// Angular forms disable + clear the field for non-PQME so legitimate
+    /// submissions never carry one; this is the defense-in-depth backstop for a
+    /// tampered/bypassed client (closes the OBS-24 UI-only-enforcement gap for
+    /// this field). Mapped to HTTP 400 in <c>CaseEvaluationHttpApiHostModule</c>.
+    /// Localization key <c>Appointment:PanelNumberNotAllowedForType</c>.
+    /// </summary>
+    public const string AppointmentPanelNumberNotAllowedForType =
+        "CaseEvaluation:Appointment.PanelNumberNotAllowedForType";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when
+    /// another (non-deleted) Location already carries the same Name (case-insensitive; the
+    /// update path excludes the row being edited). Location is host-scoped (not IMultiTenant),
+    /// so the uniqueness check is global. Mapped to HTTP 400 in
+    /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 would read as a permission
+    /// failure). Carries <c>WithData("name", name)</c>. Localization key
+    /// <c>Location:DuplicateName</c>.
+    /// </summary>
+    public const string LocationDuplicateName =
+        "CaseEvaluation:Location.DuplicateName";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when the
+    /// supplied ParkingFee is negative. Defense-in-depth behind the DTO <c>[Range]</c> + the
+    /// Angular <c>Validators.min(0)</c> mirror. Mapped to HTTP 400. Localization key
+    /// <c>Location:ParkingFeeNegative</c>.
+    /// </summary>
+    public const string LocationParkingFeeNegative =
+        "CaseEvaluation:Location.ParkingFeeNegative";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.CreateAsync / UpdateAsync</c> when a
+    /// non-blank ZipCode does not match US 5-digit or ZIP+4 format. Defense-in-depth behind the
+    /// DTO <c>[RegularExpression]</c> + the Angular <c>Validators.pattern</c> mirror. Mapped to
+    /// HTTP 400. Localization key <c>Location:ZipCodeInvalid</c>.
+    /// </summary>
+    public const string LocationZipCodeInvalid =
+        "CaseEvaluation:Location.ZipCodeInvalid";
+
+    /// <summary>
+    /// IP4 (2026-06-05) -- raised by <c>LocationManager.EnsureCanDeleteAsync</c> (invoked from
+    /// every <c>LocationsAppService</c> delete path) when the Location is still referenced by an
+    /// Appointment or DoctorAvailability slot. The reference count disables the IMultiTenant
+    /// filter so a cross-tenant reference still blocks deletion of the host-scoped Location.
+    /// Carries <c>WithData("entity", ...)</c> + <c>WithData("count", ...)</c> for a friendly
+    /// message. Mapped to HTTP 400. Localization key <c>Location:InUse</c>.
+    /// </summary>
+    public const string LocationInUse =
+        "CaseEvaluation:Location.InUse";
 }

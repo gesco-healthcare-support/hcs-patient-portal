@@ -88,6 +88,11 @@ export class AppointmentAddScheduleComponent {
   @Input({ required: true }) markAppointmentDateDisabled!: (date: NgbDateStruct) => boolean;
   @Input({ required: true }) isAvailableAppointmentDate!: (date: NgbDateStruct) => boolean;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
+  // AF4 (2026-06-04): parent-owned flag; true when the selected type is PQME, so
+  // the Panel Number label shows a required marker. The enable/disable + required
+  // validator are applied programmatically on the parent control (AF3/AF4); this
+  // input drives the visual affordance only.
+  @Input() isPqmeType = false;
 
   @Output() locationSelected = new EventEmitter<string>();
   @Output() appointmentDateCleared = new EventEmitter<void>();

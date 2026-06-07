@@ -10,8 +10,8 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// boundary.
 ///
 /// Acceptance grid:
-///   internal role (admin / Clinic Staff / Staff Supervisor / IT Admin /
-///     Doctor)                                   -> all three kinds
+///   internal role (admin / Clinic Staff / Staff Supervisor / IT Admin)
+///                                               -> all three kinds
 ///   Patient                                     -> Patient only
 ///   Applicant Attorney / Defense Attorney /
 ///     Claim Examiner                            -> AttorneyClaimExaminer only
@@ -28,10 +28,17 @@ public class PacketVisibilityUnitTests
     [InlineData("Clinic Staff")]
     [InlineData("Staff Supervisor")]
     [InlineData("IT Admin")]
-    [InlineData("Doctor")]
     public void AllowedKinds_InternalRole_ReturnsAllThree(string role)
     {
         PacketVisibility.AllowedKinds(new[] { role }).ShouldBe(All, ignoreOrder: true);
+    }
+
+    // IR1 (2026-06-03) retired "Doctor" as an internal persona -- it now falls
+    // through to no packet access until a future multi-doctor model re-adds it.
+    [Fact]
+    public void AllowedKinds_Doctor_ReturnsNone()
+    {
+        PacketVisibility.AllowedKinds(new[] { "Doctor" }).ShouldBeEmpty();
     }
 
     [Fact]
@@ -53,7 +60,7 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void AllowedKinds_InternalAndExternalMix_InternalWins()
     {
-        PacketVisibility.AllowedKinds(new[] { "Patient", "Doctor" }).ShouldBe(All, ignoreOrder: true);
+        PacketVisibility.AllowedKinds(new[] { "Patient", "Clinic Staff" }).ShouldBe(All, ignoreOrder: true);
     }
 
     [Fact]

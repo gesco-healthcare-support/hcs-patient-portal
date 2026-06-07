@@ -496,25 +496,29 @@ public class AppointmentChangeRequestsApprovalAppService :
                 await _bodyPartRepository.InsertAsync(clonedBp);
             }
 
-            var claimExaminerQueryable = await _claimExaminerRepository.GetQueryableAsync();
-            var sourceClaimExaminers = claimExaminerQueryable
-                .Where(c => c.AppointmentInjuryDetailId == sourceInjury.Id).ToList();
-            foreach (var ce in sourceClaimExaminers)
-            {
-                var clonedCe = AppointmentRescheduleCloner.CloneClaimExaminerFor(
-                    ce, GuidGenerator.Create(), newInjuryId, newTenantId);
-                await _claimExaminerRepository.InsertAsync(clonedCe);
-            }
+        }
 
-            var primaryInsuranceQueryable = await _primaryInsuranceRepository.GetQueryableAsync();
-            var sourcePrimaryInsurances = primaryInsuranceQueryable
-                .Where(p => p.AppointmentInjuryDetailId == sourceInjury.Id).ToList();
-            foreach (var pi in sourcePrimaryInsurances)
-            {
-                var clonedPi = AppointmentRescheduleCloner.ClonePrimaryInsuranceFor(
-                    pi, GuidGenerator.Create(), newInjuryId, newTenantId);
-                await _primaryInsuranceRepository.InsertAsync(clonedPi);
-            }
+        // CI1 (2026-06-05): Claim Examiner + Primary Insurance are now a single
+        // appointment-level record (one each), so clone them ONCE per
+        // appointment rather than inside the per-injury loop.
+        var claimExaminerQueryable = await _claimExaminerRepository.GetQueryableAsync();
+        var sourceClaimExaminers = claimExaminerQueryable
+            .Where(c => c.AppointmentId == sourceAppointmentId).ToList();
+        foreach (var ce in sourceClaimExaminers)
+        {
+            var clonedCe = AppointmentRescheduleCloner.CloneClaimExaminerFor(
+                ce, GuidGenerator.Create(), newAppointmentId, newTenantId);
+            await _claimExaminerRepository.InsertAsync(clonedCe);
+        }
+
+        var primaryInsuranceQueryable = await _primaryInsuranceRepository.GetQueryableAsync();
+        var sourcePrimaryInsurances = primaryInsuranceQueryable
+            .Where(p => p.AppointmentId == sourceAppointmentId).ToList();
+        foreach (var pi in sourcePrimaryInsurances)
+        {
+            var clonedPi = AppointmentRescheduleCloner.ClonePrimaryInsuranceFor(
+                pi, GuidGenerator.Create(), newAppointmentId, newTenantId);
+            await _primaryInsuranceRepository.InsertAsync(clonedPi);
         }
 
         // Employer details (1:N with appointment per Phase 1.6).

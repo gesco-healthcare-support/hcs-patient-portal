@@ -4,6 +4,7 @@ title: AbpDbConcurrencyException on first AttyCE-packet send-completion cascades
 severity: high
 status: open
 found: 2026-05-21 hardening HRD-P6.1 + HRD-P6.2
+last-corroborated: 2026-06-02 (UI-seed T6; still OPEN, reproduces at scale -- see corroboration section)
 flow: appointment-packet-generation
 component: src/HealthcareSupport.CaseEvaluation.Domain/AppointmentDocuments/PacketAttachmentProvider.cs:113 (NotifySendCompletedAsync) + AppointmentDocuments/Jobs/GenerateAppointmentPacketArgs handler
 ---
@@ -48,6 +49,38 @@ And immediately after, the suspended state cascades:
 The packet row still shows `Status = 2 (Completed)` in DB. So generation completed but the send-job's view of the row is stale -- another transaction modified the row between load and save in `NotifySendCompletedAsync`.
 
 For A00002/A00004/A00005, the Kind=3 packet row was never inserted at all. The concurrent transaction that broke A00001's send-completion likely held a lock or version row that prevented subsequent appointments' Kind=3 entity from being inserted within the timeout window of the orchestrating job.
+
+## 2026-06-02 corroboration at scale (UI-seed T6) -- STILL OPEN on current code
+
+Reproduced at much larger scale during the UI-seed lifecycle run. Driving the
+appointment-view Approve action over the live SPA, **46 appointments were
+approved back-to-back as `supervisor@falkinstein.test` in ~3 minutes** (a far
+heavier burst than the original 4-in-60s repro). The synchronous Approve calls
+all returned 200 and every status badge flipped to Approved (appointment status
+itself is correct); the damage is entirely downstream in the async pipeline:
+
+- **~180 `Volo.Abp.Data.AbpDbConcurrencyException`** across **~41 distinct
+  Hangfire jobs**, each "Retry attempt N of 10 ... in 00:0X:XX". The queue
+  drains over several minutes with exponential backoff; most succeed on retry.
+- **16x** `SendAppointmentEmailJob: NotifySendCompletedAsync threw ... attachment
+  lifecycle may need manual cleanup` -- same `PacketAttachmentProvider.cs:113` /
+  `SendAppointmentEmailJob.cs:166` path as the original finding.
+- **~21x** `SendAppointmentEmailJob: packet <id> (kind=AttorneyClaimExaminer) is
+  not Generated; skipping packet email (AttyCEPacket/<appt>) to <recipient>` --
+  the email job outran packet generation and the skip is NOT re-queued, so those
+  AttyCE packet emails were permanently dropped (mix of synthetic + real inboxes).
+
+Confirms the exact log fingerprints from the original finding, on current code
+(2026-06-02). NOTE: these were FIRST-TIME approvals of DISTINCT appointments
+(no Regenerate / no prior soft-deleted AttyCE row), so this run corroborates
+hypotheses (1)+(3) below and BUG-036 Defect 2 (Hangfire UoW commit race) rather
+than BUG-036 Defect 1 (the soft-delete + unfiltered-unique-index collision).
+The skipped-email count scales with approval burst size -> a busy clinic morning
+(many approvals in a short window) would silently drop a proportional number of
+attorney/CE packet emails. Sequential single-appointment approvals (spaced out)
+did NOT trigger the storm -- so throughput/serialization of the post-approve job
+fan-out is the lever. (Originally logged as UI-seed findings F-H / F-I / F-J;
+folded here rather than filed as duplicate bug IDs.)
 
 ## Hypothesis
 

@@ -19,12 +19,14 @@ public class SsnRevealAccessUnitTests
     private static readonly Guid PatientUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid OtherUserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
+    // "Doctor" was removed from the internal-caller set in IR1 (2026-06-03,
+    // BookingFlowRoles) -- it is no longer a presented internal persona, so it
+    // is intentionally absent here (its old [InlineData("Doctor")] was stale).
     [Theory]
     [InlineData("Clinic Staff")]
     [InlineData("Staff Supervisor")]
     [InlineData("IT Admin")]
     [InlineData("admin")]
-    [InlineData("Doctor")]
     public void CanReveal_InternalRole_ReturnsTrueEvenWhenNotOwner(string internalRole)
     {
         var result = SsnRevealAccess.CanReveal(
@@ -85,6 +87,29 @@ public class SsnRevealAccessUnitTests
             Array.Empty<string?>(),
             callerIdentityUserId: OtherUserId,
             patientIdentityUserId: PatientUserId);
+        result.ShouldBeFalse();
+    }
+
+    // IP6 (2026-06-05): an unclaimed patient has a null IdentityUserId. Internal
+    // staff may still reveal; no external caller can "own" an identity-less
+    // record, so the owner branch must return false.
+    [Fact]
+    public void CanReveal_NullPatientIdentity_InternalRole_ReturnsTrue()
+    {
+        var result = SsnRevealAccess.CanReveal(
+            new[] { (string?)"Clinic Staff" },
+            callerIdentityUserId: OtherUserId,
+            patientIdentityUserId: null);
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CanReveal_NullPatientIdentity_ExternalCaller_ReturnsFalse()
+    {
+        var result = SsnRevealAccess.CanReveal(
+            new[] { (string?)"Patient" },
+            callerIdentityUserId: OtherUserId,
+            patientIdentityUserId: null);
         result.ShouldBeFalse();
     }
 }

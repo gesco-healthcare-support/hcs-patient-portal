@@ -14,12 +14,14 @@ using Volo.Abp.Timing;
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
 /// <summary>
-/// Domain service for the cancel / reschedule lifecycle. Phase 15
-/// (2026-05-04) ships <see cref="SubmitCancellationAsync"/>; Phase 16
-/// will add <c>SubmitRescheduleAsync</c>; Phase 17 (Session B) adds
-/// the supervisor-side <c>ApproveCancellationAsync</c>,
-/// <c>RejectCancellationAsync</c>, <c>ApproveRescheduleAsync</c>,
-/// <c>RejectRescheduleAsync</c>.
+/// Domain service for the cancel / reschedule lifecycle. All flows are
+/// implemented: <see cref="SubmitCancellationAsync"/> and
+/// <c>SubmitRescheduleAsync</c> handle submission; the supervisor-side
+/// Approve/Reject orchestration lives in
+/// <c>AppointmentChangeRequestsApprovalAppService</c>. The Angular UI over this
+/// lifecycle (request modals, internal-staff auto-approve, and the supervisor
+/// approval pages) shipped in AP1 (2026-06-06). The earlier "Phase 16/17 will
+/// add..." notes were stale and have been corrected.
 /// </summary>
 public class AppointmentChangeRequestManager : DomainService
 {

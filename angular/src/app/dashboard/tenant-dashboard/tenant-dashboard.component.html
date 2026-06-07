@@ -46,11 +46,16 @@
           </div>
         </div>
         <div class="col-md-3 col-sm-6">
-          <div class="card h-100 dashboard-card">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            tabindex="0"
+            (click)="openChangeRequests()"
+            (keyup.enter)="openChangeRequests()"
+          >
             <div class="card-body">
               <div class="text-muted small">Pending Change Requests</div>
               <div class="display-6 fw-bold">{{ c.pendingChangeRequests }}</div>
-              <div class="text-muted small">(populated when W3 ships)</div>
             </div>
           </div>
         </div>

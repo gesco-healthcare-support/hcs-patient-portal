@@ -158,11 +158,8 @@ public static class NotificationTemplateConsts
         /// <summary>Office mailbox sees "new request submitted" + portal link.</summary>
         public const string AppointmentRequestedOffice = "AppointmentRequestedOffice";
 
-        /// <summary>Patient / Booker / registered party sees "log in to view" + portal CTA.</summary>
+        /// <summary>Patient / Booker / party sees the shared "log in or register to view" body + tenant login link.</summary>
         public const string AppointmentRequestedRegistered = "AppointmentRequestedRegistered";
-
-        /// <summary>Unregistered AA / DA / CE sees "register as [role]" + AuthServer register link with `?__tenant=&amp;email=` pre-fill.</summary>
-        public const string AppointmentRequestedUnregistered = "AppointmentRequestedUnregistered";
 
         /// <summary>
         /// 2026-05-15 -- admin-issued invitation email. Body renders a
@@ -233,8 +230,8 @@ public static class NotificationTemplateConsts
             JointAgreementLetterUploaded, JointAgreementLetterRejected,
             AppointmentDocumentAddWithAttachment, PendingAppointmentDailyNotification,
 
-            // Phase 2.A (Category 2, 2026-05-08) -- per-recipient appointment-requested templates.
-            AppointmentRequestedOffice, AppointmentRequestedRegistered, AppointmentRequestedUnregistered,
+            // Appointment-requested notices: shared party body (Registered) + separate office notice.
+            AppointmentRequestedOffice, AppointmentRequestedRegistered,
 
             // 2026-05-15 -- admin-issued external-user invitation.
             InviteExternalUser,

@@ -10,6 +10,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -75,6 +76,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     private readonly IRepository<AppointmentPrimaryInsurance, Guid> _primaryInsuranceRepository;
     private readonly IRepository<WcabOffice, Guid> _wcabOfficeRepository;
     private readonly IRepository<State, Guid> _stateRepository;
+    private readonly IRepository<AppointmentLanguage, Guid> _appointmentLanguageRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly IdentityUserManager _userManager;
     private readonly IBlobContainer<UserSignaturesContainer> _userSignaturesContainer;
@@ -96,6 +98,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         IRepository<AppointmentPrimaryInsurance, Guid> primaryInsuranceRepository,
         IRepository<WcabOffice, Guid> wcabOfficeRepository,
         IRepository<State, Guid> stateRepository,
+        IRepository<AppointmentLanguage, Guid> appointmentLanguageRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         IdentityUserManager userManager,
         IBlobContainer<UserSignaturesContainer> userSignaturesContainer,
@@ -116,6 +119,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         _primaryInsuranceRepository = primaryInsuranceRepository;
         _wcabOfficeRepository = wcabOfficeRepository;
         _stateRepository = stateRepository;
+        _appointmentLanguageRepository = appointmentLanguageRepository;
         _identityUserRepository = identityUserRepository;
         _userManager = userManager;
         _userSignaturesContainer = userSignaturesContainer;
@@ -159,6 +163,58 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         ctx.PatientZipCode = Upper(patient.ZipCode);
         ctx.PatientPhoneNumber = Upper(patient.PhoneNumber);
         ctx.PatientState = await ResolveStateNameAsync(patient.StateId, ct);
+
+        // Interpreter pair (NEW PQME-notice tokens; no OLD parity). The "needs interpreter" Yes/No
+        // is NOT a stored field -- the appointment form persists only the interpreter-vendor name
+        // and reconstructs the radio as !!interpreterVendorName on reload, so we use that same
+        // signal here (see DeriveInterpreter). The language shown when an interpreter is needed is
+        // resolved from the captured fields: free-text OthersLanguageName ("Other" picked) wins,
+        // else the AppointmentLanguage lookup name; null for the English default.
+        var languageName = await ResolveInterpreterLanguageAsync(patient, ct);
+        var (interpreterRequired, interpreterLanguage) =
+            DeriveInterpreter(languageName, patient.InterpreterVendorName);
+        ctx.PatientInterpreterRequired = interpreterRequired;
+        ctx.PatientInterpreterLanguage = interpreterLanguage;
+    }
+
+    /// <summary>
+    /// Pure interpreter-token decision, split out from the repository I/O so it is unit-testable.
+    /// <paramref name="languageName"/> is the already-resolved spoken language (null/blank = the
+    /// English default); <paramref name="vendorName"/> is the patient's interpreter-vendor field.
+    ///
+    /// <para>Mirrors the app's OWN canonical signal: needs-interpreter &lt;=&gt; interpreter details
+    /// (the vendor name) were provided. The "Do you need an interpreter?" radio is UI-only -- both
+    /// the booking and view forms persist ONLY the vendor name and reconstruct the radio as
+    /// <c>!!interpreterVendorName</c> on reload (appointment-add.component.ts / appointment-view
+    /// .component.ts). Language alone never implies an interpreter; the form keeps language and
+    /// interpreter-need separate. Returns ("Yes"/"No", the uppercased language when needed else "").</para>
+    /// </summary>
+    internal static (string Required, string Language) DeriveInterpreter(string? languageName, string? vendorName)
+    {
+        var needsInterpreter = !string.IsNullOrWhiteSpace(vendorName);
+        return needsInterpreter
+            ? ("Yes", Upper(languageName))
+            : ("No", string.Empty);
+    }
+
+    /// <summary>
+    /// Resolves the patient's spoken language for the interpreter tokens: the free-text
+    /// <c>OthersLanguageName</c> (set when "Other" is picked) wins; otherwise the
+    /// <c>AppointmentLanguage</c> lookup name for <c>AppointmentLanguageId</c>. Returns null when
+    /// neither is set -- the English default (<c>AppointmentLanguageId</c> null).
+    /// </summary>
+    private async Task<string?> ResolveInterpreterLanguageAsync(Patient patient, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(patient.OthersLanguageName))
+        {
+            return patient.OthersLanguageName;
+        }
+        if (patient.AppointmentLanguageId is { } languageId && languageId != Guid.Empty)
+        {
+            var language = await _appointmentLanguageRepository.FindAsync(languageId, cancellationToken: ct);
+            return language?.Name;
+        }
+        return null;
     }
 
     // -- Appointment + nested -----------------------------------------------
@@ -297,19 +353,6 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         var wcabOfficeCity = new List<string?>();
         var wcabOfficeState = new List<string?>();
         var wcabOfficeZip = new List<string?>();
-        var primaryInsuranceName = new List<string?>();
-        var primaryInsuranceStreet = new List<string?>();
-        var primaryInsuranceCity = new List<string?>();
-        var primaryInsuranceState = new List<string?>();
-        var primaryInsuranceZip = new List<string?>();
-        var primaryInsurancePhone = new List<string?>();
-        var claimExaminerName = new List<string?>();
-        var claimExaminerStreet = new List<string?>();
-        var claimExaminerCity = new List<string?>();
-        var claimExaminerState = new List<string?>();
-        var claimExaminerZip = new List<string?>();
-        var claimExaminerPhone = new List<string?>();
-
         foreach (var injury in injuries)
         {
             claimNumbers.Add(injury.ClaimNumber);
@@ -328,26 +371,16 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
             wcabOfficeZip.Add(wcabOffice?.ZipCode);
             wcabOfficeState.Add(await ResolveStateNameOrNullAsync(wcabOffice?.StateId, ct));
 
-            // Primary insurance: first active per injury.
-            var primaryInsurance = await _primaryInsuranceRepository.FirstOrDefaultAsync(
-                x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive, ct);
-            primaryInsuranceName.Add(primaryInsurance?.Name);
-            primaryInsuranceStreet.Add(primaryInsurance?.Street);
-            primaryInsuranceCity.Add(primaryInsurance?.City);
-            primaryInsuranceZip.Add(primaryInsurance?.Zip);
-            primaryInsurancePhone.Add(primaryInsurance?.PhoneNumber);
-            primaryInsuranceState.Add(await ResolveStateNameOrNullAsync(primaryInsurance?.StateId, ct));
-
-            // Claim examiner: first active per injury.
-            var claimExaminer = await _claimExaminerRepository.FirstOrDefaultAsync(
-                x => x.AppointmentInjuryDetailId == injury.Id && x.IsActive, ct);
-            claimExaminerName.Add(claimExaminer?.Name);
-            claimExaminerStreet.Add(claimExaminer?.Street);
-            claimExaminerCity.Add(claimExaminer?.City);
-            claimExaminerZip.Add(claimExaminer?.Zip);
-            claimExaminerPhone.Add(claimExaminer?.PhoneNumber);
-            claimExaminerState.Add(await ResolveStateNameOrNullAsync(claimExaminer?.StateId, ct));
         }
+
+        // CI1 (2026-06-05): Primary Insurance + Claim Examiner are now a single
+        // appointment-level record (one each), not per-injury. Fetch once and
+        // emit a single value per token (the OLD per-injury concat collapses to
+        // one entry).
+        var primaryInsurance = await _primaryInsuranceRepository.FirstOrDefaultAsync(
+            x => x.AppointmentId == appointmentId && x.IsActive, ct);
+        var claimExaminer = await _claimExaminerRepository.FirstOrDefaultAsync(
+            x => x.AppointmentId == appointmentId && x.IsActive, ct);
 
         ctx.InjuryClaimNumber = ConcatPerInjury(claimNumbers);
         ctx.InjuryDateOfInjury = ConcatPerInjury(dateOfInjury);
@@ -357,18 +390,18 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         ctx.InjuryWcabOfficeCity = ConcatPerInjury(wcabOfficeCity);
         ctx.InjuryWcabOfficeState = ConcatPerInjury(wcabOfficeState);
         ctx.InjuryWcabOfficeZipCode = ConcatPerInjury(wcabOfficeZip);
-        ctx.InjuryPrimaryInsuranceName = ConcatPerInjury(primaryInsuranceName);
-        ctx.InjuryPrimaryInsuranceStreet = ConcatPerInjury(primaryInsuranceStreet);
-        ctx.InjuryPrimaryInsuranceCity = ConcatPerInjury(primaryInsuranceCity);
-        ctx.InjuryPrimaryInsuranceState = ConcatPerInjury(primaryInsuranceState);
-        ctx.InjuryPrimaryInsuranceZip = ConcatPerInjury(primaryInsuranceZip);
-        ctx.InjuryPrimaryInsurancePhoneNumber = ConcatPerInjury(primaryInsurancePhone);
-        ctx.InjuryClaimExaminerName = ConcatPerInjury(claimExaminerName);
-        ctx.InjuryClaimExaminerStreet = ConcatPerInjury(claimExaminerStreet);
-        ctx.InjuryClaimExaminerCity = ConcatPerInjury(claimExaminerCity);
-        ctx.InjuryClaimExaminerState = ConcatPerInjury(claimExaminerState);
-        ctx.InjuryClaimExaminerZip = ConcatPerInjury(claimExaminerZip);
-        ctx.InjuryClaimExaminerPhoneNumber = ConcatPerInjury(claimExaminerPhone);
+        ctx.InjuryPrimaryInsuranceName = ConcatPerInjury(new List<string?> { primaryInsurance?.Name });
+        ctx.InjuryPrimaryInsuranceStreet = ConcatPerInjury(new List<string?> { primaryInsurance?.Street });
+        ctx.InjuryPrimaryInsuranceCity = ConcatPerInjury(new List<string?> { primaryInsurance?.City });
+        ctx.InjuryPrimaryInsuranceState = ConcatPerInjury(new List<string?> { await ResolveStateNameOrNullAsync(primaryInsurance?.StateId, ct) });
+        ctx.InjuryPrimaryInsuranceZip = ConcatPerInjury(new List<string?> { primaryInsurance?.Zip });
+        ctx.InjuryPrimaryInsurancePhoneNumber = ConcatPerInjury(new List<string?> { primaryInsurance?.PhoneNumber });
+        ctx.InjuryClaimExaminerName = ConcatPerInjury(new List<string?> { claimExaminer?.Name });
+        ctx.InjuryClaimExaminerStreet = ConcatPerInjury(new List<string?> { claimExaminer?.Street });
+        ctx.InjuryClaimExaminerCity = ConcatPerInjury(new List<string?> { claimExaminer?.City });
+        ctx.InjuryClaimExaminerState = ConcatPerInjury(new List<string?> { await ResolveStateNameOrNullAsync(claimExaminer?.StateId, ct) });
+        ctx.InjuryClaimExaminerZip = ConcatPerInjury(new List<string?> { claimExaminer?.Zip });
+        ctx.InjuryClaimExaminerPhoneNumber = ConcatPerInjury(new List<string?> { claimExaminer?.PhoneNumber });
     }
 
     // -- Helpers ------------------------------------------------------------

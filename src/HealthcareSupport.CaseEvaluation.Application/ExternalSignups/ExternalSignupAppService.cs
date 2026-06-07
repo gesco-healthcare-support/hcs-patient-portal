@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -40,6 +41,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly PatientManager _patientManager;
+    private readonly IPatientRepository _patientRepository;
+    private readonly IClaimExaminerRepository _claimExaminerRepository;
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -92,6 +95,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IdentityRoleManager roleManager,
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
+        IPatientRepository patientRepository,
+        IClaimExaminerRepository claimExaminerRepository,
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
@@ -116,6 +121,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _roleManager = roleManager;
         _tenantRepository = tenantRepository;
         _patientManager = patientManager;
+        _patientRepository = patientRepository;
+        _claimExaminerRepository = claimExaminerRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
@@ -521,8 +528,15 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 tenantId: CurrentTenant.Id
             )
             {
-                Name = input.FirstName,
-                Surname = input.LastName,
+                // UM1 (2026-06-04): recipient-typed name wins; fall back to the
+                // name the inviter stored on the invitation so a blank register
+                // form still produces a personalized account.
+                Name = !string.IsNullOrWhiteSpace(input.FirstName)
+                    ? input.FirstName
+                    : acceptedInvitation?.FirstName,
+                Surname = !string.IsNullOrWhiteSpace(input.LastName)
+                    ? input.LastName
+                    : acceptedInvitation?.LastName,
             };
 
             // Phase 8 (2026-05-03) -- mark this row as an external user
@@ -565,25 +579,44 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
             if (input.UserType == ExternalUserType.Patient)
             {
-                // FirstName/LastName are not collected on the minimal register
-                // form (Adrian, 2026-04-30). Normalize null to "" so the Patient
-                // row is created with empty name fields; the booker fills these
-                // in later via the booking form's patient section.
-                await _patientManager.CreateAsync(
-                    stateId: null,
-                    appointmentLanguageId: null,
-                    identityUserId: user.Id,
-                    tenantId: CurrentTenant.Id,
-                    firstName: input.FirstName ?? string.Empty,
-                    lastName: input.LastName ?? string.Empty,
-                    email: input.Email,
-                    // G-06-08 (2026-06-01): do not fabricate a real gender on a
-                    // real patient. Unspecified + MinValue are "not provided yet"
+                // Merge (2026-06-07): take main's IP6 (2026-06-05) link-by-email
+                // -- booking creates a record-only Patient (null IdentityUserId),
+                // so on self-register CLAIM that existing record instead of
+                // creating a second row. KEEP the parity G-06-08 sentinel
+                // (Gender.Unspecified, not main's fabricated Gender.Male) for the
+                // create branch. Patient is IMultiTenant, so the query is
+                // auto-scoped to CurrentTenant.
+                var normalizedPatientEmail = input.Email.Trim().ToLower();
+                var patientQuery = await _patientRepository.GetQueryableAsync();
+                var unclaimedPatient = await AsyncExecuter.FirstOrDefaultAsync(
+                    patientQuery.Where(p =>
+                        p.IdentityUserId == null
+                        && p.Email.ToLower() == normalizedPatientEmail));
+                if (unclaimedPatient != null)
+                {
+                    unclaimedPatient.IdentityUserId = user.Id;
+                    await _patientRepository.UpdateAsync(unclaimedPatient);
+                }
+                else
+                {
+                    // No prior booking record. FirstName/LastName are not
+                    // collected on the minimal register form (Adrian, 2026-04-30);
+                    // normalize null to "". G-06-08: do not fabricate a real
+                    // gender -- Unspecified + MinValue are "not provided yet"
                     // sentinels; the booking form requires real values at booking.
-                    genderId: Gender.Unspecified,
-                    dateOfBirth: DateTime.MinValue,
-                    phoneNumberTypeId: PhoneNumberType.Home
-                );
+                    await _patientManager.CreateAsync(
+                        stateId: null,
+                        appointmentLanguageId: null,
+                        identityUserId: user.Id,
+                        tenantId: CurrentTenant.Id,
+                        firstName: input.FirstName ?? string.Empty,
+                        lastName: input.LastName ?? string.Empty,
+                        email: input.Email,
+                        genderId: Gender.Unspecified,
+                        dateOfBirth: DateTime.MinValue,
+                        phoneNumberTypeId: PhoneNumberType.Home
+                    );
+                }
             }
             else if (input.UserType == ExternalUserType.ApplicantAttorney)
             {
@@ -623,6 +656,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             if (acceptedInvitation != null && !string.IsNullOrWhiteSpace(input.InviteToken))
             {
                 await _invitationManager.AcceptAsync(input.InviteToken, user.Id);
+
+                // OBS-25 (IP6, 2026-06-05): the invite token already proved the
+                // recipient owns this email, so confirm it here -- the claim is
+                // one click, with no separate verification step. Non-invite
+                // registrations still run the email-confirmation flow below.
+                user.SetEmailConfirmed(true);
+                await _userManager.UpdateAsync(user);
             }
 
             // 2026-05-18 (B-4, Adrian directive reverses 2026-05-06):
@@ -665,7 +705,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             //
             // See docs/plans/2026-05-18-auto-send-verification-at-registration.md
             // for the v1->v5 design evolution (v5 = current).
-            if (!string.IsNullOrWhiteSpace(user.Email))
+            if (!string.IsNullOrWhiteSpace(user.Email) && !user.EmailConfirmed)
             {
                 var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 await _accountEmailer.SendEmailConfirmationLinkAsync(
@@ -690,12 +730,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     ///   join row needs a DefenseAttorneyId, so we create the entity here. It
     ///   stays out of all lookup/pre-fill surfaces because GetExternalUserLookupAsync
     ///   excludes the DA role and there is no DA management UI at MVP).
-    /// - Patient: not handled here -- the registration block already creates a
-    ///   Patient row with the new user's IdentityUserId, but the appointment's
-    ///   PatientId points at a different Patient row created via the booker's
-    ///   get-or-create-by-email flow. Reconciling those two Patient rows is a
-    ///   merge concern outside the scope of this hook; for fan-out (step 6.1)
-    ///   the appointment-level PatientEmail column is sufficient.
+    /// - Patient: handled via AutoLinkPatientAsync (IP6, 2026-06-05). The
+    ///   register block now CLAIMS the record-only Patient row that booking
+    ///   created (sets IdentityUserId by email) rather than creating a second
+    ///   row; this hook then back-links that patient's appointments
+    ///   (Appointment.IdentityUserId). Visibility keys off Patient.IdentityUserId.
     /// - ClaimExaminer: skipped -- there is no IdentityUser-bound join entity
     ///   for CE at MVP (AppointmentClaimExaminer hangs off AppointmentInjuryDetail
     ///   and has no IdentityUserId column). Step 6.1 fan-out reaches the CE via
@@ -718,7 +757,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             await AutoLinkDefenseAttorneyAsync(user.Id, normalizedEmail);
         }
-        // Patient and ClaimExaminer: see method docstring for rationale.
+        else if (userType == ExternalUserType.Patient)
+        {
+            await AutoLinkPatientAsync(user.Id);
+        }
+        else if (userType == ExternalUserType.ClaimExaminer)
+        {
+            await AutoLinkClaimExaminerAsync(user.Id, normalizedEmail);
+        }
     }
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
@@ -854,6 +900,59 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
+    /// IP6 (2026-06-05): back-link a freshly-registered patient's appointments.
+    /// The register block has already CLAIMED the record-only Patient row (set
+    /// IdentityUserId by email); here we stamp Appointment.IdentityUserId on
+    /// that patient's appointments that booking left null, so party/booker email
+    /// resolution and any IdentityUserId-keyed reads stay coherent. Visibility
+    /// itself keys off Patient.IdentityUserId, so it already works post-claim.
+    /// </summary>
+    private async Task AutoLinkPatientAsync(Guid identityUserId)
+    {
+        var patientQuery = await _patientRepository.GetQueryableAsync();
+        var patientIds = await AsyncExecuter.ToListAsync(
+            patientQuery
+                .Where(p => p.IdentityUserId == identityUserId)
+                .Select(p => p.Id));
+        if (patientIds.Count == 0)
+        {
+            return;
+        }
+
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var appointments = await AsyncExecuter.ToListAsync(
+            appointmentQuery.Where(a =>
+                a.IdentityUserId == null && patientIds.Contains(a.PatientId)));
+        foreach (var appointment in appointments)
+        {
+            appointment.IdentityUserId = identityUserId;
+            await _appointmentRepository.UpdateAsync(appointment);
+        }
+    }
+
+    /// <summary>
+    /// UM3/UM4 (2026-06-05): claim any unlinked Claim Examiner master rows created
+    /// by an admin with this email + a null IdentityUserId, so the freshly-
+    /// registered CE owns their master record. The per-appointment
+    /// AppointmentClaimExaminer is free-text (no IdentityUserId-keyed join), so
+    /// there is nothing further to back-link.
+    /// </summary>
+    private async Task AutoLinkClaimExaminerAsync(Guid identityUserId, string normalizedEmail)
+    {
+        var unlinkedQuery = await _claimExaminerRepository.GetQueryableAsync();
+        var unlinked = await AsyncExecuter.ToListAsync(
+            unlinkedQuery.Where(c =>
+                c.IdentityUserId == null
+                && c.Email != null
+                && c.Email.ToLower() == normalizedEmail));
+        foreach (var master in unlinked)
+        {
+            master.IdentityUserId = identityUserId;
+            await _claimExaminerRepository.UpdateAsync(master);
+        }
+    }
+
+    /// <summary>
     /// 2026-05-15 (revised) -- admin-side invite for an external user.
     /// Replaces the prior unbounded-URL pattern with a one-time-use,
     /// 7-day-TTL token (see <see cref="InvitationManager"/>). The URL
@@ -897,12 +996,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // CurrentUser is guaranteed set (perm-gated AppService).
         var invitedByUserId = CurrentUser.Id ?? Guid.Empty;
         var normalizedEmail = input.Email.Trim().ToLowerInvariant();
+        // Names are trimmed but NOT lowercased (display values).
+        var firstName = string.IsNullOrWhiteSpace(input.FirstName) ? null : input.FirstName.Trim();
+        var lastName = string.IsNullOrWhiteSpace(input.LastName) ? null : input.LastName.Trim();
 
         var (invitation, rawToken) = await _invitationManager.IssueAsync(
             tenantId: tenantId.Value,
             email: normalizedEmail,
             userType: input.UserType,
-            invitedByUserId: invitedByUserId);
+            invitedByUserId: invitedByUserId,
+            firstName: firstName,
+            lastName: lastName);
 
         // BUG-029 v3 fix (2026-05-21): invite URL now routes through
         // IAccountUrlBuilder, which composes the tenant subdomain.
@@ -927,7 +1031,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         role: MapToRecipientRole(input.UserType),
                         isRegistered: false),
                 },
-                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt),
+                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
                 contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
         }
         catch (Exception)
@@ -972,6 +1076,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             RoleName = ToRoleName(invitation.UserType),
             TenantName = tenantName,
             ExpiresAt = invitation.ExpiresAt,
+            FirstName = invitation.FirstName,
+            LastName = invitation.LastName,
         };
     }
 
@@ -980,28 +1086,32 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// Tokens are referenced in
     /// <c>src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/InviteExternalUser.html</c>
     /// as <c>##TenantName##</c>, <c>##RoleName##</c>, <c>##URL##</c>,
-    /// <c>##ExpiresAt##</c>. <c>##PatientFullName##</c> is left blank --
-    /// we do not collect a name at invite time.
+    /// <c>##ExpiresAt##</c>, <c>##Greeting##</c>. UM1 (2026-06-04): the invite
+    /// now optionally collects the recipient name; <c>##Greeting##</c> renders
+    /// "Hi First Last," when a name is present and falls back to "Hello," when
+    /// blank (fixes the OBS-27 empty "Hi ," greeting).
     /// </summary>
     private static IReadOnlyDictionary<string, object?> BuildInvitationVariables(
-        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc)
+        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
+        string? firstName = null, string? lastName = null)
     {
         // Format expiry as a short human-readable UTC date so all tenants
         // see the same calendar day regardless of viewer locale; the
         // recipient does not need timezone precision to know "this link
         // works through Tuesday".
         var expiresAtLabel = expiresAtUtc.ToString("MMMM d, yyyy");
+        var fullName = $"{firstName} {lastName}".Trim();
+        var greeting = string.IsNullOrWhiteSpace(fullName) ? "Hello," : $"Hi {fullName},";
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["TenantName"] = tenantName,
             ["RoleName"] = roleName,
             ["URL"] = inviteUrl,
             ["ExpiresAt"] = expiresAtLabel,
-            ["PatientFullName"] = string.Empty,
-            // Defensive zero-fills for tokens the per-tenant edit UI may
-            // reference even when the dispatcher doesn't supply them.
-            ["PatientFirstName"] = string.Empty,
-            ["PatientLastName"] = string.Empty,
+            ["Greeting"] = greeting,
+            ["PatientFullName"] = fullName,
+            ["PatientFirstName"] = firstName ?? string.Empty,
+            ["PatientLastName"] = lastName ?? string.Empty,
             ["PatientEmail"] = string.Empty,
         };
     }

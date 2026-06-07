@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { LocalizationPipe } from '@abp/ng.core';
 import { RestService } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 
 /**
  * Admin-side invite form for external users (Patient, Applicant Attorney,
@@ -37,6 +38,7 @@ export class InviteExternalUserComponent {
   private readonly fb = inject(FormBuilder);
   private readonly restService = inject(RestService);
   private readonly router = inject(Router);
+  private readonly toaster = inject(ToasterService);
 
   // ExternalUserType enum values: Patient=1, ClaimExaminer=2,
   // ApplicantAttorney=3, DefenseAttorney=4. Order kept stable with the
@@ -49,6 +51,8 @@ export class InviteExternalUserComponent {
   ];
 
   readonly form = this.fb.group({
+    firstName: ['', [Validators.maxLength(128)]],
+    lastName: ['', [Validators.maxLength(128)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
     userType: [1 as number | null, [Validators.required]],
   });
@@ -77,6 +81,9 @@ export class InviteExternalUserComponent {
     const payload = {
       email: (value.email ?? '').trim(),
       userType: Number(value.userType ?? 1),
+      // UM1: optional names -- send null when blank so the server stores null.
+      firstName: (value.firstName ?? '').trim() || null,
+      lastName: (value.lastName ?? '').trim() || null,
     };
 
     this.isSubmitting.set(true);
@@ -111,6 +118,8 @@ export class InviteExternalUserComponent {
         tenantName: response.tenantName,
         expiresAt: response.expiresAt,
       });
+      // OBS-28: success toast in addition to the inline result card.
+      this.toaster.success('Invitation sent to ' + response.email + '.', 'Invite sent');
     } catch (err: any) {
       const message =
         err?.error?.error?.message ??

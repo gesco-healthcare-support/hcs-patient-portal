@@ -74,7 +74,7 @@ export interface PatientCreateDto {
   othersLanguageName?: string | null;
   stateId?: string | null;
   appointmentLanguageId?: string | null;
-  identityUserId?: string;
+  identityUserId?: string | null;
   tenantId?: string | null;
 }
 
@@ -99,7 +99,7 @@ export interface PatientDto extends FullAuditedEntityDto<string> {
   othersLanguageName?: string | null;
   stateId?: string | null;
   appointmentLanguageId?: string | null;
-  identityUserId?: string;
+  identityUserId?: string | null;
   tenantId?: string | null;
   concurrencyStamp?: string;
 }
@@ -125,7 +125,7 @@ export interface PatientUpdateDto {
   othersLanguageName?: string | null;
   stateId?: string | null;
   appointmentLanguageId?: string | null;
-  identityUserId?: string;
+  identityUserId?: string | null;
   tenantId?: string | null;
   concurrencyStamp?: string;
 }

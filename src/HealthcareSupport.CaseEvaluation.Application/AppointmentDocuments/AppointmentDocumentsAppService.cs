@@ -36,16 +36,18 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppointmentDocumentsAppService
 {
     /// <summary>
-    /// BUG-025 (2026-05-21) -- per-document upload cap (10 MB). Mirrors
-    /// the <c>UserSignatureAppService.MaxFileSizeBytes</c> pattern. The
-    /// AppService check fires AFTER the request body is buffered, so
-    /// Kestrel <c>Limits.MaxRequestBodySize</c> and
-    /// <c>FormOptions.MultipartBodyLengthLimit</c> are configured in
-    /// <c>CaseEvaluationHttpApiHostModule</c> at 12 MB to give this
-    /// localized check room to fire with a friendly message rather
-    /// than the raw framework 413.
+    /// BUG-025 (2026-05-21) -- per-document upload cap. The AppService check
+    /// fires AFTER the request body is buffered, so Kestrel
+    /// <c>Limits.MaxRequestBodySize</c> and <c>FormOptions.MultipartBodyLengthLimit</c>
+    /// are configured in <c>CaseEvaluationHttpApiHostModule</c> at 12 MB to give
+    /// this localized check room to fire with a friendly message rather than the
+    /// raw framework 413. AF7 (2026-06-05): aliases
+    /// <see cref="AppointmentDocumentConsts.MaxFileSizeBytes"/> (10 MB) so the
+    /// AppService, the Domain manager, and the Angular client share one source
+    /// of truth. Kept as a <c>const</c> so the BUG-025 size tests can reference
+    /// it in a const context.
     /// </summary>
-    public const long MaxFileSizeBytes = 10L * 1024 * 1024;
+    public const long MaxFileSizeBytes = AppointmentDocumentConsts.MaxFileSizeBytes;
 
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
@@ -262,7 +264,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         long fileSize,
         Stream content,
         Guid? appointmentDocumentTypeId = null,
-        string? otherDocumentTypeName = null)
+        string? otherDocumentTypeName = null,
+        bool isPanelStrikeList = false)
     {
         if (appointmentId == Guid.Empty)
         {
@@ -326,6 +329,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // unifies via the IsAdHoc flag (Phase 1.6). Package + JDF
         // uploads use the dedicated methods below.
         entity.IsAdHoc = true;
+        // AF6 (2026-06-05): tag the booker-marked PQME panel strike list (AF5
+        // flag) so staff can identify it for venue verification.
+        entity.IsPanelStrikeList = isPanelStrikeList;
         entity.Status = initialStatus;
         if (initialStatus == DocumentStatus.Accepted)
         {

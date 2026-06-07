@@ -43,7 +43,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 
@@ -100,7 +100,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    public Appointment(Guid id, Guid patientId, Guid identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
+    public Appointment(Guid id, Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
     {
         Id = id;
         Check.NotNull(requestConfirmationNumber, nameof(requestConfirmationNumber));

@@ -64,7 +64,9 @@ public class PatientCreateDto
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): optional -- a Patient may be created as a record with
+    // no login; the identity is linked later on self-register (by email).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 }

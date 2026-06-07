@@ -16,8 +16,10 @@ public class LocationCreateDto
     public string? City { get; set; }
 
     [StringLength(LocationConsts.ZipCodeMaxLength)]
+    [RegularExpression(@"^(\d{5}(-\d{4})?)?$")]
     public string? ZipCode { get; set; }
 
+    [Range(0, double.MaxValue)]
     public decimal ParkingFee { get; set; }
 
     public bool IsActive { get; set; } = true;

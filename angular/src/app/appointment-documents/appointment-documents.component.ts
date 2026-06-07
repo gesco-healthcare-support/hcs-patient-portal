@@ -23,6 +23,7 @@ import { RequiredDocumentState } from '../proxy/appointment-documents/required-d
 import { LookupDto } from '../proxy/shared/models';
 import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
 import { AppointmentDocumentUrls } from './appointment-document-urls';
+import { MAX_DOCUMENT_UPLOAD_BYTES } from './document-upload.constants';
 
 /**
  * W1-3 + W2-11 appointment-documents UI. Embedded inside appointment-view
@@ -135,7 +136,8 @@ export class AppointmentDocumentsComponent implements OnChanges {
   rejectionReason = '';
   isSubmittingReject = false;
 
-  readonly maxBytes = 25 * 1024 * 1024;
+  // AF7 / BUG-025: align the client cap to the authoritative 10 MB server cap.
+  readonly maxBytes = MAX_DOCUMENT_UPLOAD_BYTES;
   readonly DocumentStatus = DocumentStatus;
 
   get canApprove(): boolean {

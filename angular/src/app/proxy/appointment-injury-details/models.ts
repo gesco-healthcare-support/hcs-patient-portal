@@ -2,8 +2,6 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 import type { AppointmentDto } from '../appointments/models';
 import type { WcabOfficeDto } from '../wcab-offices/models';
 import type { AppointmentBodyPartDto } from '../appointment-body-parts/models';
-import type { AppointmentClaimExaminerDto } from '../appointment-claim-examiners/models';
-import type { AppointmentPrimaryInsuranceDto } from '../appointment-primary-insurances/models';
 
 export interface AppointmentInjuryDetailCreateDto {
   appointmentId?: string;
@@ -11,7 +9,7 @@ export interface AppointmentInjuryDetailCreateDto {
   toDateOfInjury?: string | null;
   claimNumber: string;
   isCumulativeInjury: boolean;
-  wcabAdj?: string | null;
+  wcabAdj: string;
   bodyPartsSummary: string;
   wcabOfficeId?: string | null;
 }
@@ -34,7 +32,7 @@ export interface AppointmentInjuryDetailUpdateDto {
   toDateOfInjury?: string | null;
   claimNumber: string;
   isCumulativeInjury: boolean;
-  wcabAdj?: string | null;
+  wcabAdj: string;
   bodyPartsSummary: string;
   wcabOfficeId?: string | null;
   concurrencyStamp?: string;
@@ -45,8 +43,6 @@ export interface AppointmentInjuryDetailWithNavigationPropertiesDto {
   appointment?: AppointmentDto | null;
   wcabOffice?: WcabOfficeDto | null;
   bodyParts?: AppointmentBodyPartDto[];
-  claimExaminer?: AppointmentClaimExaminerDto | null;
-  primaryInsurance?: AppointmentPrimaryInsuranceDto | null;
 }
 
 export interface GetAppointmentInjuryDetailsInput extends PagedAndSortedResultRequestDto {

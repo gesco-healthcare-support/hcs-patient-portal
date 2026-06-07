@@ -11,7 +11,7 @@ import {
   ButtonComponent,
 } from '@abp/ng.theme.shared';
 
-import { LookupSelectComponent, LookupTypeaheadMtmComponent } from '@volo/abp.commercial.ng.ui';
+import { LookupTypeaheadMtmComponent } from '@volo/abp.commercial.ng.ui';
 
 import {
   NgbNavModule,
@@ -37,7 +37,6 @@ import { DoctorDetailViewService } from '../services/doctor-detail.service';
     LocalizationPipe,
     ModalComponent,
     ButtonComponent,
-    LookupSelectComponent,
     LookupTypeaheadMtmComponent,
   ],
   providers: [

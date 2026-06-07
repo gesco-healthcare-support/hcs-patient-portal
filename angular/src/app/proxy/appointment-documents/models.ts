@@ -21,6 +21,7 @@ export interface AppointmentDocumentDto extends FullAuditedEntityDto<string> {
   rejectedByUserId?: string | null;
   appointmentDocumentTypeId?: string | null;
   otherDocumentTypeName?: string | null;
+  isPanelStrikeList?: boolean;
 }
 
 export interface AppointmentPacketDto extends FullAuditedEntityDto<string> {
@@ -64,4 +65,5 @@ export interface UploadAppointmentDocumentForm {
   appointmentDocumentTypeId?: string | null;
   otherDocumentTypeName?: string | null;
   file?: IFormFile;
+  isPanelStrikeList?: boolean;
 }

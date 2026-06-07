@@ -15,11 +15,12 @@ internal static class BookingFlowRoles
 {
     /// <summary>
     /// Internal-user roles that flip the booking flow into the
-    /// "auto-approved" fast-path. OLD's <c>UserType.InternalUser</c>
-    /// covers admin / Clinic Staff / Staff Supervisor / IT Admin /
-    /// Doctor. Mirror exactly so external callers (Patient, AA, DA,
-    /// CE, Adjuster) always land at <c>Pending</c> and only the
-    /// office side can self-approve.
+    /// "auto-approved" fast-path: the three internal Gesco-side roles
+    /// (Clinic Staff / Staff Supervisor / IT Admin) plus the Volo SaaS
+    /// tenant <c>admin</c>. ("Doctor" was removed 2026-06-03 / IR1 -- it is
+    /// a reference entity, never a seeded user role, so it never matched.)
+    /// External callers (Patient, AA, DA, CE) always land at
+    /// <c>Pending</c> so only the office side can self-approve.
     /// </summary>
     internal static readonly System.Collections.Generic.IReadOnlyList<string> InternalUserRoles = new[]
     {
@@ -27,7 +28,6 @@ internal static class BookingFlowRoles
         "Clinic Staff",
         "Staff Supervisor",
         "IT Admin",
-        "Doctor",
     };
 
     /// <summary>
@@ -104,51 +104,5 @@ internal static class BookingFlowRoles
             }
         }
         return dtoClaimExaminerEmail;
-    }
-
-    /// <summary>
-    /// 2026-05-21 (OBS-23) -- returns true when the caller holds an
-    /// attorney role (Applicant Attorney or Defense Attorney). AME +
-    /// AME-REVAL appointment requests are restricted to these roles
-    /// for external callers, mirroring OLD's
-    /// <c>RoleAppointmentType</c> join. Internal-user callers bypass
-    /// the gate via <see cref="IsInternalUserCaller"/>.
-    /// </summary>
-    internal static bool IsAttorneyCaller(System.Collections.Generic.IEnumerable<string?>? callerRoles)
-    {
-        if (callerRoles == null)
-        {
-            return false;
-        }
-        foreach (var role in callerRoles)
-        {
-            if (string.IsNullOrWhiteSpace(role))
-            {
-                continue;
-            }
-            var trimmed = role.Trim();
-            if (string.Equals(trimmed, "Applicant Attorney", System.StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(trimmed, "Defense Attorney", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// 2026-05-21 (OBS-23) -- returns true when the appointment-type
-    /// name carries AME semantics. Matches "AME" and "AME-REVAL"
-    /// without false-positives on Panel QME or Qualified Medical
-    /// Examination, per the substring match used elsewhere in
-    /// <c>AppointmentBookingValidators</c>.
-    /// </summary>
-    internal static bool IsAmeAppointmentType(string? appointmentTypeName)
-    {
-        if (string.IsNullOrWhiteSpace(appointmentTypeName))
-        {
-            return false;
-        }
-        return appointmentTypeName.Contains("AME", System.StringComparison.OrdinalIgnoreCase);
     }
 }

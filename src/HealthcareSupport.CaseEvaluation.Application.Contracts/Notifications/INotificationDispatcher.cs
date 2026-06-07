@@ -66,4 +66,22 @@ public interface INotificationDispatcher
         string contextTag,
         PacketAttachmentRef? packetRef = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// E1 (2026-06-03): render <paramref name="templateCode"/> once and enqueue
+    /// ONE email addressed To <paramref name="to"/> with the other recipients
+    /// CC'd (<paramref name="cc"/>). Used for legally-required single-message
+    /// addressing (ex-parte): one notice To one party, the rest CC'd -- never
+    /// separate per-party emails for the same notice. CC addresses equal to the
+    /// To address (case-insensitive) are dropped; the body is rendered once and
+    /// shared by every recipient (so it must be non-role-aware).
+    /// </summary>
+    Task DispatchToWithCcAsync(
+        string templateCode,
+        NotificationRecipient to,
+        IReadOnlyCollection<NotificationRecipient> cc,
+        IReadOnlyDictionary<string, object?> variables,
+        string contextTag,
+        PacketAttachmentRef? packetRef = null,
+        CancellationToken cancellationToken = default);
 }

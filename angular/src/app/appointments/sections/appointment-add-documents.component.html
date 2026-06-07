@@ -1,0 +1,116 @@
+<!-- AF7 (2026-06-05): pre-submit document upload card. Sibling block between
+     Claim Information and Authorized Users. Files are staged here and uploaded
+     by the parent after the appointment is created. -->
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white">
+    <h4 class="mb-0 text-primary fw-bold">Documents</h4>
+    <small class="text-muted">
+      Optional. Attach files now and they will upload after the appointment is created. PDF, JPG, or
+      PNG, up to 10 MB each.
+    </small>
+  </div>
+  <div class="card-body">
+    <input
+      type="file"
+      class="form-control form-control-sm mb-3"
+      multiple
+      accept=".pdf,.jpg,.jpeg,.png"
+      [disabled]="disabled"
+      (change)="onFilesSelected($event)"
+    />
+
+    @if (isPqme) {
+      <div class="form-check mb-3">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="has-panel-strike-list"
+          [checked]="hasPanelStrikeList"
+          [disabled]="disabled"
+          (change)="onHasPanelStrikeListChange($event)"
+        />
+        <label class="form-check-label" for="has-panel-strike-list">
+          I have the panel strike list for this PQME appointment
+        </label>
+        @if (hasPanelStrikeList) {
+          <div class="form-text">
+            Mark which uploaded document below is the panel strike list -- required to submit.
+          </div>
+        }
+      </div>
+    }
+
+    @if (stagedDocuments.length > 0) {
+      <div class="border rounded">
+        @for (doc of stagedDocuments; track doc.file.name + doc.file.size; let i = $index) {
+          <div class="d-flex align-items-center gap-2 p-2 border-bottom">
+            <i class="fa fa-file fa-lg text-primary"></i>
+            <div class="flex-grow-1">
+              <span class="fw-semibold">{{ doc.file.name }}</span>
+              <span class="text-muted small">&middot; {{ formatBytes(doc.file.size) }}</span>
+              @if (doc.status === 'uploading') {
+                <span class="badge bg-info text-dark">Uploading...</span>
+              }
+              @if (doc.status === 'uploaded') {
+                <span class="badge bg-success">Uploaded</span>
+              }
+              @if (doc.status === 'failed') {
+                <span class="badge bg-danger">Failed</span>
+              }
+              @if (doc.isStrikeList) {
+                <span class="badge bg-info text-dark">Panel strike list</span>
+              }
+              @if (doc.error) {
+                <div class="text-danger small">{{ doc.error }}</div>
+              }
+            </div>
+            @if (isPqme && hasPanelStrikeList) {
+              <div class="form-check mb-0">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="panel-strike-list-selector"
+                  [id]="'strike-list-' + i"
+                  [checked]="doc.isStrikeList"
+                  [disabled]="disabled"
+                  (change)="selectStrikeList.emit(i)"
+                />
+                <label class="form-check-label small text-nowrap" [for]="'strike-list-' + i">
+                  Strike list
+                </label>
+              </div>
+            }
+            @if (doc.status === 'staged' || doc.status === 'failed') {
+              <button
+                type="button"
+                class="btn btn-outline-danger btn-sm"
+                (click)="removeDocument.emit(i)"
+                [disabled]="disabled"
+                title="Remove"
+              >
+                <i class="fa fa-trash"></i>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (hasFailedUploads) {
+      <div class="d-flex align-items-center gap-2 mt-3">
+        <span class="text-danger small flex-grow-1">
+          Some documents failed to upload. The appointment was created -- retry the uploads below.
+        </span>
+        <button
+          type="button"
+          class="btn btn-warning btn-sm"
+          (click)="retryUploads.emit()"
+          [disabled]="disabled"
+        >
+          <i class="fa fa-rotate me-1"></i>
+          Retry uploads
+        </button>
+      </div>
+    }
+  </div>
+</div>

@@ -46,10 +46,14 @@ export interface InvitationValidationDto {
   roleName?: string;
   tenantName?: string;
   expiresAt?: string;
+  firstName?: string | null;
+  lastName?: string | null;
 }
 
 export interface InviteExternalUserDto {
   email: string;
+  firstName?: string | null;
+  lastName?: string | null;
   userType: ExternalUserType;
 }
 

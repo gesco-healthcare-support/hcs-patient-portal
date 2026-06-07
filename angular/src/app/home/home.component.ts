@@ -253,7 +253,7 @@ export class HomeComponent implements OnInit {
   }
 
   openMyProfile() {
-    this.router.navigateByUrl('/doctor-management/patients/my-profile');
+    this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
   openSubmitQuery(): void {

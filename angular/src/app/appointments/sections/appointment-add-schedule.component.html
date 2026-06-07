@@ -22,7 +22,12 @@
         ></app-lookup-select>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::PanelNumber' | abpLocalization }}</label>
+        <label class="form-label fw-semibold">
+          {{ '::PanelNumber' | abpLocalization }}
+          @if (isPqmeType) {
+            <span>*</span>
+          }
+        </label>
         <input
           formControlName="panelNumber"
           class="form-control"

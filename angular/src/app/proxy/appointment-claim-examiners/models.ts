@@ -1,10 +1,10 @@
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
 export interface AppointmentClaimExaminerCreateDto {
-  appointmentInjuryDetailId?: string;
-  name?: string | null;
+  appointmentId?: string;
+  name: string | null;
   suite?: string | null;
-  email?: string | null;
+  email: string | null;
   phoneNumber?: string | null;
   fax?: string | null;
   street?: string | null;
@@ -15,7 +15,7 @@ export interface AppointmentClaimExaminerCreateDto {
 }
 
 export interface AppointmentClaimExaminerDto extends FullAuditedEntityDto<string> {
-  appointmentInjuryDetailId?: string;
+  appointmentId?: string;
   name?: string | null;
   suite?: string | null;
   email?: string | null;
@@ -30,10 +30,10 @@ export interface AppointmentClaimExaminerDto extends FullAuditedEntityDto<string
 }
 
 export interface AppointmentClaimExaminerUpdateDto {
-  appointmentInjuryDetailId?: string;
-  name?: string | null;
+  appointmentId?: string;
+  name: string | null;
   suite?: string | null;
-  email?: string | null;
+  email: string | null;
   phoneNumber?: string | null;
   fax?: string | null;
   street?: string | null;
@@ -46,5 +46,5 @@ export interface AppointmentClaimExaminerUpdateDto {
 
 export interface GetAppointmentClaimExaminersInput extends PagedAndSortedResultRequestDto {
   filterText?: string | null;
-  appointmentInjuryDetailId?: string | null;
+  appointmentId?: string | null;
 }

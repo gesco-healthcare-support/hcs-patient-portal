@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -43,6 +44,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 {
     public DbSet<AppointmentApplicantAttorney> AppointmentApplicantAttorneys { get; set; } = null!;
     public DbSet<ApplicantAttorney> ApplicantAttorneys { get; set; } = null!;
+    public DbSet<ClaimExaminer> ClaimExaminers { get; set; } = null!;
     public DbSet<AppointmentDefenseAttorney> AppointmentDefenseAttorneys { get; set; } = null!;
     public DbSet<DefenseAttorney> DefenseAttorneys { get; set; } = null!;
     public DbSet<AppointmentInjuryDetail> AppointmentInjuryDetails { get; set; } = null!;
@@ -303,7 +305,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.OthersLanguageName).HasColumnName(nameof(Patient.OthersLanguageName)).HasMaxLength(PatientConsts.OthersLanguageNameMaxLength);
                 b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne<AppointmentLanguage>().WithMany().HasForeignKey(x => x.AppointmentLanguageId).OnDelete(DeleteBehavior.SetNull);
-                b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+                // IP6 (2026-06-05): optional -- a record-only patient has no login until claimed.
+                b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
             });
         }
@@ -335,7 +338,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.PrimaryResponsibleUserId).HasColumnName(nameof(Appointment.PrimaryResponsibleUserId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(Appointment.IsBeyondLimit));
             b.HasOne<Patient>().WithMany().IsRequired().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.NoAction);
-            b.HasOne<IdentityUser>().WithMany().IsRequired().HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // IP6 (2026-06-05): optional -- booking no longer mints a patient login.
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<AppointmentType>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<Location>().WithMany().IsRequired().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DoctorAvailability>().WithMany().IsRequired().HasForeignKey(x => x.DoctorAvailabilityId).OnDelete(DeleteBehavior.NoAction);
@@ -371,6 +375,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.RejectedByUserId).HasColumnName("RejectedByUserId");
             b.Property(x => x.IsAdHoc).HasColumnName("IsAdHoc");
             b.Property(x => x.IsJointDeclaration).HasColumnName("IsJointDeclaration");
+            b.Property(x => x.IsPanelStrikeList).HasColumnName("IsPanelStrikeList");
             b.Property(x => x.VerificationCode).HasColumnName("VerificationCode");
             // G-03-03/05 (PR2): document-type linkage. AppointmentDocumentTypeId
             // is a loose Guid reference (no FK -- the type list is tenant-scoped
@@ -639,6 +644,22 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
+        builder.Entity<ClaimExaminer>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "ClaimExaminers", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(ClaimExaminer.TenantId));
+            b.Property(x => x.FirstName).HasColumnName(nameof(ClaimExaminer.FirstName)).HasMaxLength(ClaimExaminerConsts.FirstNameMaxLength);
+            b.Property(x => x.LastName).HasColumnName(nameof(ClaimExaminer.LastName)).HasMaxLength(ClaimExaminerConsts.LastNameMaxLength);
+            b.Property(x => x.Email).HasColumnName(nameof(ClaimExaminer.Email)).HasMaxLength(ClaimExaminerConsts.EmailMaxLength);
+            b.Property(x => x.PhoneNumber).HasColumnName(nameof(ClaimExaminer.PhoneNumber)).HasMaxLength(ClaimExaminerConsts.PhoneNumberMaxLength);
+            b.Property(x => x.FaxNumber).HasColumnName(nameof(ClaimExaminer.FaxNumber)).HasMaxLength(ClaimExaminerConsts.FaxNumberMaxLength);
+            b.Property(x => x.Street).HasColumnName(nameof(ClaimExaminer.Street)).HasMaxLength(ClaimExaminerConsts.StreetMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(ClaimExaminer.City)).HasMaxLength(ClaimExaminerConsts.CityMaxLength);
+            b.Property(x => x.ZipCode).HasColumnName(nameof(ClaimExaminer.ZipCode)).HasMaxLength(ClaimExaminerConsts.ZipCodeMaxLength);
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+        });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentApplicantAttorneys", CaseEvaluationConsts.DbSchema);
@@ -710,7 +731,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Street).HasColumnName(nameof(AppointmentClaimExaminer.Street)).HasMaxLength(AppointmentClaimExaminerConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(AppointmentClaimExaminer.City)).HasMaxLength(AppointmentClaimExaminerConsts.CityMaxLength);
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentClaimExaminer.Zip)).HasMaxLength(AppointmentClaimExaminerConsts.ZipMaxLength);
-            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
         builder.Entity<AppointmentPrimaryInsurance>(b =>
@@ -720,13 +741,12 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentPrimaryInsurance.TenantId));
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentPrimaryInsurance.Name)).HasMaxLength(AppointmentPrimaryInsuranceConsts.NameMaxLength);
             b.Property(x => x.Suite).HasColumnName(nameof(AppointmentPrimaryInsurance.Suite)).HasMaxLength(AppointmentPrimaryInsuranceConsts.SuiteMaxLength);
-            b.Property(x => x.Attention).HasColumnName(nameof(AppointmentPrimaryInsurance.Attention)).HasMaxLength(AppointmentPrimaryInsuranceConsts.AttentionMaxLength);
             b.Property(x => x.PhoneNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.PhoneNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.PhoneNumberMaxLength);
             b.Property(x => x.FaxNumber).HasColumnName(nameof(AppointmentPrimaryInsurance.FaxNumber)).HasMaxLength(AppointmentPrimaryInsuranceConsts.FaxNumberMaxLength);
             b.Property(x => x.Street).HasColumnName(nameof(AppointmentPrimaryInsurance.Street)).HasMaxLength(AppointmentPrimaryInsuranceConsts.StreetMaxLength);
             b.Property(x => x.City).HasColumnName(nameof(AppointmentPrimaryInsurance.City)).HasMaxLength(AppointmentPrimaryInsuranceConsts.CityMaxLength);
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
-            b.HasOne<AppointmentInjuryDetail>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentInjuryDetailId).OnDelete(DeleteBehavior.NoAction);
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -753,6 +773,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName(nameof(Invitation.TenantId));
             b.Property(x => x.Email).IsRequired().HasMaxLength(InvitationConsts.EmailMaxLength);
+            b.Property(x => x.FirstName).HasMaxLength(InvitationConsts.NameMaxLength);
+            b.Property(x => x.LastName).HasMaxLength(InvitationConsts.NameMaxLength);
             b.Property(x => x.UserType).IsRequired();
             b.Property(x => x.TokenHash).IsRequired().HasMaxLength(InvitationConsts.TokenHashLength);
             b.Property(x => x.ExpiresAt).IsRequired();

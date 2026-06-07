@@ -20,6 +20,33 @@
           <ng-template ngbNavContent>
             <div class="mt-2 fade-in-top">
               <div class="mb-3">
+                <label class="form-label" for="defense-attorney-first-name">
+                  {{ '::FirstName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="defense-attorney-first-name"
+                  formControlName="firstName"
+                  class="form-control"
+                  maxlength="50"
+                  autofocus
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="defense-attorney-last-name">
+                  {{ '::LastName' | abpLocalization }}
+                </label>
+
+                <input
+                  id="defense-attorney-last-name"
+                  formControlName="lastName"
+                  class="form-control"
+                  maxlength="50"
+                />
+              </div>
+
+              <div class="mb-3">
                 <label class="form-label" for="defense-attorney-firm-name">
                   {{ '::FirmName' | abpLocalization }}
                 </label>
@@ -29,7 +56,6 @@
                   formControlName="firmName"
                   class="form-control"
                   maxlength="50"
-                  autofocus
                 />
               </div>
 
@@ -71,7 +97,7 @@
               </div>
               <div class="mb-3">
                 <label class="form-label" for="defense-attorney-identity-user-id">
-                  {{ '::IdentityUser' | abpLocalization }} *
+                  {{ '::IdentityUser' | abpLocalization }}
                 </label>
                 <abp-lookup-select
                   cid="defense-attorney-identity-user-id"

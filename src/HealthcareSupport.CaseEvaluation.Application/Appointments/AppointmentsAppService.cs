@@ -204,25 +204,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var daLinkAppointmentIds = await AsyncExecuter.ToListAsync(
             daLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
 
-        // 5. Claim Examiner by email (case-insensitive). CE has no IdentityUser
-        // join today; per Adrian D-2 the per-appointment AppointmentClaimExaminer
-        // row's Email is the link. Two-hop: AppointmentClaimExaminer.AppointmentInjuryDetailId
-        // -> AppointmentInjuryDetail.AppointmentId.
+        // 5. Claim Examiner by email (case-insensitive). CI1 (2026-06-05): CE is
+        // now a single appointment-level row, so the link is direct -- the CE
+        // row's AppointmentId (no injury hop).
         var ceAppointmentIds = new List<Guid>();
         if (!string.IsNullOrWhiteSpace(userEmail))
         {
             var emailLower = userEmail.Trim().ToLower();
-            var injuryIdsForCe = await AsyncExecuter.ToListAsync(
+            ceAppointmentIds = await AsyncExecuter.ToListAsync(
                 ceQuery
                     .Where(c => c.Email != null && c.Email.ToLower() == emailLower)
-                    .Select(c => c.AppointmentInjuryDetailId));
-            if (injuryIdsForCe.Count > 0)
-            {
-                ceAppointmentIds = await AsyncExecuter.ToListAsync(
-                    injuryQuery
-                        .Where(i => injuryIdsForCe.Contains(i.Id))
-                        .Select(i => i.AppointmentId));
-            }
+                    .Select(c => c.AppointmentId));
         }
 
         // 6. Accessor grants -- already supported by repo when AccessorIdentityUserId
@@ -679,32 +671,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["The selected patient does not exist."]);
         }
 
-        var identityUser = await _identityUserRepository.FindAsync(input.IdentityUserId);
-        if (identityUser == null)
+        // IP6 (2026-06-05): IdentityUserId is optional -- a record-only booking
+        // persists the appointment with no patient login. Validate existence
+        // only when an identity is actually supplied (claimed/legacy bookings).
+        if (input.IdentityUserId.HasValue)
         {
-            throw new UserFriendlyException(L["The selected user does not exist."]);
+            var identityUser = await _identityUserRepository.FindAsync(input.IdentityUserId.Value);
+            if (identityUser == null)
+            {
+                throw new UserFriendlyException(L["The selected user does not exist."]);
+            }
         }
 
         var appointmentType = await _appointmentTypeRepository.FindAsync(input.AppointmentTypeId);
         if (appointmentType == null)
         {
             throw new UserFriendlyException(L["The selected appointment type does not exist."]);
-        }
-
-        // OBS-23 (2026-05-21) -- AME / AME-REVAL booking is restricted
-        // to attorneys (Applicant Attorney + Defense Attorney) for
-        // external callers. Internal staff bypass via
-        // BookingFlowRoles.IsInternalUserCaller. Mirrors OLD's
-        // RoleAppointmentType join; NEW uses a hardcoded allow-list
-        // since that join table was not ported.
-        var bookingCallerRoles = CurrentUser.Roles ?? Array.Empty<string>();
-        if (!BookingFlowRoles.IsInternalUserCaller(bookingCallerRoles)
-            && BookingFlowRoles.IsAmeAppointmentType(appointmentType.Name)
-            && !BookingFlowRoles.IsAttorneyCaller(bookingCallerRoles))
-        {
-            throw new UserFriendlyException(
-                code: CaseEvaluationDomainErrorCodes.AppointmentAmeRequiresAttorneyRole,
-                message: L["Appointment:AmeRequiresAttorneyRole"]);
         }
 
         var location = await _locationRepository.FindAsync(input.LocationId);
@@ -852,7 +834,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         await _localEventBus.PublishAsync(new AppointmentSubmittedEto(
             appointmentId: appointment.Id,
             tenantId: appointment.TenantId,
-            bookerUserId: appointment.IdentityUserId,
+            // IP6 (2026-06-05): null identity (unclaimed patient) maps to the
+            // handler's existing Guid.Empty "no booker" sentinel -> the booker
+            // confirmation email is skipped (no patient login to notify).
+            bookerUserId: appointment.IdentityUserId ?? Guid.Empty,
             patientId: appointment.PatientId,
             appointmentTypeId: appointment.AppointmentTypeId,
             requestConfirmationNumber: appointment.RequestConfirmationNumber,

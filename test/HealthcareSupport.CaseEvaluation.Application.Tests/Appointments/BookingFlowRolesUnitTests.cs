@@ -17,7 +17,7 @@ public class BookingFlowRolesUnitTests
     [InlineData("Clinic Staff", true)]
     [InlineData("Staff Supervisor", true)]
     [InlineData("IT Admin", true)]
-    [InlineData("Doctor", true)]
+    [InlineData("Doctor", false)] // IR1 (2026-06-03): Doctor is a reference entity, not a user role
     [InlineData("Patient", false)]
     [InlineData("Applicant Attorney", false)]
     [InlineData("Defense Attorney", false)]
@@ -130,7 +130,7 @@ public class BookingFlowRolesUnitTests
     }
 
     [Fact]
-    public void InternalUserRoles_PinnedAtFiveCanonicalRoles()
+    public void InternalUserRoles_PinnedAtFourCanonicalRoles()
     {
         // Drift guard: if the seed contributor renames a role, this
         // surfaces immediately so the booking flow's fast-path stays
@@ -139,69 +139,8 @@ public class BookingFlowRolesUnitTests
         BookingFlowRoles.InternalUserRoles.ShouldContain("Clinic Staff");
         BookingFlowRoles.InternalUserRoles.ShouldContain("Staff Supervisor");
         BookingFlowRoles.InternalUserRoles.ShouldContain("IT Admin");
-        BookingFlowRoles.InternalUserRoles.ShouldContain("Doctor");
-        BookingFlowRoles.InternalUserRoles.Count.ShouldBe(5);
-    }
-
-    // OBS-23 (2026-05-21) -- AME role gate. Tests cover the two new
-    // helpers added to BookingFlowRoles. The AppService-level wiring
-    // (CreateAsync gate) is verified live against the running stack
-    // post-deploy (mirrors BUG-024's fix-then-live-test pattern).
-
-    [Theory]
-    [InlineData("Applicant Attorney", true)]
-    [InlineData("Defense Attorney", true)]
-    [InlineData("Patient", false)]
-    [InlineData("Claim Examiner", false)]
-    [InlineData("Clinic Staff", false)]
-    [InlineData("IT Admin", false)]
-    [InlineData("admin", false)]
-    public void IsAttorneyCaller_ReturnsExpectedForSingleRole(string role, bool expected)
-    {
-        BookingFlowRoles.IsAttorneyCaller(new[] { role }).ShouldBe(expected);
-    }
-
-    [Fact]
-    public void IsAttorneyCaller_AnyAttorneyRoleAmongMany_ReturnsTrue()
-    {
-        var roles = new[] { "Patient", "Applicant Attorney" };
-        BookingFlowRoles.IsAttorneyCaller(roles).ShouldBeTrue();
-    }
-
-    [Fact]
-    public void IsAttorneyCaller_NullOrEmpty_ReturnsFalse()
-    {
-        BookingFlowRoles.IsAttorneyCaller(null).ShouldBeFalse();
-        BookingFlowRoles.IsAttorneyCaller(System.Array.Empty<string>()).ShouldBeFalse();
-    }
-
-    [Fact]
-    public void IsAttorneyCaller_CaseInsensitive_TrimWhitespace()
-    {
-        BookingFlowRoles.IsAttorneyCaller(new[] { "APPLICANT ATTORNEY" }).ShouldBeTrue();
-        BookingFlowRoles.IsAttorneyCaller(new[] { "  defense attorney  " }).ShouldBeTrue();
-    }
-
-    [Theory]
-    [InlineData("Agreed Medical Examination (AME)", true)]
-    [InlineData("AME", true)]
-    [InlineData("AME-REVAL", true)]
-    [InlineData("ame", true)] // case-insensitive
-    [InlineData("Panel QME", false)]
-    [InlineData("Qualified Medical Examination (QME)", false)]
-    [InlineData("Record Review", false)]
-    [InlineData("Deposition", false)]
-    [InlineData("Supplemental Medical Report", false)]
-    public void IsAmeAppointmentType_ReturnsExpected(string name, bool expected)
-    {
-        BookingFlowRoles.IsAmeAppointmentType(name).ShouldBe(expected);
-    }
-
-    [Fact]
-    public void IsAmeAppointmentType_NullOrWhitespace_ReturnsFalse()
-    {
-        BookingFlowRoles.IsAmeAppointmentType(null).ShouldBeFalse();
-        BookingFlowRoles.IsAmeAppointmentType(string.Empty).ShouldBeFalse();
-        BookingFlowRoles.IsAmeAppointmentType("   ").ShouldBeFalse();
+        // IR1 (2026-06-03): "Doctor" removed -- reference entity, not a user role.
+        BookingFlowRoles.InternalUserRoles.ShouldNotContain("Doctor");
+        BookingFlowRoles.InternalUserRoles.Count.ShouldBe(4);
     }
 }

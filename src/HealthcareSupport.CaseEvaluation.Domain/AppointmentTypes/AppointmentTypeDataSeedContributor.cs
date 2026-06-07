@@ -9,10 +9,11 @@ using Volo.Abp.Domain.Repositories;
 namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 
 /// <summary>
-/// Seeds the canonical 6 IME appointment types used in California workers'-comp evaluations.
-/// Host-scoped (no IMultiTenant); idempotent via per-row upsert-by-ID. GUIDs match
-/// <see cref="CaseEvaluationSeedIds.AppointmentTypes"/> so other seeders (Locations) and
-/// tests can reference them by name.
+/// Seeds the 3 appointment types offered in California workers'-comp evaluations: AME, IME,
+/// PQME (AF1, 2026-06-03). Host-scoped (no IMultiTenant); idempotent via per-row upsert-by-ID.
+/// GUIDs match <see cref="CaseEvaluationSeedIds.AppointmentTypes"/> so other seeders (Locations)
+/// and tests can reference them by name. The UI shows the full label; code keys off the seed
+/// GUID, not the display name.
 /// </summary>
 public class AppointmentTypeDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
@@ -54,29 +55,22 @@ public class AppointmentTypeDataSeedContributor : IDataSeedContributor, ITransie
 
     private static readonly (Guid Id, string Name, string? Description, EvaluationType Eval, AppointmentMaxTimeCategory MaxTime)[] Seeds =
     {
-        (CaseEvaluationSeedIds.AppointmentTypes.Qme,
-            "Qualified Medical Examination (QME)",
-            "Single-physician medical-legal evaluation under California Labor Code Section 4060.",
-            EvaluationType.Both, AppointmentMaxTimeCategory.Pqme),
-        (CaseEvaluationSeedIds.AppointmentTypes.PanelQme,
-            "Panel QME",
-            "Three-name panel-based QME evaluation per California Labor Code Section 4062.2.",
-            EvaluationType.Both, AppointmentMaxTimeCategory.Pqme),
+        // Merge resolution (2026-06-07): main's #296 trims the offered types to
+        // AME / IME / PQME (names + descriptions from #296), kept in the parity
+        // branch's 5-field seed shape because the seed loop + AppointmentType
+        // entity carry EvaluationType + MaxTimeCategory (#282). IME is new and
+        // has no legacy max-time bucket -> Other.
         (CaseEvaluationSeedIds.AppointmentTypes.Ame,
             "Agreed Medical Examination (AME)",
             "Mutually-agreed-upon medical evaluator selected by the parties.",
             EvaluationType.Both, AppointmentMaxTimeCategory.Ame),
-        (CaseEvaluationSeedIds.AppointmentTypes.RecordReview,
-            "Record Review",
-            "Records-only review without an in-person examination.",
-            EvaluationType.Normal, AppointmentMaxTimeCategory.Other),
-        (CaseEvaluationSeedIds.AppointmentTypes.Deposition,
-            "Deposition",
-            "Sworn testimony of a medical evaluator outside the courtroom.",
-            EvaluationType.Normal, AppointmentMaxTimeCategory.Other),
-        (CaseEvaluationSeedIds.AppointmentTypes.SupplementalMedicalReport,
-            "Supplemental Medical Report",
-            "Follow-up report addressing additional records or questions after a prior evaluation.",
-            EvaluationType.Re, AppointmentMaxTimeCategory.Other),
+        (CaseEvaluationSeedIds.AppointmentTypes.Ime,
+            "Independent Medical Examination (IME)",
+            "Independent medical-legal evaluation by a neutral physician outside the panel process.",
+            EvaluationType.Both, AppointmentMaxTimeCategory.Other),
+        (CaseEvaluationSeedIds.AppointmentTypes.PanelQme,
+            "Panel Qualified Medical Examination (PQME)",
+            "Three-name panel-based qualified medical evaluation per California Labor Code Section 4062.2.",
+            EvaluationType.Both, AppointmentMaxTimeCategory.Pqme),
     };
 }

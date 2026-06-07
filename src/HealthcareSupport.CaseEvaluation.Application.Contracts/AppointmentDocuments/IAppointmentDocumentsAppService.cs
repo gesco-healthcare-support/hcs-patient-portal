@@ -44,7 +44,8 @@ public interface IAppointmentDocumentsAppService
         long fileSize,
         Stream content,
         Guid? appointmentDocumentTypeId = null,
-        string? otherDocumentTypeName = null);
+        string? otherDocumentTypeName = null,
+        bool isPanelStrikeList = false);
 
     /// <summary>
     /// Phase 14: package-document upload. Updates an existing
