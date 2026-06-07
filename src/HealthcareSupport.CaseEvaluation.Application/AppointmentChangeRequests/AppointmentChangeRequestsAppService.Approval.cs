@@ -247,19 +247,31 @@ public class AppointmentChangeRequestsApprovalAppService :
         var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
 
         // Build the new appointment via Session A's scalar-clone helper.
+        // F4 fix (2026-06-07): a reschedule creates a NEW Appointment row, so it
+        // must carry a FRESH RequestConfirmationNumber. Reusing the source's
+        // number (sameConfirmationNumber: true) violated the unique index
+        // IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber and 500'd
+        // the approval. Generate-and-insert is wrapped in the same
+        // ConfirmationNumberRetryPolicy the booking flow uses, so if a concurrent
+        // booking grabs the same number the insert just retries with the next one.
         var newAppointmentId = GuidGenerator.Create();
-        var newAppointment = AppointmentRescheduleCloner.BuildScalarClone(
-            source: sourceAppointment,
-            newAppointmentId: newAppointmentId,
-            newTenantId: sourceAppointment.TenantId,
-            newDoctorAvailabilityId: newSlotId,
-            newAppointmentDate: newSlot.AvailableDate,
-            sameConfirmationNumber: true,
-            overrideConfirmationNumber: null,
-            approveDate: DateTime.UtcNow,
-            isBeyondLimit: changeRequest.IsBeyondLimit);
+        var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
+        {
+            var freshConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            var clone = AppointmentRescheduleCloner.BuildScalarClone(
+                source: sourceAppointment,
+                newAppointmentId: newAppointmentId,
+                newTenantId: sourceAppointment.TenantId,
+                newDoctorAvailabilityId: newSlotId,
+                newAppointmentDate: newSlot.AvailableDate,
+                sameConfirmationNumber: false,
+                overrideConfirmationNumber: freshConfirmationNumber,
+                approveDate: DateTime.UtcNow,
+                isBeyondLimit: changeRequest.IsBeyondLimit);
 
-        await _appointmentRepository.InsertAsync(newAppointment, autoSave: true);
+            await _appointmentRepository.InsertAsync(clone, autoSave: true);
+            return clone;
+        });
 
         // Cascade-clone every child entity. Done in dependency order:
         // injury details first (parents of body-parts / claim-examiners
@@ -463,6 +475,45 @@ public class AppointmentChangeRequestsApprovalAppService :
     private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+    }
+
+    /// <summary>
+    /// F4 fix (2026-06-07) -- generates the next "A#####" confirmation number
+    /// for a rescheduled appointment clone. Mirrors the canonical booking-flow
+    /// generator in <c>AppointmentsAppService</c>; kept local so the
+    /// change-request service does not depend on the booking service. The
+    /// generate-then-insert race is covered by the shared
+    /// <see cref="ConfirmationNumberRetryPolicy"/> at the call site.
+    /// </summary>
+    private async Task<string> GenerateNextRequestConfirmationNumberAsync()
+    {
+        const string prefix = "A";
+        const int digits = 5;
+        var requiredLength = prefix.Length + digits;
+
+        var query = await _appointmentRepository.GetQueryableAsync();
+        var latestNumber = await AsyncExecuter.FirstOrDefaultAsync(
+            query
+                .Where(x => x.RequestConfirmationNumber != null
+                    && x.RequestConfirmationNumber.StartsWith(prefix)
+                    && x.RequestConfirmationNumber.Length == requiredLength)
+                .OrderByDescending(x => x.RequestConfirmationNumber)
+                .Select(x => x.RequestConfirmationNumber));
+
+        var nextValue = 1;
+        if (!string.IsNullOrWhiteSpace(latestNumber)
+            && int.TryParse(latestNumber.Substring(prefix.Length), out var currentValue))
+        {
+            nextValue = currentValue + 1;
+        }
+
+        var maxValue = (int)Math.Pow(10, digits) - 1;
+        if (nextValue > maxValue)
+        {
+            throw new UserFriendlyException(L["Request confirmation number limit reached."]);
+        }
+
+        return $"{prefix}{nextValue:D5}";
     }
 
     /// <summary>
