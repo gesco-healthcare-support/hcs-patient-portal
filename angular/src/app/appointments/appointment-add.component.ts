@@ -39,6 +39,7 @@ import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
+import { AppointmentApprovalService } from '../proxy/appointments/appointment-approval.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type {
   PatientDto,
@@ -135,6 +136,7 @@ export class AppointmentAddComponent {
   // G-01-07: proxy service for the reval/re-request endpoints
   // (getByConfirmationNumber + createReval + reSubmit).
   private readonly appointmentProxyService = inject(AppointmentService);
+  private readonly appointmentApprovalService = inject(AppointmentApprovalService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
   // Slot rework plan 5 (2026-05-15) -- the booking picker now reads from
@@ -1167,6 +1169,31 @@ export class AppointmentAddComponent {
     return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
   }
 
+  /**
+   * True when the booker is an internal staff user (anyone whose roles are
+   * none of the four external party roles). F1/F2 fix (2026-06-07): internal
+   * bookings now create as Pending and are auto-approved by the client once
+   * the party/injury attach sequence has persisted, so the approval gates run
+   * against the complete appointment and the attach calls no longer race the
+   * approval side-effects. Mirrors the backend BookingFlowRoles external set.
+   */
+  private static readonly externalPartyRoles = [
+    'patient',
+    'applicant attorney',
+    'defense attorney',
+    'claim examiner',
+  ];
+
+  get isInternalBooker(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    if (roles.length === 0) {
+      return false;
+    }
+    return !roles.some((r: string) =>
+      AppointmentAddComponent.externalPartyRoles.includes(r?.toLowerCase()),
+    );
+  }
+
   // B11 reversed (2026-05-07): the earlier interpretation hid the
   // Applicant Attorney / Defense Attorney / Additional Authorized User
   // cards for the Claim Examiner (= OLD's Adjuster) booker. A live
@@ -1765,6 +1792,13 @@ export class AppointmentAddComponent {
         return;
       }
 
+      // F1/F2 fix (2026-06-07): internal bookings are created Pending so the
+      // party/injury attach calls above do not race the approval side-effects
+      // (which previously 409'd the attaches and bypassed the gates). Now that
+      // the appointment is fully populated, auto-approve it for internal
+      // bookers in a single transaction whose gates run on complete data.
+      await this.autoApproveIfInternalBooker(createdAppointment?.id);
+
       this.router.navigateByUrl('/');
     } catch (err: unknown) {
       // Slot rework plan 5: surface the 3 new booking error codes inline
@@ -1795,6 +1829,35 @@ export class AppointmentAddComponent {
 
   save(): void {
     this.onSubmit();
+  }
+
+  /**
+   * F1/F2 fix (2026-06-07): auto-approve a freshly booked appointment when the
+   * booker is internal staff. Runs AFTER the party/injury attach sequence so
+   * the appointment is fully populated and the server-side approval gates
+   * (>=1 injury, >=1 active claim examiner) pass. A failed approve is
+   * swallowed with a warning -- the booking already exists and can be approved
+   * from the appointment view, so navigation is never blocked.
+   */
+  private async autoApproveIfInternalBooker(appointmentId: string | undefined): Promise<void> {
+    if (!appointmentId || !this.isInternalBooker) {
+      return;
+    }
+    const responsibleUserId = this.currentUser?.id;
+    if (!responsibleUserId) {
+      return;
+    }
+    try {
+      await firstValueFrom(
+        this.appointmentApprovalService.approveAppointment(appointmentId, {
+          primaryResponsibleUserId: responsibleUserId,
+        }),
+      );
+    } catch {
+      this.toaster.warn(
+        'Appointment booked. Auto-approval did not complete -- approve it from the appointment view.',
+      );
+    }
   }
 
   // F2 (2026-05-29): validate each enabled, non-empty address group, and where

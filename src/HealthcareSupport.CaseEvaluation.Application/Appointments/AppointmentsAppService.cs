@@ -713,19 +713,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with localized error code on failure.
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
 
-        // Phase 11h (2026-05-04) -- internal-user fast-path. OLD
-        // AppointmentDomain.cs:221-240 sets status=Approved + slot=Booked
-        // directly when UserType is InternalUser (admin / Clinic Staff /
-        // Staff Supervisor / IT Admin / Doctor). External users (Patient,
-        // AA, DA, CE, Adjuster) land at Pending + Reserved as the office
-        // approves the request. The slot transition cascades through
-        // SlotCascadeHandler from the AppointmentStatusChangedEto we
-        // publish below: Pending -> Reserved, Approved -> Booked.
+        // F1/F2 fix (2026-06-07) -- every booking now lands at Pending on
+        // create, including internal-staff bookings. The former internal
+        // create-as-Approved fast-path fired the approval side-effects (packet
+        // generation + the full email fan-out) immediately on create, which
+        // raced the Angular client's post-create party/injury attach calls:
+        // the appointment row's concurrency stamp churned under those handlers
+        // so the attaches 409'd and their join rows were lost (F2), and the
+        // injury + claim-examiner approval gates were bypassed (F1). Internal
+        // bookings are now auto-approved by the client immediately AFTER the
+        // attach sequence completes -- a single approve transaction whose gates
+        // run against the fully-populated appointment. External bookers stay
+        // Pending for office approval. Slot cascade is unchanged: Pending ->
+        // Reserved on create, Approved -> Booked on approve.
         var callerRoles = CurrentUser.Roles ?? System.Array.Empty<string>();
-        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(callerRoles);
-        var initialStatus = isInternalCaller
-            ? AppointmentStatusType.Approved
-            : AppointmentStatusType.Pending;
+        var initialStatus = AppointmentStatusType.Pending;
 
         // Phase 11h (2026-05-04) -- Adjuster auto-fill of ClaimExaminerEmail.
         // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
