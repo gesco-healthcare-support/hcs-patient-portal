@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 import {
   ConfigStateService,
+  EnvironmentService,
   ListResultDto,
   LocalizationPipe,
   PagedResultDto,
@@ -136,6 +138,8 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
+  private readonly http = inject(HttpClient);
+  private readonly environmentService = inject(EnvironmentService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
@@ -439,6 +443,53 @@ export class AppointmentViewComponent implements OnInit {
 
   goBack(): void {
     this.router.navigateByUrl('/');
+  }
+
+  // G-08-04: download the per-appointment Patient Demographics PDF. Internal
+  // staff only -- the button is gated by *abpPermission="'CaseEvaluation.Reports'".
+  downloadDemographics(): void {
+    const appointmentId = this.appointment?.appointment?.id;
+    if (appointmentId) {
+      void this.downloadDemographicsInternal(appointmentId);
+    }
+  }
+
+  // Authenticated blob download (HttpClient + anchor click); NEVER window.open
+  // (a new tab carries no Bearer token). See angular/src/app/CLAUDE.md.
+  private async downloadDemographicsInternal(appointmentId: string): Promise<void> {
+    const base = this.environmentService.getApiUrl('Default') ?? '';
+    try {
+      const response = await firstValueFrom(
+        this.http.get(`${base}/api/app/appointment-demographics/${appointmentId}`, {
+          observe: 'response',
+          responseType: 'blob',
+        }),
+      );
+
+      const blob = response.body;
+      if (!blob) {
+        return;
+      }
+
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disposition);
+      const fileName = match ? decodeURIComponent(match[1]) : 'appointment-demographics.pdf';
+
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      }
+    } catch {
+      this.errorMessage = 'Could not download the demographics PDF.';
+    }
   }
 
   /**

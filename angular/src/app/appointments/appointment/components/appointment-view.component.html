@@ -104,6 +104,14 @@
           >
             {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
           </a>
+          <button
+            *abpPermission="'CaseEvaluation.Reports'"
+            type="button"
+            class="btn btn-outline-success btn-sm"
+            (click)="downloadDemographics()"
+          >
+            Download Demographics
+          </button>
           <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
             {{ 'AbpUi::Back' | abpLocalization }}
           </button>
