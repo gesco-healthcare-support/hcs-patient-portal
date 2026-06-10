@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class ApproveAppointmentInput
 {
     /// <summary>
-    /// Internal staff user (Clinic Staff / Staff Supervisor / IT Admin) chosen
+    /// Internal staff user (Intake Staff / Staff Supervisor / IT Admin) chosen
     /// as the primary responsible user for this appointment. Required -- the
     /// validator throws <c>BusinessException(AppointmentApprovalRequiresResponsibleUser)</c>
     /// when the default <see cref="Guid.Empty"/> is supplied, which mirrors

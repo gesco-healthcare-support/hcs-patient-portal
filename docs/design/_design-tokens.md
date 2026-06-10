@@ -412,7 +412,7 @@ strict-parity: true
 | Label | Permission gate | Success toast | Error toast | OLD citation |
 
 ## Role visibility matrix
-| UI element | Patient | Adjuster | App. Atty | Def. Atty | Clinic Staff | Supervisor | IT Admin |
+| UI element | Patient | Adjuster | App. Atty | Def. Atty | Intake Staff | Supervisor | IT Admin |
 
 ## Branding tokens used
 - List of `--*` vars consumed (cross-link to `_design-tokens.md`)

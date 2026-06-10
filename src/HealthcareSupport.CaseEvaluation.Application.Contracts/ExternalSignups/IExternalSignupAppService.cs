@@ -32,7 +32,7 @@ public interface IExternalSignupAppService : IApplicationService
     /// copy + paste it manually.
     /// AppService gated by
     /// <c>CaseEvaluation.UserManagement.InviteExternalUser</c> permission;
-    /// granted to IT Admin + Staff Supervisor + Clinic Staff.
+    /// granted to IT Admin + Staff Supervisor + Intake Staff.
     /// </summary>
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
 

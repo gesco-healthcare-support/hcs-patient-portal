@@ -1,7 +1,7 @@
 # Invitations
 
 Tokenized, time-limited invitations issued by internal staff (IT Admin / Staff Supervisor /
-Clinic Staff) so an external user (Patient / Applicant Attorney / Defense Attorney / Claim
+Intake Staff) so an external user (Patient / Applicant Attorney / Defense Attorney / Claim
 Examiner) can self-register on a specific tenant portal. The recipient receives an emailed invite
 URL carrying a one-time random token; clicking it lands on the AuthServer register page with the
 email + role locked, and registration atomically marks the invite as accepted.
@@ -51,7 +51,7 @@ page; state is derived (Active = `AcceptedAt` null AND `ExpiresAt` > now; else A
 ## Permissions
 
 `CaseEvaluation.Invitations.Create` gates the staff-facing invite form; granted to IT Admin /
-Staff Supervisor / Clinic Staff per OLD parity. See `CaseEvaluationPermissions.cs` +
+Staff Supervisor / Intake Staff per OLD parity. See `CaseEvaluationPermissions.cs` +
 `CaseEvaluationPermissionDefinitionProvider.cs`.
 
 ## Multi-tenancy

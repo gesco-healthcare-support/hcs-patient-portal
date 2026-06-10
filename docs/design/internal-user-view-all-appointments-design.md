@@ -13,13 +13,13 @@ screenshots: partial (new/admin/03-appointments-list-host-context.png, new/t1-do
 
 ## Overview
 
-The all-appointments list lets Clinic Staff, Staff Supervisor, and IT Admin search and
+The all-appointments list lets Intake Staff, Staff Supervisor, and IT Admin search and
 browse all appointments with filters. Clicking a Confirmation # navigates to the full
 appointment-view page.
 
 This is the internal-user equivalent of the external user's "My Appointments" list, but
 without the role scope limitation -- internal users see ALL appointments (subject to
-the role-scoping rules: Clinic Staff sees assigned appointments only; Supervisor/Admin
+the role-scoping rules: Intake Staff sees assigned appointments only; Supervisor/Admin
 see all).
 
 ---
@@ -107,7 +107,7 @@ Status badge colors: same 13-status color matrix as external-user list
 
 ## 6. Role-Scoped Filtering
 
-- **Clinic Staff:** Results filtered to appointments where `PrimaryResponsibleUserId == currentUserId`.
+- **Intake Staff:** Results filtered to appointments where `PrimaryResponsibleUserId == currentUserId`.
 - **Staff Supervisor / IT Admin:** No filter -- see all appointments.
 
 This filtering is applied at the backend query level, not the UI.
@@ -118,7 +118,7 @@ This filtering is applied at the backend query level, not the UI.
 
 | # | Element | OLD behavior | NEW behavior | Reason |
 |---|---|---|---|---|
-| 1 | Role-scoped filtering | Clinic Staff sees own assigned; Supervisor sees all | NEW must apply same scope | Verify `IAppointmentAccessPolicy` is applied in list query |
+| 1 | Role-scoped filtering | Intake Staff sees own assigned; Supervisor sees all | NEW must apply same scope | Verify `IAppointmentAccessPolicy` is applied in list query |
 | 2 | Status filter includes all 13 statuses | Full status dropdown | NEW dropdown should include all statuses including RescheduleRequested, CancellationRequested | Match OLD exactly |
 
 ---
@@ -134,7 +134,7 @@ This filtering is applied at the backend query level, not the UI.
 ## 9. Verification Checklist
 
 - [ ] Internal user sees all appointments (no role restriction for Supervisor/Admin)
-- [ ] Clinic Staff sees only appointments assigned to them
+- [ ] Intake Staff sees only appointments assigned to them
 - [ ] All 8 filters work: Type, Confirmation#, Location, Status, Claim#, DOI, DOB, SSN
 - [ ] Status filter dropdown includes all 13 statuses
 - [ ] Date of Birth filter visible to ALL internal users

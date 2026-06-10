@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 ///   - <c>GetListAsync</c>, <c>GetAsync</c>, <c>GetByCodeAsync</c>,
 ///     <c>GetTypeLookupAsync</c>: gated by
 ///     <c>NotificationTemplates.Default</c>. IT Admin + Staff Supervisor
-///     hold this; Clinic Staff does not.
+///     hold this; Intake Staff does not.
 ///   - <c>UpdateAsync</c>: gated by
 ///     <c>NotificationTemplates.Edit</c>. IT Admin + Staff Supervisor.
 /// </summary>

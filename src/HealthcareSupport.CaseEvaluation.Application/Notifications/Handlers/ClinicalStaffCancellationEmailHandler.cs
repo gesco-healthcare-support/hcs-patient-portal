@@ -17,14 +17,14 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
-/// Phase 3 (Category 3, 2026-05-10) -- separate clinic-staff notification
+/// Phase 3 (Category 3, 2026-05-10) -- separate intake-staff notification
 /// when an external user submits a cancellation request. Mirrors OLD
 /// <c>AppointmentChangeRequestDomain.cs</c>:659 -- a distinct email goes
-/// to the clinic-staff inbox (not the stakeholder fan-out) so the office
+/// to the intake-staff inbox (not the stakeholder fan-out) so the office
 /// sees the request in their primary mailbox.
 ///
 /// <para>Recipient: per-tenant <c>NotificationsPolicy.OfficeEmail</c>
-/// setting. Skipped silently when the setting is empty (no clinic-staff
+/// setting. Skipped silently when the setting is empty (no intake-staff
 /// inbox configured for the tenant).</para>
 ///
 /// <para>Filter: only fires on <c>ChangeRequestType.Cancel</c> -- the

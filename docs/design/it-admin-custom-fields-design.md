@@ -258,7 +258,7 @@ OLD source: `list/custom-field-list.component.html:29`, `add/custom-field-add.co
 |---|---|
 | IT Admin | Full CRUD (list, add, edit, delete) |
 | Staff Supervisor | No access |
-| Clinic Staff | No access |
+| Intake Staff | No access |
 | External users | No access (fields rendered at booking time only) |
 
 OLD uses `PageAccess` guard (`applicationModuleId: 10`). Custom fields are not

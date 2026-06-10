@@ -19,12 +19,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 /// <summary>
 /// Phase 7 (Category 7, 2026-05-10) -- daily per-internal-staff
 /// queue-counts email. Mirrors OLD <c>SchedulerDomain.cs</c>:87 --
-/// each Staff Supervisor / Clinic Staff user receives an email with the
+/// each Staff Supervisor / Intake Staff user receives an email with the
 /// tenant-wide PendingAppointmentCount + ApprovedAppointmentCount.
 ///
 /// <para>Cron: 09:15 PT daily -- after the
 /// <c>PendingDailyDigestJob</c> so the counts reflect the same
-/// post-auto-cancel snapshot the clinic-staff inbox saw.</para>
+/// post-auto-cancel snapshot the intake-staff inbox saw.</para>
 ///
 /// <para>Scope decision (Adrian 2026-05-10): email only; OLD's SMS leg
 /// (Twilio at OLD :105) is dropped for Phase 1.</para>
@@ -40,7 +40,7 @@ public class InternalStaffQueueDigestJob : ITransientDependency
     private static readonly string[] InternalStaffRoles =
     {
         "Staff Supervisor",
-        "Clinic Staff",
+        "Intake Staff",
     };
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
@@ -96,7 +96,7 @@ public class InternalStaffQueueDigestJob : ITransientDependency
         if (staff.Count == 0)
         {
             _logger.LogInformation(
-                "InternalStaffQueueDigestJob: tenant {TenantId} has no internal staff (Clinic Staff / Staff Supervisor); skipping.",
+                "InternalStaffQueueDigestJob: tenant {TenantId} has no internal staff (Intake Staff / Staff Supervisor); skipping.",
                 tenantId);
             return;
         }

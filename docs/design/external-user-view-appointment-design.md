@@ -438,8 +438,8 @@ permission. Navigates to `/appointments/view/:id/change-log` sub-page.
 | Adjuster / Claim Examiner | Own appointments | Same as Patient; DOB filter shown in list | Same as Patient |
 | Applicant Attorney | Own appointments | Same; own email always readonly | Same as Patient |
 | Defense Attorney | Own appointments | Same; own email always readonly | Same as Patient |
-| Clinic Staff | All appointments | Full view; Approve/Reject/Cancel actions in Pending | Approve, Reject, Cancel, Save, Upload Docs |
-| Staff Supervisor | All appointments | Same as Clinic Staff | Same |
+| Intake Staff | All appointments | Full view; Approve/Reject/Cancel actions in Pending | Approve, Reject, Cancel, Save, Upload Docs |
+| Staff Supervisor | All appointments | Same as Intake Staff | Same |
 | IT Admin | All appointments | Full view + can edit email fields | All buttons |
 | Doctor | No list access | No access | n/a |
 

@@ -72,7 +72,7 @@ public interface IAppointmentApprovalAppService : IApplicationService
     /// <summary>
     /// A1 (2026-05-05) -- lookup feeding the Approve modal's "Responsible
     /// User" dropdown. Returns identity users in the current tenant whose
-    /// role is one of the canonical internal roles (admin / Clinic Staff
+    /// role is one of the canonical internal roles (admin / Intake Staff
     /// / Staff Supervisor / IT Admin / Doctor per
     /// <c>BookingFlowRoles.InternalUserRoles</c>). Mirrors OLD's
     /// <c>internalUserNameLookUps</c> source on the approval popup

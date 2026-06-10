@@ -27,7 +27,7 @@ import { ConfigStateService, RestService } from '@abp/ng.core';
  *     unchanged; the server-side gate in InternalUsersAppService
  *     rejects mismatched tenant ids defensively.
  *
- * Server-side enforcement of role allow-list (Clinic Staff, Staff
+ * Server-side enforcement of role allow-list (Intake Staff, Staff
  * Supervisor) is authoritative; this component's dropdown only shows
  * the two creatable roles as a UX convenience.
  */
@@ -46,7 +46,7 @@ export class InternalUsersFormComponent implements OnInit {
   // Server-side allow-list (must mirror InternalUsersAppService.CreatableRoleNames).
   // Order matches the OLD UI's dropdown order.
   readonly roleOptions = [
-    { value: 'Clinic Staff', label: 'Clinic Staff' },
+    { value: 'Intake Staff', label: 'Intake Staff' },
     { value: 'Staff Supervisor', label: 'Staff Supervisor' },
   ];
 

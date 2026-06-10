@@ -95,7 +95,7 @@ package documents (see `clinic-staff-document-review-design.md`).
 |---|---|---|---|
 | Patient | Yes (any status) | Yes | No |
 | Adjuster / Attorney / Claim Examiner | Yes | Yes | No |
-| Clinic Staff | No (staff don't upload for patient) | Yes | Yes |
+| Intake Staff | No (staff don't upload for patient) | Yes | Yes |
 | Staff Supervisor | No | Yes | Yes |
 | IT Admin | Yes | Yes | Yes |
 

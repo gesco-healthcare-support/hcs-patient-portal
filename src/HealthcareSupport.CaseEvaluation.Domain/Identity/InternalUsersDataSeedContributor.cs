@@ -21,7 +21,7 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 /// users are:
 ///   admin@&lt;tenantSlug&gt;.test       -> admin
 ///   supervisor@&lt;tenantSlug&gt;.test  -> Staff Supervisor
-///   staff@&lt;tenantSlug&gt;.test       -> Clinic Staff
+///   staff@&lt;tenantSlug&gt;.test       -> Intake Staff
 ///
 /// Plus one host-side user: `it.admin@hcs.test` with the IT Admin role.
 ///
@@ -40,7 +40,7 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     /// scripts. Each entry pairs an email with the tenant-scoped role to
     /// assign. Replaces the previous flat `ExtraTenantAdminEmails` array
     /// (which hard-coded the `admin` role) so role assignment is
-    /// expressive enough to seed Staff Supervisor / Clinic Staff demo
+    /// expressive enough to seed Staff Supervisor / Intake Staff demo
     /// accounts directly. Development-gated like the rest of the seeder.
     ///
     /// The demo accounts are the ones used by Adrian's hardening test
@@ -51,7 +51,7 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     public static readonly (string Email, string RoleName)[] ExtraSeededUsers =
     {
         ("stafsuper1@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
-        ("clistaff1@gesco.com",  InternalUserRoleDataSeedContributor.ClinicStaffRoleName),
+        ("clistaff1@gesco.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
     };
 
     private readonly IdentityUserManager _userManager;
@@ -129,7 +129,7 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
 
             // Per-tenant role -> email-prefix map. Doctor is non-user per OLD spec.
             // 2026-06-09 (Adrian, demo reset): seed ONLY the tenant `admin` here.
-            // The Staff Supervisor + Clinic Staff demo logins are provided by
+            // The Staff Supervisor + Intake Staff demo logins are provided by
             // ExtraSeededUsers (stafsuper1 / clistaff1); the generic
             // supervisor@/staff@<slug>.test accounts are no longer seeded.
             var seedPlan = new (string EmailPrefix, string RoleName)[]
@@ -150,7 +150,7 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             // 2026-05-19 (replaces 2026-05-06): also seed the extra demo
             // accounts that Adrian uses for hardening test runs. Each
             // entry carries an explicit role so the seed can produce
-            // Staff Supervisor + Clinic Staff demo logins directly
+            // Staff Supervisor + Intake Staff demo logins directly
             // instead of routing them through the `admin` role.
             // Idempotent -- existing rows (including legacy
             // SoftwareOne/Two@evaluators.com seeded prior to 2026-05-19)

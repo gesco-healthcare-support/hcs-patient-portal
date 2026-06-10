@@ -12,11 +12,11 @@ shell: internal-user-authenticated (side-nav + top-bar)
 screenshots: pending
 ---
 
-# Design: Clinic Staff -- Appointment Approval
+# Design: Intake Staff -- Appointment Approval
 
 ## Overview
 
-The approval surface lets Clinic Staff (and Staff Supervisor / IT Admin) act on
+The approval surface lets Intake Staff (and Staff Supervisor / IT Admin) act on
 appointment requests submitted by external users:
 
 - **Approve** -- assign a responsible user + optional comment; moves status to Approved.
@@ -54,7 +54,7 @@ Guards:
 ## 2. Shell
 
 Internal-user authenticated shell (side-nav + top-bar).
-Clinic Staff, Staff Supervisor, and IT Admin all use this shell.
+Intake Staff, Staff Supervisor, and IT Admin all use this shell.
 
 ---
 
@@ -149,7 +149,7 @@ In NEW, staff navigate to the full appointment-view page and use the action drop
 
 ### 5a. Action Dropdown (top of appointment-view page)
 
-Visible only when `canTakeOfficeAction` is true (Clinic Staff / Staff Supervisor / IT Admin
+Visible only when `canTakeOfficeAction` is true (Intake Staff / Staff Supervisor / IT Admin
 on Pending or AwaitingMoreInfo appointments):
 
 ```
@@ -287,13 +287,13 @@ full view page (button: "Cancel Appointment" with `pendingState` condition). In 
 
 | From status | Action | To status | Who |
 |---|---|---|---|
-| Pending | Approve | Approved | Clinic Staff / Supervisor / IT Admin |
-| Pending | Reject | Rejected | Clinic Staff / Supervisor / IT Admin |
-| Pending | Send Back | AwaitingMoreInfo | Clinic Staff / Supervisor / IT Admin |
-| Pending | Cancel | CancelledNoBill | Clinic Staff / Supervisor / IT Admin (OLD) |
-| AwaitingMoreInfo | Approve | Approved | Clinic Staff / Supervisor / IT Admin |
-| AwaitingMoreInfo | Reject | Rejected | Clinic Staff / Supervisor / IT Admin |
-| Approved | Cancel | CancelledNoBill / CancelledLate | Clinic Staff / IT Admin |
+| Pending | Approve | Approved | Intake Staff / Supervisor / IT Admin |
+| Pending | Reject | Rejected | Intake Staff / Supervisor / IT Admin |
+| Pending | Send Back | AwaitingMoreInfo | Intake Staff / Supervisor / IT Admin |
+| Pending | Cancel | CancelledNoBill | Intake Staff / Supervisor / IT Admin (OLD) |
+| AwaitingMoreInfo | Approve | Approved | Intake Staff / Supervisor / IT Admin |
+| AwaitingMoreInfo | Reject | Rejected | Intake Staff / Supervisor / IT Admin |
+| Approved | Cancel | CancelledNoBill / CancelledLate | Intake Staff / IT Admin |
 
 State transitions also determine external-user button visibility (see
 `external-user-view-appointment-design.md` Section 5 for the external-user side).
@@ -304,14 +304,14 @@ State transitions also determine external-user button visibility (see
 
 | Role | Pending list | Approve | Reject | Send Back | Cancel (internal) |
 |---|---|---|---|---|---|
-| Clinic Staff | Yes (all pending) | Yes | Yes | Yes (Phase 19b) | Yes |
+| Intake Staff | Yes (all pending) | Yes | Yes | Yes (Phase 19b) | Yes |
 | Staff Supervisor | Yes | Yes | Yes | Yes | Yes |
 | IT Admin | Yes | Yes | Yes | Yes | Yes |
 | Patient / external | No | No | No | No | No |
 | Doctor | No | No | No | No | No |
 
 `canTakeOfficeAction` computed property gates the action dropdown:
-- Must be internal role (Clinic Staff / Supervisor / IT Admin)
+- Must be internal role (Intake Staff / Supervisor / IT Admin)
 - Appointment must be in Pending or AwaitingMoreInfo status
 
 ---
@@ -371,9 +371,9 @@ Token definitions: `_design-tokens.md`.
 
 ## 12. Verification Checklist
 
-- [ ] Clinic Staff navigates to the appointments list and can filter by Pending status
+- [ ] Intake Staff navigates to the appointments list and can filter by Pending status
 - [ ] Clicking a pending appointment opens the full appointment-view page
-- [ ] Action dropdown is visible to Clinic Staff / Supervisor / IT Admin on Pending appointments
+- [ ] Action dropdown is visible to Intake Staff / Supervisor / IT Admin on Pending appointments
 - [ ] Action dropdown is hidden for external users and non-qualifying statuses
 - [ ] Selecting "Approve" from dropdown + clicking Submit opens the approve confirmation modal
 - [ ] Approve modal shows "Are you sure?" text and Cancel / Approve buttons

@@ -261,7 +261,7 @@ lookup `userLookupGroup.externalUserRoleLookUps` filters to externals
 only. Cite: `user-add.component.html`:17-20 (the `*ngFor` over
 `externalUserRoleLookUps`).
 
-| UI element | (anonymous visitor) | Patient | Adjuster | Applicant Atty | Defense Atty | Clinic Staff | Staff Supervisor | IT Admin |
+| UI element | (anonymous visitor) | Patient | Adjuster | Applicant Atty | Defense Atty | Intake Staff | Staff Supervisor | IT Admin |
 |---|---|---|---|---|---|---|---|---|
 | Registration form access | Y | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) |
 | User Type select | Y -- 4 external options only | -- | -- | -- | -- | -- | -- | -- |

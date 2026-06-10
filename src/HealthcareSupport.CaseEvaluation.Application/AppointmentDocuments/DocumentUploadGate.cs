@@ -122,7 +122,7 @@ internal static class DocumentUploadGate
 
     /// <summary>
     /// External users cannot mutate an Accepted document. Internal
-    /// users (clinic staff acting on behalf of the patient) bypass.
+    /// users (intake staff acting on behalf of the patient) bypass.
     /// Mirrors OLD's update-validation gate that disabled external
     /// re-upload after staff Accept.
     /// </summary>

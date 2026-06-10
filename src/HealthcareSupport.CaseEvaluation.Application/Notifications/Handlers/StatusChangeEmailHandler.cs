@@ -74,7 +74,7 @@ public class StatusChangeEmailHandler :
 
     /// <summary>
     /// Phase 2.C (2026-05-08): NoShow recipients are limited to internal
-    /// staff (StaffSupervisor + ClinicStaff) per OLD :1021 -- patient does
+    /// staff (StaffSupervisor + IntakeStaff) per OLD :1021 -- patient does
     /// NOT receive the no-show notification. Same role allow-list as
     /// <c>BookingSubmissionEmailHandler.StaffApprovalNotificationRoles</c>;
     /// kept duplicated here so each handler is self-contained.
@@ -82,7 +82,7 @@ public class StatusChangeEmailHandler :
     private static readonly string[] NoShowInternalRoles =
     {
         "Staff Supervisor",
-        "Clinic Staff",
+        "Intake Staff",
     };
 
     public StatusChangeEmailHandler(
@@ -482,7 +482,7 @@ public class StatusChangeEmailHandler :
     /// <c>PatientAppointmentNoShow</c> to internal staff only -- patient
     /// does NOT receive a no-show notification. Replicates OLD :1016-1026
     /// exactly: <c>emailTos</c> is rebuilt from a vInternalUserEmail walk
-    /// limited to <c>StaffSupervisor + ClinicStaff</c>. NO CC (OLD :1026
+    /// limited to <c>StaffSupervisor + IntakeStaff</c>. NO CC (OLD :1026
     /// is the 3-arg overload).
     /// </summary>
     private async Task DispatchNoShowAsync(
@@ -496,7 +496,7 @@ public class StatusChangeEmailHandler :
         if (staffRecipients.Count == 0)
         {
             _logger.LogInformation(
-                "StatusChangeEmailHandler: no Staff Supervisor / Clinic Staff users in tenant; skipping NoShow for appointment {AppointmentId}.",
+                "StatusChangeEmailHandler: no Staff Supervisor / Intake Staff users in tenant; skipping NoShow for appointment {AppointmentId}.",
                 eventData.AppointmentId);
             return;
         }
@@ -568,10 +568,10 @@ public class StatusChangeEmailHandler :
 
     /// <summary>
     /// Phase 2.C: walks <see cref="IdentityUserManager"/> for every user in
-    /// <c>Staff Supervisor</c> + <c>Clinic Staff</c> and packages them into
+    /// <c>Staff Supervisor</c> + <c>Intake Staff</c> and packages them into
     /// <see cref="NotificationRecipient"/> rows. Mirrors OLD :1021's
-    /// <c>vInternalUserEmail.RoleId == StaffSupervisor || ClinicStaff</c>
-    /// query. Dedupes on email so a user with both roles only gets one
+    /// internal-staff RoleId filter (the supervisor + receptionist
+    /// tiers). Dedupes on email so a user with both roles only gets one
     /// email.
     /// </summary>
     private async Task<List<NotificationRecipient>> ResolveNoShowInternalRecipientsAsync(Guid appointmentId)

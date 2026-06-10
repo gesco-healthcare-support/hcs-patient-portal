@@ -14,7 +14,7 @@ namespace HealthcareSupport.CaseEvaluation.SystemParameters;
 ///   - <c>GetAsync</c>: any role with <c>CaseEvaluation.SystemParameters</c>
 ///     (Default). All three internal roles plus IT Admin hold this.
 ///   - <c>UpdateAsync</c>: requires <c>CaseEvaluation.SystemParameters.Edit</c>.
-///     IT Admin + Staff Supervisor hold this; Clinic Staff is read-only.
+///     IT Admin + Staff Supervisor hold this; Intake Staff is read-only.
 /// </summary>
 public interface ISystemParametersAppService : IApplicationService
 {

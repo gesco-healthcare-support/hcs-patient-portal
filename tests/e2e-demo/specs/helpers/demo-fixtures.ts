@@ -37,11 +37,11 @@ export const INTERNAL_USERS = {
     password: DEFAULT_PASSWORD,
     role: 'admin',
   },
-  // Clinic Staff -- third internal role for completeness.
+  // Intake Staff -- third internal role for completeness.
   staff: {
     email: `staff@${TENANT.slug}.test`,
     password: DEFAULT_PASSWORD,
-    role: 'Clinic Staff',
+    role: 'Intake Staff',
   },
 };
 

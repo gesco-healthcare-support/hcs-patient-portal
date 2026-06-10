@@ -56,8 +56,8 @@ public class AppointmentAccessorRulesUnitTests
     public void HasConflictingExternalRole_UserHasOnlyInternalRole_ReturnsFalse()
     {
         // Internal-only roles do NOT trigger a mismatch -- the user can be
-        // added as an accessor even if they hold "Clinic Staff" internally.
-        var roles = new[] { "Clinic Staff" };
+        // added as an accessor even if they hold "Intake Staff" internally.
+        var roles = new[] { "Intake Staff" };
         AppointmentAccessorRules.HasConflictingExternalRole(roles, "Patient").ShouldBeFalse();
     }
 
@@ -105,7 +105,7 @@ public class AppointmentAccessorRulesUnitTests
         AppointmentAccessorRules
             .ResolveOutcome(
                 userExists: true,
-                userRoles: new[] { "Clinic Staff" },
+                userRoles: new[] { "Intake Staff" },
                 requestedRole: "Applicant Attorney")
             .ShouldBe(AccessorLinkOutcome.GrantRoleAndLink);
     }

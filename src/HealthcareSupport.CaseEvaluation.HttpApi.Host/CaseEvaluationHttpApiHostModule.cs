@@ -1181,7 +1181,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // is kept at "appt-duedate-approaching", so this updates that existing
         // entry in place; the two retired jobs' recurring entries are purged
         // below so they stop invoking their now-deleted job types.
-        //   09:00 -- PendingDailyDigestJob       (digest to clinic-staff inbox)
+        //   09:00 -- PendingDailyDigestJob       (digest to intake-staff inbox)
         //   09:15 -- InternalStaffQueueDigestJob (per-staff queue counts)
         global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob>(
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.RecurringJobId,

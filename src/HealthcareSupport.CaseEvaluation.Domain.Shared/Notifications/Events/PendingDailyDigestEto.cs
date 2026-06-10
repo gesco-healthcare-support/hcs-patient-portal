@@ -6,7 +6,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 /// <c>PendingDailyDigestEmailHandler</c>, which renders a digest body of
 /// <see cref="Rows"/> and dispatches the OLD-parity
 /// <c>PendingAppointmentDailyNotification</c> template to the tenant's
-/// clinic-staff inbox.
+/// intake-staff inbox.
 ///
 /// <para>Mirrors OLD <c>SchedulerDomain.cs</c>:72 -- the proc result was
 /// a pre-rendered HTML block (<c>DailyNotificationContent</c>); NEW

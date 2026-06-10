@@ -10,7 +10,7 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 /// client-side checks.
 ///
 /// <para><b>2026-05-15 design note:</b> the dropdown on the SPA form
-/// only offers <c>Clinic Staff</c> and <c>Staff Supervisor</c> (the
+/// only offers <c>Intake Staff</c> and <c>Staff Supervisor</c> (the
 /// two roles IT Admin is allowed to create per OLD parity), but the
 /// server-side allow-list in <see cref="InternalUsersAppService"/>
 /// rejects any other value -- a tampered request body cannot register
@@ -39,7 +39,7 @@ public class CreateInternalUserDto
 
     /// <summary>
     /// Role display name. Server-side allow-list:
-    /// <c>{ "Clinic Staff", "Staff Supervisor" }</c>. Any other value
+    /// <c>{ "Intake Staff", "Staff Supervisor" }</c>. Any other value
     /// returns <c>BusinessException(InternalUserInvalidRole)</c> ->
     /// HTTP 400.
     /// </summary>

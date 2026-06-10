@@ -10,7 +10,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// boundary.
 ///
 /// Acceptance grid:
-///   internal role (admin / Clinic Staff / Staff Supervisor / IT Admin)
+///   internal role (admin / Intake Staff / Staff Supervisor / IT Admin)
 ///                                               -> all three kinds
 ///   Patient                                     -> Patient only
 ///   Applicant Attorney / Defense Attorney /
@@ -25,7 +25,7 @@ public class PacketVisibilityUnitTests
 
     [Theory]
     [InlineData("admin")]
-    [InlineData("Clinic Staff")]
+    [InlineData("Intake Staff")]
     [InlineData("Staff Supervisor")]
     [InlineData("IT Admin")]
     public void AllowedKinds_InternalRole_ReturnsAllThree(string role)
@@ -60,7 +60,7 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void AllowedKinds_InternalAndExternalMix_InternalWins()
     {
-        PacketVisibility.AllowedKinds(new[] { "Patient", "Clinic Staff" }).ShouldBe(All, ignoreOrder: true);
+        PacketVisibility.AllowedKinds(new[] { "Patient", "Intake Staff" }).ShouldBe(All, ignoreOrder: true);
     }
 
     [Fact]
@@ -97,6 +97,6 @@ public class PacketVisibilityUnitTests
     [Fact]
     public void IsAllowed_Internal_CanAccessDoctorPacket()
     {
-        PacketVisibility.IsAllowed(new[] { "Clinic Staff" }, PacketKind.Doctor).ShouldBeTrue();
+        PacketVisibility.IsAllowed(new[] { "Intake Staff" }, PacketKind.Doctor).ShouldBeTrue();
     }
 }

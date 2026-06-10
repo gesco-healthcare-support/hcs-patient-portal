@@ -13,11 +13,11 @@ shell: internal-user-authenticated (side-nav + top-bar; embedded in appointment-
 screenshots: pending
 ---
 
-# Design: Clinic Staff -- Document Review
+# Design: Intake Staff -- Document Review
 
 ## Overview
 
-The document review surface lets Clinic Staff (and Staff Supervisor / IT Admin) view,
+The document review surface lets Intake Staff (and Staff Supervisor / IT Admin) view,
 accept, and reject documents that external users upload against an appointment.
 
 In OLD, there is **no approve/reject workflow**. Documents are uploaded by external users;
@@ -246,7 +246,7 @@ directly to Uploaded) and handles deletion via the DELETE endpoint.
 |---|---|---|---|---|---|
 | Patient | Yes (own appointment) | Yes | No | No | Yes (own uploads) |
 | Adjuster / Attorney / Claim Examiner | Yes | Yes | No | No | Yes (own uploads) |
-| Clinic Staff | No (staff don't upload patient docs) | Yes | Yes | Yes | Yes |
+| Intake Staff | No (staff don't upload patient docs) | Yes | Yes | Yes | Yes |
 | Staff Supervisor | No | Yes | Yes | Yes | Yes |
 | IT Admin | Yes | Yes | Yes | Yes | Yes |
 
@@ -329,7 +329,7 @@ Token definitions: `_design-tokens.md`.
 
 - [ ] Staff navigates to appointment-view page and sees the Appointment Documents section
 - [ ] Document list shows all uploaded documents with status badges (Uploaded/Approved/Rejected)
-- [ ] Approve and Reject buttons are visible to Clinic Staff / Supervisor / IT Admin
+- [ ] Approve and Reject buttons are visible to Intake Staff / Supervisor / IT Admin
 - [ ] Approve and Reject buttons are NOT visible to external users
 - [ ] Clicking Approve changes document status badge to Approved (green) immediately
 - [ ] Approve button disappears once a document is already Approved

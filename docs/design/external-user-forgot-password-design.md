@@ -195,11 +195,11 @@ delay -- preserved verbatim).
 ## 7. Role visibility matrix
 
 Anonymous flow. The 4 external roles all use the same form; internal
-users (Clinic Staff / Staff Supervisor / IT Admin) also use the same
+users (Intake Staff / Staff Supervisor / IT Admin) also use the same
 form per parity audit Section "Internal dependencies surfaced" (no
 separate IT-Admin reset path).
 
-| UI element | (anonymous visitor) | Patient | Adjuster | Applicant Atty | Defense Atty | Clinic Staff | Staff Supervisor | IT Admin |
+| UI element | (anonymous visitor) | Patient | Adjuster | Applicant Atty | Defense Atty | Intake Staff | Staff Supervisor | IT Admin |
 |---|---|---|---|---|---|---|---|---|
 | Forgot-password form | Y | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) | (N/A) |
 | Reset-password form (token-bound) | Y when token valid | -- | -- | -- | -- | -- | -- | -- |

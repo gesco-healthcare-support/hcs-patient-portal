@@ -17,7 +17,7 @@ namespace HealthcareSupport.CaseEvaluation.SystemParameters;
 ///   - Class-level <c>[Authorize(SystemParameters.Default)]</c> gates Get
 ///     for all internal roles.
 ///   - <c>UpdateAsync</c> overrides with <c>[Authorize(SystemParameters.Edit)]</c>
-///     so Clinic Staff (read-only) sees 403 on PUT.
+///     so Intake Staff (read-only) sees 403 on PUT.
 ///
 /// Strict-parity notes:
 ///   - Mirrors OLD <c>SystemParametersController</c>'s GET-by-id and PUT

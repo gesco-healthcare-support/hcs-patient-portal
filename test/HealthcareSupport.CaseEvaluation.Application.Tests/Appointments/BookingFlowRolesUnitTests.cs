@@ -14,7 +14,7 @@ public class BookingFlowRolesUnitTests
 {
     [Theory]
     [InlineData("admin", true)]
-    [InlineData("Clinic Staff", true)]
+    [InlineData("Intake Staff", true)]
     [InlineData("Staff Supervisor", true)]
     [InlineData("IT Admin", true)]
     [InlineData("Doctor", false)] // IR1 (2026-06-03): Doctor is a reference entity, not a user role
@@ -30,7 +30,7 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void IsInternalUserCaller_AnyInternalRoleAmongMany_ReturnsTrue()
     {
-        var roles = new[] { "Patient", "Clinic Staff" };
+        var roles = new[] { "Patient", "Intake Staff" };
         BookingFlowRoles.IsInternalUserCaller(roles).ShouldBeTrue();
     }
 
@@ -51,7 +51,7 @@ public class BookingFlowRolesUnitTests
     [Fact]
     public void IsInternalUserCaller_CaseInsensitive()
     {
-        BookingFlowRoles.IsInternalUserCaller(new[] { "CLINIC STAFF" }).ShouldBeTrue();
+        BookingFlowRoles.IsInternalUserCaller(new[] { "INTAKE STAFF" }).ShouldBeTrue();
         BookingFlowRoles.IsInternalUserCaller(new[] { "  it admin  " }).ShouldBeTrue();
     }
 
@@ -136,7 +136,7 @@ public class BookingFlowRolesUnitTests
         // surfaces immediately so the booking flow's fast-path stays
         // aligned with the role registry.
         BookingFlowRoles.InternalUserRoles.ShouldContain("admin");
-        BookingFlowRoles.InternalUserRoles.ShouldContain("Clinic Staff");
+        BookingFlowRoles.InternalUserRoles.ShouldContain("Intake Staff");
         BookingFlowRoles.InternalUserRoles.ShouldContain("Staff Supervisor");
         BookingFlowRoles.InternalUserRoles.ShouldContain("IT Admin");
         // IR1 (2026-06-03): "Doctor" removed -- reference entity, not a user role.

@@ -16,7 +16,7 @@ internal static class BookingFlowRoles
     /// <summary>
     /// Internal-user roles that flip the booking flow into the
     /// "auto-approved" fast-path: the three internal Gesco-side roles
-    /// (Clinic Staff / Staff Supervisor / IT Admin) plus the Volo SaaS
+    /// (Intake Staff / Staff Supervisor / IT Admin) plus the Volo SaaS
     /// tenant <c>admin</c>. ("Doctor" was removed 2026-06-03 / IR1 -- it is
     /// a reference entity, never a seeded user role, so it never matched.)
     /// External callers (Patient, AA, DA, CE) always land at
@@ -25,7 +25,7 @@ internal static class BookingFlowRoles
     internal static readonly System.Collections.Generic.IReadOnlyList<string> InternalUserRoles = new[]
     {
         "admin",
-        "Clinic Staff",
+        "Intake Staff",
         "Staff Supervisor",
         "IT Admin",
     };

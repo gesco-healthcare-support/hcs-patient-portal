@@ -9,7 +9,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 /// recipient.
 ///
 /// <para>Mirrors OLD <c>SchedulerDomain.cs</c>:87 -- one row per
-/// Staff Supervisor / Clinic Staff user with their tenant-wide
+/// Staff Supervisor / Intake Staff user with their tenant-wide
 /// <see cref="PendingAppointmentCount"/> + <see cref="ApprovedAppointmentCount"/>.
 /// SMS leg from OLD :105 is dropped per Phase 1 (no Twilio integration).</para>
 /// </summary>

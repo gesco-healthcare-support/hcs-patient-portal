@@ -9,11 +9,11 @@ shell: internal-user-authenticated (side-nav + top-bar)
 screenshots: partial (old/admin/03-checkin-checkout.png per status tracker; not yet captured)
 ---
 
-# Design: Clinic Staff -- Check-In / Check-Out Appointments
+# Design: Intake Staff -- Check-In / Check-Out Appointments
 
 ## Overview
 
-The Check-In / Check-Out page is the day-of-exam operations view. Clinic Staff use it to
+The Check-In / Check-Out page is the day-of-exam operations view. Intake Staff use it to
 progress appointments through the day-of status chain: Approved -> CheckedIn -> CheckedOut
 -> Billed (or Approved -> NoShow for no-shows).
 
@@ -211,7 +211,7 @@ status. No status filter. Staff see the full day's picture in one view. See Exce
 | Role | Access | Notes |
 |---|---|---|
 | External users | No | |
-| Clinic Staff | Yes (own appointments, scoped by `PrimaryResponsibleUserId`) | Primary actor for day-of operations |
+| Intake Staff | Yes (own appointments, scoped by `PrimaryResponsibleUserId`) | Primary actor for day-of operations |
 | Staff Supervisor | Yes (all appointments) | Supervisory oversight |
 | IT Admin | Optional -- confirm with Adrian | System oversight |
 
@@ -276,7 +276,7 @@ maps to the `CaseEvaluation.Appointments.CheckIn` permission in NEW.
 
 *(Pending implementation)*
 
-- [ ] Check-in page accessible to Clinic Staff, Staff Supervisor; blocked for external users
+- [ ] Check-in page accessible to Intake Staff, Staff Supervisor; blocked for external users
 - [ ] Page loads with today's date on initial navigation
 - [ ] "Today's Appointment" button resets to today's date and reloads
 - [ ] Previous and Next buttons step date by one day and reload table
@@ -297,7 +297,7 @@ maps to the `CaseEvaluation.Appointments.CheckIn` permission in NEW.
 - [ ] Confirmed Not Show transitions from Approved to NoShow
 - [ ] Success toast shown after each transition
 - [ ] Table reloads after status transition
-- [ ] Clinic Staff sees only their assigned appointments (role-scoped)
+- [ ] Intake Staff sees only their assigned appointments (role-scoped)
 - [ ] Staff Supervisor sees all appointments (no user filter)
 - [ ] Text search filters table by search query; Enter key triggers search
 - [ ] Search clear resets to full list for selected date

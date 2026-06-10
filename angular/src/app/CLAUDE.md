@@ -76,7 +76,7 @@ requests after navigation.
 `currentTenant.id`: IT Admin gets an editable picker (GET `/api/app/internal-users/tenants`);
 tenant admin gets a disabled pre-filled dropdown. Use `form.getRawValue()` on submit --
 `form.value` silently drops disabled controls. Temporary password is never shown (emailed
-via Hangfire only). Role allow-list (`Clinic Staff`, `Staff Supervisor`) mirrors backend
+via Hangfire only). Role allow-list (`Intake Staff`, `Staff Supervisor`) mirrors backend
 `CreatableRoleNames`. After `form.reset()`, re-apply `disable()` when `tenantLocked()`.
 
 **external-users** (`InviteExternalUserComponent`) -- posts a tokenized invite; response

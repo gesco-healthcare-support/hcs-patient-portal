@@ -14,7 +14,7 @@ namespace HealthcareSupport.CaseEvaluation;
 ///   <item><c>FirmEmail</c> -- attorney's law-firm contact email (attorney roles only).</item>
 ///   <item><c>IsExternalUser</c> -- true for the four external roles (Patient / Adjuster / Applicant Attorney / Defense Attorney). Replaces OLD's <c>RoleUserTypes</c> bridge table -- post-login routing and feature visibility branches on this flag.</item>
 ///   <item><c>IsAccessor</c> -- true when the row was auto-created via <c>AppointmentAccessorManager.CreateAccountAsync</c> for an email that didn't already exist; gates the "first-login finalize-profile" prompt.</item>
-///   <item><c>UserSignatureBlobName</c> -- blob storage key for the user's signature image (PNG/JPG/JPEG). OLD stored a path string in <c>User.SignatureAWSFilePath</c> referencing a local file. NEW stores a blob key referencing a row in the <c>user-signatures</c> blob container. Internal staff only (Clinic Staff / Staff Supervisor / IT Admin) per OLD parity.</item>
+///   <item><c>UserSignatureBlobName</c> -- blob storage key for the user's signature image (PNG/JPG/JPEG). OLD stored a path string in <c>User.SignatureAWSFilePath</c> referencing a local file. NEW stores a blob key referencing a row in the <c>user-signatures</c> blob container. Internal staff only (Intake Staff / Staff Supervisor / IT Admin) per OLD parity.</item>
 /// </list>
 /// All properties stored in the <c>AbpUserExtraProperties</c> JSON column --
 /// no schema migration required.

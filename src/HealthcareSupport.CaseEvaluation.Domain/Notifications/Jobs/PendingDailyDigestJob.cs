@@ -17,7 +17,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 
 /// <summary>
 /// Phase 7 (Category 7, 2026-05-10) -- daily pending-appointment digest
-/// to the per-tenant clinic-staff inbox. Mirrors OLD
+/// to the per-tenant intake-staff inbox. Mirrors OLD
 /// <c>SchedulerDomain.cs</c>:72 -- a single fan-in email summarising
 /// every <c>AppointmentStatusType.Pending</c> request in the tenant.
 ///

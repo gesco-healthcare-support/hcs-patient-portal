@@ -9,7 +9,7 @@ import { hasOnlyExternalRoles } from './external-user-roles';
 // P:\PatientPortalOld\PatientAppointment.Domain\Core\UserAuthenticationDomain.cs:99):
 // the legacy app routed external users (Patient / Applicant Attorney /
 // Defense Attorney / Claim Examiner / Adjuster) to /home and internal
-// users (admin / Clinic Staff / Staff Supervisor / IT Admin / Doctor)
+// users (admin / Intake Staff / Staff Supervisor / IT Admin / Doctor)
 // to /dashboard.
 //
 // ABP redirects everyone to / after authentication. This guard runs on

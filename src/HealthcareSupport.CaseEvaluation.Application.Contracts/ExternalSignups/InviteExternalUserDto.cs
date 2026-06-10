@@ -5,7 +5,7 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// <summary>
 /// Admin-side request to invite an external user to register on the
 /// current tenant portal. Internal roles (admin, IT Admin, Staff
-/// Supervisor, Clinic Staff) call this; the AppService gate is
+/// Supervisor, Intake Staff) call this; the AppService gate is
 /// permission-based (<c>CaseEvaluation.UserManagement.InviteExternalUser</c>).
 ///
 /// <para>2026-05-15 -- the invite produces a one-time-use, 7-day-TTL
@@ -15,7 +15,7 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// + locks email + role, and atomically marks the invitation accepted
 /// when the recipient completes registration.</para>
 ///
-/// <para>Internal roles (admin, IT Admin, Staff Supervisor, Clinic Staff,
+/// <para>Internal roles (admin, IT Admin, Staff Supervisor, Intake Staff,
 /// Doctor) are intentionally NOT invitable here: the
 /// <see cref="ExternalUserType"/> enum value is constrained to the four
 /// external roles, and the AppService re-validates server-side. A

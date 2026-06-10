@@ -23,7 +23,7 @@ using Volo.Saas.Tenants;
 namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 
 /// <summary>
-/// IT-Admin-only AppService for creating new internal users (Clinic
+/// IT-Admin-only AppService for creating new internal users (Intake
 /// Staff, Staff Supervisor). See <see cref="IInternalUsersAppService"/>
 /// for the contract.
 ///
@@ -68,7 +68,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     /// IT Admin self-creation is rejected (seeded only).
     /// </summary>
     public static readonly IReadOnlyList<string> CreatableRoleNames =
-        new[] { "Clinic Staff", "Staff Supervisor" };
+        new[] { "Intake Staff", "Staff Supervisor" };
 
     // Curated character sets that exclude visually ambiguous glyphs
     // (0/O, 1/I/l) so the temporary password the user types from the

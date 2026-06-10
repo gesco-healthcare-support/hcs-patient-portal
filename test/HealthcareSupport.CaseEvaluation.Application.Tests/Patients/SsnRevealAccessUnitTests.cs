@@ -23,7 +23,7 @@ public class SsnRevealAccessUnitTests
     // BookingFlowRoles) -- it is no longer a presented internal persona, so it
     // is intentionally absent here (its old [InlineData("Doctor")] was stale).
     [Theory]
-    [InlineData("Clinic Staff")]
+    [InlineData("Intake Staff")]
     [InlineData("Staff Supervisor")]
     [InlineData("IT Admin")]
     [InlineData("admin")]
@@ -97,7 +97,7 @@ public class SsnRevealAccessUnitTests
     public void CanReveal_NullPatientIdentity_InternalRole_ReturnsTrue()
     {
         var result = SsnRevealAccess.CanReveal(
-            new[] { (string?)"Clinic Staff" },
+            new[] { (string?)"Intake Staff" },
             callerIdentityUserId: OtherUserId,
             patientIdentityUserId: null);
         result.ShouldBeTrue();

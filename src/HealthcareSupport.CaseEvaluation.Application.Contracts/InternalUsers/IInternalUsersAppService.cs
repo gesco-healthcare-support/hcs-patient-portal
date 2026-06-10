@@ -7,7 +7,7 @@ using Volo.Abp.Application.Services;
 namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 
 /// <summary>
-/// IT-Admin-only surface for creating new internal users (Clinic Staff,
+/// IT-Admin-only surface for creating new internal users (Intake Staff,
 /// Staff Supervisor). Mirrors OLD's <c>AddInternalUser</c> path
 /// (<c>UserDomain.cs:281-312</c>) on the NEW ABP stack with three
 /// material upgrades:

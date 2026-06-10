@@ -13,7 +13,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
  * Defense Attorney, Claim Examiner). Backend constrains the role to those
  * four; internal roles never appear in this dropdown. Gated server-side
  * by the CaseEvaluation.UserManagement.InviteExternalUser permission;
- * granted to IT Admin, Staff Supervisor, and Clinic Staff.
+ * granted to IT Admin, Staff Supervisor, and Intake Staff.
  *
  * 2026-05-15 -- now a tokenized flow:
  *   1. POST /api/app/external-users/invite -> returns inviteUrl

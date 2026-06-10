@@ -164,7 +164,7 @@ the packet status and can Download once generated.
 
 **Polling:** While status is Generating, the component polls every 5 seconds automatically.
 
-**canRegenerate:** True for staff (Clinic Staff / Supervisor / IT Admin) who have
+**canRegenerate:** True for staff (Intake Staff / Supervisor / IT Admin) who have
 `CaseEvaluation.AppointmentPacket.Regenerate` permission.
 
 NEW source: `appointment-packet/appointment-packet.component.html:1-99`
@@ -188,7 +188,7 @@ UI surface for this anonymous upload is minimal (just a file input + document na
 | Role | See package docs | Upload | Download | Approve/Reject | Packet download |
 |---|---|---|---|---|---|
 | Patient / Adjuster / Attorney | Yes (own appointment) | Yes (if gates pass) | Yes | No | Yes (once generated) |
-| Clinic Staff | Yes | No (staff don't upload for patient) | Yes | Yes | Yes |
+| Intake Staff | Yes | No (staff don't upload for patient) | Yes | Yes | Yes |
 | Staff Supervisor | Yes | No | Yes | Yes | Yes |
 | IT Admin | Yes | Yes | Yes | Yes | Yes + Regenerate |
 

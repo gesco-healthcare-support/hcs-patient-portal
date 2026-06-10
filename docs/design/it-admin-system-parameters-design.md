@@ -134,7 +134,7 @@ OLD source: `system-parameter-edit.component.html:73`
 |---|---|
 | IT Admin | Read + Write (full form visible, Update button enabled) |
 | Staff Supervisor | Read-only (NEW: render as disabled fields; no Update button or button disabled) |
-| Clinic Staff | Read-only (same) |
+| Intake Staff | Read-only (same) |
 | External users | No access (API returns 403) |
 
 OLD uses module-level `PageAccess` guard (`applicationModuleId: 11, accessItem: 'edit'`).

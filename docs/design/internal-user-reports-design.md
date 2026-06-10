@@ -13,7 +13,7 @@ screenshots: pending
 
 ## Overview
 
-The Reports page lets Clinic Staff, Staff Supervisor, and IT Admin search and export
+The Reports page lets Intake Staff, Staff Supervisor, and IT Admin search and export
 appointment data as PDF or Excel, and generate per-appointment Patient Demographics
 PDF reports.
 
@@ -202,11 +202,11 @@ full value on demand. OLD showed raw SSN with no masking. See Exception 3.
 | Role | Access | Notes |
 |---|---|---|
 | Patient / Adjuster / Attorney / ClaimExaminer | No | External users never access reports |
-| Clinic Staff | Yes (own appointments only, scoped) | Matches appointment list role-scoping |
+| Intake Staff | Yes (own appointments only, scoped) | Matches appointment list role-scoping |
 | Staff Supervisor | Yes (all appointments) | |
 | IT Admin | Yes (all appointments) | |
 
-Role-scoped filtering (Clinic Staff vs Supervisor/Admin) applies the same
+Role-scoped filtering (Intake Staff vs Supervisor/Admin) applies the same
 `IAppointmentAccessPolicy` used by the main appointments list.
 
 ---
@@ -267,7 +267,7 @@ Role-scoped filtering (Clinic Staff vs Supervisor/Admin) applies the same
 
 *(Pending implementation)*
 
-- [ ] Reports page accessible to Clinic Staff, Staff Supervisor, IT Admin; blocked for external users
+- [ ] Reports page accessible to Intake Staff, Staff Supervisor, IT Admin; blocked for external users
 - [ ] Page title "Appointment Request Report" displayed
 - [ ] Global text search triggers on Enter key and search icon click; reset icon clears and reloads
 - [ ] Advanced Search accordion collapsed by default; expands on click
@@ -285,6 +285,6 @@ Role-scoped filtering (Clinic Staff vs Supervisor/Admin) applies the same
 - [ ] "Export to PDF" button generates server-side PDF of current filtered data
 - [ ] "Export to Excel" button generates server-side Excel of current filtered data
 - [ ] Action column PDF icon generates Patient Demographics Report PDF download for that row
-- [ ] Clinic Staff sees only appointments where they are the Responsible User
+- [ ] Intake Staff sees only appointments where they are the Responsible User
 - [ ] Staff Supervisor / IT Admin see all appointments (no role filter)
 - [ ] SSN column shows masked value (`***-**-NNNN`) by default with reveal toggle (Exception 3)

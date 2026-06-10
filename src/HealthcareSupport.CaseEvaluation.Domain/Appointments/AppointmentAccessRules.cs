@@ -13,7 +13,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// click. New rule set mirrors the list rules exactly.
 ///
 /// Pathways (checked in order, first match wins):
-///   1. Internal user bypass (admin / Clinic Staff / Staff Supervisor /
+///   1. Internal user bypass (admin / Intake Staff / Staff Supervisor /
 ///      IT Admin / Doctor) -- always allowed.
 ///   2. Creator -- <c>Appointment.CreatorId == CurrentUser.Id</c>.
 ///   3. Patient -- <c>Patient.IdentityUserId == CurrentUser.Id</c>

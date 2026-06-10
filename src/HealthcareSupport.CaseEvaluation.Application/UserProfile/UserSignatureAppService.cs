@@ -17,7 +17,7 @@ namespace HealthcareSupport.CaseEvaluation.UserProfile;
 /// <summary>
 /// Per-user signature image management. Replicates OLD's
 /// <c>User.SignatureAWSFilePath</c> profile feature: internal staff
-/// (Clinic Staff / Staff Supervisor / IT Admin) upload a PNG/JPG/JPEG
+/// (Intake Staff / Staff Supervisor / IT Admin) upload a PNG/JPG/JPEG
 /// (max 1 MB) signature image that the packet-generation flow stamps
 /// onto the Patient Packet at <c>##Appointments.Signature##</c>.
 ///

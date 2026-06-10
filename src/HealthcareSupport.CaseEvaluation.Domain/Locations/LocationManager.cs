@@ -17,7 +17,7 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 /// <summary>
 /// Domain service for the host-scoped Location master entity. Beyond the
 /// not-blank + length checks, IP4 (2026-06-05) adds the integrity guards a
-/// clinic-staff-facing master-data screen needs: a global duplicate-name guard
+/// intake-staff-facing master-data screen needs: a global duplicate-name guard
 /// (Location is NOT IMultiTenant), a non-negative ParkingFee guard, a ZipCode
 /// format guard, and <see cref="EnsureCanDeleteAsync"/> which blocks a (soft)
 /// delete while an Appointment or DoctorAvailability still references the

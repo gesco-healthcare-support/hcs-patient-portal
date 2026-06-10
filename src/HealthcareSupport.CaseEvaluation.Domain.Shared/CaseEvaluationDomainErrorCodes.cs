@@ -161,7 +161,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// 2026-05-15 -- raised by <c>InternalUsersAppService.CreateAsync</c>
     /// when the IT Admin requests a role outside the
-    /// <c>{Clinic Staff, Staff Supervisor}</c> allow-list. Defense in depth:
+    /// <c>{Intake Staff, Staff Supervisor}</c> allow-list. Defense in depth:
     /// the SPA form's dropdown only lists the two creatable roles, but a
     /// tampered request body could try any role name; this gate forbids
     /// the request before any DB write. Localization key
@@ -406,7 +406,7 @@ public static class CaseEvaluationDomainErrorCodes
     /// appointment. Mirrors OLD's behavior of filtering out non-accessible
     /// rows in the stored proc <c>spm.spAppointmentRequestList</c>; per-
     /// appointment lookups land here as the equivalent gate. Internal
-    /// users (admin / Clinic Staff / etc.) bypass this check; ABP's
+    /// users (admin / Intake Staff / etc.) bypass this check; ABP's
     /// IMultiTenant filter still scopes them to their own tenant.
     /// Localization key <c>Appointment:AccessDenied</c>.
     /// </summary>

@@ -338,7 +338,7 @@ export class SsnInputComponent implements ControlValueAccessor {
 
   private static readonly InternalRoles = [
     'admin',
-    'clinic staff',
+    'intake staff',
     'staff supervisor',
     'it admin',
     'doctor',

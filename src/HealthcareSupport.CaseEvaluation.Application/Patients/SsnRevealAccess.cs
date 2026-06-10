@@ -5,7 +5,7 @@ namespace HealthcareSupport.CaseEvaluation.Patients;
 /// <summary>
 /// F1 / Design B (2026-05-29) -- pure authorization predicate for the SSN
 /// reveal endpoint (<c>PatientsAppService.GetFullSsnAsync</c>). The full SSN
-/// may be revealed only to an internal caller (admin / Clinic Staff / Staff
+/// may be revealed only to an internal caller (admin / Intake Staff / Staff
 /// Supervisor / IT Admin / Doctor, via
 /// <see cref="BookingFlowRoles.IsInternalUserCaller"/>) OR to the record owner
 /// (the caller whose IdentityUser is the patient's own). External non-owners

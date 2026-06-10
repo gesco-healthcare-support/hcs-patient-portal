@@ -214,7 +214,7 @@ OLD source: `list/template-list.component.html:25`, `edit/template-edit.componen
 |---|---|
 | IT Admin | Full CRUD (list, add, edit, delete) |
 | Staff Supervisor | View list only (no add/edit/delete) -- NEW design decision; see Exception 3 |
-| Clinic Staff | No access |
+| Intake Staff | No access |
 | External users | No access |
 
 OLD uses `PageAccess` guard (`applicationModuleId: 19`). In OLD, the Add button

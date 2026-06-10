@@ -19,7 +19,7 @@ public class FakeCurrentPrincipalAccessor : ThreadCurrentPrincipalAccessor
         // Phase 13 (G6 follow-up, 2026-05-05): the role claim mirrors OLD's
         // "admin sees everything" semantics. AppointmentsAppService.EnsureCanRead*
         // and ChangeRequest's matching checks short-circuit when the caller holds
-        // an internal role (admin / Clinic Staff / Staff Supervisor / IT Admin /
+        // an internal role (admin / Intake Staff / Staff Supervisor / IT Admin /
         // Doctor per BookingFlowRoles.InternalUserRoles). Without the claim, every
         // integration test that hits Get/GetWithNavigationProperties via the fake
         // principal trips the per-row access gate. Tests asserting on non-internal

@@ -110,7 +110,7 @@ public interface IAppointmentsAppService : IApplicationService
     /// Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003): returns
     /// the count of appointments in the current tenant whose
     /// <c>AppointmentStatus</c> is <c>Pending</c> -- the work queue an
-    /// admin / staff supervisor / clinic staff user must triage. Powers
+    /// admin / staff supervisor / intake staff user must triage. Powers
     /// the Appointments sidebar count badge polled every 60s by the
     /// Angular `appointment-route.provider.ts`. ABP's automatic
     /// IMultiTenant filter scopes the count to the caller's tenant.
