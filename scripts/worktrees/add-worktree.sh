@@ -52,10 +52,9 @@ SQL_HOST=$((1434 + offset))
 REDIS_HOST=$((6379 + offset))
 MINIO_API=$((9000 + offset * 10))
 MINIO_CONSOLE=$((9001 + offset * 10))
-GOTENBERG=$((3000 + offset * 10))
 DB="CaseEvaluation"
 
-echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE GOTENBERG=$GOTENBERG)"
+echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE)"
 
 cd "$MAIN"
 git fetch origin
@@ -92,7 +91,6 @@ SQL_HOST_PORT=$SQL_HOST
 REDIS_HOST_PORT=$REDIS_HOST
 MINIO_API_PORT=$MINIO_API
 MINIO_CONSOLE_PORT=$MINIO_CONSOLE
-GOTENBERG_PORT=$GOTENBERG
 NG_CONFIG=local
 ENV
 
@@ -111,7 +109,6 @@ Worktree $SLUG ready at $TARGET.
   Redis:        localhost:$REDIS_HOST
   MinIO API:    http://localhost:$MINIO_API
   MinIO Cons:   http://localhost:$MINIO_CONSOLE
-  Gotenberg:    http://localhost:$GOTENBERG
 
 To start the stack:
   cd $TARGET && docker compose up -d

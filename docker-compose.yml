@@ -241,24 +241,10 @@ services:
       # drops env-var names with literal dots; ABP's flat-key lookup needs
       # `Settings:CaseEvaluation.Notifications.*` which env vars can't express.)
       App__AngularUrl: "http://localhost:${NG_PORT:-4200}"
-      # Phase 2 (2026-05-11) -- Gotenberg sidecar for DOCX -> PDF
-      # conversion in the packet pipeline. Service name resolves via
-      # Docker's internal DNS; CaseEvaluationDomainModule reads this
-      # value (with a localhost fallback that matches this service name).
-      Gotenberg__Url: "http://gotenberg:3000"
-      # Phase 1 (2026-06-05) -- WeasyPrint sidecar for HTML -> fillable
-      # PDF. Runs alongside gotenberg during the staged cutover; the job
-      # routes per PacketKind via the Packets:HtmlPipeline:* flags below.
-      # CaseEvaluationDomainModule reads this value (localhost fallback).
+      # WeasyPrint packet-renderer sidecar for HTML -> fillable PDF. Service
+      # name resolves via Docker's internal DNS; CaseEvaluationDomainModule
+      # reads this value (with a localhost fallback matching the service name).
       PacketRenderer__Url: "http://packet-renderer:3001"
-      # Per-kind pipeline selection. 2026-06-08: HTML->WeasyPrint (fillable
-      # PDF templates) is now the default for all three kinds -- the staged
-      # DOCX->Gotenberg cutover is complete. The DOCX path also lacked the
-      # PQME DWC-QME-form notice branch (that branch lives only in the HTML
-      # pipeline). Set a flag to "false" to fall back to DOCX for that kind.
-      Packets__HtmlPipeline__Doctor: "${PACKETS_HTML_DOCTOR:-true}"
-      Packets__HtmlPipeline__Patient: "${PACKETS_HTML_PATIENT:-true}"
-      Packets__HtmlPipeline__Attorney: "${PACKETS_HTML_ATTORNEY:-true}"
       # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
       BlobStoring__Minio__Endpoint: "minio:9000"
       BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
@@ -280,8 +266,6 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      gotenberg:
-        condition: service_healthy
       packet-renderer:
         condition: service_healthy
       minio:
@@ -293,28 +277,8 @@ services:
       retries: 5
       start_period: 180s
 
-  # Phase 2 (2026-05-11) -- LibreOffice-backed DOCX -> PDF conversion
-  # via a Gotenberg sidecar. Custom Dockerfile bakes Microsoft Core
-  # Fonts (Calibri, Arial, Times New Roman, etc.) on top of the
-  # official gotenberg/gotenberg:8 image so packet templates render
-  # without font substitution drift. See docker/Dockerfile.gotenberg-fonts.
-  gotenberg:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.gotenberg-fonts
-    ports:
-      - "127.0.0.1:${GOTENBERG_PORT:-3000}:3000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  # Phase 1 (2026-06-05) -- WeasyPrint-backed HTML -> fillable PDF
-  # conversion. Runs alongside gotenberg during the staged cutover; the
-  # api routes packet generation per PacketKind via the
-  # Packets:HtmlPipeline:* flags (default DOCX->Gotenberg). Custom
+  # WeasyPrint packet-renderer sidecar: HTML -> fillable PDF, the sole packet
+  # renderer (the DOCX -> Gotenberg path was removed 2026-06-10). Custom
   # Dockerfile pins the verified template toolchain (WeasyPrint 69.0,
   # pikepdf 10.7.2) and the same free + MS Core font stack the templates
   # were authored against. See docker/packet-renderer/Dockerfile.
