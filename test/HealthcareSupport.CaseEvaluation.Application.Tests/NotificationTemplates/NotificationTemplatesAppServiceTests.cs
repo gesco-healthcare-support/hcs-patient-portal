@@ -62,7 +62,7 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // ------------------------------------------------------------------
 
     [Fact]
-    public async Task GetListAsync_ReturnsAllSeeded64Codes()
+    public async Task GetListAsync_ReturnsAllSeededCodes()
     {
         await EnsureSeededAsync(TenantsTestData.TenantARef);
 
@@ -73,16 +73,13 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
                 MaxResultCount = 100,
             });
 
-            // 2026-05-12: Cat 2-7 expansion + packet / reminder / digest
-            // handlers added 3 NEW-only codes (OLD baseline was 59 -> 62).
-            // 2026-05-15: tokenized-invite (#202) + IT-Admin internal-user-
-            // creation (#203) each added one more NEW-only code (-> 64).
-            // Merge (2026-06-07): Group L added JointDeclarationUploadReminder
-            // (+1) and E2 (2026-06-04) removed the dead
-            // AppointmentRequestedUnregistered (-1); the merged set keeps both,
-            // so the seeded count is 64.
-            result.TotalCount.ShouldBe(64);
-            result.Items.Count.ShouldBe(64);
+            // The seed inserts exactly one row per NotificationTemplateConsts.Codes.All
+            // entry, so assert against that count rather than a magic number -- it then
+            // tracks code additions/removals automatically (e.g. the 2026-06 reminder
+            // consolidation dropped the count to 62) instead of going stale.
+            var expectedCount = NotificationTemplateConsts.Codes.All.Length;
+            result.TotalCount.ShouldBe(expectedCount);
+            result.Items.Count.ShouldBe(expectedCount);
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.AppointmentApproved)
                 .ShouldBeTrue();
             result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.JointAgreementLetterUploaded)
