@@ -446,4 +446,101 @@ public class AppointmentAccessRulesUnitTests
         allowed.ShouldBeFalse();
         pathway.ShouldBeNull();
     }
+
+    // -- Accessor-management gate (CanManageAccessors, 2026-06-10 Workstream B) ----
+    // Rule = internal OR (isCreator AND authorized-external-accessor-manager).
+    // The Edit-accessor pathway is intentionally NOT admitted here.
+
+    [Fact]
+    public void CanManageAccessors_InternalUser_True()
+    {
+        // Internal users always pass, regardless of creator / caller id.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: null,
+            callerIsInternalUser: true,
+            callerIsAuthorizedExternalAccessorManager: false,
+            appointmentCreatorId: OtherUserId).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CanManageAccessors_InternalUser_NullCreator_True()
+    {
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: true,
+            callerIsAuthorizedExternalAccessorManager: false,
+            appointmentCreatorId: null).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CanManageAccessors_ExternalManager_IsCreator_True()
+    {
+        // AA and DA both feed callerIsAuthorizedExternalAccessorManager: true
+        // (the AA-vs-DA distinction is pinned in BookingFlowRolesUnitTests).
+        // The creator who holds an authorized accessor-managing role may manage.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: true,
+            appointmentCreatorId: CallerId).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CanManageAccessors_ExternalManager_NotCreator_False()
+    {
+        // An authorized accessor-managing external role who did NOT create the
+        // appointment (party only) cannot manage its accessors.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: true,
+            appointmentCreatorId: OtherUserId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CanManageAccessors_ExternalNonManager_IsCreator_False()
+    {
+        // A Patient / Claim Examiner who created the appointment is NOT an
+        // authorized accessor manager, so the creator-AND-role gate denies them.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: false,
+            appointmentCreatorId: CallerId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CanManageAccessors_EditAccessorNonCreator_False()
+    {
+        // Pin the dropped pathway: an Edit-accessor is just an external
+        // non-creator non-manager here (the rule does not even take accessor
+        // rows), so it is denied -- Edit-accessors can no longer self-propagate.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: false,
+            appointmentCreatorId: OtherUserId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CanManageAccessors_NullCaller_NotInternal_False()
+    {
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: null,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: true,
+            appointmentCreatorId: OtherUserId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CanManageAccessors_ManagerButNullCreator_False()
+    {
+        // Defensive: a null creator cannot match the caller, so an external
+        // manager on an appointment with no recorded creator is denied.
+        AppointmentAccessRules.CanManageAccessors(
+            callerUserId: CallerId,
+            callerIsInternalUser: false,
+            callerIsAuthorizedExternalAccessorManager: true,
+            appointmentCreatorId: null).ShouldBeFalse();
+    }
 }

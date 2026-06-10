@@ -210,6 +210,37 @@ public static class AppointmentAccessRules
     }
 
     /// <summary>
+    /// Accessor-management gate (2026-06-10, Workstream B). Stricter than
+    /// <see cref="CanEdit(Guid?, bool, Guid?, IEnumerable{AccessorEntry})"/>: an
+    /// external caller must be BOTH the appointment creator AND hold an authorized
+    /// accessor-managing external role (today: Applicant Attorney / Defense
+    /// Attorney; the paralegal feature appends Paralegal as a one-line set
+    /// extension in <c>BookingFlowRoles</c>, with no change to this rule). The
+    /// Edit-accessor pathway is intentionally NOT admitted here -- Edit-accessors
+    /// may complete/edit the appointment form (CanEdit) but may not add accessors.
+    /// Pure: the guard computes the role bool from <c>ICurrentUser.Roles</c>, so
+    /// this rule stays string-free (no accessor hydration needed either).
+    /// </summary>
+    public static bool CanManageAccessors(
+        Guid? callerUserId,
+        bool callerIsInternalUser,
+        bool callerIsAuthorizedExternalAccessorManager,
+        Guid? appointmentCreatorId)
+    {
+        if (callerIsInternalUser)
+        {
+            return true;
+        }
+        if (!callerUserId.HasValue)
+        {
+            return false;
+        }
+        return appointmentCreatorId.HasValue
+            && appointmentCreatorId.Value == callerUserId.Value
+            && callerIsAuthorizedExternalAccessorManager;
+    }
+
+    /// <summary>
     /// Lightweight projection of <see cref="AppointmentAccessor"/>
     /// rows for predicate consumption. Keeps the rule pure (no
     /// dependency on EF Core / ABP entity types beyond the

@@ -89,6 +89,34 @@ Feature-specific custom methods (e.g., `AppointmentsAppService.UpdateStatusAsync
 
 ---
 
+## Data-level authorization: appointment accessors (per-row)
+
+Beyond the permission matrix above, the three accessor-mutation endpoints enforce a **per-row**
+rule the ABP permission system does not express. `AppointmentAccessorsAppService` `CreateAsync`
+/ `UpdateAsync` / `DeleteAsync` call `AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync`,
+which composes the pure `AppointmentAccessRules.CanManageAccessors` rule (Workstream B,
+2026-06-10):
+
+> A caller may add / edit / remove an appointment's accessors only if they are an **internal
+> user**, OR they **created the appointment AND hold an authorized accessor-managing external
+> role** (Applicant Attorney / Defense Attorney today).
+
+The authorized external-role set lives in `BookingFlowRoles.ExternalAccessorManagerRoles`,
+neutrally named so the paralegal-on-behalf-of-attorney feature can append `Paralegal` as a
+one-line extension. Angular hides the "Add" control for callers who fail this rule, but the
+server gate is authoritative (deny-by-default): a forced POST from an unauthorized caller
+returns the localized `Appointment:AccessDenied`.
+
+**Deliberate tightening (product decision, not OLD parity).** This rule is STRICTER than the
+appointment edit-access rule (`AppointmentAccessRules.CanEdit`): it drops the Edit-accessor
+pathway, so an Edit-accessor can still complete/edit the appointment form and submit
+cancel/reschedule change-requests, but can no longer self-propagate accessors. A Patient or
+Claim-Examiner creator is likewise denied. The change-request flow
+(`AppointmentChangeRequestsAppService`) deliberately keeps the looser `CanEditAsync` gate, so
+external cancel/reschedule is unaffected.
+
+---
+
 ## Enforcement Gaps (to be audited)
 
 1. **Controller layer:** Controllers delegate to AppServices. If an AppService method lacks `[Authorize]`, there is no fallback; the controller does not re-check. Gap: no automated lint for missing `[Authorize]`.

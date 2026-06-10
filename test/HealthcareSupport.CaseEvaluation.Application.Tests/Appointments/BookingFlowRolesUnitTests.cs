@@ -143,4 +143,48 @@ public class BookingFlowRolesUnitTests
         BookingFlowRoles.InternalUserRoles.ShouldNotContain("Doctor");
         BookingFlowRoles.InternalUserRoles.Count.ShouldBe(4);
     }
+
+    // -- Accessor-manager role set (2026-06-10 Workstream B) --------------------
+
+    [Theory]
+    [InlineData("Applicant Attorney", true)]
+    [InlineData("Defense Attorney", true)]
+    [InlineData("applicant attorney", true)]   // case-insensitive
+    [InlineData("  Defense Attorney  ", true)] // trim
+    [InlineData("Patient", false)]
+    [InlineData("Claim Examiner", false)]
+    [InlineData("Intake Staff", false)]
+    [InlineData("Staff Supervisor", false)]
+    [InlineData("IT Admin", false)]
+    [InlineData("admin", false)]
+    public void IsExternalAccessorManager_ReturnsExpectedForSingleRole(string role, bool expected)
+    {
+        BookingFlowRoles.IsExternalAccessorManager(new[] { role }).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void IsExternalAccessorManager_AnyManagerRoleAmongMany_ReturnsTrue()
+    {
+        BookingFlowRoles.IsExternalAccessorManager(new[] { "Patient", "Defense Attorney" }).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsExternalAccessorManager_NullOrEmpty_ReturnsFalse()
+    {
+        BookingFlowRoles.IsExternalAccessorManager(null).ShouldBeFalse();
+        BookingFlowRoles.IsExternalAccessorManager(System.Array.Empty<string>()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ExternalAccessorManagerRoles_PinnedAtAaAndDaOnly()
+    {
+        // Drift guard + paralegal-readiness marker: today the set is {AA, DA}.
+        // The paralegal-on-behalf-of-attorney feature appends "Paralegal" here
+        // (one-line extension) and adds a true-for-Paralegal case to the theory
+        // above. Until then, Paralegal must NOT be present.
+        BookingFlowRoles.ExternalAccessorManagerRoles.ShouldContain("Applicant Attorney");
+        BookingFlowRoles.ExternalAccessorManagerRoles.ShouldContain("Defense Attorney");
+        BookingFlowRoles.ExternalAccessorManagerRoles.ShouldNotContain("Paralegal");
+        BookingFlowRoles.ExternalAccessorManagerRoles.Count.ShouldBe(2);
+    }
 }

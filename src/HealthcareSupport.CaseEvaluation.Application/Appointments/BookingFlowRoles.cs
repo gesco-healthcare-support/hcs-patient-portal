@@ -61,6 +61,54 @@ internal static class BookingFlowRoles
     }
 
     /// <summary>
+    /// External roles permitted to manage (add / edit / remove) appointment
+    /// accessors -- but only on an appointment they created (the creator check
+    /// lives in <see cref="AppointmentAccessRules.CanManageAccessors"/>). Today:
+    /// Applicant Attorney + Defense Attorney. The paralegal-on-behalf-of-attorney
+    /// feature appends "Paralegal" here as a one-line extension; the Domain rule
+    /// and the guard need no change. Names mirror the external roles seeded by
+    /// <c>ExternalUserRoleDataSeedContributor</c> /
+    /// <c>AppointmentAccessorRules.RecognizedExternalRoles</c>.
+    /// </summary>
+    internal static readonly System.Collections.Generic.IReadOnlyList<string> ExternalAccessorManagerRoles = new[]
+    {
+        "Applicant Attorney",
+        "Defense Attorney",
+    };
+
+    /// <summary>
+    /// Returns <c>true</c> when the calling user holds at least one role in
+    /// <see cref="ExternalAccessorManagerRoles"/> (case-insensitive, trimmed).
+    /// Symmetric with <see cref="IsInternalUserCaller"/>; the read-access guard
+    /// threads the result into
+    /// <see cref="AppointmentAccessRules.CanManageAccessors"/> as the
+    /// <c>callerIsAuthorizedExternalAccessorManager</c> bool.
+    /// </summary>
+    internal static bool IsExternalAccessorManager(System.Collections.Generic.IEnumerable<string?>? callerRoles)
+    {
+        if (callerRoles == null)
+        {
+            return false;
+        }
+        foreach (var role in callerRoles)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                continue;
+            }
+            var trimmed = role.Trim();
+            foreach (var managerRole in ExternalAccessorManagerRoles)
+            {
+                if (string.Equals(trimmed, managerRole, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Claim-examiner auto-fill: when the booker is the claim-examiner
     /// (OLD's <c>Adjuster</c> role, NEW's <c>Claim Examiner</c> role --
     /// same role under different names per OLD

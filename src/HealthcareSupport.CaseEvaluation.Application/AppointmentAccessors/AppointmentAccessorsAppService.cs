@@ -89,9 +89,10 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task DeleteAsync(Guid id)
     {
-        // Deny-by-default: only an appointment editor may remove its accessors.
+        // Deny-by-default: only internal staff or the creator-attorney (AA/DA)
+        // may remove an accessor; the Edit-accessor pathway is dropped.
         var existing = await _appointmentAccessorRepository.GetAsync(id);
-        await _readAccessGuard.EnsureCanEditAsync(existing.AppointmentId);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId);
         await _appointmentAccessorRepository.DeleteAsync(id);
     }
 
@@ -111,9 +112,10 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
             throw new UserFriendlyException(L["The {0} field is required.", L["Role"]]);
         }
 
-        // Deny-by-default: only someone who can edit the appointment may add an
-        // accessor to it (blocks non-parties + self-escalation).
-        await _readAccessGuard.EnsureCanEditAsync(input.AppointmentId);
+        // Deny-by-default: only internal staff or the creator-attorney (AA/DA)
+        // may add an accessor (blocks non-parties, Patient/CE creators, and the
+        // Edit-accessor self-escalation pathway).
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(input.AppointmentId);
 
         // Email-based create-or-link: resolves the email to a user or
         // auto-provisions + invites one, applies the role-conflict check, and
@@ -143,9 +145,10 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         }
 
         // Deny-by-default: gate by the accessor's ACTUAL appointment (not a
-        // caller-supplied id) so a non-party cannot edit an accessor.
+        // caller-supplied id); only internal staff or the creator-attorney
+        // (AA/DA) may edit an accessor.
         var existing = await _appointmentAccessorRepository.GetAsync(id);
-        await _readAccessGuard.EnsureCanEditAsync(existing.AppointmentId);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId);
 
         var appointmentAccessor = await _appointmentAccessorManager.UpdateAsync(id, input.IdentityUserId, input.AppointmentId, input.AccessTypeId);
         return ObjectMapper.Map<AppointmentAccessor, AppointmentAccessorDto>(appointmentAccessor);

@@ -208,4 +208,46 @@ public class AppointmentReadAccessGuard : ITransientDependency
                 message: _l["Appointment:AccessDenied"]);
         }
     }
+
+    /// <summary>
+    /// Accessor-management predicate (2026-06-10, Workstream B). Composes the
+    /// dedicated <see cref="AppointmentAccessRules.CanManageAccessors"/> rule:
+    /// internal users pass; external callers must be the appointment creator AND
+    /// hold an authorized accessor-managing role (Applicant / Defense Attorney
+    /// today). Deliberately STRICTER than <see cref="CanEditAsync(Appointment)"/>
+    /// -- the Edit-accessor pathway is not admitted, so an Edit-accessor cannot
+    /// self-propagate accessors. The rule ignores accessor rows, so no accessor
+    /// hydration is needed (cheaper than CanEditAsync).
+    /// </summary>
+    public async Task<bool> CanManageAccessorsAsync(Guid appointmentId)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        return await CanManageAccessorsAsync(appointment);
+    }
+
+    public Task<bool> CanManageAccessorsAsync(Appointment appointment)
+    {
+        var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
+        var allowed = AppointmentAccessRules.CanManageAccessors(
+            callerUserId: _currentUser.Id,
+            callerIsInternalUser: BookingFlowRoles.IsInternalUserCaller(callerRoles),
+            callerIsAuthorizedExternalAccessorManager: BookingFlowRoles.IsExternalAccessorManager(callerRoles),
+            appointmentCreatorId: appointment.CreatorId);
+        return Task.FromResult(allowed);
+    }
+
+    /// <summary>
+    /// Throwing variant of <see cref="CanManageAccessorsAsync(Guid)"/> for the
+    /// accessor mutation endpoints (Create / Update / Delete). Throws the same
+    /// shared localized access-denied error as the read / edit gates.
+    /// </summary>
+    public async Task EnsureCanManageAccessorsAsync(Guid appointmentId)
+    {
+        if (!await CanManageAccessorsAsync(appointmentId))
+        {
+            throw new UserFriendlyException(
+                code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
+                message: _l["Appointment:AccessDenied"]);
+        }
+    }
 }
