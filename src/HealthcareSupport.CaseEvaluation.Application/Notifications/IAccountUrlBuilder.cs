@@ -76,6 +76,14 @@ public interface IAccountUrlBuilder
     Task<string> BuildPublicDocumentUploadUrlAsync(Guid tenantId, Guid documentId, Guid verificationCode);
 
     /// <summary>
+    /// Group D (2026-06-09) -- builds the SPA-hosted public change-request consent
+    /// landing URL emailed to the opposing side. The page is anonymous and
+    /// authorizes by the single-use token, which travels as a path segment.
+    /// Format: <c>{tenantPrefix}{portalBaseUrl}/public/change-request-consent/{rawToken}</c>.
+    /// </summary>
+    Task<string> BuildChangeRequestConsentUrlAsync(Guid tenantId, string rawToken);
+
+    /// <summary>
     /// Returns the SPA root URL for the given tenant (e.g.
     /// <c>http://falkinstein.localhost:4200</c>). Used by callers
     /// that build SPA deep-links (appointment view, dashboard).

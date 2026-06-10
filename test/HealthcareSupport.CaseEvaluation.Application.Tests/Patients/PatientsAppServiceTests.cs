@@ -262,7 +262,7 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
 
     // ------------------------------------------------------------------------
     // Max-length validation (PatientManager.CreateAsync / .UpdateAsync)
-    // Theory covers all 15 length-bounded string fields.
+    // Theory covers all 14 length-bounded string fields.
     // ------------------------------------------------------------------------
 
     [Theory]
@@ -275,7 +275,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     [InlineData(nameof(PatientCreateDto.Address), PatientConsts.AddressMaxLength)]
     [InlineData(nameof(PatientCreateDto.City), PatientConsts.CityMaxLength)]
     [InlineData(nameof(PatientCreateDto.ZipCode), PatientConsts.ZipCodeMaxLength)]
-    [InlineData(nameof(PatientCreateDto.RefferedBy), PatientConsts.RefferedByMaxLength)]
     [InlineData(nameof(PatientCreateDto.CellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength)]
     [InlineData(nameof(PatientCreateDto.Street), PatientConsts.StreetMaxLength)]
     [InlineData(nameof(PatientCreateDto.InterpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength)]
@@ -299,7 +298,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     [InlineData(nameof(PatientCreateDto.Address), PatientConsts.AddressMaxLength)]
     [InlineData(nameof(PatientCreateDto.City), PatientConsts.CityMaxLength)]
     [InlineData(nameof(PatientCreateDto.ZipCode), PatientConsts.ZipCodeMaxLength)]
-    [InlineData(nameof(PatientCreateDto.RefferedBy), PatientConsts.RefferedByMaxLength)]
     [InlineData(nameof(PatientCreateDto.CellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength)]
     [InlineData(nameof(PatientCreateDto.Street), PatientConsts.StreetMaxLength)]
     [InlineData(nameof(PatientCreateDto.InterpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength)]
@@ -577,7 +575,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             input.Address,
             input.City,
             input.ZipCode,
-            input.RefferedBy,
             input.CellPhoneNumber,
             input.Street,
             input.InterpreterVendorName,
@@ -605,7 +602,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             input.Address,
             input.City,
             input.ZipCode,
-            input.RefferedBy,
             input.CellPhoneNumber,
             input.Street,
             input.InterpreterVendorName,

@@ -36,30 +36,30 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
             return;
         }
 
-        await _repository.InsertAsync(
-            new Location(
-                id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
-                stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Ame,
-                name: "Demo Clinic North",
-                parkingFee: 0m,
-                isActive: true,
-                address: "100 Demo Plaza",
-                city: "Los Angeles",
-                zipCode: "90001"),
-            autoSave: false);
+        // I3 (2026-06-08): seed demo locations with the AME type via the M2M
+        // (replaces the single appointmentTypeId ctor arg). Only runs on a fresh DB.
+        var north = new Location(
+            id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
+            stateId: CaseEvaluationSeedIds.States.California,
+            name: "Demo Clinic North",
+            parkingFee: 0m,
+            isActive: true,
+            address: "100 Demo Plaza",
+            city: "Los Angeles",
+            zipCode: "90001");
+        north.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
+        await _repository.InsertAsync(north, autoSave: false);
 
-        await _repository.InsertAsync(
-            new Location(
-                id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
-                stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Ame,
-                name: "Demo Clinic South",
-                parkingFee: 0m,
-                isActive: true,
-                address: "200 Demo Way",
-                city: "San Diego",
-                zipCode: "92101"),
-            autoSave: false);
+        var south = new Location(
+            id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
+            stateId: CaseEvaluationSeedIds.States.California,
+            name: "Demo Clinic South",
+            parkingFee: 0m,
+            isActive: true,
+            address: "200 Demo Way",
+            city: "San Diego",
+            zipCode: "92101");
+        south.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
+        await _repository.InsertAsync(south, autoSave: false);
     }
 }

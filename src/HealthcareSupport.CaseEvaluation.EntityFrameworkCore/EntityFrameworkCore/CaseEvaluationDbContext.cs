@@ -103,7 +103,26 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee)).HasPrecision(18, 2);
                 b.Property(x => x.IsActive).HasColumnName(nameof(Location.IsActive));
                 b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
-                b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // I3 (2026-06-08): Location <-> AppointmentType M2M (replaces the single
+            // AppointmentTypeId FK). Host-only (Location is not IMultiTenant), so no
+            // TenantId column -- otherwise mirrors DoctorAvailabilityAppointmentType.
+            builder.Entity<LocationAppointmentType>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "LocationAppointmentType", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.HasKey(x => new { x.LocationId, x.AppointmentTypeId });
+                b.HasOne<Location>()
+                    .WithMany(x => x.AppointmentTypes)
+                    .HasForeignKey(x => x.LocationId)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.Cascade);
+                b.HasOne(x => x.AppointmentType)
+                    .WithMany()
+                    .HasForeignKey(x => x.AppointmentTypeId)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.NoAction);
             });
         }
 
@@ -296,7 +315,6 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.Property(x => x.Address).HasColumnName(nameof(Patient.Address)).HasMaxLength(PatientConsts.AddressMaxLength);
                 b.Property(x => x.City).HasColumnName(nameof(Patient.City)).HasMaxLength(PatientConsts.CityMaxLength);
                 b.Property(x => x.ZipCode).HasColumnName(nameof(Patient.ZipCode)).HasMaxLength(PatientConsts.ZipCodeMaxLength);
-                b.Property(x => x.RefferedBy).HasColumnName(nameof(Patient.RefferedBy)).HasMaxLength(PatientConsts.RefferedByMaxLength);
                 b.Property(x => x.CellPhoneNumber).HasColumnName(nameof(Patient.CellPhoneNumber)).HasMaxLength(PatientConsts.CellPhoneNumberMaxLength);
                 b.Property(x => x.PhoneNumberTypeId).HasColumnName(nameof(Patient.PhoneNumberTypeId));
                 b.Property(x => x.Street).HasColumnName(nameof(Patient.Street)).HasMaxLength(PatientConsts.StreetMaxLength);
@@ -328,6 +346,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
             b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));
@@ -482,6 +501,15 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
+            // Group D (2026-06-09): opposing-side consent columns.
+            b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
+            b.Property(x => x.SubmittedByUserId).HasColumnName(nameof(AppointmentChangeRequest.SubmittedByUserId));
+            b.Property(x => x.ConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.ConsentStatus));
+            b.Property(x => x.ConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.ConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.ConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentExpiresAt));
+            b.Property(x => x.ConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedAt));
+            b.Property(x => x.ConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.HasIndex(x => x.ConsentTokenHash);
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);

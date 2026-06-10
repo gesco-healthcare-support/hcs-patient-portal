@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { LocalizationPipe, UtcToLocalPipe } from '@abp/ng.core';
 import { PageComponent } from '@abp/ng.components/page';
 import { ChangeRequestType } from '../../proxy/appointment-change-requests/change-request-type.enum';
@@ -23,6 +23,7 @@ import { ChangeRequestRejectModalComponent } from './change-request-reject-modal
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
     CommonModule,
+    RouterLink,
     LocalizationPipe,
     UtcToLocalPipe,
     PageComponent,

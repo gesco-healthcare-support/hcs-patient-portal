@@ -67,7 +67,7 @@ export class PatientService {
     this.restService.request<any, PagedResultDto<PatientWithNavigationPropertiesDto>>({
       method: 'GET',
       url: '/api/app/patients',
-      params: { filterText: input.filterText, firstName: input.firstName, lastName: input.lastName, middleName: input.middleName, email: input.email, genderId: input.genderId, dateOfBirthMin: input.dateOfBirthMin, dateOfBirthMax: input.dateOfBirthMax, phoneNumber: input.phoneNumber, socialSecurityNumber: input.socialSecurityNumber, address: input.address, city: input.city, zipCode: input.zipCode, refferedBy: input.refferedBy, cellPhoneNumber: input.cellPhoneNumber, street: input.street, interpreterVendorName: input.interpreterVendorName, apptNumber: input.apptNumber, stateId: input.stateId, appointmentLanguageId: input.appointmentLanguageId, identityUserId: input.identityUserId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, firstName: input.firstName, lastName: input.lastName, middleName: input.middleName, email: input.email, genderId: input.genderId, dateOfBirthMin: input.dateOfBirthMin, dateOfBirthMax: input.dateOfBirthMax, phoneNumber: input.phoneNumber, socialSecurityNumber: input.socialSecurityNumber, address: input.address, city: input.city, zipCode: input.zipCode, cellPhoneNumber: input.cellPhoneNumber, street: input.street, interpreterVendorName: input.interpreterVendorName, apptNumber: input.apptNumber, stateId: input.stateId, appointmentLanguageId: input.appointmentLanguageId, identityUserId: input.identityUserId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

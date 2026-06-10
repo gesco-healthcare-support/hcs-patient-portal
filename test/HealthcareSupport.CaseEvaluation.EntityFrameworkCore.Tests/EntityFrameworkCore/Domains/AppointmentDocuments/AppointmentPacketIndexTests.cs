@@ -8,15 +8,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.Appointme
 
 /// <summary>
 /// BUG-036 (2026-05-23): the composite unique index on
-/// (TenantId, AppointmentId, Kind) must NOT apply to soft-deleted rows,
-/// otherwise PacketAttachmentProvider.NotifySendCompletedAsync's
-/// retention prune (which soft-deletes the AttyCE row after a successful
-/// send) leaves an IsDeleted=1 row that blocks every subsequent Regenerate
-/// with SQL Server error 2601 (surfaced as AbpDbConcurrencyException via
-/// EF Core's batched-INSERT mis-classification).
+/// (TenantId, AppointmentId, Kind) must NOT apply to soft-deleted rows.
+/// Historically PacketAttachmentProvider.NotifySendCompletedAsync soft-
+/// deleted the AttyCE row after a successful send, and an IsDeleted=1 row
+/// blocked every subsequent Regenerate with SQL Server error 2601
+/// (surfaced as AbpDbConcurrencyException via EF Core's batched-INSERT
+/// mis-classification).
 ///
-/// Adding the IsDeleted filter to the unique index is the primary fix
-/// in BUG-036's 3-layer plan.
+/// The AttyCE retention prune was removed on 2026-06-09 (all packet kinds
+/// now persist), so this scenario no longer arises in practice -- but the
+/// filtered index is kept as defensive design for any future soft-delete
+/// of a packet row, and this test guards it.
 /// </summary>
 [Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentPacketIndexTests : CaseEvaluationEntityFrameworkCoreTestBase

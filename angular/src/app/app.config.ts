@@ -35,7 +35,7 @@ import { provideNgxMask } from 'ngx-mask';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpBackend, HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -138,8 +138,14 @@ export const appConfig: ApplicationConfig = {
       provide: AddressValidationProvider,
       useFactory: () => {
         const cfg = addressValidation;
+        // Bare HttpClient built on HttpBackend so ABP's HTTP interceptors
+        // (which attach the `__tenant` + Authorization headers) do NOT run on
+        // the cross-origin Smarty calls. Those custom headers force a CORS
+        // preflight Smarty rejects ("__tenant not allowed by
+        // Access-Control-Allow-Headers"), and we must not leak our tenant/
+        // bearer token to a third party. 2026-06-10 fix.
         return cfg.smartyKey
-          ? new SmartyAddressProvider(inject(HttpClient), {
+          ? new SmartyAddressProvider(new HttpClient(inject(HttpBackend)), {
               key: cfg.smartyKey,
               autocompleteUrl: cfg.autocompleteUrl,
               verifyUrl: cfg.verifyUrl,

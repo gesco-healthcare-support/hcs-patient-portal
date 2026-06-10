@@ -104,9 +104,12 @@ public class PatientPacketEmailHandler :
             // the "PortalUrl" key, but OLD's body uses "##URL##" pointing
             // to the per-appointment documents page. We add both keys so
             // the template can use either name.
+            var patientName = $"{ctx.PatientFirstName} {ctx.PatientLastName}".Trim();
             var withUrl = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
             {
                 ["URL"] = documentUploadUrl,
+                ["PacketLabel"] = "Patient Packet",
+                ["Greeting"] = string.IsNullOrWhiteSpace(patientName) ? "Hello," : $"Hello {patientName},",
             };
 
             var recipients = new List<NotificationRecipient>

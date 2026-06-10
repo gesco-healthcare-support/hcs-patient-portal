@@ -53,7 +53,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
     {
         var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
             _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: LocationsTestData.Location1Name, parkingFee: 1.00m, isActive: true)));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationDuplicateName);
@@ -64,7 +64,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
     {
         var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
             _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: LocationsTestData.Location1Name.ToUpperInvariant(), parkingFee: 1.00m, isActive: true)));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationDuplicateName);
@@ -75,7 +75,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
     {
         var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
             _locationManager.UpdateAsync(
-                id: LocationsTestData.Location2Id, stateId: null, appointmentTypeId: null,
+                id: LocationsTestData.Location2Id, stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: LocationsTestData.Location1Name, parkingFee: 1.00m, isActive: true)));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationDuplicateName);
@@ -91,7 +91,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var created = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("Self"), parkingFee: 1.00m, isActive: true);
             id = created.Id;
             name = created.Name;
@@ -100,7 +100,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var result = await _locationManager.UpdateAsync(
-                id: id, stateId: null, appointmentTypeId: null,
+                id: id, stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: name, parkingFee: 2.00m, isActive: true);
             result.Name.ShouldBe(name);
         });
@@ -115,7 +115,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
     {
         var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
             _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("NegFee"), parkingFee: -1.00m, isActive: true)));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationParkingFeeNegative);
@@ -130,7 +130,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
     {
         var ex = await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() =>
             _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("BadZip"), parkingFee: 1.00m, isActive: true, zipCode: "ABCDE")));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationZipCodeInvalid);
@@ -142,7 +142,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var result = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("ZipOk"), parkingFee: 1.00m, isActive: true, zipCode: "90001-1234");
 
             result.ShouldNotBeNull();
@@ -161,7 +161,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var location = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("RefByDa"), parkingFee: 1.00m, isActive: true);
             locationId = location.Id;
 
@@ -189,7 +189,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var location = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("RefByAppt"), parkingFee: 1.00m, isActive: true);
             locationId = location.Id;
 
@@ -231,7 +231,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
         await WithUnitOfWorkAsync(async () =>
         {
             var location = await _locationManager.CreateAsync(
-                stateId: null, appointmentTypeId: null,
+                stateId: null, appointmentTypeIds: new List<Guid>(),
                 name: UniqueName("Unreferenced"), parkingFee: 1.00m, isActive: true);
             locationId = location.Id;
         });

@@ -43,7 +43,7 @@ public class DocumentAcceptedEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
-    private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly MissingRequiredDocumentsResolver _missingRequiredDocumentsResolver;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<DocumentAcceptedEmailHandler> _logger;
     // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition.
@@ -53,7 +53,7 @@ public class DocumentAcceptedEmailHandler :
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
-        IRepository<AppointmentDocument, Guid> documentRepository,
+        MissingRequiredDocumentsResolver missingRequiredDocumentsResolver,
         ICurrentTenant currentTenant,
         ILogger<DocumentAcceptedEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -61,7 +61,7 @@ public class DocumentAcceptedEmailHandler :
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
-        _documentRepository = documentRepository;
+        _missingRequiredDocumentsResolver = missingRequiredDocumentsResolver;
         _currentTenant = currentTenant;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
@@ -144,12 +144,12 @@ public class DocumentAcceptedEmailHandler :
             var finalVariables = variables;
             if (!ctx.IsAdHoc && !ctx.IsJointDeclaration)
             {
-                var remainingCount = await CountRemainingPendingPackageDocsAsync(
-                    eventData.AppointmentId, eventData.AppointmentDocumentId);
-                if (remainingCount > 0)
+                var missing = await _missingRequiredDocumentsResolver.ResolveAsync(eventData.AppointmentId);
+                if (missing.Missing.Count > 0)
                 {
                     templateCode = NotificationTemplateConsts.Codes.PatientDocumentAcceptedRemainingDocs;
-                    finalVariables = await BuildVariablesWithRemainingAsync(variables, eventData.AppointmentId, remainingCount);
+                    finalVariables = await BuildVariablesWithRemainingAsync(
+                        variables, eventData.AppointmentId, missing.Missing);
                 }
             }
 
@@ -160,6 +160,8 @@ public class DocumentAcceptedEmailHandler :
             var dispatchVariables = new Dictionary<string, object?>(finalVariables, StringComparer.Ordinal)
             {
                 ["LoginUrl"] = loginUrl,
+                ["UploaderFullName"] = ctx.UploaderFullName,
+                ["DocumentLabel"] = ctx.DocumentLabel,
             };
 
             await _dispatcher.DispatchToWithCcAsync(
@@ -182,36 +184,20 @@ public class DocumentAcceptedEmailHandler :
         return BookingSubmissionEmailHandler.BuildLoginUrl(authServerBaseUrl, tenantName, string.Empty);
     }
 
-    /// <summary>
-    /// Counts Pending package docs (non-ad-hoc, non-JDF) for the appointment,
-    /// excluding the document that just transitioned to Accepted. The event
-    /// fires after the status flip, so the current doc may or may not still
-    /// appear as Pending depending on save ordering; the Id-exclude is the
-    /// safest guard either way.
-    /// </summary>
-    private async Task<int> CountRemainingPendingPackageDocsAsync(Guid appointmentId, Guid currentDocumentId)
-    {
-        var queryable = await _documentRepository.GetQueryableAsync();
-        return queryable
-            .Where(d => d.AppointmentId == appointmentId &&
-                        d.Id != currentDocumentId &&
-                        !d.IsAdHoc &&
-                        !d.IsJointDeclaration &&
-                        d.Status == DocumentStatus.Pending)
-            .Count();
-    }
-
     private async Task<IReadOnlyDictionary<string, object?>> BuildVariablesWithRemainingAsync(
         IReadOnlyDictionary<string, object?> baseVariables,
         Guid appointmentId,
-        int remainingCount)
+        IReadOnlyList<MissingRequiredDocument> missing)
     {
         // BUG-029 v3 fix (2026-05-21): tenant-aware portal URL via builder.
         var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(_currentTenant.Id);
         var url = $"{portalUrl.TrimEnd('/')}/appointments/view/{appointmentId:N}";
+        // 2026-06-09: list the outstanding required documents by name.
+        var listHtml = string.Concat(missing.Select(m => $"<li>{m.Name}</li>"));
         return new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
         {
-            ["RemainingDocumentCount"] = remainingCount,
+            ["RemainingDocumentCount"] = missing.Count,
+            ["RemainingDocumentList"] = listHtml,
             ["URL"] = url,
         };
     }

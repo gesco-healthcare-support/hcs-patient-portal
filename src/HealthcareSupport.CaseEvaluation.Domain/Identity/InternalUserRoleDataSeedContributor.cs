@@ -470,6 +470,31 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // injury POST -- silently breaking multi-injury bookings.
         yield return Create("AppointmentInjuryDetails");
 
+        // 2026-06-08 (F-1) -- same per-child-POST 403 class as the injury
+        // grant above. The booking-add submit also POSTs the Claim Examiner
+        // (required, every booking) and, when filled, a Primary Insurance,
+        // each to its own permission-gated standalone AppService
+        // (appointment-add.component.ts: createClaimExaminer / primary
+        // insurance). Without these Creates, Clinic Staff (the canonical
+        // phone-in booker) gets 403 on the CE attach, which aborts the rest
+        // of the submit (injuries + auto-approve never run) -- a half-built
+        // Pending appointment. CI1 makes a Claim Examiner mandatory, so a
+        // booker who cannot create one cannot complete any booking. (AA/DA
+        // links do NOT need a grant here -- the client attaches them via the
+        // bare-[Authorize] appointment-scoped upsert routes, not the
+        // standalone .Create AppServices.)
+        yield return Create("AppointmentClaimExaminers");
+        yield return Create("AppointmentPrimaryInsurances");
+        // Same per-child-POST class: every injury posts >=1 structured body
+        // part (POST /appointment-body-parts, OBS-41) and the optional
+        // Authorized Users step posts accessors (POST /appointment-accessors).
+        // Both go through permission-gated standalone AppServices, so the
+        // canonical booker needs their Creates too -- otherwise the body-part
+        // POST 403s mid-submit (after CE + injury succeed) and aborts the
+        // auto-approve, leaving a half-built Pending appointment.
+        yield return Create("AppointmentBodyParts");
+        yield return Create("AppointmentAccessors");
+
         foreach (var entity in LookupReadEntities)
         {
             yield return Default(entity);

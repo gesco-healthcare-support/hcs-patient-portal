@@ -19,6 +19,13 @@ public interface IAppointmentDocumentsAppService
     Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId);
 
     /// <summary>
+    /// I15 (2026-06-08): document-type options keyed by appointment type (for the
+    /// booking form, where no appointment exists yet). Active, non-system rows
+    /// scoped to the type + the "all types" rows. Gated by the upload permission.
+    /// </summary>
+    Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId);
+
+    /// <summary>
     /// G-03 (PR3): the required documents for this appointment that are not yet
     /// Accepted, each with its current state, for the missing-required-documents
     /// indicator. "Required" = the active package template(s) for the appointment's

@@ -79,6 +79,7 @@ import { AppointmentAddPatientDemographicsComponent } from './sections/appointme
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
 import {
   AppointmentAddDocumentsComponent,
+  OTHER_DOCUMENT_TYPE_VALUE,
   type StagedDocumentUpload,
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
@@ -451,6 +452,11 @@ export class AppointmentAddComponent {
   // appointment is created (two-phase). Mutated in place; the documents section
   // uses default change detection so it renders these updates.
   stagedDocuments: StagedDocumentUpload[] = [];
+  // I15 (2026-06-08): document-category labels for the booking-form picker,
+  // loaded per appointment type. panelStrikeListTypeId is the option id whose
+  // name is "Panel Strike List" (drives the strike-list flag + checkbox auto-tick).
+  documentTypeOptions: { id: string; displayName: string }[] = [];
+  panelStrikeListTypeId: string | null = null;
   // Set to the created appointment id once it exists, so an upload retry
   // re-POSTs to the SAME appointment instead of creating a duplicate.
   private createdAppointmentIdForRetry?: string;
@@ -460,6 +466,9 @@ export class AppointmentAddComponent {
   // submits with no strike-list requirement.
   hasPanelStrikeList = false;
   panelStrikeListMissing = false;
+  // 2026-06-09: set when submit is blocked because a doc labeled "Other" has no
+  // free-text name yet (a blank custom label is not a usable category).
+  otherLabelMissing = false;
 
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
@@ -558,7 +567,12 @@ export class AppointmentAddComponent {
     // Examiner (REQUIRED -- Name + Email) -- one each per appointment, replacing
     // the per-injury insurance/CE captured in the claim-information modal. CI2
     // removes the now-orphaned per-injury controls. Posted once after create.
-    appointmentInsuranceName: [null as string | null, [Validators.maxLength(50)]],
+    // I12 (2026-06-08): Insurance Name required client-side per
+    // docs/appointment-required-fields.md (OLD-parity required-fields spec).
+    appointmentInsuranceName: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
     appointmentInsuranceSuite: [null as string | null, [Validators.maxLength(255)]],
     appointmentInsurancePhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     appointmentInsuranceFaxNumber: [null as string | null, [Validators.maxLength(20)]],
@@ -575,12 +589,26 @@ export class AppointmentAddComponent {
       [Validators.required, Validators.maxLength(50), Validators.email],
     ],
     appointmentClaimExaminerSuite: [null as string | null, [Validators.maxLength(255)]],
-    appointmentClaimExaminerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    // I12 (2026-06-08): Phone / Street / City / State / Zip required client-side
+    // per docs/appointment-required-fields.md (OLD-parity required-fields spec).
+    appointmentClaimExaminerPhoneNumber: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(12)],
+    ],
     appointmentClaimExaminerFax: [null as string | null, [Validators.maxLength(20)]],
-    appointmentClaimExaminerStreet: [null as string | null, [Validators.maxLength(255)]],
-    appointmentClaimExaminerCity: [null as string | null, [Validators.maxLength(50)]],
-    appointmentClaimExaminerStateId: [null as string | null],
-    appointmentClaimExaminerZip: [null as string | null, [Validators.maxLength(10)]],
+    appointmentClaimExaminerStreet: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(255)],
+    ],
+    appointmentClaimExaminerCity: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
+    appointmentClaimExaminerStateId: [null as string | null, [Validators.required]],
+    appointmentClaimExaminerZip: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(10)],
+    ],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
     // OLD's `appointment.customFieldsValues` FormArray rebuilt on
     // appointmentTypeId change. Each child FormGroup carries the static
@@ -642,12 +670,20 @@ export class AppointmentAddComponent {
       // needs no request-version counter; it stays inside this subscriber to
       // remain ordered with the other per-type updates.
       this.applyPanelNumberStateForType(appointmentTypeId);
-      // AF6: the panel-strike-list opt-in is PQME-only. Leaving PQME clears the
-      // checkbox + any designation so a non-PQME booking carries no strike list.
+      // I15/I16 (2026-06-08): document-category labels are scoped to the
+      // appointment type, so a type change invalidates any label / strike-list
+      // designation on staged documents -- clear them so the booker re-labels for
+      // the new type.
+      this.stagedDocuments.forEach((doc) => {
+        doc.documentTypeId = null;
+        doc.isStrikeList = false;
+        doc.isOtherType = false;
+        doc.otherDocumentTypeName = null;
+      });
+      // The panel-strike-list opt-in is PQME-only; leaving PQME also clears it.
       if (!this.isPqmeType) {
         this.hasPanelStrikeList = false;
         this.panelStrikeListMissing = false;
-        this.clearStrikeListDesignation();
       }
     });
     this.form
@@ -810,6 +846,8 @@ export class AppointmentAddComponent {
     const control = this.form.get('panelNumber');
     if (!control) return;
     this.isPqmeType = typeId === this.PQME_TYPE_ID;
+    // I15: refresh the document-category labels for the newly-selected type.
+    this.loadDocumentTypeOptions(typeId);
     if (this.isPqmeType) {
       control.enable({ emitEvent: false });
       control.setValidators([Validators.required, Validators.maxLength(50)]);
@@ -1453,29 +1491,98 @@ export class AppointmentAddComponent {
         this.toaster.error(`${file.name}: ${error}`);
         continue;
       }
-      this.stagedDocuments.push({ file, status: 'staged', isStrikeList: false });
+      this.stagedDocuments.push({
+        file,
+        status: 'staged',
+        isStrikeList: false,
+        documentTypeId: null,
+      });
     }
   }
 
   // ----- AF6 (2026-06-05): PQME panel-strike-list opt-in + designation -----
 
   onHasPanelStrikeListChange(checked: boolean): void {
+    // I16 (2026-06-08): the checkbox is the "providing the strike list now"
+    // toggle. The strike list itself is identified by the document labeled
+    // "Panel Strike List" (see onDocumentTypeChange), not a radio designation.
     this.hasPanelStrikeList = checked;
     this.panelStrikeListMissing = false;
-    if (!checked) {
-      // Opting out clears any prior designation so a later re-check starts fresh.
-      this.clearStrikeListDesignation();
+  }
+
+  /**
+   * I16 (2026-06-08): a staged document's type-label was chosen. The strike list
+   * is whichever document is labeled "Panel Strike List"; choosing that label
+   * also auto-ticks the "panel strike list" checkbox (D2).
+   */
+  onDocumentTypeChange(event: { index: number; typeId: string | null }): void {
+    const doc = this.stagedDocuments[event.index];
+    if (!doc) {
+      return;
+    }
+    if (event.typeId === OTHER_DOCUMENT_TYPE_VALUE) {
+      // "Other": no listed category -- the booker types a free-text label.
+      // Clear the type id (mutually exclusive with otherDocumentTypeName on the
+      // backend) and the strike-list flag (a custom label is never the
+      // recognized "Panel Strike List").
+      doc.isOtherType = true;
+      doc.documentTypeId = null;
+      doc.isStrikeList = false;
+    } else {
+      doc.isOtherType = false;
+      doc.otherDocumentTypeName = null;
+      doc.documentTypeId = event.typeId;
+      doc.isStrikeList = !!event.typeId && event.typeId === this.panelStrikeListTypeId;
+    }
+    if (this.stagedDocuments.some((d) => d.isStrikeList)) {
+      this.hasPanelStrikeList = true;
+    }
+    this.panelStrikeListMissing = false;
+    this.otherLabelMissing = false;
+  }
+
+  /** I (2026-06-09): the free-text "Other" label was edited for a staged doc. */
+  onOtherDocumentTypeNameChange(event: { index: number; value: string }): void {
+    const doc = this.stagedDocuments[event.index];
+    if (!doc) {
+      return;
+    }
+    doc.otherDocumentTypeName = event.value;
+    if (event.value.trim()) {
+      this.otherLabelMissing = false;
     }
   }
 
-  designateStrikeList(index: number): void {
-    // Exactly one staged document is the strike list; selecting one clears the rest.
-    this.stagedDocuments.forEach((doc, i) => (doc.isStrikeList = i === index));
-    this.panelStrikeListMissing = false;
-  }
-
-  private clearStrikeListDesignation(): void {
-    this.stagedDocuments.forEach((doc) => (doc.isStrikeList = false));
+  /**
+   * I15 (2026-06-08): load the document-category labels for the chosen appointment
+   * type so the booking-form picker can show them, and cache the "Panel Strike
+   * List" option id for strike-list detection. Best-effort: a failure leaves the
+   * picker empty rather than blocking booking.
+   */
+  private loadDocumentTypeOptions(appointmentTypeId: string | null): void {
+    this.documentTypeOptions = [];
+    this.panelStrikeListTypeId = null;
+    if (!appointmentTypeId) {
+      return;
+    }
+    this.restService
+      .request<
+        unknown,
+        { id: string; displayName: string }[]
+      >({ method: 'GET', url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}` }, { apiName: 'Default' })
+      .subscribe({
+        next: (options) => {
+          this.documentTypeOptions = options ?? [];
+          const strike = this.documentTypeOptions.find(
+            (o) => (o.displayName ?? '').trim().toLowerCase() === 'panel strike list',
+          );
+          this.panelStrikeListTypeId = strike?.id ?? null;
+        },
+        error: () => {
+          this.documentTypeOptions = [];
+          this.panelStrikeListTypeId = null;
+        },
+      });
   }
 
   removeStagedDocument(index: number): void {
@@ -1540,7 +1647,7 @@ export class AppointmentAddComponent {
         appointmentLanguageId: patient.appointmentLanguageId ?? null,
         interpreterVendorName: patient.interpreterVendorName ?? null,
         needsInterpreter: !!patient.interpreterVendorName,
-        refferedBy: patient.refferedBy ?? null,
+        refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
       },
       { emitEvent: false },
     );
@@ -1619,6 +1726,18 @@ export class AppointmentAddComponent {
         form.append('documentName', staged.file.name);
         // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
         form.append('isPanelStrikeList', String(staged.isStrikeList));
+        // I15: send the chosen document-type label so it is stored, and (for the
+        // "Panel Strike List" label) the server also sets IsPanelStrikeList.
+        // "Other" sends the free-text name instead -- the two are mutually
+        // exclusive on the backend (ResolveDocumentTypeSelectionAsync).
+        if (staged.isOtherType) {
+          const otherName = staged.otherDocumentTypeName?.trim();
+          if (otherName) {
+            form.append('otherDocumentTypeName', otherName);
+          }
+        } else if (staged.documentTypeId) {
+          form.append('appointmentDocumentTypeId', staged.documentTypeId);
+        }
         await firstValueFrom(
           this.restService.request<FormData, unknown>(
             {
@@ -1705,6 +1824,16 @@ export class AppointmentAddComponent {
     }
     this.panelStrikeListMissing = false;
 
+    // 2026-06-09: a document labeled "Other" needs its free-text name. A blank
+    // custom label is not a usable category, so block submit (mirrors the
+    // flag/message/return shape of the gates above).
+    if (this.stagedDocuments.some((d) => d.isOtherType && !d.otherDocumentTypeName?.trim())) {
+      this.otherLabelMissing = true;
+      this.patientLoadMessage = 'Enter a name for each document labeled "Other" before saving.';
+      return;
+    }
+    this.otherLabelMissing = false;
+
     // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
     // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
     // any provider error so submission is never blocked.
@@ -1744,6 +1873,9 @@ export class AppointmentAddComponent {
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
+        // 2026-06-09: per-appointment Referred By (optional; blank by default, never
+        // prefilled from the patient or prior appointments).
+        refferedBy: rawAfter.refferedBy?.trim() || undefined,
         // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
         // and auto-link on registration (step 5.2) have the addresses immediately.
         patientEmail: rawAfter.email ?? undefined,
@@ -2087,11 +2219,11 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * Wave 4 / #15: when the selected language is English, force
-   * `needsInterpreter = false` and disable the radio control. Otherwise
-   * re-enable so the booker can choose. `emitEvent: false` on both the
-   * setValue and the disable/enable calls suppresses the cascading
-   * valueChanges event that would otherwise re-enter via
+   * Wave 4 / #15 (interpreter behavior changed by I7, 2026-06-08): when the
+   * selected language is English, DEFAULT `needsInterpreter` to No -- but keep
+   * the radio ENABLED so a booker can still request an interpreter (e.g. ASL)
+   * for an English speaker. `emitEvent: false` on the setValue suppresses the
+   * cascading valueChanges that would otherwise re-enter via the
    * `interpreterVendorName` validators or the @if-rendered vendor input.
    */
   private applyEnglishInterpreterLock(currentLanguageId: string | null): void {
@@ -2115,10 +2247,9 @@ export class AppointmentAddComponent {
       if (vendorCtrl?.value) {
         vendorCtrl.setValue(null, { emitEvent: false });
       }
-      if (interpreterCtrl.enabled) {
-        interpreterCtrl.disable({ emitEvent: false });
-      }
     } else {
+      // Defensive: re-enable if some earlier state had disabled it. The English
+      // branch no longer disables (I7), so this is normally a no-op.
       if (interpreterCtrl.disabled) {
         interpreterCtrl.enable({ emitEvent: false });
       }
@@ -2212,6 +2343,36 @@ export class AppointmentAddComponent {
           this.applicantAttorneyId = null;
           this.applicantAttorneyConcurrencyStamp = null;
         }
+        // I17 (2026-06-08): a defense attorney booking their own appointment
+        // gets the same full-record prefill as an applicant attorney (firm name
+        // + contact fields). No DA loader existed before; the firm name typed at
+        // registration now surfaces via the backend extension-property fallback
+        // in GetDefenseAttorneyDetailsForBookingAsync.
+        const isDefenseAttorney =
+          profile.userRole?.toLowerCase() === 'defense attorney' ||
+          (this.currentUser?.roles ?? []).some(
+            (r: string) => r?.toLowerCase() === 'defense attorney',
+          );
+        if (isDefenseAttorney && identityUserId) {
+          this.loadDefenseAttorneyForCurrentUser(identityUserId);
+        } else {
+          this.form.patchValue({
+            defenseAttorneyIdentityUserId: null,
+            defenseAttorneyFirstName: null,
+            defenseAttorneyLastName: null,
+            defenseAttorneyEmail: null,
+            defenseAttorneyFirmName: null,
+            defenseAttorneyWebAddress: null,
+            defenseAttorneyPhoneNumber: null,
+            defenseAttorneyFaxNumber: null,
+            defenseAttorneyStreet: null,
+            defenseAttorneyCity: null,
+            defenseAttorneyStateId: null,
+            defenseAttorneyZipCode: null,
+          });
+          this.defenseAttorneyId = null;
+          this.defenseAttorneyConcurrencyStamp = null;
+        }
       });
   }
 
@@ -2264,7 +2425,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: patient.appointmentLanguageId ?? null,
           interpreterVendorName: patient.interpreterVendorName ?? null,
           needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
           employerName: null,
           employerOccupation: null,
           employerPhoneNumber: null,
@@ -2296,7 +2457,6 @@ export class AppointmentAddComponent {
       address: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
-      refferedBy: raw.refferedBy ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       street: raw.street ?? undefined,
       interpreterVendorName: raw.needsInterpreter
@@ -2380,7 +2540,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: profile.patient.appointmentLanguageId ?? null,
           interpreterVendorName: profile.patient.interpreterVendorName ?? null,
           needsInterpreter: !!profile.patient.interpreterVendorName,
-          refferedBy: profile.patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
         });
         this.patientLoadMessage = 'Patient loaded. You can edit details below if needed.';
       } else {
@@ -2513,7 +2673,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: patient.appointmentLanguageId ?? null,
           interpreterVendorName: patient.interpreterVendorName ?? null,
           needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
         });
       });
   }
@@ -2814,6 +2974,63 @@ export class AppointmentAddComponent {
       });
   }
 
+  // I17 (2026-06-08): defense-attorney counterpart of
+  // loadApplicantAttorneyForCurrentUser. Loads the booker's own registered DA
+  // record so the DA section prefills firm name + contact fields when a defense
+  // attorney books their own appointment.
+  private loadDefenseAttorneyForCurrentUser(identityUserId: string): void {
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { identityUserId },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyEnabled: true,
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
   private async upsertApplicantAttorneyForAppointmentIfProvided(
     appointmentId?: string,
   ): Promise<void> {
@@ -3076,7 +3293,6 @@ export class AppointmentAddComponent {
       address: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
-      refferedBy: raw.refferedBy ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
       street: raw.street ?? undefined,

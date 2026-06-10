@@ -34,7 +34,8 @@
         </label>
         @if (hasPanelStrikeList) {
           <div class="form-text">
-            Mark which uploaded document below is the panel strike list -- required to submit.
+            Set a document's type to "Panel Strike List" below -- required to submit while this is
+            checked.
           </div>
         }
       </div>
@@ -64,20 +65,34 @@
                 <div class="text-danger small">{{ doc.error }}</div>
               }
             </div>
-            @if (isPqme && hasPanelStrikeList) {
-              <div class="form-check mb-0">
-                <input
-                  class="form-check-input"
-                  type="radio"
-                  name="panel-strike-list-selector"
-                  [id]="'strike-list-' + i"
-                  [checked]="doc.isStrikeList"
+            @if (doc.status === 'staged' || doc.status === 'failed') {
+              <div class="me-1" style="min-width: 200px">
+                <select
+                  class="form-select form-select-sm"
+                  [value]="doc.isOtherType ? otherValue : (doc.documentTypeId ?? '')"
                   [disabled]="disabled"
-                  (change)="selectStrikeList.emit(i)"
-                />
-                <label class="form-check-label small text-nowrap" [for]="'strike-list-' + i">
-                  Strike list
-                </label>
+                  (change)="onDocumentTypeChange(i, $event)"
+                  title="Document type"
+                >
+                  <option value="">-- Document type --</option>
+                  @for (opt of documentTypeOptions; track opt.id) {
+                    <option [value]="opt.id">{{ opt.displayName }}</option>
+                  }
+                  <option [value]="otherValue">Other...</option>
+                </select>
+                @if (doc.isOtherType) {
+                  <input
+                    type="text"
+                    class="form-control form-control-sm mt-1"
+                    [class.is-invalid]="!doc.otherDocumentTypeName?.trim()"
+                    [value]="doc.otherDocumentTypeName ?? ''"
+                    [disabled]="disabled"
+                    [maxlength]="otherMaxLength"
+                    placeholder="Enter document type"
+                    title="Custom document type"
+                    (input)="onOtherDocumentTypeNameChange(i, $event)"
+                  />
+                }
               </div>
             }
             @if (doc.status === 'staged' || doc.status === 'failed') {

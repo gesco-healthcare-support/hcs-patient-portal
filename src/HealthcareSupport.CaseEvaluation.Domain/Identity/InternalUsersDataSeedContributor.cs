@@ -128,11 +128,13 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             var slug = ToTenantSlug(tenant.Name);
 
             // Per-tenant role -> email-prefix map. Doctor is non-user per OLD spec.
+            // 2026-06-09 (Adrian, demo reset): seed ONLY the tenant `admin` here.
+            // The Staff Supervisor + Clinic Staff demo logins are provided by
+            // ExtraSeededUsers (stafsuper1 / clistaff1); the generic
+            // supervisor@/staff@<slug>.test accounts are no longer seeded.
             var seedPlan = new (string EmailPrefix, string RoleName)[]
             {
                 ("admin",      "admin"),
-                ("supervisor", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
-                ("staff",      InternalUserRoleDataSeedContributor.ClinicStaffRoleName),
             };
 
             foreach (var (prefix, roleName) in seedPlan)

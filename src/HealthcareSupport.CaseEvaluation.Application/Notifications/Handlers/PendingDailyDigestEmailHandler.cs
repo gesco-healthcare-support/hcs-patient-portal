@@ -31,6 +31,14 @@ public class PendingDailyDigestEmailHandler :
     ILocalEventHandler<PendingDailyDigestEto>,
     ITransientDependency
 {
+    /// <summary>
+    /// Group F (2026-06-09): each pending request must be decided within this
+    /// many days of being requested. The digest's "Decision due" column shows
+    /// the request date + this window. Kept a const for now; promote to a
+    /// per-tenant setting if a practice needs a different SLA.
+    /// </summary>
+    private const int DecisionDueDays = 5;
+
     private readonly INotificationDispatcher _dispatcher;
     private readonly ISettingProvider _settingProvider;  // for OfficeEmail (not a URL)
     private readonly ICurrentTenant _currentTenant;
@@ -107,6 +115,7 @@ public class PendingDailyDigestEmailHandler :
         sb.Append("<th style=\"text-align:left;padding:6px;border:1px solid #d1d5db;\">Patient</th>");
         sb.Append("<th style=\"text-align:left;padding:6px;border:1px solid #d1d5db;\">Appointment date</th>");
         sb.Append("<th style=\"text-align:left;padding:6px;border:1px solid #d1d5db;\">Due date</th>");
+        sb.Append("<th style=\"text-align:left;padding:6px;border:1px solid #d1d5db;\">Decision due</th>");
         sb.Append("</tr></thead><tbody>");
         foreach (var row in rows)
         {
@@ -115,6 +124,7 @@ public class PendingDailyDigestEmailHandler :
             sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(System.Net.WebUtility.HtmlEncode(row.PatientName ?? string.Empty)).Append("</td>");
             sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(row.AppointmentDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)).Append("</td>");
             sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(row.DueDate.HasValue ? row.DueDate.Value.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture) : "&mdash;").Append("</td>");
+            sb.Append("<td style=\"padding:6px;border:1px solid #d1d5db;\">").Append(row.RequestedAt.AddDays(DecisionDueDays).ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)).Append("</td>");
             sb.Append("</tr>");
         }
         sb.Append("</tbody></table>");

@@ -110,13 +110,12 @@ public class DemoExternalUsersDataSeedContributor : IDataSeedContributor, ITrans
             // Issue 1.2 (2026-05-12): synthetic First/Last/Phone per
             // demo user so admin pages + welcome banner aren't blank.
             // Synthetic 555-prefix per .claude/rules/test-data.md.
-            var seedPlan = new (string EmailPrefix, string RoleName, string First, string Last, string Phone)[]
-            {
-                ("patient",            "Patient",            "Demo",     "Patient",          "555-020-0001"),
-                ("adjuster",           "Claim Examiner",     "Demo",     "Adjuster",         "555-020-0002"),
-                ("applicant.attorney", "Applicant Attorney", "Demo",     "ApplicantAttorney","555-020-0003"),
-                ("defense.attorney",   "Defense Attorney",   "Demo",     "DefenseAttorney",  "555-020-0004"),
-            };
+            // 2026-06-09 (Adrian, demo reset): NO external demo users are seeded.
+            // Patient / Claim Examiner / Applicant + Defense Attorney accounts are
+            // created via the real registration + invite flows during the demo so
+            // the verification/invite emails actually fire. The InboxedExternalUsers
+            // constant above is preserved for tests/docs.
+            var seedPlan = new (string EmailPrefix, string RoleName, string First, string Last, string Phone)[] { };
 
             foreach (var (prefix, roleName, first, last, phone) in seedPlan)
             {

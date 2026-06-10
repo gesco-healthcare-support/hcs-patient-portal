@@ -15,6 +15,12 @@ public static class AppointmentConsts
     public const int PartyEmailMaxLength = 256;
 
     /// <summary>
+    /// Cap for the optional per-appointment "Referred By" free-text field
+    /// (2026-06-09). Matches PatientConsts.RefferedByMaxLength (50).
+    /// </summary>
+    public const int RefferedByMaxLength = 50;
+
+    /// <summary>
     /// Cap for free-text reason fields on Appointment (CancellationReason,
     /// ReScheduleReason, RejectionNotes) and on AppointmentChangeRequest
     /// (CancellationReason, ReScheduleReason, RejectionNotes,

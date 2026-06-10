@@ -1,8 +1,10 @@
 using System;
 using System.Net.Mail;
 using System.Net.Mime;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
@@ -45,15 +47,25 @@ public class SendAppointmentEmailJob :
     private readonly IEmailSender _emailSender;
     private readonly IPacketAttachmentProvider _packetAttachmentProvider;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IConfiguration _configuration;
+
+    // Dev diagnostic (2026-06-07): matches absolute http(s) URLs in a
+    // rendered email body so notification links can be logged. Excludes
+    // whitespace + HTML attribute delimiters so href="..." values are
+    // captured cleanly.
+    private static readonly Regex LinkPattern =
+        new(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public SendAppointmentEmailJob(
         IEmailSender emailSender,
         IPacketAttachmentProvider packetAttachmentProvider,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        IConfiguration configuration)
     {
         _emailSender = emailSender;
         _packetAttachmentProvider = packetAttachmentProvider;
         _currentTenant = currentTenant;
+        _configuration = configuration;
     }
 
     // [UnitOfWork] mirrors AppointmentDayReminderJob + GenerateAppointmentPacketJob.
@@ -76,6 +88,7 @@ public class SendAppointmentEmailJob :
     [UnitOfWork]
     public override async Task ExecuteAsync(SendAppointmentEmailArgs args)
     {
+        LogLinksIfEnabled(args);
         using (_currentTenant.Change(args.TenantId))
         {
             if (args.PacketRef == null)
@@ -85,6 +98,34 @@ public class SendAppointmentEmailJob :
             }
             await SendWithAttachmentAsync(args, args.PacketRef);
         }
+    }
+
+    // Dev diagnostic (2026-06-07): when Notifications:LogLinks is "true",
+    // emit recipient + subject + every URL in the rendered body at Info so
+    // notification links (appointment deep-links, invite / confirm / reset)
+    // are recoverable from the api logs without an inbox. The body itself is
+    // never logged -- links + metadata only -- to keep PHI-shaped content
+    // (names, addresses) out of the log. Read via the indexer (no Binder
+    // dependency); default off so single-use tokens never reach prod logs.
+    private void LogLinksIfEnabled(SendAppointmentEmailArgs args)
+    {
+        if (!string.Equals(_configuration["Notifications:LogLinks"], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var links = LinkPattern.Matches(args.Body ?? string.Empty)
+            .Select(m => m.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Logger.LogInformation(
+            "EMAIL-LINKS ({Context}) to={To} cc={Cc} subject=\"{Subject}\" links={Links}",
+            args.Context,
+            args.To,
+            args.Cc != null && args.Cc.Count > 0 ? string.Join(",", args.Cc) : "(none)",
+            args.Subject,
+            links.Count > 0 ? string.Join(" | ", links) : "(none)");
     }
 
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
@@ -191,10 +232,10 @@ public class SendAppointmentEmailJob :
         {
             // G-04-10 (2026-06-02): no catch -- a send failure propagates after
             // this finally so Hangfire retries + dead-letters. The callback is
-            // idempotent under retry: NotifySendCompletedAsync no-ops on
-            // success=false and on Patient/Doctor kinds, and prunes the AttyCE
-            // row only once on success. An exhausted send leaves the AttyCE row
-            // for manual resend, which is the intended retention fallback.
+            // a no-op as of 2026-06-09 (all three packet kinds are retained; the
+            // former AttyCE-on-success prune was removed so the packet stays
+            // visible + downloadable in the appointment view). It is still
+            // invoked so the call site stays valid for future per-send hooks.
             try
             {
                 await _packetAttachmentProvider.NotifySendCompletedAsync(packetRef.PacketId, success);

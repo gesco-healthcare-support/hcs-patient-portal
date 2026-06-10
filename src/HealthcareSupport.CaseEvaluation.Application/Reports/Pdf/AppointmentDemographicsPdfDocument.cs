@@ -93,7 +93,7 @@ internal sealed class AppointmentDemographicsPdfDocument : IDocument
             ("Address", ComposeAddress(patient?.Street ?? patient?.Address, patient?.City, patient?.ZipCode)),
             ("Other Language", patient?.OthersLanguageName),
             ("Interpreter Vendor", patient?.InterpreterVendorName),
-            ("Referred By", patient?.RefferedBy));
+            ("Referred By", appointment?.RefferedBy));
 
         var employer = _appointment.AppointmentEmployerDetail?.AppointmentEmployerDetail;
         if (employer != null)

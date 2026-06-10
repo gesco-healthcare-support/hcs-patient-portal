@@ -48,7 +48,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         result.ParkingFee.ShouldBe(LocationsTestData.Location1ParkingFee);
         result.IsActive.ShouldBe(LocationsTestData.Location1IsActive);
         result.StateId.ShouldBe(LocationsTestData.State1Id);
-        result.AppointmentTypeId.ShouldBe(LocationsTestData.AppointmentType1Id);
+        result.AppointmentTypeIds.ShouldContain(LocationsTestData.AppointmentType1Id);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             City = existing.City,
             ZipCode = existing.ZipCode,
             StateId = existing.StateId,
-            AppointmentTypeId = existing.AppointmentTypeId,
+            AppointmentTypeIds = existing.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList(),
             ConcurrencyStamp = existing.ConcurrencyStamp
         };
 
@@ -191,9 +191,10 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         result.State.ShouldNotBeNull();
         result.State!.Id.ShouldBe(LocationsTestData.State1Id);
         result.State.Name.ShouldBe(LocationsTestData.State1Name);
-        result.AppointmentType.ShouldNotBeNull();
-        result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
-        result.AppointmentType.Name.ShouldBe(LocationsTestData.AppointmentType1Name);
+        result.AppointmentTypes.ShouldNotBeEmpty();
+        result.AppointmentTypes.ShouldContain(x =>
+            x.Id == LocationsTestData.AppointmentType1Id &&
+            x.Name == LocationsTestData.AppointmentType1Name);
     }
 
     // ------------------------------------------------------------------------

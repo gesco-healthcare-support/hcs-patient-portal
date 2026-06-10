@@ -52,7 +52,21 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
 
     public virtual async Task<LocationDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<Location, LocationDto>(await _locationRepository.GetAsync(id));
+        // I3: load the AppointmentTypes M2M so ToLocationDto can fill AppointmentTypeIds.
+        var queryable = await _locationRepository.WithDetailsAsync(x => x.AppointmentTypes);
+        var location = await AsyncExecuter.FirstOrDefaultAsync(queryable.Where(x => x.Id == id))
+            ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Location), id);
+        return ToLocationDto(location);
+    }
+
+    // I3 (2026-06-08): LocationDto.AppointmentTypeIds is filled from the M2M here
+    // (the Mapperly mapper ignores it). Callers must pass a Location with its
+    // AppointmentTypes collection loaded.
+    private LocationDto ToLocationDto(Location location)
+    {
+        var dto = ObjectMapper.Map<Location, LocationDto>(location);
+        dto.AppointmentTypeIds = location.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList();
+        return dto;
     }
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
@@ -93,15 +107,15 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     [Authorize(CaseEvaluationPermissions.Locations.Create)]
     public virtual async Task<LocationDto> CreateAsync(LocationCreateDto input)
     {
-        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeId, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode);
-        return ObjectMapper.Map<Location, LocationDto>(location);
+        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode);
+        return ToLocationDto(location);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Edit)]
     public virtual async Task<LocationDto> UpdateAsync(Guid id, LocationUpdateDto input)
     {
-        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeId, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp);
-        return ObjectMapper.Map<Location, LocationDto>(location);
+        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp);
+        return ToLocationDto(location);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]

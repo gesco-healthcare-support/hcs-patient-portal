@@ -26,7 +26,7 @@ internal static class EmailSubjects
     /// OLD <c>UserDomain.cs</c>:321. Typo "Your" -> "You" fixed.
     /// </summary>
     public const string UserRegistered =
-        "You have registered successfully - Appointment portal";
+        "Appointment Portal - Registration Successful";
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:926.</summary>
     public const string PatientAppointmentPending =
@@ -65,7 +65,7 @@ internal static class EmailSubjects
     /// fired after a successful password change (in-app or post-reset).
     /// </summary>
     public const string PasswordChange =
-        "Your password has been successfully changed - Appointment portal";
+        "Appointment portal - Password Successfully Changed";
 
     /// <summary>
     /// OLD <c>UserQueryDomain.cs</c>:88 -- "Patient Appointment Portal - "
@@ -75,7 +75,7 @@ internal static class EmailSubjects
     /// routed to the IT-Admin pool.
     /// </summary>
     public const string UserQuery =
-        "Appointment Portal - ##EmailSubjectIdentity## - User query";
+        "Appointment Portal - User query##UserQuerySubjectIdentity##";
 
     // ----------------------------------------------------------------------
     // Phase 2.A (Category 2, 2026-05-08): per-recipient "Appointment Requested"
@@ -106,7 +106,7 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDomain.cs</c>:1030.</summary>
     public const string PatientAppointmentCancelledNoBill =
-        "Appointment Portal - Your appointment has been cancelled - ##AppointmentRequestConfirmationNumber##";
+        "Appointment Portal - Appointment Cancelled - ##AppointmentRequestConfirmationNumber##";
 
     // ----------------------------------------------------------------------
     // Phase 6.C (Category 6, 2026-05-08): document-flow subjects.
@@ -119,39 +119,39 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:258.</summary>
     public const string PatientDocumentAccepted =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' accepted";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:275.</summary>
     public const string PatientDocumentRejected =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' rejected";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:291.</summary>
     public const string PatientDocumentUploaded =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' uploaded";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:340 -- ad-hoc-document accept variant. Same subject as the package variant; only the template body differs.</summary>
     public const string PatientNewDocumentAccepted =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' accepted";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:362.</summary>
     public const string PatientNewDocumentRejected =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' rejected";
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:378.</summary>
     public const string PatientNewDocumentUploaded =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is uploaded by user.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' uploaded";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:976. OLD's "Joint Agreement Letter Uploaded Accepted" wording is fixed.</summary>
     public const string JointAgreementLetterAccepted =
-        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter '##DocumentLabel##' accepted";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:987.</summary>
     public const string JointAgreementLetterUploaded =
-        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Uploaded.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter '##DocumentLabel##' uploaded";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:994. OLD's "Uploaded Rejected" wording is fixed.</summary>
     public const string JointAgreementLetterRejected =
-        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Joint Agreement Letter '##DocumentLabel##' rejected";
 
     /// <summary>Office mailbox subject when a new request lands.</summary>
     public const string AppointmentRequestedOffice =
@@ -159,7 +159,7 @@ internal static class EmailSubjects
 
     /// <summary>Registered party / patient subject -- "log in to view" body inside.</summary>
     public const string AppointmentRequestedRegistered =
-        "Appointment Requested - ##AppointmentRequestConfirmationNumber##";
+        "Appointment Portal - Appointment Requested - ##AppointmentRequestConfirmationNumber##";
 
     // ----------------------------------------------------------------------
     // Phase 7 (Category 7, 2026-05-10): OLD SchedulerDomain reminder subjects.
@@ -179,26 +179,15 @@ internal static class EmailSubjects
     public const string AppointmentApproveRejectInternal =
         "Updated Appointment Request";
 
-    /// <summary>OLD <c>SchedulerDomain.cs</c>:146 + :229 (JDF reuses the same subject).</summary>
-    public const string UploadPendingDocuments =
-        "Please Upload Pending Documents";
-
-    /// <summary>OLD <c>SchedulerDomain.cs</c>:171.</summary>
-    public const string AppointmentDueDateReminder =
-        "Appointment Due Date Approaching";
-
-    /// <summary>OLD <c>SchedulerDomain.cs</c>:199.</summary>
-    public const string AppointmentDocumentIncomplete =
-        "Appointment Document Incomplete";
-
     /// <summary>
-    /// Group L (2026-06-06) -- distinct JDF reminder subject (G-05-02
-    /// Option B). OLD reused "Please Upload Pending Documents" for the JDF
-    /// reminder (SchedulerDomain.cs:229); NEW makes it recognizable as the
-    /// gating AME document.
+    /// Group F (2026-06-09) -- the single consolidated reminder subject. The
+    /// body carries the due-date nudge plus any outstanding documents, so the
+    /// subject stays generic enough to fit both the docs and no-docs cases.
+    /// Replaced the separate UploadPendingDocuments / AppointmentDocumentIncomplete
+    /// / JointDeclarationUploadReminder subjects.
     /// </summary>
-    public const string JointDeclarationUploadReminder =
-        "Please Upload Your Joint Declaration Form";
+    public const string AppointmentDueDateReminder =
+        "Appointment Reminder: Due Date Approaching";
 
     // ----------------------------------------------------------------------
     // Phase 4 (Category 4, 2026-05-10): per-recipient packet email subject.
@@ -210,7 +199,7 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentDocumentDomain.cs</c>:513 / :670 / :806.</summary>
     public const string AppointmentDocumentAddWithAttachment =
-        "Appointment Request Approved - ##EmailSubjectIdentity##";
+        "Appointment Portal - Appointment approved - ##PacketLabel##";
 
     // ----------------------------------------------------------------------
     // Phase 5 (Category 5, 2026-05-10): document Accepted/Rejected with
@@ -221,11 +210,11 @@ internal static class EmailSubjects
 
     /// <summary>OLD <c>AppointmentJointDeclarationDomain.cs</c>:235. Same subject string as PatientDocumentAccepted; only the body differs.</summary>
     public const string PatientDocumentAcceptedRemainingDocs =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Accepted.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' accepted";
 
     /// <summary>OLD <c>AppointmentJointDeclarationDomain.cs</c>:257. Same subject string as PatientDocumentRejected; only the body differs.</summary>
     public const string PatientDocumentRejectedRemainingDocs =
-        "Appointment Portal - ##EmailSubjectIdentity## - Appointment document is Rejected.";
+        "Appointment Portal - ##EmailSubjectIdentity## - Document '##DocumentLabel##' rejected";
 
     // ----------------------------------------------------------------------
     // Phase 3 (Category 3, 2026-05-10): change-request flow subjects.
@@ -284,7 +273,7 @@ internal static class EmailSubjects
     /// in both subject and body before send.
     /// </summary>
     public const string InviteExternalUser =
-        "You have been invited to register at ##TenantName##";
+        "You have been invited to register at Dr. ##TenantName##.";
 
     /// <summary>
     /// 2026-05-15 -- welcome email for a newly-created internal user.
@@ -294,6 +283,10 @@ internal static class EmailSubjects
     /// </summary>
     public const string InternalUserCreated =
         "Welcome to ##TenantName##";
+
+    /// <summary>Group D (2026-06-09) -- opposing-side consent request subject.</summary>
+    public const string ChangeRequestConsentRequest =
+        "Appointment Portal - Your agreement is needed on appointment ##AppointmentRequestConfirmationNumber##";
 
     /// <summary>
     /// Single source of truth for the per-code subject lookup. The seed
@@ -331,10 +324,7 @@ internal static class EmailSubjects
             // Phase 7 (Category 7, 2026-05-10): OLD SchedulerDomain reminder subjects.
             [NotificationTemplateConsts.Codes.PendingAppointmentDailyNotification] = PendingAppointmentDailyNotification,
             [NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal] = AppointmentApproveRejectInternal,
-            [NotificationTemplateConsts.Codes.UploadPendingDocuments] = UploadPendingDocuments,
             [NotificationTemplateConsts.Codes.AppointmentDueDateReminder] = AppointmentDueDateReminder,
-            [NotificationTemplateConsts.Codes.AppointmentDocumentIncomplete] = AppointmentDocumentIncomplete,
-            [NotificationTemplateConsts.Codes.JointDeclarationUploadReminder] = JointDeclarationUploadReminder,
 
             // Phase 4 (Category 4, 2026-05-10): packet email subject.
             [NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment] = AppointmentDocumentAddWithAttachment,
@@ -359,5 +349,6 @@ internal static class EmailSubjects
 
             // 2026-05-15 -- IT Admin internal-user welcome email.
             [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
+            [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
         };
 }

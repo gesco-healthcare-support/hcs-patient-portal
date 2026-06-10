@@ -144,6 +144,8 @@ public class DocumentUploadedEmailHandler :
             var dispatchVariables = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
             {
                 ["LoginUrl"] = loginUrl,
+                ["UploaderFullName"] = ctx.UploaderFullName,
+                ["DocumentLabel"] = ctx.DocumentLabel,
             };
 
             await _dispatcher.DispatchToWithCcAsync(

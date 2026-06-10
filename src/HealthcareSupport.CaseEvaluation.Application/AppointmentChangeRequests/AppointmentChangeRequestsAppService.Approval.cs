@@ -123,6 +123,12 @@ public class AppointmentChangeRequestsApprovalAppService :
                 CaseEvaluationDomainErrorCodes.ChangeRequestInvalidCancellationOutcome);
         }
 
+        // Group D (2026-06-09): block finalize until the opposing side consents.
+        // A No/Expired consent stays blocked here and surfaces in the supervisor's
+        // mediation bucket; staff reject it via the normal reject path.
+        OpposingConsentValidator.EnsureConsentGranted(
+            changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
+
         var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = appointment.AppointmentStatus;
 
@@ -235,6 +241,10 @@ public class AppointmentChangeRequestsApprovalAppService :
 
         // Resolve the actual new slot (override or user-picked) +
         // enforce admin-reason gate.
+        // Group D (2026-06-09): block finalize until the opposing side consents.
+        OpposingConsentValidator.EnsureConsentGranted(
+            changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
+
         var newSlotId = ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
             userPickedSlotId: changeRequest.NewDoctorAvailabilityId,
             overrideSlotId: input.OverrideSlotId,
@@ -449,7 +459,42 @@ public class AppointmentChangeRequestsApprovalAppService :
             .ToList();
 
         var dtos = ObjectMapper.Map<List<AppointmentChangeRequest>, List<AppointmentChangeRequestDto>>(paged);
+        await PopulateAppointmentConfirmationNumbersAsync(paged, dtos);
         return new PagedResultDto<AppointmentChangeRequestDto>(totalCount, dtos);
+    }
+
+    /// <summary>
+    /// Copies each referenced appointment's <c>RequestConfirmationNumber</c>
+    /// onto the matching change-request DTO so the supervisor reschedule/cancel
+    /// queues can show the human-facing "A#####" instead of the raw appointment
+    /// GUID. The change-request entity stores only <c>AppointmentId</c>, so the
+    /// values are fetched here in a single set-based query, not per row.
+    /// </summary>
+    private async Task PopulateAppointmentConfirmationNumbersAsync(
+        IReadOnlyCollection<AppointmentChangeRequest> changeRequests,
+        IReadOnlyCollection<AppointmentChangeRequestDto> dtos)
+    {
+        var appointmentIds = changeRequests.Select(c => c.AppointmentId).Distinct().ToList();
+        if (appointmentIds.Count == 0)
+        {
+            return;
+        }
+
+        var query = await _appointmentRepository.GetQueryableAsync();
+        var confirmationRows = await AsyncExecuter.ToListAsync(
+            query
+                .Where(a => appointmentIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.RequestConfirmationNumber }));
+        var confirmationByAppointmentId = confirmationRows
+            .ToDictionary(row => row.Id, row => row.RequestConfirmationNumber);
+
+        foreach (var dto in dtos)
+        {
+            if (confirmationByAppointmentId.TryGetValue(dto.AppointmentId, out var confirmationNumber))
+            {
+                dto.AppointmentConfirmationNumber = confirmationNumber;
+            }
+        }
     }
 
     private async Task<AppointmentChangeRequest> LoadAndStampStampAsync(Guid id, string? concurrencyStamp)

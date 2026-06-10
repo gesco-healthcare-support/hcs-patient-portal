@@ -42,7 +42,7 @@ export const environment = {
  * No code change needed; the provider factory in app.config switches on the key.
  */
 export const addressValidation = {
-  smartyKey: '',
+  smartyKey: '280901894760220099',
   autocompleteUrl: 'https://us-autocomplete-pro.api.smarty.com/lookup',
   verifyUrl: 'https://us-street.api.smarty.com/street-address',
 };

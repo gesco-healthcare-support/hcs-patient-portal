@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -25,17 +26,22 @@ public class AppointmentManager : DomainService
     // CI1 (2026-06-05) -- counts active Claim Examiner rows to gate the
     // Pending->Approved transition (CE is a required party; see ApplyTransitionAsync).
     protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
+    // I15/I16 (2026-06-08) -- counts panel-strike-list documents to gate the
+    // Pending->Approved transition for PQME appointments (see ApplyTransitionAsync).
+    protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
         ILocalEventBus localEventBus,
         IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
-        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository)
+        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
     {
         _appointmentRepository = appointmentRepository;
         _localEventBus = localEventBus;
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
     public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
@@ -305,6 +311,22 @@ public class AppointmentManager : DomainService
             {
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer)
                     .WithData("appointmentId", appointment.Id);
+            }
+
+            // I15/I16 (2026-06-08) -- a PQME cannot be approved until a panel
+            // strike list document is on file (a doc flagged IsPanelStrikeList,
+            // set when uploaded under the "Panel Strike List" category). A PQME
+            // may be BOOKED without it (uploaded later); only approval is gated.
+            // Same defense-in-depth pattern as the injury + CE gates above.
+            if (appointment.AppointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme)
+            {
+                var strikeListCount = await _appointmentDocumentRepository.CountAsync(
+                    d => d.AppointmentId == appointment.Id && d.IsPanelStrikeList);
+                if (strikeListCount < 1)
+                {
+                    throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList)
+                        .WithData("appointmentId", appointment.Id);
+                }
             }
         }
 

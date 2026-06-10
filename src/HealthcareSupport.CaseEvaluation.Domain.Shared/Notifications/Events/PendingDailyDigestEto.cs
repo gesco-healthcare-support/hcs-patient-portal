@@ -34,4 +34,12 @@ public class PendingDailyDigestRow
     public DateTime AppointmentDate { get; set; }
 
     public DateTime? DueDate { get; set; }
+
+    /// <summary>
+    /// Group F (2026-06-09): when the request was booked (the appointment's
+    /// ABP <c>CreationTime</c>). The handler renders the "Decision due" column
+    /// as this date + the decision window (5 days), so staff see the deadline
+    /// to approve/reject each pending request.
+    /// </summary>
+    public DateTime RequestedAt { get; set; }
 }

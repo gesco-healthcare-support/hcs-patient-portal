@@ -7,12 +7,11 @@
   <div class="card mb-4">
     <div class="card-header">
       <h5 class="card-title mb-0 fw-bold">Insurance</h5>
-      <small class="text-muted">Optional. One insurance carrier per appointment.</small>
     </div>
     <div class="card-body">
       <div class="row">
         <div class="col-md-6 mb-3">
-          <label class="form-label fw-semibold">Insurance Company</label>
+          <label class="form-label fw-semibold">Insurance Company *</label>
           <input
             class="form-control"
             formControlName="appointmentInsuranceName"
@@ -90,7 +89,6 @@
   <div class="card mb-4">
     <div class="card-header">
       <h5 class="card-title mb-0 fw-bold">Claim Examiner</h5>
-      <small class="text-muted">Required. One claim examiner per appointment.</small>
     </div>
     <div class="card-body">
       <div class="row">
@@ -137,7 +135,7 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Phone Number</label>
+          <label class="form-label fw-semibold">Phone Number *</label>
           <input
             class="form-control"
             formControlName="appointmentClaimExaminerPhoneNumber"
@@ -155,7 +153,7 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Street</label>
+          <label class="form-label fw-semibold">Street *</label>
           <app-address-autocomplete
             [group]="form"
             [fields]="claimExaminerAddressFields"
@@ -163,7 +161,7 @@
           ></app-address-autocomplete>
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">City</label>
+          <label class="form-label fw-semibold">City *</label>
           <input
             class="form-control"
             formControlName="appointmentClaimExaminerCity"
@@ -172,7 +170,7 @@
           />
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">State</label>
+          <label class="form-label fw-semibold">State *</label>
           <app-lookup-select
             cid="appointment-claim-examiner-state-id"
             formControlName="appointmentClaimExaminerStateId"
@@ -180,7 +178,7 @@
           ></app-lookup-select>
         </div>
         <div class="col-md-3 mb-3">
-          <label class="form-label fw-semibold">Zip</label>
+          <label class="form-label fw-semibold">Zip *</label>
           <input
             class="form-control"
             formControlName="appointmentClaimExaminerZip"

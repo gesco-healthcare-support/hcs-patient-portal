@@ -82,6 +82,24 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
         return AppendPath(baseUrl, $"/public/document-upload/{documentId}/{verificationCode}");
     }
 
+    public async Task<string> BuildChangeRequestConsentUrlAsync(Guid tenantId, string rawToken)
+    {
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "tenantId must not be Guid.Empty; the consent link is tenant-specific.",
+                nameof(tenantId));
+        }
+
+        // PortalBaseUrl (the SPA): the consent page is an anonymous SPA route that
+        // authorizes by the single-use token (path segment; Base64Url is URL-safe).
+        var baseUrl = await ResolveAndComposeAsync(
+            CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,
+            tenantId,
+            allowNullTenant: false);
+        return AppendPath(baseUrl, $"/public/change-request-consent/{WebUtility.UrlEncode(rawToken)}");
+    }
+
     public Task<string> BuildPortalRootUrlAsync(Guid? tenantId) =>
         ResolveAndComposeAsync(
             CaseEvaluationSettings.NotificationsPolicy.PortalBaseUrl,

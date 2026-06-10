@@ -121,7 +121,12 @@ public class UserQuerySubmittedEmailHandler :
             var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["UserQueryMessage"] = eventData.Message,
-                ["EmailSubjectIdentity"] = subjectIdentity,
+                // Subject suffix carries its own " - " separator so an empty
+                // identity (no matching Approved appointment) leaves no
+                // dangling separator in the subject line.
+                ["UserQuerySubjectIdentity"] = subjectIdentity.Length == 0
+                    ? string.Empty
+                    : $" - {subjectIdentity}",
             };
 
             try

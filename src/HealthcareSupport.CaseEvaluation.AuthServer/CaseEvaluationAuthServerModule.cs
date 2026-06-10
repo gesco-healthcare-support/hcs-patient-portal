@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
+using Volo.Abp.TextTemplateManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
@@ -322,6 +323,20 @@ public class CaseEvaluationAuthServerModule : AbpModule
         Configure<AbpDistributedCacheOptions>(options =>
         {
             options.KeyPrefix = "CaseEvaluation:";
+        });
+
+        // 2026-06-09: do not re-save static text-template definitions to the
+        // DB from this runtime host. The DbMigrator (runs to completion before
+        // api/authserver start) already seeds AbpTextTemplateDefinitionRecords.
+        // Unlike the permission/setting/feature savers, the text-template saver
+        // is NOT guarded by the distributed lock, so api + authserver booting
+        // together both INSERT and collide on the unique name index -- a
+        // duplicate-key SqlException at startup (Abp.Account.EmailConfirmationCode).
+        // Templates still resolve from the in-memory definition providers at
+        // runtime, so disabling the host-side save is safe.
+        Configure<TextTemplateManagementOptions>(options =>
+        {
+            options.SaveStaticTemplatesToDatabase = false;
         });
 
         if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)

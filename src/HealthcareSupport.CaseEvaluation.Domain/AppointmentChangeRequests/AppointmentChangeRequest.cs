@@ -88,6 +88,32 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// </summary>
     public virtual AppointmentStatusType? CancellationOutcome { get; set; }
 
+    // ---- Group D (2026-06-09): opposing-side consent ----
+
+    /// <summary>Which side submitted this request; the opposing side's consent is solicited.</summary>
+    public virtual ChangeRequestSide? RequestingSide { get; protected set; }
+
+    /// <summary>
+    /// IdentityUser id of the submitter, persisted so consent routing can
+    /// determine the opposing side. ABP's audit <c>CreatorId</c> is the fallback.
+    /// </summary>
+    public virtual Guid? SubmittedByUserId { get; protected set; }
+
+    /// <summary>Opposing-side consent state. <c>NotRequired</c> when consent gating is off.</summary>
+    public virtual ChangeRequestConsentStatus ConsentStatus { get; protected set; } = ChangeRequestConsentStatus.NotRequired;
+
+    /// <summary>SHA256 hex of the consent token; the raw token is never stored. Null when NotRequired.</summary>
+    public virtual string? ConsentTokenHash { get; protected set; }
+
+    /// <summary>UTC expiry of the consent token (issue + 7 days).</summary>
+    public virtual DateTime? ConsentExpiresAt { get; protected set; }
+
+    /// <summary>UTC timestamp the opposing side responded (or the request was marked Expired).</summary>
+    public virtual DateTime? ConsentRespondedAt { get; protected set; }
+
+    /// <summary>Email of the opposing-side representative who responded (audit; null on expiry-default).</summary>
+    public virtual string? ConsentRespondedByEmail { get; protected set; }
+
     protected AppointmentChangeRequest()
     {
     }
@@ -123,4 +149,69 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
         IsBeyondLimit = isBeyondLimit;
         RequestStatus = RequestStatusType.Pending;
     }
+
+    // ---- Group D consent transitions (pure domain logic) ----
+
+    /// <summary>
+    /// Issue opposing-side consent: records the token hash + submitting side and
+    /// moves consent to <see cref="ChangeRequestConsentStatus.Pending"/>. Only
+    /// valid from <see cref="ChangeRequestConsentStatus.NotRequired"/>.
+    /// </summary>
+    public void IssueConsent(
+        string tokenHash,
+        ChangeRequestSide requestingSide,
+        Guid submittedByUserId,
+        DateTime expiresAtUtc)
+    {
+        Check.NotNullOrWhiteSpace(tokenHash, nameof(tokenHash));
+        if (ConsentStatus != ChangeRequestConsentStatus.NotRequired)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded);
+        }
+        RequestingSide = requestingSide;
+        SubmittedByUserId = submittedByUserId;
+        ConsentTokenHash = tokenHash;
+        ConsentExpiresAt = expiresAtUtc;
+        ConsentStatus = ChangeRequestConsentStatus.Pending;
+    }
+
+    /// <summary>
+    /// Record the opposing side's decision. Single-use: throws
+    /// <c>ChangeRequestConsentAlreadyResponded</c> unless currently
+    /// <see cref="ChangeRequestConsentStatus.Pending"/>.
+    /// </summary>
+    public void RecordConsentDecision(bool approved, string? respondedByEmail, DateTime nowUtc)
+    {
+        if (ConsentStatus != ChangeRequestConsentStatus.Pending)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded);
+        }
+        ConsentStatus = approved ? ChangeRequestConsentStatus.Approved : ChangeRequestConsentStatus.Rejected;
+        ConsentRespondedAt = nowUtc;
+        ConsentRespondedByEmail = respondedByEmail;
+    }
+
+    /// <summary>
+    /// Mark consent expired (token lapsed). Treated as a No for the supervisor
+    /// gate; staff are notified. No-op unless currently
+    /// <see cref="ChangeRequestConsentStatus.Pending"/>.
+    /// </summary>
+    public void MarkConsentExpired(DateTime nowUtc)
+    {
+        if (ConsentStatus != ChangeRequestConsentStatus.Pending)
+        {
+            return;
+        }
+        ConsentStatus = ChangeRequestConsentStatus.Expired;
+        ConsentRespondedAt = nowUtc;
+    }
+
+    /// <summary>True when the consent token is still pending and has passed its expiry.</summary>
+    public bool IsConsentExpired(DateTime nowUtc) =>
+        ConsentStatus == ChangeRequestConsentStatus.Pending
+        && ConsentExpiresAt.HasValue
+        && ConsentExpiresAt.Value <= nowUtc;
+
+    /// <summary>True when the opposing side has granted consent (the supervisor gate passes).</summary>
+    public bool IsConsentGranted() => ConsentStatus == ChangeRequestConsentStatus.Approved;
 }

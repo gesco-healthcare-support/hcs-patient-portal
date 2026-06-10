@@ -84,7 +84,6 @@ export class PatientProfileComponent implements OnInit {
     address: [null as string | null, [Validators.maxLength(100)]],
     city: [null as string | null, [Validators.maxLength(50)]],
     zipCode: [null as string | null, [Validators.maxLength(15)]],
-    refferedBy: [null as string | null, [Validators.maxLength(50)]],
     cellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     phoneNumberTypeId: [null as number | null, [Validators.required]],
     street: [null as string | null, [Validators.maxLength(255)]],

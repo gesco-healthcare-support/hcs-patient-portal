@@ -204,8 +204,12 @@ public class NotificationTemplatesValidatorUnitTests
         // (InviteExternalUser, InternalUserCreated), bringing the count to 64.
         // Merge (2026-06-07): Group L added JointDeclarationUploadReminder (+1)
         // and E2 (2026-06-04) removed the dead AppointmentRequestedUnregistered
-        // (-1); the merged set keeps both changes, so the count is 64.
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(64);
+        // (-1); the merged set keeps both changes, count 64.
+        // Group D (2026-06-09) added ChangeRequestConsentRequest (+1 -> 65).
+        // Group F (2026-06-09) consolidated the reminders, removing
+        // UploadPendingDocuments, AppointmentDocumentIncomplete, and
+        // JointDeclarationUploadReminder (-3 -> 62).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(62);
     }
 
     [Fact]

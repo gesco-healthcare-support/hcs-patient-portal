@@ -18,7 +18,10 @@ export class SsnMaskPipe implements PipeTransform {
     if (!value) return '';
     const digits = String(value).replace(/\D/g, '');
     if (digits.length === 0) return '';
-    if (digits.length < 4) return '*'.repeat(digits.length);
-    return `***-**-${digits.slice(-4)}`;
+    // I14 (2026-06-08): bullet circles (codepoint U+2022) instead of asterisks.
+    // The escape renders as a dot and keeps the source ASCII-only.
+    const dot = String.fromCharCode(0x2022);
+    if (digits.length < 4) return dot.repeat(digits.length);
+    return `${dot}${dot}${dot}-${dot}${dot}-${digits.slice(-4)}`;
   }
 }

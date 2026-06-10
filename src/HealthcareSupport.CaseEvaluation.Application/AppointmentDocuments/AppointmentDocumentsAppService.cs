@@ -159,14 +159,19 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     }
 
     /// <summary>
-    /// G-03-03 (PR2): document-type options for the upload picker. Any uploader
-    /// (internal or external) on this appointment may read them -- gated by the
-    /// upload permission + the per-appointment read-access guard, NOT the
-    /// admin-only AppointmentDocumentTypes.Default. Returns active, non-system
-    /// categories scoped to the appointment's own type (plus the "applies to
-    /// all types" rows). The reserved "Generated Packet" system row is excluded.
+    /// G-03-03 (PR2): document-type options for the document picker. Returns
+    /// active, non-system categories scoped to the appointment's own type (plus
+    /// the "applies to all types" rows); the reserved "Generated Packet" system
+    /// row is excluded. The per-appointment read-access guard still applies.
+    ///
+    /// 2026-06-09 fix: gated by AppointmentDocuments.Default (a read), NOT
+    /// .Create. The appointment Review page loads these options on open, so a
+    /// reviewer tier must be able to read them -- Clinic Staff has .Default +
+    /// .Approve but NOT .Create (upload is supervisor-only), so the old .Create
+    /// gate 403'd the Review page for Clinic Staff. Every role granted .Create
+    /// also has .Default, so no uploader loses access. Returns only label names.
     /// </summary>
-    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
     public virtual async Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
     {
         if (appointmentId == Guid.Empty)
@@ -181,6 +186,28 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             .Where(t => t.IsActive
                         && !t.IsSystem
                         && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointment.AppointmentTypeId))
+            .OrderBy(t => t.Name)
+            .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
+        return await AsyncExecuter.ToListAsync(query);
+    }
+
+    /// <summary>
+    /// I15 (2026-06-08): document-type options for the BOOKING form, where no
+    /// appointment exists yet. Same catalog as <see cref="GetDocumentTypeOptionsAsync"/>
+    /// but keyed by appointment type directly (active, non-system rows scoped to
+    /// the type + the "applies to all types" rows). Gated by AppointmentDocuments.Default
+    /// (a read) -- it returns label names, no appointment-specific data. 2026-06-09:
+    /// relaxed from .Create so a Clinic Staff booker (has .Default, not .Create) gets
+    /// a populated picker; every role with .Create also has .Default.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
+    public virtual async Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId)
+    {
+        var queryable = await _documentTypeRepository.GetQueryableAsync();
+        var query = queryable
+            .Where(t => t.IsActive
+                        && !t.IsSystem
+                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointmentTypeId))
             .OrderBy(t => t.Name)
             .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
         return await AsyncExecuter.ToListAsync(query);
@@ -329,9 +356,22 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // unifies via the IsAdHoc flag (Phase 1.6). Package + JDF
         // uploads use the dedicated methods below.
         entity.IsAdHoc = true;
-        // AF6 (2026-06-05): tag the booker-marked PQME panel strike list (AF5
-        // flag) so staff can identify it for venue verification.
-        entity.IsPanelStrikeList = isPanelStrikeList;
+        // AF6 (2026-06-05) + I16 (2026-06-08): tag the panel strike list so staff
+        // can identify it and the PQME approval gate can find it. Set when EITHER
+        // the client flagged it OR the document was uploaded under the
+        // "Panel Strike List" category -- so the label drives the flag on both the
+        // booking form and the post-booking view-page upload.
+        var isStrikeListByLabel = false;
+        if (resolvedTypeId.HasValue)
+        {
+            var resolvedType = await _documentTypeRepository.FindAsync(resolvedTypeId.Value);
+            isStrikeListByLabel = resolvedType != null
+                && string.Equals(
+                    resolvedType.Name,
+                    AppointmentDocumentTypeConsts.PanelStrikeListName,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        entity.IsPanelStrikeList = isPanelStrikeList || isStrikeListByLabel;
         entity.Status = initialStatus;
         if (initialStatus == DocumentStatus.Accepted)
         {
@@ -879,7 +919,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (!new[] { ".pdf", ".jpg", ".jpeg", ".png" }.Contains(extension))
         {
-            throw new UserFriendlyException("Only PDF and image formats (JPG, PNG) are accepted.");
+            throw new UserFriendlyException(
+                "Only PDF and image formats (JPG, PNG) are accepted.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
 
         if (!stream.CanSeek)
@@ -894,7 +936,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         if (read < 4)
         {
-            throw new UserFriendlyException("File is empty or corrupted.");
+            throw new UserFriendlyException(
+                "File is empty or corrupted.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
 
         bool isPdf = magic[0] == 0x25 && magic[1] == 0x50 && magic[2] == 0x44 && magic[3] == 0x46;
@@ -903,7 +947,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         if (!(isPdf || isJpeg || isPng))
         {
-            throw new UserFriendlyException("File format is not supported. Please upload a valid PDF or image file.");
+            throw new UserFriendlyException(
+                "File format is not supported. Please upload a valid PDF or image file.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
     }
 }

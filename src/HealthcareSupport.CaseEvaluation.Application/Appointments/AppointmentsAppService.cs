@@ -28,6 +28,7 @@ using System.Linq.Dynamic.Core;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
@@ -229,12 +230,35 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // separate refactor. The same rows will surface via bookerIds anyway,
         // so the omission has no observable effect today.
 
+        // 7. Email-based visibility (I5, 2026-06-08) -- OLD-app parity + the
+        // "match email + role" preference. The id-based links above can be stale
+        // or unset (an appointment booked with a party's email before they
+        // registered, or a re-registered account whose old links still point at
+        // the prior user id), so also surface every appointment whose
+        // denormalized party email equals the caller's email. This is how OLD
+        // filtered "My Appointments" and makes linking independent of the
+        // registration path / timing.
+        var emailMatchAppointmentIds = new List<Guid>();
+        if (!string.IsNullOrWhiteSpace(userEmail))
+        {
+            var callerEmailLower = userEmail.Trim().ToLower();
+            emailMatchAppointmentIds = await AsyncExecuter.ToListAsync(
+                appointmentQuery
+                    .Where(a =>
+                        (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
+                        (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
+                        (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
+                        (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
+                    .Select(a => a.Id));
+        }
+
         var union = new HashSet<Guid>(bookerIds);
         union.UnionWith(patientAppointmentIds);
         union.UnionWith(aaLinkAppointmentIds);
         union.UnionWith(daLinkAppointmentIds);
         union.UnionWith(ceAppointmentIds);
         union.UnionWith(accessorAppointmentIds);
+        union.UnionWith(emailMatchAppointmentIds);
         return union.ToList();
     }
 
@@ -797,6 +821,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+        // 2026-06-09: per-appointment Referred By (optional; not derived from the patient).
+        appointment.RefferedBy = input.RefferedBy;
 
         // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
         // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
@@ -1031,6 +1057,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+        appointment.RefferedBy = input.RefferedBy;
         await _appointmentRepository.UpdateAsync(appointment);
 
         // B1 (2026-05-05) -- replace-all custom-field answers. OLD's edit path
@@ -1111,7 +1138,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             FirstName = identityUser.Name ?? string.Empty,
             LastName = identityUser.Surname ?? string.Empty,
             Email = identityUser.Email ?? string.Empty,
-            FirmName = applicant?.FirmName,
+            // I17 (2026-06-08): a registered-but-never-booked attorney has no
+            // ApplicantAttorney master row yet -- the firm name they typed at
+            // registration lives on the IdentityUser FirmName extension property
+            // (ExternalSignupAppService writes it there). Fall back to it so the
+            // booking form prefills the firm even before the first booking.
+            FirmName = string.IsNullOrWhiteSpace(applicant?.FirmName)
+                ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
+                : applicant!.FirmName,
             WebAddress = applicant?.WebAddress,
             PhoneNumber = applicant?.PhoneNumber,
             FaxNumber = applicant?.FaxNumber,
@@ -1338,7 +1372,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             FirstName = identityUser.Name ?? string.Empty,
             LastName = identityUser.Surname ?? string.Empty,
             Email = identityUser.Email ?? string.Empty,
-            FirmName = defense?.FirmName,
+            // I17 (2026-06-08): registered-but-never-booked defense attorney --
+            // firm name lives on the IdentityUser FirmName extension (set at
+            // registration), not yet on a DefenseAttorney master row. Fall back.
+            FirmName = string.IsNullOrWhiteSpace(defense?.FirmName)
+                ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
+                : defense!.FirmName,
             WebAddress = defense?.WebAddress,
             PhoneNumber = defense?.PhoneNumber,
             FaxNumber = defense?.FaxNumber,

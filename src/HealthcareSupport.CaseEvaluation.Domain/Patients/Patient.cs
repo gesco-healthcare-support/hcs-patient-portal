@@ -57,9 +57,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string? ZipCode { get; set; }
 
     [CanBeNull]
-    public virtual string? RefferedBy { get; set; }
-
-    [CanBeNull]
     public virtual string? CellPhoneNumber { get; set; }
 
     public virtual PhoneNumberType PhoneNumberTypeId { get; set; }
@@ -88,7 +85,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         Id = id;
         Check.NotNull(firstName, nameof(firstName));
@@ -103,7 +100,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength, 0);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength, 0);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength, 0);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength, 0);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength, 0);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength, 0);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength, 0);
@@ -121,7 +117,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Address = address;
         City = city;
         ZipCode = zipCode;
-        RefferedBy = refferedBy;
         CellPhoneNumber = cellPhoneNumber;
         Street = street;
         InterpreterVendorName = interpreterVendorName;

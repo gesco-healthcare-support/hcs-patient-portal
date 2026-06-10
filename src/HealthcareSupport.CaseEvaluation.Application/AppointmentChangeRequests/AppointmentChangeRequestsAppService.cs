@@ -8,6 +8,10 @@ using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Local;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using Microsoft.Extensions.Logging;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -32,19 +36,35 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
     // policy gate fires.
     private readonly BookingPolicyValidator _bookingPolicyValidator;
     private readonly IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    // Group D (2026-06-09): opposing-side consent issuance + notification.
+    private readonly ChangeRequestConsentManager _consentManager;
+    private readonly ChangeRequestSideResolver _sideResolver;
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
+    private readonly ILocalEventBus _localEventBus;
+    private readonly IAppointmentChangeRequestRepository _changeRequestRepository;
 
     public AppointmentChangeRequestsAppService(
         AppointmentChangeRequestManager manager,
         IAppointmentRepository appointmentRepository,
         AppointmentReadAccessGuard readAccessGuard,
         BookingPolicyValidator bookingPolicyValidator,
-        IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository)
+        IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository,
+        ChangeRequestConsentManager consentManager,
+        ChangeRequestSideResolver sideResolver,
+        IAccountUrlBuilder accountUrlBuilder,
+        ILocalEventBus localEventBus,
+        IAppointmentChangeRequestRepository changeRequestRepository)
     {
         _manager = manager;
         _appointmentRepository = appointmentRepository;
         _readAccessGuard = readAccessGuard;
         _bookingPolicyValidator = bookingPolicyValidator;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
+        _consentManager = consentManager;
+        _sideResolver = sideResolver;
+        _accountUrlBuilder = accountUrlBuilder;
+        _localEventBus = localEventBus;
+        _changeRequestRepository = changeRequestRepository;
     }
 
     [Authorize]
@@ -71,6 +91,8 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             appointmentId: appointmentId,
             cancellationReason: input.Reason,
             actingUserId: CurrentUser.Id);
+
+        await IssueConsentAndNotifyAsync(changeRequest);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
     }
@@ -122,6 +144,8 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             isBeyondLimit: input.IsBeyondLimit,
             actingUserId: CurrentUser.Id);
 
+        await IssueConsentAndNotifyAsync(changeRequest);
+
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
     }
 
@@ -135,5 +159,48 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestEditAccessRequired)
                 .WithData("appointmentId", appointmentId);
         }
+    }
+
+    /// <summary>
+    /// Group D (2026-06-09): issue the opposing-side consent token on the just-submitted
+    /// request and publish <see cref="ChangeRequestConsentRequestedEto"/> so the actionable
+    /// Yes/No email goes to the opposing side's representative. No-op when consent gating is
+    /// off; when the opposing side cannot be resolved (defensive), consent stays NotRequired
+    /// so the Staff Supervisor can finalize directly.
+    /// </summary>
+    private async Task IssueConsentAndNotifyAsync(AppointmentChangeRequest changeRequest)
+    {
+        if (!AppointmentChangeRequestConsts.ConsentGatingEnabled || !changeRequest.TenantId.HasValue)
+        {
+            return;
+        }
+
+        var resolution = await _sideResolver.ResolveAsync(changeRequest.AppointmentId, CurrentUser.Email);
+        if (resolution == null)
+        {
+            Logger.LogWarning(
+                "ChangeRequest {ChangeRequestId}: opposing side unresolved; consent skipped (Staff Supervisor finalizes directly).",
+                changeRequest.Id);
+            return;
+        }
+
+        var rawToken = _consentManager.IssueConsent(
+            changeRequest, resolution.RequestingSide, CurrentUser.Id ?? Guid.Empty);
+        await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+
+        var consentUrl = await _accountUrlBuilder.BuildChangeRequestConsentUrlAsync(
+            changeRequest.TenantId.Value, rawToken);
+
+        await _localEventBus.PublishAsync(new ChangeRequestConsentRequestedEto
+        {
+            AppointmentId = changeRequest.AppointmentId,
+            ChangeRequestId = changeRequest.Id,
+            TenantId = changeRequest.TenantId,
+            ChangeRequestType = changeRequest.ChangeRequestType,
+            OpposingRecipientEmail = resolution.OpposingRepEmail,
+            OpposingRecipientRole = resolution.OpposingRepRole,
+            ConsentUrl = consentUrl,
+            OccurredAt = DateTime.UtcNow,
+        });
     }
 }

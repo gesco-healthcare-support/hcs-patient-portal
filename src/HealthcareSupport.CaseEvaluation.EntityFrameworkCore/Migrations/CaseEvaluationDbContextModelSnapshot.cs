@@ -373,6 +373,28 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
 
+                    b.Property<DateTime?>("ConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ConsentExpiresAt");
+
+                    b.Property<DateTime?>("ConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ConsentRespondedAt");
+
+                    b.Property<string>("ConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ConsentRespondedByEmail");
+
+                    b.Property<int>("ConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("ConsentStatus");
+
+                    b.Property<string>("ConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("ConsentTokenHash");
+
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreationTime");
@@ -434,6 +456,14 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("int")
                         .HasColumnName("RequestStatus");
 
+                    b.Property<int?>("RequestingSide")
+                        .HasColumnType("int")
+                        .HasColumnName("RequestingSide");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SubmittedByUserId");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -441,6 +471,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AppointmentId");
+
+                    b.HasIndex("ConsentTokenHash");
 
                     b.HasIndex("AppointmentId", "RequestStatus");
 
@@ -1705,6 +1737,11 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("ReScheduledById");
 
+                    b.Property<string>("RefferedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("RefferedBy");
+
                     b.Property<Guid?>("RejectedById")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("RejectedById");
@@ -2640,9 +2677,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("Address");
 
-                    b.Property<Guid?>("AppointmentTypeId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("City")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
@@ -2715,11 +2749,24 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppointmentTypeId");
-
                     b.HasIndex("StateId");
 
                     b.ToTable("AppLocations", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.LocationAppointmentType", b =>
+                {
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("LocationId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.ToTable("AppLocationAppointmentType", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate", b =>
@@ -3081,11 +3128,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.Property<int>("PhoneNumberTypeId")
                         .HasColumnType("int")
                         .HasColumnName("PhoneNumberTypeId");
-
-                    b.Property<string>("RefferedBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("RefferedBy");
 
                     b.Property<string>("SocialSecurityNumber")
                         .HasMaxLength(20)
@@ -6278,15 +6320,27 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.Location", b =>
                 {
-                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", null)
-                        .WithMany()
-                        .HasForeignKey("AppointmentTypeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
                         .WithMany()
                         .HasForeignKey("StateId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.LocationAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", "AppointmentType")
+                        .WithMany()
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentType");
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate", b =>
@@ -6546,6 +6600,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.Location", b =>
                 {
+                    b.Navigation("AppointmentTypes");
+
                     b.Navigation("DoctorLocations");
                 });
 

@@ -36,6 +36,15 @@ public class AppointmentDocumentController : AbpController
         return _service.GetDocumentTypeOptionsAsync(appointmentId);
     }
 
+    // I15 (2026-06-08): booking-form options keyed by appointment type (no
+    // appointment exists yet). Absolute route ("~/") so it is not nested under
+    // the {appointmentId} prefix.
+    [HttpGet("~/api/app/appointment-documents/options-by-type/{appointmentTypeId}")]
+    public virtual Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId)
+    {
+        return _service.GetDocumentTypeOptionsByAppointmentTypeAsync(appointmentTypeId);
+    }
+
     [HttpGet("missing-required")]
     public virtual Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
     {

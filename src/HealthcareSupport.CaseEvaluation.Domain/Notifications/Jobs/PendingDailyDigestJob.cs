@@ -92,6 +92,7 @@ public class PendingDailyDigestJob : ITransientDependency
                 a.AppointmentDate,
                 a.DueDate,
                 a.PatientId,
+                a.CreationTime,
             })
             .ToList();
 
@@ -124,6 +125,7 @@ public class PendingDailyDigestJob : ITransientDependency
                     PatientName = string.IsNullOrWhiteSpace(patientName) ? "(unnamed patient)" : patientName,
                     AppointmentDate = a.AppointmentDate,
                     DueDate = a.DueDate,
+                    RequestedAt = a.CreationTime,
                 };
             })
             .OrderBy(r => r.AppointmentDate)

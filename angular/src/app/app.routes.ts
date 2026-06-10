@@ -47,6 +47,17 @@ export const APP_ROUTES: Routes = [
       ),
   },
   {
+    // Group D (2026-06-09) -- public, no-login opposing-side consent page reached by
+    // the single-use token link in the consent email. Guard-free + eLayoutType.empty
+    // (no app shell), same as the document-upload page; authorizes via the token.
+    path: 'public/change-request-consent/:token',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./public-change-request-consent/public-change-request-consent.component').then(
+        (c) => c.PublicChangeRequestConsentComponent,
+      ),
+  },
+  {
     path: 'dashboard',
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),

@@ -21,7 +21,7 @@ import type {
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
-import { genderOptions } from '../../../proxy/enums/gender.enum';
+import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
@@ -176,7 +176,10 @@ export class AppointmentViewComponent implements OnInit {
   isSaving = false;
   errorMessage = '';
   successMessage = '';
-  readonly genderOptions = genderOptions;
+  // I6 (2026-06-08): drop the Gender.Unspecified (value 0) radio -- it has no
+  // localized label (renders the raw "Enum:Gender.0" key) and is not a valid
+  // selection.
+  readonly genderOptions = genderOptions.filter((option) => option.value !== Gender.Unspecified);
   readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
   readonly accessTypeOptions = [
     { value: 23, label: 'View' },
@@ -213,6 +216,34 @@ export class AppointmentViewComponent implements OnInit {
   // read from the appointment nav-props (data.claimExaminer / data.primaryInsurance).
   appointmentClaimExaminerName = '';
   appointmentInsuranceCompanyName = '';
+
+  // CE-VIEW / INS-VIEW (2026-06-09): the dedicated read-only Claim Examiner
+  // and Insurance sections render straight from the appointment nav-props
+  // (appointment.claimExaminer / appointment.primaryInsurance) in the
+  // template. stateNamesById resolves the stored StateId GUID to a display
+  // name for those sections; the editable address blocks elsewhere use the
+  // app-lookup-select component, but these sections are plain read-only.
+  private readonly stateNamesById = new Map<string, string>();
+
+  stateName(id?: string | null): string {
+    return id ? (this.stateNamesById.get(id) ?? '') : '';
+  }
+
+  private loadStateNames(): void {
+    this.getStateLookup({
+      filter: '',
+      skipCount: 0,
+      maxResultCount: 100,
+    } as LookupRequestDto).subscribe({
+      next: (res) => {
+        (res.items ?? []).forEach((item) => {
+          if (item.id) {
+            this.stateNamesById.set(item.id, item.displayName ?? '');
+          }
+        });
+      },
+    });
+  }
 
   // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
   // so future shared section components (e.g. <app-patient-demographics>) can
@@ -390,6 +421,9 @@ export class AppointmentViewComponent implements OnInit {
     wireAttorneySectionToggle(this.form, 'defenseAttorney');
 
     this.loadExternalAuthorizedUsers();
+    // CE-VIEW / INS-VIEW (2026-06-09): preload state display names for the
+    // read-only Claim Examiner + Insurance sections.
+    this.loadStateNames();
 
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -447,7 +481,9 @@ export class AppointmentViewComponent implements OnInit {
             patientAppointmentLanguageId: patient?.appointmentLanguageId ?? null,
             patientNeedsInterpreter: !!patient?.interpreterVendorName,
             patientInterpreterVendorName: patient?.interpreterVendorName ?? '',
-            patientRefferedBy: patient?.refferedBy ?? '',
+            // 2026-06-09: Referred By is now a per-appointment field; source it
+            // from the appointment, not the patient.
+            patientRefferedBy: data.appointment?.refferedBy ?? '',
           },
           { emitEvent: false },
         );
@@ -819,7 +855,6 @@ export class AppointmentViewComponent implements OnInit {
         address: raw.patientAddress || undefined,
         city: raw.patientCity || undefined,
         zipCode: raw.patientZipCode || undefined,
-        refferedBy: raw.patientRefferedBy || undefined,
         cellPhoneNumber: raw.patientCellPhoneNumber || undefined,
         phoneNumberTypeId: (raw.patientPhoneNumberTypeId as any) ?? undefined,
         street: raw.patientStreet || undefined,
@@ -877,6 +912,9 @@ export class AppointmentViewComponent implements OnInit {
               applicantAttorneyEmail: selected.applicantAttorneyEmail,
               defenseAttorneyEmail: selected.defenseAttorneyEmail,
               claimExaminerEmail: selected.claimExaminerEmail,
+              // 2026-06-09: per-appointment Referred By -- the form loads/saves
+              // the appointment's own value (not the patient's).
+              refferedBy: raw.patientRefferedBy || undefined,
             };
 
             this.appointmentService.update(selected.id!, payload).subscribe({

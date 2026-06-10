@@ -20,7 +20,7 @@ public class PatientManager : DomainService
         _patientRepository = patientRepository;
     }
 
-    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public virtual async Task<Patient> CreateAsync(Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         // identityUserId is now nullable (IP6 2026-06-05): a Patient may exist
         // as a record with no login. Booking inserts null; the claim flow links
@@ -45,17 +45,16 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
         Check.Length(apptNumber, nameof(apptNumber), PatientConsts.ApptNumberMaxLength);
         Check.Length(othersLanguageName, nameof(othersLanguageName), PatientConsts.OthersLanguageNameMaxLength);
-        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
+        var patient = new Patient(GuidGenerator.Create(), stateId, appointmentLanguageId, identityUserId, tenantId, firstName, lastName, email, genderId, dateOfBirth, phoneNumberTypeId, middleName, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, othersLanguageName);
         return await _patientRepository.InsertAsync(patient);
     }
 
-    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Patient> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNullOrWhiteSpace(firstName, nameof(firstName));
         Check.Length(firstName, nameof(firstName), PatientConsts.FirstNameMaxLength);
@@ -72,7 +71,6 @@ public class PatientManager : DomainService
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength);
@@ -105,7 +103,6 @@ public class PatientManager : DomainService
         patient.Address = address;
         patient.City = city;
         patient.ZipCode = zipCode;
-        patient.RefferedBy = refferedBy;
         patient.CellPhoneNumber = cellPhoneNumber;
         patient.Street = street;
         patient.InterpreterVendorName = interpreterVendorName;
@@ -150,7 +147,6 @@ public class PatientManager : DomainService
         string? middleName = null,
         string? address = null,
         string? city = null,
-        string? refferedBy = null,
         string? cellPhoneNumber = null,
         string? street = null,
         string? interpreterVendorName = null,
@@ -195,7 +191,6 @@ public class PatientManager : DomainService
             address,
             city,
             zipCode,
-            refferedBy,
             cellPhoneNumber,
             street,
             interpreterVendorName,

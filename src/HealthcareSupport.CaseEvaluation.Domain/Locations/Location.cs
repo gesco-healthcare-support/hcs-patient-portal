@@ -33,14 +33,16 @@ public class Location : FullAuditedAggregateRoot<Guid>
 
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers MULTIPLE appointment types (M2M) instead
+    // of a single AppointmentTypeId. Empty set = no types configured.
+    public virtual ICollection<LocationAppointmentType> AppointmentTypes { get; set; } = new Collection<LocationAppointmentType>();
     public virtual ICollection<DoctorLocation> DoctorLocations { get; set; } = new Collection<DoctorLocation>();
 
     protected Location()
     {
     }
 
-    public Location(Guid id, Guid? stateId, Guid? appointmentTypeId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
+    public Location(Guid id, Guid? stateId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
@@ -55,6 +57,32 @@ public class Location : FullAuditedAggregateRoot<Guid>
         City = city;
         ZipCode = zipCode;
         StateId = stateId;
-        AppointmentTypeId = appointmentTypeId;
+        AppointmentTypes = new Collection<LocationAppointmentType>();
+    }
+
+    // I3 (2026-06-08): M2M appointment-type management, mirroring
+    // DoctorAvailability's AddAppointmentType / RemoveAllAppointmentTypesExceptGivenIds.
+    public virtual void AddAppointmentType(Guid appointmentTypeId)
+    {
+        if (AppointmentTypes.Any(x => x.AppointmentTypeId == appointmentTypeId))
+        {
+            return;
+        }
+        AppointmentTypes.Add(new LocationAppointmentType(Id, appointmentTypeId));
+    }
+
+    public virtual void SetAppointmentTypes(List<Guid> appointmentTypeIds)
+    {
+        Check.NotNull(appointmentTypeIds, nameof(appointmentTypeIds));
+        var distinct = appointmentTypeIds.Distinct().ToList();
+        var toRemove = AppointmentTypes.Where(x => !distinct.Contains(x.AppointmentTypeId)).ToList();
+        foreach (var item in toRemove)
+        {
+            AppointmentTypes.Remove(item);
+        }
+        foreach (var id in distinct)
+        {
+            AddAppointmentType(id);
+        }
     }
 }

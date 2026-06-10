@@ -11,5 +11,5 @@ public class LocationWithNavigationPropertiesDto
     public LocationDto Location { get; set; } = null!;
     public StateDto? State { get; set; }
 
-    public AppointmentTypeDto? AppointmentType { get; set; }
+    public List<AppointmentTypeDto> AppointmentTypes { get; set; } = new();
 }

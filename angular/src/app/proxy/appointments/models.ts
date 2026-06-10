@@ -46,6 +46,7 @@ export interface AppointmentCreateDto {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
   isPatientAlreadyExist?: boolean;
   customFieldValues?: CustomFieldValueInputDto[];
 }
@@ -71,6 +72,7 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
 }
 
 export interface AppointmentUpdateDto {
@@ -88,6 +90,7 @@ export interface AppointmentUpdateDto {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
   customFieldValues?: CustomFieldValueInputDto[];
 }
 

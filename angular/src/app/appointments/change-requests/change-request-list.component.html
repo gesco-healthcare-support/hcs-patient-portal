@@ -18,10 +18,16 @@
           <tbody>
             @for (row of items; track row.id) {
               <tr>
-                <td>{{ row.appointmentId }}</td>
+                <td>{{ row.appointmentConfirmationNumber || row.appointmentId }}</td>
                 <td>{{ reasonOf(row) }}</td>
                 <td>{{ row.creationTime | abpUtcToLocal: 'datetime' }}</td>
                 <td class="text-end">
+                  <a
+                    class="btn btn-sm btn-outline-secondary me-2"
+                    [routerLink]="['/appointments/view', row.appointmentId]"
+                  >
+                    {{ '::ChangeRequest:Action:View' | abpLocalization }}
+                  </a>
                   <button class="btn btn-sm btn-success me-2" (click)="openApprove(row)">
                     {{ '::ChangeRequest:Action:Approve' | abpLocalization }}
                   </button>

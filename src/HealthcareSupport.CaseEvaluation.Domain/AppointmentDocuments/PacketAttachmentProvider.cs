@@ -1,8 +1,4 @@
-using System;
 using System.Globalization;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using Microsoft.Extensions.Logging;
@@ -74,54 +70,19 @@ public class PacketAttachmentProvider : IPacketAttachmentProvider, ITransientDep
         return new PacketAttachment(bytes, fileName, PdfContentType);
     }
 
-    public virtual async Task NotifySendCompletedAsync(Guid packetId, bool success, CancellationToken cancellationToken = default)
+    public virtual Task NotifySendCompletedAsync(Guid packetId, bool success, CancellationToken cancellationToken = default)
     {
-        var packet = await _packetRepository.FindAsync(packetId, cancellationToken: cancellationToken);
-        if (packet == null)
-        {
-            return;
-        }
-
-        // Patient + Doctor rows always persist -- they back the patient's
-        // documents UI and the staff's per-kind download list.
-        if (packet.Kind != PacketKind.AttorneyClaimExaminer)
-        {
-            return;
-        }
-
-        // AttyCE rows persist ONLY when send fails -- gives the office a
-        // manual-resend fallback. On success, prune the row + blob to
-        // match Adrian's retention rule.
-        if (!success)
-        {
-            return;
-        }
-
-        try
-        {
-            await _packetsContainer.DeleteAsync(packet.BlobName);
-        }
-        catch (Exception ex)
-        {
-            // Entity is the source of truth; orphan blobs are a janitor
-            // concern. Log and continue with the row delete.
-            _logger.LogWarning(ex,
-                "PacketAttachmentProvider: failed to delete blob {BlobName} for sent AttyCE packet {PacketId}; orphan blob left for cleanup.",
-                packet.BlobName, packet.Id);
-        }
-
-        // F3 fix (2026-06-07): one AttyCE packet row is shared by the
-        // per-recipient send jobs (AA / DA / CE), and each prunes it here on
-        // success. A tracked DeleteAsync carries the concurrency token, so the
-        // 2nd/3rd concurrent prune threw AbpDbConcurrencyException ("affected 0
-        // rows") -> the Hangfire job failed and retried -> the packet email was
-        // RE-SENT (duplicate). A set-based DeleteDirectAsync issues a single
-        // DELETE WHERE Id = ... with no concurrency token, so a row already
-        // pruned by a sibling job is a benign 0-row no-op (idempotent prune).
-        await _packetRepository.DeleteDirectAsync(p => p.Id == packetId, cancellationToken);
-        _logger.LogInformation(
-            "PacketAttachmentProvider: pruned AttyCE packet {PacketId} after successful email send.",
-            packetId);
+        // Retention parity (2026-06-09): the Attorney/Claim-Examiner packet is
+        // now retained exactly like the Patient and Doctor packets -- stored in
+        // the appointment-packets blob container, listed in the appointment
+        // view, and downloadable by every viewer. This callback previously
+        // pruned the AttyCE row + blob on a successful send (transient-by-design
+        // per the earlier "AttyCE-on-failure-only" retention rule). That prune
+        // is removed; all three packet kinds now persist, so the callback is
+        // intentionally a no-op. It stays on the interface because
+        // SendAppointmentEmailJob still invokes it after each send -- removing
+        // the call + the whole notify mechanism is a separate cleanup.
+        return Task.CompletedTask;
     }
 
     /// <summary>

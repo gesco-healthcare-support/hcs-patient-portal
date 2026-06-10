@@ -30,6 +30,7 @@ using HealthcareSupport.CaseEvaluation.BackgroundJobs;
 using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
+using Volo.Abp.TextTemplateManagement;
 using Volo.Abp;
 using Volo.Abp.Studio;
 using Volo.Abp.Account;
@@ -120,6 +121,20 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.IsDynamicPermissionStoreEnabled = true;
         });
 
+        // 2026-06-09: do not re-save static text-template definitions to the
+        // DB from this runtime host. The DbMigrator (runs to completion before
+        // api/authserver start) already seeds AbpTextTemplateDefinitionRecords.
+        // Unlike the permission/setting/feature savers, the text-template saver
+        // is NOT guarded by the distributed lock, so api + authserver booting
+        // together both INSERT and collide on the unique name index -- a
+        // duplicate-key SqlException at startup (Abp.Account.EmailConfirmationCode).
+        // Templates still resolve from the in-memory definition providers at
+        // runtime, so disabling the host-side save is safe.
+        Configure<TextTemplateManagementOptions>(options =>
+        {
+            options.SaveStaticTemplatesToDatabase = false;
+        });
+
         // W2-4: stamp the audit-row ApplicationName so /audit-logs distinguishes
         // API-side activity from AuthServer activity. Without this, HttpApi.Host
         // entity-change rows ship with an empty ApplicationName, making the
@@ -174,6 +189,29 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
                 System.Net.HttpStatusCode.BadRequest);
+
+            // F-3 (2026-06-08) -- the two Pending->Approved gates in
+            // AppointmentManager.ApplyTransitionAsync (requires >=1 injury;
+            // requires >=1 active Claim Examiner). The request is well-formed
+            // and the caller IS authorized; it conflicts with the appointment's
+            // current state (missing a required related entity), so HTTP 409
+            // Conflict -- not ABP's default 403 (which the SPA treats as a
+            // permission failure and shows no message) and not 400 (the input
+            // itself is valid). Mirrors the AppointmentDocumentTypeInUse 409 below.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer,
+                System.Net.HttpStatusCode.Conflict);
+            // 2026-06-09 -- PQME panel-strike-list approval gate. Was missing
+            // from this map (the I15/I16 gate added the throw + en.json text +
+            // translator entry but never the status map), so it surfaced as the
+            // default 403 + generic message. 409 Conflict like the sibling gates
+            // so the SPA shows the localized "panel strike list required" text.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList,
+                System.Net.HttpStatusCode.Conflict);
 
             // 2026-05-15 -- one-doctor-per-tenant invariant guards in
             // DoctorsAppService. Both are client-input / precondition
@@ -272,6 +310,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             System.Net.HttpStatusCode.RequestEntityTooLarge);
         options.Map(
             CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty,
+            System.Net.HttpStatusCode.BadRequest);
+        // F-3 (2026-06-08) -- disallowed file type / magic-byte mismatch
+        // (EnsureValidFileFormat). Client-input validation failure: HTTP 400,
+        // not ABP's default 403. The throws stay UserFriendlyException (so the
+        // "Only PDF and image formats..." message reaches the SPA) but now
+        // carry this code so the mapping applies.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat,
             System.Net.HttpStatusCode.BadRequest);
     }
 
@@ -1127,34 +1173,26 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.CronExpression,
             options);
 
-        // Phase 14b (2026-05-04) -- package-document reminder daily
-        // 08:30 PT. Fires after the JDF auto-cancel + appointment-day
-        // reminder + CCR jobs so reminders go out in a deterministic
-        // order.
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.RecurringJobId,
-            j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PackageDocumentReminderJob.CronExpression,
-            options);
-
-        // Phase 7 (Category 7, 2026-05-10) -- four OLD SchedulerDomain reminder paths
-        // wired into Hangfire RecurringJobs. Cron times chosen so reminders fan out in
-        // OLD-style deterministic order on top of the existing 06:00-08:30 PT chain:
-        //   08:15 -- DueDateApproachingJob       (T-14/T-7/T-3 days before DueDate)
-        //   08:45 -- DueDateDocumentIncompleteJob (T-7 + docs outstanding)
+        // Group F (2026-06-09) -- ONE consolidated appointment-reminder job at
+        // 08:15 PT replaces the three former reminder jobs (DueDateApproaching,
+        // DueDateDocumentIncomplete, PackageDocumentReminder). It fires once per
+        // active appointment on the configured anchors and emits a single
+        // due-date + outstanding-documents email per appointment. RecurringJobId
+        // is kept at "appt-duedate-approaching", so this updates that existing
+        // entry in place; the two retired jobs' recurring entries are purged
+        // below so they stop invoking their now-deleted job types.
         //   09:00 -- PendingDailyDigestJob       (digest to clinic-staff inbox)
         //   09:15 -- InternalStaffQueueDigestJob (per-staff queue counts)
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob.RecurringJobId,
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.RecurringJobId,
             j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateApproachingJob.CronExpression,
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.CronExpression,
             options);
 
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob.RecurringJobId,
-            j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.DueDateDocumentIncompleteJob.CronExpression,
-            options);
+        // Retired Group F job IDs -- remove their leftover Hangfire recurring
+        // entries (the job types no longer exist).
+        global::Hangfire.RecurringJob.RemoveIfExists("appt-duedate-document-incomplete");
+        global::Hangfire.RecurringJob.RemoveIfExists("appt-package-doc-reminder");
 
         global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob>(
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.RecurringJobId,

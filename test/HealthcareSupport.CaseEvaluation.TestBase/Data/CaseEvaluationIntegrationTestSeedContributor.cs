@@ -200,21 +200,25 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         {
             // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
             // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
-            await _locationRepository.InsertAsync(new Location(
+            // I3 (2026-06-08): Location now offers appointment types via the
+            // LocationAppointmentType M2M (the ctor no longer takes a single
+            // AppointmentTypeId). Location1 gets AppointmentType1 so nav-prop
+            // join tests still assert a populated relation; Location2/3 keep none.
+            var location1 = new Location(
                 id: LocationsTestData.Location1Id,
                 stateId: LocationsTestData.State1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 name: LocationsTestData.Location1Name,
                 parkingFee: LocationsTestData.Location1ParkingFee,
                 isActive: LocationsTestData.Location1IsActive,
                 address: LocationsTestData.Location1Address,
                 city: LocationsTestData.Location1City,
-                zipCode: LocationsTestData.Location1ZipCode));
+                zipCode: LocationsTestData.Location1ZipCode);
+            location1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _locationRepository.InsertAsync(location1);
 
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location2Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location2Name,
                 parkingFee: LocationsTestData.Location2ParkingFee,
                 isActive: LocationsTestData.Location2IsActive,
@@ -225,7 +229,6 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location3Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location3Name,
                 parkingFee: LocationsTestData.Location3ParkingFee,
                 isActive: LocationsTestData.Location3IsActive,

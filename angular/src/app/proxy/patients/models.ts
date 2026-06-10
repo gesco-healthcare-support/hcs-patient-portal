@@ -18,7 +18,6 @@ export interface CreatePatientForAppointmentBookingInput {
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
-  refferedBy?: string | null;
   cellPhoneNumber?: string | null;
   phoneNumberTypeId?: PhoneNumberType;
   street?: string | null;
@@ -43,7 +42,6 @@ export interface GetPatientsInput extends PagedAndSortedResultRequestDto {
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
-  refferedBy?: string | null;
   cellPhoneNumber?: string | null;
   street?: string | null;
   interpreterVendorName?: string | null;
@@ -65,7 +63,6 @@ export interface PatientCreateDto {
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
-  refferedBy?: string | null;
   cellPhoneNumber?: string | null;
   phoneNumberTypeId?: PhoneNumberType;
   street?: string | null;
@@ -90,7 +87,6 @@ export interface PatientDto extends FullAuditedEntityDto<string> {
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
-  refferedBy?: string | null;
   cellPhoneNumber?: string | null;
   phoneNumberTypeId?: PhoneNumberType;
   street?: string | null;
@@ -116,7 +112,6 @@ export interface PatientUpdateDto {
   address?: string | null;
   city?: string | null;
   zipCode?: string | null;
-  refferedBy?: string | null;
   cellPhoneNumber?: string | null;
   phoneNumberTypeId?: PhoneNumberType;
   street?: string | null;

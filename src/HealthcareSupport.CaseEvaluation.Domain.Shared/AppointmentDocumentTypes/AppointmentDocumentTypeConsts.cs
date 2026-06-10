@@ -17,4 +17,12 @@ public static class AppointmentDocumentTypeConsts
     /// upload picker and cannot be edited or deleted by admins.
     /// </summary>
     public const string GeneratedPacketName = "Generated Packet";
+
+    /// <summary>
+    /// I15 (2026-06-08): seeded label that designates a document as the PQME
+    /// panel strike list. The upload path sets <c>IsPanelStrikeList</c> when a
+    /// document is tagged with this category, and the approval gate requires
+    /// such a document before a PQME can be approved.
+    /// </summary>
+    public const string PanelStrikeListName = "Panel Strike List";
 }

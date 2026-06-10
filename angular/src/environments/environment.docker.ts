@@ -40,7 +40,7 @@ export const environment = {
  * host in Smarty to activate live autocomplete + USPS standardization.
  */
 export const addressValidation = {
-  smartyKey: '',
+  smartyKey: '280901894760220099',
   autocompleteUrl: 'https://us-autocomplete-pro.api.smarty.com/lookup',
   verifyUrl: 'https://us-street.api.smarty.com/street-address',
 };

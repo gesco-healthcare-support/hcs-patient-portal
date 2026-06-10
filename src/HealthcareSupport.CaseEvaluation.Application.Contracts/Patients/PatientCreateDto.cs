@@ -41,9 +41,6 @@ public class PatientCreateDto
     [StringLength(PatientConsts.ZipCodeMaxLength)]
     public string? ZipCode { get; set; }
 
-    [StringLength(PatientConsts.RefferedByMaxLength)]
-    public string? RefferedBy { get; set; }
-
     [StringLength(PatientConsts.CellPhoneNumberMaxLength)]
     public string? CellPhoneNumber { get; set; }
 
