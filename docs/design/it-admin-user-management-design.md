@@ -75,7 +75,7 @@ OLD source: `list/user-list.component.html:1-91`
 |---|---|---|
 | Email | `emailId` | Login email |
 | User Type | `userType` | "Internal"/"External" string |
-| Role | `userRole` | Role name (e.g., "Clinic Staff", "Staff Supervisor") |
+| Role | `userRole` | Role name (e.g., "Intake Staff", "Staff Supervisor") |
 | Full Name | `userName` | Computed display name |
 | Status | `statusId` | "Active" (green) or "Inactive" (red) via custom template |
 | Verified | `isVerified` | "Yes" (green) or "No" (red) via custom template |
@@ -191,7 +191,7 @@ user, and toggles Active.
 |---|---|
 | IT Admin | Full CRUD on internal users; can block/unblock external users |
 | Staff Supervisor | No access to `/identity/users` |
-| Clinic Staff | No access |
+| Intake Staff | No access |
 | External users | No access |
 
 ---

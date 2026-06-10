@@ -36,7 +36,7 @@ public class InternalUsersController : AbpController
     }
 
     /// <summary>
-    /// Creates a new internal user (Clinic Staff or Staff Supervisor).
+    /// Creates a new internal user (Intake Staff or Staff Supervisor).
     /// Returns 200 with <see cref="InternalUserCreatedDto"/> on success,
     /// 400 on validation failure (six known error codes; see
     /// <c>CaseEvaluationDomainErrorCodes.InternalUser*</c>), 403 when

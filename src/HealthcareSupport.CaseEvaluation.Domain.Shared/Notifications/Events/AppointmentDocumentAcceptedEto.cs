@@ -3,7 +3,7 @@ using System;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 
 /// <summary>
-/// Phase 18 (2026-05-04) -- raised when clinic staff accepts an uploaded
+/// Phase 18 (2026-05-04) -- raised when intake staff accepts an uploaded
 /// appointment document. Mirrors OLD <c>EmailTemplate.PatientDocumentAccepted</c>
 /// + <c>JointAgreementLetterAccepted</c> + <c>PatientNewDocumentAccepted</c>
 /// trigger points.

@@ -23,7 +23,7 @@ public enum NotificationKind
     PackageDocumentReminder = 12,
 
     // Category 7 (2026-05-10) -- OLD SchedulerDomain reminder fan-outs.
-    // #1 OLD :72 -- daily digest of all pending requests to the per-tenant clinic-staff inbox.
+    // #1 OLD :72 -- daily digest of all pending requests to the per-tenant intake-staff inbox.
     PendingDailyDigest = 13,
     // #2 OLD :87 -- per-internal-staff queue counts (PendingCount + ApprovedCount).
     InternalStaffQueueDigest = 14,

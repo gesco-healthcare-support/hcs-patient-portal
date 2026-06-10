@@ -199,7 +199,7 @@ public class DocumentUploadGateUnitTests
     [Theory]
     [InlineData("Patient")]
     [InlineData("Adjuster")]
-    [InlineData("Clinic Staff")]
+    [InlineData("Intake Staff")]
     [InlineData("IT Admin")]
     public void EnsureCreatorIsAttorney_NonAttorneyRole_Throws(string roleName)
     {
@@ -250,7 +250,7 @@ public class DocumentUploadGateUnitTests
     [Fact]
     public void EnsureNotImmutable_AcceptedInternalUser_DoesNotThrow()
     {
-        // Internal staff bypass: clinic staff can correct an Accepted
+        // Internal staff bypass: intake staff can correct an Accepted
         // document on behalf of the patient.
         var doc = NewDocument(DocumentStatus.Accepted);
         Should.NotThrow(() => DocumentUploadGate.EnsureNotImmutable(doc, isInternalUser: true));

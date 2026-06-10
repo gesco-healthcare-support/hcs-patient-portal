@@ -244,12 +244,12 @@ roles (a status change or state rename would break appointments across the syste
 | Role | Locations / WCAB | Doc Types | Doc Library | Appt Types | Statuses / Languages / States |
 |---|---|---|---|---|---|
 | External users | No | No | No | No | No |
-| Clinic Staff | No | No | No | No | No |
+| Intake Staff | No | No | No | No | No |
 | Staff Supervisor | Read only (view locations for scheduling) | No | No | No | No |
 | IT Admin | Full CRUD | Full CRUD | Full CRUD | Full CRUD | Full CRUD |
 
 **Note:** In OLD, the `applicationModuleId: 9` guard maps to the doctor-management module.
-Clinic Staff had no access; Staff Supervisor and IT Admin did. NEW should gate these pages
+Intake Staff had no access; Staff Supervisor and IT Admin did. NEW should gate these pages
 behind `CaseEvaluation.{Entity}.Create` / `Edit` / `Delete` permissions.
 
 Permission names for NEW:
@@ -319,7 +319,7 @@ Permission names for NEW:
 
 ## 13. Verification Checklist
 
-- [ ] IT Admin can access all master-data CRUD pages; Clinic Staff cannot
+- [ ] IT Admin can access all master-data CRUD pages; Intake Staff cannot
 - [ ] Locations list shows all 8 columns; Edit navigates to edit form
 - [ ] Add Location form: all 7 fields present; State populates from state lookup; Save validates required fields
 - [ ] WCAB Offices list shows all 6 columns; Edit navigates to edit form

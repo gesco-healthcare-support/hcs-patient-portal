@@ -21,7 +21,7 @@ test.describe('01 -- internal user login', () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   });
 
-  test('Clinic Staff can log in', async ({ page }) => {
+  test('Intake Staff can log in', async ({ page }) => {
     await login(page, INTERNAL_USERS.staff.email, INTERNAL_USERS.staff.password);
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   });

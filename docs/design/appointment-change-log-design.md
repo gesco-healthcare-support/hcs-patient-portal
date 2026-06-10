@@ -152,7 +152,7 @@ parameters (`propertyName`, `originalValue`, `newValue`) needed for the 5-filter
 | Role | Access | Notes |
 |---|---|---|
 | External users | No | |
-| Clinic Staff | Per-appointment only | Own assignments |
+| Intake Staff | Per-appointment only | Own assignments |
 | Staff Supervisor | Yes (all appointments) | Both per-appointment and standalone |
 | IT Admin | Yes (all appointments) | Full audit visibility |
 
@@ -214,6 +214,6 @@ NEW source: `angular/src/app/appointments/appointment-change-logs/appointment-ch
 - [ ] Error state shown if ABP audit API call fails
 - [ ] "Back to appointment" navigates to appointment-view page
 - [ ] External users cannot access change log
-- [ ] Clinic Staff can only see change log for their assigned appointments
+- [ ] Intake Staff can only see change log for their assigned appointments
 - [ ] Staff Supervisor / IT Admin can see change log for all appointments
 - [ ] (Phase 19b) Standalone search page at `/change-logs` -- verify ABP audit API supports field-level filter (Exception 1)

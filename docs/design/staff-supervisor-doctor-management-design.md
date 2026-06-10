@@ -382,7 +382,7 @@ NEW source: `locations/location/components/location.component.html`,
 |---|---|---|---|
 | Staff Supervisor | Edit (no create/delete in OLD) | Full CRUD | Read + create (per OLD) |
 | IT Admin | Full CRUD | Full CRUD | Full CRUD |
-| Clinic Staff | No access | Read-only (slot counts for scheduling reference) | No access |
+| Intake Staff | No access | Read-only (slot counts for scheduling reference) | No access |
 | External users | No access | No access | No access |
 | Doctor | No access (Doctor role removed -- cleanup #7) | No access | No access |
 

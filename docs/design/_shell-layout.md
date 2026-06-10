@@ -118,7 +118,7 @@ keeps an equivalent `*ngIf` keyed on the auth-state observable.
 OLD source: `app.component.html`:26-60 (`*ngIf="isShowDashboard"`,
 `layout-2 default-style` modifier).
 
-`isShowDashboard` is true for every internal-user route (Clinic Staff,
+`isShowDashboard` is true for every internal-user route (Intake Staff,
 Staff Supervisor, IT Admin) -- dashboard, appointment management,
 configurations, reports, etc.
 
@@ -276,7 +276,7 @@ tables.
 The OLD `modules.*` enum (referenced in `side-bar.component.html`) maps
 to NEW's `CaseEvaluation.*` permission tree. Per-feature design docs
 cite the NEW key; the side-bar table above documents the mapping
-verbatim. There is no behavioral change -- a Clinic Staff user sees
+verbatim. There is no behavioral change -- a Intake Staff user sees
 the same items in OLD and NEW after migration.
 
 ## Strict-parity exceptions

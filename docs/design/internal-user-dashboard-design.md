@@ -18,12 +18,12 @@ cards for pending work and navigates to filtered list pages on click.
 
 In OLD, a single `DashboardComponent` serves all internal roles with 12 counter cards
 (8 appointment-status counters + 4 user-type counters). Role-scoping is applied at the
-data layer (Clinic Staff sees their assigned appointments; Supervisor sees all).
+data layer (Intake Staff sees their assigned appointments; Supervisor sees all).
 
 In NEW, the dashboard is split into two role-specific components:
 - **Host Dashboard** (IT Admin / ABP Host role): ABP commercial analytics widgets
   (error rate, execution duration, editions usage, latest tenants). No appointment counters.
-- **Tenant Dashboard** (Clinic Staff / Staff Supervisor / Doctor): 13 counter cards.
+- **Tenant Dashboard** (Intake Staff / Staff Supervisor / Doctor): 13 counter cards.
   5 return live data; 8 are placeholder cards pending day-of-exam state implementation.
 
 ---
@@ -108,9 +108,9 @@ OLD source: `dashboard/dashboard.component.html:1-330`
 
 ### 3c. Role-Scoped Filtering
 
-- **Clinic Staff:** Sees only appointments where `PrimaryResponsibleUserId == currentUserId`.
+- **Intake Staff:** Sees only appointments where `PrimaryResponsibleUserId == currentUserId`.
 - **Staff Supervisor / IT Admin:** Sees all appointments (no user filter).
-- User-count cards (9-12): visible to Staff Supervisor and IT Admin; hidden from Clinic Staff.
+- User-count cards (9-12): visible to Staff Supervisor and IT Admin; hidden from Intake Staff.
 
 OLD source: `dashboard/dashboard.service.ts` (role-aware query in POST body)
 
@@ -142,7 +142,7 @@ NEW source: `dashboard/host-dashboard/host-dashboard.component.html`
 
 ---
 
-## 5. NEW Tenant Dashboard (Clinic Staff / Staff Supervisor / Doctor)
+## 5. NEW Tenant Dashboard (Intake Staff / Staff Supervisor / Doctor)
 
 ### 5a. Layout
 
@@ -218,8 +218,8 @@ The following OLD dashboard elements are NOT yet represented in the NEW tenant d
 |---|---|---|
 | Pending JDF counter (AME appts where JDF not yet uploaded) | Dashboard spec line 251 | Add `pendingJdfCount` to `DashboardCountersDto` and backend query |
 | Upcoming Appointments widget (next N days) | Dashboard spec line 253 | Add widget or counter for appointments in next 7/14 days |
-| User count by type (Patient / Adjuster / AA / DA) | OLD cards 9-12 | Add 4 user-count cards to tenant dashboard; hidden from Clinic Staff |
-| Role-scoping (Clinic Staff sees own; Supervisor sees all) | `DashboardController.cs` query filter | Verify `IAppointmentAccessPolicy` is applied in `IDashboardAppService.GetCountersAsync()` |
+| User count by type (Patient / Adjuster / AA / DA) | OLD cards 9-12 | Add 4 user-count cards to tenant dashboard; hidden from Intake Staff |
+| Role-scoping (Intake Staff sees own; Supervisor sees all) | `DashboardController.cs` query filter | Verify `IAppointmentAccessPolicy` is applied in `IDashboardAppService.GetCountersAsync()` |
 
 These gaps are flagged as Implementation severity I (blocker before Phase 19b UI sign-off).
 
@@ -231,7 +231,7 @@ These gaps are flagged as Implementation severity I (blocker before Phase 19b UI
 |---|---|---|---|
 | IT Admin | Yes (`CaseEvaluation.Dashboard.Host`) | No | n/a (host dashboard) |
 | Staff Supervisor | No | Yes (all appointments) | Yes |
-| Clinic Staff | No | Yes (own appointments only) | No |
+| Intake Staff | No | Yes (own appointments only) | No |
 | Doctor | No | Yes (placeholder only -- no appointment data yet) | No |
 
 ---
@@ -294,7 +294,7 @@ Token definitions: `_design-tokens.md`.
 ## 12. Verification Checklist
 
 - [ ] IT Admin lands on the host dashboard (ABP analytics widgets visible)
-- [ ] Clinic Staff and Staff Supervisor land on the tenant dashboard (counter cards visible)
+- [ ] Intake Staff and Staff Supervisor land on the tenant dashboard (counter cards visible)
 - [ ] Pending Requests counter shows correct count of Pending-status appointments
 - [ ] Approved/Rejected This Week counters update daily
 - [ ] Pending Change Requests counter shows reschedule/cancel requests awaiting staff action
@@ -302,10 +302,10 @@ Token definitions: `_design-tokens.md`.
 - [ ] Clicking Pending Requests routes to `/appointments` pre-filtered to Pending status
 - [ ] Clicking Approved This Week routes to filtered appointment list
 - [ ] Clicking Pending Change Requests routes to change requests list (TBD route)
-- [ ] Clinic Staff dashboard shows only their assigned appointments in counters
+- [ ] Intake Staff dashboard shows only their assigned appointments in counters
 - [ ] Staff Supervisor dashboard shows all appointments (no user filter)
 - [ ] Placeholder cards display 0 and are visually distinguished from live cards
 - [ ] User count by type cards added (Phase 19b -- Exception 4)
 - [ ] Pending JDF counter added (Phase 19b -- Exception 5)
-- [ ] Role-scoping verified: Clinic Staff counter queries filter by `PrimaryResponsibleUserId`
+- [ ] Role-scoping verified: Intake Staff counter queries filter by `PrimaryResponsibleUserId`
 - [ ] Dashboard loads in a single API round-trip

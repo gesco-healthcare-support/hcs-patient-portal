@@ -732,7 +732,7 @@ export class AppointmentAddComponent {
     // checkbox.
     // 2026-05-28 -- AA toggle-off requires explicit confirmation that the
     // applicant is self-represented. OLD did not have this gate; NEW adds
-    // it so a booker (patient / clinic staff / IT admin) cannot silently
+    // it so a booker (patient / intake staff / IT admin) cannot silently
     // omit the applicant attorney section without acknowledging it. When
     // the user clicks "No" on the modal we revert the toggle back to ON
     // via setValue(true, { emitEvent: false }) so this subscriber does
@@ -1165,7 +1165,7 @@ export class AppointmentAddComponent {
   /**
    * True when the booker is anyone OTHER than the Patient role. Covers
    * Applicant Attorney, Defense Attorney, Claim Examiner, and internal
-   * users (admin, Clinic Staff, Staff Supervisor, Doctor) booking on
+   * users (admin, Intake Staff, Staff Supervisor, Doctor) booking on
    * behalf of a patient. Drives:
    *   - profile load: Patient -> /patients/me; everyone else -> /external-users/me
    *     (W-B-2 fix, 2026-04-30: previously CE + internal bookers fell through

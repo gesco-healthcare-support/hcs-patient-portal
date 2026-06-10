@@ -42,9 +42,9 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///     (handled here, semicolon-separated).</item>
 ///   <item><b>Only when the booker is an external user</b> -- dispatches
 ///     <c>PatientAppointmentApproveReject</c> to every <c>Staff
-///     Supervisor</c> + <c>Clinic Staff</c> user in the tenant. Mirrors
+///     Supervisor</c> + <c>Intake Staff</c> user in the tenant. Mirrors
 ///     OLD :935-951, the <c>currentUserTypeId == ExternalUser</c> guard.
-///     Internal-staff bookings (Clinic Staff / Staff Supervisor /
+///     Internal-staff bookings (Intake Staff / Staff Supervisor /
 ///     IT Admin / admin / Doctor) skip this leg because the booker IS
 ///     office staff and would email themselves.</item>
 /// </list>
@@ -79,13 +79,13 @@ public class BookingSubmissionEmailHandler :
     /// <summary>
     /// OLD :945 -- internal-staff recipients for the
     /// PatientAppointmentApproveReject email are limited to
-    /// <c>StaffSupervisor + ClinicStaff</c>. Other internal roles
+    /// <c>StaffSupervisor + IntakeStaff</c>. Other internal roles
     /// (admin / IT Admin / Doctor) are intentionally excluded.
     /// </summary>
     private static readonly string[] StaffApprovalNotificationRoles =
     {
         "Staff Supervisor",
-        "Clinic Staff",
+        "Intake Staff",
     };
 
     public BookingSubmissionEmailHandler(
@@ -167,7 +167,7 @@ public class BookingSubmissionEmailHandler :
                 // OLD parity (P:\PatientPortalOld\...\AppointmentDomain.cs:935-951):
                 // when the booker is an external user, also fan out
                 // PatientAppointmentApproveReject to every Staff Supervisor +
-                // Clinic Staff user in the tenant. Different recipient set than
+                // Intake Staff user in the tenant. Different recipient set than
                 // the AppointmentRequested fan-out above, so it is not a duplicate.
                 await DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
                     eventData, ctx, appointment, appointmentDate,
@@ -545,7 +545,7 @@ public class BookingSubmissionEmailHandler :
     /// <summary>
     /// OLD :935-951 -- the conditional staff-blast that fires only when
     /// the booker is an external user. Resolves Staff Supervisor +
-    /// Clinic Staff users in the current tenant, dispatches
+    /// Intake Staff users in the current tenant, dispatches
     /// <c>PatientAppointmentApproveReject</c> to all of them.
     /// </summary>
     private async Task DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
@@ -565,7 +565,7 @@ public class BookingSubmissionEmailHandler :
         if (staffRecipients.Count == 0)
         {
             _logger.LogInformation(
-                "BookingSubmissionEmailHandler: no Staff Supervisor / Clinic Staff users in tenant; skipping ApproveReject for appointment {AppointmentId}.",
+                "BookingSubmissionEmailHandler: no Staff Supervisor / Intake Staff users in tenant; skipping ApproveReject for appointment {AppointmentId}.",
                 eventData.AppointmentId);
             return;
         }
@@ -615,7 +615,7 @@ public class BookingSubmissionEmailHandler :
     }
 
     /// <summary>
-    /// Loads every Staff Supervisor + Clinic Staff user in the current
+    /// Loads every Staff Supervisor + Intake Staff user in the current
     /// tenant and packages them into <see cref="NotificationRecipient"/>
     /// rows. Dedupes on email (a user with both roles only gets one
     /// email).

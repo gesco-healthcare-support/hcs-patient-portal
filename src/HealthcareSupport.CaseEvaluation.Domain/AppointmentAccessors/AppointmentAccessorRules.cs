@@ -71,7 +71,7 @@ public static class AppointmentAccessorRules
     /// role differs from the booking-flow's requested role triggers
     /// the role-mismatch BusinessException.
     ///
-    /// Internal-only roles (admin, Clinic Staff, Staff Supervisor, IT
+    /// Internal-only roles (admin, Intake Staff, Staff Supervisor, IT
     /// Admin, Doctor, etc.) are NOT in <see cref="RecognizedExternalRoles"/>;
     /// holding only those roles does NOT trigger a mismatch (those
     /// users can be added as accessors as a side-band grant on top of

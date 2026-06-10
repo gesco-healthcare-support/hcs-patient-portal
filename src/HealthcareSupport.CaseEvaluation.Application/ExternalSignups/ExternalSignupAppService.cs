@@ -963,7 +963,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     ///
     /// <para>Authorization is permission-based:
     /// <c>CaseEvaluation.UserManagement.InviteExternalUser</c> -- granted
-    /// to IT Admin, Staff Supervisor, and Clinic Staff via the
+    /// to IT Admin, Staff Supervisor, and Intake Staff via the
     /// internal-role seeder. External roles never receive this
     /// permission so a tampered URL cannot register as internal.</para>
     /// </summary>

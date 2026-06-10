@@ -133,7 +133,7 @@ OLD source: `user-queries/add/user-query-add.component.ts:73-86`,
 |---|---|---|
 | Patient / Adjuster / Attorney | Yes | No |
 | Claim Examiner | Yes | No |
-| Clinic Staff | Yes (optional -- confirm with Adrian) | No |
+| Intake Staff | Yes (optional -- confirm with Adrian) | No |
 | Staff Supervisor | Yes (optional) | No |
 | IT Admin | Optional | Yes (receives email blast for free-form queries) |
 

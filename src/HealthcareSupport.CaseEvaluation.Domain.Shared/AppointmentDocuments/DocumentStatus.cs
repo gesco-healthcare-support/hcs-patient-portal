@@ -11,7 +11,7 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// External users' uploads land as Uploaded pending office review.
 /// Pending is the "queued, awaiting upload" state used when the office
 /// auto-creates package-document rows on appointment approval.
-/// Clinic Staff / Staff Supervisor / IT Admin accept (-> Accepted) or
+/// Intake Staff / Staff Supervisor / IT Admin accept (-> Accepted) or
 /// reject (-> Rejected with RejectionReason).
 /// </summary>
 public enum DocumentStatus

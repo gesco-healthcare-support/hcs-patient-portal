@@ -110,7 +110,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // S-NEW-2 (Adrian 2026-04-30): when an external party is on the call,
         // narrow the result to appointments where the caller is involved
         // (booker, patient, AA, DA, CE) -- regardless of which role they
-        // hold. Internal users (admin / Clinic Staff / Staff Supervisor /
+        // hold. Internal users (admin / Intake Staff / Staff Supervisor /
         // Doctor) are not narrowed; they continue to see every appointment
         // in the tenant. The narrowing complements ABP's automatic
         // IMultiTenant filter, which still ensures the caller never sees
@@ -167,7 +167,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
         if (!hasOnlyExternalRoles)
         {
-            // Internal user (admin / Clinic Staff / Staff Supervisor / Doctor)
+            // Internal user (admin / Intake Staff / Staff Supervisor / Doctor)
             // OR a multi-role user with at least one internal role.
             return null;
         }
@@ -267,7 +267,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     public virtual async Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
         // Phase 13 (2026-05-04) -- creator-or-accessor gate. Internal
-        // users (admin / Clinic Staff / etc.) bypass; external users
+        // users (admin / Intake Staff / etc.) bypass; external users
         // must be the creator OR have an AppointmentAccessor row.
         await EnsureCanReadAsync(id);
         var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
@@ -1509,7 +1509,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     // B2 (Phase 9, 2026-05-04): legacy thin entry points -- gated on the
     // dedicated approve/reject permissions, not the catch-all Edit. Mirrors
-    // OLD's intent: a clinic-staff role granted only "approve appointments"
+    // OLD's intent: a intake-staff role granted only "approve appointments"
     // (without full edit rights) must still be able to call this endpoint.
     // The richer AppointmentApprovalAppService.ApproveAppointmentAsync
     // already uses these constants -- this aligns the legacy surface.

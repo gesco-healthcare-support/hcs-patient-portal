@@ -222,7 +222,7 @@ See Exception 3.
 | Role | Can add notes | Can edit/delete | Can view |
 |---|---|---|---|
 | External users | No | No | No |
-| Clinic Staff | Yes | Own notes only | All notes for assigned appointments |
+| Intake Staff | Yes | Own notes only | All notes for assigned appointments |
 | Staff Supervisor | Yes | Own notes only | All notes for all appointments |
 | IT Admin | Yes | Own notes only | All notes for all appointments |
 
@@ -292,5 +292,5 @@ See Exception 3.
 - [ ] Delete icon visible only for notes created by current user
 - [ ] Delete shows confirmation dialog; DELETE removes record; success toast; list reloads
 - [ ] External users cannot access notes
-- [ ] Clinic Staff can only see notes on their assigned appointments
+- [ ] Intake Staff can only see notes on their assigned appointments
 - [ ] Staff Supervisor / IT Admin see all appointment notes

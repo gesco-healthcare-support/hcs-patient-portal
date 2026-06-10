@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Reports;
 /// date of birth to birth year) before it leaves the service.
 ///
 /// <para>Internal-only via the Reports permission, which is granted solely to
-/// IT Admin / Staff Supervisor / Clinic Staff. Internal callers see every
+/// IT Admin / Staff Supervisor / Intake Staff. Internal callers see every
 /// appointment in their tenant (no visibility narrowing), matching the legacy
 /// report's audience. The full SSN is never emitted here -- only the masked
 /// last 4; a full reveal still routes through the audited

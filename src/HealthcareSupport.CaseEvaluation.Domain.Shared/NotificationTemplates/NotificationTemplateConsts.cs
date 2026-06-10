@@ -177,7 +177,7 @@ public static class NotificationTemplateConsts
 
         /// <summary>
         /// 2026-05-15 -- welcome email for a newly-created internal user
-        /// (Clinic Staff / Staff Supervisor). Dispatched by
+        /// (Intake Staff / Staff Supervisor). Dispatched by
         /// <c>InternalUsersAppService.CreateAsync</c> immediately after
         /// the IdentityUser row + role assignment commit. Body carries
         /// the auto-generated temporary password verbatim (the only

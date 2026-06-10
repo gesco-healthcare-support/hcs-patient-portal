@@ -8,7 +8,7 @@ namespace HealthcareSupport.CaseEvaluation.Invitations;
 /// <summary>
 /// One-time-use, time-limited invitation for an external user to register
 /// on a specific tenant portal. Issued by an internal staff user
-/// (IT Admin / Staff Supervisor / Clinic Staff) via the admin
+/// (IT Admin / Staff Supervisor / Intake Staff) via the admin
 /// "User Management > Invite External User" page; consumed when the
 /// recipient clicks the invite link and completes registration.
 ///

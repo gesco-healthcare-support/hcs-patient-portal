@@ -13,7 +13,7 @@ export interface AutoApprovePlan {
  * NoBill -- the submit endpoints already enforce the lead-time / cancel-window
  * policy, so a request that passes submit is within policy (no late penalty);
  * "Late" outcomes are left to the supervisor approval pages. Returns null when
- * the caller cannot approve (external roles / Clinic Staff), so the request
+ * the caller cannot approve (external roles / Intake Staff), so the request
  * stays Pending for the supervisor queue. Keeping this a pure function lets the
  * decision be unit-tested without the HTTP layer.
  */

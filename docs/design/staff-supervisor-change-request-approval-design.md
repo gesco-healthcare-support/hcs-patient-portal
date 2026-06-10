@@ -408,7 +408,7 @@ Note: `apporve` is an OLD CSS class name typo. Do NOT rename it in NEW -- use
 |---|---|---|---|---|
 | IT Admin | Yes | Yes | Yes (showButtonBaseOnRole=true) | Yes |
 | Staff Supervisor | Yes | Yes | Yes (showButtonBaseOnRole=true) | Yes |
-| Clinic Staff | No (no route access) | No | No | No |
+| Intake Staff | No (no route access) | No | No | No |
 | External users | No | No | No | No |
 
 Permission module IDs from OLD routing: `rootModuleId: 33, applicationModuleId: 6`.

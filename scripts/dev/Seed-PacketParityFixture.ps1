@@ -2,7 +2,7 @@
 .SYNOPSIS
     One-shot fixture for Phase 1E.11 visual-diff: seeds a Falkinstein PQME
     appointment with the entity graph PacketTokenResolver walks, approves
-    it via the API as Clinic Staff, polls until the 3 packet rows are
+    it via the API as Intake Staff, polls until the 3 packet rows are
     Generated, and dumps each rendered DOCX to tmp/packet-parity-output/.
 
 .DESCRIPTION
@@ -201,7 +201,7 @@ if ($sqlResult -notmatch 'APPT_ID=([0-9A-F-]+)') {
 $appointmentId = $matches[1]
 Write-Host "Appointment seeded: $appointmentId" -ForegroundColor Green
 
-# --- Step 2: Acquire Clinic Staff token via subdomain ------------------------
+# --- Step 2: Acquire Intake Staff token via subdomain ------------------------
 Write-Host "`nStep 2: Acquiring token..." -ForegroundColor Cyan
 
 $tokenBody = "grant_type=password&client_id=CaseEvaluation_App&username=$([uri]::EscapeDataString($Username))&password=$([uri]::EscapeDataString($Password))&scope=offline_access CaseEvaluation openid profile email roles"

@@ -166,9 +166,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     ///
     /// 2026-06-09 fix: gated by AppointmentDocuments.Default (a read), NOT
     /// .Create. The appointment Review page loads these options on open, so a
-    /// reviewer tier must be able to read them -- Clinic Staff has .Default +
+    /// reviewer tier must be able to read them -- Intake Staff has .Default +
     /// .Approve but NOT .Create (upload is supervisor-only), so the old .Create
-    /// gate 403'd the Review page for Clinic Staff. Every role granted .Create
+    /// gate 403'd the Review page for Intake Staff. Every role granted .Create
     /// also has .Default, so no uploader loses access. Returns only label names.
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
@@ -197,7 +197,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     /// but keyed by appointment type directly (active, non-system rows scoped to
     /// the type + the "applies to all types" rows). Gated by AppointmentDocuments.Default
     /// (a read) -- it returns label names, no appointment-specific data. 2026-06-09:
-    /// relaxed from .Create so a Clinic Staff booker (has .Default, not .Create) gets
+    /// relaxed from .Create so a Intake Staff booker (has .Default, not .Create) gets
     /// a populated picker; every role with .Create also has .Default.
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]

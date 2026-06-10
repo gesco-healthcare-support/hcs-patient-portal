@@ -10,8 +10,8 @@ deferred until Twilio creds land (Phase 18 open item).
 | Path | Purpose |
 |---|---|
 | `TemplateVariableSubstitutor.cs` | Pure `##Var##` placeholder substitution; no IO |
-| `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to clinic-staff inbox |
-| `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Clinic Staff only) |
+| `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |
+| `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Intake Staff only) |
 | `Jobs/DueDateApproachingJob.cs` | 08:15 PT -- T-14/T-7/T-3 day due-date reminder |
 | `Jobs/DueDateDocumentIncompleteJob.cs` | 08:45 PT -- T-7 + docs outstanding reminder |
 | `Jobs/PackageDocumentReminderJob.cs` | 08:30 PT -- packet document upload reminder |

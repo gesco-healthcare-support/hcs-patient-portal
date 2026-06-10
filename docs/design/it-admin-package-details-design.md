@@ -393,7 +393,7 @@ OLD source: `document-packages/list/document-package-list.component.ts:56-67`
 |---|---|---|---|
 | IT Admin | Full CRUD | Full CRUD | Full CRUD |
 | Staff Supervisor | Read-only (view only -- no Add/Edit/Delete) | Read-only | Read-only |
-| Clinic Staff | No access | No access | No access |
+| Intake Staff | No access | No access | No access |
 | External users | No access | No access | No access |
 
 Both URLs share `applicationModuleId: 27`. In OLD, role restriction is at the route

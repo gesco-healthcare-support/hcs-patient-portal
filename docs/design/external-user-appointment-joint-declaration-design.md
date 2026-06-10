@@ -119,7 +119,7 @@ Approval is recommended before the due date to avoid the auto-cancel job.
 | Adjuster / Claim Examiner | No | No | No | No |
 | Applicant Attorney (booking) | Yes | Yes (if gates pass) | Yes | No |
 | Defense Attorney (booking) | Yes | Yes (if gates pass) | Yes | No |
-| Clinic Staff | Yes (view only) | No | Yes | Yes |
+| Intake Staff | Yes (view only) | No | Yes | Yes |
 | Staff Supervisor | Yes | No | Yes | Yes |
 | IT Admin | Yes | Yes (override) | Yes | Yes |
 

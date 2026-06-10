@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// Phase 7 (Category 7, 2026-05-10) -- subscribes to
 /// <see cref="PendingDailyDigestEto"/> and dispatches the OLD-parity
 /// <c>PendingAppointmentDailyNotification</c> template to the per-tenant
-/// clinic-staff inbox (resolved from
+/// intake-staff inbox (resolved from
 /// <c>NotificationsPolicy.OfficeEmail</c>).
 ///
 /// <para>OLD <c>SchedulerDomain.cs</c>:82 received the digest body

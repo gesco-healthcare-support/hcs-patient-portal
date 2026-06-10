@@ -152,7 +152,7 @@ owner OR an accessor with Edit access. View-only accessors are
 rejected. Internal users follow the supervisor-side approval flow
 documented in `staff-supervisor-change-request-approval-design.md`.
 
-| UI element | Patient | Adjuster | Applicant Atty | Defense Atty | Clinic Staff | Staff Supervisor | IT Admin |
+| UI element | Patient | Adjuster | Applicant Atty | Defense Atty | Intake Staff | Staff Supervisor | IT Admin |
 |---|---|---|---|---|---|---|---|
 | Cancel button on view-appointment page | Y if owner OR Edit accessor; else hidden | Y if owner OR Edit accessor | Y if owner OR Edit accessor | Y if owner OR Edit accessor | (N/A this view; staff use approval queue) | (N/A) | (N/A) |
 | Cancellation Request modal | Y when button clicked | Y | Y | Y | -- | -- | -- |

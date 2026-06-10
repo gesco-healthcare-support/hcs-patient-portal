@@ -34,7 +34,7 @@ public class ExternalUserController : AbpController
     /// at the AppService method via
     /// <c>[Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]</c>
     /// (permission-based, not role-based -- the permission is granted to
-    /// IT Admin / Staff Supervisor / Clinic Staff via
+    /// IT Admin / Staff Supervisor / Intake Staff via
     /// <c>CaseEvaluationPermissionDefinitionProvider</c>). External users
     /// would receive 403 even if they discovered the route.
     /// </summary>

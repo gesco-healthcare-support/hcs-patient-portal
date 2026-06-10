@@ -4,7 +4,7 @@ namespace HealthcareSupport.CaseEvaluation.BlobContainers;
 
 /// <summary>
 /// ABP blob container marker for per-user signature images uploaded by
-/// internal staff (Clinic Staff / Staff Supervisor / IT Admin).
+/// internal staff (Intake Staff / Staff Supervisor / IT Admin).
 ///
 /// Replicates OLD's per-user signature feature where the responsible user's
 /// signature image is stamped onto generated packet PDFs at the

@@ -31,7 +31,7 @@ the Appointment Details section that prefills the form.
 | Guard | `PageAccess` (external users only) | `[Authorize]` -- all authenticated roles can access |
 
 External user navigation: "Book an Appointment" button on the home/dashboard page.
-Internal users (Clinic Staff, Staff Supervisor, IT Admin) can also reach this form
+Internal users (Intake Staff, Staff Supervisor, IT Admin) can also reach this form
 to book on behalf of a patient (internal-user fast-path: slot=Booked, status=Approved).
 
 ---
@@ -95,7 +95,7 @@ New {{appointmentTypeName}} Appointment Request     [Book an appointment][Reset]
 - `(change)="getTimeSlotByLocation();AutoJump()"`: fetches available time slots filtered by location
 
 **Responsible User (internal only):**
-- `*ngIf="isResponsibleMemberShow"` -- visible to internal users only (Clinic Staff booking on behalf)
+- `*ngIf="isResponsibleMemberShow"` -- visible to internal users only (Intake Staff booking on behalf)
 - Select from `appointmentLookupGroup.internalUserNameLookUps`
 
 **Appointment Date (required, conditional):**
@@ -464,8 +464,8 @@ When Appointment Type = PQME-REVAL (3) or AME-REVAL (4):
 | Adjuster | Can book; Claim Examiner email prefilled + readonly; Insurance/CE sections disabled |
 | Applicant Attorney | Can book; all sections visible; own email readonly in Applicant Attorney section |
 | Defense Attorney | Can book; all sections visible; own email readonly in Defense Attorney section |
-| Clinic Staff | Can book on behalf; Responsible User field shown; slot=Booked, status=Approved |
-| Staff Supervisor | Same as Clinic Staff |
+| Intake Staff | Can book on behalf; Responsible User field shown; slot=Booked, status=Approved |
+| Staff Supervisor | Same as Intake Staff |
 | IT Admin | Full access; all readonly fields become editable |
 | Doctor | No access to booking form (Doctor is not a user role) |
 

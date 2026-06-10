@@ -46,7 +46,7 @@ public static class CaseEvaluationPermissions
     /// <summary>
     /// G-03-01 (2026-06-03) -- tenant-scoped, per-appointment-type document
     /// category master. Granted to IT Admin + Staff Supervisor only (the two
-    /// roles Adrian designated as list owners); Clinic Staff and all external
+    /// roles Adrian designated as list owners); Intake Staff and all external
     /// roles never receive it. Reserved IsSystem rows ("Generated Packet")
     /// stay read-only regardless of the grant -- enforced in the domain manager.
     /// </summary>
@@ -119,7 +119,7 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
-        // Phase 2.5 (2026-05-01) -- per-action gates for clinic-staff approval
+        // Phase 2.5 (2026-05-01) -- per-action gates for intake-staff approval
         // and external-user change-request submission. The booking + view
         // flows live under Default / Create / Edit / Delete.
         public const string Approve = Default + ".Approve";
@@ -243,7 +243,7 @@ public static class CaseEvaluationPermissions
 
     /// <summary>
     /// G-08-01 (2026-06-06) -- the Appointment Request Report: a cross-appointment,
-    /// PHI-masked operational worklist for internal staff (Clinic Staff, Staff
+    /// PHI-masked operational worklist for internal staff (Intake Staff, Staff
     /// Supervisor, IT Admin). External roles never receive it. <c>Default</c> gates
     /// the read-only grid; <c>Export</c> (G-08-03, 2026-06-06) gates the PDF export
     /// of the same filtered set. Full SSN is never emitted here -- only the masked
@@ -278,7 +278,7 @@ public static class CaseEvaluationPermissions
     /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
     /// user-submitted cancel / reschedule lifecycle. External roles never
     /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
-    /// Clinic Staff gets Default (read-only inbox view).
+    /// Intake Staff gets Default (read-only inbox view).
     /// </summary>
     public static class AppointmentChangeRequests
     {
@@ -360,14 +360,14 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
-    /// Internal-user creation (Clinic Staff, Staff Supervisor).
+    /// Internal-user creation (Intake Staff, Staff Supervisor).
     /// Registered <c>MultiTenancySides.Both</c> (see
     /// CaseEvaluationPermissionDefinitionProvider) -- IT Admin holds it
     /// host-side, tenant roles hold it within their own tenant; the new
     /// user is placed inside the tenant carried on the input DTO.
     /// Holders (IR1, 2026-06-03): IT Admin (host) and Staff Supervisor
-    /// (top tenant role) -- a Supervisor may create Clinic Staff and
-    /// Staff Supervisors in its tenant. Clinic Staff does NOT receive it.
+    /// (top tenant role) -- a Supervisor may create Intake Staff and
+    /// Staff Supervisors in its tenant. Intake Staff does NOT receive it.
     /// External role creation (Patient / Applicant Attorney / Defense
     /// Attorney / Claim Examiner) is a different surface
     /// (<see cref="UserManagement.InviteExternalUser"/>); IT Admin
@@ -382,7 +382,7 @@ public static class CaseEvaluationPermissions
     /// <summary>
     /// Phase A (2026-05-05) -- per-user signature image upload, replicating
     /// OLD's <c>User.SignatureAWSFilePath</c> profile feature. Internal
-    /// staff (Clinic Staff / Staff Supervisor / IT Admin) only;
+    /// staff (Intake Staff / Staff Supervisor / IT Admin) only;
     /// external roles do not have signatures (OLD parity). Used by the
     /// packet-generation flow to stamp the responsible user's signature
     /// on the Patient Packet at <c>##Appointments.Signature##</c>.

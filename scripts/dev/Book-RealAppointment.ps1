@@ -8,11 +8,11 @@
       for-appointment-booking) -> Appointment -> EmployerDetail ->
       ApplicantAttorney upsert -> DefenseAttorney upsert -> InjuryDetail
       -> PrimaryInsurance -> ClaimExaminer -> BodyParts -> Approve
-      as Clinic Staff -> poll AppAppointmentPackets -> download
+      as Intake Staff -> poll AppAppointmentPackets -> download
       3 PDFs.
 
     All entity creates use the admin token. Final approve uses the staff
-    token to exercise the Clinic Staff approval path. Subdomain tenant
+    token to exercise the Intake Staff approval path. Subdomain tenant
     routing (falkinstein.localhost:44368) is honored via curl --resolve.
 
 .NOTES
@@ -364,7 +364,7 @@ foreach ($bp in @("Lower Back", "Right Shoulder", "Left Shoulder")) {
 }
 Write-Host "  3 BodyParts OK"
 
-# ---- Step 9: Approve as Clinic Staff (if needed) ---------------------------
+# ---- Step 9: Approve as Intake Staff (if needed) ---------------------------
 # AppointmentsAppService.CreateAsync auto-approves when the booker is an
 # internal user (admin/staff/supervisor/IT admin) per OLD parity
 # (AppointmentsAppService.cs:668-680). The Phase 11h fast-path skips the

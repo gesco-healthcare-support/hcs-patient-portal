@@ -17,7 +17,7 @@ import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-cha
  * AP1 cancellation-request modal. Same ABP `<abp-modal>` pattern as the reject
  * modal: a single required reason. Submits the change request and emits the
  * resulting DTO; the host owns the auto-approve chain (internal staff) and the
- * toast. External / Clinic Staff submissions stay Pending.
+ * toast. External / Intake Staff submissions stay Pending.
  *
  * Usage:
  *   <app-cancellation-request-modal

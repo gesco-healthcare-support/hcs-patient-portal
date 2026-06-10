@@ -131,7 +131,7 @@ verbatim (e.g., `Cancel | Confirm Reject`).
 
 ## 7. Role visibility matrix
 
-| UI element | Patient | Adjuster | Applicant Atty | Defense Atty | Clinic Staff | Staff Supervisor | IT Admin |
+| UI element | Patient | Adjuster | Applicant Atty | Defense Atty | Intake Staff | Staff Supervisor | IT Admin |
 
 Mark each cell:
 

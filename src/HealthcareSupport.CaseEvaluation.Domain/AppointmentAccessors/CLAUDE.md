@@ -39,7 +39,7 @@ Called during appointment booking to grant the invited party access. Steps:
 3. Call `CreateAsync` to insert the `AppointmentAccessor` row.
 
 `RecognizedExternalRoles`: `Patient`, `Applicant Attorney`, `Defense Attorney`,
-`Claim Examiner`. Internal roles (Clinic Staff, Doctor, IT Admin, etc.) are NOT in this
+`Claim Examiner`. Internal roles (Intake Staff, Doctor, IT Admin, etc.) are NOT in this
 list -- holding only internal roles does NOT trigger a mismatch.
 
 `CreateOrLinkAsync` requires the full DI constructor (4 params). Resolving via DI always
