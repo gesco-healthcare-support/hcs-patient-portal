@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -47,7 +49,7 @@ public class LocationManager : DomainService
         _multiTenantFilter = multiTenantFilter;
     }
 
-    public virtual async Task<Location> CreateAsync(Guid? stateId, Guid? appointmentTypeId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
+    public virtual async Task<Location> CreateAsync(Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null)
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), LocationConsts.NameMaxLength);
@@ -57,11 +59,12 @@ public class LocationManager : DomainService
         EnsureParkingFeeNonNegative(parkingFee);
         EnsureZipCodeFormat(zipCode);
         await EnsureNameIsUniqueAsync(name, Guid.Empty);
-        var location = new Location(GuidGenerator.Create(), stateId, appointmentTypeId, name, parkingFee, isActive, address, city, zipCode);
+        var location = new Location(GuidGenerator.Create(), stateId, name, parkingFee, isActive, address, city, zipCode);
+        location.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         return await _locationRepository.InsertAsync(location);
     }
 
-    public virtual async Task<Location> UpdateAsync(Guid id, Guid? stateId, Guid? appointmentTypeId, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null)
+    public virtual async Task<Location> UpdateAsync(Guid id, Guid? stateId, List<Guid> appointmentTypeIds, string name, decimal parkingFee, bool isActive, string? address = null, string? city = null, string? zipCode = null, [CanBeNull] string? concurrencyStamp = null)
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), LocationConsts.NameMaxLength);
@@ -71,15 +74,19 @@ public class LocationManager : DomainService
         EnsureParkingFeeNonNegative(parkingFee);
         EnsureZipCodeFormat(zipCode);
         await EnsureNameIsUniqueAsync(name, id);
-        var location = await _locationRepository.GetAsync(id);
+        // I3: load the AppointmentTypes M2M so SetAppointmentTypes diffs correctly
+        // (mirrors DoctorManager.UpdateAsync).
+        var queryable = await _locationRepository.WithDetailsAsync(x => x.AppointmentTypes);
+        var location = await AsyncExecuter.FirstOrDefaultAsync(queryable.Where(x => x.Id == id))
+            ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Location), id);
         location.StateId = stateId;
-        location.AppointmentTypeId = appointmentTypeId;
         location.Name = name;
         location.ParkingFee = parkingFee;
         location.IsActive = isActive;
         location.Address = address;
         location.City = city;
         location.ZipCode = zipCode;
+        location.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         location.SetConcurrencyStampIfNotNull(concurrencyStamp);
         return await _locationRepository.UpdateAsync(location);
     }

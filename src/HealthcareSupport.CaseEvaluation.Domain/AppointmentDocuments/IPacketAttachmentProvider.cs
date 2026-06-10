@@ -4,16 +4,16 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// Email-side integration surface for the packet generator. The email
 /// session calls this to fetch attachment bytes when sending an
 /// appointment-approved email, and reports back via
-/// <see cref="NotifySendCompletedAsync"/> so the AttorneyClaimExaminer
-/// rows can be pruned on success per Adrian's "AttyCE-on-failure-only"
-/// retention rule.
+/// <see cref="NotifySendCompletedAsync"/> once the send completes.
 ///
-/// <para>Patient + Doctor packets persist forever (the patient sees the
-/// rendered Patient Packet in their documents list, and internal staff
-/// can re-print the Doctor Packet at any time). The atty/CE packet is
-/// transient -- once email send succeeds it is removed; if the send
-/// fails, the row stays so the office can re-trigger or download the
-/// missed attachment manually.</para>
+/// <para>Retention parity (2026-06-09): all three packet kinds -- Patient,
+/// Doctor, and Attorney/Claim-Examiner -- persist after generation. They
+/// are stored in the appointment-packets container, listed in the
+/// appointment view, and downloadable subject to the per-role allow-list
+/// in <c>PacketVisibility</c> (internal -> all three; patient -> Patient;
+/// applicant/defense attorney + claim examiner -> Attorney/CE). The AttyCE
+/// packet was previously pruned on a successful send; that prune was
+/// removed so the packet stays available like the other two.</para>
 /// </summary>
 public interface IPacketAttachmentProvider
 {
@@ -26,11 +26,11 @@ public interface IPacketAttachmentProvider
     Task<PacketAttachment?> GetAttachmentAsync(Guid appointmentId, PacketKind kind, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Email session callback. On (kind=AttorneyClaimExaminer, success=true)
-    /// the underlying row + blob are deleted. On any other combination
-    /// (Patient/Doctor regardless of success, or AttyCE on failure) the
-    /// call is a no-op so the row remains available for retry / manual
-    /// re-download.
+    /// Email session callback invoked after each send. No longer prunes any
+    /// packet -- all three kinds are retained (see the interface remarks),
+    /// so this is a no-op hook kept only to keep the send job's call site
+    /// valid. Remove the call + this method in a dedicated cleanup if no
+    /// per-send bookkeeping is ever added.
     /// </summary>
     Task NotifySendCompletedAsync(Guid packetId, bool success, CancellationToken cancellationToken = default);
 }

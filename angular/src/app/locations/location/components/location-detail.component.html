@@ -112,11 +112,17 @@
                 <label class="form-label" for="location-appointment-type-id">
                   {{ '::AppointmentType' | abpLocalization }}
                 </label>
-                <abp-lookup-select
-                  cid="location-appointment-type-id"
-                  formControlName="appointmentTypeId"
+                <!-- I3 (2026-06-08): multi-select appointment-type dropdown (mirrors
+                     the Doctor form). Options = the tenant's appointment types via
+                     getAppointmentTypeLookup; [editingData] pre-fills on edit. -->
+                <abp-lookup-typeahead-mtm
+                  cid="location-appointment-types"
+                  formControlName="appointmentTypeIds"
+                  displayNameProp="name"
+                  lookupNameProp="displayName"
                   [getFn]="service.getAppointmentTypeLookup"
-                ></abp-lookup-select>
+                  [editingData]="service.selected?.appointmentTypes"
+                ></abp-lookup-typeahead-mtm>
               </div>
             </div>
           </ng-template>

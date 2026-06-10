@@ -41,6 +41,10 @@ public class AppointmentUpdateDto : IHasConcurrencyStamp
     [StringLength(AppointmentConsts.PartyEmailMaxLength)]
     public string? ClaimExaminerEmail { get; set; }
 
+    /// <summary>2026-06-09: optional per-appointment "Referred By".</summary>
+    [StringLength(AppointmentConsts.RefferedByMaxLength)]
+    public string? RefferedBy { get; set; }
+
     /// <summary>
     /// B1 (2026-05-05) -- replace-all set of per-AppointmentType custom-field
     /// answers. The AppService deletes existing <c>CustomFieldValue</c> rows

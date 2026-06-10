@@ -9,6 +9,7 @@ using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.EventBus.Local;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -37,6 +38,11 @@ public class AppointmentChangeRequestManager : DomainService
     // the existing state machine. Optional (only the reschedule path
     // touches it) but resolves cleanly via DI when the full ctor is used.
     private readonly AppointmentManager? _appointmentManager;
+    // G-02-06 (2026-06-01) -- IClock anchor for the cancel-time window gate,
+    // replacing machine-local DateTime.Today (mirrors InvitationManager's IClock
+    // precedent and gives a single seam for Phase 2 per-tenant timezones). Set
+    // only by the full ctor.
+    private readonly IClock? _clock;
 
     public AppointmentChangeRequestManager(IAppointmentChangeRequestRepository repository)
     {
@@ -49,7 +55,8 @@ public class AppointmentChangeRequestManager : DomainService
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ISystemParameterRepository systemParameterRepository,
         ILocalEventBus localEventBus,
-        AppointmentManager appointmentManager)
+        AppointmentManager appointmentManager,
+        IClock clock)
         : this(repository)
     {
         _appointmentRepository = appointmentRepository;
@@ -57,6 +64,7 @@ public class AppointmentChangeRequestManager : DomainService
         _systemParameterRepository = systemParameterRepository;
         _localEventBus = localEventBus;
         _appointmentManager = appointmentManager;
+        _clock = clock;
     }
 
     /// <summary>
@@ -93,7 +101,8 @@ public class AppointmentChangeRequestManager : DomainService
         if (_appointmentRepository == null
             || _doctorAvailabilityRepository == null
             || _systemParameterRepository == null
-            || _localEventBus == null)
+            || _localEventBus == null
+            || _clock == null)
         {
             throw new InvalidOperationException(
                 "AppointmentChangeRequestManager.SubmitCancellationAsync requires the full DI ctor; resolve via the container or pass the additional collaborators.");
@@ -130,7 +139,7 @@ public class AppointmentChangeRequestManager : DomainService
             throw new BusinessException(CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded);
         }
         var cancelTimeDays = systemParameter.AppointmentCancelTime;
-        if (CancellationRequestValidators.IsWithinNoCancelWindow(slot.AvailableDate, DateTime.Today, cancelTimeDays))
+        if (CancellationRequestValidators.IsWithinNoCancelWindow(slot.AvailableDate, _clock.Now.Date, cancelTimeDays))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestCancelTimeWindow)
                 .WithData("cancelTimeDays", cancelTimeDays)

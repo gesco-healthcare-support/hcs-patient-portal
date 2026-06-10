@@ -58,6 +58,18 @@ public interface IAppointmentApprovalAppService : IApplicationService
     Task<AppointmentDto> RejectAppointmentAsync(Guid id, RejectAppointmentInput input);
 
     /// <summary>
+    /// G-02-05 (2026-06-01) -- one-step internal-staff cancel of an Approved
+    /// appointment (OLD AppointmentDomain.Update CancelledNoBill branch). Stamps
+    /// CancellationReason + CancelledById, transitions Approved ->
+    /// CancelledNoBill / CancelledLate per
+    /// <see cref="DirectCancelAppointmentInput.CancellationOutcome"/>, and frees
+    /// the slot via the capacity model. No patient/attorney change request is
+    /// required. Throws <c>BusinessException(AppointmentInvalidTransition)</c>
+    /// when the appointment is not in <c>Approved</c> status.
+    /// </summary>
+    Task<AppointmentDto> DirectCancelAppointmentAsync(Guid id, DirectCancelAppointmentInput input);
+
+    /// <summary>
     /// A1 (2026-05-05) -- lookup feeding the Approve modal's "Responsible
     /// User" dropdown. Returns identity users in the current tenant whose
     /// role is one of the canonical internal roles (admin / Clinic Staff

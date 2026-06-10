@@ -194,19 +194,22 @@ public class NotificationTemplatesValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void Codes_All_Has63Codes()
+    public void Codes_All_Has64Codes()
     {
         // OLD has 16 + 43 = 59 events. 2026-05-12: Cat 2-7 expansion +
         // packet-generation / reminder / digest handlers added 3 NEW-only
         // codes for events OLD did not emit (count 62). 2026-05-15: the
         // tokenized-invite (#202) and IT-Admin internal-user-creation
         // (#203) features each added one more NEW-only code
-        // (InviteExternalUser, InternalUserCreated), bringing the count to
-        // 64. E2 (2026-06-04) then removed the dead AppointmentRequestedUnregistered
-        // template (the appointment-request fan-out collapsed to one shared
-        // Registered party body + the office notice), bringing the active
-        // count to 63.
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(63);
+        // (InviteExternalUser, InternalUserCreated), bringing the count to 64.
+        // Merge (2026-06-07): Group L added JointDeclarationUploadReminder (+1)
+        // and E2 (2026-06-04) removed the dead AppointmentRequestedUnregistered
+        // (-1); the merged set keeps both changes, count 64.
+        // Group D (2026-06-09) added ChangeRequestConsentRequest (+1 -> 65).
+        // Group F (2026-06-09) consolidated the reminders, removing
+        // UploadPendingDocuments, AppointmentDocumentIncomplete, and
+        // JointDeclarationUploadReminder (-3 -> 62).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(62);
     }
 
     [Fact]

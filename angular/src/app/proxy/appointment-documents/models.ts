@@ -2,6 +2,7 @@ import type { FullAuditedEntityDto } from '@abp/ng.core';
 import type { DocumentStatus } from './document-status.enum';
 import type { PacketKind } from './packet-kind.enum';
 import type { PacketGenerationStatus } from './packet-generation-status.enum';
+import type { RequiredDocumentState } from './required-document-state.enum';
 import type { PatientPortalDocumentSource } from './patient-portal-document-source.enum';
 import type { IFormFile } from '../microsoft/asp-net-core/http/models';
 
@@ -18,6 +19,8 @@ export interface AppointmentDocumentDto extends FullAuditedEntityDto<string> {
   rejectionReason?: string | null;
   responsibleUserId?: string | null;
   rejectedByUserId?: string | null;
+  appointmentDocumentTypeId?: string | null;
+  otherDocumentTypeName?: string | null;
   isPanelStrikeList?: boolean;
 }
 
@@ -30,6 +33,17 @@ export interface AppointmentPacketDto extends FullAuditedEntityDto<string> {
   generatedAt?: string;
   regeneratedAt?: string | null;
   errorMessage?: string | null;
+}
+
+export interface MissingRequiredDocumentDto {
+  documentId?: string;
+  name?: string;
+  state?: RequiredDocumentState;
+}
+
+export interface MissingRequiredDocumentsResultDto {
+  requiredCount?: number;
+  missing?: MissingRequiredDocumentDto[];
 }
 
 export interface PatientPortalDocumentDto {
@@ -48,6 +62,8 @@ export interface RejectDocumentInput {
 
 export interface UploadAppointmentDocumentForm {
   documentName?: string | null;
+  appointmentDocumentTypeId?: string | null;
+  otherDocumentTypeName?: string | null;
   file?: IFormFile;
   isPanelStrikeList?: boolean;
 }

@@ -7,6 +7,10 @@ public static class AppointmentDocumentConsts
     public const int DocumentNameMaxLength = 200;
     public const int BlobNameMaxLength = 100;
 
+    /// <summary>G-03-03: free-text label captured when the uploader picks the
+    /// "Other" document-type option. Matches AppointmentDocumentType.NameMaxLength.</summary>
+    public const int OtherDocumentTypeNameMaxLength = 100;
+
     /// <summary>
     /// AF7 / BUG-025 (2026-06-05) -- single source of truth for the per-document
     /// upload cap, 10 MB. The Application <c>AppointmentDocumentsAppService</c>

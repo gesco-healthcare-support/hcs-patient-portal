@@ -579,12 +579,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
             if (input.UserType == ExternalUserType.Patient)
             {
-                // IP6 (2026-06-05): link-by-email. Booking now creates a
-                // record-only Patient (null IdentityUserId). On self-register,
-                // CLAIM that existing record instead of creating a second row
-                // (the old behavior left two Patient rows -- see the
-                // AutoLinkAppointmentsForUserAsync docstring). Patient is
-                // IMultiTenant, so the query is auto-scoped to CurrentTenant.
+                // Merge (2026-06-07): take main's IP6 (2026-06-05) link-by-email
+                // -- booking creates a record-only Patient (null IdentityUserId),
+                // so on self-register CLAIM that existing record instead of
+                // creating a second row. KEEP the parity G-06-08 sentinel
+                // (Gender.Unspecified, not main's fabricated Gender.Male) for the
+                // create branch. Patient is IMultiTenant, so the query is
+                // auto-scoped to CurrentTenant.
                 var normalizedPatientEmail = input.Email.Trim().ToLower();
                 var patientQuery = await _patientRepository.GetQueryableAsync();
                 var unclaimedPatient = await AsyncExecuter.FirstOrDefaultAsync(
@@ -598,11 +599,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 }
                 else
                 {
-                    // No prior booking record for this email. FirstName/LastName
-                    // are not collected on the minimal register form (Adrian,
-                    // 2026-04-30); normalize null to "" so the Patient row is
-                    // created with empty name fields, filled later via the
-                    // booking form's patient section.
+                    // No prior booking record. FirstName/LastName are not
+                    // collected on the minimal register form (Adrian, 2026-04-30);
+                    // normalize null to "". G-06-08: do not fabricate a real
+                    // gender -- Unspecified + MinValue are "not provided yet"
+                    // sentinels; the booking form requires real values at booking.
                     await _patientManager.CreateAsync(
                         stateId: null,
                         appointmentLanguageId: null,
@@ -611,7 +612,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         firstName: input.FirstName ?? string.Empty,
                         lastName: input.LastName ?? string.Empty,
                         email: input.Email,
-                        genderId: Gender.Male,
+                        genderId: Gender.Unspecified,
                         dateOfBirth: DateTime.MinValue,
                         phoneNumberTypeId: PhoneNumberType.Home
                     );
@@ -1176,7 +1177,6 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return userType switch
         {
             ExternalUserType.Patient => "Patient",
-            ExternalUserType.Adjuster => "Adjuster",
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",

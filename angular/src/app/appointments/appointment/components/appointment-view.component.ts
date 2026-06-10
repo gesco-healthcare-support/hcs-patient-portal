@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 import {
   ConfigStateService,
+  EnvironmentService,
   ListResultDto,
   LocalizationPipe,
   LocalizationService,
@@ -19,7 +21,7 @@ import type {
   AppointmentWithNavigationPropertiesDto,
 } from '../../../proxy/appointments/models';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
-import { genderOptions } from '../../../proxy/enums/gender.enum';
+import { Gender, genderOptions } from '../../../proxy/enums/gender.enum';
 import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.enum';
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
@@ -29,6 +31,7 @@ import { firstValueFrom } from 'rxjs';
 import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
+import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
@@ -37,7 +40,7 @@ import { AppointmentDocumentsComponent } from '../../../appointment-documents/ap
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 
-type TransitionAction = 'approve' | 'reject';
+type TransitionAction = 'approve' | 'reject' | 'cancel';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -127,6 +130,7 @@ type ApplicantAttorneyLookupResult = {
     NgbDatepickerModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
+    CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
     AppointmentDocumentsComponent,
@@ -142,6 +146,8 @@ export class AppointmentViewComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly restService = inject(RestService);
+  private readonly http = inject(HttpClient);
+  private readonly environmentService = inject(EnvironmentService);
   private readonly toaster = inject(ToasterService);
   private readonly localization = inject(LocalizationService);
 
@@ -149,6 +155,7 @@ export class AppointmentViewComponent implements OnInit {
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
+  cancelModalVisible = false;
   // AP1 (decision 4): external-initiated change-request entry on the read-only
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
@@ -169,12 +176,18 @@ export class AppointmentViewComponent implements OnInit {
   isSaving = false;
   errorMessage = '';
   successMessage = '';
-  readonly genderOptions = genderOptions;
+  // I6 (2026-06-08): drop the Gender.Unspecified (value 0) radio -- it has no
+  // localized label (renders the raw "Enum:Gender.0" key) and is not a valid
+  // selection.
+  readonly genderOptions = genderOptions.filter((option) => option.value !== Gender.Unspecified);
   readonly phoneNumberTypeOptions = phoneNumberTypeOptions;
   readonly accessTypeOptions = [
     { value: 23, label: 'View' },
     { value: 24, label: 'Edit' },
   ];
+  // Group J: valid accessor roles -- email is free-typed, role chosen from
+  // the seeded external roles. Order mirrors the invite-user dropdown.
+  readonly roleOptions = ['Patient', 'Applicant Attorney', 'Defense Attorney', 'Claim Examiner'];
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserRow[] = [];
   isAuthorizedUserModalOpen = false;
@@ -203,6 +216,34 @@ export class AppointmentViewComponent implements OnInit {
   // read from the appointment nav-props (data.claimExaminer / data.primaryInsurance).
   appointmentClaimExaminerName = '';
   appointmentInsuranceCompanyName = '';
+
+  // CE-VIEW / INS-VIEW (2026-06-09): the dedicated read-only Claim Examiner
+  // and Insurance sections render straight from the appointment nav-props
+  // (appointment.claimExaminer / appointment.primaryInsurance) in the
+  // template. stateNamesById resolves the stored StateId GUID to a display
+  // name for those sections; the editable address blocks elsewhere use the
+  // app-lookup-select component, but these sections are plain read-only.
+  private readonly stateNamesById = new Map<string, string>();
+
+  stateName(id?: string | null): string {
+    return id ? (this.stateNamesById.get(id) ?? '') : '';
+  }
+
+  private loadStateNames(): void {
+    this.getStateLookup({
+      filter: '',
+      skipCount: 0,
+      maxResultCount: 100,
+    } as LookupRequestDto).subscribe({
+      next: (res) => {
+        (res.items ?? []).forEach((item) => {
+          if (item.id) {
+            this.stateNamesById.set(item.id, item.displayName ?? '');
+          }
+        });
+      },
+    });
+  }
 
   // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
   // so future shared section components (e.g. <app-patient-demographics>) can
@@ -327,12 +368,14 @@ export class AppointmentViewComponent implements OnInit {
   // `form` because it represents draft state for a per-row append/edit
   // operation that submits via its own POST/PUT, not via save().
   readonly authorizedUserForm: FormGroup = this.fb.group({
+    // identityUserId is set only when EDITING a persisted accessor (the
+    // update contract still keys by it); CREATE resolves the typed email.
     identityUserId: [null as string | null],
-    firstName: [''],
-    lastName: [''],
-    email: [''],
-    userRole: [''],
-    accessTypeId: [23 as number],
+    firstName: ['', [Validators.maxLength(64)]],
+    lastName: ['', [Validators.maxLength(64)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    userRole: ['', [Validators.required]],
+    accessTypeId: [23 as number, [Validators.required]],
   });
 
   readonly getStateLookup = (input: LookupRequestDto) =>
@@ -378,6 +421,9 @@ export class AppointmentViewComponent implements OnInit {
     wireAttorneySectionToggle(this.form, 'defenseAttorney');
 
     this.loadExternalAuthorizedUsers();
+    // CE-VIEW / INS-VIEW (2026-06-09): preload state display names for the
+    // read-only Claim Examiner + Insurance sections.
+    this.loadStateNames();
 
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -435,7 +481,9 @@ export class AppointmentViewComponent implements OnInit {
             patientAppointmentLanguageId: patient?.appointmentLanguageId ?? null,
             patientNeedsInterpreter: !!patient?.interpreterVendorName,
             patientInterpreterVendorName: patient?.interpreterVendorName ?? '',
-            patientRefferedBy: patient?.refferedBy ?? '',
+            // 2026-06-09: Referred By is now a per-appointment field; source it
+            // from the appointment, not the patient.
+            patientRefferedBy: data.appointment?.refferedBy ?? '',
           },
           { emitEvent: false },
         );
@@ -486,6 +534,53 @@ export class AppointmentViewComponent implements OnInit {
 
   goBack(): void {
     this.router.navigateByUrl('/');
+  }
+
+  // G-08-04: download the per-appointment Patient Demographics PDF. Internal
+  // staff only -- the button is gated by *abpPermission="'CaseEvaluation.Reports'".
+  downloadDemographics(): void {
+    const appointmentId = this.appointment?.appointment?.id;
+    if (appointmentId) {
+      void this.downloadDemographicsInternal(appointmentId);
+    }
+  }
+
+  // Authenticated blob download (HttpClient + anchor click); NEVER window.open
+  // (a new tab carries no Bearer token). See angular/src/app/CLAUDE.md.
+  private async downloadDemographicsInternal(appointmentId: string): Promise<void> {
+    const base = this.environmentService.getApiUrl('Default') ?? '';
+    try {
+      const response = await firstValueFrom(
+        this.http.get(`${base}/api/app/appointment-demographics/${appointmentId}`, {
+          observe: 'response',
+          responseType: 'blob',
+        }),
+      );
+
+      const blob = response.body;
+      if (!blob) {
+        return;
+      }
+
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disposition);
+      const fileName = match ? decodeURIComponent(match[1]) : 'appointment-demographics.pdf';
+
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      }
+    } catch {
+      this.errorMessage = 'Could not download the demographics PDF.';
+    }
   }
 
   /**
@@ -578,23 +673,62 @@ export class AppointmentViewComponent implements OnInit {
     const status = this.currentStatus;
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      !this.isPatientUser && status === AppointmentStatusType.Pending
+      // Pending shows Approve/Reject; Approved shows the G-02-05 direct Cancel.
+      // Server [Authorize(Appointments.*)] gates remain authoritative.
+      !this.isPatientUser &&
+      (status === AppointmentStatusType.Pending || status === AppointmentStatusType.Approved)
     );
   }
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending: approve | reject  (OLD parity -- no send-back path)
+   *  Pending:  approve | reject  (OLD parity -- no send-back path)
+   *  Approved: cancel            (G-02-05 one-step staff cancel)
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
       return ['approve', 'reject'];
     }
+    if (status === AppointmentStatusType.Approved) {
+      return ['cancel'];
+    }
     return [];
   }
 
-  /** Triggered when the office clicks Approve or Reject in the toolbar. */
+  /**
+   * G-01-07: the booker may re-request a REJECTED appointment they created
+   * (OLD parity: the appointment-edit "Re-Request" button gated on
+   * status == Rejected && createdById == loginUser). creatorId is the ABP
+   * audit author = the original booker; identityUserId is the patient's user,
+   * so creatorId is the correct "did I create this" check.
+   */
+  get canReRequest(): boolean {
+    const creatorId = this.appointment?.appointment?.creatorId;
+    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
+    return (
+      this.currentStatus === AppointmentStatusType.Rejected &&
+      !!creatorId &&
+      creatorId === currentUserId
+    );
+  }
+
+  /**
+   * Navigate to the booking form in re-request mode, carrying the source
+   * confirmation number. The booking form auto-loads + prefills from the
+   * rejected source and submits via reSubmit (which reuses the source conf #).
+   */
+  reRequest(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    this.router.navigate(['/appointments/add'], {
+      queryParams: { mode: 'rerequest', source: conf },
+    });
+  }
+
+  /** Triggered when the office clicks Approve, Reject, or Cancel in the toolbar. */
   dispatchAction(action: TransitionAction): void {
     if (!this.appointment?.appointment?.id) {
       return;
@@ -605,6 +739,9 @@ export class AppointmentViewComponent implements OnInit {
         break;
       case 'reject':
         this.rejectModalVisible = true;
+        break;
+      case 'cancel':
+        this.cancelModalVisible = true;
         break;
     }
   }
@@ -718,7 +855,6 @@ export class AppointmentViewComponent implements OnInit {
         address: raw.patientAddress || undefined,
         city: raw.patientCity || undefined,
         zipCode: raw.patientZipCode || undefined,
-        refferedBy: raw.patientRefferedBy || undefined,
         cellPhoneNumber: raw.patientCellPhoneNumber || undefined,
         phoneNumberTypeId: (raw.patientPhoneNumberTypeId as any) ?? undefined,
         street: raw.patientStreet || undefined,
@@ -776,6 +912,9 @@ export class AppointmentViewComponent implements OnInit {
               applicantAttorneyEmail: selected.applicantAttorneyEmail,
               defenseAttorneyEmail: selected.defenseAttorneyEmail,
               claimExaminerEmail: selected.claimExaminerEmail,
+              // 2026-06-09: per-appointment Referred By -- the form loads/saves
+              // the appointment's own value (not the patient's).
+              refferedBy: raw.patientRefferedBy || undefined,
             };
 
             this.appointmentService.update(selected.id!, payload).subscribe({
@@ -855,6 +994,11 @@ export class AppointmentViewComponent implements OnInit {
       userRole: '',
       accessTypeId: 23,
     });
+    // CREATE: identity fields are free-typed.
+    this.authorizedUserForm.get('firstName')?.enable();
+    this.authorizedUserForm.get('lastName')?.enable();
+    this.authorizedUserForm.get('email')?.enable();
+    this.authorizedUserForm.get('userRole')?.enable();
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -869,6 +1013,12 @@ export class AppointmentViewComponent implements OnInit {
       userRole: item.userRole,
       accessTypeId: item.accessTypeId,
     });
+    // EDIT: the person is fixed (the update contract changes only the
+    // rights); show identity read-only, edit just View/Edit.
+    this.authorizedUserForm.get('firstName')?.disable();
+    this.authorizedUserForm.get('lastName')?.disable();
+    this.authorizedUserForm.get('email')?.disable();
+    this.authorizedUserForm.get('userRole')?.disable();
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -876,61 +1026,58 @@ export class AppointmentViewComponent implements OnInit {
     this.isAuthorizedUserModalOpen = false;
   }
 
-  onAuthorizedUserIdentityChange(): void {
-    const identityUserId = this.authorizedUserForm.get('identityUserId')?.value as string | null;
-    const selected = this.externalAuthorizedUserOptions.find(
-      (x) => x.identityUserId === identityUserId,
-    );
-    this.authorizedUserForm.patchValue(
-      {
-        firstName: selected?.firstName ?? '',
-        lastName: selected?.lastName ?? '',
-        email: selected?.email ?? '',
-        userRole: selected?.userRole ?? '',
-      },
-      { emitEvent: false },
-    );
-  }
-
   async saveAuthorizedUserFromModal(): Promise<void> {
     const appointmentId = this.appointment?.appointment?.id;
+    if (!appointmentId) {
+      return;
+    }
+    if (this.authorizedUserForm.invalid) {
+      this.authorizedUserForm.markAllAsTouched();
+      return;
+    }
+
     const draft = this.authorizedUserForm.getRawValue();
-    if (!appointmentId || !draft.identityUserId) {
-      return;
-    }
-
-    const duplicate = this.appointmentAuthorizedUsers.some(
-      (x) =>
-        x.identityUserId === draft.identityUserId && x.accessorId !== this.editingAuthorizedUserId,
-    );
-    if (duplicate) {
-      return;
-    }
-
-    const body = {
-      appointmentId,
-      identityUserId: draft.identityUserId,
-      accessTypeId: draft.accessTypeId,
-    };
 
     if (this.authorizedUserModalMode === 'edit' && this.editingAuthorizedUserId) {
+      // EDIT changes only the rights; the update contract keys by the
+      // existing identityUserId.
       await firstValueFrom(
         this.restService.request<any, any>(
           {
             method: 'PUT',
             url: `/api/app/appointment-accessors/${this.editingAuthorizedUserId}`,
-            body,
+            body: {
+              appointmentId,
+              identityUserId: draft.identityUserId,
+              accessTypeId: draft.accessTypeId,
+            },
           },
           { apiName: 'Default' },
         ),
       );
     } else {
+      const email = (draft.email ?? '').trim();
+      // Dedup by email -- the typed email is the accessor's identity key.
+      const duplicate = this.appointmentAuthorizedUsers.some(
+        (x) => x.email.toLowerCase() === email.toLowerCase(),
+      );
+      if (duplicate) {
+        return;
+      }
+      // CREATE resolves the email to a user or provisions + invites one.
       await firstValueFrom(
         this.restService.request<any, any>(
           {
             method: 'POST',
             url: '/api/app/appointment-accessors',
-            body,
+            body: {
+              appointmentId,
+              email,
+              firstName: (draft.firstName ?? '').trim() || undefined,
+              lastName: (draft.lastName ?? '').trim() || undefined,
+              role: draft.userRole,
+              accessTypeId: draft.accessTypeId,
+            },
           },
           { apiName: 'Default' },
         ),

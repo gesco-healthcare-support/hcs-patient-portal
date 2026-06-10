@@ -53,4 +53,7 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
     public string? ApplicantAttorneyEmail { get; set; }
     public string? DefenseAttorneyEmail { get; set; }
     public string? ClaimExaminerEmail { get; set; }
+
+    /// <summary>2026-06-09: optional per-appointment "Referred By".</summary>
+    public string? RefferedBy { get; set; }
 }

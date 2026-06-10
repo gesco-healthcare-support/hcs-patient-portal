@@ -2,6 +2,16 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 export type StagedDocumentStatus = 'staged' | 'uploading' | 'uploaded' | 'failed';
 
+/**
+ * Sentinel <option> value for the "Other" choice in the document-type picker.
+ * Selecting it reveals a free-text input; the parent maps it to the backend's
+ * OtherDocumentTypeName (mutually exclusive with a real AppointmentDocumentTypeId).
+ */
+export const OTHER_DOCUMENT_TYPE_VALUE = '__other__';
+
+/** Mirrors backend AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength. */
+export const OTHER_DOCUMENT_TYPE_MAX_LENGTH = 100;
+
 /** A document the booker has attached but not yet uploaded (uploaded post-create). */
 export interface StagedDocumentUpload {
   file: File;
@@ -9,6 +19,12 @@ export interface StagedDocumentUpload {
   error?: string;
   /** AF6: true when the booker marked this staged doc as the PQME panel strike list. */
   isStrikeList: boolean;
+  /** I15 (2026-06-08): the chosen document-category label id (null = unspecified). */
+  documentTypeId?: string | null;
+  /** True when the booker picked "Other" and will type a free-text label. */
+  isOtherType?: boolean;
+  /** Free-text label entered when isOtherType is true (max OTHER_DOCUMENT_TYPE_MAX_LENGTH). */
+  otherDocumentTypeName?: string | null;
 }
 
 /**
@@ -38,17 +54,35 @@ export class AppointmentAddDocumentsComponent {
   @Input() isPqme = false;
   /** AF6: bound to the parent's hasPanelStrikeList flag (opt-in strike-list requirement). */
   @Input() hasPanelStrikeList = false;
+  /** I15 (2026-06-08): per-appointment-type document-category labels for the picker. */
+  @Input() documentTypeOptions: { id: string; displayName: string }[] = [];
 
   @Output() filesSelected = new EventEmitter<File[]>();
   @Output() removeDocument = new EventEmitter<number>();
   @Output() retryUploads = new EventEmitter<void>();
   /** AF6: the PQME "I have the panel strike list" checkbox toggled. */
   @Output() hasPanelStrikeListChange = new EventEmitter<boolean>();
-  /** AF6: the booker designated staged document [index] as the panel strike list. */
-  @Output() selectStrikeList = new EventEmitter<number>();
+  /** I15 (2026-06-08): the booker chose a document-type label for staged doc [index]. */
+  @Output() documentTypeChange = new EventEmitter<{ index: number; typeId: string | null }>();
+  /** The free-text "Other" label was edited for staged doc [index]. */
+  @Output() otherDocumentTypeNameChange = new EventEmitter<{ index: number; value: string }>();
+
+  /** Exposed to the template: the "Other" sentinel option value + free-text cap. */
+  protected readonly otherValue = OTHER_DOCUMENT_TYPE_VALUE;
+  protected readonly otherMaxLength = OTHER_DOCUMENT_TYPE_MAX_LENGTH;
 
   onHasPanelStrikeListChange(event: Event): void {
     this.hasPanelStrikeListChange.emit((event.target as HTMLInputElement).checked);
+  }
+
+  onDocumentTypeChange(index: number, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.documentTypeChange.emit({ index, typeId: value || null });
+  }
+
+  onOtherDocumentTypeNameChange(index: number, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.otherDocumentTypeNameChange.emit({ index, value });
   }
 
   get hasFailedUploads(): boolean {

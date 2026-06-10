@@ -43,6 +43,21 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- tenant-scoped, per-appointment-type document
+    /// category master. Granted to IT Admin + Staff Supervisor only (the two
+    /// roles Adrian designated as list owners); Clinic Staff and all external
+    /// roles never receive it. Reserved IsSystem rows ("Generated Packet")
+    /// stay read-only regardless of the grant -- enforced in the domain manager.
+    /// </summary>
+    public static class AppointmentDocumentTypes
+    {
+        public const string Default = GroupName + ".AppointmentDocumentTypes";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     public static class AppointmentLanguages
     {
         public const string Default = GroupName + ".AppointmentLanguages";
@@ -224,6 +239,20 @@ public static class CaseEvaluationPermissions
     public static class AppointmentChangeLogs
     {
         public const string Default = GroupName + ".AppointmentChangeLogs";
+    }
+
+    /// <summary>
+    /// G-08-01 (2026-06-06) -- the Appointment Request Report: a cross-appointment,
+    /// PHI-masked operational worklist for internal staff (Clinic Staff, Staff
+    /// Supervisor, IT Admin). External roles never receive it. <c>Default</c> gates
+    /// the read-only grid; <c>Export</c> (G-08-03, 2026-06-06) gates the PDF export
+    /// of the same filtered set. Full SSN is never emitted here -- only the masked
+    /// last-4; a full reveal still routes through <see cref="Patients.RevealSsn"/>.
+    /// </summary>
+    public static class Reports
+    {
+        public const string Default = GroupName + ".Reports";
+        public const string Export = Default + ".Export";
     }
 
     /// <summary>

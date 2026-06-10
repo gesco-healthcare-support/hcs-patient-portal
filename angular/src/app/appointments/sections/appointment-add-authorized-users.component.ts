@@ -4,13 +4,15 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 /**
  * Shape of a row in the parent's `appointmentAuthorizedUsers` array.
- * Exported so the parent (and any future consumer) imports the type
- * from the section file; this section owns the type because the table
- * + modal are the only producers.
+ * Group J (2026-06-05): accessors are added by free-typed name + email
+ * + role, so a draft no longer carries a pre-resolved identityUserId --
+ * the server resolves the email to a user (or provisions + invites one)
+ * at submit. `identityUserId` stays optional only so already-persisted
+ * rows loaded from the API can still round-trip their id for edit/delete.
  */
 export type AppointmentAuthorizedUserDraft = {
   id?: string;
-  identityUserId: string;
+  identityUserId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -19,11 +21,10 @@ export type AppointmentAuthorizedUserDraft = {
 };
 
 /**
- * One entry in the lookup the modal's Email dropdown renders. Loaded by
- * the parent via `loadExternalAuthorizedUsers` because two other
- * sections (Applicant Attorney, Defense Attorney) also consume the
- * same lookup -- centralising the fetch at the parent level avoids
- * three duplicate API calls.
+ * One entry in the external-user lookup. Still produced by the parent's
+ * `loadExternalAuthorizedUsers` because the Applicant/Defense Attorney
+ * sections consume it; the accessor section no longer uses it (accessors
+ * are now free-typed by email, not picked from this list).
  */
 export type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -41,18 +42,13 @@ export type ExternalAuthorizedUserOption = {
  * level; the parent decides visibility, the child renders the section
  * when shown.
  *
- * State ownership:
- *   - parent  -> the `appointmentAuthorizedUsers` array (data, used
- *                at submit). Passed in by reference.
- *   - parent  -> `externalAuthorizedUserOptions` lookup. Passed in.
- *   - child   -> modal open/closed flag + create-or-edit mode +
- *                editing index + selected option + the modal-local
- *                FormGroup.
- *
- * Why the list is mutated in place: parent never reactively watches
- * the array; it serializes it once at submit. Passing by reference
- * and letting the child push / splice keeps the data-flow simple,
- * avoids double Output plumbing.
+ * Group J (2026-06-05): the email picker became free-text -- you type
+ * any name + email + role + rights and the server resolves or invites
+ * the person. State ownership is unchanged:
+ *   - parent  -> the `appointmentAuthorizedUsers` array (data, used at
+ *                submit). Passed in by reference; the child push/splices.
+ *   - child   -> modal open/closed flag + create-or-edit mode + editing
+ *                index + the modal-local FormGroup.
  */
 @Component({
   selector: 'app-appointment-add-authorized-users',
@@ -63,7 +59,6 @@ export type ExternalAuthorizedUserOption = {
 })
 export class AppointmentAddAuthorizedUsersComponent {
   @Input({ required: true }) users!: AppointmentAuthorizedUserDraft[];
-  @Input({ required: true }) userOptions!: ExternalAuthorizedUserOption[];
 
   /**
    * OLD parity: access-type 23 = View, 24 = Edit. Lives at child level
@@ -75,28 +70,37 @@ export class AppointmentAddAuthorizedUsersComponent {
     { value: 24, label: 'Edit' },
   ];
 
+  /**
+   * Valid accessor roles. The server grants/validates this role on the
+   * accessor's identity (AppointmentAccessorManager.CreateOrLinkAsync),
+   * so the values must match the seeded external role names. Order
+   * mirrors the external-user invite dropdown for consistency.
+   */
+  readonly roleOptions = ['Patient', 'Applicant Attorney', 'Defense Attorney', 'Claim Examiner'];
+
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
   editingAuthorizedUserIndex = -1;
-  selectedAuthorizedUser: ExternalAuthorizedUserOption | null = null;
 
   private readonly fb = new FormBuilder();
   readonly authorizedUserForm = this.fb.group({
-    identityUserId: [null as string | null, [Validators.required]],
+    firstName: ['', [Validators.maxLength(64)]],
+    lastName: ['', [Validators.maxLength(64)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    userRole: ['', [Validators.required]],
     accessTypeId: [23, [Validators.required]],
   });
-
-  constructor() {
-    this.authorizedUserForm.get('identityUserId')?.valueChanges.subscribe((value) => {
-      this.onAuthorizedUserIdentityChanged(value);
-    });
-  }
 
   openAddAuthorizedUserModal(): void {
     this.authorizedUserModalMode = 'create';
     this.editingAuthorizedUserIndex = -1;
-    this.selectedAuthorizedUser = null;
-    this.authorizedUserForm.reset({ identityUserId: null, accessTypeId: 23 });
+    this.authorizedUserForm.reset({
+      firstName: '',
+      lastName: '',
+      email: '',
+      userRole: '',
+      accessTypeId: 23,
+    });
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -109,11 +113,12 @@ export class AppointmentAddAuthorizedUsersComponent {
     this.authorizedUserModalMode = 'edit';
     this.editingAuthorizedUserIndex = index;
     this.authorizedUserForm.reset({
-      identityUserId: item.identityUserId,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      email: item.email,
+      userRole: item.userRole,
       accessTypeId: item.accessTypeId,
     });
-    this.selectedAuthorizedUser =
-      this.userOptions.find((x) => x.identityUserId === item.identityUserId) ?? null;
     this.isAuthorizedUserModalOpen = true;
   }
 
@@ -122,32 +127,36 @@ export class AppointmentAddAuthorizedUsersComponent {
   }
 
   saveAuthorizedUserFromModal(): void {
-    if (this.authorizedUserForm.invalid || !this.selectedAuthorizedUser) {
+    if (this.authorizedUserForm.invalid) {
       this.authorizedUserForm.markAllAsTouched();
       return;
     }
 
     const raw = this.authorizedUserForm.getRawValue();
-    const identityUserId = raw.identityUserId ?? '';
+    const email = (raw.email ?? '').trim();
     const accessTypeId = Number(raw.accessTypeId ?? 23);
 
+    // Dedup by email -- the email is now the accessor's identity key.
     const duplicateIndex = this.users.findIndex(
-      (x, i) => x.identityUserId === identityUserId && i !== this.editingAuthorizedUserIndex,
+      (x, i) =>
+        x.email.toLowerCase() === email.toLowerCase() && i !== this.editingAuthorizedUserIndex,
     );
     if (duplicateIndex >= 0) {
       return;
     }
 
+    const existing =
+      this.authorizedUserModalMode === 'edit'
+        ? this.users[this.editingAuthorizedUserIndex]
+        : undefined;
+
     const mapped: AppointmentAuthorizedUserDraft = {
-      id:
-        this.authorizedUserModalMode === 'edit'
-          ? this.users[this.editingAuthorizedUserIndex]?.id
-          : undefined,
-      identityUserId: this.selectedAuthorizedUser.identityUserId,
-      firstName: this.selectedAuthorizedUser.firstName,
-      lastName: this.selectedAuthorizedUser.lastName,
-      email: this.selectedAuthorizedUser.email,
-      userRole: this.selectedAuthorizedUser.userRole,
+      id: existing?.id,
+      identityUserId: existing?.identityUserId,
+      firstName: (raw.firstName ?? '').trim(),
+      lastName: (raw.lastName ?? '').trim(),
+      email,
+      userRole: raw.userRole ?? '',
       accessTypeId,
     };
 
@@ -166,10 +175,5 @@ export class AppointmentAddAuthorizedUsersComponent {
 
   getAccessTypeLabel(value: number): string {
     return this.accessTypeOptions.find((x) => x.value === value)?.label ?? '';
-  }
-
-  private onAuthorizedUserIdentityChanged(identityUserId: string | null): void {
-    this.selectedAuthorizedUser =
-      this.userOptions.find((x) => x.identityUserId === identityUserId) ?? null;
   }
 }

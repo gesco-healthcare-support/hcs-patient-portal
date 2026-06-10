@@ -28,6 +28,11 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Create, L("Permission:Create"));
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Edit, L("Permission:Edit"));
         appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Delete, L("Permission:Delete"));
+        // G-03-01 (2026-06-03) -- per-appointment-type document category master.
+        var appointmentDocumentTypePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocumentTypes.Default, L("Permission:AppointmentDocumentTypes"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Create, L("Permission:Create"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Edit, L("Permission:Edit"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete, L("Permission:Delete"));
         var appointmentLanguagePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentLanguages.Default, L("Permission:AppointmentLanguages"));
         appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Create, L("Permission:Create"));
         appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Edit, L("Permission:Edit"));
@@ -110,6 +115,12 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
 
         // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
         myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
+
+        // G-08-01 (2026-06-06): read-only Appointment Request Report. No
+        // Create/Edit/Delete -- reports are read-only. G-08-03 (2026-06-06) adds
+        // the Export child gating the PDF export of the filtered set.
+        var reportsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
+        reportsPermission.AddChild(CaseEvaluationPermissions.Reports.Export, L("Permission:Reports.Export"));
 
         // W2-5: per-AppointmentType field-config admin. Default lets the booker
         // form read the apply-on-change config; Create/Edit/Delete gate admin

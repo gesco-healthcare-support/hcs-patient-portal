@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
@@ -29,6 +30,27 @@ public class AppointmentDocumentController : AbpController
         return _service.GetListByAppointmentAsync(appointmentId);
     }
 
+    [HttpGet("document-type-options")]
+    public virtual Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
+    {
+        return _service.GetDocumentTypeOptionsAsync(appointmentId);
+    }
+
+    // I15 (2026-06-08): booking-form options keyed by appointment type (no
+    // appointment exists yet). Absolute route ("~/") so it is not nested under
+    // the {appointmentId} prefix.
+    [HttpGet("~/api/app/appointment-documents/options-by-type/{appointmentTypeId}")]
+    public virtual Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId)
+    {
+        return _service.GetDocumentTypeOptionsByAppointmentTypeAsync(appointmentTypeId);
+    }
+
+    [HttpGet("missing-required")]
+    public virtual Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
+    {
+        return _service.GetMissingRequiredDocumentsAsync(appointmentId);
+    }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     public virtual async Task<AppointmentDocumentDto> UploadAsync(
@@ -47,6 +69,8 @@ public class AppointmentDocumentController : AbpController
             form.File.ContentType,
             form.File.Length,
             stream,
+            form.AppointmentDocumentTypeId,
+            form.OtherDocumentTypeName,
             form.IsPanelStrikeList);
     }
 
@@ -145,6 +169,13 @@ public class AppointmentDocumentController : AbpController
 public class UploadAppointmentDocumentForm
 {
     public string? DocumentName { get; set; }
+
+    /// <summary>G-03-03 (PR2): chosen document category id (omit for "Other" or untyped).</summary>
+    public Guid? AppointmentDocumentTypeId { get; set; }
+
+    /// <summary>G-03-03 (PR2): free-text label when the uploader picks "Other".</summary>
+    public string? OtherDocumentTypeName { get; set; }
+
     public IFormFile File { get; set; } = null!;
 
     /// <summary>

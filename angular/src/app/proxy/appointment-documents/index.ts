@@ -6,3 +6,4 @@ export * from './packet-generation-status.enum';
 export * from './packet-kind.enum';
 export * from './patient-portal-document-source.enum';
 export * from './public-document-upload.service';
+export * from './required-document-state.enum';

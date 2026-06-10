@@ -4,11 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
+using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
 using Volo.Abp;
@@ -48,6 +52,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
+    private readonly IPackageDetailRepository _packageDetailRepository;
+    private readonly IRepository<Document, Guid> _masterDocumentRepository;
     private readonly AppointmentDocumentManager _documentManager;
     private readonly IBlobContainer<AppointmentDocumentsContainer> _blobContainer;
     private readonly ICurrentTenant _currentTenant;
@@ -68,6 +75,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         IRepository<AppointmentDocument, Guid> documentRepository,
         IRepository<AppointmentPacket, Guid> packetRepository,
         IRepository<Appointment, Guid> appointmentRepository,
+        IAppointmentDocumentTypeRepository documentTypeRepository,
+        IPackageDetailRepository packageDetailRepository,
+        IRepository<Document, Guid> masterDocumentRepository,
         AppointmentDocumentManager documentManager,
         IBlobContainer<AppointmentDocumentsContainer> blobContainer,
         ICurrentTenant currentTenant,
@@ -81,6 +91,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
+        _documentTypeRepository = documentTypeRepository;
+        _packageDetailRepository = packageDetailRepository;
+        _masterDocumentRepository = masterDocumentRepository;
         _documentManager = documentManager;
         _packetRepository = packetRepository;
         _blobContainer = blobContainer;
@@ -145,6 +158,128 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         return ObjectMapper.Map<List<AppointmentDocument>, List<AppointmentDocumentDto>>(rows);
     }
 
+    /// <summary>
+    /// G-03-03 (PR2): document-type options for the document picker. Returns
+    /// active, non-system categories scoped to the appointment's own type (plus
+    /// the "applies to all types" rows); the reserved "Generated Packet" system
+    /// row is excluded. The per-appointment read-access guard still applies.
+    ///
+    /// 2026-06-09 fix: gated by AppointmentDocuments.Default (a read), NOT
+    /// .Create. The appointment Review page loads these options on open, so a
+    /// reviewer tier must be able to read them -- Clinic Staff has .Default +
+    /// .Approve but NOT .Create (upload is supervisor-only), so the old .Create
+    /// gate 403'd the Review page for Clinic Staff. Every role granted .Create
+    /// also has .Default, so no uploader loses access. Returns only label names.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
+    public virtual async Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        var queryable = await _documentTypeRepository.GetQueryableAsync();
+        var query = queryable
+            .Where(t => t.IsActive
+                        && !t.IsSystem
+                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointment.AppointmentTypeId))
+            .OrderBy(t => t.Name)
+            .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
+        return await AsyncExecuter.ToListAsync(query);
+    }
+
+    /// <summary>
+    /// I15 (2026-06-08): document-type options for the BOOKING form, where no
+    /// appointment exists yet. Same catalog as <see cref="GetDocumentTypeOptionsAsync"/>
+    /// but keyed by appointment type directly (active, non-system rows scoped to
+    /// the type + the "applies to all types" rows). Gated by AppointmentDocuments.Default
+    /// (a read) -- it returns label names, no appointment-specific data. 2026-06-09:
+    /// relaxed from .Create so a Clinic Staff booker (has .Default, not .Create) gets
+    /// a populated picker; every role with .Create also has .Default.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
+    public virtual async Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId)
+    {
+        var queryable = await _documentTypeRepository.GetQueryableAsync();
+        var query = queryable
+            .Where(t => t.IsActive
+                        && !t.IsSystem
+                        && (t.AppointmentTypeId == null || t.AppointmentTypeId == appointmentTypeId))
+            .OrderBy(t => t.Name)
+            .Select(t => new LookupDto<Guid> { Id = t.Id, DisplayName = t.Name });
+        return await AsyncExecuter.ToListAsync(query);
+    }
+
+    /// <summary>
+    /// G-03 (PR3): required documents for this appointment not yet Accepted, each
+    /// with its current state, for the missing-required-documents indicator.
+    /// "Required" = the active package template(s) for the appointment's type
+    /// (union), mirroring PackageDocumentQueueHandler's resolution; a requirement
+    /// is satisfied only when an uploaded document links back by SourceDocumentId
+    /// AND is Accepted. Same gate as the document list (Default + per-appointment
+    /// read-access guard) so any party to the appointment sees what is outstanding.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
+    public virtual async Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", "AppointmentId"]);
+        }
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        // Required = active Documents linked (active) to the active PackageDetail(s)
+        // for this appointment's type. Unions multiple active packages, matching
+        // PackageDocumentQueueHandler's tolerance.
+        var packageQueryable = await _packageDetailRepository.GetQueryableAsync();
+        var requiredDocumentIds = await AsyncExecuter.ToListAsync(
+            packageQueryable
+                .Where(p => p.IsActive && p.AppointmentTypeId == appointment.AppointmentTypeId)
+                .SelectMany(p => p.DocumentPackages)
+                .Where(dp => dp.IsActive)
+                .Select(dp => dp.DocumentId)
+                .Distinct());
+
+        if (requiredDocumentIds.Count == 0)
+        {
+            return new MissingRequiredDocumentsResultDto();
+        }
+
+        var masterQueryable = await _masterDocumentRepository.GetQueryableAsync();
+        var required = await AsyncExecuter.ToListAsync(
+            masterQueryable
+                .Where(d => requiredDocumentIds.Contains(d.Id) && d.IsActive)
+                .OrderBy(d => d.Name)
+                .Select(d => new { d.Id, d.Name }));
+
+        var documentQueryable = await _documentRepository.GetQueryableAsync();
+        var existing = await AsyncExecuter.ToListAsync(
+            documentQueryable
+                .Where(x => x.AppointmentId == appointmentId)
+                .Select(x => new { x.SourceDocumentId, x.Status }));
+
+        var missing = RequiredDocumentEvaluator.Evaluate(
+            required.Select(r => (r.Id, r.Name)),
+            existing.Select(e => (e.SourceDocumentId, e.Status)));
+
+        return new MissingRequiredDocumentsResultDto
+        {
+            RequiredCount = required.Count,
+            Missing = missing
+                .Select(m => new MissingRequiredDocumentDto
+                {
+                    DocumentId = m.DocumentId,
+                    Name = m.Name,
+                    State = m.State,
+                })
+                .ToList(),
+        };
+    }
+
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
     [DisableValidation]
@@ -155,6 +290,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         string? contentType,
         long fileSize,
         Stream content,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null,
         bool isPanelStrikeList = false)
     {
         if (appointmentId == Guid.Empty)
@@ -178,6 +315,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // Issue #114 (2026-05-13): gate before any blob save so the
         // user can't trigger a write at all if they're not a party.
         await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        // G-03-03 (PR2): validate the document-type selection server-side
+        // before any blob write (fail fast). Returns the trimmed values to
+        // persist.
+        var (resolvedTypeId, resolvedOtherName) =
+            await ResolveDocumentTypeSelectionAsync(appointmentDocumentTypeId, otherDocumentTypeName);
 
         // W2-11: magic-byte validation BEFORE any blob save. Browser-supplied
         // ContentType + extension are trivially spoofable; the file header
@@ -204,16 +347,31 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             blobName: blobName,
             contentType: contentType,
             fileSize: fileSize,
-            uploadedByUserId: CurrentUser.Id ?? Guid.Empty);
+            uploadedByUserId: CurrentUser.Id ?? Guid.Empty,
+            appointmentDocumentTypeId: resolvedTypeId,
+            otherDocumentTypeName: resolvedOtherName);
 
         // Phase 14: this generic upload path is the ad-hoc / general
         // document path (OLD's AppointmentNewDocuments table). NEW
         // unifies via the IsAdHoc flag (Phase 1.6). Package + JDF
         // uploads use the dedicated methods below.
         entity.IsAdHoc = true;
-        // AF6 (2026-06-05): tag the booker-marked PQME panel strike list (AF5
-        // flag) so staff can identify it for venue verification.
-        entity.IsPanelStrikeList = isPanelStrikeList;
+        // AF6 (2026-06-05) + I16 (2026-06-08): tag the panel strike list so staff
+        // can identify it and the PQME approval gate can find it. Set when EITHER
+        // the client flagged it OR the document was uploaded under the
+        // "Panel Strike List" category -- so the label drives the flag on both the
+        // booking form and the post-booking view-page upload.
+        var isStrikeListByLabel = false;
+        if (resolvedTypeId.HasValue)
+        {
+            var resolvedType = await _documentTypeRepository.FindAsync(resolvedTypeId.Value);
+            isStrikeListByLabel = resolvedType != null
+                && string.Equals(
+                    resolvedType.Name,
+                    AppointmentDocumentTypeConsts.PanelStrikeListName,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        entity.IsPanelStrikeList = isPanelStrikeList || isStrikeListByLabel;
         entity.Status = initialStatus;
         if (initialStatus == DocumentStatus.Accepted)
         {
@@ -682,6 +840,43 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     }
 
     /// <summary>
+    /// G-03-03 (PR2): validate + normalize the uploader's document-type
+    /// selection. A type id and an "Other" free-text label are mutually
+    /// exclusive; a supplied type id must resolve to an active, non-system
+    /// category in the current tenant (the FindAsync IMultiTenant filter
+    /// rejects ids from other tenants). Returns the (type id, trimmed Other
+    /// label) to persist on the document.
+    /// </summary>
+    private async Task<(Guid? typeId, string? otherName)> ResolveDocumentTypeSelectionAsync(
+        Guid? appointmentDocumentTypeId,
+        string? otherDocumentTypeName)
+    {
+        var otherName = string.IsNullOrWhiteSpace(otherDocumentTypeName)
+            ? null
+            : otherDocumentTypeName.Trim();
+
+        if (appointmentDocumentTypeId.HasValue && otherName != null)
+        {
+            throw new UserFriendlyException("Choose either a document type or \"Other\", not both.");
+        }
+        if (otherName != null && otherName.Length > AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength)
+        {
+            throw new UserFriendlyException(
+                $"The custom document type label must be {AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength} characters or fewer.");
+        }
+        if (appointmentDocumentTypeId.HasValue)
+        {
+            var type = await _documentTypeRepository.FindAsync(appointmentDocumentTypeId.Value);
+            if (type == null || !type.IsActive || type.IsSystem)
+            {
+                throw new UserFriendlyException("The selected document type is not available.");
+            }
+        }
+
+        return (appointmentDocumentTypeId, otherName);
+    }
+
+    /// <summary>
     /// BUG-025 (2026-05-21) -- enforce the per-document upload size cap.
     /// Throws <see cref="BusinessException"/> carrying
     /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge"/>
@@ -724,7 +919,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (!new[] { ".pdf", ".jpg", ".jpeg", ".png" }.Contains(extension))
         {
-            throw new UserFriendlyException("Only PDF and image formats (JPG, PNG) are accepted.");
+            throw new UserFriendlyException(
+                "Only PDF and image formats (JPG, PNG) are accepted.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
 
         if (!stream.CanSeek)
@@ -739,7 +936,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         if (read < 4)
         {
-            throw new UserFriendlyException("File is empty or corrupted.");
+            throw new UserFriendlyException(
+                "File is empty or corrupted.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
         }
 
         bool isPdf = magic[0] == 0x25 && magic[1] == 0x50 && magic[2] == 0x44 && magic[3] == 0x46;
@@ -748,7 +947,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
         if (!(isPdf || isJpeg || isPng))
         {
-            throw new UserFriendlyException("File format is not supported. Please upload a valid PDF or image file.");
+            throw new UserFriendlyException(
+                "File format is not supported. Please upload a valid PDF or image file.",
+                code: CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat);
         }
     }
 }

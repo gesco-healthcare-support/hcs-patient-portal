@@ -62,5 +62,27 @@ function configureRoutes() {
       layout: eLayoutType.application,
       requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
     },
+    // Group K (2026-06-06) -- global appointment change-log list. Internal
+    // only (same permission as the per-appointment viewer); top-level entry
+    // before User Management.
+    {
+      path: '/appointment-change-logs',
+      name: '::Menu:AppointmentChangeLogs',
+      iconClass: 'fas fa-history',
+      order: 90,
+      layout: eLayoutType.application,
+      requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs',
+    },
+    // G-08-01 (2026-06-06) -- the Appointment Request Report. Internal only
+    // (CaseEvaluation.Reports, granted to the three internal roles); top-level
+    // entry alongside the change-log list.
+    {
+      path: '/reports',
+      name: '::Menu:Reports',
+      iconClass: 'fas fa-table',
+      order: 91,
+      layout: eLayoutType.application,
+      requiredPolicy: 'CaseEvaluation.Reports',
+    },
   ]);
 }

@@ -42,6 +42,13 @@ public class AppointmentCreateDto
     public string? ClaimExaminerEmail { get; set; }
 
     /// <summary>
+    /// 2026-06-09: optional per-appointment "Referred By". Not prefilled and
+    /// not derived from the patient -- blank unless the booker types it.
+    /// </summary>
+    [StringLength(AppointmentConsts.RefferedByMaxLength)]
+    public string? RefferedBy { get; set; }
+
+    /// <summary>
     /// R2 (Phase 9, 2026-05-04) -- mirrors OLD's
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\Core\AppointmentDomain.cs:210, 217</c>
     /// where <c>Appointment.IsPatientAlreadyExist</c> is set on initial booking

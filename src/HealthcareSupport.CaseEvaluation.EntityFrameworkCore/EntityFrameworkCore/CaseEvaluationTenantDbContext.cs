@@ -22,8 +22,10 @@ using HealthcareSupport.CaseEvaluation.Documents;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Invitations;
+using HealthcareSupport.CaseEvaluation.UserQueries;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -61,6 +63,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; } = null!;
     public DbSet<NotificationTemplateType> NotificationTemplateTypes { get; set; } = null!;
     public DbSet<Invitation> Invitations { get; set; } = null!;
+    public DbSet<UserQuery> UserQueries { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
@@ -68,6 +71,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<DoctorPreferredLocation> DoctorPreferredLocations { get; set; } = null!;
     public DbSet<AppointmentLanguage> AppointmentLanguages { get; set; } = null!;
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; } = null!;
+    public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
 
@@ -91,12 +95,28 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.ConfigureByConvention();
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentType.Name)).IsRequired().HasMaxLength(AppointmentTypeConsts.NameMaxLength);
             b.Property(x => x.Description).HasColumnName(nameof(AppointmentType.Description)).HasMaxLength(AppointmentTypeConsts.DescriptionMaxLength);
+            b.Property(x => x.EvaluationType).HasColumnName(nameof(AppointmentType.EvaluationType));
+            b.Property(x => x.MaxTimeCategory).HasColumnName(nameof(AppointmentType.MaxTimeCategory));
         });
         builder.Entity<AppointmentStatus>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
+        });
+        // G-03-01: tenant-scoped document-category master (verbatim duplicate of
+        // the host-context block, per the dual-DbContext convention). Loose
+        // AppointmentTypeId column -- no FK (AppointmentType is absent here).
+        builder.Entity<AppointmentDocumentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
+            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.IsSystem).HasColumnName("IsSystem");
+            b.Property(x => x.IsActive).HasColumnName("IsActive");
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
         });
         builder.Entity<AppointmentLanguage>(b =>
         {
@@ -219,6 +239,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
             b.Property(x => x.ReScheduledById).HasColumnName(nameof(Appointment.ReScheduledById));
@@ -265,6 +286,13 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.IsJointDeclaration).HasColumnName("IsJointDeclaration");
             b.Property(x => x.IsPanelStrikeList).HasColumnName("IsPanelStrikeList");
             b.Property(x => x.VerificationCode).HasColumnName("VerificationCode");
+            // G-03-03/05 (PR2): document-type linkage (mirrors the host context).
+            // AppointmentDocumentTypeId is a loose Guid reference (no FK);
+            // OtherDocumentTypeName holds the "Other" free-text label;
+            // SourceDocumentId is internal bookkeeping for queued package rows.
+            b.Property(x => x.AppointmentDocumentTypeId).HasColumnName("AppointmentDocumentTypeId");
+            b.Property(x => x.OtherDocumentTypeName).HasColumnName("OtherDocumentTypeName").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength);
+            b.Property(x => x.SourceDocumentId).HasColumnName("SourceDocumentId");
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.Status });
             b.HasIndex(x => x.VerificationCode);
@@ -351,6 +379,15 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
+            // Group D (2026-06-09): opposing-side consent columns.
+            b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
+            b.Property(x => x.SubmittedByUserId).HasColumnName(nameof(AppointmentChangeRequest.SubmittedByUserId));
+            b.Property(x => x.ConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.ConsentStatus));
+            b.Property(x => x.ConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.ConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.ConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentExpiresAt));
+            b.Property(x => x.ConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedAt));
+            b.Property(x => x.ConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.HasIndex(x => x.ConsentTokenHash);
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
@@ -580,6 +617,16 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Zip).HasColumnName(nameof(AppointmentPrimaryInsurance.Zip)).HasMaxLength(AppointmentPrimaryInsuranceConsts.ZipMaxLength);
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Submit-Query / Contact-Us storage. Single Message column (max 500),
+        // submitter + tenant captured by ABP audit + the IMultiTenant filter.
+        builder.Entity<UserQuery>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "UserQueries", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(UserQuery.TenantId));
+            b.Property(x => x.Message).IsRequired().HasMaxLength(UserQueryConsts.MessageMaxLength);
         });
 
         // 2026-05-15: per-tenant invitation rows. Mirror of the

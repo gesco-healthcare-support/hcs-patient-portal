@@ -123,9 +123,14 @@ public static class NotificationTemplateConsts
         public const string PatientDocumentAcceptedRemainingDocs = "PatientDocumentAcceptedRemainingDocs";
         public const string PatientDocumentRejectedRemainingDocs = "PatientDocumentRejectedRemainingDocs";
         public const string AppointmentApproveRejectInternal = "AppointmentApproveRejectInternal";
-        public const string UploadPendingDocuments = "UploadPendingDocuments";
+
+        /// <summary>
+        /// Group F (2026-06-09) -- the single consolidated reminder. Combines the
+        /// due-date nudge with the outstanding-documents list (incl. the JDF) in
+        /// one email To the booker. Replaced the separate UploadPendingDocuments,
+        /// AppointmentDocumentIncomplete, and JointDeclarationUploadReminder codes.
+        /// </summary>
         public const string AppointmentDueDateReminder = "AppointmentDueDateReminder";
-        public const string AppointmentDocumentIncomplete = "AppointmentDocumentIncomplete";
         public const string AppointmentCancelledDueDate = "AppointmentCancelledDueDate";
         public const string AppointmentPendingNextDay = "AppointmentPendingNextDay";
 
@@ -185,7 +190,14 @@ public static class NotificationTemplateConsts
         public const string InternalUserCreated = "InternalUserCreated";
 
         /// <summary>
-        /// All 59 codes in seed order. Used by
+        /// Group D (2026-06-09) -- actionable opposing-side consent request for a
+        /// cancel/reschedule change request. Body links to the public consent landing
+        /// page (single-use token); the recipient agrees/declines there.
+        /// </summary>
+        public const string ChangeRequestConsentRequest = "ChangeRequestConsentRequest";
+
+        /// <summary>
+        /// All 62 codes in seed order. Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
         /// tenant has a row per code at tenant-create time.
         /// </summary>
@@ -200,7 +212,7 @@ public static class NotificationTemplateConsts
             AppointmentDueDate, AppointmentDueDateUploadDocumentLeft, SubmitQuery,
             AppointmentApprovedStakeholderEmails, AppointmentCancelledByAdmin,
 
-            // 43 on-disk HTML (EmailTemplate static class)
+            // 40 on-disk HTML (EmailTemplate static class)
             AddInternalUser, PasswordChange, ResetPassword, UserRegistered, UserQuery,
             AppointmentRescheduleRequestByAdmin, AppointmentChangeLogs,
             PatientAppointmentPending, PatientAppointmentApproveReject,
@@ -212,8 +224,7 @@ public static class NotificationTemplateConsts
             PatientDocumentUploaded, PatientNewDocumentAccepted, PatientNewDocumentRejected,
             PatientNewDocumentUploaded, PatientDocumentAcceptedAttachment,
             PatientDocumentAcceptedRemainingDocs, PatientDocumentRejectedRemainingDocs,
-            AppointmentApproveRejectInternal, UploadPendingDocuments,
-            AppointmentDueDateReminder, AppointmentDocumentIncomplete,
+            AppointmentApproveRejectInternal, AppointmentDueDateReminder,
             AppointmentCancelledDueDate, AppointmentPendingNextDay,
             PatientAppointmentRescheduleReqAdmin, PatientAppointmentRescheduleReqApproved,
             PatientAppointmentRescheduleReqRejected, PatientAppointmentCancellationApproved,
@@ -229,6 +240,9 @@ public static class NotificationTemplateConsts
 
             // 2026-05-15 -- IT Admin internal-user welcome email.
             InternalUserCreated,
+
+            // Group D (2026-06-09) -- actionable opposing-side consent request.
+            ChangeRequestConsentRequest,
         };
     }
 }

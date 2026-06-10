@@ -1,10 +1,11 @@
-import { authGuard, permissionGuard } from '@abp/ng.core';
+import { authGuard, eLayoutType, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { STATE_ROUTES } from './states/state/state-routes';
 import { APPOINTMENT_TYPE_ROUTES } from './appointment-types/appointment-type/appointment-type-routes';
 import { APPOINTMENT_STATUS_ROUTES } from './appointment-statuses/appointment-status/appointment-status-routes';
+import { APPOINTMENT_DOCUMENT_TYPE_ROUTES } from './appointment-document-types/appointment-document-type/appointment-document-type-routes';
 import { APPOINTMENT_LANGUAGE_ROUTES } from './appointment-languages/appointment-language/appointment-language-routes';
 import { LOCATION_ROUTES } from './locations/location/location-routes';
 import { WCAB_OFFICE_ROUTES } from './wcab-offices/wcab-office/wcab-office-routes';
@@ -30,6 +31,31 @@ export const APP_ROUTES: Routes = [
     // shared/auth/post-login-redirect.guard.ts for the three outcomes.
     canMatch: [postLoginRedirectGuard],
     loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
+  },
+  {
+    // PR4 -- public, no-login document upload reached by a per-document
+    // verification-code link. Intentionally guard-free (NO canMatch /
+    // canActivate) so an anonymous patient reaches it without an OAuth
+    // redirect; eLayoutType.empty drops the authenticated app shell. The
+    // page authorizes via the code; the backend endpoint is [AllowAnonymous]
+    // + per-code rate-limited.
+    path: 'public/document-upload/:id/:verificationCode',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./public-document-upload/public-document-upload.component').then(
+        (c) => c.PublicDocumentUploadComponent,
+      ),
+  },
+  {
+    // Group D (2026-06-09) -- public, no-login opposing-side consent page reached by
+    // the single-use token link in the consent email. Guard-free + eLayoutType.empty
+    // (no app shell), same as the document-upload page; authorizes via the token.
+    path: 'public/change-request-consent/:token',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./public-change-request-consent/public-change-request-consent.component').then(
+        (c) => c.PublicChangeRequestConsentComponent,
+      ),
   },
   {
     path: 'dashboard',
@@ -91,6 +117,7 @@ export const APP_ROUTES: Routes = [
   { path: 'configurations/states', children: STATE_ROUTES },
   { path: 'appointment-management/appointment-types', children: APPOINTMENT_TYPE_ROUTES },
   { path: 'appointment-management/appointment-statuses', children: APPOINTMENT_STATUS_ROUTES },
+  { path: 'appointment-management/document-types', children: APPOINTMENT_DOCUMENT_TYPE_ROUTES },
   { path: 'appointment-management/appointment-languages', children: APPOINTMENT_LANGUAGE_ROUTES },
   { path: 'appointments', children: APPOINTMENT_ROUTES },
   { path: 'appointments/change-requests', children: CHANGE_REQUEST_ROUTES },
@@ -126,6 +153,22 @@ export const APP_ROUTES: Routes = [
       ),
     canActivate: [authGuard, permissionGuard],
     data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
+  },
+  {
+    path: 'appointment-change-logs',
+    loadComponent: () =>
+      import('./appointment-change-logs/appointment-change-log-list.component').then(
+        (c) => c.AppointmentChangeLogListComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs' },
+  },
+  {
+    path: 'reports',
+    loadComponent: () =>
+      import('./reports/appointment-report.component').then((c) => c.AppointmentReportComponent),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.Reports' },
   },
   {
     path: 'user-management/patients/my-profile',

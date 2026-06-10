@@ -1,8 +1,10 @@
 using System;
 using System.Net.Mail;
 using System.Net.Mime;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
@@ -19,14 +21,14 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 /// so the originating HTTP request returns immediately regardless of SMTP
 /// latency.
 ///
-/// <para><b>One-shot at MVP:</b> SMTP exceptions are caught and logged as
-/// warnings. Because no exception leaks, Hangfire records the job as
-/// "Succeeded" and never retries. Intentional while ACS placeholder
-/// credentials are in <c>appsettings.secrets.json</c>: the appointment
-/// request still completes, with a log breadcrumb explaining why
-/// delivery did not happen. When real ACS credentials land, remove the
-/// try/catch so failures propagate and Hangfire's default retry policy
-/// kicks in.</para>
+/// <para><b>Failure handling (G-04-10, 2026-06-02):</b> SMTP exceptions
+/// propagate out of <see cref="ExecuteAsync"/> so Hangfire's AutomaticRetry
+/// engages and an exhausted send lands in the Failed state (a dead-letter),
+/// retriable from <c>/hangfire</c>. Real SMTP credentials are configured in
+/// <c>appsettings.secrets.json</c>, so successful sends do not retry -- only
+/// genuine transport failures do. The retry policy (5 attempts, then keep
+/// Failed) is set globally in
+/// <c>CaseEvaluationHttpApiHostModule.ConfigureHangfire</c>.</para>
 ///
 /// <para>Phase 4 (Category 4, 2026-05-10) adds packet-attachment
 /// support. When <see cref="SendAppointmentEmailArgs.PacketRef"/> is set,
@@ -45,15 +47,25 @@ public class SendAppointmentEmailJob :
     private readonly IEmailSender _emailSender;
     private readonly IPacketAttachmentProvider _packetAttachmentProvider;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IConfiguration _configuration;
+
+    // Dev diagnostic (2026-06-07): matches absolute http(s) URLs in a
+    // rendered email body so notification links can be logged. Excludes
+    // whitespace + HTML attribute delimiters so href="..." values are
+    // captured cleanly.
+    private static readonly Regex LinkPattern =
+        new(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public SendAppointmentEmailJob(
         IEmailSender emailSender,
         IPacketAttachmentProvider packetAttachmentProvider,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        IConfiguration configuration)
     {
         _emailSender = emailSender;
         _packetAttachmentProvider = packetAttachmentProvider;
         _currentTenant = currentTenant;
+        _configuration = configuration;
     }
 
     // [UnitOfWork] mirrors AppointmentDayReminderJob + GenerateAppointmentPacketJob.
@@ -76,6 +88,7 @@ public class SendAppointmentEmailJob :
     [UnitOfWork]
     public override async Task ExecuteAsync(SendAppointmentEmailArgs args)
     {
+        LogLinksIfEnabled(args);
         using (_currentTenant.Change(args.TenantId))
         {
             if (args.PacketRef == null)
@@ -87,8 +100,41 @@ public class SendAppointmentEmailJob :
         }
     }
 
+    // Dev diagnostic (2026-06-07): when Notifications:LogLinks is "true",
+    // emit recipient + subject + every URL in the rendered body at Info so
+    // notification links (appointment deep-links, invite / confirm / reset)
+    // are recoverable from the api logs without an inbox. The body itself is
+    // never logged -- links + metadata only -- to keep PHI-shaped content
+    // (names, addresses) out of the log. Read via the indexer (no Binder
+    // dependency); default off so single-use tokens never reach prod logs.
+    private void LogLinksIfEnabled(SendAppointmentEmailArgs args)
+    {
+        if (!string.Equals(_configuration["Notifications:LogLinks"], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var links = LinkPattern.Matches(args.Body ?? string.Empty)
+            .Select(m => m.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Logger.LogInformation(
+            "EMAIL-LINKS ({Context}) to={To} cc={Cc} subject=\"{Subject}\" links={Links}",
+            args.Context,
+            args.To,
+            args.Cc != null && args.Cc.Count > 0 ? string.Join(",", args.Cc) : "(none)",
+            args.Subject,
+            links.Count > 0 ? string.Join(" | ", links) : "(none)");
+    }
+
     private async Task SendPlainAsync(SendAppointmentEmailArgs args)
     {
+        // Merge (2026-06-07): took main's E1 (2026-06-03) -- CC support + a
+        // logged catch that does NOT retry while ACS creds are unconfigured.
+        // This supersedes the parity G-04-10 (2026-06-02) no-swallow/propagate
+        // choice (E1 is the newer decision and avoids retry storms during the
+        // live bring-up); the failure is logged, not silently dropped.
         try
         {
             if (args.Cc != null && args.Cc.Count > 0)
@@ -182,18 +228,14 @@ public class SendAppointmentEmailJob :
                 "SendAppointmentEmailJob: delivered ({Context}) to {To} with attachment {FileName} ({Bytes} bytes).",
                 args.Context, args.To, attachment.FileName, attachment.Bytes.Length);
         }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(
-                ex,
-                "SendAppointmentEmailJob: SMTP delivery failed ({Context}) to {To} with attachment. Configure ACS credentials to deliver.",
-                args.Context, args.To);
-        }
         finally
         {
-            // Always callback so AttyCE retention rule sees both success
-            // and failure paths -- the provider's NoOp on Patient/Doctor
-            // makes the call safe regardless of kind.
+            // G-04-10 (2026-06-02): no catch -- a send failure propagates after
+            // this finally so Hangfire retries + dead-letters. The callback is
+            // a no-op as of 2026-06-09 (all three packet kinds are retained; the
+            // former AttyCE-on-success prune was removed so the packet stays
+            // visible + downloadable in the appointment view). It is still
+            // invoked so the call site stays valid for future per-send hooks.
             try
             {
                 await _packetAttachmentProvider.NotifySendCompletedAsync(packetRef.PacketId, success);

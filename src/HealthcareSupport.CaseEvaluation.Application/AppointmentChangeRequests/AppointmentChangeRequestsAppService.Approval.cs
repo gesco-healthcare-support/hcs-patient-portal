@@ -123,6 +123,12 @@ public class AppointmentChangeRequestsApprovalAppService :
                 CaseEvaluationDomainErrorCodes.ChangeRequestInvalidCancellationOutcome);
         }
 
+        // Group D (2026-06-09): block finalize until the opposing side consents.
+        // A No/Expired consent stays blocked here and surfaces in the supervisor's
+        // mediation bucket; staff reject it via the normal reject path.
+        OpposingConsentValidator.EnsureConsentGranted(
+            changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
+
         var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var fromStatus = appointment.AppointmentStatus;
 
@@ -235,6 +241,10 @@ public class AppointmentChangeRequestsApprovalAppService :
 
         // Resolve the actual new slot (override or user-picked) +
         // enforce admin-reason gate.
+        // Group D (2026-06-09): block finalize until the opposing side consents.
+        OpposingConsentValidator.EnsureConsentGranted(
+            changeRequest, AppointmentChangeRequestConsts.ConsentGatingEnabled);
+
         var newSlotId = ChangeRequestApprovalValidator.ResolveNewSlotAndEnsureAdminReason(
             userPickedSlotId: changeRequest.NewDoctorAvailabilityId,
             overrideSlotId: input.OverrideSlotId,
@@ -247,19 +257,31 @@ public class AppointmentChangeRequestsApprovalAppService :
         var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
 
         // Build the new appointment via Session A's scalar-clone helper.
+        // F4 fix (2026-06-07): a reschedule creates a NEW Appointment row, so it
+        // must carry a FRESH RequestConfirmationNumber. Reusing the source's
+        // number (sameConfirmationNumber: true) violated the unique index
+        // IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber and 500'd
+        // the approval. Generate-and-insert is wrapped in the same
+        // ConfirmationNumberRetryPolicy the booking flow uses, so if a concurrent
+        // booking grabs the same number the insert just retries with the next one.
         var newAppointmentId = GuidGenerator.Create();
-        var newAppointment = AppointmentRescheduleCloner.BuildScalarClone(
-            source: sourceAppointment,
-            newAppointmentId: newAppointmentId,
-            newTenantId: sourceAppointment.TenantId,
-            newDoctorAvailabilityId: newSlotId,
-            newAppointmentDate: newSlot.AvailableDate,
-            sameConfirmationNumber: true,
-            overrideConfirmationNumber: null,
-            approveDate: DateTime.UtcNow,
-            isBeyondLimit: changeRequest.IsBeyondLimit);
+        var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
+        {
+            var freshConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
+            var clone = AppointmentRescheduleCloner.BuildScalarClone(
+                source: sourceAppointment,
+                newAppointmentId: newAppointmentId,
+                newTenantId: sourceAppointment.TenantId,
+                newDoctorAvailabilityId: newSlotId,
+                newAppointmentDate: newSlot.AvailableDate,
+                sameConfirmationNumber: false,
+                overrideConfirmationNumber: freshConfirmationNumber,
+                approveDate: DateTime.UtcNow,
+                isBeyondLimit: changeRequest.IsBeyondLimit);
 
-        await _appointmentRepository.InsertAsync(newAppointment, autoSave: true);
+            await _appointmentRepository.InsertAsync(clone, autoSave: true);
+            return clone;
+        });
 
         // Cascade-clone every child entity. Done in dependency order:
         // injury details first (parents of body-parts / claim-examiners
@@ -378,11 +400,22 @@ public class AppointmentChangeRequestsApprovalAppService :
             occurredAt: DateTime.UtcNow,
             doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
 
-        // 2026-05-15 (slot rework plan 3) -- ReleaseSlotIfReservedAsync
-        // call removed. Reserved is no longer a transient "held while
-        // pending" state; it is a manual-close override owned by the
-        // doctor's-admin. A change-request rejection must not flip a
-        // closed slot back to Available.
+        // Gate 2 (2026-06-01) / OLD parity (AppointmentChangeRequestDomain.cs:600):
+        // a reschedule submit puts the user-picked slot into Reserved as a transient
+        // hold; rejecting the request must release that hold so the slot rejoins the
+        // bookable pool. Guarded and idempotent -- release ONLY the slot this request
+        // reserved, and ONLY if it is still Reserved, so a slot a doctor's-admin
+        // genuinely closed in the meantime is never reopened.
+        if (changeRequest.NewDoctorAvailabilityId.HasValue)
+        {
+            var reservedSlot = await _doctorAvailabilityRepository.FindAsync(
+                changeRequest.NewDoctorAvailabilityId.Value);
+            if (reservedSlot != null && reservedSlot.BookingStatusId == BookingStatus.Reserved)
+            {
+                reservedSlot.BookingStatusId = BookingStatus.Available;
+                await _doctorAvailabilityRepository.UpdateAsync(reservedSlot, autoSave: true);
+            }
+        }
 
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestRejectedEto
         {
@@ -426,7 +459,42 @@ public class AppointmentChangeRequestsApprovalAppService :
             .ToList();
 
         var dtos = ObjectMapper.Map<List<AppointmentChangeRequest>, List<AppointmentChangeRequestDto>>(paged);
+        await PopulateAppointmentConfirmationNumbersAsync(paged, dtos);
         return new PagedResultDto<AppointmentChangeRequestDto>(totalCount, dtos);
+    }
+
+    /// <summary>
+    /// Copies each referenced appointment's <c>RequestConfirmationNumber</c>
+    /// onto the matching change-request DTO so the supervisor reschedule/cancel
+    /// queues can show the human-facing "A#####" instead of the raw appointment
+    /// GUID. The change-request entity stores only <c>AppointmentId</c>, so the
+    /// values are fetched here in a single set-based query, not per row.
+    /// </summary>
+    private async Task PopulateAppointmentConfirmationNumbersAsync(
+        IReadOnlyCollection<AppointmentChangeRequest> changeRequests,
+        IReadOnlyCollection<AppointmentChangeRequestDto> dtos)
+    {
+        var appointmentIds = changeRequests.Select(c => c.AppointmentId).Distinct().ToList();
+        if (appointmentIds.Count == 0)
+        {
+            return;
+        }
+
+        var query = await _appointmentRepository.GetQueryableAsync();
+        var confirmationRows = await AsyncExecuter.ToListAsync(
+            query
+                .Where(a => appointmentIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.RequestConfirmationNumber }));
+        var confirmationByAppointmentId = confirmationRows
+            .ToDictionary(row => row.Id, row => row.RequestConfirmationNumber);
+
+        foreach (var dto in dtos)
+        {
+            if (confirmationByAppointmentId.TryGetValue(dto.AppointmentId, out var confirmationNumber))
+            {
+                dto.AppointmentConfirmationNumber = confirmationNumber;
+            }
+        }
     }
 
     private async Task<AppointmentChangeRequest> LoadAndStampStampAsync(Guid id, string? concurrencyStamp)
@@ -452,6 +520,45 @@ public class AppointmentChangeRequestsApprovalAppService :
     private async Task PersistChangeRequestAsync(AppointmentChangeRequest changeRequest)
     {
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+    }
+
+    /// <summary>
+    /// F4 fix (2026-06-07) -- generates the next "A#####" confirmation number
+    /// for a rescheduled appointment clone. Mirrors the canonical booking-flow
+    /// generator in <c>AppointmentsAppService</c>; kept local so the
+    /// change-request service does not depend on the booking service. The
+    /// generate-then-insert race is covered by the shared
+    /// <see cref="ConfirmationNumberRetryPolicy"/> at the call site.
+    /// </summary>
+    private async Task<string> GenerateNextRequestConfirmationNumberAsync()
+    {
+        const string prefix = "A";
+        const int digits = 5;
+        var requiredLength = prefix.Length + digits;
+
+        var query = await _appointmentRepository.GetQueryableAsync();
+        var latestNumber = await AsyncExecuter.FirstOrDefaultAsync(
+            query
+                .Where(x => x.RequestConfirmationNumber != null
+                    && x.RequestConfirmationNumber.StartsWith(prefix)
+                    && x.RequestConfirmationNumber.Length == requiredLength)
+                .OrderByDescending(x => x.RequestConfirmationNumber)
+                .Select(x => x.RequestConfirmationNumber));
+
+        var nextValue = 1;
+        if (!string.IsNullOrWhiteSpace(latestNumber)
+            && int.TryParse(latestNumber.Substring(prefix.Length), out var currentValue))
+        {
+            nextValue = currentValue + 1;
+        }
+
+        var maxValue = (int)Math.Pow(10, digits) - 1;
+        if (nextValue > maxValue)
+        {
+            throw new UserFriendlyException(L["Request confirmation number limit reached."]);
+        }
+
+        return $"{prefix}{nextValue:D5}";
     }
 
     /// <summary>

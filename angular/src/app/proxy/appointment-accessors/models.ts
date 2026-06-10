@@ -4,9 +4,12 @@ import type { IdentityUserDto } from '../volo/abp/identity/models';
 import type { AppointmentDto } from '../appointments/models';
 
 export interface AppointmentAccessorCreateDto {
-  accessTypeId?: AccessType;
-  identityUserId?: string;
   appointmentId?: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  role: string;
+  accessTypeId?: AccessType;
 }
 
 export interface AppointmentAccessorDto extends FullAuditedEntityDto<string> {

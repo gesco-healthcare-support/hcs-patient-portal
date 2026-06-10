@@ -251,11 +251,14 @@ services:
       # routes per PacketKind via the Packets:HtmlPipeline:* flags below.
       # CaseEvaluationDomainModule reads this value (localhost fallback).
       PacketRenderer__Url: "http://packet-renderer:3001"
-      # Per-kind pipeline selection (default DOCX->Gotenberg). Flip a kind
-      # to "true" to route it through the HTML->WeasyPrint renderer above.
-      Packets__HtmlPipeline__Doctor: "${PACKETS_HTML_DOCTOR:-false}"
-      Packets__HtmlPipeline__Patient: "${PACKETS_HTML_PATIENT:-false}"
-      Packets__HtmlPipeline__Attorney: "${PACKETS_HTML_ATTORNEY:-false}"
+      # Per-kind pipeline selection. 2026-06-08: HTML->WeasyPrint (fillable
+      # PDF templates) is now the default for all three kinds -- the staged
+      # DOCX->Gotenberg cutover is complete. The DOCX path also lacked the
+      # PQME DWC-QME-form notice branch (that branch lives only in the HTML
+      # pipeline). Set a flag to "false" to fall back to DOCX for that kind.
+      Packets__HtmlPipeline__Doctor: "${PACKETS_HTML_DOCTOR:-true}"
+      Packets__HtmlPipeline__Patient: "${PACKETS_HTML_PATIENT:-true}"
+      Packets__HtmlPipeline__Attorney: "${PACKETS_HTML_ATTORNEY:-true}"
       # 2026-05-13: MinIO blob storage (see CaseEvaluationDomainModule).
       BlobStoring__Minio__Endpoint: "minio:9000"
       BlobStoring__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"

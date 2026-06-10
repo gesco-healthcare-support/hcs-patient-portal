@@ -2,12 +2,38 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Shared;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
 public interface IAppointmentDocumentsAppService
 {
     Task<List<AppointmentDocumentDto>> GetListByAppointmentAsync(Guid appointmentId);
+
+    /// <summary>
+    /// G-03-03 (PR2): active, non-system document-type options for the upload
+    /// picker, scoped to the appointment's type (+ "all types" rows). Readable
+    /// by any uploader on the appointment (gated by the upload permission +
+    /// read-access guard), unlike the admin-only doc-type list.
+    /// </summary>
+    Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsAsync(Guid appointmentId);
+
+    /// <summary>
+    /// I15 (2026-06-08): document-type options keyed by appointment type (for the
+    /// booking form, where no appointment exists yet). Active, non-system rows
+    /// scoped to the type + the "all types" rows. Gated by the upload permission.
+    /// </summary>
+    Task<List<LookupDto<Guid>>> GetDocumentTypeOptionsByAppointmentTypeAsync(Guid appointmentTypeId);
+
+    /// <summary>
+    /// G-03 (PR3): the required documents for this appointment that are not yet
+    /// Accepted, each with its current state, for the missing-required-documents
+    /// indicator. "Required" = the active package template(s) for the appointment's
+    /// type (union); satisfied only when an uploaded document links back by
+    /// <c>SourceDocumentId</c> AND is Accepted. Same gate as the document list
+    /// (Default + per-appointment read-access guard).
+    /// </summary>
+    Task<MissingRequiredDocumentsResultDto> GetMissingRequiredDocumentsAsync(Guid appointmentId);
 
     /// <summary>
     /// Stream-based ad-hoc upload entry point. Marks the new row
@@ -24,6 +50,8 @@ public interface IAppointmentDocumentsAppService
         string? contentType,
         long fileSize,
         Stream content,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null,
         bool isPanelStrikeList = false);
 
     /// <summary>

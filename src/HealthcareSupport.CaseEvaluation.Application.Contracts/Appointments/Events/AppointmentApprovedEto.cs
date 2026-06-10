@@ -27,9 +27,8 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Events;
 ///
 /// <para>Distinct from Session A's existing
 /// <c>AppointmentStatusChangedEto</c>: this Eto carries the Phase
-/// 12-specific approval context (<see cref="PrimaryResponsibleUserId"/>,
-/// <see cref="PatientMatchOverridden"/>) that
-/// <c>AppointmentStatusChangedEto</c> intentionally omits because it
+/// 12-specific approval context (<see cref="PrimaryResponsibleUserId"/>)
+/// that <c>AppointmentStatusChangedEto</c> intentionally omits because it
 /// fans out across many transitions. Subscribers needing only the
 /// status flip continue to use <c>AppointmentStatusChangedEto</c>.</para>
 /// </summary>
@@ -45,11 +44,6 @@ public class AppointmentApprovedEto
 
     /// <summary>Internal staff user assigned as the primary responsible user. Required.</summary>
     public Guid PrimaryResponsibleUserId { get; set; }
-
-    /// <summary>True when the staff approver chose to ignore the dedup match
-    /// and create / link a new patient row. False when the staff accepted the
-    /// existing match (the default).</summary>
-    public bool PatientMatchOverridden { get; set; }
 
     public Guid ApprovedByUserId { get; set; }
 

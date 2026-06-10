@@ -47,45 +47,25 @@ import { PatientService } from '../../proxy/patients/patient.service';
     },
   ],
   template: `
-    <!-- On-file value: masked last-4 from the DTO, with an audited reveal for
-         internal staff and the record owner. Shown only when there is a stored
-         value to view (an existing patient). -->
-    @if (showOnFile()) {
-      <div class="d-flex align-items-center gap-2 mb-1 small text-muted">
-        <span>{{ '::SsnOnFile' | abpLocalization }}:</span>
-        <span class="fw-semibold">{{ onFileDisplay() }}</span>
-        @if (canReveal()) {
-          <button
-            type="button"
-            class="btn btn-link btn-sm p-0"
-            (click)="toggleOnFile()"
-            [disabled]="onFileLoading()"
-            [attr.aria-label]="onFileRevealed() ? 'Hide SSN on file' : 'Reveal SSN on file'"
-          >
-            <i
-              class="fa"
-              [class.fa-eye]="!onFileRevealed()"
-              [class.fa-eye-slash]="onFileRevealed()"
-            ></i>
-          </button>
-        }
-      </div>
-    }
-
-    <!-- Entry / change field: empty by default, mask-on-type, copy blocked. -->
+    <!-- I13 (2026-06-08): the on-file masked SSN is shown INSIDE the box below
+         (not on a separate line above). The box's form value stays empty until
+         the user types a replacement (empty submit = leave stored SSN
+         unchanged); the eye button performs the audited on-file reveal while no
+         new value has been entered. Mask-on-type + copy blocked unchanged. -->
+    <!-- Entry / change field: shows the on-file value until the user types. -->
     <div class="input-group">
       <input
         #entry
         type="text"
         class="form-control"
         [class.is-invalid]="invalid"
-        [value]="entryDisplay()"
+        [value]="boxDisplay()"
         [attr.placeholder]="placeholder"
         [disabled]="disabled"
         maxlength="11"
         autocomplete="off"
         inputmode="numeric"
-        (focus)="onFocus()"
+        (focus)="onFocus(entry)"
         (blur)="onBlur()"
         (keydown)="onKeydown(entry)"
         (input)="onInput(entry)"
@@ -95,11 +75,11 @@ import { PatientService } from '../../proxy/patients/patient.service';
       <button
         type="button"
         class="btn btn-outline-secondary"
-        (click)="toggleEntryReveal(entry)"
-        [disabled]="disabled || !entryDigits()"
-        [attr.aria-label]="entryHidden() ? 'Show entered SSN' : 'Hide entered SSN'"
+        (click)="onEyeClick(entry)"
+        [disabled]="eyeDisabled()"
+        [attr.aria-label]="eyeAriaLabel()"
       >
-        <i class="fa" [class.fa-eye]="entryHidden()" [class.fa-eye-slash]="!entryHidden()"></i>
+        <i class="fa" [class.fa-eye]="eyeClosed()" [class.fa-eye-slash]="!eyeClosed()"></i>
       </button>
     </div>
   `,
@@ -135,6 +115,9 @@ export class SsnInputComponent implements ControlValueAccessor {
   private onTouched: () => void = () => {};
 
   private static readonly IdleMs = 1200;
+  // I14 (2026-06-08): bullet (codepoint U+2022) used to redact hidden SSN
+  // digits. Built via fromCharCode to keep the source ASCII-only.
+  private static readonly RedactionDot = String.fromCharCode(0x2022);
 
   // ----- display computeds -----
 
@@ -151,15 +134,32 @@ export class SsnInputComponent implements ControlValueAccessor {
     return this.focused ? digits : SsnInputComponent.format(digits);
   }
 
+  /**
+   * I13 (2026-06-08): value shown in the single SSN box. While focused or after
+   * the user types, show the entry value. Otherwise, when a stored value exists,
+   * show it inside the box (masked, or the revealed full value). The form value
+   * stays null until the user types -- an untouched box means "leave unchanged".
+   */
+  boxDisplay(): string {
+    if (this.focused || this.entryDigits()) {
+      return this.entryDisplay();
+    }
+    return this.showOnFile() ? this.onFileDisplay() : '';
+  }
+
   showOnFile(): boolean {
     return !!this.patientId && !!this.currentMaskedSsn;
   }
 
   onFileDisplay(): string {
     const full = this.onFileFull();
-    return this.onFileRevealed() && full
-      ? SsnInputComponent.format(full)
-      : (this.currentMaskedSsn ?? '');
+    if (this.onFileRevealed() && full) {
+      return SsnInputComponent.format(full);
+    }
+    // I14 (2026-06-08): the DTO masks the stored value with '*' (***-**-1234);
+    // render the hidden digits as bullet circles (codepoint U+2022) for a
+    // cleaner redaction. The escape keeps the source ASCII-only.
+    return (this.currentMaskedSsn ?? '').replace(/\*/g, SsnInputComponent.RedactionDot);
   }
 
   canReveal(): boolean {
@@ -175,9 +175,15 @@ export class SsnInputComponent implements ControlValueAccessor {
 
   // ----- entry handlers -----
 
-  onFocus(): void {
+  onFocus(el: HTMLInputElement): void {
     this.focused = true;
     this.entryHidden.set(false);
+    // I13: when the box is showing the on-file masked value (no new SSN typed
+    // yet), clear the field on focus so the mask is never read back as typed
+    // input. The form value stays null until the user actually types.
+    if (!this.entryDigits()) {
+      el.value = '';
+    }
     this.restartIdle();
   }
 
@@ -218,6 +224,45 @@ export class SsnInputComponent implements ControlValueAccessor {
     if (!hide) {
       el.value = this.focused ? this.entryDigits() : SsnInputComponent.format(this.entryDigits());
     }
+  }
+
+  // ----- I13: single eye button drives entry-reveal or on-file-reveal -----
+
+  /**
+   * Reveals the typed value once the user has typed; otherwise performs the
+   * audited on-file reveal of the stored SSN.
+   */
+  onEyeClick(el: HTMLInputElement): void {
+    if (this.entryDigits()) {
+      this.toggleEntryReveal(el);
+    } else if (this.showOnFile()) {
+      this.toggleOnFile();
+    }
+  }
+
+  /** True when the shown value is currently redacted (fa-eye icon). */
+  eyeClosed(): boolean {
+    return this.entryDigits() ? this.entryHidden() : !this.onFileRevealed();
+  }
+
+  /**
+   * Revealing a typed entry follows the input's disabled state. Revealing the
+   * on-file value is allowed even on a read-only (disabled) form -- mirroring
+   * the previous standalone reveal button -- as long as the user may reveal and
+   * no fetch is in flight.
+   */
+  eyeDisabled(): boolean {
+    if (this.entryDigits()) {
+      return this.disabled;
+    }
+    return !(this.showOnFile() && this.canReveal()) || this.onFileLoading();
+  }
+
+  eyeAriaLabel(): string {
+    if (this.entryDigits()) {
+      return this.entryHidden() ? 'Show entered SSN' : 'Hide entered SSN';
+    }
+    return this.onFileRevealed() ? 'Hide SSN on file' : 'Reveal SSN on file';
   }
 
   block(event: Event): void {
@@ -309,7 +354,13 @@ export class SsnInputComponent implements ControlValueAccessor {
     if (!digits) {
       return '';
     }
-    return digits.length < 4 ? '*'.repeat(digits.length) : `***-**-${digits.slice(-4)}`;
+    // I14 (2026-06-08): bullet circles (codepoint U+2022) instead of asterisks
+    // for a cleaner redaction. The escape renders as a dot and keeps the
+    // source ASCII-only.
+    const dot = SsnInputComponent.RedactionDot;
+    return digits.length < 4
+      ? dot.repeat(digits.length)
+      : `${dot}${dot}${dot}-${dot}${dot}-${digits.slice(-4)}`;
   }
 
   private static format(digits: string): string {

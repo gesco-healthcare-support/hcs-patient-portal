@@ -1,8 +1,12 @@
 # AppointmentAccessors -- per-appointment access-grant entity
 
 Records which `IdentityUser` holds `View` or `Edit` rights on a single `Appointment`.
-The entity exists for post-MVP ACL extensibility; Phase 11i (2026-05-04) activated the
-booking-time create path via `AppointmentAccessorManager.CreateOrLinkAsync`.
+Group J (2026-06-05) made `AppointmentAccessorManager.CreateOrLinkAsync` the live create
+path: `AppointmentAccessorsAppService.CreateAsync` resolves a free-typed email to a user
+(or auto-provisions + invites one) and links it, restoring OLD's email-based create-or-link
+flow. The booking form and appointment-view both add accessors by typing name + email +
+role + rights. (Earlier Phase 11i wiring still used the slim id-based create; Group J
+replaced it.)
 
 ## What lives here
 
@@ -48,15 +52,20 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   Confirm the join is still present before removing or repurposing the entity.
 - Both `CaseEvaluationDbContext` and `CaseEvaluationTenantDbContext` configure this entity
   OUTSIDE the `IsHostDatabase()` guard -- tenant rows are the common case.
-- No Angular UI exists today; the 8 HTTP endpoints under `api/app/appointment-accessors`
-  are server-side only.
+- Angular UI (Group J): the booking form's "Additional Authorized User" section
+  (`sections/appointment-add-authorized-users.component`) and the appointment-view accessor
+  table both POST email-based creates to `api/app/appointment-accessors`. The proxy carries
+  the email-based `AppointmentAccessorCreateDto` (`email`/`firstName`/`lastName`/`role`).
 
 ## Gotchas
 
-- **Permissions defined but not enforced.** `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}`
-  are registered but the AppService uses bare `[Authorize]` everywhere. Any authenticated user
-  can call any endpoint. Tracked by skipped test `CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow`.
-  MUST be fixed before any post-MVP ACL feature wires real grants.
+- **Mutations are gated by appointment edit-access, not by the feature permissions.**
+  Group J (2026-06-05) added `AppointmentReadAccessGuard.EnsureCanEditAsync` to
+  `Create`/`Update`/`Delete`: deny-by-default -- only an appointment editor (internal user /
+  creator / Edit-accessor) may add or change accessors, which blocks non-party
+  self-escalation. The `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}` permission
+  constants are still NOT enforced (the access-guard model is used instead); the skipped test
+  `CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow` tracks that unused permission path.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add
   new values with explicit integer codes; do not assume zero-based ordering.
 - `Check.NotNull` on `Guid` value-type params in `CreateAsync` / `UpdateAsync` is a no-op

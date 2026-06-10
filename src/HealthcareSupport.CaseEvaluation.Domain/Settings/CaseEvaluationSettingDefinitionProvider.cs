@@ -71,15 +71,24 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         var authServerDefault = _configuration["AuthServer:Authority"]?.TrimEnd('/');
         Define(context, CaseEvaluationSettings.NotificationsPolicy.AuthServerBaseUrl, defaultValue: authServerDefault);
 
-        // W2-10: 10 reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e) + appointment-day).
+        // W2-10 + Group L: reminder-policy settings (CCR Sec. 31.5 + Sec. 34(e)
+        // + appointment-day + the two document-reminder jobs). The *Anchors
+        // values are comma-separated day lists parsed by ReminderCadence at run
+        // time; each default equals the value the job previously hardcoded.
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors, defaultValue: "30,60,75,85,90");
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors, defaultValue: "45,55");
         Define(context, CaseEvaluationSettings.RemindersPolicy.AppointmentDayTMinusAnchors, defaultValue: "7,1");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.DueDateApproachingAnchors, defaultValue: "14,7,3");
+        Define(context, CaseEvaluationSettings.RemindersPolicy.DueDateDocumentIncompleteAnchors, defaultValue: "7");
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec31_5Cron, defaultValue: "0 8 * * *");
         Define(context, CaseEvaluationSettings.RemindersPolicy.Sec34eCron, defaultValue: "0 8 * * *");
         Define(context, CaseEvaluationSettings.RemindersPolicy.AppointmentDayCron, defaultValue: "0 7 * * *");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderTimezoneId, defaultValue: "America/Los_Angeles");
-        Define(context, CaseEvaluationSettings.RemindersPolicy.RemindersEnabled, defaultValue: "true");
+        // Group L (2026-06-05): default OFF. The six date-driven reminder jobs
+        // now honor this gate, so they stay registered but enqueue nothing until
+        // Adrian flips this in /setting-management (matches the Phase-1
+        // email-minimization stance). Per-tenant overridable.
+        Define(context, CaseEvaluationSettings.RemindersPolicy.RemindersEnabled, defaultValue: "false");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail, defaultValue: "");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff, defaultValue: "");
 

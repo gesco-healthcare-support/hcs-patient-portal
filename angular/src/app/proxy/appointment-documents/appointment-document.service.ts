@@ -1,7 +1,8 @@
-import type { AppointmentDocumentDto, PatientPortalDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
+import type { AppointmentDocumentDto, MissingRequiredDocumentsResultDto, PatientPortalDocumentDto, RejectDocumentInput, UploadAppointmentDocumentForm } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
+import type { LookupDto } from '../shared/models';
 
 @Injectable({
   providedIn: 'root',
@@ -43,10 +44,26 @@ export class AppointmentDocumentService {
     { apiName: this.apiName,...config });
   
 
+  getDocumentTypeOptions = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, LookupDto<string>>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/documents/document-type-options`,
+    },
+    { apiName: this.apiName,...config });
+  
+
   getList = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentDocumentDto[]>({
       method: 'GET',
       url: `/api/app/appointments/${appointmentId}/documents`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getMissingRequiredDocuments = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, MissingRequiredDocumentsResultDto>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/documents/missing-required`,
     },
     { apiName: this.apiName,...config });
   

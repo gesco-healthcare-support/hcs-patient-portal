@@ -146,6 +146,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         "States",
         "AppointmentTypes",
         "AppointmentStatuses",
+        // G-03-01 (2026-06-03): per-appointment-type document-category master.
+        // IT Admin gets full CRUD here; Staff Supervisor gets Default/Create/Edit
+        // via an explicit block (kept out of OperationalEntities so Clinic Staff
+        // does not inherit read access in PR1). Delete stays IT-Admin-only.
+        "AppointmentDocumentTypes",
         "AppointmentLanguages",
         "Locations",
         "WcabOffices",
@@ -239,6 +244,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Approve("AppointmentDocuments");
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
+
+        // G-08-01 (2026-06-06) -- Appointment Request Report (read-only internal
+        // worklist) + G-08-03 (2026-06-06) its PDF export.
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
 
         // Phase 2.5 (2026-05-01) -- approval + change-request lifecycle.
         yield return Approve("Appointments");
@@ -361,6 +371,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // D.1 / W-I-2: read-only audit log access.
         yield return Default("AppointmentChangeLogs");
 
+        // G-08-01 (2026-06-06): Appointment Request Report (read-only) + G-08-03 PDF export.
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
+
         // D.1 / W-I-2: read-only field-config access (the booker form fetches
         // these to render per-AppointmentType field state). Edit stays admin-only.
         yield return Default("CustomFields");
@@ -376,6 +390,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("NotificationTemplates");
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
+
+        // G-03-01 (2026-06-03) -- Staff Supervisor co-owns the document-category
+        // master with IT Admin. Default/Create/Edit only: retiring a type is a
+        // soft IsActive=false (preserves historical rows); hard-delete stays
+        // IT-Admin-only, consistent with this role's no-Delete convention.
+        yield return Default("AppointmentDocumentTypes");
+        yield return Create("AppointmentDocumentTypes");
+        yield return Edit("AppointmentDocumentTypes");
 
         // Phase A (2026-05-05) -- supervisor uploads a signature so OLD packets
         // they are responsible for include a stamped image (per OLD parity).
@@ -448,6 +470,31 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // injury POST -- silently breaking multi-injury bookings.
         yield return Create("AppointmentInjuryDetails");
 
+        // 2026-06-08 (F-1) -- same per-child-POST 403 class as the injury
+        // grant above. The booking-add submit also POSTs the Claim Examiner
+        // (required, every booking) and, when filled, a Primary Insurance,
+        // each to its own permission-gated standalone AppService
+        // (appointment-add.component.ts: createClaimExaminer / primary
+        // insurance). Without these Creates, Clinic Staff (the canonical
+        // phone-in booker) gets 403 on the CE attach, which aborts the rest
+        // of the submit (injuries + auto-approve never run) -- a half-built
+        // Pending appointment. CI1 makes a Claim Examiner mandatory, so a
+        // booker who cannot create one cannot complete any booking. (AA/DA
+        // links do NOT need a grant here -- the client attaches them via the
+        // bare-[Authorize] appointment-scoped upsert routes, not the
+        // standalone .Create AppServices.)
+        yield return Create("AppointmentClaimExaminers");
+        yield return Create("AppointmentPrimaryInsurances");
+        // Same per-child-POST class: every injury posts >=1 structured body
+        // part (POST /appointment-body-parts, OBS-41) and the optional
+        // Authorized Users step posts accessors (POST /appointment-accessors).
+        // Both go through permission-gated standalone AppServices, so the
+        // canonical booker needs their Creates too -- otherwise the body-part
+        // POST 403s mid-submit (after CE + injury succeed) and aborts the
+        // auto-approve, leaving a half-built Pending appointment.
+        yield return Create("AppointmentBodyParts");
+        yield return Create("AppointmentAccessors");
+
         foreach (var entity in LookupReadEntities)
         {
             yield return Default(entity);
@@ -460,6 +507,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Regenerate("AppointmentPackets");
         yield return Default("AppointmentChangeLogs");
         yield return Default("CustomFields");
+
+        // G-08-01 (2026-06-06): Appointment Request Report (read-only) + G-08-03 PDF
+        // export. Clinic Staff is a primary report audience (the front-desk worklist).
+        yield return Default("Reports");
+        yield return $"{Group}.Reports.Export";
 
         // Phase 2.5 (2026-05-01) -- clinic staff is the front-line approver
         // for new bookings. Change requests are read-only at this tier; only

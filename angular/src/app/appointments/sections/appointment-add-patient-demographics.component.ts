@@ -10,7 +10,7 @@ import {
   AddressFieldMap,
 } from '../../shared/address/address-autocomplete.component';
 import { Observable } from 'rxjs';
-import { genderOptions } from '../../proxy/enums/gender.enum';
+import { Gender, genderOptions } from '../../proxy/enums/gender.enum';
 import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
 
 /**
@@ -95,5 +95,8 @@ export class AppointmentAddPatientDemographicsComponent {
   @Output() patientSelected = new EventEmitter<string | null>();
   @Output() patientEmailChanged = new EventEmitter<void>();
 
-  readonly genderOptions = genderOptions;
+  // I6 (2026-06-08): drop the Gender.Unspecified (value 0) radio -- it has no
+  // localized label (renders the raw "Enum:Gender.0" key) and is not a valid
+  // selection.
+  readonly genderOptions = genderOptions.filter((option) => option.value !== Gender.Unspecified);
 }

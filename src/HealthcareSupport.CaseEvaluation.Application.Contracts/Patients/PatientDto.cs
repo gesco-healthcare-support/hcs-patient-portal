@@ -27,8 +27,6 @@ public class PatientDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public string? ZipCode { get; set; }
 
-    public string? RefferedBy { get; set; }
-
     public string? CellPhoneNumber { get; set; }
 
     public PhoneNumberType PhoneNumberTypeId { get; set; }

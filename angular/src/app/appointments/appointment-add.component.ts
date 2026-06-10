@@ -21,6 +21,7 @@ import { finalize } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import {
   AddressValidationProvider,
   AddressInput,
@@ -34,9 +35,14 @@ import {
   AddressDiffItem,
 } from '../shared/address/confirm-address-dialog.component';
 import { NgbDateAdapter, NgbDateStruct, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
-import type { AppointmentCreateDto } from '../proxy/appointments/models';
+import type { AppointmentCreateDto, AppointmentDto } from '../proxy/appointments/models';
+import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
+import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
+import { AppointmentService } from '../proxy/appointments/appointment.service';
+import { AppointmentApprovalService } from '../proxy/appointments/appointment-approval.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import type {
+  PatientDto,
   PatientUpdateDto,
   PatientWithNavigationPropertiesDto,
 } from '../proxy/patients/models';
@@ -73,6 +79,7 @@ import { AppointmentAddPatientDemographicsComponent } from './sections/appointme
 import { AppointmentAddScheduleComponent } from './sections/appointment-add-schedule.component';
 import {
   AppointmentAddDocumentsComponent,
+  OTHER_DOCUMENT_TYPE_VALUE,
   type StagedDocumentUpload,
 } from './sections/appointment-add-documents.component';
 import { validateDocumentFile } from '../appointment-documents/document-upload.validation';
@@ -127,6 +134,10 @@ export class AppointmentAddComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly configState = inject(ConfigStateService);
   private readonly restService = inject(RestService);
+  // G-01-07: proxy service for the reval/re-request endpoints
+  // (getByConfirmationNumber + createReval + reSubmit).
+  private readonly appointmentProxyService = inject(AppointmentService);
+  private readonly appointmentApprovalService = inject(AppointmentApprovalService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
   // Slot rework plan 5 (2026-05-15) -- the booking picker now reads from
@@ -260,14 +271,52 @@ export class AppointmentAddComponent {
   // + claim examiner) to a single appointment via the modal. injuryDrafts holds
   // the in-memory list rendered as a table; injuryEditing holds the row being
   // edited in the modal (or a fresh draft for "Add").
-  // W-H-1 / D-1 (Adrian 2026-04-30): Path B re-evaluation. The route enters
-  // here as either `?type=1` (Initial) or `?type=2` (Re-evaluation). For
-  // MVP we surface the distinction via the page heading + a flag carried
-  // through to the submit payload. Future enhancements (filter
-  // AppointmentType lookup to PQMEREEVAL/AMEREEVAL only, surface a
-  // "prior appointment" picker, send a different email subject) hook off
-  // this same flag.
-  isReevaluation = false;
+  // G-01-07 (2026-06-02): the booking form serves three modes, decided from
+  // the route query params in the constructor:
+  //   'new'       -- `?type=1` or no type. Plain create.
+  //   'reval'     -- `?type=2` (Re-evaluation, OLD IsRevolutionForm). The
+  //                  booker enters a prior APPROVED confirmation number, loads
+  //                  it, and the form prefills from that source. Submits via
+  //                  createReval (server generates a fresh confirmation #).
+  //   'reRequest' -- `?mode=rerequest&source=<conf#>` (OLD IsReRequestForm),
+  //                  launched from a REJECTED appointment's view page. Auto-
+  //                  loads + prefills from the source. Submits via reSubmit
+  //                  (server reuses the source confirmation #).
+  bookingMode: 'new' | 'reval' | 'reRequest' = 'new';
+  // The source confirmation number once a prior appointment has been loaded
+  // for prefill. Null until loaded; gates the reval/re-request submit path.
+  sourceConfirmationNumber: string | null = null;
+  isLoadingSource = false;
+  sourceLoadMessage = '';
+
+  /** Reval mode (`?type=2`). Keeps the existing lookup-filter + heading wiring. */
+  get isReevaluation(): boolean {
+    return this.bookingMode === 'reval';
+  }
+
+  /** Re-request mode (launched from a rejected appointment's view page). */
+  get isReRequest(): boolean {
+    return this.bookingMode === 'reRequest';
+  }
+
+  /** Localization key for the page heading, by mode. */
+  get headingKey(): string {
+    if (this.bookingMode === 'reval') return '::ReEvaluationAppointment';
+    if (this.bookingMode === 'reRequest') return '::ReRequestAppointment';
+    return '::NewAppointment';
+  }
+
+  /**
+   * EvaluationType filter for the appointment-type dropdown (server enum:
+   * 0 = Normal, 1 = Re). Initial booking shows Normal+Both; reval shows Re+Both;
+   * re-request resubmits the SAME appointment, so its source type (any
+   * classification, prefilled) must stay selectable -> no filter (all types).
+   */
+  get appointmentTypeEvaluationContext(): 0 | 1 | undefined {
+    if (this.bookingMode === 'reval') return 1;
+    if (this.bookingMode === 'reRequest') return undefined;
+    return 0;
+  }
 
   // #121 phase T4 (2026-05-13) -- injury list stays at parent because
   // submit consumes it (persistInjuryDraftsIfProvided + Bug C email
@@ -329,6 +378,7 @@ export class AppointmentAddComponent {
           filter: input.filter,
           skipCount: input.skipCount,
           maxResultCount: input.maxResultCount,
+          evaluationContext: this.appointmentTypeEvaluationContext,
         },
       },
       { apiName: 'Default' },
@@ -402,6 +452,11 @@ export class AppointmentAddComponent {
   // appointment is created (two-phase). Mutated in place; the documents section
   // uses default change detection so it renders these updates.
   stagedDocuments: StagedDocumentUpload[] = [];
+  // I15 (2026-06-08): document-category labels for the booking-form picker,
+  // loaded per appointment type. panelStrikeListTypeId is the option id whose
+  // name is "Panel Strike List" (drives the strike-list flag + checkbox auto-tick).
+  documentTypeOptions: { id: string; displayName: string }[] = [];
+  panelStrikeListTypeId: string | null = null;
   // Set to the created appointment id once it exists, so an upload retry
   // re-POSTs to the SAME appointment instead of creating a duplicate.
   private createdAppointmentIdForRetry?: string;
@@ -411,6 +466,9 @@ export class AppointmentAddComponent {
   // submits with no strike-list requirement.
   hasPanelStrikeList = false;
   panelStrikeListMissing = false;
+  // 2026-06-09: set when submit is blocked because a doc labeled "Other" has no
+  // free-text name yet (a blank custom label is not a usable category).
+  otherLabelMissing = false;
 
   readonly form = this.fb.group({
     panelNumber: [null as string | null, [Validators.maxLength(50)]],
@@ -509,7 +567,12 @@ export class AppointmentAddComponent {
     // Examiner (REQUIRED -- Name + Email) -- one each per appointment, replacing
     // the per-injury insurance/CE captured in the claim-information modal. CI2
     // removes the now-orphaned per-injury controls. Posted once after create.
-    appointmentInsuranceName: [null as string | null, [Validators.maxLength(50)]],
+    // I12 (2026-06-08): Insurance Name required client-side per
+    // docs/appointment-required-fields.md (OLD-parity required-fields spec).
+    appointmentInsuranceName: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
     appointmentInsuranceSuite: [null as string | null, [Validators.maxLength(255)]],
     appointmentInsurancePhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     appointmentInsuranceFaxNumber: [null as string | null, [Validators.maxLength(20)]],
@@ -526,12 +589,26 @@ export class AppointmentAddComponent {
       [Validators.required, Validators.maxLength(50), Validators.email],
     ],
     appointmentClaimExaminerSuite: [null as string | null, [Validators.maxLength(255)]],
-    appointmentClaimExaminerPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
+    // I12 (2026-06-08): Phone / Street / City / State / Zip required client-side
+    // per docs/appointment-required-fields.md (OLD-parity required-fields spec).
+    appointmentClaimExaminerPhoneNumber: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(12)],
+    ],
     appointmentClaimExaminerFax: [null as string | null, [Validators.maxLength(20)]],
-    appointmentClaimExaminerStreet: [null as string | null, [Validators.maxLength(255)]],
-    appointmentClaimExaminerCity: [null as string | null, [Validators.maxLength(50)]],
-    appointmentClaimExaminerStateId: [null as string | null],
-    appointmentClaimExaminerZip: [null as string | null, [Validators.maxLength(10)]],
+    appointmentClaimExaminerStreet: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(255)],
+    ],
+    appointmentClaimExaminerCity: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(50)],
+    ],
+    appointmentClaimExaminerStateId: [null as string | null, [Validators.required]],
+    appointmentClaimExaminerZip: [
+      null as string | null,
+      [Validators.required, Validators.maxLength(10)],
+    ],
     // B1 (2026-05-05): per-AppointmentType custom-field answers. Mirrors
     // OLD's `appointment.customFieldsValues` FormArray rebuilt on
     // appointmentTypeId change. Each child FormGroup carries the static
@@ -557,11 +634,24 @@ export class AppointmentAddComponent {
   }
 
   constructor() {
-    // W-H-1 / D-1: read ?type=2 to detect Re-evaluation flow. We use
-    // queryParamMap.subscribe so deep-links + future programmatic switches
-    // both flip the flag.
+    // G-01-07: resolve the booking mode from the route. `?type=2` is reval
+    // (the booker enters a prior confirmation number + loads); `?mode=rerequest
+    // &source=<conf#>` is re-request (launched from a rejected appointment and
+    // auto-loaded). queryParamMap.subscribe so deep-links work.
     this.route.queryParamMap.subscribe((params) => {
-      this.isReevaluation = params.get('type') === '2';
+      if (params.get('mode') === 'rerequest') {
+        this.bookingMode = 'reRequest';
+        // Re-request prefills from the source appointment, not the booker's own
+        // profile, so the self-profile load is skipped (see the guard below).
+        // Clear its loading flag here; loadSourceForPrefill owns the load state.
+        this.isProfileLoading = false;
+        const source = (params.get('source') ?? '').trim();
+        if (source && this.sourceConfirmationNumber !== source) {
+          void this.loadSourceForPrefill(source, 'reRequest');
+        }
+      } else {
+        this.bookingMode = params.get('type') === '2' ? 'reval' : 'new';
+      }
     });
 
     this.form
@@ -580,12 +670,20 @@ export class AppointmentAddComponent {
       // needs no request-version counter; it stays inside this subscriber to
       // remain ordered with the other per-type updates.
       this.applyPanelNumberStateForType(appointmentTypeId);
-      // AF6: the panel-strike-list opt-in is PQME-only. Leaving PQME clears the
-      // checkbox + any designation so a non-PQME booking carries no strike list.
+      // I15/I16 (2026-06-08): document-category labels are scoped to the
+      // appointment type, so a type change invalidates any label / strike-list
+      // designation on staged documents -- clear them so the booker re-labels for
+      // the new type.
+      this.stagedDocuments.forEach((doc) => {
+        doc.documentTypeId = null;
+        doc.isStrikeList = false;
+        doc.isOtherType = false;
+        doc.otherDocumentTypeName = null;
+      });
+      // The panel-strike-list opt-in is PQME-only; leaving PQME also clears it.
       if (!this.isPqmeType) {
         this.hasPanelStrikeList = false;
         this.panelStrikeListMissing = false;
-        this.clearStrikeListDesignation();
       }
     });
     this.form
@@ -595,7 +693,14 @@ export class AppointmentAddComponent {
       .get('appointmentTime')
       ?.valueChanges.subscribe((value) => this.onAppointmentTimeChanged(value));
     this.updateLocationSelection(this.form.get('locationId')?.value ?? null);
-    this.loadCurrentPatientProfile();
+    // In re-request mode the form prefills from the SOURCE appointment, so
+    // loading the booker's own profile here would race the prefill and null
+    // out the patient + employer controls. Skip it -- the prefill sets the
+    // (reused) source patient instead. Reval is button-triggered after
+    // construction, so its profile load has already settled.
+    if (this.bookingMode !== 'reRequest') {
+      this.loadCurrentPatientProfile();
+    }
     this.prefillAppointmentClaimExaminerForRole();
     this.loadExternalAuthorizedUsers();
 
@@ -741,6 +846,8 @@ export class AppointmentAddComponent {
     const control = this.form.get('panelNumber');
     if (!control) return;
     this.isPqmeType = typeId === this.PQME_TYPE_ID;
+    // I15: refresh the document-category labels for the newly-selected type.
+    this.loadDocumentTypeOptions(typeId);
     if (this.isPqmeType) {
       control.enable({ emitEvent: false });
       control.setValidators([Validators.required, Validators.maxLength(50)]);
@@ -1100,6 +1207,31 @@ export class AppointmentAddComponent {
     return roles.some((r: string) => r?.toLowerCase() === 'claim examiner');
   }
 
+  /**
+   * True when the booker is an internal staff user (anyone whose roles are
+   * none of the four external party roles). F1/F2 fix (2026-06-07): internal
+   * bookings now create as Pending and are auto-approved by the client once
+   * the party/injury attach sequence has persisted, so the approval gates run
+   * against the complete appointment and the attach calls no longer race the
+   * approval side-effects. Mirrors the backend BookingFlowRoles external set.
+   */
+  private static readonly externalPartyRoles = [
+    'patient',
+    'applicant attorney',
+    'defense attorney',
+    'claim examiner',
+  ];
+
+  get isInternalBooker(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    if (roles.length === 0) {
+      return false;
+    }
+    return !roles.some((r: string) =>
+      AppointmentAddComponent.externalPartyRoles.includes(r?.toLowerCase()),
+    );
+  }
+
   // B11 reversed (2026-05-07): the earlier interpretation hid the
   // Applicant Attorney / Defense Attorney / Additional Authorized User
   // cards for the Claim Examiner (= OLD's Adjuster) booker. A live
@@ -1158,6 +1290,198 @@ export class AppointmentAddComponent {
    */
   readonly isFieldInvalidBound = (fieldName: string): boolean => this.isFieldInvalid(fieldName);
 
+  // ===== G-01-07: reval / re-request source lookup + prefill =====
+
+  /**
+   * Reval entry (OLD getRevelAppointmentForm): the booker types a prior
+   * APPROVED confirmation number and loads it. Bound to the "Load prior
+   * appointment" button shown on the booking form in reval mode.
+   */
+  loadRevalSource(confirmationNumber: string): void {
+    const conf = (confirmationNumber ?? '').trim();
+    if (!conf) {
+      this.sourceLoadMessage = 'Enter the prior appointment confirmation number.';
+      return;
+    }
+    void this.loadSourceForPrefill(conf, 'reval');
+  }
+
+  /**
+   * Look up a source appointment by confirmation number and prefill the form
+   * from its full intake. Mirrors OLD bindFormGroup(Revel/ReRequest): copy
+   * everything forward, child PKs reset (implicit -- the produced drafts carry
+   * no ids). Slot/date/time are NOT prefilled -- the booker picks a fresh,
+   * currently-available slot. The status gate is client-side defensive; the
+   * server re-validates on submit via LoadReval/ResubmitSourceAsync.
+   */
+  private async loadSourceForPrefill(
+    confirmationNumber: string,
+    flow: 'reval' | 'reRequest',
+  ): Promise<void> {
+    if (this.isLoadingSource) return;
+    this.isLoadingSource = true;
+    this.sourceLoadMessage = '';
+    try {
+      const source = await firstValueFrom(
+        this.appointmentProxyService.getByConfirmationNumber(confirmationNumber),
+      );
+      const appt = source?.appointment;
+      if (!appt?.id) {
+        this.sourceLoadMessage = 'No appointment was found for that confirmation number.';
+        return;
+      }
+      const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, flow);
+      if (gate) {
+        this.sourceLoadMessage = gate;
+        return;
+      }
+      await this.applySourceToForm(
+        appt,
+        source.patient ?? null,
+        source.claimExaminer ?? null,
+        source.primaryInsurance ?? null,
+      );
+      this.sourceConfirmationNumber = confirmationNumber;
+      this.sourceLoadMessage =
+        'Prior appointment loaded. Review the details, choose a new date and time, then submit.';
+    } catch {
+      this.sourceLoadMessage =
+        'Unable to load that appointment. Check the confirmation number and try again.';
+    } finally {
+      this.isLoadingSource = false;
+    }
+  }
+
+  /** Defensive status gate: reval needs Approved, re-request needs Rejected. */
+  private checkSourceStatusForFlow(
+    status: AppointmentStatusType | undefined,
+    flow: 'reval' | 'reRequest',
+  ): string | null {
+    if (flow === 'reval' && status !== AppointmentStatusType.Approved) {
+      return 'You can re-evaluate only an approved appointment.';
+    }
+    if (flow === 'reRequest' && status !== AppointmentStatusType.Rejected) {
+      return 'You can re-request only a rejected appointment.';
+    }
+    return null;
+  }
+
+  /** Fetch the source child intake (same endpoints the view page uses) and
+   * apply it to the form + drafts. */
+  private async applySourceToForm(
+    appt: AppointmentDto,
+    patient: PatientDto | null,
+    claimExaminer: AppointmentClaimExaminerDto | null,
+    primaryInsurance: AppointmentPrimaryInsuranceDto | null,
+  ): Promise<void> {
+    const id = appt.id!;
+    const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
+      this.fetchSourceEmployer(id),
+      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/applicant-attorney`),
+      this.fetchSourceAppointmentResource(`/api/app/appointments/${id}/defense-attorney`),
+      this.fetchSourceInjuries(id),
+      this.fetchSourceAccessors(id),
+    ]);
+
+    this.applySourcePatient(patient);
+
+    const prefill = buildRevalPrefill({
+      appointment: appt,
+      employer,
+      applicantAttorney,
+      defenseAttorney,
+      injuries,
+      accessors,
+      authorizedUserOptions: this.externalAuthorizedUserOptions,
+      claimExaminer,
+      primaryInsurance,
+    });
+    // formPatch is a dynamic key/value bag (employer + attorney + panel/due);
+    // cast to bypass the strongly-typed FormGroup value shape at this one site.
+    this.form.patchValue(prefill.formPatch as any, { emitEvent: false });
+    this.injuryDrafts = prefill.injuryDrafts;
+    this.appointmentAuthorizedUsers = prefill.authorizedUsers;
+    this.applicantAttorneyId = prefill.applicantAttorneyId;
+    this.applicantAttorneyConcurrencyStamp = prefill.applicantAttorneyConcurrencyStamp;
+    this.defenseAttorneyId = prefill.defenseAttorneyId;
+    this.defenseAttorneyConcurrencyStamp = prefill.defenseAttorneyConcurrencyStamp;
+    this.applyAttorneyEnabledFromSource(!!applicantAttorney, 'applicantAttorney');
+    this.applyAttorneyEnabledFromSource(!!defenseAttorney, 'defenseAttorney');
+
+    // Type + location LAST, WITH events, so the slot picker + field-config +
+    // custom-field cascades run for the prefilled type/location. Date/time stay
+    // null so the booker selects a fresh, currently-available slot. ORDER IS
+    // LOAD-BEARING: patch locationId first (its valueChanges early-returns while
+    // appointmentTypeId is still null), then appointmentTypeId (which runs the
+    // slot fetch with both present). Two calls keep the ordering explicit.
+    this.form.patchValue({ locationId: appt.locationId ?? null });
+    this.form.patchValue({ appointmentTypeId: appt.appointmentTypeId ?? null });
+  }
+
+  private async fetchSourceEmployer(appointmentId: string): Promise<any> {
+    try {
+      const res = await firstValueFrom(
+        this.restService.request<any, PagedResultDto<any>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-employer-details',
+            params: { appointmentId, skipCount: 0, maxResultCount: 1 },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return res?.items?.[0]?.appointmentEmployerDetail ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** GET a nullable per-appointment sub-resource, swallowing errors to null. */
+  private async fetchSourceAppointmentResource(url: string): Promise<any> {
+    try {
+      return await firstValueFrom(
+        this.restService.request<any, any>({ method: 'GET', url }, { apiName: 'Default' }),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchSourceInjuries(appointmentId: string): Promise<any[]> {
+    try {
+      const items = await firstValueFrom(
+        this.restService.request<any, any[]>(
+          {
+            method: 'GET',
+            url: `/api/app/appointment-injury-details/by-appointment/${appointmentId}`,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchSourceAccessors(appointmentId: string): Promise<any[]> {
+    try {
+      const res = await firstValueFrom(
+        this.restService.request<any, PagedResultDto<any>>(
+          {
+            method: 'GET',
+            url: '/api/app/appointment-accessors',
+            params: { appointmentId, skipCount: 0, maxResultCount: 100 },
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return res?.items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   // ----- AF7 (2026-06-05): pre-submit document staging + post-create upload -----
 
   onDocumentsSelected(files: File[]): void {
@@ -1167,29 +1491,98 @@ export class AppointmentAddComponent {
         this.toaster.error(`${file.name}: ${error}`);
         continue;
       }
-      this.stagedDocuments.push({ file, status: 'staged', isStrikeList: false });
+      this.stagedDocuments.push({
+        file,
+        status: 'staged',
+        isStrikeList: false,
+        documentTypeId: null,
+      });
     }
   }
 
   // ----- AF6 (2026-06-05): PQME panel-strike-list opt-in + designation -----
 
   onHasPanelStrikeListChange(checked: boolean): void {
+    // I16 (2026-06-08): the checkbox is the "providing the strike list now"
+    // toggle. The strike list itself is identified by the document labeled
+    // "Panel Strike List" (see onDocumentTypeChange), not a radio designation.
     this.hasPanelStrikeList = checked;
     this.panelStrikeListMissing = false;
-    if (!checked) {
-      // Opting out clears any prior designation so a later re-check starts fresh.
-      this.clearStrikeListDesignation();
+  }
+
+  /**
+   * I16 (2026-06-08): a staged document's type-label was chosen. The strike list
+   * is whichever document is labeled "Panel Strike List"; choosing that label
+   * also auto-ticks the "panel strike list" checkbox (D2).
+   */
+  onDocumentTypeChange(event: { index: number; typeId: string | null }): void {
+    const doc = this.stagedDocuments[event.index];
+    if (!doc) {
+      return;
+    }
+    if (event.typeId === OTHER_DOCUMENT_TYPE_VALUE) {
+      // "Other": no listed category -- the booker types a free-text label.
+      // Clear the type id (mutually exclusive with otherDocumentTypeName on the
+      // backend) and the strike-list flag (a custom label is never the
+      // recognized "Panel Strike List").
+      doc.isOtherType = true;
+      doc.documentTypeId = null;
+      doc.isStrikeList = false;
+    } else {
+      doc.isOtherType = false;
+      doc.otherDocumentTypeName = null;
+      doc.documentTypeId = event.typeId;
+      doc.isStrikeList = !!event.typeId && event.typeId === this.panelStrikeListTypeId;
+    }
+    if (this.stagedDocuments.some((d) => d.isStrikeList)) {
+      this.hasPanelStrikeList = true;
+    }
+    this.panelStrikeListMissing = false;
+    this.otherLabelMissing = false;
+  }
+
+  /** I (2026-06-09): the free-text "Other" label was edited for a staged doc. */
+  onOtherDocumentTypeNameChange(event: { index: number; value: string }): void {
+    const doc = this.stagedDocuments[event.index];
+    if (!doc) {
+      return;
+    }
+    doc.otherDocumentTypeName = event.value;
+    if (event.value.trim()) {
+      this.otherLabelMissing = false;
     }
   }
 
-  designateStrikeList(index: number): void {
-    // Exactly one staged document is the strike list; selecting one clears the rest.
-    this.stagedDocuments.forEach((doc, i) => (doc.isStrikeList = i === index));
-    this.panelStrikeListMissing = false;
-  }
-
-  private clearStrikeListDesignation(): void {
-    this.stagedDocuments.forEach((doc) => (doc.isStrikeList = false));
+  /**
+   * I15 (2026-06-08): load the document-category labels for the chosen appointment
+   * type so the booking-form picker can show them, and cache the "Panel Strike
+   * List" option id for strike-list detection. Best-effort: a failure leaves the
+   * picker empty rather than blocking booking.
+   */
+  private loadDocumentTypeOptions(appointmentTypeId: string | null): void {
+    this.documentTypeOptions = [];
+    this.panelStrikeListTypeId = null;
+    if (!appointmentTypeId) {
+      return;
+    }
+    this.restService
+      .request<
+        unknown,
+        { id: string; displayName: string }[]
+      >({ method: 'GET', url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}` }, { apiName: 'Default' })
+      .subscribe({
+        next: (options) => {
+          this.documentTypeOptions = options ?? [];
+          const strike = this.documentTypeOptions.find(
+            (o) => (o.displayName ?? '').trim().toLowerCase() === 'panel strike list',
+          );
+          this.panelStrikeListTypeId = strike?.id ?? null;
+        },
+        error: () => {
+          this.documentTypeOptions = [];
+          this.panelStrikeListTypeId = null;
+        },
+      });
   }
 
   removeStagedDocument(index: number): void {
@@ -1221,6 +1614,94 @@ export class AppointmentAddComponent {
   }
 
   /**
+   * Reuse the source patient (a standalone entity, not a child of the
+   * appointment) -- set patientId + currentPatientProfile so submit updates
+   * that patient and stamps isPatientAlreadyExist. SSN is never pre-filled.
+   */
+  private applySourcePatient(patient: PatientDto | null): void {
+    if (!patient?.id) return;
+    this.currentPatientProfile = {
+      patient,
+      isExisting: true,
+    } as PatientWithNavigationPropertiesDto;
+    this.patientLabel = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
+    this.form.patchValue(
+      {
+        patientId: patient.id,
+        identityUserId: patient.identityUserId ?? this.currentUser?.id ?? null,
+        firstName: patient.firstName ?? null,
+        lastName: patient.lastName ?? null,
+        middleName: patient.middleName ?? null,
+        email: patient.email ?? null,
+        genderId: this.normalizePatientGender(patient.genderId),
+        dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
+        cellPhoneNumber: patient.cellPhoneNumber ?? null,
+        phoneNumber: patient.phoneNumber ?? null,
+        phoneNumberTypeId: (patient.phoneNumberTypeId as number | undefined) ?? null,
+        socialSecurityNumber: null, // F1 / Design B: SSN is never pre-filled
+        street: patient.street ?? null,
+        address: patient.address ?? null,
+        city: patient.city ?? null,
+        stateId: patient.stateId ?? null,
+        zipCode: patient.zipCode ?? null,
+        appointmentLanguageId: patient.appointmentLanguageId ?? null,
+        interpreterVendorName: patient.interpreterVendorName ?? null,
+        needsInterpreter: !!patient.interpreterVendorName,
+        refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
+      },
+      { emitEvent: false },
+    );
+  }
+
+  /**
+   * Set an attorney section's Enabled flag from the source (present -> on),
+   * keeping it on when the booker's own role makes the section mandatory.
+   * Re-applies the conditional validators so an ABSENT source attorney does
+   * not leave a required-but-empty section that would block submit.
+   */
+  private applyAttorneyEnabledFromSource(
+    present: boolean,
+    prefix: 'applicantAttorney' | 'defenseAttorney',
+  ): void {
+    const control = this.form.get(`${prefix}Enabled`);
+    if (!control) return;
+    const mandatory =
+      prefix === 'applicantAttorney'
+        ? this.isApplicantAttorney && !this.isItAdmin
+        : this.isDefenseAttorney && !this.isItAdmin;
+    const enabled = present || mandatory;
+    control.setValue(enabled, { emitEvent: false });
+    this.applyConditionalEmailValidator(`${prefix}Email`, enabled);
+    applyAttorneySectionValidators(this.form, prefix, enabled);
+  }
+
+  /**
+   * Route the create call by mode: reval -> createReval (server generates a
+   * fresh confirmation #); re-request -> reSubmit (server reuses the source
+   * confirmation #); otherwise the plain create. The post-create child
+   * cascade is identical for all three, so prefilled drafts persist as fresh
+   * rows on the new appointment.
+   */
+  private createAppointmentForCurrentMode(payload: AppointmentCreateDto): Promise<any> {
+    if (this.bookingMode === 'reval' && this.sourceConfirmationNumber) {
+      return firstValueFrom(
+        this.appointmentProxyService.createReval(this.sourceConfirmationNumber, payload),
+      );
+    }
+    if (this.bookingMode === 'reRequest' && this.sourceConfirmationNumber) {
+      return firstValueFrom(
+        this.appointmentProxyService.reSubmit(this.sourceConfirmationNumber, payload),
+      );
+    }
+    return firstValueFrom(
+      this.restService.request<any, any>(
+        { method: 'POST', url: '/api/app/appointments', body: payload },
+        { apiName: 'Default' },
+      ),
+    );
+  }
+
+  /**
    * Upload every not-yet-uploaded staged document to the created appointment via
    * the existing ad-hoc endpoint (reuses its 10 MB size + magic-byte format
    * validation; the booker is authorized as appointment Creator -- zero backend
@@ -1245,6 +1726,18 @@ export class AppointmentAddComponent {
         form.append('documentName', staged.file.name);
         // AF6: tag the marked strike-list file so the server sets IsPanelStrikeList.
         form.append('isPanelStrikeList', String(staged.isStrikeList));
+        // I15: send the chosen document-type label so it is stored, and (for the
+        // "Panel Strike List" label) the server also sets IsPanelStrikeList.
+        // "Other" sends the free-text name instead -- the two are mutually
+        // exclusive on the backend (ResolveDocumentTypeSelectionAsync).
+        if (staged.isOtherType) {
+          const otherName = staged.otherDocumentTypeName?.trim();
+          if (otherName) {
+            form.append('otherDocumentTypeName', otherName);
+          }
+        } else if (staged.documentTypeId) {
+          form.append('appointmentDocumentTypeId', staged.documentTypeId);
+        }
         await firstValueFrom(
           this.restService.request<FormData, unknown>(
             {
@@ -1268,6 +1761,20 @@ export class AppointmentAddComponent {
 
   async onSubmit(): Promise<void> {
     const raw = this.form.getRawValue();
+    // G-01-07: reval + re-request must be anchored to a loaded source (the
+    // server endpoints take the source confirmation # in the route). Block
+    // submit until one is loaded so we never silently fall through to a plain
+    // create for a re-eval/re-request.
+    if (this.bookingMode !== 'new' && !this.sourceConfirmationNumber) {
+      if (this.bookingMode === 'reval') {
+        this.sourceLoadMessage =
+          'Look up the prior approved appointment by confirmation number before submitting.';
+      } else {
+        this.sourceLoadMessage =
+          'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+      }
+      return;
+    }
     if (this.isExternalUserNonPatient && !raw.patientId) {
       const requiredForNew = raw.firstName && raw.lastName && raw.email && raw.dateOfBirth;
       if (!requiredForNew) {
@@ -1317,6 +1824,16 @@ export class AppointmentAddComponent {
     }
     this.panelStrikeListMissing = false;
 
+    // 2026-06-09: a document labeled "Other" needs its free-text name. A blank
+    // custom label is not a usable category, so block submit (mirrors the
+    // flag/message/return shape of the gates above).
+    if (this.stagedDocuments.some((d) => d.isOtherType && !d.otherDocumentTypeName?.trim())) {
+      this.otherLabelMissing = true;
+      this.patientLoadMessage = 'Enter a name for each document labeled "Other" before saving.';
+      return;
+    }
+    this.otherLabelMissing = false;
+
     // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
     // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
     // any provider error so submission is never blocked.
@@ -1348,10 +1865,17 @@ export class AppointmentAddComponent {
         dueDate: rawAfter.dueDate ?? undefined,
         appointmentStatus: AppointmentStatusType.Pending,
         patientId: rawAfter.patientId ?? '',
+        // G-01-03 / OLD parity (AppointmentDomain.cs:203-218): persist the
+        // returning-patient result the dedup already computed. The server reads
+        // this flag verbatim; without it every booking records a "new" patient.
+        isPatientAlreadyExist: this.currentPatientProfile?.isExisting ?? false,
         identityUserId: rawAfter.identityUserId ?? null,
         appointmentTypeId: rawAfter.appointmentTypeId ?? '',
         locationId: rawAfter.locationId ?? '',
         doctorAvailabilityId: rawAfter.doctorAvailabilityId ?? '',
+        // 2026-06-09: per-appointment Referred By (optional; blank by default, never
+        // prefilled from the patient or prior appointments).
+        refferedBy: rawAfter.refferedBy?.trim() || undefined,
         // S-5.1: party emails captured at booking time so email fan-out (step 6.1)
         // and auto-link on registration (step 5.2) have the addresses immediately.
         patientEmail: rawAfter.email ?? undefined,
@@ -1378,16 +1902,7 @@ export class AppointmentAddComponent {
         customFieldValues: this.serializeCustomFieldValues(),
       };
 
-      const createdAppointment = await firstValueFrom(
-        this.restService.request<any, any>(
-          {
-            method: 'POST',
-            url: '/api/app/appointments',
-            body: payload,
-          },
-          { apiName: 'Default' },
-        ),
-      );
+      const createdAppointment = await this.createAppointmentForCurrentMode(payload);
 
       await this.createEmployerDetailsIfProvided(createdAppointment?.id);
       await this.upsertApplicantAttorneyForAppointmentIfProvided(createdAppointment?.id);
@@ -1408,6 +1923,13 @@ export class AppointmentAddComponent {
         );
         return;
       }
+
+      // F1/F2 fix (2026-06-07): internal bookings are created Pending so the
+      // party/injury attach calls above do not race the approval side-effects
+      // (which previously 409'd the attaches and bypassed the gates). Now that
+      // the appointment is fully populated, auto-approve it for internal
+      // bookers in a single transaction whose gates run on complete data.
+      await this.autoApproveIfInternalBooker(createdAppointment?.id);
 
       this.router.navigateByUrl('/');
     } catch (err: unknown) {
@@ -1439,6 +1961,35 @@ export class AppointmentAddComponent {
 
   save(): void {
     this.onSubmit();
+  }
+
+  /**
+   * F1/F2 fix (2026-06-07): auto-approve a freshly booked appointment when the
+   * booker is internal staff. Runs AFTER the party/injury attach sequence so
+   * the appointment is fully populated and the server-side approval gates
+   * (>=1 injury, >=1 active claim examiner) pass. A failed approve is
+   * swallowed with a warning -- the booking already exists and can be approved
+   * from the appointment view, so navigation is never blocked.
+   */
+  private async autoApproveIfInternalBooker(appointmentId: string | undefined): Promise<void> {
+    if (!appointmentId || !this.isInternalBooker) {
+      return;
+    }
+    const responsibleUserId = this.currentUser?.id;
+    if (!responsibleUserId) {
+      return;
+    }
+    try {
+      await firstValueFrom(
+        this.appointmentApprovalService.approveAppointment(appointmentId, {
+          primaryResponsibleUserId: responsibleUserId,
+        }),
+      );
+    } catch {
+      this.toaster.warn(
+        'Appointment booked. Auto-approval did not complete -- approve it from the appointment view.',
+      );
+    }
   }
 
   // F2 (2026-05-29): validate each enabled, non-empty address group, and where
@@ -1668,11 +2219,11 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * Wave 4 / #15: when the selected language is English, force
-   * `needsInterpreter = false` and disable the radio control. Otherwise
-   * re-enable so the booker can choose. `emitEvent: false` on both the
-   * setValue and the disable/enable calls suppresses the cascading
-   * valueChanges event that would otherwise re-enter via
+   * Wave 4 / #15 (interpreter behavior changed by I7, 2026-06-08): when the
+   * selected language is English, DEFAULT `needsInterpreter` to No -- but keep
+   * the radio ENABLED so a booker can still request an interpreter (e.g. ASL)
+   * for an English speaker. `emitEvent: false` on the setValue suppresses the
+   * cascading valueChanges that would otherwise re-enter via the
    * `interpreterVendorName` validators or the @if-rendered vendor input.
    */
   private applyEnglishInterpreterLock(currentLanguageId: string | null): void {
@@ -1696,10 +2247,9 @@ export class AppointmentAddComponent {
       if (vendorCtrl?.value) {
         vendorCtrl.setValue(null, { emitEvent: false });
       }
-      if (interpreterCtrl.enabled) {
-        interpreterCtrl.disable({ emitEvent: false });
-      }
     } else {
+      // Defensive: re-enable if some earlier state had disabled it. The English
+      // branch no longer disables (I7), so this is normally a no-op.
       if (interpreterCtrl.disabled) {
         interpreterCtrl.enable({ emitEvent: false });
       }
@@ -1793,6 +2343,36 @@ export class AppointmentAddComponent {
           this.applicantAttorneyId = null;
           this.applicantAttorneyConcurrencyStamp = null;
         }
+        // I17 (2026-06-08): a defense attorney booking their own appointment
+        // gets the same full-record prefill as an applicant attorney (firm name
+        // + contact fields). No DA loader existed before; the firm name typed at
+        // registration now surfaces via the backend extension-property fallback
+        // in GetDefenseAttorneyDetailsForBookingAsync.
+        const isDefenseAttorney =
+          profile.userRole?.toLowerCase() === 'defense attorney' ||
+          (this.currentUser?.roles ?? []).some(
+            (r: string) => r?.toLowerCase() === 'defense attorney',
+          );
+        if (isDefenseAttorney && identityUserId) {
+          this.loadDefenseAttorneyForCurrentUser(identityUserId);
+        } else {
+          this.form.patchValue({
+            defenseAttorneyIdentityUserId: null,
+            defenseAttorneyFirstName: null,
+            defenseAttorneyLastName: null,
+            defenseAttorneyEmail: null,
+            defenseAttorneyFirmName: null,
+            defenseAttorneyWebAddress: null,
+            defenseAttorneyPhoneNumber: null,
+            defenseAttorneyFaxNumber: null,
+            defenseAttorneyStreet: null,
+            defenseAttorneyCity: null,
+            defenseAttorneyStateId: null,
+            defenseAttorneyZipCode: null,
+          });
+          this.defenseAttorneyId = null;
+          this.defenseAttorneyConcurrencyStamp = null;
+        }
       });
   }
 
@@ -1831,7 +2411,7 @@ export class AppointmentAddComponent {
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
-          genderId: (patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
@@ -1845,7 +2425,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: patient.appointmentLanguageId ?? null,
           interpreterVendorName: patient.interpreterVendorName ?? null,
           needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
           employerName: null,
           employerOccupation: null,
           employerPhoneNumber: null,
@@ -1877,7 +2457,6 @@ export class AppointmentAddComponent {
       address: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
-      refferedBy: raw.refferedBy ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       street: raw.street ?? undefined,
       interpreterVendorName: raw.needsInterpreter
@@ -1945,7 +2524,7 @@ export class AppointmentAddComponent {
           lastName: profile.patient.lastName ?? null,
           middleName: profile.patient.middleName ?? null,
           email: profile.patient.email ?? null,
-          genderId: (profile.patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(profile.patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(
             profile.patient.dateOfBirth as string | null,
           ),
@@ -1961,7 +2540,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: profile.patient.appointmentLanguageId ?? null,
           interpreterVendorName: profile.patient.interpreterVendorName ?? null,
           needsInterpreter: !!profile.patient.interpreterVendorName,
-          refferedBy: profile.patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
         });
         this.patientLoadMessage = 'Patient loaded. You can edit details below if needed.';
       } else {
@@ -2003,6 +2582,21 @@ export class AppointmentAddComponent {
       return null;
     }
     return value;
+  }
+
+  /**
+   * G-06-08 (2026-06-01): a registered-but-not-yet-booked patient carries
+   * Gender.Unspecified (0) -- the registration sentinel, never a real choice.
+   * Treat it (and any missing value) as "not provided" so the booking form's
+   * gender dropdown is not pre-selected with a fabricated value. Mirrors the
+   * normalizePatientDateOfBirth guard for the DOB sentinel.
+   */
+  private normalizePatientGender(value: unknown): number | null {
+    const id = value as number | null | undefined;
+    if (id === undefined || id === null || id === 0) {
+      return null;
+    }
+    return id;
   }
 
   onPatientSelected(patientId: string | null): void {
@@ -2065,7 +2659,7 @@ export class AppointmentAddComponent {
           lastName: patient.lastName ?? null,
           middleName: patient.middleName ?? null,
           email: patient.email ?? null,
-          genderId: (patient.genderId as number | undefined) ?? null,
+          genderId: this.normalizePatientGender(patient.genderId),
           dateOfBirth: this.normalizePatientDateOfBirth(patient.dateOfBirth as string | null),
           cellPhoneNumber: patient.cellPhoneNumber ?? null,
           phoneNumber: patient.phoneNumber ?? null,
@@ -2079,7 +2673,7 @@ export class AppointmentAddComponent {
           appointmentLanguageId: patient.appointmentLanguageId ?? null,
           interpreterVendorName: patient.interpreterVendorName ?? null,
           needsInterpreter: !!patient.interpreterVendorName,
-          refferedBy: patient.refferedBy ?? null,
+          refferedBy: null, // 2026-06-09: not prefilled -- per-booking optional field
         });
       });
   }
@@ -2148,10 +2742,10 @@ export class AppointmentAddComponent {
 
   // #121 phase T2 (2026-05-13) -- modal + table helpers all moved to
   // AppointmentAddAuthorizedUsersComponent: openAdd / openEdit / close /
-  // saveFromModal / remove / getAccessTypeLabel / onAuthorizedUserIdentityChanged.
-  // The parent retains only the loadExternalAuthorizedUsers fetch
-  // because two other sections (Applicant + Defense Attorney) also
-  // consume the same lookup result.
+  // saveFromModal / remove / getAccessTypeLabel. Group J (2026-06-05)
+  // dropped the user-picker, so the section no longer consumes this
+  // lookup; the parent retains loadExternalAuthorizedUsers only because
+  // the Applicant + Defense Attorney sections still use the result.
 
   private loadExternalAuthorizedUsers(): void {
     this.restService
@@ -2171,8 +2765,28 @@ export class AppointmentAddComponent {
           this.defenseAttorneyOptions = (result?.items ?? []).filter(
             (x: ExternalAuthorizedUserOption) => x.userRole?.toLowerCase() === 'defense attorney',
           );
+          // G-01-07: a re-request auto-prefill can build the authorized-user
+          // drafts before this lookup resolves, leaving userRole blank. Backfill
+          // the role once the options arrive (mirrors the view page).
+          this.backfillAuthorizedUserRoles();
         },
       });
+  }
+
+  /** Re-resolve userRole on prefilled authorized users once the lookup loads. */
+  private backfillAuthorizedUserRoles(): void {
+    if (
+      this.appointmentAuthorizedUsers.length === 0 ||
+      this.externalAuthorizedUserOptions.length === 0
+    ) {
+      return;
+    }
+    this.appointmentAuthorizedUsers = this.appointmentAuthorizedUsers.map((user) => {
+      const option = this.externalAuthorizedUserOptions.find(
+        (x) => x.identityUserId === user.identityUserId,
+      );
+      return option ? { ...user, userRole: option.userRole || user.userRole } : user;
+    });
   }
 
   onApplicantAttorneyEmailSearch(event: Event): void {
@@ -2354,6 +2968,63 @@ export class AppointmentAddComponent {
               applicantAttorneyCity: data.city ?? null,
               applicantAttorneyStateId: data.stateId ?? null,
               applicantAttorneyZipCode: data.zipCode ?? null,
+            });
+          }
+        },
+      });
+  }
+
+  // I17 (2026-06-08): defense-attorney counterpart of
+  // loadApplicantAttorneyForCurrentUser. Loads the booker's own registered DA
+  // record so the DA section prefills firm name + contact fields when a defense
+  // attorney books their own appointment.
+  private loadDefenseAttorneyForCurrentUser(identityUserId: string): void {
+    this.restService
+      .request<
+        any,
+        {
+          defenseAttorneyId?: string;
+          identityUserId: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+          firmName?: string;
+          webAddress?: string;
+          phoneNumber?: string;
+          faxNumber?: string;
+          street?: string;
+          city?: string;
+          stateId?: string;
+          zipCode?: string;
+          concurrencyStamp?: string;
+        } | null
+      >(
+        {
+          method: 'GET',
+          url: '/api/app/appointments/defense-attorney-details-for-booking',
+          params: { identityUserId },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
+            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
+            this.form.patchValue({
+              defenseAttorneyEnabled: true,
+              defenseAttorneyIdentityUserId: data.identityUserId,
+              defenseAttorneyFirstName: data.firstName ?? null,
+              defenseAttorneyLastName: data.lastName ?? null,
+              defenseAttorneyEmail: data.email ?? null,
+              defenseAttorneyFirmName: data.firmName ?? null,
+              defenseAttorneyWebAddress: data.webAddress ?? null,
+              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
+              defenseAttorneyFaxNumber: data.faxNumber ?? null,
+              defenseAttorneyStreet: data.street ?? null,
+              defenseAttorneyCity: data.city ?? null,
+              defenseAttorneyStateId: data.stateId ?? null,
+              defenseAttorneyZipCode: data.zipCode ?? null,
             });
           }
         },
@@ -2589,7 +3260,10 @@ export class AppointmentAddComponent {
             url: '/api/app/appointment-accessors',
             body: {
               appointmentId,
-              identityUserId: item.identityUserId,
+              email: item.email,
+              firstName: item.firstName || undefined,
+              lastName: item.lastName || undefined,
+              role: item.userRole,
               accessTypeId: item.accessTypeId,
             },
           },
@@ -2619,7 +3293,6 @@ export class AppointmentAddComponent {
       address: raw.address ?? undefined,
       city: raw.city ?? undefined,
       zipCode: raw.zipCode ?? undefined,
-      refferedBy: raw.refferedBy ?? undefined,
       cellPhoneNumber: raw.cellPhoneNumber ?? undefined,
       phoneNumberTypeId: (raw.phoneNumberTypeId as any) ?? undefined,
       street: raw.street ?? undefined,

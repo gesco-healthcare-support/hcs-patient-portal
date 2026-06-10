@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -25,17 +26,22 @@ public class AppointmentManager : DomainService
     // CI1 (2026-06-05) -- counts active Claim Examiner rows to gate the
     // Pending->Approved transition (CE is a required party; see ApplyTransitionAsync).
     protected IRepository<AppointmentClaimExaminer, Guid> _appointmentClaimExaminerRepository;
+    // I15/I16 (2026-06-08) -- counts panel-strike-list documents to gate the
+    // Pending->Approved transition for PQME appointments (see ApplyTransitionAsync).
+    protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
     public AppointmentManager(
         IAppointmentRepository appointmentRepository,
         ILocalEventBus localEventBus,
         IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
-        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository)
+        IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
     {
         _appointmentRepository = appointmentRepository;
         _localEventBus = localEventBus;
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentClaimExaminerRepository = appointmentClaimExaminerRepository;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
     public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
@@ -243,6 +249,22 @@ public class AppointmentManager : DomainService
     public virtual Task<Appointment> RequestRescheduleAsync(Guid id, string? reason, Guid? actingUserId)
         => TransitionAsync(id, AppointmentTransitionTrigger.RequestReschedule, reason, actingUserId);
 
+    /// <summary>
+    /// G-02-05 (2026-06-01) -- one-step internal-staff cancel of an Approved
+    /// appointment. Maps the chosen NoBill/Late outcome to the matching
+    /// direct-cancel trigger; the transition stamps CancellationReason +
+    /// CancelledById and frees the slot via the capacity model. Mirrors OLD's
+    /// internal-user CancelledNoBill path (AppointmentDomain.Update), which did
+    /// not require a patient/attorney change request. Permitted from Approved only.
+    /// </summary>
+    public virtual Task<Appointment> DirectCancelAsync(Guid id, AppointmentStatusType outcome, string? reason, Guid? actingUserId)
+    {
+        var trigger = outcome == AppointmentStatusType.CancelledLate
+            ? AppointmentTransitionTrigger.DirectCancelLate
+            : AppointmentTransitionTrigger.DirectCancel;
+        return TransitionAsync(id, trigger, reason, actingUserId);
+    }
+
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);
@@ -290,6 +312,22 @@ public class AppointmentManager : DomainService
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer)
                     .WithData("appointmentId", appointment.Id);
             }
+
+            // I15/I16 (2026-06-08) -- a PQME cannot be approved until a panel
+            // strike list document is on file (a doc flagged IsPanelStrikeList,
+            // set when uploaded under the "Panel Strike List" category). A PQME
+            // may be BOOKED without it (uploaded later); only approval is gated.
+            // Same defense-in-depth pattern as the injury + CE gates above.
+            if (appointment.AppointmentTypeId == CaseEvaluationSeedIds.AppointmentTypes.PanelQme)
+            {
+                var strikeListCount = await _appointmentDocumentRepository.CountAsync(
+                    d => d.AppointmentId == appointment.Id && d.IsPanelStrikeList);
+                if (strikeListCount < 1)
+                {
+                    throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList)
+                        .WithData("appointmentId", appointment.Id);
+                }
+            }
         }
 
         machine.Fire(trigger);
@@ -307,6 +345,16 @@ public class AppointmentManager : DomainService
             // the database after a /reject call.
             appointment.RejectionNotes = reason;
             appointment.RejectedById = actingUserId;
+        }
+        else if (trigger == AppointmentTransitionTrigger.DirectCancel
+            || trigger == AppointmentTransitionTrigger.DirectCancelLate)
+        {
+            // G-02-05 (OLD AppointmentDomain.Update:537-550): a one-step staff
+            // cancel stamps the reason + actor. The terminal CancelledNoBill/Late
+            // status drops the appointment from the slot's active count, freeing
+            // capacity (Business Rule 4) -- no slot write needed.
+            appointment.CancellationReason = reason;
+            appointment.CancelledById = actingUserId;
         }
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
@@ -345,6 +393,8 @@ public class AppointmentManager : DomainService
         machine.Configure(AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)
             .Permit(AppointmentTransitionTrigger.RequestReschedule, AppointmentStatusType.RescheduleRequested)
+            .Permit(AppointmentTransitionTrigger.DirectCancel, AppointmentStatusType.CancelledNoBill)
+            .Permit(AppointmentTransitionTrigger.DirectCancelLate, AppointmentStatusType.CancelledLate)
             .Permit(AppointmentTransitionTrigger.MarkNoShow, AppointmentStatusType.NoShow)
             .Permit(AppointmentTransitionTrigger.CheckIn, AppointmentStatusType.CheckedIn);
 

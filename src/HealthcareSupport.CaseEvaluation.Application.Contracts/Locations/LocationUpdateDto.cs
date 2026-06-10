@@ -27,7 +27,8 @@ public class LocationUpdateDto : IHasConcurrencyStamp
 
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers multiple appointment types (M2M).
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
     public string ConcurrencyStamp { get; set; } = null!;
 }

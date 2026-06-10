@@ -85,24 +85,4 @@ internal static class AppointmentApprovalValidator
                 CaseEvaluationDomainErrorCodes.AppointmentNotPendingForRejection);
         }
     }
-
-    /// <summary>
-    /// Decides whether the staff approver wants to "ignore the dedup
-    /// match and treat this as a new patient". Returns true when the
-    /// appointment had a candidate dedup match
-    /// (<c>IsPatientAlreadyExist == true</c>) AND the staff supplied
-    /// <c>OverridePatientMatch == true</c>. The actual patient-row
-    /// split (creating a new <c>Patient</c> row + relinking the
-    /// appointment) is downstream work in Session A's manager rewrite;
-    /// Phase 12 just records the decision on the entity's
-    /// <c>IsPatientAlreadyExist</c> flag.
-    /// </summary>
-    public static bool ShouldOverridePatientMatch(Appointment appointment, ApproveAppointmentInput input)
-    {
-        if (appointment == null || input == null)
-        {
-            return false;
-        }
-        return appointment.IsPatientAlreadyExist && input.OverridePatientMatch;
-    }
 }

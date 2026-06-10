@@ -66,8 +66,8 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            var totalCount = await _patientRepository.GetCountAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId);
-            var items = await _patientRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.Sorting, input.MaxResultCount, input.SkipCount);
+            var totalCount = await _patientRepository.GetCountAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId);
+            var items = await _patientRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.FirstName, input.LastName, input.MiddleName, input.Email, input.GenderId, input.DateOfBirthMin, input.DateOfBirthMax, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.Sorting, input.MaxResultCount, input.SkipCount);
             var dtoItems = ObjectMapper.Map<List<PatientWithNavigationProperties>, List<PatientWithNavigationPropertiesDto>>(items);
             ApplySsnVisibilityToList(dtoItems);
             return new PagedResultDto<PatientWithNavigationPropertiesDto>
@@ -257,7 +257,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
                 middleName: input.MiddleName,
                 address: input.Address,
                 city: input.City,
-                refferedBy: input.RefferedBy,
                 cellPhoneNumber: input.CellPhoneNumber,
                 street: input.Street,
                 interpreterVendorName: input.InterpreterVendorName,
@@ -322,7 +321,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.Address ?? currentPatient.Address,
             input.City ?? currentPatient.City,
             input.ZipCode ?? currentPatient.ZipCode,
-            input.RefferedBy ?? currentPatient.RefferedBy,
             input.CellPhoneNumber ?? currentPatient.CellPhoneNumber,
             input.Street ?? currentPatient.Street,
             input.InterpreterVendorName ?? currentPatient.InterpreterVendorName,
@@ -449,7 +447,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Create)]
     public virtual async Task<PatientDto> CreateAsync(PatientCreateDto input)
     {
-        var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
+        var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
         return MapToMaskedDto(patient);
     }
 
@@ -463,7 +461,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         Patient patient;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.RefferedBy, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
+            patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
         }
         return MapToMaskedDto(patient);
     }
@@ -492,7 +490,6 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             input.Address,
             input.City,
             input.ZipCode,
-            input.RefferedBy,
             input.CellPhoneNumber,
             input.Street,
             input.InterpreterVendorName,

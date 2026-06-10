@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.SystemParameters;
+using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -53,38 +54,25 @@ internal static class AppointmentBookingValidators
     }
 
     /// <summary>
-    /// OLD's per-type max-time resolver. PQME / PQME-REVAL use
-    /// <c>AppointmentMaxTimePQME</c>; AME / AME-REVAL use
-    /// <c>AppointmentMaxTimeAME</c>; everything else uses
-    /// <c>AppointmentMaxTimeOTHER</c>. Match is name-substring + uppercase
-    /// invariant so seeded names like "PQME-REVAL" or "AME" route correctly.
+    /// Per-type max-time resolver. Maps the appointment type's stored
+    /// <see cref="AppointmentMaxTimeCategory"/> to the matching per-tenant
+    /// horizon (PQME / AME / OTHER). Replaces the prior display-name
+    /// substring match, which silently routed renamed seed types to the
+    /// OTHER horizon. A null category falls back to OTHER.
     /// </summary>
-    internal static int ResolveMaxTimeDaysForType(string? appointmentTypeName, SystemParameter systemParameter)
+    internal static int ResolveMaxTimeDaysForType(AppointmentMaxTimeCategory? category, SystemParameter systemParameter)
     {
         if (systemParameter == null)
         {
             throw new ArgumentNullException(nameof(systemParameter));
         }
 
-        var name = (appointmentTypeName ?? string.Empty).Trim().ToUpperInvariant();
-
-        // AME and AME-REVAL share the AME horizon. PQME and PQME-REVAL share
-        // the PQME horizon. We check the more-specific AME first because
-        // "AME-REVAL" contains both substrings on the OLD-side; a literal
-        // name comparison against "PQME" then "AME" would mis-route AME-REVAL.
-        if (name.Contains("AME"))
+        return category switch
         {
-            // AME or AME-REVAL.
-            if (!name.StartsWith("PQME"))
-            {
-                return systemParameter.AppointmentMaxTimeAME;
-            }
-        }
-        if (name.Contains("PQME"))
-        {
-            return systemParameter.AppointmentMaxTimePQME;
-        }
-        return systemParameter.AppointmentMaxTimeOTHER;
+            AppointmentMaxTimeCategory.Pqme => systemParameter.AppointmentMaxTimePQME,
+            AppointmentMaxTimeCategory.Ame => systemParameter.AppointmentMaxTimeAME,
+            _ => systemParameter.AppointmentMaxTimeOTHER,
+        };
     }
 
     /// <summary>
@@ -131,6 +119,31 @@ internal static class AppointmentBookingValidators
         int threshold = DefaultDuplicateThreshold)
     {
         return CountMatchingDeduplicationFields(incoming, existing) >= threshold;
+    }
+
+    /// <summary>
+    /// OLD parity (AppointmentDomain.CommonValidation, the "Please insert
+    /// different email-id" gate): the patient, applicant attorney, and defense
+    /// attorney on one appointment must use distinct email addresses so each
+    /// party's notifications reach the right inbox. Returns <c>true</c> when two
+    /// or more of the supplied emails collide (case-insensitive, trimmed);
+    /// null or blank values are ignored.
+    /// </summary>
+    internal static bool HasDuplicateStakeholderEmail(params string?[] emails)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var email in emails)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                continue;
+            }
+            if (!seen.Add(email.Trim()))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool StringMatches(string? a, string? b)

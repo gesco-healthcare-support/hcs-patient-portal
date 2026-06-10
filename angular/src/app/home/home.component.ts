@@ -11,6 +11,7 @@ import { NgxDatatableModule } from '@swimlane/ngx-datatable';
 import { Router } from '@angular/router';
 import { PageComponent } from '@abp/ng.components/page';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
+import { SubmitQueryModalComponent } from '../user-queries/submit-query-modal.component';
 import { NgxDatatableDefaultDirective, NgxDatatableListDirective } from '@abp/ng.theme.shared';
 import { FormsModule, ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { AppointmentViewService } from '../appointments/appointment/services/appointment.service';
@@ -30,6 +31,7 @@ import { SsnMaskPipe } from '../shared/pipes/ssn-mask.pipe';
     NgxDatatableListDirective,
     PageComponent,
     TopHeaderNavbarComponent,
+    SubmitQueryModalComponent,
     FormsModule,
     ReactiveFormsModule,
     SsnMaskPipe,
@@ -48,6 +50,7 @@ export class HomeComponent implements OnInit {
   protected service = inject(AppointmentViewService);
   private readonly router = inject(Router);
   patientAppointmentRows: any[] = [];
+  submitQueryVisible = false;
   readonly patientDatatableMessages = {
     emptyMessage: 'No Data Available',
   };
@@ -251,5 +254,9 @@ export class HomeComponent implements OnInit {
 
   openMyProfile() {
     this.router.navigateByUrl('/user-management/patients/my-profile');
+  }
+
+  openSubmitQuery(): void {
+    this.submitQueryVisible = true;
   }
 }

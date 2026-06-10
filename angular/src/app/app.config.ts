@@ -35,7 +35,7 @@ import { provideNgxMask } from 'ngx-mask';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpBackend, HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -45,6 +45,7 @@ import { APP_ROUTE_PROVIDER } from './route.provider';
 import { STATES_STATE_ROUTE_PROVIDER } from './states/state/providers/state-route.provider';
 import { APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER } from './appointment-types/appointment-type/providers/appointment-type-route.provider';
 import { APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER } from './appointment-statuses/appointment-status/providers/appointment-status-route.provider';
+import { APPOINTMENT_DOCUMENT_TYPES_APPOINTMENT_DOCUMENT_TYPE_ROUTE_PROVIDER } from './appointment-document-types/appointment-document-type/providers/appointment-document-type-route.provider';
 import { APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER } from './appointment-languages/appointment-language/providers/appointment-language-route.provider';
 import { DOCTOR_MANAGEMENT_ROUTE_PROVIDER } from './doctor-management/providers/doctor-management-route.provider';
 import { LOCATIONS_LOCATION_ROUTE_PROVIDER } from './locations/location/providers/location-route.provider';
@@ -137,8 +138,14 @@ export const appConfig: ApplicationConfig = {
       provide: AddressValidationProvider,
       useFactory: () => {
         const cfg = addressValidation;
+        // Bare HttpClient built on HttpBackend so ABP's HTTP interceptors
+        // (which attach the `__tenant` + Authorization headers) do NOT run on
+        // the cross-origin Smarty calls. Those custom headers force a CORS
+        // preflight Smarty rejects ("__tenant not allowed by
+        // Access-Control-Allow-Headers"), and we must not leak our tenant/
+        // bearer token to a third party. 2026-06-10 fix.
         return cfg.smartyKey
-          ? new SmartyAddressProvider(inject(HttpClient), {
+          ? new SmartyAddressProvider(new HttpClient(inject(HttpBackend)), {
               key: cfg.smartyKey,
               autocompleteUrl: cfg.autocompleteUrl,
               verifyUrl: cfg.verifyUrl,
@@ -174,6 +181,7 @@ export const appConfig: ApplicationConfig = {
     STATES_STATE_ROUTE_PROVIDER,
     APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER,
     APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER,
+    APPOINTMENT_DOCUMENT_TYPES_APPOINTMENT_DOCUMENT_TYPE_ROUTE_PROVIDER,
     APPOINTMENT_LANGUAGES_APPOINTMENT_LANGUAGE_ROUTE_PROVIDER,
     DOCTOR_MANAGEMENT_ROUTE_PROVIDER,
     LOCATIONS_LOCATION_ROUTE_PROVIDER,

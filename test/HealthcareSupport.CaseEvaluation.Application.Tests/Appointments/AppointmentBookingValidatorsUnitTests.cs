@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Shouldly;
 using Xunit;
@@ -17,8 +18,8 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///   1. Confirmation-number formatter -- 5-digit zero pad, single 'A'.
 ///   2. Lead-time + max-time gates -- boundary at today / today+lead /
 ///      today+max.
-///   3. Per-type max-time resolver -- PQME / PQME-REVAL / AME /
-///      AME-REVAL / OTHER routing.
+///   3. Per-type max-time resolver -- PQME / AME / OTHER routing by the
+///      stored AppointmentMaxTimeCategory.
 ///   4. 3-of-6 dedup field counter -- each of the six fields counted
 ///      independently; case-insensitive; nulls do not match nulls.
 ///   5. <c>IsPatientDuplicate</c> threshold check at the OLD default of 3.
@@ -113,21 +114,14 @@ public class AppointmentBookingValidatorsUnitTests
     }
 
     [Theory]
-    [InlineData("PQME", 90)]
-    [InlineData("pqme", 90)]
-    [InlineData("PQME-REVAL", 90)]
-    [InlineData("Pqme-Reval", 90)]
-    [InlineData("AME", 120)]
-    [InlineData("AME-REVAL", 120)]
-    [InlineData("Ame-Reval", 120)]
-    [InlineData("OTHER", 60)]
-    [InlineData("anything-else", 60)]
-    [InlineData("", 60)]
-    [InlineData(null, 60)]
-    public void ResolveMaxTimeDaysForType_RoutesByNamePattern(string? typeName, int expectedDays)
+    [InlineData(AppointmentMaxTimeCategory.Pqme, 90)]
+    [InlineData(AppointmentMaxTimeCategory.Ame, 120)]
+    [InlineData(AppointmentMaxTimeCategory.Other, 60)]
+    [InlineData(null, 60)] // unclassified types fall back to the OTHER horizon
+    public void ResolveMaxTimeDaysForType_RoutesByCategory(AppointmentMaxTimeCategory? category, int expectedDays)
     {
         AppointmentBookingValidators
-            .ResolveMaxTimeDaysForType(typeName, MakeSystemParameter())
+            .ResolveMaxTimeDaysForType(category, MakeSystemParameter())
             .ShouldBe(expectedDays);
     }
 
@@ -135,7 +129,7 @@ public class AppointmentBookingValidatorsUnitTests
     public void ResolveMaxTimeDaysForType_NullSystemParameter_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            AppointmentBookingValidators.ResolveMaxTimeDaysForType("PQME", null!));
+            AppointmentBookingValidators.ResolveMaxTimeDaysForType(AppointmentMaxTimeCategory.Pqme, null!));
     }
 
     // ------------------------------------------------------------------

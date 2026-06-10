@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
@@ -66,6 +67,8 @@ public class AttyCEPacketEmailHandler :
     private readonly ILogger<AttyCEPacketEmailHandler> _logger;
     // BUG-029 v3 fix (2026-05-21).
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    // E5 (2026-06-09): resolve each recipient's display name for the greeting.
+    private readonly IdentityUserManager _userManager;
 
     public AttyCEPacketEmailHandler(
         INotificationDispatcher dispatcher,
@@ -73,7 +76,8 @@ public class AttyCEPacketEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         ICurrentTenant currentTenant,
         ILogger<AttyCEPacketEmailHandler> logger,
-        IAccountUrlBuilder accountUrlBuilder)
+        IAccountUrlBuilder accountUrlBuilder,
+        IdentityUserManager userManager)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -81,6 +85,7 @@ public class AttyCEPacketEmailHandler :
         _currentTenant = currentTenant;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
+        _userManager = userManager;
     }
 
     [UnitOfWork]
@@ -141,22 +146,38 @@ public class AttyCEPacketEmailHandler :
                 clinicName: _currentTenant.Name,
                 portalUrl: documentUploadUrl);
 
-            var withUrl = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
+            // E5 (2026-06-09): send per recipient so each Attorney/CE is greeted
+            // by name. The recipient resolver returns email + role only, so the
+            // name is resolved from the IdentityUser; unregistered recipients
+            // (no account yet) fall back to a neutral greeting. PacketLabel
+            // drives the "Appointment Notice" subject (vs the patient's
+            // "Patient Packet"). One email job per recipient -- same count as
+            // before, so the packet-prune retention behaviour is unchanged.
+            foreach (var recipient in recipients)
             {
-                ["URL"] = documentUploadUrl,
-            };
+                var user = await _userManager.FindByEmailAsync(recipient.Email);
+                var recipientName = $"{user?.Name} {user?.Surname}".Trim();
+                var greeting = string.IsNullOrWhiteSpace(recipientName) ? "Hello," : $"Hello {recipientName},";
 
-            await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment,
-                recipients: recipients,
-                variables: withUrl,
-                contextTag: $"AttyCEPacket/{eventData.AppointmentId}",
-                packetRef: new PacketAttachmentRef
+                var withUrl = new Dictionary<string, object?>(variables, StringComparer.Ordinal)
                 {
-                    AppointmentId = eventData.AppointmentId,
-                    PacketId = eventData.PacketId,
-                    Kind = PacketKind.AttorneyClaimExaminer,
-                });
+                    ["URL"] = documentUploadUrl,
+                    ["PacketLabel"] = "Appointment Notice",
+                    ["Greeting"] = greeting,
+                };
+
+                await _dispatcher.DispatchAsync(
+                    templateCode: NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment,
+                    recipients: new[] { recipient },
+                    variables: withUrl,
+                    contextTag: $"AttyCEPacket/{eventData.AppointmentId}",
+                    packetRef: new PacketAttachmentRef
+                    {
+                        AppointmentId = eventData.AppointmentId,
+                        PacketId = eventData.PacketId,
+                        Kind = PacketKind.AttorneyClaimExaminer,
+                    });
+            }
         }
     }
 }

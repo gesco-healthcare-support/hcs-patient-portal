@@ -27,6 +27,17 @@
             >
             {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
           </span>
+          @if (appointment.appointment?.isPatientAlreadyExist) {
+            <!--
+              G-02-08 (OLD parity): OLD's approve screen showed a read-only
+              "merged with existing patient" card. NEW surfaces the same
+              dedup-match result (now populated by G-01-03) as a read-only
+              badge -- there is no un-merge action (OLD never had one).
+            -->
+            <span class="badge bg-info text-dark align-middle ms-2 fs-6 fw-normal">
+              {{ '::Appointment:ReturningPatientBadge' | abpLocalization }}
+            </span>
+          }
         </h2>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           @if (canTakeOfficeAction) {
@@ -55,8 +66,21 @@
                 >
                   {{ '::Appointment:Action:Reject' | abpLocalization }}
                 </button>
+              } @else if (action === 'cancel') {
+                <button
+                  type="button"
+                  class="btn btn-warning btn-sm"
+                  (click)="dispatchAction('cancel')"
+                >
+                  {{ '::Appointment:Action:CancelAppointment' | abpLocalization }}
+                </button>
               }
             }
+          }
+          @if (canReRequest) {
+            <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
+              {{ '::Appointment:Action:ReRequest' | abpLocalization }}
+            </button>
           }
           @if (canRequestChange) {
             <button type="button" class="btn btn-warning btn-sm" (click)="openRescheduleRequest()">
@@ -92,6 +116,14 @@
           >
             {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
           </a>
+          <button
+            *abpPermission="'CaseEvaluation.Reports'"
+            type="button"
+            class="btn btn-outline-success btn-sm"
+            (click)="downloadDemographics()"
+          >
+            Download Demographics
+          </button>
           <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
             {{ 'AbpUi::Back' | abpLocalization }}
           </button>
@@ -113,6 +145,12 @@
         [(visible)]="rejectModalVisible"
         (succeeded)="onActionSucceeded($event)"
       ></app-reject-appointment-modal>
+
+      <app-cancel-appointment-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="cancelModalVisible"
+        (succeeded)="onActionSucceeded($event)"
+      ></app-cancel-appointment-modal>
 
       <app-reschedule-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
@@ -143,9 +181,9 @@
 
         <div class="card-body">
           <div class="mb-4">
-            <div class="text-muted fw-semibold">Current Date &amp; Time</div>
+            <div class="text-muted fw-semibold">Appointment Request Date &amp; Time</div>
             <div class="fw-semibold">
-              {{ appointment.appointment?.appointmentDate | date: 'MM/dd/yyyy hh:mm a' }}
+              {{ appointment.appointment?.creationTime | date: 'MM/dd/yyyy hh:mm a' }}
             </div>
           </div>
 
@@ -841,6 +879,184 @@
       </div>
 
       <!--
+        CE-VIEW (2026-06-09): full read-only Claim Examiner section. Sourced
+        from the appointment nav-prop (appointment.claimExaminer); the booking
+        form remains the canonical edit surface. Visible to every role that can
+        open this page (internal staff + party externals).
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Claim Examiner</h4>
+        </div>
+        <div class="card-body">
+          @if (appointment?.claimExaminer) {
+            <div class="row g-3">
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Name</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.name || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Email</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.email || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.phoneNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Suite</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.suite || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.fax || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.street || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.city || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="stateName(appointment?.claimExaminer?.stateId)"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.zip || ''"
+                  readonly
+                />
+              </div>
+            </div>
+          } @else {
+            <div class="text-secondary">No claim examiner information added.</div>
+          }
+        </div>
+      </div>
+
+      <!--
+        INS-VIEW (2026-06-09): full read-only Insurance section. Sourced from
+        the appointment nav-prop (appointment.primaryInsurance).
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Insurance</h4>
+        </div>
+        <div class="card-body">
+          @if (appointment?.primaryInsurance) {
+            <div class="row g-3">
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Insurance Company</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.name || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Suite</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.suite || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.phoneNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.faxNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.street || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.city || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="stateName(appointment?.primaryInsurance?.stateId)"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.zip || ''"
+                  readonly
+                />
+              </div>
+            </div>
+          } @else {
+            <div class="text-secondary">No insurance information added.</div>
+          }
+        </div>
+      </div>
+
+      <!--
         S-5.4 (W-A-7): Claim Information card on the view page. Read-only at MVP
         -- the booking form (appointment-add) remains the canonical create/edit
         surface for injury rows. Sourced from
@@ -851,18 +1067,9 @@
           <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
         </div>
         <div class="card-body">
-          <!-- CI1 (2026-06-05): single appointment-level Claim Examiner +
-               Insurance (moved off the per-injury rows). -->
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <span class="fw-semibold">Claim Examiner:</span>
-              {{ appointmentClaimExaminerName || '--' }}
-            </div>
-            <div class="col-md-6">
-              <span class="fw-semibold">Insurance Company:</span>
-              {{ appointmentInsuranceCompanyName || '--' }}
-            </div>
-          </div>
+          <!-- CI1 (2026-06-05): Claim Examiner + Insurance now render as their
+               own dedicated sections above (CE-VIEW / INS-VIEW, 2026-06-09);
+               this card keeps the per-claim injury rows only. -->
           @if (injuryDetails.length === 0) {
             <div class="text-secondary">No claim information added yet.</div>
           } @else {
@@ -882,11 +1089,11 @@
                     <tr>
                       <td>
                         @if (injury.isCumulativeInjury) {
-                          From: {{ injury.dateOfInjury }}
+                          From: {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
                           <br />
-                          To: {{ injury.toDateOfInjury }}
+                          To: {{ injury.toDateOfInjury | date: 'MM/dd/yyyy' }}
                         } @else {
-                          {{ injury.dateOfInjury }}
+                          {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
                         }
                       </td>
                       <td>{{ injury.claimNumber }}</td>
@@ -1003,30 +1210,55 @@
           </div>
           <div class="modal-body" [formGroup]="authorizedUserForm">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Email</label>
-                <select
-                  class="form-select"
-                  formControlName="identityUserId"
-                  (change)="onAuthorizedUserIdentityChange()"
-                >
-                  <option [ngValue]="null">Select email</option>
-                  @for (option of externalAuthorizedUserOptions; track option.identityUserId) {
-                    <option [ngValue]="option.identityUserId">{{ option.email }}</option>
-                  }
-                </select>
-              </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">First Name</label>
-                <input class="form-control" formControlName="firstName" readonly />
+                <input
+                  class="form-control"
+                  type="text"
+                  formControlName="firstName"
+                  maxlength="64"
+                />
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">Last Name</label>
-                <input class="form-control" formControlName="lastName" readonly />
+                <input class="form-control" type="text" formControlName="lastName" maxlength="64" />
               </div>
               <div class="col-md-6">
-                <label class="form-label fw-semibold">User Role</label>
-                <input class="form-control" formControlName="userRole" readonly />
+                <label class="form-label fw-semibold">
+                  Email
+                  <span class="text-danger">*</span>
+                </label>
+                <input
+                  class="form-control"
+                  type="email"
+                  formControlName="email"
+                  maxlength="256"
+                  placeholder="name@example.com"
+                />
+                @if (
+                  authorizedUserForm.get('email')?.touched &&
+                  authorizedUserForm.get('email')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Enter a valid email address.</div>
+                }
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                  User Role
+                  <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" formControlName="userRole">
+                  <option value="">Select role</option>
+                  @for (role of roleOptions; track role) {
+                    <option [value]="role">{{ role }}</option>
+                  }
+                </select>
+                @if (
+                  authorizedUserForm.get('userRole')?.touched &&
+                  authorizedUserForm.get('userRole')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Role is required.</div>
+                }
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Rights</label>

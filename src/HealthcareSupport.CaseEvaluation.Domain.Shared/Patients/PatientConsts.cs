@@ -18,7 +18,6 @@ public static class PatientConsts
     public const int AddressMaxLength = 100;
     public const int CityMaxLength = 50;
     public const int ZipCodeMaxLength = 15;
-    public const int RefferedByMaxLength = 50;
     public const int CellPhoneNumberMaxLength = 12;
     public const int StreetMaxLength = 255;
     public const int InterpreterVendorNameMaxLength = 255;

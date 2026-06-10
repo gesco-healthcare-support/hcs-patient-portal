@@ -1,0 +1,120 @@
+<div class="container-fluid py-3">
+  <h2 class="mb-3">{{ '::Menu:AppointmentChangeLogs' | abpLocalization }}</h2>
+
+  <form class="row g-2 align-items-end mb-3" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Confirmation #</label>
+      <input
+        class="form-control form-control-sm"
+        type="text"
+        formControlName="requestConfirmationNumber"
+      />
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Section</label>
+      <select class="form-select form-select-sm" formControlName="entityType">
+        <option value="">All</option>
+        @for (opt of entityTypeOptions; track opt) {
+          <option [value]="opt">{{ opt }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Field</label>
+      <input class="form-control form-control-sm" type="text" formControlName="fieldName" />
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Change</label>
+      <select class="form-select form-select-sm" formControlName="changeType">
+        <option value="">All</option>
+        @for (opt of changeTypeOptions; track opt) {
+          <option [value]="opt">{{ opt }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">From</label>
+      <input class="form-control form-control-sm" type="date" formControlName="startTime" />
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">To</label>
+      <input class="form-control form-control-sm" type="date" formControlName="endTime" />
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
+        Clear
+      </button>
+    </div>
+  </form>
+
+  @if (isLoading) {
+    <p class="text-muted">Loading change log...</p>
+  } @else if (rows.length === 0) {
+    <p class="text-muted">No changes match the current filters.</p>
+  } @else {
+    <table class="table table-sm table-striped">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Section</th>
+          <th>Type</th>
+          <th>Field</th>
+          <th>Old value</th>
+          <th>New value</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows; track $index) {
+          <tr>
+            <td>{{ row.changeTime | date: 'short' }}</td>
+            <td>{{ row.entityType }}</td>
+            <td>{{ row.changeType }}</td>
+            <td>{{ row.propertyName }}</td>
+            @if (row.valueRedacted) {
+              <td colspan="2" class="text-muted fst-italic">updated (value hidden)</td>
+            } @else {
+              <td class="text-break">{{ row.oldValue || '-' }}</td>
+              <td class="text-break">{{ row.newValue || '-' }}</td>
+            }
+            <td>
+              @if (row.appointmentId) {
+                <button
+                  type="button"
+                  class="btn btn-link btn-sm p-0"
+                  (click)="openAppointment(row.appointmentId)"
+                >
+                  View
+                </button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between align-items-center">
+      <span class="text-muted small">{{ totalCount }} change(s)</span>
+      <div class="d-flex gap-2 align-items-center">
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          (click)="prevPage()"
+          [disabled]="pageIndex === 0"
+        >
+          Prev
+        </button>
+        <span class="small">Page {{ pageIndex + 1 }} of {{ totalPages }}</span>
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          (click)="nextPage()"
+          [disabled]="pageIndex + 1 >= totalPages"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  }
+</div>

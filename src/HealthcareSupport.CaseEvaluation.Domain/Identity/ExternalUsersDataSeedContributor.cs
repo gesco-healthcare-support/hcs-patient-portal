@@ -110,13 +110,12 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
 
             var slug = ToTenantSlug(tenant.Name);
 
-            var seedPlan = new (string EmailPrefix, string RoleName)[]
-            {
-                ("patient",            "Patient"),
-                ("adjuster",           "Claim Examiner"),
-                ("applicant.attorney", "Applicant Attorney"),
-                ("defense.attorney",   "Defense Attorney"),
-            };
+            // 2026-06-09 (Adrian, demo reset): NO external demo users are seeded.
+            // Patient / Claim Examiner / Applicant + Defense Attorney accounts are
+            // created via the real registration + invite flows during the demo so
+            // the verification/invite emails actually fire. (DemoExternalUsers-
+            // DataSeedContributor is neutralized the same way.)
+            var seedPlan = new (string EmailPrefix, string RoleName)[] { };
 
             foreach (var (prefix, roleName) in seedPlan)
             {
@@ -232,7 +231,7 @@ public class ExternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             firstName: user.Name ?? string.Empty,
             lastName: user.Surname ?? string.Empty,
             email: user.Email ?? string.Empty,
-            genderId: Gender.Male,
+            genderId: Gender.Unspecified,
             dateOfBirth: DateTime.UtcNow.Date,
             phoneNumberTypeId: PhoneNumberType.Home);
 

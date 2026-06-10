@@ -46,6 +46,7 @@ export interface AppointmentCreateDto {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
   isPatientAlreadyExist?: boolean;
   customFieldValues?: CustomFieldValueInputDto[];
 }
@@ -71,6 +72,7 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
 }
 
 export interface AppointmentUpdateDto {
@@ -88,6 +90,7 @@ export interface AppointmentUpdateDto {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  refferedBy?: string | null;
   customFieldValues?: CustomFieldValueInputDto[];
 }
 
@@ -109,7 +112,6 @@ export interface AppointmentWithNavigationPropertiesDto {
 
 export interface ApproveAppointmentInput {
   primaryResponsibleUserId: string;
-  overridePatientMatch?: boolean;
   internalUserComments?: string | null;
 }
 
@@ -128,6 +130,11 @@ export interface DefenseAttorneyDetailsDto {
   stateId?: string | null;
   zipCode?: string | null;
   concurrencyStamp?: string | null;
+}
+
+export interface DirectCancelAppointmentInput {
+  cancellationOutcome: AppointmentStatusType;
+  reason: string;
 }
 
 export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {

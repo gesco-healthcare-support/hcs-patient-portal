@@ -37,11 +37,11 @@
               <tr>
                 <td>
                   @if (injury.isCumulativeInjury) {
-                    From: {{ injury.dateOfInjury }}
+                    From: {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
                     <br />
-                    To: {{ injury.toDateOfInjury }}
+                    To: {{ injury.toDateOfInjury | date: 'MM/dd/yyyy' }}
                   } @else {
-                    {{ injury.dateOfInjury }}
+                    {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
                   }
                 </td>
                 <td>{{ injury.claimNumber }}</td>

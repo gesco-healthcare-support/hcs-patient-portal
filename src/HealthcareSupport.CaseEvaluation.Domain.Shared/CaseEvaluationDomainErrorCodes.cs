@@ -686,6 +686,21 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:AppointmentDocument.FileEmpty";
 
     /// <summary>
+    /// F-3 (2026-06-08) -- carried by the file-format rejections in
+    /// <c>AppointmentDocumentsAppService.EnsureValidFileFormat</c>
+    /// (disallowed extension or magic-byte mismatch -- only PDF/JPG/PNG
+    /// are accepted). Previously these threw an uncoded
+    /// <c>UserFriendlyException</c>, which ABP maps to HTTP 403 by default;
+    /// a wrong file type is a client-input validation failure, so it is
+    /// mapped to HTTP 400 Bad Request in <c>CaseEvaluationHttpApiHostModule</c>
+    /// via <c>MapAppointmentDocumentErrorCodes</c>. The user-facing message
+    /// is preserved by keeping the throw a <c>UserFriendlyException</c> and
+    /// attaching this code (ABP maps by code before falling back to type).
+    /// </summary>
+    public const string AppointmentDocumentInvalidFileFormat =
+        "CaseEvaluation:AppointmentDocument.InvalidFileFormat";
+
+    /// <summary>
     /// 2026-05-15 -- raised by <c>DoctorsAppService.CreateAsync</c>
     /// when a non-deleted <c>Doctor</c> row already exists for the
     /// caller's tenant. Codifies the one-doctor-per-tenant invariant
@@ -753,6 +768,45 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.BookingSlotTypeMismatch";
 
     /// <summary>
+    /// G-03-01 (2026-06-03) -- raised by
+    /// <c>AppointmentDocumentTypeManager.UpdateAsync / DeleteAsync</c> when
+    /// the targeted row is a reserved <c>IsSystem</c> category (e.g. the
+    /// seeded "Generated Packet" tag auto-applied to generated documents).
+    /// System rows are not editable or deletable by admins; the picker hides
+    /// them. Mapped to HTTP 400 Bad Request in
+    /// <c>CaseEvaluationHttpApiHostModule</c> (ABP's default 403 for
+    /// <c>BusinessException</c> would make the SPA treat it as a permission
+    /// failure rather than the input-validation failure it is). Localization
+    /// key <c>AppointmentDocumentType:SystemReadOnly</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeSystemReadOnly =
+        "CaseEvaluation:AppointmentDocumentType.SystemReadOnly";
+
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- raised by
+    /// <c>AppointmentDocumentTypeManager.CreateAsync / UpdateAsync</c> when
+    /// another active row already uses the same name for the same
+    /// <c>AppointmentTypeId</c> scope (case-insensitive). Restores the name
+    /// uniqueness the legacy CRUD never enforced. Mapped to HTTP 400 Bad
+    /// Request in <c>CaseEvaluationHttpApiHostModule</c>. Localization key
+    /// <c>AppointmentDocumentType:NameAlreadyExists</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeNameAlreadyExists =
+        "CaseEvaluation:AppointmentDocumentType.NameAlreadyExists";
+
+    /// <summary>
+    /// G-03-03 (PR2, 2026-06-04) -- raised by
+    /// <c>AppointmentDocumentTypeManager.DeleteAsync</c> when the targeted
+    /// category is still referenced by at least one <c>AppointmentDocument</c>
+    /// (via <c>AppointmentDocumentTypeId</c>). Forces staff to retire the
+    /// category (set inactive) rather than delete it out from under existing
+    /// documents, preserving the type label on historical rows. Mapped to
+    /// HTTP 409 Conflict in <c>CaseEvaluationHttpApiHostModule</c> (the request
+    /// is well-formed and authorized; it conflicts with current state).
+    /// Localization key <c>AppointmentDocumentType:InUse</c>.
+    /// </summary>
+    public const string AppointmentDocumentTypeInUse =
+        "CaseEvaluation:AppointmentDocumentType.InUse";
     /// AF4 (2026-06-04) -- raised by <c>AppointmentManager.CreateAsync /
     /// UpdateAsync</c> when the appointment type is the seeded PQME type
     /// (<c>CaseEvaluationSeedIds.AppointmentTypes.PanelQme</c>) but no Panel
@@ -821,4 +875,51 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string LocationInUse =
         "CaseEvaluation:Location.InUse";
+
+    /// <summary>
+    /// I15/I16 (2026-06-08) -- raised by <c>AppointmentManager.ApplyTransitionAsync</c>
+    /// on the Approve trigger when a PQME appointment has no document tagged as the
+    /// panel strike list (<c>IsPanelStrikeList</c>). A PQME can be booked without it
+    /// (uploaded later) but cannot be approved until the strike list is on file.
+    /// Mapped to HTTP 409 Conflict in <c>CaseEvaluationHttpApiHostModule</c>, like the
+    /// injury-detail and claim-examiner approval gates. Localization key
+    /// <c>Appointment:ApprovalRequiresPanelStrikeList</c>.
+    /// </summary>
+    public const string AppointmentApprovalRequiresPanelStrikeList =
+        "CaseEvaluation:Appointment.ApprovalRequiresPanelStrikeList";
+
+    /// <summary>
+    /// Group D (2026-06-09) -- raised by the change-request approval AppService
+    /// gate when the opposing side has not granted consent (ConsentStatus is not
+    /// Approved). Blocks the Staff Supervisor finalize until the other side
+    /// agrees. Localization key <c>ChangeRequest:ConsentNotGranted</c>.
+    /// </summary>
+    public const string ChangeRequestConsentNotGranted =
+        "CaseEvaluation:ChangeRequest.ConsentNotGranted";
+
+    /// <summary>
+    /// Group D (2026-06-09) -- raised by <c>ChangeRequestConsentManager</c> when
+    /// the supplied consent token does not hash to any change request. Generic
+    /// terminal so a tampered link does not leak token validity. Localization
+    /// key <c>ChangeRequest:ConsentTokenInvalid</c>.
+    /// </summary>
+    public const string ChangeRequestConsentTokenInvalid =
+        "CaseEvaluation:ChangeRequest.ConsentTokenInvalid";
+
+    /// <summary>
+    /// Group D (2026-06-09) -- raised when a consent decision is submitted for a
+    /// request whose ConsentStatus is no longer Pending (double-click / replay).
+    /// The public landing page renders the existing decision instead of erroring.
+    /// Localization key <c>ChangeRequest:ConsentAlreadyResponded</c>.
+    /// </summary>
+    public const string ChangeRequestConsentAlreadyResponded =
+        "CaseEvaluation:ChangeRequest.ConsentAlreadyResponded";
+
+    /// <summary>
+    /// Group D (2026-06-09) -- raised when the consent token has passed its
+    /// 7-day expiry. The request defaults to a No (Expired) and staff are
+    /// notified. Localization key <c>ChangeRequest:ConsentExpired</c>.
+    /// </summary>
+    public const string ChangeRequestConsentExpired =
+        "CaseEvaluation:ChangeRequest.ConsentExpired";
 }

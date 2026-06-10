@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -28,6 +29,7 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
     // Tenant-aware URL composition via the centralized builder.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
 
@@ -37,6 +39,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         IRepository<AppointmentDocument, Guid> documentRepository,
         IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
+        IAppointmentDocumentTypeRepository documentTypeRepository,
         IAccountUrlBuilder accountUrlBuilder)
     {
         _appointmentRepository = appointmentRepository;
@@ -44,6 +47,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         _documentRepository = documentRepository;
         _injuryDetailRepository = injuryDetailRepository;
         _identityUserRepository = identityUserRepository;
+        _documentTypeRepository = documentTypeRepository;
         _accountUrlBuilder = accountUrlBuilder;
     }
 
@@ -84,6 +88,28 @@ public class DocumentEmailContextResolver : ITransientDependency
             document = await _documentRepository.FindAsync(appointmentDocumentId.Value);
         }
 
+        // 2026-06-09: resolve the uploader's display name (so document emails
+        // greet the addressee) and the document "label" -- the admin category
+        // name, else the free-text "Other" label, else the raw uploaded file
+        // name. Templates show the label, not the file name.
+        var uploaderUser = document?.UploadedByUserId is { } uploaderId && uploaderId != Guid.Empty
+            ? await _identityUserRepository.FindAsync(uploaderId)
+            : null;
+        var uploaderName = JoinName(uploaderUser?.Name, uploaderUser?.Surname);
+
+        string? documentLabel = null;
+        if (document != null)
+        {
+            if (document.AppointmentDocumentTypeId is { } typeId && typeId != Guid.Empty)
+            {
+                var documentType = await _documentTypeRepository.FindAsync(typeId);
+                documentLabel = documentType?.Name;
+            }
+            documentLabel ??= string.IsNullOrWhiteSpace(document.OtherDocumentTypeName)
+                ? document.DocumentName
+                : document.OtherDocumentTypeName;
+        }
+
         // Route through IAccountUrlBuilder. Tenant comes from the
         // appointment row's TenantId (the source of truth) rather than
         // _currentTenant.Name (which is null inside the
@@ -107,6 +133,10 @@ public class DocumentEmailContextResolver : ITransientDependency
             WcabAdj = injury?.WcabAdj,
             DocumentId = document?.Id,
             DocumentName = document?.DocumentName,
+            DocumentLabel = documentLabel,
+            UploaderFullName = !string.IsNullOrWhiteSpace(uploaderName)
+                ? uploaderName
+                : JoinName(patient?.FirstName, patient?.LastName),
             DocumentUploadedByUserId = document?.UploadedByUserId,
             DocumentRejectionReason = document?.RejectionReason,
             PortalBaseUrl = portalUrl,
@@ -188,6 +218,17 @@ public class DocumentEmailContext
     public string? WcabAdj { get; set; }
     public Guid? DocumentId { get; set; }
     public string? DocumentName { get; set; }
+
+    /// <summary>2026-06-09: the document's display label -- the admin category
+    /// name, else the free-text "Other" label, else the uploaded file name.
+    /// Templates show this instead of the raw file name.</summary>
+    public string? DocumentLabel { get; set; }
+
+    /// <summary>2026-06-09: the uploader's display name, so document emails greet
+    /// the addressee. Falls back to the patient's name when the upload was
+    /// anonymous or the uploader has no display name.</summary>
+    public string UploaderFullName { get; set; } = string.Empty;
+
     public Guid? DocumentUploadedByUserId { get; set; }
     public string? DocumentRejectionReason { get; set; }
     public string? PortalBaseUrl { get; set; }

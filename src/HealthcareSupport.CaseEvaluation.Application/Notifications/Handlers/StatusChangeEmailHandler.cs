@@ -67,6 +67,7 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
     private readonly CcRecipientAppender _ccAppender;
+    private readonly BookerCcDispatcher _bookerCcDispatcher;
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
@@ -92,6 +93,7 @@ public class StatusChangeEmailHandler :
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         CcRecipientAppender ccAppender,
+        BookerCcDispatcher bookerCcDispatcher,
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<StatusChangeEmailHandler> logger)
@@ -103,6 +105,7 @@ public class StatusChangeEmailHandler :
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _identityUserRepository = identityUserRepository;
         _ccAppender = ccAppender;
+        _bookerCcDispatcher = bookerCcDispatcher;
         _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
@@ -263,12 +266,8 @@ public class StatusChangeEmailHandler :
         // run through internal staff). Comment prefix is "Please note:".
         // Phase 2.B: per-tenant CC list appended (OLD :954 reads
         // clinicStaffEmail and passes as the 4th-arg emailCC at :980).
-        if (stakeholders.Count > 0)
+        if (stakeholders.Count > 0 || !string.IsNullOrWhiteSpace(ctx.BookerEmail))
         {
-            await _ccAppender.AppendAsync(
-                stakeholders,
-                contextTagForLogging: $"Approved/Stakeholders/{eventData.AppointmentId}");
-
             var extVars = BuildVariables(
                 ctx,
                 appointment,
@@ -276,9 +275,13 @@ public class StatusChangeEmailHandler :
                 appointmentFromTime,
                 wrapInternalComments: WrapPleaseNote(appointment.InternalUserComments),
                 rejectionNotes: null);
-            await _dispatcher.DispatchAsync(
+            // C1 (2026-06-09): one message To the booker, CC the other parties
+            // + office (was a per-recipient fan-out). Office CC handled inside
+            // DispatchToBookerWithCcAsync via the per-tenant CcEmailIds list.
+            await DispatchToBookerWithCcAsync(
                 templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt,
-                recipients: stakeholders,
+                ctx: ctx,
+                stakeholders: stakeholders,
                 variables: extVars,
                 contextTag: $"StatusChange/Approved/Stakeholders/{eventData.AppointmentId}");
         }
@@ -323,13 +326,23 @@ public class StatusChangeEmailHandler :
             internalRecipients,
             contextTagForLogging: $"Approved/Responsible/{eventData.AppointmentId}");
 
-        var internalVars = BuildVariables(
-            ctx,
-            appointment,
-            appointmentDate,
-            appointmentFromTime,
-            wrapInternalComments: WrapStaffComments(appointment.InternalUserComments),
-            rejectionNotes: null);
+        var responsibleName = JoinName(responsibleUser.Name, responsibleUser.Surname);
+        var internalVars = new Dictionary<string, object?>(
+            BuildVariables(
+                ctx,
+                appointment,
+                appointmentDate,
+                appointmentFromTime,
+                wrapInternalComments: WrapStaffComments(appointment.InternalUserComments),
+                rejectionNotes: null),
+            StringComparer.Ordinal)
+        {
+            // C2 (2026-06-09): this leg goes only to the responsible user, so
+            // greet them by name (falls back to their email when unnamed).
+            ["ResponsibleUserName"] = string.IsNullOrWhiteSpace(responsibleName)
+                ? responsibleUser.Email
+                : responsibleName,
+        };
 
         await _dispatcher.DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApprovedInternal,
@@ -367,9 +380,14 @@ public class StatusChangeEmailHandler :
             wrapInternalComments: string.Empty,
             rejectionNotes: rejectionNotes);
 
-        await _dispatcher.DispatchAsync(
+        // C3 (2026-06-09): one message To the booker, CC the other parties + office.
+        // PARITY-FLAG: OLD rejection (AppointmentDomain.cs:990) sent with NO CC
+        // (3-arg SendSMTPMail); NEW adds the office CC per Adrian 2026-06-09.
+        // (OLD source: AppointmentDomain.cs:984-991)
+        await DispatchToBookerWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentRejected,
-            recipients: stakeholders,
+            ctx: ctx,
+            stakeholders: stakeholders,
             variables: rejectVars,
             contextTag: $"StatusChange/Rejected/Stakeholders/{eventData.AppointmentId}");
     }
@@ -408,9 +426,13 @@ public class StatusChangeEmailHandler :
             wrapInternalComments: string.Empty,
             rejectionNotes: null);
 
-        await _dispatcher.DispatchAsync(
+        // C4 (2026-06-09): one message To the booker, CC the other parties + office.
+        // PARITY-FLAG: OLD CheckedIn (AppointmentDomain.cs:1002) sent with NO CC;
+        // NEW adds the office CC per Adrian 2026-06-09. (OLD source: :997-1002)
+        await DispatchToBookerWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedIn,
-            recipients: stakeholders,
+            ctx: ctx,
+            stakeholders: stakeholders,
             variables: vars,
             contextTag: $"StatusChange/CheckedIn/Stakeholders/{eventData.AppointmentId}");
     }
@@ -444,9 +466,13 @@ public class StatusChangeEmailHandler :
             wrapInternalComments: string.Empty,
             rejectionNotes: null);
 
-        await _dispatcher.DispatchAsync(
+        // C5 (2026-06-09): one message To the booker, CC the other parties + office.
+        // PARITY-FLAG: OLD CheckedOut (AppointmentDomain.cs:1014) sent with NO CC;
+        // NEW adds the office CC per Adrian 2026-06-09. (OLD source: :1004-1014)
+        await DispatchToBookerWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut,
-            recipients: stakeholders,
+            ctx: ctx,
+            stakeholders: stakeholders,
             variables: vars,
             contextTag: $"StatusChange/CheckedOut/Stakeholders/{eventData.AppointmentId}");
     }
@@ -529,9 +555,13 @@ public class StatusChangeEmailHandler :
             ["CancellationReason"] = appointment.CancellationReason ?? string.Empty,
         };
 
-        await _dispatcher.DispatchAsync(
+        // C7 (2026-06-09): one message To the booker, CC the other parties + office.
+        // PARITY-FLAG: OLD CancelledNoBill (AppointmentDomain.cs:1033) sent with
+        // NO CC; NEW adds the office CC per Adrian 2026-06-09. (OLD source: :1029-1033)
+        await DispatchToBookerWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill,
-            recipients: stakeholders,
+            ctx: ctx,
+            stakeholders: stakeholders,
             variables: vars,
             contextTag: $"StatusChange/CancelledNoBill/Stakeholders/{eventData.AppointmentId}");
     }
@@ -569,6 +599,44 @@ public class StatusChangeEmailHandler :
     }
 
     /// <summary>
+    /// C-group (2026-06-09): sends ONE message addressed To the booker with the
+    /// other parties + per-tenant office CC list CC'd, via
+    /// <see cref="INotificationDispatcher.DispatchToWithCcAsync"/>. The booker is
+    /// resolved from the appointment creator (<c>ctx.BookerEmail</c>); when the
+    /// booker is not among the resolved parties (e.g. a staff-created booking)
+    /// the booker is added as the To recipient and every party is CC'd.
+    /// Replaces the prior per-recipient fan-out, which sent separate copies of
+    /// the same notice to each party (effectively ex-parte).
+    /// </summary>
+    private Task DispatchToBookerWithCcAsync(
+        string templateCode,
+        DocumentEmailContext ctx,
+        List<NotificationRecipient> stakeholders,
+        IReadOnlyDictionary<string, object?> variables,
+        string contextTag)
+    {
+        // Group F (2026-06-09): the To-booker/CC partition, office-CC append,
+        // and single-message dispatch were extracted to the shared
+        // BookerCcDispatcher so the consolidated reminder reuses the same rule.
+        return _bookerCcDispatcher.DispatchToBookerWithCcAsync(
+            templateCode: templateCode,
+            bookerEmail: ctx.BookerEmail,
+            stakeholders: stakeholders,
+            variables: variables,
+            contextTag: contextTag);
+    }
+
+    private static string JoinName(string? first, string? last)
+    {
+        var hasFirst = !string.IsNullOrWhiteSpace(first);
+        var hasLast = !string.IsNullOrWhiteSpace(last);
+        if (hasFirst && hasLast) return first!.Trim() + " " + last!.Trim();
+        if (hasFirst) return first!.Trim();
+        if (hasLast) return last!.Trim();
+        return string.Empty;
+    }
+
+    /// <summary>
     /// Builds the variable bag the OLD-verbatim HTML bodies expect. Starts
     /// from <see cref="DocumentNotificationContext.BuildVariables"/> for
     /// the shared keys, then overrides <c>AppointmentDate</c> with OLD's
@@ -598,12 +666,20 @@ public class StatusChangeEmailHandler :
             clinicName: null,
             portalUrl: ctx.PortalBaseUrl);
 
+        var bookerName = !string.IsNullOrWhiteSpace(ctx.BookerFullName)
+            ? ctx.BookerFullName
+            : JoinName(ctx.PatientFirstName, ctx.PatientLastName);
+
         var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
         {
             // OLD-format date overrides BuildVariables's MM/dd/yyyy.
             ["AppointmentDate"] = appointmentDate,
             ["AppointmentFromTime"] = appointmentFromTime,
             ["InternalUserComments"] = wrapInternalComments ?? string.Empty,
+            // C-group (2026-06-09): templates greet the booker (the appointment
+            // creator, ctx.BookerFullName). Falls back to the patient name when
+            // the creator has no display name.
+            ["BookerFullName"] = bookerName,
         };
 
         AddBrandPlaceholders(vars);

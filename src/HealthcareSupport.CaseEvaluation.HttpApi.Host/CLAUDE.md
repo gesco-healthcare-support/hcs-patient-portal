@@ -100,11 +100,12 @@ an empty directory, making every `L("Key")` call return the literal key.
 
 ## Gotchas
 
-- `SendAppointmentEmailJob` (Domain) swallows SMTP exceptions and logs a
-  warning, letting Hangfire mark the job Succeeded. Emails fail silently
-  until real ACS credentials replace the `REPLACE_ME` values in
-  `appsettings.secrets.json`. When real creds land, remove the try/catch
-  so Hangfire's default retry policy engages.
+- `SendAppointmentEmailJob` (Domain) lets SMTP exceptions propagate so
+  Hangfire retries and, once exhausted, dead-letters the job in the Failed
+  state (retriable from `/hangfire`). The retry policy (5 attempts, then keep
+  Failed) is set globally in `ConfigureHangfire`. Real SMTP creds live in
+  `appsettings.secrets.json`, so successful sends do not retry; only genuine
+  transport failures do.
 
 - `/hangfire` dashboard uses `AnonymousHangfireDashboardAuthorizationFilter`
   (allow-all). It is intentionally unauthenticated in Wave 0 dev mode;

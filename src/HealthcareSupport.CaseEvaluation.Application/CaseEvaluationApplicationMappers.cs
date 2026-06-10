@@ -19,6 +19,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -88,6 +89,13 @@ public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase
 }
 
 [Mapper]
+public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
+{
+    public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
+    public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
+}
+
+[Mapper]
 public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : MapperBase<AppointmentLanguage, AppointmentLanguageDto>
 {
     public override partial AppointmentLanguageDto Map(AppointmentLanguage source);
@@ -97,7 +105,12 @@ public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : Mapper
 [Mapper]
 public partial class LocationToLocationDtoMappers : MapperBase<Location, LocationDto>
 {
+    // I3 (2026-06-08): AppointmentTypeIds is filled from the AppointmentTypes M2M
+    // in LocationsAppService.ToLocationDto, not auto-mapped here.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial LocationDto Map(Location source);
+
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial void Map(Location source, LocationDto destination);
 }
 
@@ -106,6 +119,12 @@ public partial class LocationWithNavigationPropertiesToLocationWithNavigationPro
 {
     public override partial LocationWithNavigationPropertiesDto Map(LocationWithNavigationProperties source);
     public override partial void Map(LocationWithNavigationProperties source, LocationWithNavigationPropertiesDto destination);
+
+    // I3 (2026-06-08): nested Location -> LocationDto used by the maps above.
+    // AppointmentTypeIds is filled in the AppService, so ignore it here too,
+    // otherwise Mapperly RMG012 fails on the unmapped target.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
+    private partial LocationDto MapLocation(Location source);
 }
 
 [Mapper]

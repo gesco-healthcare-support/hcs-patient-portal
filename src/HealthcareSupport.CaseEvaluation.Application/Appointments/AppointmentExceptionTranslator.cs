@@ -73,6 +73,8 @@ public sealed class AppointmentExceptionTranslator : ITransientDependency
             => "Appointment:ApprovalRequiresInjuryDetail",
         CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer
             => "Appointment:ApprovalRequiresClaimExaminer",
+        CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList
+            => "Appointment:ApprovalRequiresPanelStrikeList",
         CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser
             => "Appointment:ApprovalRequiresResponsibleUser",
         CaseEvaluationDomainErrorCodes.AppointmentNotPendingForApproval

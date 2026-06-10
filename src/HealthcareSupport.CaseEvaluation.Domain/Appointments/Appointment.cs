@@ -64,6 +64,14 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string? ClaimExaminerEmail { get; set; }
 
     /// <summary>
+    /// 2026-06-09: optional per-appointment "Referred By" (referring source).
+    /// Per-appointment by design -- NOT carried over from the patient or prior
+    /// appointments. Blank unless the booker explicitly fills it.
+    /// </summary>
+    [CanBeNull]
+    public virtual string? RefferedBy { get; set; }
+
+    /// <summary>
     /// Reschedule-chain link: when this appointment is a reschedule of a
     /// prior one, points at the prior <see cref="Appointment"/>'s Id. Null
     /// for first-time bookings. Mirrors OLD's <c>OriginalAppointmentId</c>

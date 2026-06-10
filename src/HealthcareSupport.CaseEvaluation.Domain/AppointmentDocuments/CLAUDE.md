@@ -45,6 +45,32 @@ The `VerificationCode` lets the patient upload through an emailed link without a
 authenticated session. Anonymous uploads require an explicit `_currentTenant.Change(tenantId)`
 scope -- see the Domain layer CLAUDE.md blob-container section for why.
 
+PR4: that link points at the guard-free SPA page `public/document-upload/:id/:verificationCode`
+(Angular `eLayoutType.empty`, no auth guard) which POSTs to the existing `[AllowAnonymous]`
+`PublicDocumentUploadController` (per-code 5/hr rate-limited). `IAccountUrlBuilder.BuildPublicDocumentUploadUrlAsync`
+composes the tenant-aware link; wiring it into a request email is deferred (the future email
+handler calls it). Restores the legacy "Click here to upload" flow.
+
+### Document-type + required-document tracking (PR2/PR3)
+
+`AppointmentDocument` carries three nullable columns from the document-type feature:
+`AppointmentDocumentTypeId` (chosen admin category), `OtherDocumentTypeName` (free-text
+label when the uploader picks "Other"), and `SourceDocumentId` (the master `Document` a
+queued package row was generated from; null for ad-hoc uploads).
+
+The **missing-required-documents** read
+(`AppointmentDocumentsAppService.GetMissingRequiredDocumentsAsync`) defines "required" as
+the active `PackageDetail`(s) for the appointment's type (union of their active
+`DocumentPackage` -> active `Document` rows). A requirement is **satisfied** only when the
+appointment has an `AppointmentDocument` whose `SourceDocumentId` matches the master
+Document id AND whose `Status == Accepted`; otherwise it is reported in its most-actionable
+state (`RequiredDocumentState`: AwaitingReview > Rejected > NotUploaded). The pure matching
++ state logic lives in `RequiredDocumentEvaluator` and is unit-tested; the AppService only
+fetches the inputs and wraps them in `MissingRequiredDocumentsResultDto` (required count +
+missing list) so the UI can distinguish "no package", "all received", and "outstanding".
+The "required docs for a type" resolution is duplicated with `PackageDocumentQueueHandler`
+(flagged tech-debt: consolidate when next touched).
+
 ### AppointmentPacket: generation lifecycle
 
 `EnsureGeneratingAsync` is idempotent: if a row already exists for

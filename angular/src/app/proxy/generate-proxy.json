@@ -5999,6 +5999,240 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeLogs.AppointmentChangeLogController": {
+          "controllerName": "AppointmentChangeLog",
+          "controllerGroupName": "AppointmentChangeLog",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeLogs.AppointmentChangeLogController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.IAppointmentChangeLogsAppService",
+              "name": "IAppointmentChangeLogsAppService",
+              "methods": [
+                {
+                  "name": "GetByAppointmentAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentId",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>",
+                    "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto]"
+                  }
+                },
+                {
+                  "name": "GetListAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetByAppointmentAsyncByAppointmentId": {
+              "uniqueName": "GetByAppointmentAsyncByAppointmentId",
+              "name": "GetByAppointmentAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-change-logs/by-appointment/{appointmentId}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>",
+                "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto]"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.IAppointmentChangeLogsAppService"
+            },
+            "GetListAsyncByInput": {
+              "uniqueName": "GetListAsyncByInput",
+              "name": "GetListAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-change-logs",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "RequestConfirmationNumber",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "EntityType",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "FieldName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "ChangeType",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "StartTime",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "EndTime",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto>"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.IAppointmentChangeLogsAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests.AppointmentChangeRequestApprovalController": {
           "controllerName": "AppointmentChangeRequestApproval",
           "controllerGroupName": "AppointmentChangeRequestApprovals",
@@ -7705,6 +7939,80 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
             },
+            "GetDocumentTypeOptionsAsyncByAppointmentId": {
+              "uniqueName": "GetDocumentTypeOptionsAsyncByAppointmentId",
+              "name": "GetDocumentTypeOptionsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/documents/document-type-options",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<HealthcareSupport.CaseEvaluation.Shared.LookupDto<System.Guid>>",
+                "typeSimple": "[HealthcareSupport.CaseEvaluation.Shared.LookupDto<string>]"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
+            "GetMissingRequiredDocumentsAsyncByAppointmentId": {
+              "uniqueName": "GetMissingRequiredDocumentsAsyncByAppointmentId",
+              "name": "GetMissingRequiredDocumentsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/documents/missing-required",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
             "UploadAsyncByAppointmentIdAndForm": {
               "uniqueName": "UploadAsyncByAppointmentIdAndForm",
               "name": "UploadAsync",
@@ -7745,6 +8053,30 @@
                 {
                   "nameOnMethod": "form",
                   "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
                   "jsonName": null,
                   "type": "System.String",
                   "typeSimple": "string",
@@ -8167,6 +8499,30 @@
                 },
                 {
                   "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
                   "name": "File",
                   "jsonName": null,
                   "type": "Microsoft.AspNetCore.Http.IFormFile",
@@ -8225,6 +8581,30 @@
                 {
                   "nameOnMethod": "form",
                   "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
                   "jsonName": null,
                   "type": "System.String",
                   "typeSimple": "string",
@@ -8515,6 +8895,30 @@
                 },
                 {
                   "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
                   "name": "File",
                   "jsonName": null,
                   "type": "Microsoft.AspNetCore.Http.IFormFile",
@@ -8532,6 +8936,526 @@
               },
               "allowAnonymous": true,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.PublicDocumentUploadController"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocumentTypes.AppointmentDocumentTypeController": {
+          "controllerName": "AppointmentDocumentType",
+          "controllerGroupName": "AppointmentDocumentType",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocumentTypes.AppointmentDocumentTypeController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService",
+              "name": "IAppointmentDocumentTypesAppService",
+              "methods": [
+                {
+                  "name": "GetListAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto>"
+                  }
+                },
+                {
+                  "name": "GetAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+                  }
+                },
+                {
+                  "name": "DeleteAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "CreateAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+                  }
+                },
+                {
+                  "name": "UpdateAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+                  }
+                },
+                {
+                  "name": "DeleteByIdsAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentDocumentTypeIds",
+                      "typeAsString": "System.Collections.Generic.List`1[[System.Guid, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], System.Private.CoreLib",
+                      "type": "System.Collections.Generic.List<System.Guid>",
+                      "typeSimple": "[string]",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "DeleteAllAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetListAsyncByInput": {
+              "uniqueName": "GetListAsyncByInput",
+              "name": "GetListAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-document-types",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "FilterText",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto>"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "GetAsyncById": {
+              "uniqueName": "GetAsyncById",
+              "name": "GetAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-document-types/{id}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "CreateAsyncByInput": {
+              "uniqueName": "CreateAsyncByInput",
+              "name": "CreateAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-document-types",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "UpdateAsyncByIdAndInput": {
+              "uniqueName": "UpdateAsyncByIdAndInput",
+              "name": "UpdateAsync",
+              "httpMethod": "PUT",
+              "url": "api/app/appointment-document-types/{id}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "DeleteAsyncById": {
+              "uniqueName": "DeleteAsyncById",
+              "name": "DeleteAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/appointment-document-types/{id}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "DeleteByIdsAsyncByAppointmentDocumentTypeIds": {
+              "uniqueName": "DeleteByIdsAsyncByAppointmentDocumentTypeIds",
+              "name": "DeleteByIdsAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/appointment-document-types",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentDocumentTypeIds",
+                  "typeAsString": "System.Collections.Generic.List`1[[System.Guid, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], System.Private.CoreLib",
+                  "type": "System.Collections.Generic.List<System.Guid>",
+                  "typeSimple": "[string]",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentDocumentTypeIds",
+                  "name": "appointmentDocumentTypeIds",
+                  "jsonName": null,
+                  "type": "System.Collections.Generic.List<System.Guid>",
+                  "typeSimple": "[string]",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
+            },
+            "DeleteAllAsyncByInput": {
+              "uniqueName": "DeleteAllAsyncByInput",
+              "name": "DeleteAllAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/appointment-document-types/all",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "FilterText",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.IAppointmentDocumentTypesAppService"
             }
           }
         },
@@ -10648,6 +11572,63 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Appointments.AppointmentApprovalController"
             },
+            "DirectCancelAppointmentAsyncByIdAndInput": {
+              "uniqueName": "DirectCancelAppointmentAsyncByIdAndInput",
+              "name": "DirectCancelAppointmentAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-approvals/{id}/cancel",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Appointments.AppointmentApprovalController"
+            },
             "GetInternalUserLookupAsyncByInput": {
               "uniqueName": "GetInternalUserLookupAsyncByInput",
               "name": "GetInternalUserLookupAsync",
@@ -10817,6 +11798,14 @@
                       "type": "HealthcareSupport.CaseEvaluation.Shared.LookupRequestDto",
                       "typeSimple": "HealthcareSupport.CaseEvaluation.Shared.LookupRequestDto",
                       "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "evaluationContext",
+                      "typeAsString": "System.Nullable`1[[HealthcareSupport.CaseEvaluation.Enums.EvaluationType, HealthcareSupport.CaseEvaluation.Domain.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib",
+                      "type": "HealthcareSupport.CaseEvaluation.Enums.EvaluationType?",
+                      "typeSimple": "enum?",
+                      "isOptional": true,
                       "defaultValue": null
                     }
                   ],
@@ -11538,8 +12527,8 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
             },
-            "GetAppointmentTypeLookupAsyncByInput": {
-              "uniqueName": "GetAppointmentTypeLookupAsyncByInput",
+            "GetAppointmentTypeLookupAsyncByInputAndEvaluationContext": {
+              "uniqueName": "GetAppointmentTypeLookupAsyncByInputAndEvaluationContext",
               "name": "GetAppointmentTypeLookupAsync",
               "httpMethod": "GET",
               "url": "api/app/appointments/appointment-type-lookup",
@@ -11551,6 +12540,14 @@
                   "type": "HealthcareSupport.CaseEvaluation.Shared.LookupRequestDto",
                   "typeSimple": "HealthcareSupport.CaseEvaluation.Shared.LookupRequestDto",
                   "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "evaluationContext",
+                  "typeAsString": "System.Nullable`1[[HealthcareSupport.CaseEvaluation.Enums.EvaluationType, HealthcareSupport.CaseEvaluation.Domain.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib",
+                  "type": "HealthcareSupport.CaseEvaluation.Enums.EvaluationType?",
+                  "typeSimple": "enum?",
+                  "isOptional": true,
                   "defaultValue": null
                 }
               ],
@@ -11590,6 +12587,18 @@
                   "constraintTypes": null,
                   "bindingSourceId": "ModelBinding",
                   "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "evaluationContext",
+                  "name": "evaluationContext",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Enums.EvaluationType?",
+                  "typeSimple": "enum?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
                 }
               ],
               "returnValue": {
@@ -20732,6 +21741,372 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController": {
+          "controllerName": "AppointmentDemographics",
+          "controllerGroupName": "AppointmentDemographics",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController",
+          "interfaces": [],
+          "actions": {
+            "GetPdfAsyncByAppointmentId": {
+              "uniqueName": "GetPdfAsyncByAppointmentId",
+              "name": "GetPdfAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-demographics/{appointmentId}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Reports.AppointmentDemographicsController"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController": {
+          "controllerName": "Report",
+          "controllerGroupName": "Report",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.Reports.IReportsAppService",
+              "name": "IReportsAppService",
+              "methods": [
+                {
+                  "name": "GetListAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>"
+                  }
+                },
+                {
+                  "name": "GetReportPdfAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.DownloadResult",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.DownloadResult"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetListAsyncByInput": {
+              "uniqueName": "GetListAsyncByInput",
+              "name": "GetListAsync",
+              "httpMethod": "GET",
+              "url": "api/app/reports",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "FilterText",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "LocationId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentStatus",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+                  "typeSimple": "enum?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMin",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMax",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto>"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Reports.IReportsAppService"
+            },
+            "ExportPdfAsyncByInput": {
+              "uniqueName": "ExportPdfAsyncByInput",
+              "name": "ExportPdfAsync",
+              "httpMethod": "GET",
+              "url": "api/app/reports/export-pdf",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "FilterText",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "LocationId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentStatus",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+                  "typeSimple": "enum?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMin",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "AppointmentDateMax",
+                  "jsonName": null,
+                  "type": "System.DateTime?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Microsoft.AspNetCore.Mvc.IActionResult",
+                "typeSimple": "Microsoft.AspNetCore.Mvc.IActionResult"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.Reports.ReportController"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.States.StateController": {
           "controllerName": "State",
           "controllerGroupName": "State",
@@ -21281,6 +22656,78 @@
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.UserProfile.UserSignatureController"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.Controllers.UserQueries.UserQueryController": {
+          "controllerName": "UserQuery",
+          "controllerGroupName": "UserQuery",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.UserQueries.UserQueryController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.UserQueries.IUserQueryAppService",
+              "name": "IUserQueryAppService",
+              "methods": [
+                {
+                  "name": "CreateAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "CreateAsyncByInput": {
+              "uniqueName": "CreateAsyncByInput",
+              "name": "CreateAsync",
+              "httpMethod": "POST",
+              "url": "api/app/user-queries",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.UserQueries.IUserQueryAppService"
             }
           }
         },
@@ -23058,6 +24505,278 @@
               },
               "allowAnonymous": false,
               "implementFrom": "Volo.Saas.Host.ITenantAppService"
+            }
+          }
+        },
+        "HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService": {
+          "controllerName": "CaseEvaluationProfile",
+          "controllerGroupName": "CaseEvaluationProfile",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService",
+          "interfaces": [
+            {
+              "type": "Volo.Abp.Account.IProfileAppService",
+              "name": "IProfileAppService",
+              "methods": [
+                {
+                  "name": "GetAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "Volo.Abp.Account.ProfileDto",
+                    "typeSimple": "Volo.Abp.Account.ProfileDto"
+                  }
+                },
+                {
+                  "name": "UpdateAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "Volo.Abp.Account.UpdateProfileDto, Volo.Abp.Account.Pro.Public.Application.Contracts",
+                      "type": "Volo.Abp.Account.UpdateProfileDto",
+                      "typeSimple": "Volo.Abp.Account.UpdateProfileDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Account.ProfileDto",
+                    "typeSimple": "Volo.Abp.Account.ProfileDto"
+                  }
+                },
+                {
+                  "name": "ChangePasswordAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "Volo.Abp.Account.ChangePasswordInput, Volo.Abp.Account.Pro.Public.Application.Contracts",
+                      "type": "Volo.Abp.Account.ChangePasswordInput",
+                      "typeSimple": "Volo.Abp.Account.ChangePasswordInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "GetTwoFactorEnabledAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "System.Boolean",
+                    "typeSimple": "boolean"
+                  }
+                },
+                {
+                  "name": "SetTwoFactorEnabledAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "enabled",
+                      "typeAsString": "System.Boolean, System.Private.CoreLib",
+                      "type": "System.Boolean",
+                      "typeSimple": "boolean",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "CanEnableTwoFactorAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "System.Boolean",
+                    "typeSimple": "boolean"
+                  }
+                },
+                {
+                  "name": "GetTimezonesAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "System.Collections.Generic.List<Volo.Abp.NameValue>",
+                    "typeSimple": "[Volo.Abp.NameValue]"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "ChangePasswordAsyncByInput": {
+              "uniqueName": "ChangePasswordAsyncByInput",
+              "name": "ChangePasswordAsync",
+              "httpMethod": "POST",
+              "url": "api/app/case-evaluation-profile/change-password",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "Volo.Abp.Account.ChangePasswordInput, Volo.Abp.Account.Pro.Public.Application.Contracts",
+                  "type": "Volo.Abp.Account.ChangePasswordInput",
+                  "typeSimple": "Volo.Abp.Account.ChangePasswordInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "Volo.Abp.Account.ChangePasswordInput",
+                  "typeSimple": "Volo.Abp.Account.ChangePasswordInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "GetAsync": {
+              "uniqueName": "GetAsync",
+              "name": "GetAsync",
+              "httpMethod": "GET",
+              "url": "api/app/case-evaluation-profile",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "Volo.Abp.Account.ProfileDto",
+                "typeSimple": "Volo.Abp.Account.ProfileDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "UpdateAsyncByInput": {
+              "uniqueName": "UpdateAsyncByInput",
+              "name": "UpdateAsync",
+              "httpMethod": "PUT",
+              "url": "api/app/case-evaluation-profile",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "Volo.Abp.Account.UpdateProfileDto, Volo.Abp.Account.Pro.Public.Application.Contracts",
+                  "type": "Volo.Abp.Account.UpdateProfileDto",
+                  "typeSimple": "Volo.Abp.Account.UpdateProfileDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "Volo.Abp.Account.UpdateProfileDto",
+                  "typeSimple": "Volo.Abp.Account.UpdateProfileDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Account.ProfileDto",
+                "typeSimple": "Volo.Abp.Account.ProfileDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "GetTwoFactorEnabledAsync": {
+              "uniqueName": "GetTwoFactorEnabledAsync",
+              "name": "GetTwoFactorEnabledAsync",
+              "httpMethod": "GET",
+              "url": "api/app/case-evaluation-profile/two-factor-enabled",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Boolean",
+                "typeSimple": "boolean"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "SetTwoFactorEnabledAsyncByEnabled": {
+              "uniqueName": "SetTwoFactorEnabledAsyncByEnabled",
+              "name": "SetTwoFactorEnabledAsync",
+              "httpMethod": "POST",
+              "url": "api/app/case-evaluation-profile/set-two-factor-enabled",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "enabled",
+                  "typeAsString": "System.Boolean, System.Private.CoreLib",
+                  "type": "System.Boolean",
+                  "typeSimple": "boolean",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "enabled",
+                  "name": "enabled",
+                  "jsonName": null,
+                  "type": "System.Boolean",
+                  "typeSimple": "boolean",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "ModelBinding",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "CanEnableTwoFactorAsync": {
+              "uniqueName": "CanEnableTwoFactorAsync",
+              "name": "CanEnableTwoFactorAsync",
+              "httpMethod": "POST",
+              "url": "api/app/case-evaluation-profile/can-enable-two-factor",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Boolean",
+                "typeSimple": "boolean"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
+            },
+            "GetTimezonesAsync": {
+              "uniqueName": "GetTimezonesAsync",
+              "name": "GetTimezonesAsync",
+              "httpMethod": "GET",
+              "url": "api/app/case-evaluation-profile/timezones",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Collections.Generic.List<Volo.Abp.NameValue>",
+                "typeSimple": "[Volo.Abp.NameValue]"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "Volo.Abp.Account.IProfileAppService"
             }
           }
         },
@@ -39974,36 +41693,75 @@
       "genericArguments": null,
       "properties": [
         {
-          "name": "AccessTypeId",
-          "jsonName": null,
-          "type": "HealthcareSupport.CaseEvaluation.Enums.AccessType",
-          "typeSimple": "enum",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": false
-        },
-        {
-          "name": "IdentityUserId",
-          "jsonName": null,
-          "type": "System.Guid",
-          "typeSimple": "string",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": false
-        },
-        {
           "name": "AppointmentId",
           "jsonName": null,
           "type": "System.Guid",
           "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "FirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 64,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "Role",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AccessTypeId",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AccessType",
+          "typeSimple": "enum",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
@@ -40640,6 +42398,219 @@
           "name": "AppointmentInjuryDetailId",
           "jsonName": null,
           "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.AppointmentChangeLogDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "EntityType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PropertyName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "OldValue",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "NewValue",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ValueRedacted",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ChangeType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ChangeTime",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentChangeLogs.GetAppointmentChangeLogsInput": {
+      "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "EntityType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "FieldName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "ChangeType",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "StartTime",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "EndTime",
+          "jsonName": null,
+          "type": "System.DateTime?",
           "typeSimple": "string?",
           "isRequired": false,
           "minLength": null,
@@ -42102,6 +44073,32 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        },
+        {
+          "name": "AppointmentDocumentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "OtherDocumentTypeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
@@ -42235,6 +44232,89 @@
       ],
       "genericArguments": null,
       "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "DocumentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "State",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.RequiredDocumentState",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentsResultDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "RequiredCount",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Missing",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentDocuments.MissingRequiredDocumentDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
     },
     "HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketGenerationStatus": {
       "baseType": "System.Enum",
@@ -42401,6 +44481,214 @@
           "maximum": null,
           "regex": null,
           "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocuments.RequiredDocumentState": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "NotUploaded",
+        "AwaitingReview",
+        "Rejected"
+      ],
+      "enumValues": [
+        0,
+        1,
+        2
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeCreateDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 100,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "IsActive",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeDto": {
+      "baseType": "Volo.Abp.Application.Dtos.FullAuditedEntityDto<System.Guid>",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "IsSystem",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "IsActive",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeUpdateDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 100,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "IsActive",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.GetAppointmentDocumentTypesInput": {
+      "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "FilterText",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
         }
       ]
     },
@@ -45076,19 +47364,6 @@
           "isNullable": false
         },
         {
-          "name": "OverridePatientMatch",
-          "jsonName": null,
-          "type": "System.Boolean",
-          "typeSimple": "boolean",
-          "isRequired": false,
-          "minLength": null,
-          "maxLength": null,
-          "minimum": null,
-          "maximum": null,
-          "regex": null,
-          "isNullable": false
-        },
-        {
           "name": "InternalUserComments",
           "jsonName": null,
           "type": "System.String",
@@ -45291,6 +47566,41 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.DirectCancelAppointmentInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "CancellationOutcome",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType",
+          "typeSimple": "enum",
+          "isRequired": true,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Reason",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 5,
+          "maxLength": 500,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -46064,6 +48374,32 @@
       "properties": [
         {
           "name": "DocumentName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDocumentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "OtherDocumentTypeName",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",
@@ -49374,15 +51710,33 @@
       "genericArguments": null,
       "properties": null
     },
+    "HealthcareSupport.CaseEvaluation.Enums.EvaluationType": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Normal",
+        "Re",
+        "Both"
+      ],
+      "enumValues": [
+        0,
+        1,
+        2
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
     "HealthcareSupport.CaseEvaluation.Enums.Gender": {
       "baseType": "System.Enum",
       "isEnum": true,
       "enumNames": [
+        "Unspecified",
         "Male",
         "Female",
         "Other"
       ],
       "enumValues": [
+        0,
         1,
         2,
         3
@@ -49893,15 +52247,13 @@
         "Patient",
         "ClaimExaminer",
         "ApplicantAttorney",
-        "DefenseAttorney",
-        "Adjuster"
+        "DefenseAttorney"
       ],
       "enumValues": [
         1,
         2,
         3,
-        4,
-        5
+        4
       ],
       "genericArguments": null,
       "properties": null
@@ -52996,6 +55348,245 @@
         }
       ]
     },
+    "HealthcareSupport.CaseEvaluation.Reports.AppointmentReportRowDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentTypeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LocationName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDate",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AppointmentStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "DateOfBirth",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "PhoneNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "SocialSecurityNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Reports.GetAppointmentReportInput": {
+      "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "FilterText",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentTypeId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LocationId",
+          "jsonName": null,
+          "type": "System.Guid?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentStatus",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDateMin",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AppointmentDateMax",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
     "HealthcareSupport.CaseEvaluation.Shared.DownloadTokenResultDto": {
       "baseType": null,
       "isEnum": false,
@@ -53640,6 +56231,41 @@
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.UserQueries.UserQueryCreateDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Message",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 500,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 50,
           "minimum": null,
           "maximum": null,
           "regex": null,

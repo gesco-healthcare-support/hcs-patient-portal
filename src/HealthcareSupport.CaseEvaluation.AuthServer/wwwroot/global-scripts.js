@@ -741,17 +741,19 @@
   }
 
   /**
-   * Replace the register form with a success banner + two buttons:
-   * primary "Verify Email" (link to the existing ResendVerification page
-   * with autosend=1 so the verification email goes out on landing) and
-   * secondary "Sign In".
+   * Replace the register form with a success banner. Two variants:
    *
-   * Issue 1.4 (2026-05-12): the previous flow only offered Sign In and
-   * told users to verify after login. The new flow surfaces the verify
-   * step as the primary action so users don't have to log in first to
-   * receive the verification email. The autosend handshake delegates to
-   * the existing ResendVerification.cshtml.cs page model (which already
-   * enforces rate limits + the same surface for ResendEmailVerificationAsync).
+   * - Invite-token registration: the server auto-confirms the email on
+   *   accept (OBS-25) because the invite link already proved inbox
+   *   ownership, so NO verification email is sent. Show "You're all set"
+   *   + a single "Sign in" button. Showing the verify-email prompt here
+   *   would strand the invited user waiting for a link that never arrives
+   *   (Adrian, 2026-06-09).
+   *
+   * - Self-registration (no invite): a verification email IS sent. Show
+   *   "Account created. We sent a verification link..." + a "Resend
+   *   verification" button (links to ResendVerification.cshtml.cs with
+   *   autosend=1, which enforces the resend rate limits).
    */
   function showSignupSuccess(form, email) {
     // Issue #106b (2026-05-13) -- if a prior user is still cookie-authed
@@ -777,6 +779,23 @@
         default: return '&#39;';
       }
     });
+    // Invite-token registrations are auto-confirmed server-side (OBS-25), so
+    // no verification email is sent -- route the user straight to Sign In
+    // rather than the "verify your email" prompt that would otherwise strand
+    // them. readQueryParam('inviteToken') is the same source the prefill
+    // logic uses; the token is still on the URL at success time.
+    if (readQueryParam('inviteToken')) {
+      form.innerHTML =
+        '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
+          '<strong>You&#39;re all set.</strong>' +
+          '<div style="margin-top:0.25rem;">' +
+            'Your account is ready. Please sign in to continue.' +
+          '</div>' +
+        '</div>' +
+        '<a href="/Account/Login" class="btn btn-primary" style="width:100%;">Sign in</a>';
+      return;
+    }
+
     var verifyUrl = '/Account/ResendVerification?context=register&email='
       + encodeURIComponent(email || '') + '&autosend=1';
     form.innerHTML =

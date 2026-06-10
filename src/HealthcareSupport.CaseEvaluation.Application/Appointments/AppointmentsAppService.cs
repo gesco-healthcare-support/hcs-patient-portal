@@ -7,6 +7,8 @@ using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Auditing;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
@@ -26,6 +28,7 @@ using System.Linq.Dynamic.Core;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
@@ -227,12 +230,35 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // separate refactor. The same rows will surface via bookerIds anyway,
         // so the omission has no observable effect today.
 
+        // 7. Email-based visibility (I5, 2026-06-08) -- OLD-app parity + the
+        // "match email + role" preference. The id-based links above can be stale
+        // or unset (an appointment booked with a party's email before they
+        // registered, or a re-registered account whose old links still point at
+        // the prior user id), so also surface every appointment whose
+        // denormalized party email equals the caller's email. This is how OLD
+        // filtered "My Appointments" and makes linking independent of the
+        // registration path / timing.
+        var emailMatchAppointmentIds = new List<Guid>();
+        if (!string.IsNullOrWhiteSpace(userEmail))
+        {
+            var callerEmailLower = userEmail.Trim().ToLower();
+            emailMatchAppointmentIds = await AsyncExecuter.ToListAsync(
+                appointmentQuery
+                    .Where(a =>
+                        (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
+                        (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
+                        (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
+                        (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
+                    .Select(a => a.Id));
+        }
+
         var union = new HashSet<Guid>(bookerIds);
         union.UnionWith(patientAppointmentIds);
         union.UnionWith(aaLinkAppointmentIds);
         union.UnionWith(daLinkAppointmentIds);
         union.UnionWith(ceAppointmentIds);
         union.UnionWith(accessorAppointmentIds);
+        union.UnionWith(emailMatchAppointmentIds);
         return union.ToList();
     }
 
@@ -497,12 +523,23 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .ToDynamicListAsync<Guid>();
     }
     [Authorize]
-    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
+    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input, EvaluationType? evaluationContext = null)
     {
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query AppointmentType directly. IMultiTenant filter scopes by tenant.
+        //
+        // evaluationContext (passed by the booking form) restricts the list to
+        // types bookable in that context: an initial booking shows Normal + Both;
+        // a re-evaluation shows Re + Both. Unclassified (null) types always show.
+        // A null context (e.g. advanced search) applies no evaluation filter.
         var query = (await _appointmentTypeRepository.GetQueryableAsync())
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
+            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!))
+            .WhereIf(
+                evaluationContext.HasValue,
+                x => x.EvaluationType == null
+                     || x.EvaluationType == EvaluationType.Both
+                     || x.EvaluationType == evaluationContext)
+            .OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -643,6 +680,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         ValidateCreateGuids(input);
 
+        // OLD parity (AppointmentDomain.CommonValidation): the patient, applicant
+        // attorney, and defense attorney must each use a distinct email address so
+        // notifications reach the right party.
+        if (AppointmentBookingValidators.HasDuplicateStakeholderEmail(
+                input.PatientEmail, input.ApplicantAttorneyEmail, input.DefenseAttorneyEmail))
+        {
+            throw new UserFriendlyException(L["Appointment:DuplicateStakeholderEmail"]);
+        }
+
         var patient = await _patientRepository.FindAsync(input.PatientId);
         if (patient == null)
         {
@@ -691,19 +737,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // with localized error code on failure.
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
 
-        // Phase 11h (2026-05-04) -- internal-user fast-path. OLD
-        // AppointmentDomain.cs:221-240 sets status=Approved + slot=Booked
-        // directly when UserType is InternalUser (admin / Clinic Staff /
-        // Staff Supervisor / IT Admin / Doctor). External users (Patient,
-        // AA, DA, CE, Adjuster) land at Pending + Reserved as the office
-        // approves the request. The slot transition cascades through
-        // SlotCascadeHandler from the AppointmentStatusChangedEto we
-        // publish below: Pending -> Reserved, Approved -> Booked.
+        // F1/F2 fix (2026-06-07) -- every booking now lands at Pending on
+        // create, including internal-staff bookings. The former internal
+        // create-as-Approved fast-path fired the approval side-effects (packet
+        // generation + the full email fan-out) immediately on create, which
+        // raced the Angular client's post-create party/injury attach calls:
+        // the appointment row's concurrency stamp churned under those handlers
+        // so the attaches 409'd and their join rows were lost (F2), and the
+        // injury + claim-examiner approval gates were bypassed (F1). Internal
+        // bookings are now auto-approved by the client immediately AFTER the
+        // attach sequence completes -- a single approve transaction whose gates
+        // run against the fully-populated appointment. External bookers stay
+        // Pending for office approval. Slot cascade is unchanged: Pending ->
+        // Reserved on create, Approved -> Booked on approve.
         var callerRoles = CurrentUser.Roles ?? System.Array.Empty<string>();
-        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(callerRoles);
-        var initialStatus = isInternalCaller
-            ? AppointmentStatusType.Approved
-            : AppointmentStatusType.Pending;
+        var initialStatus = AppointmentStatusType.Pending;
 
         // Phase 11h (2026-05-04) -- Adjuster auto-fill of ClaimExaminerEmail.
         // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
@@ -773,6 +821,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+        // 2026-06-09: per-appointment Referred By (optional; not derived from the patient).
+        appointment.RefferedBy = input.RefferedBy;
 
         // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
         // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
@@ -957,6 +1007,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Edit)]
     public virtual async Task<AppointmentDto> UpdateAsync(Guid id, AppointmentUpdateDto input)
     {
         if (input.PatientId == Guid.Empty)
@@ -992,6 +1043,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var existing = await _appointmentRepository.FindAsync(id);
         var oldSlotId = existing?.DoctorAvailabilityId;
 
+        // Group K (G-02-03): snapshot the editable intake fields BEFORE the
+        // manager mutates the tracked entity, so we can diff old vs new for the
+        // intake-changed email after the update commits.
+        var oldAppointmentDate = existing?.AppointmentDate ?? input.AppointmentDate;
+        var oldPanelNumber = existing?.PanelNumber;
+        var oldDueDate = existing?.DueDate;
+
         var appointment = await _appointmentManager.UpdateAsync(id, input.PatientId, input.IdentityUserId, input.AppointmentTypeId, input.LocationId, input.DoctorAvailabilityId, input.AppointmentDate, input.PanelNumber, input.DueDate, input.ConcurrencyStamp);
 
         // S-5.1: update party emails alongside the core appointment fields.
@@ -999,6 +1057,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
         appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+        appointment.RefferedBy = input.RefferedBy;
         await _appointmentRepository.UpdateAsync(appointment);
 
         // B1 (2026-05-05) -- replace-all custom-field answers. OLD's edit path
@@ -1017,6 +1076,32 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 occurredAt: DateTime.UtcNow,
                 doctorAvailabilityId: appointment.DoctorAvailabilityId,
                 oldDoctorAvailabilityId: oldSlotId));
+        }
+
+        // Group K (G-02-03): notify stakeholders of intake field changes with a
+        // PHI-redacted diff. The diff is masked here (before the ETO is
+        // published) so no raw PHI crosses the event bus.
+        var intakeChanges = AppointmentIntakeDiff.Compute(
+            oldAppointmentDate, appointment.AppointmentDate,
+            oldPanelNumber, appointment.PanelNumber,
+            oldDueDate, appointment.DueDate);
+        if (intakeChanges.Count > 0)
+        {
+            await _localEventBus.PublishAsync(new AppointmentIntakeChangedEto
+            {
+                AppointmentId = appointment.Id,
+                TenantId = appointment.TenantId,
+                DateOrTimeChanged = AppointmentIntakeDiff.IsDateOrTimeChanged(
+                    oldAppointmentDate, appointment.AppointmentDate),
+                ChangedFields = intakeChanges.ConvertAll(r => new IntakeChangedField
+                {
+                    Section = "Appointment",
+                    FieldName = r.PropertyName,
+                    OldValue = r.OldValue,
+                    NewValue = r.NewValue,
+                    ValueRedacted = r.ValueRedacted,
+                }),
+            });
         }
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
@@ -1053,7 +1138,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             FirstName = identityUser.Name ?? string.Empty,
             LastName = identityUser.Surname ?? string.Empty,
             Email = identityUser.Email ?? string.Empty,
-            FirmName = applicant?.FirmName,
+            // I17 (2026-06-08): a registered-but-never-booked attorney has no
+            // ApplicantAttorney master row yet -- the firm name they typed at
+            // registration lives on the IdentityUser FirmName extension property
+            // (ExternalSignupAppService writes it there). Fall back to it so the
+            // booking form prefills the firm even before the first booking.
+            FirmName = string.IsNullOrWhiteSpace(applicant?.FirmName)
+                ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
+                : applicant!.FirmName,
             WebAddress = applicant?.WebAddress,
             PhoneNumber = applicant?.PhoneNumber,
             FaxNumber = applicant?.FaxNumber,
@@ -1280,7 +1372,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             FirstName = identityUser.Name ?? string.Empty,
             LastName = identityUser.Surname ?? string.Empty,
             Email = identityUser.Email ?? string.Empty,
-            FirmName = defense?.FirmName,
+            // I17 (2026-06-08): registered-but-never-booked defense attorney --
+            // firm name lives on the IdentityUser FirmName extension (set at
+            // registration), not yet on a DefenseAttorney master row. Fall back.
+            FirmName = string.IsNullOrWhiteSpace(defense?.FirmName)
+                ? identityUser.GetProperty<string>(CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName)
+                : defense!.FirmName,
             WebAddress = defense?.WebAddress,
             PhoneNumber = defense?.PhoneNumber,
             FaxNumber = defense?.FaxNumber,

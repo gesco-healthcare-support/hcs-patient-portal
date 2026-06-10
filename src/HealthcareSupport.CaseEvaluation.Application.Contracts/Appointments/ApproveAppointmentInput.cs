@@ -7,13 +7,14 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// Phase 12 (2026-05-04) -- input DTO for
 /// <c>IAppointmentApprovalAppService.ApproveAppointmentAsync</c>.
 ///
-/// <para>Mirrors OLD's "select responsible team member + (optional) override
-/// patient match" approval surface
-/// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:560-566).
-/// OLD's UI exposes both fields on the same edit page; NEW exposes the
-/// same shape on the new approval AppService while leaving the existing
-/// thin <c>AppointmentsAppService.ApproveAsync(id)</c> intact for legacy
-/// callers (Session A built the thin endpoint earlier in Phase 11).</para>
+/// <para>Captures OLD's approval surface: the responsible team member
+/// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:560-566)
+/// plus the optional approver comment. NEW exposes this on the approval
+/// AppService while leaving the existing thin
+/// <c>AppointmentsAppService.ApproveAsync(id)</c> intact for legacy callers.
+/// The patient-match override (G-02-08, dropped 2026-06-01) is gone: OLD
+/// never had an un-merge action -- its approve screen only displayed the
+/// match read-only.</para>
 /// </summary>
 public class ApproveAppointmentInput
 {
@@ -27,17 +28,6 @@ public class ApproveAppointmentInput
     /// </summary>
     [Required]
     public Guid PrimaryResponsibleUserId { get; set; }
-
-    /// <summary>
-    /// True when the staff approver wants to ignore the dedup match (the
-    /// 3-of-6-fields rule that <c>Appointment.IsPatientAlreadyExist</c>
-    /// records at booking time) and treat this appointment as a new patient
-    /// even though a candidate match was found. Mirrors OLD's "Link existing
-    /// patient" vs "Create new patient" toggle on the approval page.
-    /// Defaults to <c>false</c> = accept the dedup match (the safer default
-    /// because a false-negative match leaks PHI across patients).
-    /// </summary>
-    public bool OverridePatientMatch { get; set; }
 
     /// <summary>
     /// A1 (2026-05-05) -- optional free-text comment captured on approve.

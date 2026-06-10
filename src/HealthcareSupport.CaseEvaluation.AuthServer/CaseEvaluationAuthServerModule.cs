@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
+using Volo.Abp.TextTemplateManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
@@ -19,6 +20,8 @@ using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.HealthChecks;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
+using static OpenIddict.Server.OpenIddictServerEvents;
+using HealthcareSupport.CaseEvaluation.OpenIddict;
 using StackExchange.Redis;
 using Volo.Abp;
 using Volo.Abp.Studio;
@@ -147,6 +150,19 @@ public class CaseEvaluationAuthServerModule : AbpModule
         PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
         {
             serverBuilder.SetRefreshTokenReuseLeeway(TimeSpan.FromSeconds(2));
+
+            // Single-session enforcement: shorten the access-token lifetime so a
+            // revoked session's old device drops quickly. NEW validates
+            // self-contained JWTs at the API (no token-store lookup), so the old
+            // access token stays valid until it expires; 15 min bounds that
+            // window (OpenIddict default was 1 hour).
+            serverBuilder.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
+
+            // On a fresh interactive login (authorization_code grant), revoke the
+            // user's prior refresh tokens so a second device's session ends at its
+            // next silent refresh. Reverses the 2026-05-01 multi-session deviation.
+            serverBuilder.AddEventHandler<HandleTokenRequestContext>(builder =>
+                builder.UseScopedHandler<RevokePreviousSessionsHandler>());
         });
 
         if (!hostingEnvironment.IsDevelopment())
@@ -199,6 +215,10 @@ public class CaseEvaluationAuthServerModule : AbpModule
         }
 
         context.Services.ForwardIdentityAuthenticationForBearer(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
+
+        // Single-session enforcement: ensure the OpenIddict server event handler
+        // (registered via UseScopedHandler in PreConfigureServices) resolves from DI.
+        context.Services.AddScoped<RevokePreviousSessionsHandler>();
 
         Configure<AbpLocalizationOptions>(options =>
         {
@@ -303,6 +323,20 @@ public class CaseEvaluationAuthServerModule : AbpModule
         Configure<AbpDistributedCacheOptions>(options =>
         {
             options.KeyPrefix = "CaseEvaluation:";
+        });
+
+        // 2026-06-09: do not re-save static text-template definitions to the
+        // DB from this runtime host. The DbMigrator (runs to completion before
+        // api/authserver start) already seeds AbpTextTemplateDefinitionRecords.
+        // Unlike the permission/setting/feature savers, the text-template saver
+        // is NOT guarded by the distributed lock, so api + authserver booting
+        // together both INSERT and collide on the unique name index -- a
+        // duplicate-key SqlException at startup (Abp.Account.EmailConfirmationCode).
+        // Templates still resolve from the in-memory definition providers at
+        // runtime, so disabling the host-side save is safe.
+        Configure<TextTemplateManagementOptions>(options =>
+        {
+            options.SaveStaticTemplatesToDatabase = false;
         });
 
         if (!AbpStudioAnalyzeHelper.IsInAnalyzeMode)
