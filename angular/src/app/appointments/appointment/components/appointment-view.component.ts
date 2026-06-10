@@ -714,6 +714,36 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
+   * A view-page caller is "internal" when they hold none of the four external
+   * roles -- the same negation `canTakeOfficeAction` uses (isPatientUser covers
+   * Patient / AA / DA / CE). Server permission attributes remain authoritative.
+   */
+  get isInternalUser(): boolean {
+    return !this.isPatientUser;
+  }
+
+  /**
+   * B (2026-06-10): may the current user add/edit/remove accessors on THIS
+   * appointment? Internal staff always; an Applicant/Defense Attorney only when
+   * they created it (reuses the canReRequest creator-compare). Cosmetic gate for
+   * the "Add" control -- the server's EnsureCanManageAccessorsAsync is the real
+   * authority. Paralegal-ready: the paralegal feature adds `|| this.isParalegal`
+   * to the attorney branch (additive).
+   */
+  canManageAccessors(): boolean {
+    if (this.isInternalUser) {
+      return true;
+    }
+    const creatorId = this.appointment?.appointment?.creatorId;
+    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
+    return (
+      (this.isApplicantAttorney || this.isDefenseAttorney) &&
+      !!creatorId &&
+      creatorId === currentUserId
+    );
+  }
+
+  /**
    * Navigate to the booking form in re-request mode, carrying the source
    * confirmation number. The booking form auto-loads + prefills from the
    * rejected source and submits via reSubmit (which reuses the source conf #).

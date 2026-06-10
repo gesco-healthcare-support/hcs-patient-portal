@@ -59,12 +59,19 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
 
 ## Gotchas
 
-- **Mutations are gated by appointment edit-access, not by the feature permissions.**
-  Group J (2026-06-05) added `AppointmentReadAccessGuard.EnsureCanEditAsync` to
-  `Create`/`Update`/`Delete`: deny-by-default -- only an appointment editor (internal user /
-  creator / Edit-accessor) may add or change accessors, which blocks non-party
-  self-escalation. The `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}` permission
-  constants are still NOT enforced (the access-guard model is used instead); the skipped test
+- **Mutations are gated by a dedicated accessor-management rule, not by feature permissions.**
+  Workstream B (2026-06-10) replaced the Group J `EnsureCanEditAsync` gate on
+  `Create`/`Update`/`Delete` with `AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync`,
+  which composes the pure `AppointmentAccessRules.CanManageAccessors` rule: deny-by-default --
+  only an internal user OR the appointment creator who ALSO holds an authorized
+  accessor-managing external role (Applicant / Defense Attorney today; the paralegal feature
+  appends Paralegal via `BookingFlowRoles.ExternalAccessorManagerRoles`) may add or change
+  accessors. This is STRICTER than appointment edit-access: the Edit-accessor pathway is
+  intentionally dropped (an Edit-accessor may still complete/edit the form and submit
+  change-requests via the UNTOUCHED `CanEditAsync`, but may no longer self-propagate
+  accessors), and a Patient / Claim-Examiner creator is denied. The
+  `CaseEvaluation.AppointmentAccessors.{Create,Edit,Delete}` permission constants are still NOT
+  enforced (the access-guard model is used instead); the skipped test
   `CreateAsync_WhenCallerLacksCreatePermission_ShouldThrow` tracks that unused permission path.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add
   new values with explicit integer codes; do not assume zero-based ordering.

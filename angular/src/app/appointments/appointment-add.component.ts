@@ -1239,9 +1239,10 @@ export class AppointmentAddComponent {
   // OLD shows ALL three sections to the Adjuster; only the Insurance
   // fieldset is `[disabled]` and the Claim Examiner Name + Email fields
   // auto-fill from the booker identity and become readonly (OLD
-  // appointment-add.component.html:378 + :461). The methods below stay
-  // for any future role-specific gating but currently always return
-  // true for parity.
+  // appointment-add.component.html:378 + :461). The two attorney-section
+  // methods below stay for future role-specific gating but currently always
+  // return true for parity; shouldShowAuthorizedUserSection is gated as of
+  // Workstream B (see its own doc).
   shouldShowApplicantAttorneySection(): boolean {
     return true;
   }
@@ -1250,8 +1251,16 @@ export class AppointmentAddComponent {
     return true;
   }
 
+  /**
+   * B (2026-06-10): the booking-time "Additional Authorized User" section is
+   * only offered to callers who may manage accessors -- internal staff or an
+   * Applicant/Defense Attorney booker (the booker is the creator-to-be, so the
+   * creator condition is implicit during booking). Cosmetic only; the server's
+   * EnsureCanManageAccessorsAsync gate stays authoritative. Paralegal-ready: the
+   * paralegal feature adds `|| this.isParalegal` here (additive).
+   */
   shouldShowAuthorizedUserSection(): boolean {
-    return true;
+    return this.isInternalBooker || this.isApplicantAttorney || this.isDefenseAttorney;
   }
 
   /**
