@@ -82,30 +82,14 @@ public class CaseEvaluationDomainModule : AbpModule
         // text: https://www.questpdf.com/license/community.html
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
-        // Phase 2 (2026-05-11): Gotenberg sidecar typed HttpClient for the
-        // packet pipeline's DOCX -> PDF conversion. URL comes from
-        // configuration (env var `Gotenberg__Url` in docker-compose); the
-        // fallback hostname matches the gotenberg compose service so that
-        // dev stacks work without explicit env-var setup. 60s timeout
-        // accommodates LibreOffice's worst-case rendering time. If a
-        // second external HTTP integration ever lands in Domain, that is
-        // the trigger to extract these adapters into a dedicated
-        // Infrastructure.Http project.
+        // packet-renderer sidecar typed HttpClient for the packet pipeline's
+        // HTML -> fillable PDF conversion (WeasyPrint). URL from configuration
+        // (env var `PacketRenderer__Url` in docker-compose); the fallback
+        // hostname matches the packet-renderer compose service so dev stacks
+        // work without explicit env-var setup. 60s timeout matches the
+        // worst-case 15-page patient-packet render. This is the sole packet
+        // renderer -- the DOCX -> Gotenberg path was removed 2026-06-10.
         var pdfConfiguration = context.Services.GetConfiguration();
-        var gotenbergUrl = pdfConfiguration["Gotenberg:Url"] ?? "http://gotenberg:3000";
-        context.Services.AddHttpClient<IDocxToPdfConverter, GotenbergDocxToPdfConverter>(client =>
-        {
-            client.BaseAddress = new Uri(gotenbergUrl);
-            client.Timeout = TimeSpan.FromSeconds(60);
-        });
-
-        // Phase 1 (2026-06-05): packet-renderer sidecar typed HttpClient for the packet
-        // pipeline's HTML -> fillable PDF conversion (WeasyPrint). URL from configuration
-        // (env var `PacketRenderer__Url` in docker-compose); the fallback hostname matches the
-        // packet-renderer compose service so dev stacks work without explicit env-var setup.
-        // 60s timeout matches the worst-case 15-page patient-packet render. Coexists with the
-        // Gotenberg client above until the DOCX path is decommissioned (per-kind feature flag
-        // selects which converter the job uses).
         var packetRendererUrl = pdfConfiguration["PacketRenderer:Url"] ?? "http://packet-renderer:3001";
         context.Services.AddHttpClient<IHtmlPacketRenderer, WeasyPrintPacketRenderer>(client =>
         {

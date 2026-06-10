@@ -152,7 +152,7 @@ public class AppointmentReminderEmailHandler :
                 case RequiredDocumentState.Rejected:
                     items.Add($"{WebUtility.HtmlEncode(doc.Name)} (rejected - please re-upload)");
                     break;
-                // AwaitingReview: uploaded, pending staff review -- no booker action.
+                    // AwaitingReview: uploaded, pending staff review -- no booker action.
             }
         }
 

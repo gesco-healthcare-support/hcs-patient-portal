@@ -202,22 +202,6 @@
           "System.Management": "6.0.1"
         }
       },
-      "DocumentFormat.OpenXml": {
-        "type": "Transitive",
-        "resolved": "3.3.0",
-        "contentHash": "JogRPJNiE6kKvbuCqVRX691pPWeGMqdQgjrUwRYkdpfkMmtElfqAgcRR73geYj7OtBeEpstldZXXzJw27LUI9w==",
-        "dependencies": {
-          "DocumentFormat.OpenXml.Framework": "3.3.0"
-        }
-      },
-      "DocumentFormat.OpenXml.Framework": {
-        "type": "Transitive",
-        "resolved": "3.3.0",
-        "contentHash": "R5CLzEoeyr7XDB7g3NTxRobcU19agaxVAhGZm+fZUShJGiU4bw8oUgnA2BNFepigJckfFMayOBMAbV3kDXNInA==",
-        "dependencies": {
-          "System.IO.Packaging": "8.0.1"
-        }
-      },
       "Duende.IdentityModel": {
         "type": "Transitive",
         "resolved": "7.1.0",
@@ -665,25 +649,6 @@
           "OpenIddict.Abstractions": "7.2.0"
         }
       },
-      "PDFsharp": {
-        "type": "Transitive",
-        "resolved": "6.2.4",
-        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "System.Security.Cryptography.Pkcs": "8.0.1"
-        }
-      },
-      "PDFsharp-MigraDoc": {
-        "type": "Transitive",
-        "resolved": "6.2.4",
-        "contentHash": "ZlRUJaAAo4K2oMt1v02GTeGOHIOoOvcH1e1WYMpunCG1MK8jd4EBrbzSHoYSN7yOfKWFtOIUfzvmKhRGPsyWQQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "PDFsharp": "6.2.4",
-          "System.Security.Cryptography.Pkcs": "8.0.1"
-        }
-      },
       "Polly": {
         "type": "Transitive",
         "resolved": "8.6.3",
@@ -731,11 +696,6 @@
         "type": "Transitive",
         "resolved": "9.0.4",
         "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
-      },
-      "System.IO.Packaging": {
-        "type": "Transitive",
-        "resolved": "8.0.1",
-        "contentHash": "KYkIOAvPexQOLDxPO2g0BVoWInnQhPpkFzRqvNrNrMhVT6kqhVr0zEb6KCHlptLFukxnZrjuMVAnxK7pOGUYrw=="
       },
       "System.Linq.Dynamic.Core": {
         "type": "Transitive",
@@ -1693,12 +1653,9 @@
       "healthcaresupport.caseevaluation.domain": {
         "type": "Project",
         "dependencies": {
-          "DocumentFormat.OpenXml": "[3.3.0, )",
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "MailKit": "[4.16.0, )",
           "MimeKit": "[4.16.0, )",
-          "PDFsharp-MigraDoc": "[6.2.4, )",
-          "PdfSharp": "[6.2.4, )",
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.0, )",
           "Stateless": "[5.20.1, )",

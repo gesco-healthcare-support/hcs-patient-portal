@@ -18,8 +18,8 @@ FROM python:3.12-slim-trixie
 
 # WeasyPrint runtime (Pango / HarfBuzz / fontconfig) + the template font stack + curl (for the
 # compose healthcheck) + poppler-utils (in-container PDF inspection while debugging). Debian
-# contrib is enabled for the MS Core Fonts installer, whose EULA is accepted non-interactively --
-# same pattern as docker/Dockerfile.gotenberg-fonts.
+# contrib is enabled for the MS Core Fonts installer, whose EULA is accepted
+# non-interactively.
 RUN sed -i -E 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
  && apt-get install -y --no-install-recommends \

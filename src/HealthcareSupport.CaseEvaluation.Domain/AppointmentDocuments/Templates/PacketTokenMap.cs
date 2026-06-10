@@ -3,16 +3,14 @@ using System.Text.RegularExpressions;
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 
 /// <summary>
-/// Format-agnostic token plumbing shared by the DOCX and HTML packet renderers: the
+/// Format-agnostic token plumbing for the packet renderer: the
 /// <c>##Group.Field## -&gt; value</c> map built from a <see cref="PacketTokenContext"/>, the
-/// regex that recognizes a token, and the signature-placeholder constant the DOCX renderer
-/// handles as an inline image (HTML packets carry no signature token -- their signatures are
-/// blank fillable / handwritten fields).
+/// regex that recognizes a token, and the signature-placeholder constant (HTML packets carry
+/// no signature token -- their signatures are blank fillable / handwritten fields).
 ///
-/// <para>Extracted from <see cref="DocxTemplateRenderer"/> so <see cref="HtmlTemplateRenderer"/>
-/// reuses the EXACT same mapping. That is what guarantees the two pipelines emit identical
-/// token values: all uppercasing / date / multi-row formatting is done upstream by
-/// <see cref="PacketTokenResolver"/>, and both renderers read the result through this one map.</para>
+/// <para>This is the single source of truth for token values: all uppercasing / date /
+/// multi-row formatting is done upstream by the <see cref="IPacketTokenResolver"/>, and the
+/// renderer reads the result through this one map.</para>
 /// </summary>
 public static class PacketTokenMap
 {

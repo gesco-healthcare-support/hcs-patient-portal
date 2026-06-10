@@ -4,7 +4,7 @@
 
 > Purpose: Step-by-step guide to running the full Patient Portal stack via Docker Compose. Audience: developers. Last verified: 2026-06-01 vs main.
 
-Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, MinIO, MinIO bucket initializer, DbMigrator, AuthServer, HttpApi.Host, Gotenberg, Angular) into nine containers on a shared network.
+Docker Compose is the alternative to local .NET + Angular development. It packages the full stack (SQL Server, Redis, MinIO, MinIO bucket initializer, DbMigrator, AuthServer, HttpApi.Host, packet-renderer, Angular) into nine containers on a shared network.
 
 **Source of truth:** [`docker-compose.yml`](../../docker-compose.yml) at the repo root.
 
@@ -21,7 +21,7 @@ Docker Compose is the alternative to local .NET + Angular development. It packag
 | `db-migrator` | Built from `src/.../DbMigrator/Dockerfile` | -- | Runs migrations, exits |
 | `authserver` | Built from `src/.../AuthServer/Dockerfile` | `44368 -> 8080` | OpenIddict OIDC |
 | `api` | Built from `src/.../HttpApi.Host/Dockerfile` | `44327 -> 8080` | Main API |
-| `gotenberg` | Built from `docker/Dockerfile.gotenberg-fonts` | `3000 -> 3000` | DOCX to PDF conversion sidecar |
+| `packet-renderer` | Built from `docker/packet-renderer/Dockerfile` | `3001 -> 3001` | WeasyPrint HTML to fillable-PDF packet renderer |
 | `angular` | Built from `angular/Dockerfile` | `4200 -> 80` | Nginx-served SPA |
 
 Dependencies enforce the same startup order as local dev: SQL + Redis ready -> DbMigrator completes -> AuthServer healthy -> API healthy -> Angular ready.
