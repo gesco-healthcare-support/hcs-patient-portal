@@ -1677,7 +1677,6 @@
       "healthcaresupport.caseevaluation.domain": {
         "type": "Project",
         "dependencies": {
-          "DocumentFormat.OpenXml": "[3.3.0, )",
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "MailKit": "[4.16.0, )",
           "MimeKit": "[4.16.0, )",

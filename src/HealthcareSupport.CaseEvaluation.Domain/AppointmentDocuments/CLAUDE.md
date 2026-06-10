@@ -11,10 +11,10 @@ Two aggregate roots, two managers. Blobs for both live in containers declared in
 | `AppointmentDocumentManager.cs` | Upload guard (`CreateAsync`) + queued-row factory (`CreateQueuedAsync`) |
 | `AppointmentPacket.cs` | Generated-PDF aggregate; one row per (TenantId, AppointmentId, Kind) |
 | `AppointmentPacketManager.cs` | `EnsureGeneratingAsync` / `MarkGeneratedAsync` / `MarkFailedAsync` |
-| `Jobs/GenerateAppointmentPacketJob.cs` | Hangfire async job; renders DOCX template then Gotenberg -> PDF |
+| `Jobs/GenerateAppointmentPacketJob.cs` | Hangfire async job; renders HTML via the WeasyPrint packet-renderer sidecar -> fillable PDF |
 | `Handlers/PacketGenerationOnApprovedHandler.cs` | Subscribes to `AppointmentStatusChangedEto`; enqueues job on UoW commit |
-| `Templates/` | Embedded `.docx` templates (PatientPacketNew, DoctorPacket, AttorneyClaimExaminer) |
-| `Pdf/GotenbergDocxToPdfConverter.cs` | HTTP sidecar call; transport failures propagate for Hangfire retry |
+| `Templates/` | Token map, context + resolver shared by the HTML renderer (the templates themselves live in the packet-renderer sidecar, not here) |
+| `Pdf/WeasyPrintPacketRenderer.cs` | HTTP call to the packet-renderer sidecar (HTML -> fillable PDF); transport failures propagate for Hangfire retry |
 
 ## Enums (all in `Domain.Shared/AppointmentDocuments/`)
 
@@ -85,10 +85,11 @@ for any new job-enqueue paths.
 
 ### PDF replaces DOCX (parity note)
 
-OLD generated `.docx` reports. NEW renders DOCX templates then converts via Gotenberg
-(`IDocxToPdfConverter`) before persisting. Blob extension is `.pdf`. The immutability
-reason: recipients cannot edit a PDF. Report business logic (data shown, role access,
-column layout) still matches OLD exactly.
+OLD generated `.docx` reports. NEW renders HTML templates (owned by the WeasyPrint
+packet-renderer sidecar) to a fillable `.pdf` before persisting; the legacy
+DOCX -> Gotenberg path was removed 2026-06-10. The immutability reason: recipients
+cannot edit a PDF. Report business logic (data shown, role access, column layout)
+still matches OLD exactly.
 
 ### Blob containers used
 
@@ -104,7 +105,8 @@ column layout) still matches OLD exactly.
 - `GenerateAppointmentPacketJob` catches `IOException | InvalidOperationException |
   ArgumentException | AbpDbConcurrencyException` per kind and calls `MarkFailedAsync`
   WITHOUT rethrowing, so one failing kind does not block the others. Transport failures
-  from Gotenberg are NOT caught -- they propagate and let Hangfire retry the whole job.
+  from the packet-renderer sidecar are NOT caught -- they propagate and let Hangfire
+  retry the whole job.
 - Composite unique index `(TenantId, AppointmentId, Kind)` on `AppointmentPackets` is
   filtered; `EnsureGeneratingAsync` relies on it for safe upsert.
 - `PacketGeneratedEto` publish is deferred to `UoW.OnCompleted` inside the job to avoid

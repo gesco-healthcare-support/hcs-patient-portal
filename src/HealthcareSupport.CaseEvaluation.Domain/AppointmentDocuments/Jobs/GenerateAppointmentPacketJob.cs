@@ -7,7 +7,6 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
@@ -33,24 +32,20 @@ public class GenerateAppointmentPacketArgs
 /// <c>AppointmentStatusChangedEto</c> with
 /// <c>ToStatus = Approved</c>, or by the office's Regenerate button.
 ///
-/// <para>Phase 1C.6 (2026-05-08) replaced the legacy single-PDF cover-sheet
-/// merger with a multi-kind orchestrator that mirrors OLD's per-recipient
-/// fanout from <c>AppointmentDocumentDomain.AddAppointmentDocumentsAndSendDocumentToEmail</c>:</para>
+/// <para>Generates all three packet kinds for every appointment, each
+/// rendered to a fillable PDF by the WeasyPrint packet-renderer sidecar
+/// (the DOCX -&gt; Gotenberg path was removed 2026-06-10):</para>
 /// <list type="bullet">
-///   <item>Patient packet -- always generated.</item>
+///   <item>Patient packet -- always generated, emailed + saved.</item>
 ///   <item>Doctor packet -- always generated, storage-only (not emailed).</item>
-///   <item>AttorneyClaimExaminer packet -- only for PQME / PQMEREEVAL /
-///   AME / AMEREEVAL appointment types.</item>
+///   <item>AttorneyClaimExaminer packet -- always generated; the notice
+///   variant (Panel QME vs AME/IME) is chosen by appointment type.</item>
 /// </list>
 ///
 /// <para>Each kind generates in its own try/catch so a failure on one
 /// kind does not block the others. Each kind gets its own
 /// <see cref="AppointmentPacket"/> row keyed by the (TenantId,
-/// AppointmentId, Kind) composite unique index added in Phase 1A.1.</para>
-///
-/// <para>The cover-sheet PDF generator and PdfSharp merge service are kept
-/// in the codebase but no longer wired here -- they will be re-used by
-/// Phase 2's DOCX -&gt; PDF conversion path.</para>
+/// AppointmentId, Kind) composite unique index.</para>
 /// </summary>
 public class GenerateAppointmentPacketJob :
     AsyncBackgroundJob<GenerateAppointmentPacketArgs>,
@@ -60,10 +55,7 @@ public class GenerateAppointmentPacketJob :
     private readonly AppointmentPacketManager _packetManager;
     private readonly IBlobContainer<AppointmentPacketsContainer> _packetsContainer;
     private readonly IPacketTokenResolver _tokenResolver;
-    private readonly IDocxTemplateRenderer _renderer;
-    private readonly IDocxToPdfConverter _docxToPdfConverter;
     private readonly IHtmlPacketRenderer _htmlPacketRenderer;
-    private readonly IConfiguration _configuration;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILocalEventBus _localEventBus;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
@@ -74,10 +66,7 @@ public class GenerateAppointmentPacketJob :
         AppointmentPacketManager packetManager,
         IBlobContainer<AppointmentPacketsContainer> packetsContainer,
         IPacketTokenResolver tokenResolver,
-        IDocxTemplateRenderer renderer,
-        IDocxToPdfConverter docxToPdfConverter,
         IHtmlPacketRenderer htmlPacketRenderer,
-        IConfiguration configuration,
         ICurrentTenant currentTenant,
         ILocalEventBus localEventBus,
         IUnitOfWorkManager unitOfWorkManager,
@@ -87,10 +76,7 @@ public class GenerateAppointmentPacketJob :
         _packetManager = packetManager;
         _packetsContainer = packetsContainer;
         _tokenResolver = tokenResolver;
-        _renderer = renderer;
-        _docxToPdfConverter = docxToPdfConverter;
         _htmlPacketRenderer = htmlPacketRenderer;
-        _configuration = configuration;
         _currentTenant = currentTenant;
         _localEventBus = localEventBus;
         _unitOfWorkManager = unitOfWorkManager;
@@ -140,26 +126,21 @@ public class GenerateAppointmentPacketJob :
     private async Task GenerateKindAsync(Guid appointmentId, PacketKind kind, PacketTokenContext context)
     {
         var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
-        // Phase 2 (2026-05-11): blob extension is .pdf, not .docx --
-        // the renderer still emits DOCX but Gotenberg converts it before
-        // we persist. PacketAttachmentProvider.PdfContentType matches.
+        // The WeasyPrint sidecar returns a final PDF; the blob extension is
+        // .pdf and PacketAttachmentProvider.PdfContentType matches.
         var blobName = $"{tenantSegment}/{appointmentId}/packet/{kind.ToString().ToLowerInvariant()}/{Guid.NewGuid():N}.pdf";
 
         var packet = await _packetManager.EnsureGeneratingAsync(_currentTenant.Id, appointmentId, kind, blobName);
 
         try
         {
-            // Phase 1 (2026-06-05): per-kind pipeline selection (Packets:HtmlPipeline:* flags,
-            // default DOCX->Gotenberg). Both paths return final PDF bytes and are stored /
-            // published identically. Transport / timeout failures from either converter
-            // intentionally propagate -- they are NOT in the per-kind catch filter below, so
-            // Hangfire's retry policy re-runs the whole job; only permanent rendering failures
-            // (IOException / InvalidOperationException / ArgumentException) get marked Failed
+            // Render via the WeasyPrint packet-renderer sidecar. Transport /
+            // timeout failures intentionally propagate -- they are NOT in the
+            // per-kind catch filter below, so Hangfire's retry policy re-runs
+            // the whole job; only permanent rendering failures (IOException /
+            // InvalidOperationException / ArgumentException) get marked Failed
             // without retry.
-            var useHtml = UseHtmlPipeline(kind);
-            var pdfBytes = useHtml
-                ? await RenderHtmlPacketAsync(kind, context)
-                : await RenderDocxPacketAsync(kind, context);
+            var pdfBytes = await RenderHtmlPacketAsync(kind, context);
 
             using var ms = new MemoryStream(pdfBytes);
             await _packetsContainer.SaveAsync(blobName, ms, overrideExisting: true);
@@ -203,8 +184,8 @@ public class GenerateAppointmentPacketJob :
             }
 
             _logger.LogInformation(
-                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated via {Pipeline} ({PdfBytes} bytes PDF); PacketGeneratedEto published.",
-                appointmentId, kind, useHtml ? "HTML" : "DOCX", pdfBytes.Length);
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({PdfBytes} bytes PDF); PacketGeneratedEto published.",
+                appointmentId, kind, pdfBytes.Length);
         }
         // BUG-036 sub-bug 3 (defense-in-depth): include AbpDbConcurrencyException.
         // EF Core 8+ misclassifies SqlException 2601 on batched INSERT as
@@ -231,29 +212,7 @@ public class GenerateAppointmentPacketJob :
     }
 
     /// <summary>
-    /// Returns true when the given kind should render through the HTML -> WeasyPrint pipeline.
-    /// Driven by the per-kind config flags (env vars
-    /// <c>Packets__HtmlPipeline__{Patient,Doctor,Attorney}</c> in docker-compose), all defaulting
-    /// to false (DOCX -> Gotenberg) so the cutover is opt-in per kind with instant rollback.
-    /// </summary>
-    private bool UseHtmlPipeline(PacketKind kind) => kind switch
-    {
-        PacketKind.Patient => _configuration.GetValue("Packets:HtmlPipeline:Patient", false),
-        PacketKind.Doctor => _configuration.GetValue("Packets:HtmlPipeline:Doctor", false),
-        PacketKind.AttorneyClaimExaminer => _configuration.GetValue("Packets:HtmlPipeline:Attorney", false),
-        _ => false,
-    };
-
-    /// <summary>DOCX pipeline: fill the embedded OpenXml template, then convert via Gotenberg.</summary>
-    private async Task<byte[]> RenderDocxPacketAsync(PacketKind kind, PacketTokenContext context)
-    {
-        var templateBytes = EmbeddedTemplateResources.LoadTemplate(kind);
-        var docxBytes = _renderer.Render(templateBytes, context);
-        return await _docxToPdfConverter.ConvertAsync(docxBytes);
-    }
-
-    /// <summary>
-    /// HTML pipeline: build the shared token map and POST {template, tokens} to the packet-renderer
+    /// Build the shared token map and POST {template, tokens} to the packet-renderer
     /// sidecar (which owns the templates). The AttorneyClaimExaminer kind selects its notice variant
     /// by appointment type (see <see cref="HtmlTemplateName"/>).
     /// </summary>

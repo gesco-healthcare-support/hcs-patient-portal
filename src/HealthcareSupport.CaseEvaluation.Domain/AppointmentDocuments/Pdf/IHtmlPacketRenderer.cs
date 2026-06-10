@@ -5,15 +5,15 @@ using System.Threading.Tasks;
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Pdf;
 
 /// <summary>
-/// Phase 1 (2026-06-05) -- renders a named packet template to a fillable PDF via the
-/// packet-renderer (WeasyPrint) sidecar, the HTML counterpart to <see cref="IDocxToPdfConverter"/>.
+/// Renders a named packet template to a fillable PDF via the packet-renderer
+/// (WeasyPrint) sidecar. This is the sole packet renderer.
 ///
-/// <para>Unlike the DOCX path, the HTML templates are NOT embedded in this app: the sidecar owns
+/// <para>The HTML templates are NOT embedded in this app: the sidecar owns
 /// them (its generators are the single source of truth). This client sends only the template
 /// <em>name</em> plus the resolved <c>##Group.Field## -&gt; value</c> token map (built by
 /// <see cref="Templates.PacketTokenMap"/>); the sidecar substitutes the tokens and renders.
 /// Called from <see cref="Jobs.GenerateAppointmentPacketJob"/>; the returned PDF is persisted /
-/// downloaded / emailed exactly like the DOCX path's output.</para>
+/// downloaded / emailed.</para>
 /// </summary>
 public interface IHtmlPacketRenderer
 {

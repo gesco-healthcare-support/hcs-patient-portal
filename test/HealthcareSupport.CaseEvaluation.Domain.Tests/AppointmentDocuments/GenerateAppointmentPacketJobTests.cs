@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
@@ -10,7 +9,6 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Enums;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -26,10 +24,17 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
 /// <summary>
-/// BUG-036 sub-bug 3 (defense-in-depth): the per-kind catch filter inside
-/// <c>GenerateAppointmentPacketJob.GenerateKindAsync</c> must catch
-/// <see cref="AbpDbConcurrencyException"/> alongside the existing
-/// IOException / InvalidOperationException / ArgumentException family.
+/// Unit tests for <see cref="GenerateAppointmentPacketJob"/>. All packets
+/// render through the WeasyPrint packet-renderer sidecar
+/// (<see cref="IHtmlPacketRenderer"/>); the DOCX -> Gotenberg path was removed
+/// 2026-06-10. Coverage:
+/// <list type="bullet">
+///   <item>the per-kind catch filter (incl. AbpDbConcurrencyException --
+///   BUG-036 sub-bug 3) marks the kind Failed without propagating to
+///   Hangfire;</item>
+///   <item>all-success generates the 3 kinds with no Failed marks;</item>
+///   <item>AttorneyClaimExaminer notice selection (Panel QME vs AME/IME).</item>
+/// </list>
 /// </summary>
 public class GenerateAppointmentPacketJobTests
 {
@@ -65,12 +70,12 @@ public class GenerateAppointmentPacketJobTests
     }
 
     [Fact]
-    public async Task GenerateKindAsync_WhenRendererThrowsInvalidOperation_StillCaught()
+    public async Task GenerateKindAsync_WhenHtmlRendererThrowsInvalidOperation_StillCaught()
     {
         var fixture = new JobFixture();
-        fixture.Renderer
-            .Render(Arg.Any<byte[]>(), Arg.Any<PacketTokenContext>())
-            .Returns(_ => throw new InvalidOperationException("template render failure"));
+        fixture.PacketRenderer
+            .RenderAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("template render failure"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull();
@@ -95,27 +100,9 @@ public class GenerateAppointmentPacketJobTests
     }
 
     [Fact]
-    public async Task DoctorFlagOn_RoutesDoctorThroughHtml_OthersThroughDocx()
+    public async Task AttorneyPacket_PanelQmeType_RequestsPqmeTemplate()
     {
-        var fixture = new JobFixture(htmlDoctor: true);
-
-        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        ex.ShouldBeNull();
-
-        // Only the Doctor kind takes the HTML pipeline (sidecar renderer); Patient +
-        // AttorneyClaimExaminer stay on the DOCX -> Gotenberg converter. All three mark Generated.
-        await fixture.PacketRenderer.Received(1).RenderAsync(
-            PacketTemplateNames.Doctor,
-            Arg.Any<IReadOnlyDictionary<string, string>>(),
-            Arg.Any<CancellationToken>());
-        await fixture.Converter.Received(2).ConvertAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
-        await fixture.PacketManager.Received(3).MarkGeneratedAsync(Arg.Any<Guid>(), Arg.Any<string?>());
-    }
-
-    [Fact]
-    public async Task AttorneyFlagOn_PanelQmeType_RequestsPqmeTemplate()
-    {
-        var fixture = new JobFixture(htmlAttorney: true, appointmentType: "PANEL QME");
+        var fixture = new JobFixture(appointmentType: "PANEL QME");
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull();
@@ -128,9 +115,9 @@ public class GenerateAppointmentPacketJobTests
     }
 
     [Fact]
-    public async Task AttorneyFlagOn_NonPanelType_RequestsAmeImeTemplate()
+    public async Task AttorneyPacket_NonPanelType_RequestsAmeImeTemplate()
     {
-        var fixture = new JobFixture(htmlAttorney: true, appointmentType: "AGREED MEDICAL EXAMINATION (AME)");
+        var fixture = new JobFixture(appointmentType: "AGREED MEDICAL EXAMINATION (AME)");
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
         ex.ShouldBeNull();
@@ -148,24 +135,16 @@ public class GenerateAppointmentPacketJobTests
         public AppointmentPacketManager PacketManager { get; }
         public IBlobContainer<AppointmentPacketsContainer> Container { get; }
         public IPacketTokenResolver TokenResolver { get; }
-        public IDocxTemplateRenderer Renderer { get; }
-        public IDocxToPdfConverter Converter { get; }
         public IHtmlPacketRenderer PacketRenderer { get; }
-        public IConfiguration Configuration { get; }
         public ICurrentTenant CurrentTenant { get; }
         public ILocalEventBus EventBus { get; }
         public IUnitOfWorkManager UnitOfWorkManager { get; }
         public GenerateAppointmentPacketJob Job { get; }
         public GenerateAppointmentPacketArgs Args { get; }
 
-        // Flags default to false (DOCX) so the legacy-path tests above need no arguments; the
-        // routing tests opt a single kind into the HTML pipeline and set the appointment type
-        // that drives AttorneyCE notice selection.
-        public JobFixture(
-            bool htmlPatient = false,
-            bool htmlDoctor = false,
-            bool htmlAttorney = false,
-            string appointmentType = "")
+        // appointmentType drives the AttorneyCE notice selection (Panel QME vs
+        // AME/IME); default empty exercises the AME/IME path.
+        public JobFixture(string appointmentType = "")
         {
             AppointmentRepository = Substitute.For<IRepository<Appointment, Guid>>();
 
@@ -191,29 +170,12 @@ public class GenerateAppointmentPacketJobTests
             TokenResolver.ResolveAsync(Arg.Any<Guid>())
                 .Returns(new PacketTokenContext { AppointmentType = appointmentType });
 
-            Renderer = Substitute.For<IDocxTemplateRenderer>();
-            Renderer.Render(Arg.Any<byte[]>(), Arg.Any<PacketTokenContext>())
-                .Returns(new byte[] { 0x00 });
-
-            Converter = Substitute.For<IDocxToPdfConverter>();
-            Converter.ConvertAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
-                .Returns(new byte[] { 0x00 });
-
             PacketRenderer = Substitute.For<IHtmlPacketRenderer>();
             PacketRenderer.RenderAsync(
                     Arg.Any<string>(),
                     Arg.Any<IReadOnlyDictionary<string, string>>(),
                     Arg.Any<CancellationToken>())
                 .Returns(new byte[] { 0x00 });
-
-            Configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Packets:HtmlPipeline:Patient"] = htmlPatient ? "true" : "false",
-                    ["Packets:HtmlPipeline:Doctor"] = htmlDoctor ? "true" : "false",
-                    ["Packets:HtmlPipeline:Attorney"] = htmlAttorney ? "true" : "false",
-                })
-                .Build();
 
             CurrentTenant = Substitute.For<ICurrentTenant>();
             CurrentTenant.Id.Returns(TenantId);
@@ -232,10 +194,7 @@ public class GenerateAppointmentPacketJobTests
                 PacketManager,
                 Container,
                 TokenResolver,
-                Renderer,
-                Converter,
                 PacketRenderer,
-                Configuration,
                 CurrentTenant,
                 EventBus,
                 UnitOfWorkManager,
@@ -248,9 +207,9 @@ public class GenerateAppointmentPacketJobTests
             };
         }
 
-        // F5 (2026-05-29): the job now generates all three packet kinds for
-        // every appointment type, so each scenario below exercises 3 kinds
-        // (Patient, Doctor, AttorneyClaimExaminer) -- hence Received(3).
+        // F5 (2026-05-29): the job generates all three packet kinds for every
+        // appointment type, so each scenario exercises 3 kinds (Patient,
+        // Doctor, AttorneyClaimExaminer) -- hence Received(3).
 
         private static Appointment BuildAppointmentStub()
         {
