@@ -438,6 +438,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.AppointmentMaxTimePQME).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentMaxTimePQME));
             b.Property(x => x.AppointmentMaxTimeAME).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentMaxTimeAME));
             b.Property(x => x.AppointmentMaxTimeOTHER).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentMaxTimeOTHER));
+            b.Property(x => x.AppointmentMaxTimeInternal).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentMaxTimeInternal));
             b.Property(x => x.AppointmentCancelTime).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentCancelTime));
             b.Property(x => x.AppointmentDueDays).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentDueDays));
             b.Property(x => x.AppointmentDurationTime).HasColumnName(nameof(HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter.AppointmentDurationTime));

@@ -570,6 +570,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AppointmentMaxTimePQME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimePQME));
             b.Property(x => x.AppointmentMaxTimeAME).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeAME));
             b.Property(x => x.AppointmentMaxTimeOTHER).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeOTHER));
+            b.Property(x => x.AppointmentMaxTimeInternal).HasColumnName(nameof(SystemParameter.AppointmentMaxTimeInternal));
             b.Property(x => x.AppointmentCancelTime).HasColumnName(nameof(SystemParameter.AppointmentCancelTime));
             b.Property(x => x.AppointmentDueDays).HasColumnName(nameof(SystemParameter.AppointmentDueDays));
             b.Property(x => x.AppointmentDurationTime).HasColumnName(nameof(SystemParameter.AppointmentDurationTime));

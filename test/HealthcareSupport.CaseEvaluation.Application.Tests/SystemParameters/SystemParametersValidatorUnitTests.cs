@@ -90,6 +90,7 @@ public class SystemParametersValidatorUnitTests
             (d, v) => d.AppointmentMaxTimePQME = v,
             (d, v) => d.AppointmentMaxTimeAME = v,
             (d, v) => d.AppointmentMaxTimeOTHER = v,
+            (d, v) => d.AppointmentMaxTimeInternal = v,
             (d, v) => d.AppointmentCancelTime = v,
             (d, v) => d.AppointmentDueDays = v,
             (d, v) => d.AppointmentDurationTime = v,
@@ -146,7 +147,7 @@ public class SystemParametersValidatorUnitTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void ApplyUpdate_CopiesAll13UserEditableFields()
+    public void ApplyUpdate_CopiesAll14UserEditableFields()
     {
         var entity = NewEntityWithDefaults(out var originalId, out var originalTenant);
 
@@ -156,6 +157,7 @@ public class SystemParametersValidatorUnitTests
             AppointmentMaxTimePQME = 75,
             AppointmentMaxTimeAME = 100,
             AppointmentMaxTimeOTHER = 80,
+            AppointmentMaxTimeInternal = 90,
             AppointmentCancelTime = 5,
             AppointmentDueDays = 21,
             AppointmentDurationTime = 45,
@@ -170,11 +172,12 @@ public class SystemParametersValidatorUnitTests
 
         SystemParametersAppService.ApplyUpdate(dto, entity);
 
-        // 13 fields copied
+        // 14 fields copied
         entity.AppointmentLeadTime.ShouldBe(7);
         entity.AppointmentMaxTimePQME.ShouldBe(75);
         entity.AppointmentMaxTimeAME.ShouldBe(100);
         entity.AppointmentMaxTimeOTHER.ShouldBe(80);
+        entity.AppointmentMaxTimeInternal.ShouldBe(90);
         entity.AppointmentCancelTime.ShouldBe(5);
         entity.AppointmentDueDays.ShouldBe(21);
         entity.AppointmentDurationTime.ShouldBe(45);
@@ -214,6 +217,7 @@ public class SystemParametersValidatorUnitTests
         AppointmentMaxTimePQME = SystemParameterConsts.DefaultAppointmentMaxTimePQME,
         AppointmentMaxTimeAME = SystemParameterConsts.DefaultAppointmentMaxTimeAME,
         AppointmentMaxTimeOTHER = SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+        AppointmentMaxTimeInternal = SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
         AppointmentCancelTime = SystemParameterConsts.DefaultAppointmentCancelTime,
         AppointmentDueDays = SystemParameterConsts.DefaultAppointmentDueDays,
         AppointmentDurationTime = SystemParameterConsts.DefaultAppointmentDurationTime,
@@ -237,6 +241,7 @@ public class SystemParametersValidatorUnitTests
             appointmentMaxTimePQME: SystemParameterConsts.DefaultAppointmentMaxTimePQME,
             appointmentMaxTimeAME: SystemParameterConsts.DefaultAppointmentMaxTimeAME,
             appointmentMaxTimeOTHER: SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+            appointmentMaxTimeInternal: SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
             appointmentCancelTime: SystemParameterConsts.DefaultAppointmentCancelTime,
             appointmentDueDays: SystemParameterConsts.DefaultAppointmentDueDays,
             appointmentDurationTime: SystemParameterConsts.DefaultAppointmentDurationTime,

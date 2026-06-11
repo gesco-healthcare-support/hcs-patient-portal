@@ -35,6 +35,9 @@ public class SystemParameterUpdateDto : IHasConcurrencyStamp
     public int AppointmentMaxTimeOTHER { get; set; }
 
     [Range(1, int.MaxValue)]
+    public int AppointmentMaxTimeInternal { get; set; }
+
+    [Range(1, int.MaxValue)]
     public int AppointmentCancelTime { get; set; }
 
     [Range(1, int.MaxValue)]

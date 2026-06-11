@@ -6,6 +6,7 @@ export interface SystemParameterDto extends FullAuditedEntityDto<string> {
   appointmentMaxTimePQME?: number;
   appointmentMaxTimeAME?: number;
   appointmentMaxTimeOTHER?: number;
+  appointmentMaxTimeInternal?: number;
   appointmentCancelTime?: number;
   appointmentDueDays?: number;
   appointmentDurationTime?: number;
@@ -23,6 +24,7 @@ export interface SystemParameterUpdateDto {
   appointmentMaxTimePQME?: number;
   appointmentMaxTimeAME?: number;
   appointmentMaxTimeOTHER?: number;
+  appointmentMaxTimeInternal?: number;
   appointmentCancelTime?: number;
   appointmentDueDays?: number;
   appointmentDurationTime?: number;

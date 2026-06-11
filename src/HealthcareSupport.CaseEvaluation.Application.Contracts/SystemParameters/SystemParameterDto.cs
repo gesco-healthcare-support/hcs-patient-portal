@@ -7,7 +7,7 @@ namespace HealthcareSupport.CaseEvaluation.SystemParameters;
 
 /// <summary>
 /// Read DTO for the per-tenant <c>SystemParameter</c> singleton. Surfaces all
-/// 13 fields IT Admin can manage (12 ints + 1 bool toggle + nullable
+/// 14 fields IT Admin can manage (12 ints + 1 bool toggle + nullable
 /// CcEmailIds free-text). Carries <see cref="ConcurrencyStamp"/> so the
 /// client can round-trip it on update for optimistic concurrency.
 ///
@@ -24,6 +24,7 @@ public class SystemParameterDto : FullAuditedEntityDto<Guid>, IHasConcurrencySta
     public int AppointmentMaxTimePQME { get; set; }
     public int AppointmentMaxTimeAME { get; set; }
     public int AppointmentMaxTimeOTHER { get; set; }
+    public int AppointmentMaxTimeInternal { get; set; }
     public int AppointmentCancelTime { get; set; }
     public int AppointmentDueDays { get; set; }
     public int AppointmentDurationTime { get; set; }

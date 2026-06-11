@@ -135,7 +135,13 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
                 typeof(HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability),
                 input.NewDoctorAvailabilityId);
         }
-        await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId);
+        // 2026-06-11 -- role-aware horizon, same as the booking flow: a
+        // reschedule re-picks a slot date, so an external requester is bound
+        // by the per-type horizon (60) and internal staff by the internal
+        // horizon (90). Without this, an external user could reschedule past
+        // the 60-day window the create flow enforces.
+        var isInternalRescheduler = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+        await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId, isInternalRescheduler);
 
         var changeRequest = await _manager.SubmitRescheduleAsync(
             appointmentId: appointmentId,

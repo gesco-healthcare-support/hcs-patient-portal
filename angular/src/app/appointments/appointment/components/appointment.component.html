@@ -318,6 +318,16 @@
                   | abpLocalization)
                 : ''
             }}
+            @if (decisionBadge(row); as badge) {
+              <span
+                class="badge ms-1"
+                [class.bg-danger]="badge.overdue"
+                [class.bg-warning]="!badge.overdue"
+                [class.text-dark]="!badge.overdue"
+              >
+                {{ badge.text }}
+              </span>
+            }
           </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.lastName">

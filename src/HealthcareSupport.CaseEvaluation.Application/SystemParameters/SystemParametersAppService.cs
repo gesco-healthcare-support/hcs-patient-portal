@@ -86,7 +86,7 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
     /// but the entity intentionally keeps its constructor protected to
     /// enforce the singleton-per-tenant invariant (only
     /// <c>SystemParameterDataSeedContributor</c> may instantiate rows).
-    /// 13 explicit assignments is clearer than fighting the source-gen
+    /// 14 explicit assignments is clearer than fighting the source-gen
     /// constraint and matches the user-editable surface verbatim.
     /// Internal so unit tests can verify the field copy without ABP infra.
     /// </summary>
@@ -96,6 +96,7 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         destination.AppointmentMaxTimePQME = source.AppointmentMaxTimePQME;
         destination.AppointmentMaxTimeAME = source.AppointmentMaxTimeAME;
         destination.AppointmentMaxTimeOTHER = source.AppointmentMaxTimeOTHER;
+        destination.AppointmentMaxTimeInternal = source.AppointmentMaxTimeInternal;
         destination.AppointmentCancelTime = source.AppointmentCancelTime;
         destination.AppointmentDueDays = source.AppointmentDueDays;
         destination.AppointmentDurationTime = source.AppointmentDurationTime;
@@ -124,6 +125,7 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         Check.Range(input.AppointmentMaxTimePQME, nameof(input.AppointmentMaxTimePQME), 1, int.MaxValue);
         Check.Range(input.AppointmentMaxTimeAME, nameof(input.AppointmentMaxTimeAME), 1, int.MaxValue);
         Check.Range(input.AppointmentMaxTimeOTHER, nameof(input.AppointmentMaxTimeOTHER), 1, int.MaxValue);
+        Check.Range(input.AppointmentMaxTimeInternal, nameof(input.AppointmentMaxTimeInternal), 1, int.MaxValue);
         Check.Range(input.AppointmentCancelTime, nameof(input.AppointmentCancelTime), 1, int.MaxValue);
         Check.Range(input.AppointmentDueDays, nameof(input.AppointmentDueDays), 1, int.MaxValue);
         Check.Range(input.AppointmentDurationTime, nameof(input.AppointmentDurationTime), 1, int.MaxValue);

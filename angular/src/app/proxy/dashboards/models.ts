@@ -5,6 +5,7 @@ export interface DashboardCountersDto {
   rejectedThisWeek?: number;
   pendingChangeRequests?: number;
   requestsApproachingLegalDeadline?: number;
+  decisionOverdue?: number;
   billedThisMonth?: number;
   noShowThisMonth?: number;
   rescheduledThisMonth?: number;

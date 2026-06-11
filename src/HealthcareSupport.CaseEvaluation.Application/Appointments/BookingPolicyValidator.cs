@@ -46,16 +46,23 @@ public class BookingPolicyValidator : ITransientDependency
     /// <summary>
     /// Throws <see cref="BusinessException"/> when the slot's
     /// <paramref name="slotDate"/> falls inside the lead-time window or
-    /// past the per-AppointmentType max horizon. Resolves the max-time from
-    /// the type's <see cref="AppointmentType.MaxTimeCategory"/> via
-    /// <see cref="AppointmentBookingValidators.ResolveMaxTimeDaysForType"/>
-    /// (data-driven PQME / AME / OTHER horizons).
+    /// past the applicable max horizon.
+    ///
+    /// The max horizon is role-aware (2026-06-11): external callers are
+    /// bound by the per-<see cref="AppointmentType.MaxTimeCategory"/> horizon
+    /// (data-driven PQME / AME / OTHER, default 60) via
+    /// <see cref="AppointmentBookingValidators.ResolveMaxTimeDaysForType"/>;
+    /// internal-staff callers (<paramref name="isInternalCaller"/> = true)
+    /// are bound by the single <see cref="SystemParameter.AppointmentMaxTimeInternal"/>
+    /// horizon (default 90), which is the absolute ceiling -- no caller books
+    /// beyond it. The caller resolves the role flag from
+    /// <c>BookingFlowRoles.IsInternalUserCaller</c>.
     ///
     /// Uses <see cref="DateTime.Today"/> for the comparison anchor;
     /// callers in tests can swap by extracting the static helper
     /// <see cref="EvaluateBookingPolicy"/>.
     /// </summary>
-    public virtual async Task ValidateAsync(DateTime slotDate, Guid appointmentTypeId)
+    public virtual async Task ValidateAsync(DateTime slotDate, Guid appointmentTypeId, bool isInternalCaller)
     {
         var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
         if (systemParameter == null)
@@ -70,7 +77,7 @@ public class BookingPolicyValidator : ITransientDependency
 
         var appointmentType = await _appointmentTypeRepository.GetAsync(appointmentTypeId);
 
-        var result = EvaluateBookingPolicy(slotDate, DateTime.Today, appointmentType.MaxTimeCategory, systemParameter);
+        var result = EvaluateBookingPolicy(slotDate, DateTime.Today, appointmentType.MaxTimeCategory, systemParameter, isInternalCaller);
         switch (result.Outcome)
         {
             case BookingPolicyOutcome.Allowed:
@@ -95,12 +102,19 @@ public class BookingPolicyValidator : ITransientDependency
     /// exercise every branch without standing up the full ABP harness
     /// (matches the Phase 3 / 5 / 6 / 7 / 11a pattern). Callers pass
     /// <c>DateTime.Today</c> from production; tests pass a fixed anchor.
+    ///
+    /// <paramref name="isInternalCaller"/> selects the max horizon: internal
+    /// staff use <see cref="SystemParameter.AppointmentMaxTimeInternal"/>
+    /// (90); external callers use the per-type horizon (60). Defaults to the
+    /// external path so the pure helper never silently grants the wider
+    /// internal window -- production always passes the resolved role flag.
     /// </summary>
     internal static BookingPolicyResult EvaluateBookingPolicy(
         DateTime slotDate,
         DateTime today,
         AppointmentMaxTimeCategory? maxTimeCategory,
-        SystemParameter systemParameter)
+        SystemParameter systemParameter,
+        bool isInternalCaller = false)
     {
         if (systemParameter == null) throw new ArgumentNullException(nameof(systemParameter));
 
@@ -112,7 +126,9 @@ public class BookingPolicyValidator : ITransientDependency
             return new BookingPolicyResult(BookingPolicyOutcome.InsideLeadTime, systemParameter.AppointmentLeadTime);
         }
 
-        var maxDays = AppointmentBookingValidators.ResolveMaxTimeDaysForType(maxTimeCategory, systemParameter);
+        var maxDays = isInternalCaller
+            ? systemParameter.AppointmentMaxTimeInternal
+            : AppointmentBookingValidators.ResolveMaxTimeDaysForType(maxTimeCategory, systemParameter);
         if (!AppointmentBookingValidators.IsSlotWithinMaxTime(slotDate, today, maxDays))
         {
             return new BookingPolicyResult(BookingPolicyOutcome.PastMaxHorizon, maxDays);

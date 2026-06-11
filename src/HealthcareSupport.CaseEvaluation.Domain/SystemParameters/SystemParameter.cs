@@ -31,6 +31,14 @@ public class SystemParameter : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Max booking horizon (days) for OTHER appointments.</summary>
     public virtual int AppointmentMaxTimeOTHER { get; set; }
 
+    /// <summary>
+    /// Max booking horizon (days) for internal-staff callers, regardless of appointment type.
+    /// External users remain bound by the per-type <c>AppointmentMaxTime{PQME,AME,OTHER}</c>
+    /// horizon; internal staff may book up to this value. This is the absolute ceiling --
+    /// no caller books beyond it (2026-06-11).
+    /// </summary>
+    public virtual int AppointmentMaxTimeInternal { get; set; }
+
     /// <summary>Minimum (days) between today and the slot to allow a cancellation request.</summary>
     public virtual int AppointmentCancelTime { get; set; }
 
@@ -70,6 +78,7 @@ public class SystemParameter : FullAuditedAggregateRoot<Guid>, IMultiTenant
         int appointmentMaxTimePQME,
         int appointmentMaxTimeAME,
         int appointmentMaxTimeOTHER,
+        int appointmentMaxTimeInternal,
         int appointmentCancelTime,
         int appointmentDueDays,
         int appointmentDurationTime,
@@ -86,6 +95,7 @@ public class SystemParameter : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.Range(appointmentMaxTimePQME, nameof(appointmentMaxTimePQME), 1, int.MaxValue);
         Check.Range(appointmentMaxTimeAME, nameof(appointmentMaxTimeAME), 1, int.MaxValue);
         Check.Range(appointmentMaxTimeOTHER, nameof(appointmentMaxTimeOTHER), 1, int.MaxValue);
+        Check.Range(appointmentMaxTimeInternal, nameof(appointmentMaxTimeInternal), 1, int.MaxValue);
         Check.Range(appointmentCancelTime, nameof(appointmentCancelTime), 1, int.MaxValue);
         Check.Range(appointmentDueDays, nameof(appointmentDueDays), 1, int.MaxValue);
         Check.Range(appointmentDurationTime, nameof(appointmentDurationTime), 1, int.MaxValue);
@@ -97,6 +107,7 @@ public class SystemParameter : FullAuditedAggregateRoot<Guid>, IMultiTenant
         AppointmentMaxTimePQME = appointmentMaxTimePQME;
         AppointmentMaxTimeAME = appointmentMaxTimeAME;
         AppointmentMaxTimeOTHER = appointmentMaxTimeOTHER;
+        AppointmentMaxTimeInternal = appointmentMaxTimeInternal;
         AppointmentCancelTime = appointmentCancelTime;
         AppointmentDueDays = appointmentDueDays;
         AppointmentDurationTime = appointmentDurationTime;
