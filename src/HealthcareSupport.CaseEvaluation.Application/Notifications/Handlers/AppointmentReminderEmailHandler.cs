@@ -122,9 +122,18 @@ public class AppointmentReminderEmailHandler :
                 ["ClinicName"] = _currentTenant.Name ?? string.Empty,
             };
 
+            // Paralegal-on-behalf-of-attorney (2026-06-10, D1): To-anchor is the
+            // booker's PRINCIPAL (the represented attorney when a paralegal booked;
+            // the booker unchanged otherwise).
+            var principalEmail = BookerCcDispatcher.ResolvePrincipalEmail(
+                ctx.BookerEmail,
+                ctx.ApplicantParalegalEmail,
+                ctx.ApplicantAttorneyEmail,
+                ctx.DefenseParalegalEmail,
+                ctx.DefenseAttorneyEmail);
             await _bookerCcDispatcher.DispatchToBookerWithCcAsync(
                 templateCode: NotificationTemplateConsts.Codes.AppointmentDueDateReminder,
-                bookerEmail: ctx.BookerEmail,
+                bookerEmail: principalEmail,
                 stakeholders: stakeholders,
                 variables: variables,
                 contextTag: $"AppointmentReminder/T-{eventData.DaysUntilDue}/{eventData.AppointmentId}");
@@ -209,6 +218,11 @@ public class AppointmentReminderEmailHandler :
     /// </summary>
     private static string ResolveGreetingName(DocumentEmailContext ctx)
     {
+        // T17 (paralegal): when a paralegal booked, greet the represented attorney.
+        if (!string.IsNullOrWhiteSpace(ctx.PrincipalAttorneyName))
+        {
+            return ctx.PrincipalAttorneyName;
+        }
         if (!string.IsNullOrWhiteSpace(ctx.BookerFullName))
         {
             return ctx.BookerFullName;

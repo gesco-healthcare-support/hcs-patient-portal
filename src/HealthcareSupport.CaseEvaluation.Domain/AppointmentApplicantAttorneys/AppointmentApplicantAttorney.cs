@@ -25,6 +25,20 @@ public class AppointmentApplicantAttorney : FullAuditedAggregateRoot<Guid>, IMul
 
     public Guid? IdentityUserId { get; set; }
 
+    // Paralegal delegate (2026-06-10, Phase 1): an optional paralegal who books /
+    // manages the applicant side on the attorney's behalf. Denormalized name+email
+    // live here (there is no paralegal master entity, by design D2);
+    // ParalegalIdentityUserId is backfilled when the invited paralegal registers
+    // (ExternalSignupAppService.AutoLinkParalegalAsync), mirroring the attorney's
+    // own IdentityUserId backfill. All nullable: most bookings carry no paralegal.
+    public string? ParalegalEmail { get; set; }
+
+    public string? ParalegalFirstName { get; set; }
+
+    public string? ParalegalLastName { get; set; }
+
+    public Guid? ParalegalIdentityUserId { get; set; }
+
     protected AppointmentApplicantAttorney()
     {
     }

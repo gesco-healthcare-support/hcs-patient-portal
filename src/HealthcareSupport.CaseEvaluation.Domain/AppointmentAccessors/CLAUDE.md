@@ -64,9 +64,10 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   `Create`/`Update`/`Delete` with `AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync`,
   which composes the pure `AppointmentAccessRules.CanManageAccessors` rule: deny-by-default --
   only an internal user OR the appointment creator who ALSO holds an authorized
-  accessor-managing external role (Applicant / Defense Attorney today; the paralegal feature
-  appends Paralegal via `BookingFlowRoles.ExternalAccessorManagerRoles`) may add or change
-  accessors. This is STRICTER than appointment edit-access: the Edit-accessor pathway is
+  accessor-managing external role (Applicant Attorney / Defense Attorney / Paralegal -- the last
+  added by the paralegal-on-behalf-of-attorney feature, 2026-06-10, via
+  `BookingFlowRoles.ExternalAccessorManagerRoles`; the rule + guard were unchanged) may add or
+  change accessors. This is STRICTER than appointment edit-access: the Edit-accessor pathway is
   intentionally dropped (an Edit-accessor may still complete/edit the form and submit
   change-requests via the UNTOUCHED `CanEditAsync`, but may no longer self-propagate
   accessors), and a Patient / Claim-Examiner creator is denied. The

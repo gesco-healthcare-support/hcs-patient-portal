@@ -615,12 +615,24 @@ export class AppointmentViewComponent implements OnInit {
     return roles.some((r: string) => r?.toLowerCase() === 'defense attorney');
   }
 
+  // 2026-06-10 (paralegal-on-behalf-of-attorney): the booker-paralegal who acts
+  // for an attorney. Mirrors the attorney getters; used by canManageAccessors.
+  get isParalegal(): boolean {
+    const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'paralegal');
+  }
+
   /**
    * Returns true if the current user holds any external role (Patient,
-   * Applicant Attorney, Defense Attorney, Claim Examiner). Used by
+   * Applicant Attorney, Defense Attorney, Claim Examiner, Paralegal). Used by
    * `isReadOnly` to decide whether view-page form fields are locked.
    * Internal admins (anyone NOT in this set) edit freely; the server's
    * permission attributes remain authoritative.
+   *
+   * 2026-06-10: "Paralegal" is external too -- without it a paralegal would be
+   * misclassified as internal (editable view + Approve/Reject office actions).
+   * Treating them as external matches the backend, whose
+   * BookingFlowRoles.InternalUserRoles set excludes Paralegal.
    */
   get isPatientUser(): boolean {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
@@ -629,6 +641,7 @@ export class AppointmentViewComponent implements OnInit {
       'applicant attorney',
       'defense attorney',
       'claim examiner',
+      'paralegal',
     ]);
     return roles.some((role: string) => externalUserRoles.has(role?.toLowerCase() ?? ''));
   }
@@ -737,7 +750,7 @@ export class AppointmentViewComponent implements OnInit {
     const creatorId = this.appointment?.appointment?.creatorId;
     const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
     return (
-      (this.isApplicantAttorney || this.isDefenseAttorney) &&
+      (this.isApplicantAttorney || this.isDefenseAttorney || this.isParalegal) &&
       !!creatorId &&
       creatorId === currentUserId
     );

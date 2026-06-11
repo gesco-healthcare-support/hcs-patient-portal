@@ -17,4 +17,12 @@ public enum RecipientRole
     InsuranceCarrierContact = 5,
     OfficeAdmin = 6,
     Employer = 7,
+
+    /// <summary>
+    /// 2026-06-10 (paralegal feature): a paralegal delegate acting on behalf of
+    /// an attorney. The represented attorney is promoted to the email To; the
+    /// paralegal is tagged with this role and demoted to CC by
+    /// <c>BookerCcDispatcher</c>.
+    /// </summary>
+    Paralegal = 8,
 }

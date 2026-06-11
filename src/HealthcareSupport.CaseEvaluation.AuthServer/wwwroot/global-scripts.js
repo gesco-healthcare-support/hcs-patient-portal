@@ -32,6 +32,12 @@
     { value: 2, label: 'Claim Examiner' },
     { value: 3, label: 'Applicant Attorney' },
     { value: 4, label: 'Defense Attorney' },
+    // 2026-06-10 (paralegal-on-behalf-of-attorney): ExternalUserType.Paralegal=5.
+    // The invite-token register flow sets this locked dropdown to the invited role;
+    // without this option a Paralegal invite cannot select role 5, so the required
+    // field never validates and Sign-up stays disabled. Mirrors the admin invite
+    // dropdown (invite-external-user.component.ts) + the backend ToRoleName switch.
+    { value: 5, label: 'Paralegal' },
   ];
   let isSubmitting = false;
   let submitHookAttached = false;

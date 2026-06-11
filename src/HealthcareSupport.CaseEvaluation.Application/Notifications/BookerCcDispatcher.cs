@@ -103,4 +103,46 @@ public class BookerCcDispatcher : ITransientDependency
             .ToList();
         return (to, cc);
     }
+
+    /// <summary>
+    /// Paralegal-on-behalf-of-attorney (2026-06-10, design D1): resolve the
+    /// booker's PRINCIPAL email -- the To-anchor for the consolidated message.
+    /// When <paramref name="bookerEmail"/> matches a side's paralegal email, the
+    /// represented attorney on that side is promoted to To and the paralegal falls
+    /// into CC (it is already among the recipients as the booker). For a
+    /// self-booking (the booker is not a paralegal on either side, or the matched
+    /// side has no attorney email) the booker is returned unchanged -- so this
+    /// reduces EXACTLY to today's behavior for every non-paralegal booking.
+    /// Applicant side is checked before defense; a paralegal never spans both
+    /// sides of one appointment (design D3), so order is immaterial in practice.
+    /// </summary>
+    public static string? ResolvePrincipalEmail(
+        string? bookerEmail,
+        string? applicantParalegalEmail,
+        string? applicantAttorneyEmail,
+        string? defenseParalegalEmail,
+        string? defenseAttorneyEmail)
+    {
+        if (string.IsNullOrWhiteSpace(bookerEmail))
+        {
+            return bookerEmail;
+        }
+        var booker = bookerEmail.Trim();
+
+        if (!string.IsNullOrWhiteSpace(applicantParalegalEmail)
+            && string.Equals(booker, applicantParalegalEmail.Trim(), StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(applicantAttorneyEmail))
+        {
+            return applicantAttorneyEmail.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(defenseParalegalEmail)
+            && string.Equals(booker, defenseParalegalEmail.Trim(), StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(defenseAttorneyEmail))
+        {
+            return defenseAttorneyEmail.Trim();
+        }
+
+        return bookerEmail;
+    }
 }

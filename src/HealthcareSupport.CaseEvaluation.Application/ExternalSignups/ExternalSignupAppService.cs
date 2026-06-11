@@ -765,6 +765,46 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             await AutoLinkClaimExaminerAsync(user.Id, normalizedEmail);
         }
+        else if (userType == ExternalUserType.Paralegal)
+        {
+            await AutoLinkParalegalAsync(user.Id, normalizedEmail);
+        }
+    }
+
+    /// <summary>
+    /// Paralegal auto-link (2026-06-10, Phase 1). Paralegals have no master entity
+    /// (design D2): the delegate's email + name live directly on the AA/DA link rows
+    /// (<c>ParalegalEmail</c> / <c>ParalegalIdentityUserId</c>). On registration, claim
+    /// any link row whose <c>ParalegalEmail</c> matches this user and whose
+    /// <c>ParalegalIdentityUserId</c> is still null, so the new read pathway
+    /// (<c>AppointmentReadAccessGuard</c>) surfaces those appointments immediately.
+    /// Mirrors the attorney IdentityUserId backfill, minus the master-row step.
+    /// </summary>
+    private async Task AutoLinkParalegalAsync(Guid identityUserId, string normalizedEmail)
+    {
+        var aaLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
+        var aaLinks = await AsyncExecuter.ToListAsync(
+            aaLinkQuery.Where(l =>
+                l.ParalegalIdentityUserId == null
+                && l.ParalegalEmail != null
+                && l.ParalegalEmail.ToLower() == normalizedEmail));
+        foreach (var link in aaLinks)
+        {
+            link.ParalegalIdentityUserId = identityUserId;
+            await _appointmentApplicantAttorneyRepository.UpdateAsync(link);
+        }
+
+        var daLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
+        var daLinks = await AsyncExecuter.ToListAsync(
+            daLinkQuery.Where(l =>
+                l.ParalegalIdentityUserId == null
+                && l.ParalegalEmail != null
+                && l.ParalegalEmail.ToLower() == normalizedEmail));
+        foreach (var link in daLinks)
+        {
+            link.ParalegalIdentityUserId = identityUserId;
+            await _appointmentDefenseAttorneyRepository.UpdateAsync(link);
+        }
     }
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
@@ -1122,6 +1162,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ExternalUserType.ApplicantAttorney => true,
         ExternalUserType.DefenseAttorney => true,
         ExternalUserType.ClaimExaminer => true,
+        ExternalUserType.Paralegal => true,
         _ => false,
     };
 
@@ -1131,6 +1172,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ExternalUserType.ApplicantAttorney => RecipientRole.ApplicantAttorney,
         ExternalUserType.DefenseAttorney => RecipientRole.DefenseAttorney,
         ExternalUserType.ClaimExaminer => RecipientRole.ClaimExaminer,
+        ExternalUserType.Paralegal => RecipientRole.Paralegal,
         _ => RecipientRole.Patient,
     };
 
@@ -1180,6 +1222,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",
+            ExternalUserType.Paralegal => "Paralegal",
             _ => throw new UserFriendlyException("Invalid user type."),
         };
     }

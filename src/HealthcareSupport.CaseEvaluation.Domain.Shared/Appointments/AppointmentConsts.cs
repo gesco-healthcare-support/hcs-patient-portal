@@ -15,6 +15,12 @@ public static class AppointmentConsts
     public const int PartyEmailMaxLength = 256;
 
     /// <summary>
+    /// Cap for denormalized party name fields -- e.g. the paralegal delegate's
+    /// first / last name stored on the attorney link rows (2026-06-10).
+    /// </summary>
+    public const int PartyNameMaxLength = 128;
+
+    /// <summary>
     /// Cap for the optional per-appointment "Referred By" free-text field
     /// (2026-06-09). Matches PatientConsts.RefferedByMaxLength (50).
     /// </summary>

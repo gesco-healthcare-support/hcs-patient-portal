@@ -74,6 +74,11 @@ export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDest
    * locked to true so the required validators stay applied. */
   @Input() mandatory = false;
   @Input() isFieldInvalid: (name: string) => boolean = () => false;
+  /** 2026-06-10 (paralegal-on-behalf-of-attorney): when true, render a
+   * "Paralegal (you)" sub-block so the booking paralegal records their own contact
+   * as THIS side's delegate. Bound to {prefix}ParalegalFirstName /
+   * {prefix}ParalegalLastName / {prefix}ParalegalEmail on the parent form. */
+  @Input() showParalegalBlock = false;
 
   // 2026-05-28 -- when the parent reverts the AA toggle from the
   // self-represented confirmation modal it uses

@@ -239,6 +239,8 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.ApplicantParalegalEmail).HasColumnName(nameof(Appointment.ApplicantParalegalEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.DefenseParalegalEmail).HasColumnName(nameof(Appointment.DefenseParalegalEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);
@@ -537,6 +539,12 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<ApplicantAttorney>().WithMany().IsRequired().HasForeignKey(x => x.ApplicantAttorneyId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // Paralegal delegate (2026-06-10): denormalized name/email on the link row + an
+            // optional second IdentityUser FK for the paralegal's own login.
+            b.Property(x => x.ParalegalEmail).HasColumnName(nameof(AppointmentApplicantAttorney.ParalegalEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.ParalegalFirstName).HasColumnName(nameof(AppointmentApplicantAttorney.ParalegalFirstName)).HasMaxLength(AppointmentConsts.PartyNameMaxLength);
+            b.Property(x => x.ParalegalLastName).HasColumnName(nameof(AppointmentApplicantAttorney.ParalegalLastName)).HasMaxLength(AppointmentConsts.PartyNameMaxLength);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.ParalegalIdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<DefenseAttorney>(b =>
         {
@@ -565,6 +573,12 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<DefenseAttorney>().WithMany().IsRequired().HasForeignKey(x => x.DefenseAttorneyId).OnDelete(DeleteBehavior.NoAction);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // Paralegal delegate (2026-06-10): denormalized name/email on the link row + an
+            // optional second IdentityUser FK for the paralegal's own login.
+            b.Property(x => x.ParalegalEmail).HasColumnName(nameof(AppointmentDefenseAttorney.ParalegalEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            b.Property(x => x.ParalegalFirstName).HasColumnName(nameof(AppointmentDefenseAttorney.ParalegalFirstName)).HasMaxLength(AppointmentConsts.PartyNameMaxLength);
+            b.Property(x => x.ParalegalLastName).HasColumnName(nameof(AppointmentDefenseAttorney.ParalegalLastName)).HasMaxLength(AppointmentConsts.PartyNameMaxLength);
+            b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.ParalegalIdentityUserId).OnDelete(DeleteBehavior.NoAction);
         });
         builder.Entity<AppointmentInjuryDetail>(b =>
         {

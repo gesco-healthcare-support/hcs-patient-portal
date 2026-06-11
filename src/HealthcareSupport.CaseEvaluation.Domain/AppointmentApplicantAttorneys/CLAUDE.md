@@ -15,8 +15,17 @@ No standalone Angular UI -- join rows are created during the Appointments bookin
 | `AppointmentApplicantAttorneyWithNavigationProperties.cs` | Read model bundling Appointment + ApplicantAttorney + IdentityUser (NOT an EF-mapped type) |
 | `IAppointmentApplicantAttorneyRepository.cs` | Custom repo: `GetWithNav` / `GetListWithNav` / `GetList` / `GetCount` |
 
-Constructor accepts all 3 FKs + Id. No additional settable fields; this is a pure link record
-(`AppointmentId`, `ApplicantAttorneyId`, `IdentityUserId` all required).
+Constructor accepts all 3 FKs + Id (`AppointmentId`, `ApplicantAttorneyId`, `IdentityUserId`).
+
+**Paralegal delegate columns (2026-06-10, paralegal-on-behalf-of-attorney, Phase 1):** the row
+also carries optional `ParalegalEmail` / `ParalegalFirstName` / `ParalegalLastName` /
+`ParalegalIdentityUserId` (all nullable, settable). These denormalize the paralegal delegate
+ONTO the link row because, by design (D2), there is no paralegal master entity. They are written
+by `AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync` (post-manager, on the
+returned entity) and backfilled on registration by
+`ExternalSignupAppService.AutoLinkParalegalAsync`. `ParalegalIdentityUserId` grants the linked
+paralegal a per-row read pathway via `AppointmentAccessRules.CanRead`.
+`AppointmentDefenseAttorney` mirrors this exactly.
 
 ## Conventions
 

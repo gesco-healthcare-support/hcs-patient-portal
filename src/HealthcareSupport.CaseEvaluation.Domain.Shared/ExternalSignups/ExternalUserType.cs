@@ -16,6 +16,12 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// data only ever used "Claim Examiner", so "Adjuster" was an unseeded,
 /// permission-less dead-end. Do NOT renumber the remaining values; test seeds
 /// and Angular references hardcode 1-4.</para>
+///
+/// <para>2026-06-10 (paralegal feature): <c>Paralegal = 5</c> reuses the freed
+/// slot. The paralegal is the delegate who books + manages an appointment on
+/// behalf of an attorney (its own login + the "Paralegal" role; never given the
+/// AA/DA role). The invite dropdown offers it and registration assigns the
+/// "Paralegal" role.</para>
 /// </summary>
 public enum ExternalUserType
 {
@@ -23,4 +29,5 @@ public enum ExternalUserType
     ClaimExaminer = 2,
     ApplicantAttorney = 3,
     DefenseAttorney = 4,
+    Paralegal = 5,
 }

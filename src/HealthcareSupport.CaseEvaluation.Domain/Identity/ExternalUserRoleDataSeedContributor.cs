@@ -36,6 +36,11 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             await EnsureRoleAsync("Claim Examiner");
             await EnsureRoleAsync("Applicant Attorney");
             await EnsureRoleAsync("Defense Attorney");
+            // Paralegal (2026-06-10): a delegate who books / manages appointments on
+            // behalf of an attorney (its own login + role; never given the AA/DA role).
+            // Same booking baseline as the attorney roles below; never granted
+            // Patients.RevealSsn (only the Patient role reveals, and only its own record).
+            await EnsureRoleAsync("Paralegal");
             // Role-naming reconciliation 2026-05-04 -- OLD has 4 external
             // roles total (verified at
             // P:\PatientPortalOld\PatientAppointment.Models\Enums\Roles.cs):
@@ -57,7 +62,7 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             // (TenantId == null) because external roles are tenant-scoped.
             if (context?.TenantId != null)
             {
-                foreach (var roleName in new[] { "Patient", "Claim Examiner", "Applicant Attorney", "Defense Attorney" })
+                foreach (var roleName in new[] { "Patient", "Claim Examiner", "Applicant Attorney", "Defense Attorney", "Paralegal" })
                 {
                     await GrantAllAsync(roleName, BookingBaselineGrants());
                 }

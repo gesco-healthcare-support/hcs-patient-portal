@@ -537,6 +537,14 @@ export class AppointmentAddComponent {
     applicantAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyStateId: [null as string | null],
     applicantAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    // Paralegal (you) delegate (2026-06-10): shown when the booker is a Paralegal;
+    // captures the paralegal's own contact as the APPLICANT side's delegate.
+    applicantAttorneyParalegalFirstName: [null as string | null, [Validators.maxLength(128)]],
+    applicantAttorneyParalegalLastName: [null as string | null, [Validators.maxLength(128)]],
+    applicantAttorneyParalegalEmail: [
+      null as string | null,
+      [Validators.maxLength(256), Validators.email],
+    ],
     // OLD parity 2026-05-06: Defense Attorney section is enabled by default
     // (matching OLD's two-attorney row with both toggles ON). Booker can
     // turn it off explicitly if not needed. Same for Claim Examiner below.
@@ -553,6 +561,13 @@ export class AppointmentAddComponent {
     defenseAttorneyCity: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyStateId: [null as string | null],
     defenseAttorneyZipCode: [null as string | null, [Validators.maxLength(10)]],
+    // Paralegal (you) delegate (2026-06-10): DEFENSE side mirror of the applicant block.
+    defenseAttorneyParalegalFirstName: [null as string | null, [Validators.maxLength(128)]],
+    defenseAttorneyParalegalLastName: [null as string | null, [Validators.maxLength(128)]],
+    defenseAttorneyParalegalEmail: [
+      null as string | null,
+      [Validators.maxLength(256), Validators.email],
+    ],
     // The top-level claimExaminer{Enabled,Name,Email} controls are
     // vestigial -- the actual per-injury Claim Examiner data is captured
     // in the injury modal's child FormGroup (built around line 727).
@@ -798,6 +813,11 @@ export class AppointmentAddComponent {
     // empty so downstream display ("firstName lastName") renders the
     // single name without trailing whitespace.
     const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+    // 2026-06-10 (paralegal-on-behalf-of-attorney): this prefill fires ONLY for a
+    // true AA/DA self-booking. A Paralegal booker holds neither role, so the
+    // attorney email/name stay editable -- the paralegal types the represented
+    // attorney's real details (resolves design inconsistency #2). Do NOT gate
+    // these branches on isParalegal.
     if (this.isApplicantAttorney && !this.isItAdmin) {
       this.form.patchValue(
         {
@@ -815,6 +835,24 @@ export class AppointmentAddComponent {
           defenseAttorneyEmail: user.email ?? this.form.get('defenseAttorneyEmail')?.value,
           defenseAttorneyFirstName: fullName || this.form.get('defenseAttorneyFirstName')?.value,
           defenseAttorneyLastName: '',
+        },
+        { emitEvent: false },
+      );
+    }
+    // 2026-06-10 (paralegal-on-behalf-of-attorney): a Paralegal booker is the
+    // delegate, not an attorney. Prefill the "Paralegal (you)" block on BOTH attorney
+    // sections from their own identity. This is safe even though both sections are
+    // enabled by default: the submit-time upsert only persists the paralegal for a
+    // side that actually carries an attorney email (it early-returns otherwise).
+    if (this.isParalegal) {
+      this.form.patchValue(
+        {
+          applicantAttorneyParalegalFirstName: user.name ?? null,
+          applicantAttorneyParalegalLastName: user.surname ?? null,
+          applicantAttorneyParalegalEmail: user.email ?? null,
+          defenseAttorneyParalegalFirstName: user.name ?? null,
+          defenseAttorneyParalegalLastName: user.surname ?? null,
+          defenseAttorneyParalegalEmail: user.email ?? null,
         },
         { emitEvent: false },
       );
@@ -1197,6 +1235,18 @@ export class AppointmentAddComponent {
   }
 
   /**
+   * True when the booker is a Paralegal acting on behalf of an attorney
+   * (2026-06-10). Mirrors the attorney getters; drives
+   * shouldShowAuthorizedUserSection (and the paralegal "(you)" block). A
+   * paralegal is NOT an Applicant/Defense Attorney, so
+   * applyOwnRoleAttorneyPrefill never locks the attorney email to them.
+   */
+  get isParalegal(): boolean {
+    const roles = this.currentUser?.roles ?? [];
+    return roles.some((r: string) => r?.toLowerCase() === 'paralegal');
+  }
+
+  /**
    * True when current user is Claim Examiner. OLD parity: their per-injury
    * claim examiner name + email auto-fill from their identity and become
    * readonly. NEW's "Claim Examiner" role is the same as OLD's "Adjuster"
@@ -1220,6 +1270,10 @@ export class AppointmentAddComponent {
     'applicant attorney',
     'defense attorney',
     'claim examiner',
+    // 2026-06-10 (paralegal-on-behalf-of-attorney): the paralegal is an EXTERNAL
+    // booker -- its bookings stay Pending (NOT auto-approved). Matches the backend
+    // BookingFlowRoles.InternalUserRoles set, which excludes Paralegal.
+    'paralegal',
   ];
 
   get isInternalBooker(): boolean {
@@ -1256,11 +1310,17 @@ export class AppointmentAddComponent {
    * only offered to callers who may manage accessors -- internal staff or an
    * Applicant/Defense Attorney booker (the booker is the creator-to-be, so the
    * creator condition is implicit during booking). Cosmetic only; the server's
-   * EnsureCanManageAccessorsAsync gate stays authoritative. Paralegal-ready: the
-   * paralegal feature adds `|| this.isParalegal` here (additive).
+   * EnsureCanManageAccessorsAsync gate stays authoritative. 2026-06-10: a
+   * Paralegal booker is also offered the section (they may add accessors on the
+   * appointment they create -- accessor-gate set includes Paralegal).
    */
   shouldShowAuthorizedUserSection(): boolean {
-    return this.isInternalBooker || this.isApplicantAttorney || this.isDefenseAttorney;
+    return (
+      this.isInternalBooker ||
+      this.isApplicantAttorney ||
+      this.isDefenseAttorney ||
+      this.isParalegal
+    );
   }
 
   /**
@@ -3070,6 +3130,11 @@ export class AppointmentAddComponent {
       stateId: raw.applicantAttorneyStateId ?? undefined,
       zipCode: raw.applicantAttorneyZipCode ?? undefined,
       concurrencyStamp: this.applicantAttorneyConcurrencyStamp ?? undefined,
+      // Paralegal (you) delegate (2026-06-10): persisted on the link row + denormalized
+      // for recipient resolution. Sent as undefined when blank so the backend clears it.
+      paralegalEmail: raw.applicantAttorneyParalegalEmail ?? undefined,
+      paralegalFirstName: raw.applicantAttorneyParalegalFirstName ?? undefined,
+      paralegalLastName: raw.applicantAttorneyParalegalLastName ?? undefined,
     };
     await firstValueFrom(
       this.restService.request<any, any>(
@@ -3243,6 +3308,10 @@ export class AppointmentAddComponent {
       stateId: raw.defenseAttorneyStateId ?? undefined,
       zipCode: raw.defenseAttorneyZipCode ?? undefined,
       concurrencyStamp: this.defenseAttorneyConcurrencyStamp ?? undefined,
+      // Paralegal (you) delegate (2026-06-10): defense-side mirror.
+      paralegalEmail: raw.defenseAttorneyParalegalEmail ?? undefined,
+      paralegalFirstName: raw.defenseAttorneyParalegalFirstName ?? undefined,
+      paralegalLastName: raw.defenseAttorneyParalegalLastName ?? undefined,
     };
     await firstValueFrom(
       this.restService.request<any, any>(

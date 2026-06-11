@@ -618,9 +618,18 @@ public class StatusChangeEmailHandler :
         // Group F (2026-06-09): the To-booker/CC partition, office-CC append,
         // and single-message dispatch were extracted to the shared
         // BookerCcDispatcher so the consolidated reminder reuses the same rule.
+        // Paralegal-on-behalf-of-attorney (2026-06-10, D1): the To-anchor is the
+        // booker's PRINCIPAL -- the represented attorney when the booker is a
+        // paralegal, else the booker unchanged (self-bookings address as before).
+        var principalEmail = BookerCcDispatcher.ResolvePrincipalEmail(
+            ctx.BookerEmail,
+            ctx.ApplicantParalegalEmail,
+            ctx.ApplicantAttorneyEmail,
+            ctx.DefenseParalegalEmail,
+            ctx.DefenseAttorneyEmail);
         return _bookerCcDispatcher.DispatchToBookerWithCcAsync(
             templateCode: templateCode,
-            bookerEmail: ctx.BookerEmail,
+            bookerEmail: principalEmail,
             stakeholders: stakeholders,
             variables: variables,
             contextTag: contextTag);
@@ -666,9 +675,13 @@ public class StatusChangeEmailHandler :
             clinicName: null,
             portalUrl: ctx.PortalBaseUrl);
 
-        var bookerName = !string.IsNullOrWhiteSpace(ctx.BookerFullName)
-            ? ctx.BookerFullName
-            : JoinName(ctx.PatientFirstName, ctx.PatientLastName);
+        // T17 (paralegal): greet the represented attorney when a paralegal booked;
+        // otherwise the booker, then the patient -- unchanged for non-paralegal bookings.
+        var bookerName = !string.IsNullOrWhiteSpace(ctx.PrincipalAttorneyName)
+            ? ctx.PrincipalAttorneyName
+            : !string.IsNullOrWhiteSpace(ctx.BookerFullName)
+                ? ctx.BookerFullName
+                : JoinName(ctx.PatientFirstName, ctx.PatientLastName);
 
         var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
         {

@@ -149,6 +149,8 @@ public class BookingFlowRolesUnitTests
     [Theory]
     [InlineData("Applicant Attorney", true)]
     [InlineData("Defense Attorney", true)]
+    [InlineData("Paralegal", true)]            // 2026-06-10: paralegal-on-behalf-of-attorney
+    [InlineData("paralegal", true)]            // case-insensitive
     [InlineData("applicant attorney", true)]   // case-insensitive
     [InlineData("  Defense Attorney  ", true)] // trim
     [InlineData("Patient", false)]
@@ -176,15 +178,14 @@ public class BookingFlowRolesUnitTests
     }
 
     [Fact]
-    public void ExternalAccessorManagerRoles_PinnedAtAaAndDaOnly()
+    public void ExternalAccessorManagerRoles_PinnedAtAaDaAndParalegal()
     {
-        // Drift guard + paralegal-readiness marker: today the set is {AA, DA}.
-        // The paralegal-on-behalf-of-attorney feature appends "Paralegal" here
-        // (one-line extension) and adds a true-for-Paralegal case to the theory
-        // above. Until then, Paralegal must NOT be present.
+        // Drift guard: the set is {AA, DA, Paralegal} as of the
+        // paralegal-on-behalf-of-attorney feature (2026-06-10). If the seed
+        // contributor renames one of these, this surfaces immediately.
         BookingFlowRoles.ExternalAccessorManagerRoles.ShouldContain("Applicant Attorney");
         BookingFlowRoles.ExternalAccessorManagerRoles.ShouldContain("Defense Attorney");
-        BookingFlowRoles.ExternalAccessorManagerRoles.ShouldNotContain("Paralegal");
-        BookingFlowRoles.ExternalAccessorManagerRoles.Count.ShouldBe(2);
+        BookingFlowRoles.ExternalAccessorManagerRoles.ShouldContain("Paralegal");
+        BookingFlowRoles.ExternalAccessorManagerRoles.Count.ShouldBe(3);
     }
 }

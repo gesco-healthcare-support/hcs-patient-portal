@@ -142,6 +142,47 @@
           />
         </div>
       </div>
+      @if (showParalegalBlock) {
+        <!-- 2026-06-10 (paralegal-on-behalf-of-attorney): the booking paralegal's
+             own contact, recorded as this side's delegate. Attorney fields above
+             stay editable; this block is additive. -->
+        <div class="row border-top pt-3 mt-2">
+          <div class="col-12 mb-2">
+            <h6 class="fw-bold mb-0">Paralegal (you)</h6>
+            <small class="text-muted">
+              You are booking on this attorney's behalf. Your contact is recorded as this side's
+              paralegal; the attorney is emailed as the primary recipient and you are CC'd.
+            </small>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-semibold">Paralegal First Name</label>
+            <input
+              class="form-control"
+              [formControlName]="prefix + 'ParalegalFirstName'"
+              placeholder="FIRST NAME"
+              maxlength="128"
+            />
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-semibold">Paralegal Last Name</label>
+            <input
+              class="form-control"
+              [formControlName]="prefix + 'ParalegalLastName'"
+              placeholder="LAST NAME"
+              maxlength="128"
+            />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">Paralegal Email</label>
+            <input
+              type="email"
+              class="form-control"
+              [formControlName]="prefix + 'ParalegalEmail'"
+              placeholder="PARALEGAL EMAIL"
+            />
+          </div>
+        </div>
+      }
     </div>
   }
 </div>

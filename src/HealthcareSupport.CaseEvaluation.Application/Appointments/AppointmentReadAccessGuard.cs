@@ -128,6 +128,22 @@ public class AppointmentReadAccessGuard : ITransientDependency
                 .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
                 .Select(l => l.IdentityUserId!.Value));
 
+        // Paralegal delegates (2026-06-10, Phase 1): a paralegal's IdentityUserId
+        // is recorded on the SAME AA/DA link rows (ParalegalIdentityUserId), not a
+        // separate table. Hydrate from both link repos so a linked paralegal gets
+        // the same per-row read access as the attorney they represent.
+        var aaParalegalIdentityUserIds = await _asyncExecuter.ToListAsync(
+            aaLinkQuery
+                .Where(l => l.AppointmentId == appointment.Id && l.ParalegalIdentityUserId.HasValue)
+                .Select(l => l.ParalegalIdentityUserId!.Value));
+        var daParalegalIdentityUserIds = await _asyncExecuter.ToListAsync(
+            daLinkQuery
+                .Where(l => l.AppointmentId == appointment.Id && l.ParalegalIdentityUserId.HasValue)
+                .Select(l => l.ParalegalIdentityUserId!.Value));
+        var paralegalIdentityUserIds = aaParalegalIdentityUserIds
+            .Concat(daParalegalIdentityUserIds)
+            .ToList();
+
         // ClaimExaminer (CI1 2026-06-05): now a single appointment-level row, so
         // the link is direct (CE.AppointmentId). Match by email
         // (case-insensitive in the rule itself) since CE has no IdentityUser join.
@@ -145,6 +161,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
             patientIdentityUserId: patientIdentityUserId,
             applicantAttorneyIdentityUserIds: aaIdentityUserIds,
             defenseAttorneyIdentityUserIds: daIdentityUserIds,
+            paralegalIdentityUserIds: paralegalIdentityUserIds,
             claimExaminerEmails: ceEmails,
             accessorEntries: accessorEntries);
 

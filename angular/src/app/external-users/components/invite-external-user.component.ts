@@ -10,8 +10,8 @@ import { ToasterService } from '@abp/ng.theme.shared';
 
 /**
  * Admin-side invite form for external users (Patient, Applicant Attorney,
- * Defense Attorney, Claim Examiner). Backend constrains the role to those
- * four; internal roles never appear in this dropdown. Gated server-side
+ * Defense Attorney, Claim Examiner, Paralegal). Backend constrains the role to
+ * those five; internal roles never appear in this dropdown. Gated server-side
  * by the CaseEvaluation.UserManagement.InviteExternalUser permission;
  * granted to IT Admin, Staff Supervisor, and Intake Staff.
  *
@@ -41,13 +41,14 @@ export class InviteExternalUserComponent {
   private readonly toaster = inject(ToasterService);
 
   // ExternalUserType enum values: Patient=1, ClaimExaminer=2,
-  // ApplicantAttorney=3, DefenseAttorney=4. Order kept stable with the
-  // proxy enum so the numeric values flow through to the backend.
+  // ApplicantAttorney=3, DefenseAttorney=4, Paralegal=5 (2026-06-10). Order kept
+  // stable with the proxy enum so the numeric values flow through to the backend.
   readonly roleOptions = [
     { value: 1, label: 'Patient' },
     { value: 3, label: 'Applicant Attorney' },
     { value: 4, label: 'Defense Attorney' },
     { value: 2, label: 'Claim Examiner' },
+    { value: 5, label: 'Paralegal' },
   ];
 
   readonly form = this.fb.group({

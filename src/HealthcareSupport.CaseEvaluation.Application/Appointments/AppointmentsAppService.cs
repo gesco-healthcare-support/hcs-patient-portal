@@ -1191,6 +1191,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             StateId = a.StateId,
             ZipCode = a.ZipCode,
             ConcurrencyStamp = a.ConcurrencyStamp,
+            // Paralegal delegate (2026-06-10) lives on the link row, not the master.
+            ParalegalEmail = item.AppointmentApplicantAttorney?.ParalegalEmail,
+            ParalegalFirstName = item.AppointmentApplicantAttorney?.ParalegalFirstName,
+            ParalegalLastName = item.AppointmentApplicantAttorney?.ParalegalLastName,
         };
     }
 
@@ -1267,19 +1271,32 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
 
-        if (link?.AppointmentApplicantAttorney != null)
-        {
-            await _appointmentApplicantAttorneyManager.UpdateAsync(
+        var linkEntity = link?.AppointmentApplicantAttorney != null
+            ? await _appointmentApplicantAttorneyManager.UpdateAsync(
                 link.AppointmentApplicantAttorney.Id,
                 appointmentId,
                 applicantAttorney.Id,
                 resolvedUserId,
-                link.AppointmentApplicantAttorney.ConcurrencyStamp);
-        }
-        else
-        {
-            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
-        }
+                link.AppointmentApplicantAttorney.ConcurrencyStamp)
+            : await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
+
+        // Paralegal delegate (2026-06-10, Phase 1): persist the optional paralegal
+        // block onto the link row + denormalize the email onto the appointment for
+        // AppointmentRecipientResolver. ParalegalIdentityUserId resolves via the
+        // paralegal's own email (a self-booking paralegal -> their user id); null
+        // until they register, when AutoLinkParalegalAsync backfills it. Setting all
+        // four to null (no paralegal block submitted) is the correct clear-on-reupsert.
+        string? paralegalEmail = string.IsNullOrWhiteSpace(input.ParalegalEmail) ? null : input.ParalegalEmail.Trim();
+        linkEntity.ParalegalEmail = paralegalEmail;
+        linkEntity.ParalegalFirstName = string.IsNullOrWhiteSpace(input.ParalegalFirstName) ? null : input.ParalegalFirstName.Trim();
+        linkEntity.ParalegalLastName = string.IsNullOrWhiteSpace(input.ParalegalLastName) ? null : input.ParalegalLastName.Trim();
+        linkEntity.ParalegalIdentityUserId = paralegalEmail == null
+            ? null
+            : await ResolveIdentityUserIdForBookingAsync(Guid.Empty, paralegalEmail);
+        await _appointmentApplicantAttorneyRepository.UpdateAsync(linkEntity);
+
+        appointment.ApplicantParalegalEmail = paralegalEmail;
+        await _appointmentRepository.UpdateAsync(appointment);
     }
 
     /// <summary>
@@ -1421,6 +1438,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             StateId = d.StateId,
             ZipCode = d.ZipCode,
             ConcurrencyStamp = d.ConcurrencyStamp,
+            // Paralegal delegate (2026-06-10) lives on the link row, not the master.
+            ParalegalEmail = item.AppointmentDefenseAttorney?.ParalegalEmail,
+            ParalegalFirstName = item.AppointmentDefenseAttorney?.ParalegalFirstName,
+            ParalegalLastName = item.AppointmentDefenseAttorney?.ParalegalLastName,
         };
     }
 
@@ -1492,19 +1513,29 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
 
-        if (link?.AppointmentDefenseAttorney != null)
-        {
-            await _appointmentDefenseAttorneyManager.UpdateAsync(
+        var linkEntity = link?.AppointmentDefenseAttorney != null
+            ? await _appointmentDefenseAttorneyManager.UpdateAsync(
                 link.AppointmentDefenseAttorney.Id,
                 appointmentId,
                 defenseAttorney.Id,
                 resolvedUserId,
-                link.AppointmentDefenseAttorney.ConcurrencyStamp);
-        }
-        else
-        {
-            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, resolvedUserId);
-        }
+                link.AppointmentDefenseAttorney.ConcurrencyStamp)
+            : await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, resolvedUserId);
+
+        // Paralegal delegate (2026-06-10, Phase 1): mirror the applicant-side upsert --
+        // persist the optional paralegal block onto the link row + denormalize the email
+        // onto the appointment for AppointmentRecipientResolver.
+        string? paralegalEmail = string.IsNullOrWhiteSpace(input.ParalegalEmail) ? null : input.ParalegalEmail.Trim();
+        linkEntity.ParalegalEmail = paralegalEmail;
+        linkEntity.ParalegalFirstName = string.IsNullOrWhiteSpace(input.ParalegalFirstName) ? null : input.ParalegalFirstName.Trim();
+        linkEntity.ParalegalLastName = string.IsNullOrWhiteSpace(input.ParalegalLastName) ? null : input.ParalegalLastName.Trim();
+        linkEntity.ParalegalIdentityUserId = paralegalEmail == null
+            ? null
+            : await ResolveIdentityUserIdForBookingAsync(Guid.Empty, paralegalEmail);
+        await _appointmentDefenseAttorneyRepository.UpdateAsync(linkEntity);
+
+        appointment.DefenseParalegalEmail = paralegalEmail;
+        await _appointmentRepository.UpdateAsync(appointment);
     }
 
     // B2 (Phase 9, 2026-05-04): legacy thin entry points -- gated on the

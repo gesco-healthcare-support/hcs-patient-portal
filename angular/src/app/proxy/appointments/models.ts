@@ -29,6 +29,9 @@ export interface ApplicantAttorneyDetailsDto {
   stateId?: string | null;
   zipCode?: string | null;
   concurrencyStamp?: string | null;
+  paralegalEmail?: string | null;
+  paralegalFirstName?: string | null;
+  paralegalLastName?: string | null;
 }
 
 export interface AppointmentCreateDto {
@@ -130,6 +133,9 @@ export interface DefenseAttorneyDetailsDto {
   stateId?: string | null;
   zipCode?: string | null;
   concurrencyStamp?: string | null;
+  paralegalEmail?: string | null;
+  paralegalFirstName?: string | null;
+  paralegalLastName?: string | null;
 }
 
 export interface DirectCancelAppointmentInput {

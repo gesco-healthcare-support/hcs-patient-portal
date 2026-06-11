@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Volo.Abp.DependencyInjection;
@@ -32,6 +34,11 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
     // Tenant-aware URL composition via the centralized builder.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    // T17 (paralegal-on-behalf-of-attorney, 2026-06-10): master attorney rows are the
+    // source for the represented attorney's display name when a paralegal books (the
+    // attorney may be unregistered, so IdentityUser is not reliable).
+    private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
+    private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
 
     public DocumentEmailContextResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -40,7 +47,9 @@ public class DocumentEmailContextResolver : ITransientDependency
         IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
         IAppointmentDocumentTypeRepository documentTypeRepository,
-        IAccountUrlBuilder accountUrlBuilder)
+        IAccountUrlBuilder accountUrlBuilder,
+        IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
+        IRepository<DefenseAttorney, Guid> defenseAttorneyRepository)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -49,6 +58,8 @@ public class DocumentEmailContextResolver : ITransientDependency
         _identityUserRepository = identityUserRepository;
         _documentTypeRepository = documentTypeRepository;
         _accountUrlBuilder = accountUrlBuilder;
+        _applicantAttorneyRepository = applicantAttorneyRepository;
+        _defenseAttorneyRepository = defenseAttorneyRepository;
     }
 
     /// <summary>
@@ -116,6 +127,28 @@ public class DocumentEmailContextResolver : ITransientDependency
         // Change(eventData.TenantId) scope opened by the calling handlers).
         var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(appointment.TenantId);
 
+        // T17 (paralegal-on-behalf-of-attorney): when the booker is a paralegal, the
+        // email greeting names the represented attorney (the principal), not the
+        // paralegal. Match the booker's email against the denormalized per-side
+        // paralegal emails; if it matches, resolve that side's attorney display name
+        // from the master attorney row. Null for non-paralegal bookers, so the
+        // handlers keep their existing booker/patient greeting unchanged.
+        string? principalAttorneyName = null;
+        var bookerEmailForGreeting = bookerUser?.Email?.Trim();
+        if (!string.IsNullOrWhiteSpace(bookerEmailForGreeting))
+        {
+            if (!string.IsNullOrWhiteSpace(appointment.ApplicantParalegalEmail)
+                && string.Equals(bookerEmailForGreeting, appointment.ApplicantParalegalEmail.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                principalAttorneyName = await ResolveApplicantAttorneyDisplayNameAsync(appointment.ApplicantAttorneyEmail);
+            }
+            else if (!string.IsNullOrWhiteSpace(appointment.DefenseParalegalEmail)
+                && string.Equals(bookerEmailForGreeting, appointment.DefenseParalegalEmail.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                principalAttorneyName = await ResolveDefenseAttorneyDisplayNameAsync(appointment.DefenseAttorneyEmail);
+            }
+        }
+
         return new DocumentEmailContext
         {
             AppointmentId = appointment.Id,
@@ -125,6 +158,15 @@ public class DocumentEmailContextResolver : ITransientDependency
             DueDate = appointment.DueDate,
             BookerEmail = bookerUser?.Email,
             BookerFullName = JoinName(bookerUser?.Name, bookerUser?.Surname),
+            // T17: the represented attorney's name when a paralegal booked (else null).
+            PrincipalAttorneyName = principalAttorneyName,
+            // Paralegal-on-behalf-of-attorney (2026-06-10): denormalized per-side
+            // attorney + paralegal emails, so the addressing layer can promote the
+            // represented attorney to the email To when a paralegal is the booker.
+            ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
+            ApplicantParalegalEmail = appointment.ApplicantParalegalEmail,
+            DefenseAttorneyEmail = appointment.DefenseAttorneyEmail,
+            DefenseParalegalEmail = appointment.DefenseParalegalEmail,
             ResponsibleUserId = appointment.PrimaryResponsibleUserId,
             PatientFirstName = patient?.FirstName,
             PatientLastName = patient?.LastName,
@@ -178,6 +220,44 @@ public class DocumentEmailContextResolver : ITransientDependency
         return fallbackEmail;
     }
 
+    /// <summary>
+    /// T17: resolve the applicant attorney's display name from the master row by the
+    /// denormalized attorney email. Sync execution mirrors the injury-detail read above.
+    /// Returns null when no email / no match / no name (caller falls back to the booker).
+    /// </summary>
+    private async Task<string?> ResolveApplicantAttorneyDisplayNameAsync(string? attorneyEmail)
+    {
+        if (string.IsNullOrWhiteSpace(attorneyEmail))
+        {
+            return null;
+        }
+        var trimmed = attorneyEmail.Trim().ToLower();
+        var query = await _applicantAttorneyRepository.GetQueryableAsync();
+        var match = query
+            .Where(a => a.Email != null && a.Email.ToLower() == trimmed)
+            .Select(a => new { a.FirstName, a.LastName })
+            .FirstOrDefault();
+        var name = JoinName(match?.FirstName, match?.LastName);
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    /// <summary>T17: defense-side mirror of <see cref="ResolveApplicantAttorneyDisplayNameAsync"/>.</summary>
+    private async Task<string?> ResolveDefenseAttorneyDisplayNameAsync(string? attorneyEmail)
+    {
+        if (string.IsNullOrWhiteSpace(attorneyEmail))
+        {
+            return null;
+        }
+        var trimmed = attorneyEmail.Trim().ToLower();
+        var query = await _defenseAttorneyRepository.GetQueryableAsync();
+        var match = query
+            .Where(a => a.Email != null && a.Email.ToLower() == trimmed)
+            .Select(a => new { a.FirstName, a.LastName })
+            .FirstOrDefault();
+        var name = JoinName(match?.FirstName, match?.LastName);
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
     private static string JoinName(string? first, string? last)
     {
         var hasFirst = !string.IsNullOrWhiteSpace(first);
@@ -210,6 +290,21 @@ public class DocumentEmailContext
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
     public string BookerFullName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// T17 (paralegal-on-behalf-of-attorney): the represented attorney's display name
+    /// when the booker is a paralegal; null otherwise. When set, the status + reminder
+    /// email greetings name the attorney instead of the booking paralegal.
+    /// </summary>
+    public string? PrincipalAttorneyName { get; set; }
+
+    // Paralegal-on-behalf-of-attorney (2026-06-10): denormalized per-side attorney +
+    // paralegal emails (from the appointment). Consumed by the addressing layer's
+    // principal-promotion (BookerCcDispatcher.ResolvePrincipalEmail).
+    public string? ApplicantAttorneyEmail { get; set; }
+    public string? ApplicantParalegalEmail { get; set; }
+    public string? DefenseAttorneyEmail { get; set; }
+    public string? DefenseParalegalEmail { get; set; }
     public Guid? ResponsibleUserId { get; set; }
     public string? PatientFirstName { get; set; }
     public string? PatientLastName { get; set; }

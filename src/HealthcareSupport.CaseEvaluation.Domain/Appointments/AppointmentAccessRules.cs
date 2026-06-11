@@ -22,6 +22,11 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///      <c>AppointmentApplicantAttorney</c> link row.
 ///   5. Defense Attorney -- caller's IdentityUserId is on any
 ///      <c>AppointmentDefenseAttorney</c> link row.
+///   5b. Paralegal (2026-06-10, Phase 1) -- caller's IdentityUserId is a
+///      paralegal delegate on any AA/DA link row. CanRead ONLY: CanEdit is
+///      intentionally NOT widened, because the only Phase-1 paralegal is the
+///      booking-side creator (already edit-capable via pathway 2); the
+///      non-creator opposing-side paralegal edit pathway is Phase 2.
 ///   6. Claim Examiner -- caller's email matches any
 ///      <c>AppointmentClaimExaminer.Email</c> (case-insensitive).
 ///   7. Appointment Accessor -- caller's IdentityUserId is on any
@@ -48,7 +53,12 @@ public static class AppointmentAccessRules
         IEnumerable<Guid>? applicantAttorneyIdentityUserIds,
         IEnumerable<Guid>? defenseAttorneyIdentityUserIds,
         IEnumerable<string>? claimExaminerEmails,
-        IEnumerable<AccessorEntry>? accessorEntries)
+        IEnumerable<AccessorEntry>? accessorEntries,
+        // Paralegal delegate ids (2026-06-10, Phase 1). Trailing + optional so the
+        // pre-existing full-overload callers compile unchanged (omitted -> no
+        // paralegal pathway). Only AppointmentReadAccessGuard.EnsureCanReadAsync
+        // passes it. The CHECK is still placed after the DA branch (see below).
+        IEnumerable<Guid>? paralegalIdentityUserIds = null)
     {
         if (callerIsInternalUser)
         {
@@ -78,6 +88,14 @@ public static class AppointmentAccessRules
             && defenseAttorneyIdentityUserIds.Any(id => id == userId))
         {
             return (true, AccessPathway.DefenseAttorney);
+        }
+        // Paralegal delegate (2026-06-10, Phase 1): the caller's IdentityUserId
+        // is recorded as a paralegal on an AA/DA link row. Read-only pathway --
+        // the booking paralegal is also the Creator (covered above for edit).
+        if (paralegalIdentityUserIds != null
+            && paralegalIdentityUserIds.Any(id => id == userId))
+        {
+            return (true, AccessPathway.Paralegal);
         }
         if (!string.IsNullOrWhiteSpace(callerEmail)
             && claimExaminerEmails != null
@@ -260,6 +278,7 @@ public static class AppointmentAccessRules
         Patient,
         ApplicantAttorney,
         DefenseAttorney,
+        Paralegal,
         ClaimExaminer,
         AppointmentAccessor,
     }

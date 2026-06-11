@@ -99,13 +99,24 @@ which composes the pure `AppointmentAccessRules.CanManageAccessors` rule (Workst
 
 > A caller may add / edit / remove an appointment's accessors only if they are an **internal
 > user**, OR they **created the appointment AND hold an authorized accessor-managing external
-> role** (Applicant Attorney / Defense Attorney today).
+> role** (Applicant Attorney / Defense Attorney / Paralegal).
 
-The authorized external-role set lives in `BookingFlowRoles.ExternalAccessorManagerRoles`,
-neutrally named so the paralegal-on-behalf-of-attorney feature can append `Paralegal` as a
-one-line extension. Angular hides the "Add" control for callers who fail this rule, but the
-server gate is authoritative (deny-by-default): a forced POST from an unauthorized caller
-returns the localized `Appointment:AccessDenied`.
+The authorized external-role set lives in `BookingFlowRoles.ExternalAccessorManagerRoles`
+(`{ Applicant Attorney, Defense Attorney, Paralegal }` as of the paralegal-on-behalf-of-attorney
+feature, 2026-06-10 -- `Paralegal` was the planned one-line extension of the Workstream B set;
+the Domain rule and guard were unchanged). Angular hides the "Add" control for callers who fail
+this rule, but the server gate is authoritative (deny-by-default): a forced POST from an
+unauthorized caller returns the localized `Appointment:AccessDenied`.
+
+**Paralegal read pathway (2026-06-10, Phase 1).** Separately from accessor management, a
+paralegal delegate recorded on an appointment's attorney link row
+(`AppointmentApplicantAttorney` / `AppointmentDefenseAttorney`.`ParalegalIdentityUserId`) gains a
+per-row **read** pathway: an 8th branch in `AppointmentAccessRules.CanRead`, hydrated by
+`AppointmentReadAccessGuard.EnsureCanReadAsync` (symmetric with the Applicant/Defense Attorney
+id pathways). The booking paralegal is also the appointment Creator, so they edit / submit
+cancel-reschedule change-requests via the existing Creator pathway; `CanEdit` / `CanEditAsync`
+are deliberately unchanged. (The non-creator, opposing-side paralegal's edit pathway is deferred
+to Phase 2 with the side-scoped delegate-management rule.)
 
 **Deliberate tightening (product decision, not OLD parity).** This rule is STRICTER than the
 appointment edit-access rule (`AppointmentAccessRules.CanEdit`): it drops the Edit-accessor

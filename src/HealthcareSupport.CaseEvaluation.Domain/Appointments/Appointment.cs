@@ -63,6 +63,16 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? ClaimExaminerEmail { get; set; }
 
+    // Paralegal delegate emails (2026-06-10, Phase 1): denormalized per side, mirroring
+    // the *AttorneyEmail columns AppointmentRecipientResolver already reads. Populated by
+    // the booking attorney-upsert; used to CC the paralegal and promote the represented
+    // attorney to the email To (BookerCcDispatcher). Null when the side has no paralegal.
+    [CanBeNull]
+    public virtual string? ApplicantParalegalEmail { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseParalegalEmail { get; set; }
+
     /// <summary>
     /// 2026-06-09: optional per-appointment "Referred By" (referring source).
     /// Per-appointment by design -- NOT carried over from the patient or prior

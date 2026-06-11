@@ -388,6 +388,108 @@ public class AppointmentAccessRulesUnitTests
         pathway.ShouldBe(AppointmentAccessRules.AccessPathway.Patient);
     }
 
+    // -- Paralegal read pathway (2026-06-10, Phase 1) --------------------
+    // paralegalIdentityUserIds is an optional trailing arg on CanRead ONLY.
+    // CanEdit is intentionally NOT widened: the only Phase-1 paralegal is the
+    // booking-side creator (already edit-capable via the Creator pathway, pinned
+    // below). The opposing-side, non-creator paralegal edit pathway is Phase 2.
+
+    [Fact]
+    public void CanRead_Paralegal_LinkedDelegate_True()
+    {
+        var (allowed, pathway) = AppointmentAccessRules.CanRead(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: null,
+            paralegalIdentityUserIds: new[] { OtherUserId, CallerId });
+        allowed.ShouldBeTrue();
+        pathway.ShouldBe(AppointmentAccessRules.AccessPathway.Paralegal);
+    }
+
+    [Fact]
+    public void CanRead_Paralegal_NotLinked_False()
+    {
+        // A caller who is not a party and not the linked paralegal is denied.
+        var (allowed, pathway) = AppointmentAccessRules.CanRead(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: System.Array.Empty<AppointmentAccessRules.AccessorEntry>(),
+            paralegalIdentityUserIds: new[] { OtherUserId });
+        allowed.ShouldBeFalse();
+        pathway.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CanRead_Paralegal_OmittedArg_DefaultsToNoMatch()
+    {
+        // Back-compat: callers that omit the optional paralegal arg get no
+        // paralegal pathway (arg defaults to null). Pins the trailing-optional shape.
+        var (allowed, pathway) = AppointmentAccessRules.CanRead(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: null);
+        allowed.ShouldBeFalse();
+        pathway.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CanRead_Paralegal_DefenseAttorneyCheckedFirst()
+    {
+        // Pathway order: DA is checked before Paralegal. A caller who is both a
+        // DA and a linked paralegal resolves via the DefenseAttorney pathway.
+        var (allowed, pathway) = AppointmentAccessRules.CanRead(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: OtherUserId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: new[] { CallerId },
+            claimExaminerEmails: null,
+            accessorEntries: null,
+            paralegalIdentityUserIds: new[] { CallerId });
+        allowed.ShouldBeTrue();
+        pathway.ShouldBe(AppointmentAccessRules.AccessPathway.DefenseAttorney);
+    }
+
+    [Fact]
+    public void CanEdit_Paralegal_AsCreator_AllowedViaCreatorPathway()
+    {
+        // Phase-1 reconciliation: the booking paralegal IS the appointment creator,
+        // so they edit / submit change-requests via the existing Creator pathway.
+        // CanEdit is deliberately NOT given a paralegal arg.
+        var (allowed, pathway) = AppointmentAccessRules.CanEdit(
+            callerUserId: CallerId,
+            callerEmail: CallerEmail,
+            callerIsInternalUser: false,
+            appointmentCreatorId: CallerId,
+            patientIdentityUserId: null,
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: null);
+        allowed.ShouldBeTrue();
+        pathway.ShouldBe(AppointmentAccessRules.AccessPathway.Creator);
+    }
+
     // -- New 7-pathway tests (CanEdit) -----------------------------------
 
     [Fact]
