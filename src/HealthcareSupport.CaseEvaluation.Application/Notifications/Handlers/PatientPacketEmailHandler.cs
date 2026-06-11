@@ -72,12 +72,27 @@ public class PatientPacketEmailHandler :
                 return;
             }
 
+            // 2026-06-11: the patient packet is the fillable form set the
+            // patient must complete. Patient email is now optional, so when it
+            // is empty fall back to the applicant attorney's address -- "if the
+            // patient email is not entered, all the communication for the
+            // patient is sent to the AA" (Adrian). Skip only when NEITHER is
+            // set (OLD silent-skip parity).
+            var recipientEmail = ResolvePatientPacketRecipientEmail(
+                ctx.PatientEmail, ctx.ApplicantAttorneyEmail);
+            if (string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                _logger.LogInformation(
+                    "PatientPacketEmailHandler: neither patient nor applicant-attorney email set for appointment {AppointmentId}; skipping (OLD silent-skip parity).",
+                    eventData.AppointmentId);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(ctx.PatientEmail))
             {
                 _logger.LogInformation(
-                    "PatientPacketEmailHandler: patient email empty for appointment {AppointmentId}; skipping (OLD silent-skip parity).",
+                    "PatientPacketEmailHandler: patient email empty for appointment {AppointmentId}; routing the patient packet to the applicant attorney (AA fallback).",
                     eventData.AppointmentId);
-                return;
             }
 
             // BUG-029 v3 fix (2026-05-21).
@@ -115,7 +130,7 @@ public class PatientPacketEmailHandler :
             var recipients = new List<NotificationRecipient>
             {
                 new NotificationRecipient(
-                    email: ctx.PatientEmail!,
+                    email: recipientEmail!,
                     role: RecipientRole.Patient,
                     isRegistered: true),
             };
@@ -132,5 +147,27 @@ public class PatientPacketEmailHandler :
                     Kind = PacketKind.Patient,
                 });
         }
+    }
+
+    /// <summary>
+    /// 2026-06-11: resolves the address the patient packet is delivered to.
+    /// The patient is the intended reader, but patient email is now optional;
+    /// when it is empty the packet falls back to the applicant attorney so the
+    /// patient's forms still reach the responsible party ("if the patient
+    /// email is not entered, all the communication for the patient is sent to
+    /// the AA"). Returns null only when neither address is set, in which case
+    /// the handler skips the send (OLD silent-skip parity). Pure so it is
+    /// unit-testable without the handler's DI graph.
+    /// </summary>
+    internal static string? ResolvePatientPacketRecipientEmail(
+        string? patientEmail, string? applicantAttorneyEmail)
+    {
+        if (!string.IsNullOrWhiteSpace(patientEmail))
+        {
+            return patientEmail;
+        }
+        return string.IsNullOrWhiteSpace(applicantAttorneyEmail)
+            ? null
+            : applicantAttorneyEmail;
     }
 }

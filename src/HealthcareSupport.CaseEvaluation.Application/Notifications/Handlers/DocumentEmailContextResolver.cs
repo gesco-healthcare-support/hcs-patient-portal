@@ -129,6 +129,9 @@ public class DocumentEmailContextResolver : ITransientDependency
             PatientFirstName = patient?.FirstName,
             PatientLastName = patient?.LastName,
             PatientEmail = patient?.Email ?? appointment.PatientEmail,
+            // 2026-06-11: denormalized AA email, used as the patient-packet
+            // fallback recipient when the patient has no email of their own.
+            ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
             ClaimNumber = injury?.ClaimNumber,
             WcabAdj = injury?.WcabAdj,
             DocumentId = document?.Id,
@@ -214,6 +217,14 @@ public class DocumentEmailContext
     public string? PatientFirstName { get; set; }
     public string? PatientLastName { get; set; }
     public string? PatientEmail { get; set; }
+
+    /// <summary>
+    /// 2026-06-11: the appointment's denormalized applicant-attorney email.
+    /// Used as the patient-packet fallback recipient when the patient has no
+    /// email of their own ("if the patient email is not entered, all the
+    /// communication for the patient is sent to the AA").
+    /// </summary>
+    public string? ApplicantAttorneyEmail { get; set; }
     public string? ClaimNumber { get; set; }
     public string? WcabAdj { get; set; }
     public Guid? DocumentId { get; set; }

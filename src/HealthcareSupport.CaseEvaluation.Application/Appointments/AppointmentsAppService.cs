@@ -372,12 +372,43 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // separate AppointmentApplicantAttorney link names the attorney (the patient
     // selected him during their own booking). Comprehensive role-scope helper +
     // same-firm sharing question deferred to Wave 3 per docs/plans/deferred-from-mvp.md.
+    /// <summary>
+    /// PII guard (2026-06-11): the minimum email-search length before the
+    /// patient lookup returns any rows. Below this, the endpoint returns an
+    /// empty page so no caller (AA / DA / CE or internal staff) can pull a
+    /// default/unfiltered list of every patient's email in the tenant.
+    /// </summary>
+    internal const int PatientLookupMinFilterLength = 2;
+
+    /// <summary>
+    /// True when the lookup filter is too short to search on -- null,
+    /// whitespace, or fewer than <see cref="PatientLookupMinFilterLength"/>
+    /// non-whitespace characters. Pure so it is unit-testable without the
+    /// AppService's DI graph.
+    /// </summary>
+    internal static bool IsLookupFilterTooShort(string? filter)
+        => string.IsNullOrWhiteSpace(filter) || filter.Trim().Length < PatientLookupMinFilterLength;
+
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input)
     {
+        // PII guard (2026-06-11): never return a default/unfiltered patient
+        // list. The caller must type at least PatientLookupMinFilterLength
+        // characters of an email before any patient surfaces -- this prevents
+        // AA / DA / CE (and internal staff) from enumerating every patient's
+        // email in the tenant. Below the threshold, return an empty page.
+        if (IsLookupFilterTooShort(input.Filter))
+        {
+            return new PagedResultDto<LookupDto<Guid>>
+            {
+                TotalCount = 0,
+                Items = new List<LookupDto<Guid>>(),
+            };
+        }
+
         var query = (await _patientRepository.GetQueryableAsync())
             .Where(x => x.TenantId == CurrentTenant.Id)
-            .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Email != null && x.Email.Contains(input.Filter!));
+            .Where(x => x.Email != null && x.Email.Contains(input.Filter!));
 
         if (await IsApplicantAttorneyAsync())
         {
@@ -388,6 +419,18 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (await IsDefenseAttorneyAsync())
         {
             var visiblePatientIds = await GetDefenseAttorneyVisiblePatientIdsAsync();
+            query = query.Where(p => visiblePatientIds.Contains(p.Id));
+        }
+
+        // CE scoping (2026-06-11): a Claim Examiner sees only patients on
+        // appointments where they are the named CE. Mirrors the email-match
+        // read-scope used by EnsureCanReadAsync (Appointment.ClaimExaminerEmail
+        // == caller email) -- CE has no IdentityUser link table, so the
+        // denormalized email column is the only linkage. Without this, a CE
+        // could search every patient in the tenant (the gap Adrian flagged).
+        if (await IsClaimExaminerAsync())
+        {
+            var visiblePatientIds = await GetClaimExaminerVisiblePatientIdsAsync();
             query = query.Where(p => visiblePatientIds.Contains(p.Id));
         }
 
@@ -445,6 +488,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // ExternalUserRoleDataSeedContributor; role-name consts deferred to W3
         // F3-full audit per the deferred ledger.
         return Task.FromResult(CurrentUser.IsInRole("Defense Attorney"));
+    }
+
+    private Task<bool> IsClaimExaminerAsync()
+    {
+        // 2026-06-11 mirror of IsApplicantAttorneyAsync. Canonical role name
+        // "Claim Examiner" (OLD "Adjuster" renamed) from
+        // ExternalUserRoleDataSeedContributor.
+        return Task.FromResult(CurrentUser.IsInRole("Claim Examiner"));
     }
 
     private async Task<List<Guid>> GetApplicantAttorneyVisiblePatientIdsAsync()
@@ -522,6 +573,30 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .Distinct()
             .ToDynamicListAsync<Guid>();
     }
+
+    private async Task<List<Guid>> GetClaimExaminerVisiblePatientIdsAsync()
+    {
+        // CE has no IdentityUser link table (unlike AA/DA). The only linkage
+        // is the denormalized Appointment.ClaimExaminerEmail column, matched
+        // case-insensitively against the caller's email -- the same rule
+        // EnsureCanReadAsync uses for CE read-scope. A CE with no email on
+        // their account sees nothing (cannot be matched to any appointment).
+        var email = CurrentUser.Email;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return new List<Guid>();
+        }
+
+        var emailLower = email.Trim().ToLower();
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+
+        return await appointmentQuery
+            .Where(a => a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == emailLower)
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToDynamicListAsync<Guid>();
+    }
+
     [Authorize]
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input, EvaluationType? evaluationContext = null)
     {

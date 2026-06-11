@@ -1,9 +1,14 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
-import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import {
+  NgbDatepickerModule,
+  NgbDateStruct,
+  NgbTypeaheadModule,
+  NgbTypeaheadSelectItemEvent,
+} from '@ng-bootstrap/ng-bootstrap';
 import { SsnInputComponent } from '../../shared/components/ssn-input.component';
 import {
   AddressAutocompleteComponent,
@@ -55,10 +60,12 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     ReactiveFormsModule,
     LocalizationPipe,
     AppLookupSelectComponent,
     NgbDatepickerModule,
+    NgbTypeaheadModule,
     SsnInputComponent,
     AddressAutocompleteComponent,
   ],
@@ -80,7 +87,23 @@ export class AppointmentAddPatientDemographicsComponent {
 
   @Input({ required: true }) isExternalUserNonPatient = false;
   @Input({ required: true }) isItAdmin = false;
-  @Input({ required: true }) patientListCache: LookupDto<string>[] = [];
+  /**
+   * 2026-06-11 (PII): NgbTypeahead source for the "find existing patient"
+   * email search. Owned by the parent (where the HTTP roundtrip + debounce
+   * live, per the template-only section contract); the server returns nothing
+   * until 2 chars and scopes results to patients the booker has already worked
+   * with, so this never surfaces a default list of every patient's email.
+   */
+  @Input({ required: true }) searchPatientByEmail!: (
+    text$: Observable<string>,
+  ) => Observable<LookupDto<string>[]>;
+  /**
+   * 2026-06-11: whether the patient Email field is required (drives the label
+   * asterisk). Owned + recomputed by the parent so the "*" mirrors the actual
+   * conditional requirement (patient-is-booker OR self-represented) instead of
+   * always showing. Default true (the safe/required state).
+   */
+  @Input() patientEmailRequired = true;
   @Input({ required: true }) patientLoadMessage = '';
   @Input({ required: true }) dobMinDate!: NgbDateStruct;
   @Input({ required: true }) dobMaxDate!: NgbDateStruct;
@@ -99,4 +122,22 @@ export class AppointmentAddPatientDemographicsComponent {
   // localized label (renders the raw "Enum:Gender.0" key) and is not a valid
   // selection.
   readonly genderOptions = genderOptions.filter((option) => option.value !== Gender.Unspecified);
+
+  // 2026-06-11 (PII): local model for the email search box. Holds the selected
+  // LookupDto (display = email) after a pick; never part of the reactive form
+  // (the chosen patient id flows to the parent via patientSelected).
+  patientSearchModel: LookupDto<string> | string = '';
+
+  /** Typeahead display: show the patient's email (LookupDto.displayName). */
+  readonly patientResultFormatter = (result: LookupDto<string>): string => result.displayName ?? '';
+
+  /** Input display after a pick: the email; raw strings pass through. */
+  readonly patientInputFormatter = (result: LookupDto<string> | string): string =>
+    typeof result === 'string' ? result : (result.displayName ?? '');
+
+  /** A typeahead pick raises the chosen patient id to the parent's onPatientSelected. */
+  onPatientResultSelected(event: NgbTypeaheadSelectItemEvent): void {
+    const item = event.item as LookupDto<string>;
+    this.patientSelected.emit(item?.id ?? null);
+  }
 }

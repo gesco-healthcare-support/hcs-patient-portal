@@ -460,6 +460,17 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // reveal any patient's SSN during phone-in intake / review).
         yield return $"{Group}.Patients.RevealSsn";
 
+        // 2026-06-11 -- Intake Staff manages doctor availability slots
+        // (create/edit/delete schedules). The OperationalEntities loop above
+        // grants only DoctorAvailabilities.Default (read); the slot-management
+        // page's Add/Edit/Delete actions hit CreateAsync / UpdateAsync /
+        // DeleteAsync, each gated by its own child permission. Front-desk
+        // intake staff is responsible for keeping the bookable slot grid
+        // current, so it gets full slot CRUD (Adrian, 2026-06-11).
+        yield return Create("DoctorAvailabilities");
+        yield return Edit("DoctorAvailabilities");
+        yield return Delete("DoctorAvailabilities");
+
         // W2-8 -- the booking-add SPA fires a separate POST per injury
         // draft (multi-injury support per OLD parity, see
         // angular/src/app/appointments/appointment-add.component.ts:2438).

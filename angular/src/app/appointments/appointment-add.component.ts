@@ -17,8 +17,15 @@ import {
   ToasterService,
 } from '@abp/ng.theme.shared';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
-import { finalize } from 'rxjs/operators';
-import { firstValueFrom } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  finalize,
+  map,
+  switchMap,
+} from 'rxjs/operators';
+import { firstValueFrom, Observable, of } from 'rxjs';
 import { TopHeaderNavbarComponent } from '../shared/components/top-header-navbar/top-header-navbar.component';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
@@ -265,7 +272,10 @@ export class AppointmentAddComponent {
   appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
     [];
   private currentPatientProfile?: PatientWithNavigationPropertiesDto;
-  patientListCache: LookupDto<string>[] = [];
+  // 2026-06-11: drives the patient Email label asterisk in the demographics
+  // section. Recomputed by applyConditionalPatientEmailValidator() alongside the
+  // control validator so the "*" reflects the actual (conditional) requirement.
+  patientEmailRequired = true;
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
   applicantAttorneyEmailSearch = '';
   applicantAttorneyOptions: ExternalAuthorizedUserOption[] = [];
@@ -450,6 +460,30 @@ export class AppointmentAddComponent {
         },
       },
       { apiName: 'Default' },
+    );
+
+  // 2026-06-11 (PII): NgbTypeahead search fn for the "find existing patient"
+  // email search box. Debounced server-side email lookup; the server returns
+  // nothing until 2+ characters and scopes results to patients the booker has
+  // already worked with (AppointmentsAppService.GetPatientLookupAsync), so no
+  // default list of every patient's email is ever exposed. Short terms
+  // short-circuit to no request. Errors collapse to an empty result list so a
+  // transient lookup failure never breaks the search box.
+  // (ng-bootstrap typeahead docs: https://ng-bootstrap.github.io/#/components/typeahead/api)
+  readonly searchPatientByEmail = (text$: Observable<string>): Observable<LookupDto<string>[]> =>
+    text$.pipe(
+      debounceTime(250),
+      distinctUntilChanged(),
+      switchMap((term) => {
+        const trimmed = (term ?? '').trim();
+        if (trimmed.length < 2) {
+          return of<LookupDto<string>[]>([]);
+        }
+        return this.getPatientLookup({ filter: trimmed, skipCount: 0, maxResultCount: 20 }).pipe(
+          map((res) => res.items ?? []),
+          catchError(() => of<LookupDto<string>[]>([])),
+        );
+      }),
     );
 
   // AF3 + AF4 (2026-06-04): mirrors CaseEvaluationSeedIds.AppointmentTypes.PanelQme.
@@ -756,6 +790,8 @@ export class AppointmentAddComponent {
       }
       this.applyConditionalEmailValidator('applicantAttorneyEmail', true);
       applyAttorneySectionValidators(this.form, 'applicantAttorney', true);
+      // AA present -> patient email becomes optional for on-behalf bookers.
+      this.applyConditionalPatientEmailValidator();
     });
     // F4 (2026-05-29): DA toggle-off mirrors AA -- pop the confirmation modal
     // instead of silently dropping the section. Toggling ON has no modal.
@@ -782,6 +818,9 @@ export class AppointmentAddComponent {
     this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
     applyAttorneySectionValidators(this.form, 'defenseAttorney', daInitialEnabled);
     this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
+    // 2026-06-11: set the patient-email required state for the initial booker
+    // role + AA-enabled combination (recomputed on every AA toggle above).
+    this.applyConditionalPatientEmailValidator();
     // AF3 + AF4: apply the Panel Number state once for the initial type. The
     // type starts null (no selection), so Panel Number begins cleared + disabled
     // until a PQME type is chosen.
@@ -844,6 +883,32 @@ export class AppointmentAddComponent {
   }
 
   /**
+   * 2026-06-11 -- patient email is mandatory ONLY when the patient is the one
+   * requesting (the booker IS the patient) OR the applicant is self-represented
+   * (no applicant attorney). For an on-behalf booker (AA / DA / CE / staff) with
+   * an applicant attorney present, patient email is optional: if left blank, the
+   * server routes patient-targeted mail to the applicant attorney
+   * (PatientPacketEmailHandler AA fallback; the other handlers already CC the
+   * AA as a party). Re-evaluated at construction and whenever the AA toggle
+   * flips. Mirrors applyConditionalEmailValidator's emitEvent: false discipline
+   * so it never re-enters a valueChanges subscriber.
+   */
+  private applyConditionalPatientEmailValidator(): void {
+    const control = this.form.get('email');
+    if (!control) return;
+    const required =
+      !this.isExternalUserNonPatient || !this.form.get('applicantAttorneyEnabled')?.value;
+    // Drives the label asterisk in the demographics section (passed down as an
+    // Input) so the "*" mirrors the actual requirement instead of always showing.
+    this.patientEmailRequired = required;
+    const validators = required
+      ? [Validators.required, Validators.maxLength(50), Validators.email]
+      : [Validators.maxLength(50), Validators.email];
+    control.setValidators(validators);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
    * AF3 + AF4 (2026-06-04): Panel Number state machine keyed off the PQME type.
    * PQME -> the field is enabled + required (a PQME carries a state-issued panel
    * number). Any other type (AME / IME) -> the value is cleared, validators drop
@@ -900,6 +965,8 @@ export class AppointmentAddComponent {
         this.applyConditionalEmailValidator('applicantAttorneyEmail', false);
         applyAttorneySectionValidators(this.form, 'applicantAttorney', false);
         this.form.get('applicantAttorneyEmail')?.setValue(null, { emitEvent: false });
+        // Self-represented (no AA) -> patient email becomes required.
+        this.applyConditionalPatientEmailValidator();
       });
   }
 
@@ -1797,10 +1864,17 @@ export class AppointmentAddComponent {
       return;
     }
     if (this.isExternalUserNonPatient && !raw.patientId) {
-      const requiredForNew = raw.firstName && raw.lastName && raw.email && raw.dateOfBirth;
+      // 2026-06-11: within this branch the booker is always a non-patient, so
+      // patient email is required here ONLY when self-represented (no AA). With
+      // an AA present, email is optional -- patient mail falls back to the AA
+      // server-side. Mirrors applyConditionalPatientEmailValidator.
+      const emailRequiredForNew = !raw.applicantAttorneyEnabled;
+      const requiredForNew =
+        raw.firstName && raw.lastName && raw.dateOfBirth && (!emailRequiredForNew || raw.email);
       if (!requiredForNew) {
-        this.patientLoadMessage =
-          'To create a new patient, First Name, Last Name, Email and Date of Birth are required.';
+        this.patientLoadMessage = emailRequiredForNew
+          ? 'To create a new patient, First Name, Last Name, Email and Date of Birth are required.'
+          : 'To create a new patient, First Name, Last Name and Date of Birth are required.';
         this.form.get('firstName')?.markAsTouched();
         this.form.get('lastName')?.markAsTouched();
         this.form.get('email')?.markAsTouched();
@@ -2314,7 +2388,6 @@ export class AppointmentAddComponent {
         // gate editing without skipping validators.
         this.form.get('patientId')?.clearValidators();
         this.form.get('patientId')?.updateValueAndValidity({ emitEvent: false });
-        this.loadPatientListCache();
         this.form.patchValue({
           identityUserId: profile.identityUserId ?? this.currentUser?.id ?? null,
           patientId: null,
@@ -2402,16 +2475,6 @@ export class AppointmentAddComponent {
           this.defenseAttorneyConcurrencyStamp = null;
         }
       });
-  }
-
-  private loadPatientListCache(): void {
-    this.getPatientLookup({
-      filter: '',
-      skipCount: 0,
-      maxResultCount: 500,
-    }).subscribe(({ items }) => {
-      this.patientListCache = items ?? [];
-    });
   }
 
   private loadPatientProfile(): void {

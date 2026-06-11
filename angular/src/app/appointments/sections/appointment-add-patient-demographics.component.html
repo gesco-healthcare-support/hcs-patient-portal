@@ -11,19 +11,32 @@
   </div>
   <div class="card-body">
     @if (isExternalUserNonPatient) {
+      <!-- 2026-06-11 (PII): email search box (NgbTypeahead) replaces the
+           preloaded "all patients" dropdown. Server returns nothing until 2
+           chars and only patients the booker has already worked with, so the
+           full patient roster is never exposed. Picking a result raises the
+           chosen patient id to the parent. -->
       <div class="row mb-3">
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Existing Patients</label>
-          <select
-            class="form-select"
-            formControlName="patientId"
-            (change)="patientSelected.emit($any(form.get('patientId')?.value) ?? null)"
-          >
-            <option [ngValue]="null">None</option>
-            @for (patient of patientListCache; track patient.id) {
-              <option [value]="patient.id">{{ patient.displayName }}</option>
-            }
-          </select>
+          <label class="form-label fw-semibold">Find Existing Patient</label>
+          <input
+            type="text"
+            class="form-control"
+            id="appointment-patient-email-search"
+            placeholder="Type at least 2 characters of the patient's email"
+            autocomplete="off"
+            [ngbTypeahead]="searchPatientByEmail"
+            [resultFormatter]="patientResultFormatter"
+            [inputFormatter]="patientInputFormatter"
+            [editable]="false"
+            [(ngModel)]="patientSearchModel"
+            [ngModelOptions]="{ standalone: true }"
+            (selectItem)="onPatientResultSelected($event)"
+          />
+          <small class="form-text text-muted">
+            Only patients you have already worked with appear. Edit the Email field below to clear a
+            selection.
+          </small>
         </div>
       </div>
       @if (patientLoadMessage) {
@@ -98,7 +111,15 @@
         </div>
       </div>
       <div class="col-md-3 mb-3">
-        <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }} *</label>
+        <!-- 2026-06-11: asterisk is conditional -- patient email is required only
+             when the patient is the booker or is self-represented (no AA). For an
+             on-behalf booker with an AA, it is optional (mail falls back to the AA). -->
+        <label class="form-label fw-semibold">
+          {{ '::Email' | abpLocalization }}
+          @if (patientEmailRequired) {
+            *
+          }
+        </label>
         <input
           type="email"
           class="form-control"
