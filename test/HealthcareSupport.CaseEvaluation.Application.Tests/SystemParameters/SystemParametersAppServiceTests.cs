@@ -65,6 +65,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
             dto.AppointmentMaxTimePQME.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimePQME);
             dto.AppointmentMaxTimeAME.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimeAME);
             dto.AppointmentMaxTimeOTHER.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimeOTHER);
+            dto.AppointmentMaxTimeInternal.ShouldBe(SystemParameterConsts.DefaultAppointmentMaxTimeInternal);
             dto.AppointmentCancelTime.ShouldBe(SystemParameterConsts.DefaultAppointmentCancelTime);
             dto.AppointmentDueDays.ShouldBe(SystemParameterConsts.DefaultAppointmentDueDays);
             dto.AppointmentDurationTime.ShouldBe(SystemParameterConsts.DefaultAppointmentDurationTime);
@@ -110,6 +111,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
                 AppointmentMaxTimePQME = 75,
                 AppointmentMaxTimeAME = 100,
                 AppointmentMaxTimeOTHER = 80,
+                AppointmentMaxTimeInternal = 95,
                 AppointmentCancelTime = 5,
                 AppointmentDueDays = 21,
                 AppointmentDurationTime = 45,
@@ -128,6 +130,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
             result.AppointmentMaxTimePQME.ShouldBe(75);
             result.AppointmentMaxTimeAME.ShouldBe(100);
             result.AppointmentMaxTimeOTHER.ShouldBe(80);
+            result.AppointmentMaxTimeInternal.ShouldBe(95);
             result.AppointmentCancelTime.ShouldBe(5);
             result.AppointmentDueDays.ShouldBe(21);
             result.AppointmentDurationTime.ShouldBe(45);
@@ -277,6 +280,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
         AppointmentMaxTimePQME = SystemParameterConsts.DefaultAppointmentMaxTimePQME,
         AppointmentMaxTimeAME = SystemParameterConsts.DefaultAppointmentMaxTimeAME,
         AppointmentMaxTimeOTHER = SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+        AppointmentMaxTimeInternal = SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
         AppointmentCancelTime = SystemParameterConsts.DefaultAppointmentCancelTime,
         AppointmentDueDays = SystemParameterConsts.DefaultAppointmentDueDays,
         AppointmentDurationTime = SystemParameterConsts.DefaultAppointmentDurationTime,
@@ -315,6 +319,7 @@ public abstract class SystemParametersAppServiceTests<TStartupModule>
                 appointmentMaxTimePQME: SystemParameterConsts.DefaultAppointmentMaxTimePQME,
                 appointmentMaxTimeAME: SystemParameterConsts.DefaultAppointmentMaxTimeAME,
                 appointmentMaxTimeOTHER: SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+                appointmentMaxTimeInternal: SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
                 appointmentCancelTime: SystemParameterConsts.DefaultAppointmentCancelTime,
                 appointmentDueDays: SystemParameterConsts.DefaultAppointmentDueDays,
                 appointmentDurationTime: SystemParameterConsts.DefaultAppointmentDurationTime,

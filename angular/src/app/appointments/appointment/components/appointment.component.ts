@@ -95,10 +95,54 @@ export class AppointmentComponent extends AbstractAppointmentComponent {
   private readonly localization = inject(LocalizationService);
 
   readonly approvedStatus = AppointmentStatusType.Approved;
+  readonly pendingStatus = AppointmentStatusType.Pending;
+
+  // 2026-06-11: decision-SLA badge. Staff have 3 days (kept below the legal
+  // 5-day limit for safety) to decide a Pending request. Hardcoded client-side
+  // to match the server default (SystemParameter.PendingAppointmentOverDueNotificationDays);
+  // the dashboard tile + daily digest are the server-authoritative surfaces.
+  private readonly decisionDueDays = 3;
 
   rescheduleVisible = false;
   cancelVisible = false;
   selectedRow: AppointmentWithNavigationPropertiesDto | null = null;
+
+  /**
+   * For a Pending row, the decision-deadline countdown shown next to the
+   * status: "Decision due in N day(s)", "Decision due today", or "OVERDUE".
+   * Returns null for non-Pending rows or when CreationTime is missing.
+   */
+  decisionBadge(
+    row: AppointmentWithNavigationPropertiesDto,
+  ): { text: string; overdue: boolean } | null {
+    if (row.appointment?.appointmentStatus !== this.pendingStatus) {
+      return null;
+    }
+    const created = row.appointment?.creationTime;
+    if (!created) {
+      return null;
+    }
+    const requested = new Date(created);
+    const dueDate = new Date(
+      requested.getFullYear(),
+      requested.getMonth(),
+      requested.getDate() + this.decisionDueDays,
+    );
+    const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysLeft = Math.round((dueDate.getTime() - todayMidnight.getTime()) / msPerDay);
+    if (daysLeft < 0) {
+      return { text: 'OVERDUE', overdue: true };
+    }
+    if (daysLeft === 0) {
+      return { text: 'Decision due today', overdue: false };
+    }
+    return {
+      text: `Decision due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
+      overdue: false,
+    };
+  }
 
   openReschedule(row: AppointmentWithNavigationPropertiesDto): void {
     this.selectedRow = row;

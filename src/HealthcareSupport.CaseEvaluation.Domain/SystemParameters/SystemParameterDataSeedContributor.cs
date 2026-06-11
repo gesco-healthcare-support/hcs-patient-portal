@@ -51,6 +51,7 @@ public class SystemParameterDataSeedContributor : IDataSeedContributor, ITransie
                 appointmentMaxTimePQME: SystemParameterConsts.DefaultAppointmentMaxTimePQME,
                 appointmentMaxTimeAME: SystemParameterConsts.DefaultAppointmentMaxTimeAME,
                 appointmentMaxTimeOTHER: SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+                appointmentMaxTimeInternal: SystemParameterConsts.DefaultAppointmentMaxTimeInternal,
                 appointmentCancelTime: SystemParameterConsts.DefaultAppointmentCancelTime,
                 appointmentDueDays: SystemParameterConsts.DefaultAppointmentDueDays,
                 appointmentDurationTime: SystemParameterConsts.DefaultAppointmentDurationTime,

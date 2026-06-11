@@ -276,6 +276,8 @@
     "DoctorAvailability:GenerationConflictExists": "Time slot already exists at this location.",
     "Appointment:BookingDateInsideLeadTime": "The selected appointment date is too soon. Choose a date at least {0} day(s) from today.",
     "Appointment:BookingDatePastMaxHorizon": "The selected appointment date is too far in the future for this appointment type. Choose a date no more than {0} day(s) from today.",
+    "Appointment:ContactStaffForFurtherBookingTitle": "Appointment Date Too Far Out",
+    "Appointment:ContactStaffForFurtherBookingMessage": "Online booking is available up to 60 days in advance. For an appointment further out, please contact our office and our staff will schedule it for you.",
     "Appointment:BookingSlotFull": "This time slot is full ({0} of {1} booked). Please pick another time.",
     "Appointment:BookingSlotClosed": "This time slot has been closed by the clinic. Please pick another time.",
     "Appointment:BookingSlotTypeMismatch": "This time slot is not available for the selected appointment type. Please pick another time.",

@@ -17,6 +17,10 @@ public static class SystemParameterConsts
     public const int DefaultAppointmentMaxTimePQME = 60;
     public const int DefaultAppointmentMaxTimeAME = 60;
     public const int DefaultAppointmentMaxTimeOTHER = 60;
+    // 2026-06-11: internal staff may book further out than external users. External users are
+    // capped by the per-type AppointmentMaxTime{PQME,AME,OTHER} horizon (60); internal staff are
+    // capped by this single horizon (90). 90 is the absolute ceiling -- nobody books beyond it.
+    public const int DefaultAppointmentMaxTimeInternal = 90;
     public const int DefaultAppointmentCancelTime = 2;
     public const int DefaultAppointmentDueDays = 14;
     public const int DefaultAppointmentDurationTime = 60;

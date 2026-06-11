@@ -732,10 +732,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         await ValidateDoctorAvailabilityForBookingAsync(input, doctorAvailability);
 
-        // Phase 11b (2026-05-04) -- lead-time + per-AppointmentType max-time
-        // gates per OLD AppointmentDomain.cs Add path. Throws BusinessException
-        // with localized error code on failure.
-        await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId);
+        // Phase 11b (2026-05-04) -- lead-time + max-time gates per OLD
+        // AppointmentDomain.cs Add path. Throws BusinessException with a
+        // localized error code on failure.
+        // 2026-06-11 -- the max-time horizon is role-aware: internal staff may
+        // book up to AppointmentMaxTimeInternal (90); external users stay bound
+        // by the per-type horizon (60). This converged path covers Create /
+        // ReSubmit / CreateReval, so the role check lives here once.
+        var isInternalBooker = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+        await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId, isInternalBooker);
 
         // F1/F2 fix (2026-06-07) -- every booking now lands at Pending on
         // create, including internal-staff bookings. The former internal

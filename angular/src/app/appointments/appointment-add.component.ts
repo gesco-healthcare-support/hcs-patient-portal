@@ -250,6 +250,18 @@ export class AppointmentAddComponent {
   private availableSlotsRequestVersion = 0;
   readonly minimumBookingDays = 3;
   readonly minimumBookingRuleMessage = `You can book appointment after ${this.minimumBookingDays} days of today's date.`;
+  // 2026-06-11: role-based booking horizon. External users may book at most 60
+  // days out online; internal staff up to 90 (the absolute ceiling -- the
+  // state does not allow scheduling further out). Hardcoded client-side,
+  // mirroring minimumBookingDays; the server-side BookingPolicyValidator
+  // (role-aware AppointmentMaxTimeInternal) stays authoritative.
+  private readonly externalMaxBookingDays = 60;
+  private readonly internalMaxBookingDays = 90;
+
+  /** Per-role online-booking horizon: 90 days for internal staff, 60 for external users. */
+  get maxBookingDays(): number {
+    return this.isInternalBooker ? this.internalMaxBookingDays : this.externalMaxBookingDays;
+  }
   appointmentTimeOptions: Array<{ value: string; label: string; doctorAvailabilityId: string }> =
     [];
   private currentPatientProfile?: PatientWithNavigationPropertiesDto;
@@ -2155,6 +2167,13 @@ export class AppointmentAddComponent {
       return true;
     }
 
+    // Absolute 90-day ceiling: disabled for every role (the state does not
+    // allow scheduling further out). External 60-90 dates stay enabled here
+    // and are intercepted with the contact-staff notice on selection.
+    if (this.isBeyondAbsoluteBookingCeiling(date)) {
+      return true;
+    }
+
     if (this.availableDateKeys.size === 0) {
       return true;
     }
@@ -3496,7 +3515,34 @@ export class AppointmentAddComponent {
       return;
     }
 
+    // 2026-06-11: external users may SEE slots beyond their 60-day online
+    // horizon (the picker only caps the shared 90-day ceiling), but cannot
+    // book them online. When the picked date exceeds the role horizon
+    // (60 external / 90 internal) show the contact-staff notice and clear the
+    // selection. The server BookingPolicyValidator is authoritative; this is
+    // the friendly UX guard so the user is not silently rejected on submit.
+    if (this.daysFromTodayKey(dateKey) > this.maxBookingDays) {
+      this.showContactStaffForFurtherBooking();
+      this.clearAppointmentDate();
+      return;
+    }
+
     this.populateTimeSlotsForDate(dateKey);
+  }
+
+  /**
+   * 2026-06-11: informational modal shown when an external user selects a slot
+   * beyond the 60-day online booking horizon. Single OK button (hideCancelBtn);
+   * the message directs them to contact staff, who can schedule 60-90 days out.
+   */
+  private showContactStaffForFurtherBooking(): void {
+    this.confirmationService
+      .info(
+        '::Appointment:ContactStaffForFurtherBookingMessage',
+        '::Appointment:ContactStaffForFurtherBookingTitle',
+        { hideCancelBtn: true, yesText: 'AbpUi::Ok' },
+      )
+      .subscribe();
   }
 
   private populateTimeSlotsForDate(dateKey: string): void {
@@ -3571,6 +3617,30 @@ export class AppointmentAddComponent {
     if (!date) return false;
     const key = this.toDateKey(date.year, date.month, date.day);
     return this.isBeforeMinimumBookingDateKey(key);
+  }
+
+  /** Whole days between today (local midnight) and the given YYYY-MM-DD key. */
+  private daysFromTodayKey(dateKey: string): number {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const selected = new Date(year, month - 1, day); // month is 0-indexed in JS
+    selected.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.round((selected.getTime() - today.getTime()) / msPerDay);
+  }
+
+  /**
+   * 2026-06-11: the absolute booking ceiling (internalMaxBookingDays = 90)
+   * applies to every booker -- nobody schedules beyond it, so the picker
+   * disables those dates for all roles. Between 60 and 90 days, external
+   * users still SEE the dates but get the contact-staff notice on selection
+   * (handled in onAppointmentDateChanged); internal staff book them directly.
+   */
+  private isBeyondAbsoluteBookingCeiling(date: NgbDateStruct): boolean {
+    if (!date) return false;
+    const key = this.toDateKey(date.year, date.month, date.day);
+    return this.daysFromTodayKey(key) > this.internalMaxBookingDays;
   }
 
   private isBeforeMinimumBookingDateKey(dateKey: string): boolean {
