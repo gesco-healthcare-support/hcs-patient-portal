@@ -117,6 +117,38 @@ external cancel/reschedule is unaffected.
 
 ---
 
+## Data-level authorization: appointment row-level visibility (email + role)
+
+Firm-based AA/DA work (2026-06-12) made per-row appointment **visibility** role-gated, and the list
+query and the per-appointment read guard now share one rule so they always agree (a row shown in the
+list never 403s on click, and a hidden row is never openable by deep link).
+
+An external caller may see / open an appointment only if ANY of:
+
+> 1. they are the appointment **creator** (`CreatorId`); OR
+> 2. they hold an explicit **AppointmentAccessor** grant on it; OR
+> 3. they are the **patient identity** on the row (`Patient.IdentityUserId`); OR
+> 4. **email + role**: one of the appointment's denormalized party-email columns equals the caller's
+>    email AND the caller holds that column's role -- `PatientEmail`->Patient,
+>    `ApplicantAttorneyEmail`->Applicant Attorney, `DefenseAttorneyEmail`->Defense Attorney,
+>    `ClaimExaminerEmail`->Claim Examiner.
+
+- List query: `AppointmentsAppService.ComputeExternalPartyVisibilityAsync`. Read guard:
+  `AppointmentReadAccessGuard.EnsureCanReadAsync`. Both call the pure rule
+  `AppointmentAccessRules.IsAppointmentEmailRoleVisible`.
+- The earlier **role-agnostic** email match and the bare **id-based** AA/DA link pathways were
+  REMOVED: with registration auto-link keying by email, those would surface a party column to a user
+  who lacks that column's role (cross-role leak). Internal-role callers bypass narrowing entirely.
+
+**Role accumulation (D9).** Adding an external account as an accessor under a role it does not yet
+hold now **grants that role** (`AppointmentAccessorRules.ResolveOutcome` returns `GrantRoleAndLink`
+instead of the former `RoleMismatch`). This is how a firm accumulates Applicant + Defense Attorney
+and thereby sees both sides; it is safe because visibility stays gated by role (the grant only reveals
+the newly-held role's own-side appointments). The grant is gated upstream by `CanManageAccessors`
+(internal staff or the creator who holds AA/DA), so it cannot be self-initiated.
+
+---
+
 ## Enforcement Gaps (to be audited)
 
 1. **Controller layer:** Controllers delegate to AppServices. If an AppService method lacks `[Authorize]`, there is no fallback; the controller does not re-check. Gap: no automated lint for missing `[Authorize]`.
