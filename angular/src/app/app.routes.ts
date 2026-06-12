@@ -20,6 +20,16 @@ import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/de
 import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-examiner-routes';
 
 export const APP_ROUTES: Routes = [
+  // THROWAWAY (redesign foundation slice): preview surface for tokens, icons,
+  // status pills, and ap- primitives. Empty layout, no guard. DELETE this route
+  // and src/app/_dev/ after sign-off. See
+  // docs/plans/2026-06-12-redesign-foundation-design.md.
+  {
+    path: 'foundation-preview',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./_dev/foundation-preview.component').then((c) => c.FoundationPreviewComponent),
+  },
   {
     path: '',
     pathMatch: 'full',
