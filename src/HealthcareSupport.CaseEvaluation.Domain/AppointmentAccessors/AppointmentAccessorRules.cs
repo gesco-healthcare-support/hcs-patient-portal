@@ -119,13 +119,25 @@ public static class AppointmentAccessorRules
             return AccessorLinkOutcome.LinkExisting;
         }
 
-        if (HasConflictingExternalRole(userRoles, requestedRole))
-        {
-            return AccessorLinkOutcome.RoleMismatch;
-        }
-
-        // User exists with no recognised external role -- allow grant
-        // by adding the requested role and linking.
+        // D9 (firm-based AA/DA, 2026-06-12): an existing user is granted the
+        // requested role (idempotently) and linked -- WHETHER OR NOT they already
+        // hold a different recognised external role. The firm model lets one
+        // account accumulate roles (e.g. an Applicant Attorney firm invited as a
+        // Defense Attorney accessor on the opposing side gains the Defense Attorney
+        // role on top). The accessor invite is already authorized upstream by
+        // AppointmentAccessRules.CanManageAccessors (internal staff OR the creator
+        // who holds AA/DA), so granting the invited role is the intended outcome.
+        //
+        // This reverses the earlier OLD-parity "do not soften RoleMismatch" stance
+        // per the locked D9 decision. Granting the role is SAFE because visibility
+        // is gated independently by role (see IsAppointmentEmailRoleVisible) -- the
+        // user only sees appointments where their email is a party under a role
+        // they hold, so accumulating Defense Attorney reveals only DA-side
+        // appointments, never the AA side they did not already have.
+        //
+        // HasConflictingExternalRole / AccessorLinkOutcome.RoleMismatch are retained
+        // (predicate + enum value still referenced by the manager's defensive
+        // switch) but ResolveOutcome no longer returns RoleMismatch.
         return AccessorLinkOutcome.GrantRoleAndLink;
     }
 }

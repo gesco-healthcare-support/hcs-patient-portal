@@ -87,14 +87,20 @@ public class AppointmentAccessorRulesUnitTests
     }
 
     [Fact]
-    public void ResolveOutcome_UserExistsWithDifferentExternalRole_ReturnsRoleMismatch()
+    public void ResolveOutcome_UserExistsWithDifferentExternalRole_ReturnsGrantRoleAndLink()
     {
+        // D9 (firm-based AA/DA, 2026-06-12): a conflicting recognised external
+        // role no longer blocks with RoleMismatch. The account accumulates the
+        // requested role (e.g. an Applicant Attorney firm invited as a Defense
+        // Attorney accessor gains the Defense Attorney role on top). Visibility
+        // stays role-gated separately (IsAppointmentEmailRoleVisible), so the
+        // grant only reveals the newly-held role's own-side appointments.
         AppointmentAccessorRules
             .ResolveOutcome(
                 userExists: true,
                 userRoles: new[] { "Applicant Attorney" },
                 requestedRole: "Defense Attorney")
-            .ShouldBe(AccessorLinkOutcome.RoleMismatch);
+            .ShouldBe(AccessorLinkOutcome.GrantRoleAndLink);
     }
 
     [Fact]
