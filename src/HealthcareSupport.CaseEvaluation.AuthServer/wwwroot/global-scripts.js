@@ -278,22 +278,27 @@
     });
 
     function applyRoleVisibility() {
-      // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
-      // every role -- Patient, Adjuster (Claim Examiner), Patient Attorney
-      // (Applicant Attorney), Defense Attorney -- has FirstName + LastName
-      // columns and the OLD register form collects them for everyone. Only
-      // FirmName is attorney-only. Earlier NEW behavior hid First/Last for
-      // attorneys, leaving IdentityUser.Name + Surname null and breaking
-      // the welcome banner, the booking-form pre-fill, and the attorney
-      // lookup labels (all of which read those two fields).
+      // C1/D1 (firm-based AA/DA registration, 2026-06-11): hide First/Last for
+      // the two attorney roles so a firm account registers with only Firm Name
+      // + Email (IdentityUser.Name/Surname stay blank by design). Patient /
+      // Claim Examiner keep First/Last.
+      //
+      // History (Chesterton's Fence): a prior attempt to hide First/Last was
+      // REVERTED because blank Name/Surname broke the welcome banner, the
+      // booking-form pre-fill, and attorney lookup labels (all read those two
+      // fields). That is now safe: Phase 1 (C2/D4) added a display-name fallback
+      // (First+Last -> FirmName -> email) at the banner + lookup read sites, and
+      // the booking attorney section becomes free-entry under C4/Phase 3. OLD
+      // collected First/Last for every role (User.cs:64-85); the firm model
+      // deliberately deviates.
       var select = form.querySelector('#external-user-type');
       var role = select ? Number(select.value || 1) : 1;
       var isAttorney = role === 3 || role === 4;
       var firstWrap = firstNameInput.closest('.form-floating, .mb-2, .mb-3');
       var lastWrap = lastNameInput.closest('.form-floating, .mb-2, .mb-3');
       var firmWrap = firmNameInput.closest('.form-floating, .mb-2, .mb-3');
-      if (firstWrap) firstWrap.style.display = '';
-      if (lastWrap) lastWrap.style.display = '';
+      if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
+      if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
       if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
       // BUG-012 (2026-05-22): toggle the required attribute alongside
       // visibility so ensureButtonDisabledBinding (which gates on
@@ -923,13 +928,14 @@
     }
     const tenantId = ctx.id;
 
-    // OLD parity (PatientAppointment.DbEntities/Models/User.cs:64-85):
-    // First Name + Last Name are collected for every role; Firm Name is
-    // additional for the two attorney roles (Applicant Attorney = 3,
-    // Defense Attorney = 4). Always send First / Last so the
-    // IdentityUser.Name / Surname columns never end up null -- the
-    // welcome banner, booking-form pre-fill, and attorney lookup all
-    // read those two fields.
+    // C1/D1 (firm-based AA/DA registration, 2026-06-11): Patient / Claim
+    // Examiner collect First + Last; the two attorney roles (Applicant = 3,
+    // Defense = 4) are firm accounts -- send First/Last as null so
+    // IdentityUser.Name/Surname stay blank, and send Firm Name instead. Nulling
+    // here is independent of field visibility: it also drops any stale value
+    // left in a now-hidden input (user typed a name, then switched to an
+    // attorney role). Display read sites fall back to FirmName (Phase 1, C2/D4).
+    // OLD collected First/Last for every role (User.cs:64-85); the firm model deviates.
     const firstName = getFirstValue(form, ['#external-first-name', 'input[name="FirstName"]']);
     const lastName = getFirstValue(form, ['#external-last-name', 'input[name="LastName"]']);
     const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
@@ -937,8 +943,8 @@
 
     const payload = {
       userType: userType,
-      firstName: firstName || null,
-      lastName: lastName || null,
+      firstName: isAttorney ? null : (firstName || null),
+      lastName: isAttorney ? null : (lastName || null),
       firmName: isAttorney ? (firmName || null) : null,
       email: email,
       password: password,
@@ -1387,6 +1393,17 @@
     // role and bypasses the role-select change event) also gates submit
     // on Firm Name for attorney roles.
     if (firmInput) firmInput.required = isAttorney;
+    // C1/D1 (2026-06-11): mirror the First/Last hide too. setEmailRoleLocked
+    // sets the role programmatically (no 'change' event), so applyRoleVisibility
+    // does not re-run for the invite flow -- hide First/Last here for attorney
+    // invites so a firm account is not shown name fields. The submit path nulls
+    // them for attorney roles regardless, so any invite-prefilled value is dropped.
+    var firstInput = form.querySelector('#external-first-name');
+    var lastInput = form.querySelector('#external-last-name');
+    var firstWrap = firstInput ? firstInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    var lastWrap = lastInput ? lastInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
+    if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
   }
 
   function renderInviteAlreadyAcceptedBanner(form) {

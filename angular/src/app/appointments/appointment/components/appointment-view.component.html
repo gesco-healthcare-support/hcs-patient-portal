@@ -610,7 +610,9 @@
                   >
                     <option [ngValue]="null">Select Applicant Attorney</option>
                     @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                      <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
+                      <option [ngValue]="opt.identityUserId">
+                        {{ applicantAttorneyOptionLabel(opt) }}
+                      </option>
                     }
                   </select>
                 </div>

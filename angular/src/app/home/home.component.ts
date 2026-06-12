@@ -18,6 +18,7 @@ import { AppointmentViewService } from '../appointments/appointment/services/app
 import { AppointmentDetailViewService } from '../appointments/appointment/services/appointment-detail.service';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import { SsnMaskPipe } from '../shared/pipes/ssn-mask.pipe';
+import { resolveExternalUserDisplayName } from '../shared/auth/external-user-display-name';
 
 @Component({
   selector: 'app-home',
@@ -51,6 +52,11 @@ export class HomeComponent implements OnInit {
   private readonly router = inject(Router);
   patientAppointmentRows: any[] = [];
   submitQueryVisible = false;
+  // Phase 1 / C2 / D4 (2026-06-11): FirmName for the welcome banner. The token
+  // / configState currentUser does not carry extension properties, so fetch the
+  // profile once; a firm AA/DA account has a blank Name/Surname and falls back
+  // to this firm name (resolveExternalUserDisplayName) instead of the raw email.
+  private bannerFirmName = '';
   readonly patientDatatableMessages = {
     emptyMessage: 'No Data Available',
   };
@@ -112,6 +118,7 @@ export class HomeComponent implements OnInit {
     // returns the union of all involvement modes.
     this.service.hookToQuery();
     this.loadAdvancedSearchLookups();
+    this.loadCurrentUserFirmName();
   }
 
   applyQuickSearch(): void {
@@ -174,6 +181,26 @@ export class HomeComponent implements OnInit {
       });
   }
 
+  // Phase 1 / C2 / D4 (2026-06-11): fetch the current user's FirmName so the
+  // banner can show it for a firm account (blank Name/Surname). Read via
+  // restService (the codebase's inline pattern) against the authoritative
+  // ExternalUserController route; on any error leave it blank and fall back to
+  // name/email (the prior behavior). No proxy regeneration needed.
+  private loadCurrentUserFirmName(): void {
+    this.restService
+      .request<any, { firmName?: string }>(
+        {
+          method: 'GET',
+          url: '/api/app/external-users/me',
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (profile) => (this.bannerFirmName = profile?.firmName ?? ''),
+        error: () => (this.bannerFirmName = ''),
+      });
+  }
+
   get hasLoggedIn(): boolean {
     return this.authService.isAuthenticated;
   }
@@ -200,8 +227,15 @@ export class HomeComponent implements OnInit {
       return '';
     }
 
-    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
-    return fullName || user.userName || '';
+    // Phase 1 / C2 / D4: First+Last -> FirmName -> email (userName). A firm
+    // AA/DA account registers with blank Name/Surname, so this surfaces the
+    // firm name instead of the raw email once the profile fetch resolves.
+    return resolveExternalUserDisplayName(
+      user.name,
+      user.surname,
+      this.bannerFirmName,
+      user.userName,
+    );
   }
 
   get displayTenantName(): string {

@@ -39,6 +39,7 @@ import { ChangeRequestType } from '../../../proxy/appointment-change-requests/ch
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
+import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 
 type TransitionAction = 'approve' | 'reject' | 'cancel';
 
@@ -48,6 +49,9 @@ type ExternalAuthorizedUserOption = {
   lastName: string;
   email: string;
   userRole: string;
+  // Phase 1 / C2 / D4 (2026-06-11): firm name from the external-user lookup so
+  // the picker shows a firm account's firm name instead of a blank/raw email.
+  firmName?: string;
 };
 
 type AppointmentAuthorizedUserRow = {
@@ -1140,6 +1144,20 @@ export class AppointmentViewComponent implements OnInit {
 
   getAccessTypeLabel(value: number): string {
     return this.accessTypeOptions.find((x) => x.value === value)?.label ?? '';
+  }
+
+  // Phase 1 / C2 / D4 (2026-06-11): label for the Applicant Attorney picker.
+  // Show the resolved display name (First+Last -> FirmName -> email) so a firm
+  // account surfaces its firm name; append the email in parens when it differs
+  // so staff keep the unique identifier for disambiguation.
+  applicantAttorneyOptionLabel(opt: ExternalAuthorizedUserOption): string {
+    const display = resolveExternalUserDisplayName(
+      opt.firstName,
+      opt.lastName,
+      opt.firmName,
+      opt.email,
+    );
+    return display && opt.email && display !== opt.email ? `${display} (${opt.email})` : display;
   }
 
   private loadExternalAuthorizedUsers(): void {

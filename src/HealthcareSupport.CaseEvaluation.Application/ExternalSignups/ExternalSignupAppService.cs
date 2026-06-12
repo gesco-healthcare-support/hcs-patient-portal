@@ -364,6 +364,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     FirstRoleId = u.Roles.Where(r => roleIds.Contains(r.RoleId)).Select(r => r.RoleId).FirstOrDefault(),
                 }));
 
+        // Phase 1 / C2 / D4 (2026-06-11): the projection above omits extension
+        // properties (FirmName lives in the AbpUserExtraProperties JSON column).
+        // Materialize the matched users once and read FirmName so the picker can
+        // display a firm account's firm name when First/Last are blank. The list
+        // is tenant-scoped + role-filtered, so this is a small set.
+        var matchedIds = usersWithRoleId.Select(u => u.Id).ToList();
+        var firmNameById = new Dictionary<Guid, string>();
+        if (matchedIds.Count > 0)
+        {
+            var fullUsers = await AsyncExecuter.ToListAsync(
+                userQuery.Where(u => matchedIds.Contains(u.Id)));
+            foreach (var fullUser in fullUsers)
+            {
+                firmNameById[fullUser.Id] = fullUser.GetProperty<string>(
+                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty;
+            }
+        }
+
         var items = new List<ExternalUserLookupDto>();
         foreach (var u in usersWithRoleId)
         {
@@ -383,6 +401,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 LastName = u.Surname ?? string.Empty,
                 Email = u.Email ?? string.Empty,
                 UserRole = userRole,
+                FirmName = firmNameById.TryGetValue(u.Id, out var firm) ? firm : string.Empty,
             });
         }
 
@@ -432,6 +451,13 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var isAccessor = ReadBoolExtensionProperty(
             user, CaseEvaluationModuleExtensionConfigurator.IsAccessorPropertyName);
 
+        // Phase 1 / C2 / D4 (2026-06-11): surface FirmName so the SPA home
+        // banner can fall back to it for a firm account (blank Name/Surname).
+        // FirmName is a string extension property -- GetProperty<string> is
+        // safe here (the JsonElement coercion bug only affects bool reads).
+        var firmName = user.GetProperty<string>(
+            CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty;
+
         return new ExternalUserProfileDto
         {
             IdentityUserId = user.Id,
@@ -441,6 +467,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             UserRole = userRole,
             IsExternalUser = isExternalUser,
             IsAccessor = isAccessor,
+            FirmName = firmName,
         };
     }
 
