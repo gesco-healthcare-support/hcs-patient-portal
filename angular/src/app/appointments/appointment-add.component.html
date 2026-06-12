@@ -153,7 +153,7 @@
               role="applicant"
               [mandatory]="isApplicantAttorney && !isItAdmin"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="isApplicantAttorney && !isItAdmin"
+              [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
             />
           </div>
@@ -170,7 +170,7 @@
               role="defense"
               [mandatory]="isDefenseAttorney && !isItAdmin"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="isDefenseAttorney && !isItAdmin"
+              [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
             />
           </div>
