@@ -1,0 +1,170 @@
+// ============================================================
+// Redesign global utility classes -- the "ap-" layer
+//
+// Token-driven primitives shared by redesigned pages. Every selector is
+// `.ap-`-prefixed (a CLASS selector) so it:
+//   - cannot collide with Bootstrap/LeptonX (which own bare `.btn`/`.card`/
+//     `.badge` via @abp/ng.theme.shared + lepton-x), and
+//   - never touches existing LeptonX pages (no bare element selectors, no
+//     `body`/`*` overrides -- those would repaint the current app).
+//
+// Values are taken from the prototype's after.css (.af-card / .af-input /
+// .af-field) where a canonical style exists. The prototype has NO single
+// button class (buttons are page-contextual), so `.ap-btn` is a faithful
+// synthesis of the design language; pages may extend it with scoped styles.
+// ============================================================
+
+// -- Buttons ------------------------------------------------------------------
+.ap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ap-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--blue-50);
+}
+.ap-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ap-btn--primary {
+  background: var(--blue-700);
+  border-color: var(--blue-700);
+  color: #fff;
+}
+.ap-btn--primary:hover:not(:disabled) {
+  background: var(--blue-800);
+  border-color: var(--blue-800);
+}
+
+.ap-btn--ghost {
+  background: #fff;
+  border-color: var(--border-strong);
+  color: var(--n-600);
+}
+.ap-btn--ghost:hover:not(:disabled) {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+  background: var(--blue-50);
+}
+
+.ap-btn--accent {
+  background: var(--green-500);
+  border-color: var(--green-500);
+  color: #fff;
+}
+.ap-btn--accent:hover:not(:disabled) {
+  background: var(--green-600);
+  border-color: var(--green-600);
+}
+
+.ap-btn--danger {
+  background: var(--st-rejected-dot);
+  border-color: var(--st-rejected-dot);
+  color: #fff;
+}
+.ap-btn--danger:hover:not(:disabled) {
+  background: var(--st-rejected-fg);
+  border-color: var(--st-rejected-fg);
+}
+
+// -- Card (mirrors prototype .af-card) ----------------------------------------
+.ap-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+}
+.ap-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.ap-card__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--n-900);
+}
+.ap-card__body {
+  padding: 22px;
+}
+
+// -- Form fields (mirrors prototype .af-field / .af-input) --------------------
+.ap-field {
+  display: block;
+}
+.ap-field > label,
+.ap-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--n-600);
+}
+.ap-input,
+.ap-select {
+  width: 100%;
+  padding: 10px 13px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  color: var(--n-800);
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ap-input::placeholder {
+  color: var(--n-400);
+}
+.ap-input:focus,
+.ap-select:focus {
+  outline: none;
+  border-color: var(--blue-400);
+  box-shadow: 0 0 0 4px var(--blue-50);
+}
+
+// -- Entrance animation (transform-only; prototype rule: never opacity-from-0
+//    with a persisting fill, which freezes capture/print/PDF at frame 0) ------
+@keyframes ap-fade-up {
+  from {
+    transform: translateY(7px);
+  }
+  to {
+    transform: none;
+  }
+}
+.ap-fade-in {
+  animation: ap-fade-up 0.28s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-fade-in {
+    animation: none;
+  }
+}
