@@ -251,7 +251,12 @@ public class BookingSubmissionEmailHandler :
         // ONE email addressed To the booker with the other parties CC'd, using
         // a single non-role-aware body. The office mailbox is NOT a party -- it
         // keeps its own separate internal "new request" notice.
-        var addressing = PartitionAppointmentRequested(recipients, bookerUser?.Email);
+        // Phase 4 (C3/D3): anchor To on the promoted attorney when the creator
+        // (firm/paralegal booker) holds that attorney role; otherwise the existing
+        // booker email. The promoted AA/DA email is a resolved party, so To binds
+        // to it and the other parties + creator are CC'd.
+        var addressing = PartitionAppointmentRequested(
+            recipients, ctx.PrimaryRecipientEmail ?? bookerUser?.Email);
 
         if (addressing.To != null)
         {
@@ -263,7 +268,12 @@ public class BookingSubmissionEmailHandler :
             {
                 ["AppointmentRequestConfirmationNumber"] = eventData.RequestConfirmationNumber,
                 ["AppointmentDateTime"] = dateLine,
-                ["BookerFullName"] = bookerName,
+                // Phase 4 (D5): greet the promoted attorney when applicable, else
+                // the booker. Only the To-party (shared) notice is promoted; the
+                // separate office notice below keeps the booker name.
+                ["BookerFullName"] = !string.IsNullOrWhiteSpace(ctx.GreetingName)
+                    ? ctx.GreetingName
+                    : bookerName,
                 ["PatientFirstName"] = ctx.PatientFirstName ?? patientName,
                 ["PatientLastName"] = ctx.PatientLastName ?? string.Empty,
                 ["LoginUrl"] = BuildLoginUrl(authServerBaseUrl, addressing.To.TenantName, string.Empty),
@@ -278,6 +288,22 @@ public class BookingSubmissionEmailHandler :
                 .Select(r => new NotificationRecipient(
                     email: r.To, role: r.Role, isRegistered: r.IsRegistered))
                 .ToList();
+
+            // Phase 4 (C3/D3): CC the firm/paralegal creator when promoted -- they
+            // are often not a resolved party (a different attorney email is named,
+            // and when the patient has a login appointment.IdentityUserId = patient).
+            // Skip when the creator IS the To (solo attorney) or already CC'd.
+            // Scoped to the promoted case so non-attorney bookers are unchanged.
+            if (ctx.IsPromoted
+                && !string.IsNullOrWhiteSpace(ctx.CreatorEmail)
+                && !string.Equals(ctx.CreatorEmail, toRecipient.Email, StringComparison.OrdinalIgnoreCase)
+                && !ccRecipients.Any(r => string.Equals(r.Email, ctx.CreatorEmail, StringComparison.OrdinalIgnoreCase)))
+            {
+                // Role is CC metadata only; OfficeAdmin mirrors how the codebase
+                // tags appended non-party CC recipients.
+                ccRecipients.Add(new NotificationRecipient(
+                    email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true));
+            }
 
             await _dispatcher.DispatchToWithCcAsync(
                 templateCode: NotificationTemplateConsts.Codes.AppointmentRequestedRegistered,
