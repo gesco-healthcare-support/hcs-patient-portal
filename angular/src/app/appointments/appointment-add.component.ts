@@ -830,46 +830,6 @@ export class AppointmentAddComponent {
     // flip-off is no longer needed -- shouldShowApplicantAttorneySection
     // / shouldShowDefenseAttorneySection now always return true to match
     // OLD's behavior (see the comment on those methods).
-    this.applyOwnRoleAttorneyPrefill();
-  }
-
-  /**
-   * OLD parity (appointment-add.component.ts:159-162): when the booker is
-   * the Applicant Attorney, pre-fill that section's email from their
-   * identity. Same idea for Defense Attorney (DA email is also readonly
-   * for DA-role bookers per OLD HTML line 749). The HTML pairs this with
-   * `[readonly]` on those email fields so the booker cannot retype their
-   * own address.
-   */
-  private applyOwnRoleAttorneyPrefill(): void {
-    const user = this.currentUser;
-    if (!user) return;
-    // OLD parity: AA/DA have a single "Name" field. We map the combined
-    // name into the existing firstName form control and leave lastName
-    // empty so downstream display ("firstName lastName") renders the
-    // single name without trailing whitespace.
-    const fullName = [user.name, user.surname].filter(Boolean).join(' ').trim();
-    if (this.isApplicantAttorney && !this.isItAdmin) {
-      this.form.patchValue(
-        {
-          applicantAttorneyEmail: user.email ?? this.form.get('applicantAttorneyEmail')?.value,
-          applicantAttorneyFirstName:
-            fullName || this.form.get('applicantAttorneyFirstName')?.value,
-          applicantAttorneyLastName: '',
-        },
-        { emitEvent: false },
-      );
-    }
-    if (this.isDefenseAttorney && !this.isItAdmin) {
-      this.form.patchValue(
-        {
-          defenseAttorneyEmail: user.email ?? this.form.get('defenseAttorneyEmail')?.value,
-          defenseAttorneyFirstName: fullName || this.form.get('defenseAttorneyFirstName')?.value,
-          defenseAttorneyLastName: '',
-        },
-        { emitEvent: false },
-      );
-    }
   }
 
   private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
@@ -2418,62 +2378,49 @@ export class AppointmentAddComponent {
           employerStateId: null,
           employerZipCode: null,
         });
-        const identityUserId = profile.identityUserId ?? this.currentUser?.id ?? null;
-        const isApplicantAttorney =
-          profile.userRole?.toLowerCase() === 'applicant attorney' ||
-          (this.currentUser?.roles ?? []).some(
-            (r: string) => r?.toLowerCase() === 'applicant attorney',
-          );
-        if (isApplicantAttorney && identityUserId) {
-          this.loadApplicantAttorneyForCurrentUser(identityUserId);
-        } else {
-          this.form.patchValue({
-            applicantAttorneyIdentityUserId: null,
-            applicantAttorneyFirstName: null,
-            applicantAttorneyLastName: null,
-            applicantAttorneyEmail: null,
-            applicantAttorneyFirmName: null,
-            applicantAttorneyWebAddress: null,
-            applicantAttorneyPhoneNumber: null,
-            applicantAttorneyFaxNumber: null,
-            applicantAttorneyStreet: null,
-            applicantAttorneyCity: null,
-            applicantAttorneyStateId: null,
-            applicantAttorneyZipCode: null,
-          });
-          this.applicantAttorneyId = null;
-          this.applicantAttorneyConcurrencyStamp = null;
-        }
-        // I17 (2026-06-08): a defense attorney booking their own appointment
-        // gets the same full-record prefill as an applicant attorney (firm name
-        // + contact fields). No DA loader existed before; the firm name typed at
-        // registration now surfaces via the backend extension-property fallback
-        // in GetDefenseAttorneyDetailsForBookingAsync.
-        const isDefenseAttorney =
-          profile.userRole?.toLowerCase() === 'defense attorney' ||
-          (this.currentUser?.roles ?? []).some(
-            (r: string) => r?.toLowerCase() === 'defense attorney',
-          );
-        if (isDefenseAttorney && identityUserId) {
-          this.loadDefenseAttorneyForCurrentUser(identityUserId);
-        } else {
-          this.form.patchValue({
-            defenseAttorneyIdentityUserId: null,
-            defenseAttorneyFirstName: null,
-            defenseAttorneyLastName: null,
-            defenseAttorneyEmail: null,
-            defenseAttorneyFirmName: null,
-            defenseAttorneyWebAddress: null,
-            defenseAttorneyPhoneNumber: null,
-            defenseAttorneyFaxNumber: null,
-            defenseAttorneyStreet: null,
-            defenseAttorneyCity: null,
-            defenseAttorneyStateId: null,
-            defenseAttorneyZipCode: null,
-          });
-          this.defenseAttorneyId = null;
-          this.defenseAttorneyConcurrencyStamp = null;
-        }
+        // Firm-model (D7 / C4): never auto-seed the attorney sections from the
+        // booker's own identity. A firm/paralegal AA or DA books on behalf of a
+        // DISTINCT attorney, so both sections start blank + editable. The former
+        // auto-load (loadApplicant/DefenseAttorneyForCurrentUser) was removed
+        // because the *-details-for-booking endpoint returns the firm's OWN
+        // email + registration firm name for a firm account, which would re-seed
+        // the very identity we want kept out of the on-behalf section.
+        // D7 / Q3 consequence: an AA/DA booker (incl. a solo attorney booking
+        // for self) now TYPES the attorney details each booking -- the add form
+        // has no AA lookup UI (the email-search box + picker live only on the
+        // appointment VIEW page). Submit still persists what they type to a
+        // master row keyed by the form email. "Solo attorney retypes" is the
+        // accepted trade-off (see the plan's Risks note).
+        this.form.patchValue({
+          applicantAttorneyIdentityUserId: null,
+          applicantAttorneyFirstName: null,
+          applicantAttorneyLastName: null,
+          applicantAttorneyEmail: null,
+          applicantAttorneyFirmName: null,
+          applicantAttorneyWebAddress: null,
+          applicantAttorneyPhoneNumber: null,
+          applicantAttorneyFaxNumber: null,
+          applicantAttorneyStreet: null,
+          applicantAttorneyCity: null,
+          applicantAttorneyStateId: null,
+          applicantAttorneyZipCode: null,
+          defenseAttorneyIdentityUserId: null,
+          defenseAttorneyFirstName: null,
+          defenseAttorneyLastName: null,
+          defenseAttorneyEmail: null,
+          defenseAttorneyFirmName: null,
+          defenseAttorneyWebAddress: null,
+          defenseAttorneyPhoneNumber: null,
+          defenseAttorneyFaxNumber: null,
+          defenseAttorneyStreet: null,
+          defenseAttorneyCity: null,
+          defenseAttorneyStateId: null,
+          defenseAttorneyZipCode: null,
+        });
+        this.applicantAttorneyId = null;
+        this.applicantAttorneyConcurrencyStamp = null;
+        this.defenseAttorneyId = null;
+        this.defenseAttorneyConcurrencyStamp = null;
       });
   }
 
@@ -3006,116 +2953,6 @@ export class AppointmentAddComponent {
               applicantAttorneyCity: data.city ?? null,
               applicantAttorneyStateId: data.stateId ?? null,
               applicantAttorneyZipCode: data.zipCode ?? null,
-            });
-          }
-        },
-      });
-  }
-
-  private loadApplicantAttorneyForCurrentUser(identityUserId: string): void {
-    this.restService
-      .request<
-        any,
-        {
-          applicantAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-          concurrencyStamp?: string;
-        } | null
-      >(
-        {
-          method: 'GET',
-          url: '/api/app/appointments/applicant-attorney-details-for-booking',
-          params: { identityUserId },
-        },
-        { apiName: 'Default' },
-      )
-      .subscribe({
-        next: (data) => {
-          if (data) {
-            this.applicantAttorneyId = data.applicantAttorneyId ?? null;
-            this.applicantAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
-            this.form.patchValue({
-              applicantAttorneyEnabled: true,
-              applicantAttorneyIdentityUserId: data.identityUserId,
-              applicantAttorneyFirstName: data.firstName ?? null,
-              applicantAttorneyLastName: data.lastName ?? null,
-              applicantAttorneyEmail: data.email ?? null,
-              applicantAttorneyFirmName: data.firmName ?? null,
-              applicantAttorneyWebAddress: data.webAddress ?? null,
-              applicantAttorneyPhoneNumber: data.phoneNumber ?? null,
-              applicantAttorneyFaxNumber: data.faxNumber ?? null,
-              applicantAttorneyStreet: data.street ?? null,
-              applicantAttorneyCity: data.city ?? null,
-              applicantAttorneyStateId: data.stateId ?? null,
-              applicantAttorneyZipCode: data.zipCode ?? null,
-            });
-          }
-        },
-      });
-  }
-
-  // I17 (2026-06-08): defense-attorney counterpart of
-  // loadApplicantAttorneyForCurrentUser. Loads the booker's own registered DA
-  // record so the DA section prefills firm name + contact fields when a defense
-  // attorney books their own appointment.
-  private loadDefenseAttorneyForCurrentUser(identityUserId: string): void {
-    this.restService
-      .request<
-        any,
-        {
-          defenseAttorneyId?: string;
-          identityUserId: string;
-          firstName: string;
-          lastName: string;
-          email: string;
-          firmName?: string;
-          webAddress?: string;
-          phoneNumber?: string;
-          faxNumber?: string;
-          street?: string;
-          city?: string;
-          stateId?: string;
-          zipCode?: string;
-          concurrencyStamp?: string;
-        } | null
-      >(
-        {
-          method: 'GET',
-          url: '/api/app/appointments/defense-attorney-details-for-booking',
-          params: { identityUserId },
-        },
-        { apiName: 'Default' },
-      )
-      .subscribe({
-        next: (data) => {
-          if (data) {
-            this.defenseAttorneyId = data.defenseAttorneyId ?? null;
-            this.defenseAttorneyConcurrencyStamp = data.concurrencyStamp ?? null;
-            this.form.patchValue({
-              defenseAttorneyEnabled: true,
-              defenseAttorneyIdentityUserId: data.identityUserId,
-              defenseAttorneyFirstName: data.firstName ?? null,
-              defenseAttorneyLastName: data.lastName ?? null,
-              defenseAttorneyEmail: data.email ?? null,
-              defenseAttorneyFirmName: data.firmName ?? null,
-              defenseAttorneyWebAddress: data.webAddress ?? null,
-              defenseAttorneyPhoneNumber: data.phoneNumber ?? null,
-              defenseAttorneyFaxNumber: data.faxNumber ?? null,
-              defenseAttorneyStreet: data.street ?? null,
-              defenseAttorneyCity: data.city ?? null,
-              defenseAttorneyStateId: data.stateId ?? null,
-              defenseAttorneyZipCode: data.zipCode ?? null,
             });
           }
         },

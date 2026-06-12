@@ -141,16 +141,24 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // with zero involvement (returns no rows). Returns a populated list
     // otherwise.
     //
-    // Coverage:
+    // Coverage (#2 / Phase 5, 2026-06-12 -- role-gated):
     //   1. Booker        -- Appointment.CreatorId == CurrentUser.Id
     //   2. Patient       -- Patient.IdentityUserId == CurrentUser.Id
-    //                       (Patient is NOT IMultiTenant; manual TenantId guard.)
-    //   3. AA on link    -- AppointmentApplicantAttorney.IdentityUserId == CurrentUser.Id
-    //   4. DA on link    -- AppointmentDefenseAttorney.IdentityUserId == CurrentUser.Id
-    //   5. CE on email   -- AppointmentClaimExaminer.Email == CurrentUser.Email
-    //                       (CE has no IdentityUserId today; email is the link.)
-    //   6. Accessor      -- AppointmentAccessor.IdentityUserId == CurrentUser.Id
-    //                       (existing W2-3 grant pathway.)
+    //                       (Patient is NOT IMultiTenant; manual TenantId guard.
+    //                        Role-correct: stamped only for the actual patient.)
+    //   3. Accessor      -- AppointmentAccessor.IdentityUserId == CurrentUser.Id
+    //                       (explicit per-appointment grant; role-agnostic).
+    //   4. Email + role  -- a party-email column == CurrentUser.Email AND the
+    //                       caller holds that column's role (PatientEmail->Patient,
+    //                       ApplicantAttorneyEmail->Applicant Attorney,
+    //                       DefenseAttorneyEmail->Defense Attorney,
+    //                       ClaimExaminerEmail->Claim Examiner). Via the shared
+    //                       AppointmentAccessRules.IsAppointmentEmailRoleVisible.
+    //
+    // The prior id-based AA/DA link unions + the role-AGNOSTIC email/CE matches
+    // were REMOVED: they surfaced a column to a user lacking its role (Option A,
+    // see docs/plans/2026-06-11-firm-based-aa-da-registration.md). The read guard
+    // (AppointmentReadAccessGuard) applies the SAME rule so list and click agree.
     private async Task<IReadOnlyCollection<Guid>?> ComputeExternalPartyVisibilityAsync()
     {
         if (!CurrentUser.Id.HasValue)
@@ -177,17 +185,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
         var patientQuery = await _patientRepository.GetQueryableAsync();
-        var aaLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
-        var daLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
-        var injuryQuery = await _appointmentInjuryDetailRepository.GetQueryableAsync();
-        var ceQuery = await _appointmentClaimExaminerRepository.GetQueryableAsync();
+        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
 
-        // 1. Booker (CreatorId)
+        // 1. Booker (CreatorId).
         var bookerIds = await AsyncExecuter.ToListAsync(
             appointmentQuery.Where(a => a.CreatorId == userId).Select(a => a.Id));
 
-        // 2. Patient (Patient.IdentityUserId)
-        // Patient is not IMultiTenant; constrain by TenantId manually.
+        // 2. Patient identity (Patient.IdentityUserId). Patient is IMultiTenant;
+        // constrain by TenantId manually since the home query may run outside an
+        // explicit tenant scope. Role-correct: IdentityUserId is stamped only for
+        // the actual patient (claimed by email at registration), so this cannot
+        // surface another role's appointment.
         var patientIds = await AsyncExecuter.ToListAsync(
             patientQuery
                 .Where(p => p.TenantId == CurrentTenant.Id && p.IdentityUserId == userId)
@@ -197,68 +205,63 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             : await AsyncExecuter.ToListAsync(
                 appointmentQuery.Where(a => patientIds.Contains(a.PatientId)).Select(a => a.Id));
 
-        // 3. Applicant Attorney link
-        var aaLinkAppointmentIds = await AsyncExecuter.ToListAsync(
-            aaLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
-
-        // 4. Defense Attorney link
-        var daLinkAppointmentIds = await AsyncExecuter.ToListAsync(
-            daLinkQuery.Where(l => l.IdentityUserId == userId).Select(l => l.AppointmentId));
-
-        // 5. Claim Examiner by email (case-insensitive). CI1 (2026-06-05): CE is
-        // now a single appointment-level row, so the link is direct -- the CE
-        // row's AppointmentId (no injury hop).
-        var ceAppointmentIds = new List<Guid>();
-        if (!string.IsNullOrWhiteSpace(userEmail))
-        {
-            var emailLower = userEmail.Trim().ToLower();
-            ceAppointmentIds = await AsyncExecuter.ToListAsync(
-                ceQuery
-                    .Where(c => c.Email != null && c.Email.ToLower() == emailLower)
-                    .Select(c => c.AppointmentId));
-        }
-
-        // 6. Accessor grants -- already supported by repo when AccessorIdentityUserId
-        // is passed in; we union it here so the same predicate covers the case
-        // where the caller didn't explicitly pass it (e.g., default home page).
+        // 3. Appointment accessor grants (explicit per-appointment access).
+        // Phase 5 FIX: previously keyed on CreatorId (a no-op duplicate of #1), so
+        // an accessor-invited user never saw the appointment in their list. Use the
+        // real AppointmentAccessor table so a D9 accessor (e.g. an opposing-side
+        // firm granted access) sees it. Role-agnostic by design -- an accessor was
+        // explicitly granted access.
         var accessorAppointmentIds = await AsyncExecuter.ToListAsync(
-            appointmentQuery
-                .Where(a => a.CreatorId == userId)
-                .Select(a => a.Id));
-        // Note: AppointmentAccessor table coverage is intentionally limited to
-        // CreatorId here; expanding to the AppointmentAccessor join table is a
-        // separate refactor. The same rows will surface via bookerIds anyway,
-        // so the omission has no observable effect today.
+            accessorQuery.Where(a => a.IdentityUserId == userId).Select(a => a.AppointmentId));
 
-        // 7. Email-based visibility (I5, 2026-06-08) -- OLD-app parity + the
-        // "match email + role" preference. The id-based links above can be stale
-        // or unset (an appointment booked with a party's email before they
-        // registered, or a re-registered account whose old links still point at
-        // the prior user id), so also surface every appointment whose
-        // denormalized party email equals the caller's email. This is how OLD
-        // filtered "My Appointments" and makes linking independent of the
-        // registration path / timing.
-        var emailMatchAppointmentIds = new List<Guid>();
+        // 4. Email + role visibility (#2 / Phase 5). Surface an appointment ONLY
+        // where the caller's email is a party-email column AND the caller holds
+        // that column's role. This REPLACES the prior role-AGNOSTIC email match
+        // plus the id-based AA/DA link and CE-email unions: those would reveal a
+        // column to a user who lacks that column's role (a latent over-show today;
+        // a hard leak once linking keys purely by email). Reuses the shared
+        // AppointmentAccessRules.IsAppointmentEmailRoleVisible rule so this list and
+        // the per-appointment read guard agree exactly. The candidate set is first
+        // narrowed in SQL to appointments naming the caller's email, then the pure
+        // rule applies the role gate in memory against CurrentUser.Roles.
+        var emailRoleAppointmentIds = new List<Guid>();
         if (!string.IsNullOrWhiteSpace(userEmail))
         {
             var callerEmailLower = userEmail.Trim().ToLower();
-            emailMatchAppointmentIds = await AsyncExecuter.ToListAsync(
+            var candidates = await AsyncExecuter.ToListAsync(
                 appointmentQuery
                     .Where(a =>
                         (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
                         (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
                         (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
                         (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
-                    .Select(a => a.Id));
+                    .Select(a => new
+                    {
+                        a.Id,
+                        a.PatientEmail,
+                        a.ApplicantAttorneyEmail,
+                        a.DefenseAttorneyEmail,
+                        a.ClaimExaminerEmail,
+                    }));
+            foreach (var c in candidates)
+            {
+                if (AppointmentAccessRules.IsAppointmentEmailRoleVisible(
+                        userEmail,
+                        roles,
+                        c.PatientEmail,
+                        c.ApplicantAttorneyEmail,
+                        c.DefenseAttorneyEmail,
+                        c.ClaimExaminerEmail))
+                {
+                    emailRoleAppointmentIds.Add(c.Id);
+                }
+            }
         }
 
         var union = new HashSet<Guid>(bookerIds);
         union.UnionWith(patientAppointmentIds);
-        union.UnionWith(aaLinkAppointmentIds);
-        union.UnionWith(daLinkAppointmentIds);
-        union.UnionWith(ceAppointmentIds);
         union.UnionWith(accessorAppointmentIds);
-        union.UnionWith(emailMatchAppointmentIds);
+        union.UnionWith(emailRoleAppointmentIds);
         return union.ToList();
     }
 

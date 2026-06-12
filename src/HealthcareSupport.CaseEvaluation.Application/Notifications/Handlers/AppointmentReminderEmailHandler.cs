@@ -122,10 +122,24 @@ public class AppointmentReminderEmailHandler :
                 ["ClinicName"] = _currentTenant.Name ?? string.Empty,
             };
 
+            // Phase 4 (C3/D3): when the booker is a promoted attorney-creator,
+            // address To the named attorney and CC the firm/paralegal creator
+            // (often not otherwise a resolved party). Scoped to the promoted case
+            // so non-attorney bookers are unchanged; BookerCcDispatcher dedups a CC
+            // equal to the To.
+            var reminderRecipients = stakeholders;
+            if (ctx.IsPromoted && !string.IsNullOrWhiteSpace(ctx.CreatorEmail))
+            {
+                reminderRecipients = new List<NotificationRecipient>(stakeholders)
+                {
+                    new(email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true),
+                };
+            }
+
             await _bookerCcDispatcher.DispatchToBookerWithCcAsync(
                 templateCode: NotificationTemplateConsts.Codes.AppointmentDueDateReminder,
-                bookerEmail: ctx.BookerEmail,
-                stakeholders: stakeholders,
+                bookerEmail: ctx.PrimaryRecipientEmail ?? ctx.BookerEmail,
+                stakeholders: reminderRecipients,
                 variables: variables,
                 contextTag: $"AppointmentReminder/T-{eventData.DaysUntilDue}/{eventData.AppointmentId}");
         }
@@ -204,11 +218,16 @@ public class AppointmentReminderEmailHandler :
     }
 
     /// <summary>
-    /// The name to greet: the booker's, falling back to the patient's, then to
-    /// a neutral "there" -- so the email never renders "Hello ,".
+    /// The name to greet: the promoted attorney (Phase 4, when the booker is an
+    /// attorney-creator), else the booker's, falling back to the patient's, then
+    /// to a neutral "there" -- so the email never renders "Hello ,".
     /// </summary>
     private static string ResolveGreetingName(DocumentEmailContext ctx)
     {
+        if (!string.IsNullOrWhiteSpace(ctx.GreetingName))
+        {
+            return ctx.GreetingName;
+        }
         if (!string.IsNullOrWhiteSpace(ctx.BookerFullName))
         {
             return ctx.BookerFullName;

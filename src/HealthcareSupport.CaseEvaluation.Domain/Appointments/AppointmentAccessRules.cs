@@ -34,6 +34,22 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public static class AppointmentAccessRules
 {
     /// <summary>
+    /// Canonical external party-role names (mirror
+    /// <c>ExternalUserRoleDataSeedContributor</c> /
+    /// <c>AppointmentAccessorRules.RecognizedExternalRoles</c>). Used by the
+    /// email+role visibility rule to map each denormalized party-email column to
+    /// the role a caller must hold to see it. Kept as local consts so this Domain
+    /// rule stays self-contained (no cross-layer dependency).
+    /// </summary>
+    public const string PatientRole = "Patient";
+
+    public const string ApplicantAttorneyRole = "Applicant Attorney";
+
+    public const string DefenseAttorneyRole = "Defense Attorney";
+
+    public const string ClaimExaminerRole = "Claim Examiner";
+
+    /// <summary>
     /// Returns true when the caller can read the appointment, with the
     /// matched pathway for telemetry. See class-level docs for the 7
     /// pathways. Empty / null collections are treated as "no match" for
@@ -238,6 +254,61 @@ public static class AppointmentAccessRules
         return appointmentCreatorId.HasValue
             && appointmentCreatorId.Value == callerUserId.Value
             && callerIsAuthorizedExternalAccessorManager;
+    }
+
+    /// <summary>
+    /// #2 / Phase 5 (firm-based AA/DA) -- row-level "email + role" visibility
+    /// predicate. Returns true iff the caller's email matches one of the
+    /// appointment's denormalized party-email columns AND the caller holds the
+    /// role that column represents (PatientEmail->Patient,
+    /// ApplicantAttorneyEmail->Applicant Attorney, DefenseAttorneyEmail->Defense
+    /// Attorney, ClaimExaminerEmail->Claim Examiner).
+    ///
+    /// <para>This single rule gates BOTH the home/list query
+    /// (<c>ComputeExternalPartyVisibilityAsync</c>) and the per-appointment read
+    /// guard (<see cref="CanRead"/>) so the two always agree. It is the leak-free
+    /// replacement for the prior role-AGNOSTIC email match and the id-based
+    /// AA/DA link pathways: once auto-link associates an account with an
+    /// appointment by email alone, those id/agnostic paths would surface a column
+    /// to a user who lacks that column's role. Role-gating closes that --
+    /// a firm whose email is the AA column on one appointment and the DA column
+    /// on another sees the first only while it holds Applicant Attorney, and the
+    /// second only after it also gains Defense Attorney (via an accessor invite, D9).</para>
+    ///
+    /// <para>Pure: reads only the appointment's column values + the caller's
+    /// roles. Creator / accessor / patient-identity / internal-user access are
+    /// handled by the surrounding rules, not here.</para>
+    /// </summary>
+    public static bool IsAppointmentEmailRoleVisible(
+        string? callerEmail,
+        IEnumerable<string>? callerRoles,
+        string? patientEmail,
+        string? applicantAttorneyEmail,
+        string? defenseAttorneyEmail,
+        string? claimExaminerEmail)
+    {
+        if (string.IsNullOrWhiteSpace(callerEmail) || callerRoles == null)
+        {
+            return false;
+        }
+
+        var email = callerEmail.Trim();
+        var roles = new HashSet<string>(
+            callerRoles.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r!.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+        if (roles.Count == 0)
+        {
+            return false;
+        }
+
+        bool ColumnMatches(string? column) =>
+            !string.IsNullOrWhiteSpace(column)
+            && string.Equals(column.Trim(), email, StringComparison.OrdinalIgnoreCase);
+
+        return (roles.Contains(PatientRole) && ColumnMatches(patientEmail))
+            || (roles.Contains(ApplicantAttorneyRole) && ColumnMatches(applicantAttorneyEmail))
+            || (roles.Contains(DefenseAttorneyRole) && ColumnMatches(defenseAttorneyEmail))
+            || (roles.Contains(ClaimExaminerRole) && ColumnMatches(claimExaminerEmail));
     }
 
     /// <summary>

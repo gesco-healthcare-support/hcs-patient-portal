@@ -615,13 +615,32 @@ public class StatusChangeEmailHandler :
         IReadOnlyDictionary<string, object?> variables,
         string contextTag)
     {
+        // Phase 4 (C3/D3): when the booker is a promoted attorney-creator
+        // (firm/paralegal), address To the named attorney and make sure the
+        // firm/paralegal creator is CC'd -- they are often NOT otherwise a
+        // resolved party (they entered a different attorney email, and when the
+        // patient has a login appointment.IdentityUserId = patient). Scoped to the
+        // promoted case so Patient / Claim Examiner / internal-staff bookings are
+        // unchanged. BookerCcDispatcher dedups a CC equal to the To, so a solo
+        // attorney (To == creator == attorney) stays a single recipient.
+        var recipients = stakeholders;
+        if (ctx.IsPromoted && !string.IsNullOrWhiteSpace(ctx.CreatorEmail))
+        {
+            recipients = new List<NotificationRecipient>(stakeholders)
+            {
+                // Role is CC metadata only (To/CC split is by email); OfficeAdmin
+                // mirrors how the codebase tags appended non-party CC recipients.
+                new(email: ctx.CreatorEmail!, role: RecipientRole.OfficeAdmin, isRegistered: true),
+            };
+        }
+
         // Group F (2026-06-09): the To-booker/CC partition, office-CC append,
         // and single-message dispatch were extracted to the shared
         // BookerCcDispatcher so the consolidated reminder reuses the same rule.
         return _bookerCcDispatcher.DispatchToBookerWithCcAsync(
             templateCode: templateCode,
-            bookerEmail: ctx.BookerEmail,
-            stakeholders: stakeholders,
+            bookerEmail: ctx.PrimaryRecipientEmail ?? ctx.BookerEmail,
+            stakeholders: recipients,
             variables: variables,
             contextTag: contextTag);
     }
@@ -666,9 +685,15 @@ public class StatusChangeEmailHandler :
             clinicName: null,
             portalUrl: ctx.PortalBaseUrl);
 
-        var bookerName = !string.IsNullOrWhiteSpace(ctx.BookerFullName)
-            ? ctx.BookerFullName
-            : JoinName(ctx.PatientFirstName, ctx.PatientLastName);
+        // Phase 4 (D5): when promoted, greet the named attorney (ctx.GreetingName);
+        // otherwise greet the booker, falling back to the patient name. The
+        // template token stays "BookerFullName" -- only the value it carries
+        // changes for the promoted (attorney-booker) case.
+        var bookerName = !string.IsNullOrWhiteSpace(ctx.GreetingName)
+            ? ctx.GreetingName
+            : (!string.IsNullOrWhiteSpace(ctx.BookerFullName)
+                ? ctx.BookerFullName
+                : JoinName(ctx.PatientFirstName, ctx.PatientLastName));
 
         var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
         {
@@ -677,8 +702,8 @@ public class StatusChangeEmailHandler :
             ["AppointmentFromTime"] = appointmentFromTime,
             ["InternalUserComments"] = wrapInternalComments ?? string.Empty,
             // C-group (2026-06-09): templates greet the booker (the appointment
-            // creator, ctx.BookerFullName). Falls back to the patient name when
-            // the creator has no display name.
+            // creator, ctx.BookerFullName) -- or the promoted attorney (Phase 4).
+            // Falls back to the patient name when neither has a display name.
             ["BookerFullName"] = bookerName,
         };
 

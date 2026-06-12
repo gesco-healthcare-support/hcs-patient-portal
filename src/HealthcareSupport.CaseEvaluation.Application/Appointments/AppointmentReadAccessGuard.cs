@@ -3,10 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
-using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
-using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
-using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
-using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Microsoft.Extensions.Localization;
@@ -23,27 +19,27 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <see cref="AppointmentAccessRules.CanRead"/> with live state.
 ///
 /// Extracted from <c>AppointmentsAppService.EnsureCanReadAppointmentAsync</c>
-/// so the same 7-pathway rule (Internal / Creator / Patient / AA-link /
-/// DA-link / CE-email / AppointmentAccessor) can be reused by other
-/// AppServices that operate on a specific appointment -- starting with
-/// <c>AppointmentDocumentsAppService</c>, which previously gated only by
-/// permission + tenant and so let any same-tenant external party
-/// read/upload/delete documents on an appointment they were not a party to.
+/// so the same rule can be reused by other AppServices that operate on a
+/// specific appointment -- starting with <c>AppointmentDocumentsAppService</c>,
+/// which previously gated only by permission + tenant and so let any
+/// same-tenant external party read/upload/delete documents on an appointment
+/// they were not a party to.
 ///
 /// Internal-role callers bypass the gate (returns immediately). External
-/// callers go through hydration of the 5 join sources used by the
-/// production list query (<c>ComputeExternalPartyVisibilityAsync</c>) so
-/// the row-level read and the per-appointment read agree.
+/// callers are allowed via: Creator, the patient identity, an explicit
+/// AppointmentAccessor grant, OR the #2 / Phase 5 "email + role" rule (a
+/// party-email column equals the caller's email AND the caller holds that
+/// column's role). This is the SAME set the production list query
+/// (<c>ComputeExternalPartyVisibilityAsync</c>) applies, so the row-level read
+/// and the per-appointment read agree. The earlier id-based AA/DA link +
+/// role-agnostic CE-email pathways were dropped (Option A) to avoid surfacing a
+/// column to a user who lacks its role once linking keys by email.
 /// </summary>
 public class AppointmentReadAccessGuard : ITransientDependency
 {
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IRepository<AppointmentAccessor, Guid> _accessorRepository;
-    private readonly IAppointmentApplicantAttorneyRepository _applicantAttorneyLinkRepository;
-    private readonly IAppointmentDefenseAttorneyRepository _defenseAttorneyLinkRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
-    private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
-    private readonly IRepository<AppointmentClaimExaminer, Guid> _claimExaminerRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly IStringLocalizer<CaseEvaluationResource> _l;
@@ -51,22 +47,14 @@ public class AppointmentReadAccessGuard : ITransientDependency
     public AppointmentReadAccessGuard(
         IAppointmentRepository appointmentRepository,
         IRepository<AppointmentAccessor, Guid> accessorRepository,
-        IAppointmentApplicantAttorneyRepository applicantAttorneyLinkRepository,
-        IAppointmentDefenseAttorneyRepository defenseAttorneyLinkRepository,
         IRepository<Patient, Guid> patientRepository,
-        IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
-        IRepository<AppointmentClaimExaminer, Guid> claimExaminerRepository,
         ICurrentUser currentUser,
         IAsyncQueryableExecuter asyncExecuter,
         IStringLocalizer<CaseEvaluationResource> localizer)
     {
         _appointmentRepository = appointmentRepository;
         _accessorRepository = accessorRepository;
-        _applicantAttorneyLinkRepository = applicantAttorneyLinkRepository;
-        _defenseAttorneyLinkRepository = defenseAttorneyLinkRepository;
         _patientRepository = patientRepository;
-        _injuryDetailRepository = injuryDetailRepository;
-        _claimExaminerRepository = claimExaminerRepository;
         _currentUser = currentUser;
         _asyncExecuter = asyncExecuter;
         _l = localizer;
@@ -94,8 +82,14 @@ public class AppointmentReadAccessGuard : ITransientDependency
             return;
         }
 
-        // Hydration order matches AppointmentsAppService.GetListAsync's
-        // ComputeExternalPartyVisibilityAsync so the two paths agree.
+        // Phase 5 (#2 / Option A): hydrate only the two role-correct id-based
+        // sources the rule still uses -- explicit accessor grants + the patient
+        // identity. The AA/DA link + CE-email pathways were dropped: once an
+        // account is associated with an appointment by email alone, those
+        // id/agnostic paths would surface a party column to a user who lacks that
+        // column's role. The email+role rule below replaces them and mirrors the
+        // list query (ComputeExternalPartyVisibilityAsync) exactly, so a row that
+        // shows in the list never 403s on click and a hidden row is never openable.
         var accessorQuery = await _accessorRepository.GetQueryableAsync();
         var accessorEntries = await _asyncExecuter.ToListAsync(
             accessorQuery
@@ -103,9 +97,10 @@ public class AppointmentReadAccessGuard : ITransientDependency
                 .Select(a => new AppointmentAccessRules.AccessorEntry(a.IdentityUserId, a.AccessTypeId)));
 
         // Patient: resolve IdentityUserId via PatientId on the appointment.
-        // Patient is IMultiTenant; the auto-filter scopes this to the
-        // current tenant. Patient row may not exist (rare data inconsistency)
-        // -- treat as missing.
+        // Patient is IMultiTenant; the auto-filter scopes this to the current
+        // tenant. Patient row may not exist (rare data inconsistency) -- treat as
+        // missing. Role-correct: IdentityUserId is stamped only for the actual
+        // patient, so this pathway cannot surface another role's appointment.
         Guid? patientIdentityUserId = null;
         var patient = await _patientRepository.FindAsync(appointment.PatientId);
         if (patient != null)
@@ -113,47 +108,33 @@ public class AppointmentReadAccessGuard : ITransientDependency
             patientIdentityUserId = patient.IdentityUserId;
         }
 
-        // AA / DA link rows allow a null IdentityUserId (attorney named
-        // before they registered). Filter to populated rows so the rule
-        // receives only non-null Guids.
-        var aaLinkQuery = await _applicantAttorneyLinkRepository.GetQueryableAsync();
-        var aaIdentityUserIds = await _asyncExecuter.ToListAsync(
-            aaLinkQuery
-                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
-                .Select(l => l.IdentityUserId!.Value));
-
-        var daLinkQuery = await _defenseAttorneyLinkRepository.GetQueryableAsync();
-        var daIdentityUserIds = await _asyncExecuter.ToListAsync(
-            daLinkQuery
-                .Where(l => l.AppointmentId == appointment.Id && l.IdentityUserId.HasValue)
-                .Select(l => l.IdentityUserId!.Value));
-
-        // ClaimExaminer (CI1 2026-06-05): now a single appointment-level row, so
-        // the link is direct (CE.AppointmentId). Match by email
-        // (case-insensitive in the rule itself) since CE has no IdentityUser join.
-        var ceQuery = await _claimExaminerRepository.GetQueryableAsync();
-        var ceEmails = await _asyncExecuter.ToListAsync(
-            ceQuery
-                .Where(c => c.AppointmentId == appointment.Id && c.Email != null)
-                .Select(c => c.Email!));
-
-        var accessResult = AppointmentAccessRules.CanRead(
+        var byCoreRules = AppointmentAccessRules.CanRead(
             callerUserId: _currentUser.Id,
             callerEmail: _currentUser.Email,
             callerIsInternalUser: false,
             appointmentCreatorId: appointment.CreatorId,
             patientIdentityUserId: patientIdentityUserId,
-            applicantAttorneyIdentityUserIds: aaIdentityUserIds,
-            defenseAttorneyIdentityUserIds: daIdentityUserIds,
-            claimExaminerEmails: ceEmails,
-            accessorEntries: accessorEntries);
+            applicantAttorneyIdentityUserIds: null,
+            defenseAttorneyIdentityUserIds: null,
+            claimExaminerEmails: null,
+            accessorEntries: accessorEntries).allowed;
 
-        if (!accessResult.allowed)
+        // #2 / Phase 5: email + role row-level visibility -- the SAME rule the
+        // list query applies, against this appointment's denormalized party-email
+        // columns + the caller's roles.
+        var byEmailRole = AppointmentAccessRules.IsAppointmentEmailRoleVisible(
+            callerEmail: _currentUser.Email,
+            callerRoles: callerRoles,
+            patientEmail: appointment.PatientEmail,
+            applicantAttorneyEmail: appointment.ApplicantAttorneyEmail,
+            defenseAttorneyEmail: appointment.DefenseAttorneyEmail,
+            claimExaminerEmail: appointment.ClaimExaminerEmail);
+
+        if (!byCoreRules && !byEmailRole)
         {
-            // UserFriendlyException so the localized message reaches the
-            // client unchanged. BusinessException's MapCodeNamespace
-            // auto-localization is not resolving in this codebase --
-            // returns "An internal error occurred during your request!".
+            // UserFriendlyException so the localized message reaches the client
+            // unchanged (BusinessException's MapCodeNamespace auto-localization is
+            // not resolving in this codebase).
             throw new UserFriendlyException(
                 code: CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
                 message: _l["Appointment:AccessDenied"]);

@@ -44,4 +44,14 @@ public class ExternalUserProfileDto
     /// first-login onboarding prompt when true.
     /// </summary>
     public bool IsAccessor { get; set; }
+
+    /// <summary>
+    /// Phase 1 / C2 / D4 (firm-based AA/DA registration, 2026-06-11) -- the
+    /// attorney's law-firm name, read from the <c>FirmName</c> IdentityUser
+    /// extension property. Empty for non-attorney roles and for attorneys
+    /// registered before firm capture. The SPA home banner falls back to this
+    /// (via <c>resolveExternalUserDisplayName</c>) when Name/Surname are blank,
+    /// which is the normal shape for a firm account (D1).
+    /// </summary>
+    public string FirmName { get; set; } = string.Empty;
 }

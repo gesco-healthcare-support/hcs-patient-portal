@@ -26,6 +26,25 @@ No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole
 | ApplicantAttorney (3) | "Applicant Attorney" |
 | DefenseAttorney (4) | "Defense Attorney" |
 
+## Firm-based AA/DA registration (2026-06-12)
+
+Applicant Attorney + Defense Attorney register as **firm accounts**, not individuals:
+
+- The AuthServer sign-up overlay (`AuthServer/wwwroot/global-scripts.js`) HIDES First/Last for roles
+  3/4 and shows **Firm Name**; the submit payload nulls First/Last so `IdentityUser.Name`/`Surname`
+  stay blank. `FirmName` persists as an IdentityUser extension property
+  (`CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName`) -- no DB column, no migration.
+- Because Name/Surname are blank, every read surface falls back via `ExternalUserDisplayName.Resolve`
+  (First+Last -> FirmName -> email). `GetMyProfileAsync` + `GetExternalUserLookupAsync` carry
+  `FirmName`; the Angular home banner + attorney picker mirror it with `resolveExternalUserDisplayName`,
+  so a firm account shows its firm name everywhere, never a blank or the raw email.
+- `RegisterAsync` still eagerly creates an empty `ApplicantAttorney` master row for an AA registrant
+  (D-2); DA stays lazy. `AutoLinkAppointmentsForUserAsync` remains ROLE-SPECIFIC (links only the
+  registrant's own role's appointments). Per-row visibility is enforced separately by the email+role
+  rule (`AppointmentAccessRules.IsAppointmentEmailRoleVisible`; see docs/security/AUTHORIZATION.md),
+  so cross-role join rows are intentionally never created.
+- Patient / Claim Examiner registration is unchanged (First/Last shown).
+
 ## Known Gotchas
 
 1. **Missing `[RemoteService(IsEnabled = false)]`** -- Deviation from project convention

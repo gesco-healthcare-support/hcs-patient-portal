@@ -154,7 +154,7 @@ flowchart TD
     ADMIN_HOME -->|Any admin route| ADMIN_PAGE[Show full management<br/>interface with sidebar<br/>navigation]
 
     subgraph "External User - Appointment Visibility"
-        SRV_FILTER[Server S-NEW-2 filter:<br/>appointments where caller is<br/>booker, patient, attorney link,<br/>or claim examiner email]
+        SRV_FILTER[Server email+role filter:<br/>caller is creator, accessor,<br/>patient identity, OR a party-email<br/>column matches AND caller holds<br/>that column's role]
     end
 
     EXT_HOME_PAGE --> SRV_FILTER
@@ -192,9 +192,31 @@ Shows the standard ABP landing page within `<abp-page>`. If not logged in, shows
 
 ## Appointment Filtering by Role
 
-Client-side role-based filtering (previously keyed on an `isAttorneyUser` getter that set `accessorIdentityUserId` or `identityUserId`) was removed. The server's S-NEW-2 visibility filter now narrows the appointment list to records where the caller is involved -- as the booker, the patient, an applicant/defense attorney link, or a claim examiner email match. This covers the union of all involvement modes without requiring the client to distinguish roles.
+Client-side role-based filtering was removed; the server narrows the appointment list. As of the
+firm-based AA/DA work (2026-06-12, `ComputeExternalPartyVisibilityAsync`), the narrowing is
+**email + role gated**: an external caller sees an appointment only where they are the **creator**,
+an explicit **AppointmentAccessor**, the **patient identity** on the row, OR one of the appointment's
+denormalized party-email columns equals their email **AND they hold that column's role**
+(`PatientEmail`->Patient, `ApplicantAttorneyEmail`->Applicant Attorney, `DefenseAttorneyEmail`->Defense
+Attorney, `ClaimExaminerEmail`->Claim Examiner). The earlier role-AGNOSTIC email match and the bare
+id-based AA/DA link unions were dropped -- they would surface a column to a user who lacks that role
+(e.g. a Defense-Attorney account whose email happens to be the Applicant-Attorney column). The
+per-appointment read guard (`AppointmentReadAccessGuard`) applies the *same* rule, so a row shown in
+the list never 403s on click. A firm holding both Applicant + Defense Attorney (accumulated via an
+accessor invite) sees both sides; a single-role account sees only its own.
 
 `HomeComponent.ngOnInit()` calls `this.service.hookToQuery()` unconditionally once `isPatientUser` is confirmed true; no per-role filter is pre-set on the client.
+
+## Registration field branching (firm-based AA/DA)
+
+The AuthServer sign-up overlay (`AuthServer/wwwroot/global-scripts.js`) branches the visible fields by
+selected role: **Patient / Claim Examiner** show First/Last name; **Applicant / Defense Attorney**
+hide First/Last and show **Firm Name** (those roles register as firm accounts). Because an attorney
+account's `Name`/`Surname` are blank, every display surface falls back via
+`resolveExternalUserDisplayName` (First+Last -> Firm Name -> email): the home banner and the
+appointment-view attorney picker show the firm name, never a blank or raw email. On the booking form
+the attorney section is **free-entry** for an AA/DA booker (a firm/paralegal books on behalf of a
+distinct attorney), so it is no longer auto-seeded with the booker's own identity.
 
 ## Patient Self-Service Routes
 

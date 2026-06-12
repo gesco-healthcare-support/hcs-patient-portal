@@ -32,15 +32,23 @@ Called during appointment booking to grant the invited party access. Steps:
    - `CreateUserAndLink` -- email unknown: create user with temp password, grant role, link,
      publish `AppointmentAccessorInvitedEto` (invitation email).
    - `LinkExisting` -- user already holds the requested role: link only.
-   - `GrantRoleAndLink` -- user exists with no recognised external role (e.g. internal
-     staff): grant role idempotently, then link.
-   - `RoleMismatch` -- user exists with a DIFFERENT recognised external role: throw
-     `BusinessException(AppointmentAccessorRoleMismatch)`. This is OLD-parity; do not soften.
+   - `GrantRoleAndLink` -- user exists but does NOT hold the requested role: grant it
+     idempotently, then link. **As of the firm-based AA/DA work (D9, 2026-06-12) this now
+     covers the conflicting-recognised-external-role case too** -- an Applicant Attorney firm
+     invited as a Defense Attorney accessor ACCUMULATES the Defense Attorney role (so one
+     account can hold AA + DA) instead of being blocked.
+   - `RoleMismatch` -- **no longer returned by `ResolveOutcome`** (D9 reversed the earlier
+     OLD-parity "do not soften" stance). The enum value + the manager's defensive `switch`
+     branch (which throws `BusinessException(AppointmentAccessorRoleMismatch)`) are retained but
+     unreachable. Granting the role is safe because per-row visibility is gated by role
+     (`AppointmentAccessRules.IsAppointmentEmailRoleVisible`) -- accumulating DA only reveals
+     DA-side appointments, never the AA side the user did not already have.
 3. Call `CreateAsync` to insert the `AppointmentAccessor` row.
 
 `RecognizedExternalRoles`: `Patient`, `Applicant Attorney`, `Defense Attorney`,
-`Claim Examiner`. Internal roles (Intake Staff, Doctor, IT Admin, etc.) are NOT in this
-list -- holding only internal roles does NOT trigger a mismatch.
+`Claim Examiner` (`HasConflictingExternalRole` is retained as a predicate + has its own tests
+but no longer gates `ResolveOutcome`). Internal roles (Intake Staff, Doctor, IT Admin, etc.)
+are NOT in this list.
 
 `CreateOrLinkAsync` requires the full DI constructor (4 params). Resolving via DI always
 provides it. If only the slim ctor was used, the method throws `InvalidOperationException`

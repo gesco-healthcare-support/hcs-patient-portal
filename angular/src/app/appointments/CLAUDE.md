@@ -86,12 +86,26 @@ array even when DA users are registered. The DA pre-fill flow uses the email-sea
 box, not the dropdown. Do not add DA to the lookup endpoint's `allowedRoleNames`
 without re-evaluating D-2.
 
-### AA/DA own-role email pre-fill is readonly by design
+### AA/DA attorney section is free-entry -- no own-role auto pre-fill (firm model, D7/C4)
 
-When the booker is an Applicant Attorney or Defense Attorney (and not IT Admin),
-`applyOwnRoleAttorneyPrefill()` seeds the corresponding email + firstName from their
-identity. The HTML pairs this with `[readonly]` on those fields. IT Admin bookers
-skip the pre-fill so they can book on behalf of any party.
+The firm-based AA/DA model treats every AA/DA account as a firm: a firm/paralegal books
+on behalf of a DISTINCT attorney, so the attorney section starts blank and editable
+(`[isReadOnly]="false"` for both cards). The former own-role auto pre-fill was removed
+(2026-06-12): both the construction self-seed `applyOwnRoleAttorneyPrefill()` and the
+profile-load auto-load (`loadApplicant/DefenseAttorneyForCurrentUser`, which called
+`GET .../{applicant,defense}-attorney-details-for-booking?identityUserId=`). That endpoint
+returns the firm's OWN email + registration firm name for a firm account, so auto-loading
+would re-seed the booker's identity into the on-behalf section.
+
+Consequence (D7 / Q3): an AA/DA booker -- including a solo attorney booking for self --
+now TYPES the attorney details each booking. The booking ADD form has no AA lookup UI; the
+email-search box + AA picker (`loadApplicantAttorneyByEmail()` / `onApplicantAttorneySelected()`)
+live only on the appointment VIEW page (`appointment-view.component.html`). Submit still
+persists what they type to a master row keyed by the form email
+(`UpsertApplicantAttorneyForAppointmentAsync`), so the data is saved for linking/reporting --
+it is just not re-prefilled into the next add session. "Solo attorney retypes" is the accepted
+trade-off (firm-model plan, Risks note). IT Admin bookers were already free-entry and are
+unaffected.
 
 ## Gotchas
 
