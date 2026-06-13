@@ -40,7 +40,8 @@ export const APP_ROUTES: Routes = [
     // users continue to HomeComponent at /. See
     // shared/auth/post-login-redirect.guard.ts for the three outcomes.
     canMatch: [postLoginRedirectGuard],
-    loadComponent: () => import('./home/home.component').then((c) => c.HomeComponent),
+    loadComponent: () =>
+      import('./home/external-home.component').then((c) => c.ExternalHomeComponent),
   },
   {
     // PR4 -- public, no-login document upload reached by a per-document

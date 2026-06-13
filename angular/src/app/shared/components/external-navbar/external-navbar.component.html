@@ -1,0 +1,129 @@
+<header class="ext-nav">
+  <div class="ext-nav__in">
+    <!-- tenant logo slot (runtime; static placeholder until BrandingAppService) -->
+    <a class="ext-brand" href="#" (click)="$event.preventDefault()" aria-label="Home">
+      <img [src]="logoUrl" [alt]="clinicName" />
+      <span class="ext-brand__div"></span>
+      <span class="ext-brand__tag">
+        <b>{{ clinicName }}</b>
+        <span>Patient &amp; case portal</span>
+      </span>
+    </a>
+
+    <div class="ext-nav__spacer"></div>
+
+    <div class="ext-nav__actions">
+      <!-- notifications -->
+      <div class="ext-menuwrap">
+        <button
+          class="ext-iconbtn"
+          aria-label="Notifications"
+          [attr.aria-expanded]="openMenu === 'notif'"
+          (click)="toggle('notif')"
+        >
+          <app-icon name="bell" [size]="19" />
+          @if (unreadCount > 0) {
+            <span class="nipple">{{ unreadCount }}</span>
+          }
+        </button>
+        @if (openMenu === 'notif') {
+          <div class="ext-clickaway" (click)="close()"></div>
+          <div class="ext-pop ext-pop--notif" role="menu">
+            <div class="ext-notif-head">
+              <b>Notifications</b>
+              @if (unreadCount > 0) {
+                <button (click)="markAllRead()">Mark all read</button>
+              }
+            </div>
+            <div class="ext-notif-list">
+              @for (n of notifications; track n.id) {
+                <div class="ext-notif-item" [class.unread]="n.unread">
+                  <span class="ic" [class]="toneTint[n.tone]">
+                    <app-icon [name]="n.icon" [size]="17" />
+                  </span>
+                  <span class="tx">
+                    <b>{{ n.title }}</b>
+                    <p>{{ n.body }}</p>
+                    <span class="tm">{{ n.time }}</span>
+                  </span>
+                  @if (n.unread) {
+                    <span class="dot"></span>
+                  }
+                </div>
+              } @empty {
+                <div class="ext-notif-empty">
+                  <app-icon name="bell" [size]="26" />
+                  <span>No new notifications</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- help -->
+      <button
+        class="ext-iconbtn"
+        aria-label="Help"
+        title="Help &amp; support"
+        (click)="helpClick.emit()"
+      >
+        <app-icon name="help" [size]="19" />
+      </button>
+
+      <!-- account -->
+      <div class="ext-menuwrap">
+        <button
+          class="ext-acct"
+          [attr.aria-expanded]="openMenu === 'acct'"
+          (click)="toggle('acct')"
+        >
+          <span class="ava" [style.background]="avatarColor">{{ initials }}</span>
+          <span class="who">
+            <b>{{ userName }}</b>
+            <span>{{ roleLabel }}</span>
+          </span>
+          <span class="cv"><app-icon name="chevDown" [size]="15" /></span>
+        </button>
+        @if (openMenu === 'acct') {
+          <div class="ext-clickaway" (click)="close()"></div>
+          <div class="ext-pop ext-pop--acct" role="menu">
+            <div class="ext-acct-head">
+              <span class="ava">{{ initials }}</span>
+              <span class="meta">
+                <b>{{ userName }}</b>
+                <span class="em">{{ userEmail }}</span>
+                <span class="rl">{{ roleLabel }}</span>
+              </span>
+            </div>
+            <div class="ext-menu">
+              <button type="button" (click)="close(); profileClick.emit()">
+                <span class="i"><app-icon name="user" [size]="17" /></span>
+                My profile
+              </button>
+              <button type="button" (click)="close(); documentsClick.emit()">
+                <span class="i"><app-icon name="doc" [size]="17" /></span>
+                My documents
+              </button>
+              <button type="button" (click)="close(); helpClick.emit()">
+                <span class="i"><app-icon name="help" [size]="17" /></span>
+                Help &amp; support
+              </button>
+              <div class="ext-menu__div"></div>
+              @if (orgName) {
+                <div class="ext-tenant-row">
+                  <span class="i"><app-icon name="map" [size]="15" /></span>
+                  {{ orgName }}
+                </div>
+              }
+              <button type="button" class="danger" (click)="close(); logoutClick.emit()">
+                <span class="i"><app-icon name="logout" [size]="17" /></span>
+                Sign out
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</header>

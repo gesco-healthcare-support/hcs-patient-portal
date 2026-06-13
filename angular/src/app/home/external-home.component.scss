@@ -1,0 +1,597 @@
+// External Role Home -- ported from
+// design_handoff_appointment_portal/styles/ext-home.css (+ the .af-* table/
+// search/chip helpers from after.css). Scoped to this component; uses the
+// global design tokens. The navbar is its own component (app-external-navbar).
+:host {
+  display: block;
+  background: var(--surface-app);
+  min-height: 100%;
+  color: var(--n-800);
+}
+
+.ext-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 26px;
+}
+
+// ---- hero ----
+.ext-hero {
+  background: linear-gradient(135deg, #07304f 0%, #0a4a7e 62%, #075ca1 100%);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.ext-hero::after {
+  content: '';
+  position: absolute;
+  right: -80px;
+  top: -90px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(157, 193, 59, 0.16), transparent 68%);
+}
+.ext-hero__in {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 32px 26px 64px;
+  position: relative;
+  z-index: 2;
+}
+.ext-hero h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 5px;
+}
+.ext-hero p {
+  color: #bcd6ed;
+  font-size: 14.5px;
+  margin: 0;
+  max-width: 520px;
+}
+
+// ---- quick action cards (float up over the hero) ----
+.ext-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: -44px 0 8px;
+  position: relative;
+  z-index: 6;
+}
+.ext-action {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  text-align: left;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: var(--sh-lg);
+}
+.ext-action:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 28px 60px -18px rgba(7, 48, 79, 0.34),
+    0 10px 22px rgba(15, 28, 46, 0.12);
+  border-color: var(--blue-200);
+}
+.ext-action:active {
+  transform: translateY(-1px);
+}
+.ext-action__ic {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ext-action__tx {
+  flex: 1;
+  min-width: 0;
+}
+.ext-action__tx b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--n-900);
+}
+.ext-action__tx span {
+  font-size: 12.5px;
+  color: var(--n-500);
+}
+.ext-action__go {
+  color: var(--n-300);
+  transition:
+    transform 0.15s ease,
+    color 0.15s ease;
+  display: inline-flex;
+}
+.ext-action:hover .ext-action__go {
+  color: var(--blue-600);
+  transform: translateX(3px);
+}
+
+// ---- appointments section ----
+.ext-list {
+  margin-top: 34px;
+  padding-bottom: 64px;
+}
+.ext-list__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ext-list__head h2 {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--n-900);
+  margin: 0;
+}
+.ext-list__head .sub {
+  font-size: 13.5px;
+  color: var(--n-500);
+  margin: 4px 0 0;
+}
+
+.ext-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+// search box (af-search base + ext-search sizing)
+.af-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  padding: 0 14px;
+  color: var(--n-400);
+  transition: all 0.15s;
+}
+.af-search:focus-within {
+  border-color: var(--blue-400);
+  box-shadow: 0 0 0 4px var(--blue-50);
+  color: var(--blue-600);
+}
+.af-search input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 11px 0;
+  font-size: 13.5px;
+  width: 100%;
+  color: var(--n-800);
+  font-family: var(--font);
+}
+.ext-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.ext-search__clear {
+  border: 0;
+  background: transparent;
+  color: var(--n-400);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 2px;
+}
+
+.ext-fbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-700);
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.ext-fbtn:hover,
+.ext-fbtn[aria-expanded='true'] {
+  border-color: var(--blue-400);
+  color: var(--blue-700);
+  background: var(--blue-50);
+}
+.ext-fbtn .badge {
+  background: var(--blue-700);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-num);
+}
+
+.ext-vtoggle {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.ext-vtoggle button {
+  border: 0;
+  background: #fff;
+  color: var(--n-500);
+  padding: 9px 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.12s;
+}
+.ext-vtoggle button + button {
+  border-left: 1px solid var(--border);
+}
+.ext-vtoggle button[data-on='true'] {
+  background: var(--blue-700);
+  color: #fff;
+}
+
+// segmented status filters
+.ext-segs {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.ext-seg {
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-600);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ext-seg:hover {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+}
+.ext-seg[data-on='true'] {
+  background: var(--blue-700);
+  color: #fff;
+  border-color: var(--blue-700);
+}
+.ext-seg .cnt {
+  background: var(--n-100);
+  color: var(--n-600);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.ext-seg[data-on='true'] .cnt {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.ext-seg.alert[data-on='false'] {
+  border-color: #f3c7a6;
+  color: #9a5a18;
+  background: #fdf3ea;
+}
+.ext-seg.alert .cnt {
+  background: #f6dcc4;
+  color: #9a5a18;
+}
+
+// advanced filter panel
+.ext-filters {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  padding: 20px;
+  margin: 14px 0 4px;
+}
+.ext-filters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 15px;
+}
+.ext-filters__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+// active filter chips
+.ext-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  align-items: center;
+}
+.af-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--blue-50);
+  color: var(--blue-700);
+  border: 1px solid var(--blue-200);
+  padding: 5px 6px 5px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.af-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--blue-500);
+  display: flex;
+  padding: 3px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.af-chip button:hover {
+  background: var(--blue-100);
+  color: var(--blue-800);
+}
+
+// card list (patient default)
+.ext-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.ext-rcard {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 15px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 17px;
+  align-items: center;
+  transition: all 0.14s;
+}
+.ext-rcard:hover {
+  border-color: var(--blue-200);
+  box-shadow: var(--sh-sm);
+}
+.ext-rcard .when {
+  text-align: center;
+  background: var(--blue-50);
+  border-radius: 11px;
+  padding: 9px 13px;
+  min-width: 64px;
+}
+.ext-rcard .when .mo {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ext-rcard .when .dy {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--blue-800);
+  line-height: 1.05;
+  font-family: var(--font-num);
+}
+.ext-rcard .when .tm {
+  font-size: 11px;
+  color: var(--n-500);
+  margin-top: 2px;
+}
+.ext-rcard .meta b {
+  font-size: 15px;
+  color: var(--n-900);
+  font-weight: 700;
+}
+.ext-rcard .meta .row2 {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--n-500);
+}
+.ext-rcard .meta .row2 span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ext-rcard .meta .row2 .hl {
+  color: var(--n-700);
+  margin-left: 2px;
+}
+.ext-rcard .meta .row2 .conf {
+  color: var(--blue-700);
+  font-family: var(--font-num);
+  margin-left: 3px;
+}
+.ext-rcard .right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.ext-rcard__acts {
+  display: flex;
+  gap: 8px;
+}
+
+// table view (attorney / examiner default)
+.ext-tablewrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+.ext-tablescroll {
+  overflow-x: auto;
+}
+.af-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.af-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--n-500);
+  padding: 13px 16px;
+  background: var(--n-50);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.af-table thead th.ta-right {
+  text-align: right;
+}
+.af-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--n-100);
+  color: var(--n-700);
+  vertical-align: middle;
+}
+.af-table tbody tr {
+  transition: background 0.12s ease;
+}
+.af-table tbody tr:hover {
+  background: var(--blue-50);
+}
+.af-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.af-name {
+  font-weight: 700;
+  color: var(--n-900);
+}
+.af-mono {
+  font-family: var(--font-num);
+  font-weight: 600;
+  color: var(--blue-700);
+  background: var(--blue-50);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.af-sub2 {
+  color: var(--n-400);
+  font-size: 12px;
+}
+.af-sub2.num {
+  font-family: var(--font-num);
+}
+.af-ava {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+}
+.pt-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.row-acts {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+// empty / loading state
+.ext-empty {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--n-400);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.ext-empty .i {
+  color: var(--n-300);
+  margin-bottom: 12px;
+  display: inline-flex;
+}
+.ext-empty b {
+  color: var(--n-700);
+  font-size: 15px;
+  display: block;
+}
+.ext-empty span {
+  font-size: 13px;
+}
+
+// smaller ghost buttons inside cards/rows
+.ext-rcard__acts .ap-btn,
+.row-acts .ap-btn {
+  padding: 7px 11px;
+  font-size: 12.5px;
+}
+
+// icon tints for the action cards
+.tint-blue {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.tint-green {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+@media (max-width: 620px) {
+  .ext-actions {
+    grid-template-columns: 1fr;
+  }
+  .ext-rcard {
+    grid-template-columns: 1fr;
+  }
+  .ext-rcard .right {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
