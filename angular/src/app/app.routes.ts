@@ -34,10 +34,10 @@ export const APP_ROUTES: Routes = [
     path: '',
     pathMatch: 'full',
     // Issue 1.1 (2026-05-12) -- canMatch (not canActivate) so the
-    // guard fires BEFORE the lazy HomeComponent chunk downloads.
+    // guard fires BEFORE the lazy ExternalHomeComponent chunk downloads.
     // Anonymous / internal users get redirected via UrlTree without
     // ever loading the home shell, eliminating the flash. External
-    // users continue to HomeComponent at /. See
+    // users continue to ExternalHomeComponent at /. See
     // shared/auth/post-login-redirect.guard.ts for the three outcomes.
     canMatch: [postLoginRedirectGuard],
     loadComponent: () =>
