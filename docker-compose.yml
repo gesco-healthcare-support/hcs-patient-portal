@@ -209,6 +209,10 @@ services:
       - ./HealthcareSupport.CaseEvaluation.slnx:/app/HealthcareSupport.CaseEvaluation.slnx
       - nuget_packages:/root/.nuget/packages
       - ./docker/dev-empty-local.json:/app/src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.Local.json:ro
+      # Anonymous volume seeded from the image's baked wwwroot/libs (build-time
+      # `abp install-libs`), so the ./src bind-mount does not hide the Razor
+      # theme libs and we skip a slow runtime install-libs on Windows.
+      - /app/src/HealthcareSupport.CaseEvaluation.AuthServer/wwwroot/libs
       # Real per-project secrets arrive via the ./src bind-mount in dev; this /app
       # mount is the prod content-root path (inert in dev, kept for parity).
       - ./docker/appsettings.secrets.json:/app/appsettings.secrets.json:ro

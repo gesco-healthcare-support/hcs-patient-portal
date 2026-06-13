@@ -75,24 +75,29 @@ RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj \
     -c Debug --no-restore
 
-# Node + ABP CLI baked so the entrypoint can (re)generate wwwroot/libs at runtime.
+# Node + ABP CLI to restore client-side libs (LeptonX/jQuery/Bootstrap) into
+# wwwroot/libs at BUILD time -- baked into the image (fast Linux fs). At runtime
+# a compose anonymous volume re-seeds wwwroot/libs from this baked copy, so the
+# ./src bind-mount cannot hide it AND we avoid a slow install-libs writing
+# thousands of small files into a Windows bind-mount on every start.
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 RUN dotnet tool install -g Volo.Abp.Cli --version 10.0.2
 ENV PATH="$PATH:/root/.dotnet/tools"
+WORKDIR /app/src/HealthcareSupport.CaseEvaluation.AuthServer
+RUN abp install-libs
+WORKDIR /app
 
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-# On start: ensure the bind-mounted source has wwwroot/libs (gitignored, so a
-# fresh host checkout lacks it); then restore + run from the live source. Output
-# is in /artifacts, so host src/**/obj is ignored (no Windows-path poison).
+# Restore + run from the bind-mounted source. wwwroot/libs comes from the baked
+# image via the compose anonymous volume; build output is in /artifacts so the
+# host src/**/obj is ignored (no Windows-path poison).
 ENTRYPOINT ["sh", "-c", "\
-  AUTH=src/HealthcareSupport.CaseEvaluation.AuthServer; \
-  if [ ! -d \"$AUTH/wwwroot/libs\" ]; then (cd \"$AUTH\" && abp install-libs); fi; \
   dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
-  exec dotnet run --no-launch-profile --no-restore --project $AUTH/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
+  exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.AuthServer/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
 
 # ---- prod (DEFAULT): small aspnet runtime image ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS prod
