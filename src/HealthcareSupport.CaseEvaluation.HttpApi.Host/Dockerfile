@@ -36,6 +36,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
 ARG ABP_NUGET_API_KEY
 WORKDIR /app
 
+# Redirect ALL build output (obj/bin) to a container-local path via .NET's
+# artifacts output. Each dev container has its own /artifacts, so concurrent
+# api/authserver builds on the shared bind-mounted ./src never collide, and no
+# Linux build artifacts leak into the host src tree. (MSBuild reads env vars as
+# properties; proven on SDK 10.0.301.)
+ENV UseArtifactsOutput=true
+ENV ArtifactsPath=/artifacts
+
 COPY NuGet.Config.template .
 RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
 
@@ -51,8 +59,8 @@ RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secr
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
  && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
 
-# Warm the image cache so the first container start is fast; the entrypoint
-# re-restores from the bind-mounted source to pick up any csproj changes.
+# Warm the cache (into /artifacts) so the first container start is fast; the
+# entrypoint re-restores from the bind-mounted source to pick up csproj changes.
 RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
 RUN dotnet build src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
     -c Debug --no-restore
@@ -60,13 +68,9 @@ RUN dotnet build src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSup
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-# Wipe restore artifacts that may encode Windows host paths (the bind-mounted
-# host obj/ references C:\... NuGet fallback folders and breaks Linux restore
-# with MSB4018). Then restore + run from the bind-mounted source.
+# Output lands in /artifacts, so the bind-mounted host src/**/obj is ignored --
+# no Windows-path poison, no wipe needed. Restore + run from the live source.
 ENTRYPOINT ["sh", "-c", "\
-  find src -name 'project.assets.json' -delete 2>/dev/null; \
-  find src -name '*.nuget.g.props' -delete 2>/dev/null; \
-  find src -name '*.nuget.g.targets' -delete 2>/dev/null; \
   dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
   exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj --urls http://+:8080"]
 

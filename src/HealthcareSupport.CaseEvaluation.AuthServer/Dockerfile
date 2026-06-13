@@ -49,6 +49,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
 ARG ABP_NUGET_API_KEY
 WORKDIR /app
 
+# Redirect ALL build output (obj/bin) to a container-local path via .NET's
+# artifacts output, so concurrent api/authserver builds on the shared
+# bind-mounted ./src never collide and no Linux artifacts leak into the host
+# tree. (MSBuild reads env vars as properties; proven on SDK 10.0.301.)
+ENV UseArtifactsOutput=true
+ENV ArtifactsPath=/artifacts
+
 COPY NuGet.Config.template .
 RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
 
@@ -79,14 +86,11 @@ ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 # On start: ensure the bind-mounted source has wwwroot/libs (gitignored, so a
-# fresh host checkout lacks it); wipe Windows-stale restore artifacts; restore +
-# run from the bind-mounted source.
+# fresh host checkout lacks it); then restore + run from the live source. Output
+# is in /artifacts, so host src/**/obj is ignored (no Windows-path poison).
 ENTRYPOINT ["sh", "-c", "\
   AUTH=src/HealthcareSupport.CaseEvaluation.AuthServer; \
   if [ ! -d \"$AUTH/wwwroot/libs\" ]; then (cd \"$AUTH\" && abp install-libs); fi; \
-  find src -name 'project.assets.json' -delete 2>/dev/null; \
-  find src -name '*.nuget.g.props' -delete 2>/dev/null; \
-  find src -name '*.nuget.g.targets' -delete 2>/dev/null; \
   dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
   exec dotnet run --no-launch-profile --no-restore --project $AUTH/HealthcareSupport.CaseEvaluation.AuthServer.csproj --urls http://+:8080"]
 
