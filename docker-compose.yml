@@ -298,12 +298,13 @@ services:
   angular:
     build:
       context: ./angular
-      # Multi-stage production Dockerfile: node build stage runs `ng build`,
-      # final stage serves the static dist from nginx:alpine (~0.15 GB vs the
-      # old browser-sync Dockerfile.dev ~5.5 GB). NG_CONFIG selects the
-      # angular.json configuration shipping http (not https) URLs in dev.
-      # Rebuild to apply an SPA change: `docker compose up -d --build angular`.
+      # Unified multi-stage Dockerfile (2026-06-12). `dev` target: yarn toolchain
+      # only; source + node_modules arrive at runtime (bind-mount + named volume),
+      # entrypoint installs + builds + serves. Edit a file ->
+      # `docker compose restart angular` to pick it up. CI/deploy build the
+      # default `prod` target (nginx static, ~0.15 GB).
       dockerfile: Dockerfile
+      target: dev
       args:
         NG_CONFIG: "${NG_CONFIG:-docker}"
     environment:
@@ -320,12 +321,16 @@ services:
     ports:
       - "127.0.0.1:${NG_PORT:-4200}:80"
     volumes:
-      # The static SPA is baked into the image; no source mount. This script is
-      # sourced by nginx's /docker-entrypoint.d at startup and regenerates
-      # dynamic-env.json from this stack's NG_PORT/AUTH_PORT/API_PORT, so the
-      # same image works across worktrees (BUG-015). Mounted (not baked) so the
-      # production image that helm builds from angular/Dockerfile stays unchanged.
-      - ./angular/docker-dynamic-env.envsh:/docker-entrypoint.d/15-dynamic-env.envsh:ro
+      # dev target: bind-mount source for restart-to-iterate; node_modules in a
+      # named volume (the Linux-built tree, not the host's Windows one, and not
+      # baked into the image); .angular cache + dist kept container-local so host
+      # and container builds never cross-contaminate. dynamic-env.json is written
+      # by dev-entrypoint.sh from NG_PORT/AUTH_PORT/API_PORT (the SPA fetches it
+      # relative at bootstrap -- src/main.ts).
+      - ./angular:/app
+      - angular_node_modules:/app/node_modules
+      - /app/.angular
+      - /app/dist
     depends_on:
       api:
         condition: service_healthy
@@ -333,3 +338,4 @@ services:
 volumes:
   sqldata:
   miniodata:
+  angular_node_modules:
