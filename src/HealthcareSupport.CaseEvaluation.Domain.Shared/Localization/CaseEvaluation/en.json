@@ -429,7 +429,7 @@
     "Enum:AppointmentStatusType.11": "Billed",
     "Enum:AppointmentStatusType.12": "Reschedule requested",
     "Enum:AppointmentStatusType.13": "Cancellation requested",
-    "Enum:AppointmentStatusType.14": "Awaiting more info",
+    "Enum:AppointmentStatusType.14": "Info Requested",
     "Appointment:Action:Approve": "Approve",
     "Appointment:Action:Reject": "Reject",
     "Appointment:Action:ReRequest": "Re-Request",

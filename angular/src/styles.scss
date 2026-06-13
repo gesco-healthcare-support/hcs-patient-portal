@@ -117,6 +117,30 @@ html.externaluser-role {
   }
 }
 
+/* Redesign (2026-06-13): redesigned external pages that render their own
+   full-bleed chrome (app-external-navbar) add `redesign-shell` to <body>.
+   Hide LeptonX's right-side toolbar (settings / theme / language and the
+   avatar that lives in it -- the redesign navbar carries account + logout)
+   and let the content area fill the viewport edge-to-edge. Scoped to
+   redesigned pages so the not-yet-ported external pages keep their shell
+   (and the toolbar logout access external users rely on there). */
+body.redesign-shell {
+  .lpx-toolbar-container,
+  .lpx-toolbar,
+  lpx-avatar {
+    display: none !important;
+  }
+
+  .lpx-content-container,
+  .lpx-content-wrapper,
+  .lpx-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
 /*
  * abp-confirmation overlay fix: the wrapper element renders for both
  * confirm-modals (delete-confirm, etc.) and unhandled-error toasts. In the
