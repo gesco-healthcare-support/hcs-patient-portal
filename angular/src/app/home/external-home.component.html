@@ -1,9 +1,9 @@
 <app-external-navbar
   [clinicName]="clinicName"
-  [userName]="navUserName"
+  [userName]="navUserName()"
   [roleLabel]="navRoleLabel"
   [userEmail]="navUserEmail"
-  [orgName]="navOrgName"
+  [orgName]="navOrgName()"
   (profileClick)="openProfile()"
   (documentsClick)="openMyDocuments()"
   (helpClick)="openQuery()"
@@ -15,7 +15,7 @@
   <div class="ext-hero">
     <div class="ext-hero__in">
       <div>
-        <h1>Welcome back, {{ heroName }}</h1>
+        <h1>Welcome back, {{ heroName() }}</h1>
         <p>{{ role.heroSub }}</p>
       </div>
     </div>

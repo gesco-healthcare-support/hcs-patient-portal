@@ -3,6 +3,7 @@ import {
   Component,
   Injector,
   OnInit,
+  OnDestroy,
   computed,
   inject,
   signal,
@@ -144,7 +145,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   providers: [ListService, AppointmentService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ExternalHomeComponent implements OnInit {
+export class ExternalHomeComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly rest = inject(RestService);
@@ -155,12 +156,14 @@ export class ExternalHomeComponent implements OnInit {
   protected readonly segments = EXTERNAL_STATUS_SEGMENTS;
 
   protected role: RoleConfig = PATIENT_CONFIG;
-  protected heroName = 'there';
   protected clinicName = 'Appointment Portal';
-  protected navUserName = '';
   protected navRoleLabel = '';
   protected navUserEmail = '';
-  protected navOrgName: string | null = null;
+  // Signals: these resolve from an async firm-name lookup (loadFirmName), so
+  // OnPush needs them reactive to repaint once the firm name arrives.
+  protected readonly heroName = signal('there');
+  protected readonly navUserName = signal('');
+  protected readonly navOrgName = signal<string | null>(null);
 
   protected submitQueryVisible = false;
 
@@ -222,13 +225,16 @@ export class ExternalHomeComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // Redesigned full-bleed shell: hides the LeptonX toolbar/avatar and lets
+    // the content fill the viewport. Scoped via this body class so the
+    // not-yet-ported external pages keep their shell. See styles.scss.
+    document.body.classList.add('redesign-shell');
     const user = this.currentUser;
     this.role = this.resolveRole(user?.roles ?? []);
     this.view.set(this.role.defaultView);
     this.navRoleLabel = this.role.label;
     this.clinicName =
       this.currentTenant?.name || this.currentTenant?.tenantName || 'Appointment Portal';
-    this.heroName = user?.name?.trim() || 'there';
     this.navUserEmail = user?.email || user?.userName || '';
 
     this.loadFirmName();
@@ -243,6 +249,10 @@ export class ExternalHomeComponent implements OnInit {
         this.rows.set((res.items ?? []).map((r) => this.toRow(r)));
         this.loading.set(false);
       });
+  }
+
+  ngOnDestroy(): void {
+    document.body.classList.remove('redesign-shell');
   }
 
   private toRow(r: AppointmentWithNavigationPropertiesDto): ExtRow {
@@ -276,13 +286,12 @@ export class ExternalHomeComponent implements OnInit {
 
   private refreshDisplayName(): void {
     const u = this.currentUser;
-    this.navUserName = resolveExternalUserDisplayName(
-      u?.name,
-      u?.surname,
-      this.firmName,
-      u?.userName,
-    );
-    this.navOrgName = this.firmName || null;
+    const display = resolveExternalUserDisplayName(u?.name, u?.surname, this.firmName, u?.userName);
+    this.navUserName.set(display);
+    this.navOrgName.set(this.firmName || null);
+    // Hero greeting reuses the same firm-fallback display name (locked
+    // precedence: First Last -> FirmName -> email); 'there' only if all blank.
+    this.heroName.set(display || 'there');
   }
 
   private loadFirmName(): void {
