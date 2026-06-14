@@ -10,6 +10,7 @@ import { CancellationRequestModalComponent } from './cancellation-request-modal.
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ExternalNavbarComponent } from '../../../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../../../user-queries/submit-query-modal.component';
 import { performFullLogout } from '../../../shared/auth/full-logout';
@@ -103,6 +104,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     IconComponent,
+    SkeletonComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
   ],

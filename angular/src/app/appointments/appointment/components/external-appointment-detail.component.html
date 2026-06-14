@@ -13,7 +13,12 @@
 <div class="ad">
   @if (isLoading) {
     <div class="ad-wrap">
-      <div class="ad-empty">Loading appointment details...</div>
+      <div class="st-skel-stack" aria-busy="true" aria-label="Loading appointment details">
+        <app-skeleton height="92px" radius="14px" />
+        <app-skeleton width="240px" height="20px" />
+        <app-skeleton height="120px" radius="12px" />
+        <app-skeleton height="120px" radius="12px" />
+      </div>
     </div>
   } @else if (appointment) {
     <!-- status banner -->

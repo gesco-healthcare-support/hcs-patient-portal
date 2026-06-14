@@ -17,6 +17,8 @@
 // Redesign (2026-06-14): public-page / message-screen shell, shared by the
 // State Screens message states (app-state-message) and the Public Pages rework.
 @use 'styles/pp-shell';
+// Redesign (2026-06-14): shimmer skeleton styles for loading states.
+@use 'styles/state-skeleton';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

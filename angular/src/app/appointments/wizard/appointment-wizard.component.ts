@@ -25,6 +25,7 @@ import { AppointmentAddAuthorizedUsersComponent } from '../sections/appointment-
 import { AppointmentAddCustomFieldsComponent } from '../sections/appointment-add-custom-fields.component';
 import { ConfirmAddressDialogComponent } from '../../shared/address/confirm-address-dialog.component';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { ExternalNavbarComponent } from '../../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../../user-queries/submit-query-modal.component';
 import { performFullLogout } from '../../shared/auth/full-logout';
@@ -72,6 +73,7 @@ const STEPS: WizardStep[] = [
     ReactiveFormsModule,
     NgxValidateCoreModule,
     IconComponent,
+    SkeletonComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
     AppointmentAddScheduleComponent,

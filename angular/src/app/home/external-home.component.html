@@ -199,9 +199,18 @@
 
     <!-- list body -->
     @if (loading()) {
-      <div class="ext-empty">
-        <span class="i"><app-icon name="clock" [size]="40" /></span>
-        <b>Loading appointments…</b>
+      <div class="ext-skel" aria-busy="true" aria-label="Loading appointments">
+        @for (row of skeletonRows; track row) {
+          <div class="st-skel-row">
+            <app-skeleton width="62px" height="60px" radius="10px" />
+            <div class="st-skel-row__meta">
+              <app-skeleton width="40%" height="14px" />
+              <app-skeleton width="70%" height="11px" />
+            </div>
+            <app-skeleton width="90px" height="26px" radius="99px" />
+            <app-skeleton width="104px" height="32px" radius="9px" />
+          </div>
+        }
       </div>
     } @else if (filtered().length === 0) {
       <div class="ext-empty">

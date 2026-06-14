@@ -41,9 +41,15 @@
     </nav>
 
     @if (isProfileLoading) {
-      <div class="ra-note" style="margin-top: 18px">
-        <span class="i"><app-icon name="clock" [size]="16" /></span>
-        Loading your details...
+      <div
+        class="st-skel-stack"
+        style="margin-top: 18px"
+        aria-busy="true"
+        aria-label="Loading your details"
+      >
+        <app-skeleton width="40%" height="14px" />
+        <app-skeleton height="44px" radius="10px" />
+        <app-skeleton height="44px" radius="10px" />
       </div>
     }
 

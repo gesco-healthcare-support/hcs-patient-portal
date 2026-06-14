@@ -16,6 +16,7 @@ import { AppointmentService } from '../proxy/appointments/appointment.service';
 import { AppointmentWithNavigationPropertiesDto } from '../proxy/appointments/models';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
 import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.component';
 import { ExternalNavbarComponent } from '../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../user-queries/submit-query-modal.component';
@@ -136,6 +137,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
     DatePipe,
     FormsModule,
     IconComponent,
+    SkeletonComponent,
     StatusPillComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
@@ -170,6 +172,8 @@ export class ExternalHomeComponent implements OnInit, OnDestroy {
   // client-side list state
   protected readonly rows = signal<ExtRow[]>([]);
   protected readonly loading = signal(true);
+  /** Placeholder rows for the appointment-list loading skeleton. */
+  protected readonly skeletonRows = [0, 1, 2, 3];
   protected readonly q = signal('');
   protected readonly activeSeg = signal<ExternalStatusSegment>('all');
   protected readonly view = signal<'cards' | 'table'>('cards');
