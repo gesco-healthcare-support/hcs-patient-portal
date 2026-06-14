@@ -154,8 +154,8 @@ export const appConfig: ApplicationConfig = {
       withHttpErrorConfig({
         errorScreen: {
           // Redesign (2026-06-14): branded HTTP error screen replacing ABP's
-          // LeptonX HttpErrorComponent for both surfaces. Maps 403/404/500 to
-          // the state-message card; 401 (session-timeout) wired in the next slice.
+          // LeptonX HttpErrorComponent for both surfaces. Maps 401 (session-
+          // timeout), 403, 404, and 500 to the state-message card.
           component: AppHttpErrorComponent,
           forWhichErrors: [401, 403, 404, 500],
           hideCloseIcon: true,

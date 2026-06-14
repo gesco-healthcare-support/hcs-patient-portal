@@ -35,6 +35,13 @@ describe('AppHttpErrorComponent', () => {
     expect(el.querySelector('.pp-ic')?.classList.contains('red')).toBe(true);
   });
 
+  it('maps 401 to the session-timeout screen (amber, sign in again)', () => {
+    const el = renderStatus(401);
+    expect(el.querySelector('.pp-card h1')?.textContent).toContain('session has expired');
+    expect(el.querySelector('.pp-ic')?.classList.contains('amber')).toBe(true);
+    expect(el.querySelector('.ap-btn')?.textContent).toContain('Sign in again');
+  });
+
   it('maps 500 to the generic error screen with a retry action', () => {
     const el = renderStatus(500);
     expect(el.querySelector('.pp-card h1')?.textContent).toContain('Something went wrong');

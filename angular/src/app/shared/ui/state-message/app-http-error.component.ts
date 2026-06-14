@@ -1,6 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Injector,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { AuthService } from '@abp/ng.core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
+import { performFullLogout } from '../../auth/full-logout';
 import { IconName } from '../icon/icon.registry';
 import {
   StateMessageAction,
@@ -22,11 +31,14 @@ const GENERIC_ERROR: ErrorVariant = {
   lead: "We couldn't load this page. This is usually temporary - please try again in a moment.",
 };
 
-/**
- * Status -> screen mapping. 401 (session-timeout) is wired in the next slice;
- * until then an unmapped status falls back to the generic error variant.
- */
+/** Status -> screen mapping. An unmapped status falls back to the generic error. */
 const VARIANTS: Record<number, ErrorVariant> = {
+  401: {
+    tone: 'amber',
+    icon: 'clock',
+    title: 'Your session has expired',
+    lead: "For your security, you've been signed out after a period of inactivity. Please sign in again to continue.",
+  },
   403: {
     tone: 'red',
     icon: 'lock',
@@ -69,6 +81,7 @@ const VARIANTS: Record<number, ErrorVariant> = {
 })
 export class AppHttpErrorComponent {
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
 
   /** Set by ABP's wrapper with the HTTP status code. */
   readonly status = signal(0);
@@ -82,11 +95,27 @@ export class AppHttpErrorComponent {
 
   protected readonly actions = computed<StateMessageAction[]>(() => {
     const status = this.status();
+    if (status === 401) {
+      return [{ label: 'Sign in again', icon: 'logout', click: () => this.signIn() }];
+    }
     if (status === 403 || status === 404) {
       return [{ label: 'Back to home', icon: 'home', click: () => this.goHome() }];
     }
     return [{ label: 'Try again', icon: 'refresh', click: () => this.retry() }];
   });
+
+  /**
+   * Session-timeout CTA. The post-login redirect guard already sends anonymous
+   * users to AuthServer before any API call, so a 401 reaching this screen is
+   * an expired mid-session token. Clear all client session state, then start a
+   * fresh login. navigateToLogin redirects the browser, so the overlay does not
+   * need an explicit dismiss.
+   */
+  private signIn(): void {
+    void performFullLogout(this.injector).then(() =>
+      this.injector.get(AuthService).navigateToLogin(),
+    );
+  }
 
   private goHome(): void {
     void this.router.navigateByUrl('/', { onSameUrlNavigation: 'reload' });
