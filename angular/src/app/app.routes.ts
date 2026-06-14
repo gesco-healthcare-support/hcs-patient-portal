@@ -212,6 +212,17 @@ export const APP_ROUTES: Routes = [
       ),
     canActivate: [authGuard],
   },
+  {
+    // Redesign (temp, 2026-06-13): the new My Profile page. Mounted here for
+    // testing while .../my-profile keeps the legacy form; the navbar "My
+    // profile" links swap to this after live sign-off, then legacy is deleted.
+    path: 'user-management/patients/my-profile-redesign',
+    loadComponent: () =>
+      import('./patients/patient/components/patient-profile-redesign.component').then(
+        (c) => c.PatientProfileRedesignComponent,
+      ),
+    canActivate: [authGuard],
+  },
   { path: 'doctor-management/doctor-availabilities', children: DOCTOR_AVAILABILITY_ROUTES },
   { path: 'user-management/patients', children: PATIENT_ROUTES },
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },

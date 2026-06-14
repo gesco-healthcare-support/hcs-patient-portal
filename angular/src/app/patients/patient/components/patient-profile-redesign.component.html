@@ -1,0 +1,516 @@
+<div class="mp">
+  <app-external-navbar
+    [clinicName]="displayTenantName"
+    [userName]="navDisplayName"
+    [roleLabel]="roleLabel"
+    [userEmail]="userEmail"
+    [orgName]="firmName || null"
+    (documentsClick)="onDocuments()"
+    (logoutClick)="onLogout()"
+  ></app-external-navbar>
+
+  <header class="mp-head">
+    <div class="mp-head__in">
+      <span class="mp-head__ava" [style.background]="avatarColor">{{ initials }}</span>
+      <div class="mp-head__meta">
+        <h1>{{ profileDisplayName }}</h1>
+        <span class="mp-head__role">
+          <app-icon name="user" [size]="12"></app-icon>
+          {{ roleLabel }}
+        </span>
+        <div class="mp-head__sub">
+          <span>
+            <app-icon name="user" [size]="14"></app-icon>
+            {{ userEmail }}
+          </span>
+          @if (firmName) {
+            <span>
+              <app-icon name="map" [size]="14"></app-icon>
+              {{ firmName }}
+            </span>
+          }
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="mp-wrap" [formGroup]="form">
+    @if (isPatient) {
+      <!-- Personal -->
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18"></app-icon></span>
+          <h3>Personal</h3>
+          @if (editingSection !== 'personal') {
+            <div class="right">
+              <button type="button" class="mp-editbtn" (click)="startEdit('personal')">
+                <app-icon name="doc" [size]="14"></app-icon>
+                Edit
+              </button>
+            </div>
+          }
+        </div>
+        <div class="mp-card__body">
+          @if (editingSection === 'personal') {
+            <div class="ra-grid">
+              <div class="ra-field col-4">
+                <label>First name</label>
+                <input class="ra-input" formControlName="firstName" maxlength="50" />
+              </div>
+              <div class="ra-field col-4">
+                <label>Last name</label>
+                <input class="ra-input" formControlName="lastName" maxlength="50" />
+              </div>
+              <div class="ra-field col-4">
+                <label>Middle name</label>
+                <input class="ra-input" formControlName="middleName" maxlength="50" />
+              </div>
+              <div class="ra-field col-4">
+                <label>Gender</label>
+                <select class="ra-select" formControlName="genderId">
+                  <option [ngValue]="null">-</option>
+                  @for (o of genderOptions; track o.value) {
+                    <option [ngValue]="o.value">{{ o.key }}</option>
+                  }
+                </select>
+              </div>
+              <div class="ra-field col-4">
+                <label>Date of birth</label>
+                <div class="ra-affix">
+                  <input class="ra-input" type="date" formControlName="dateOfBirth" />
+                  <button type="button" tabindex="-1">
+                    <app-icon name="calendar" [size]="16"></app-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="mp-editfoot">
+              <button type="button" class="ap-btn ap-btn--ghost" (click)="cancelEdit()">
+                Cancel
+              </button>
+              <button type="button" class="ap-btn ap-btn--primary" (click)="requestSave()">
+                <app-icon name="check" [size]="15"></app-icon>
+                Save changes
+              </button>
+            </div>
+          } @else {
+            <div class="mp-dl">
+              <div class="mp-field">
+                <span class="k">First name</span>
+                <span class="v" [class.empty]="!fv('firstName')">{{ fv('firstName') || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Last name</span>
+                <span class="v" [class.empty]="!fv('lastName')">{{ fv('lastName') || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Middle name</span>
+                <span class="v" [class.empty]="!fv('middleName')">
+                  {{ fv('middleName') || '-' }}
+                </span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Gender</span>
+                <span class="v" [class.empty]="!genderLabel()">{{ genderLabel() || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Date of birth</span>
+                <span class="v mono" [class.empty]="!fv('dateOfBirth')">
+                  {{ fv('dateOfBirth') || '-' }}
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Contact -->
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-teal"><app-icon name="user" [size]="18"></app-icon></span>
+          <h3>Contact</h3>
+          @if (editingSection !== 'contact') {
+            <div class="right">
+              <button type="button" class="mp-editbtn" (click)="startEdit('contact')">
+                <app-icon name="doc" [size]="14"></app-icon>
+                Edit
+              </button>
+            </div>
+          }
+        </div>
+        <div class="mp-card__body">
+          @if (editingSection === 'contact') {
+            <div class="ra-grid">
+              <div class="ra-field col-6">
+                <label>
+                  Email
+                  <span class="opt">(managed by support)</span>
+                </label>
+                <input class="ra-input" formControlName="email" readonly />
+              </div>
+              <div class="ra-field col-6">
+                <label>Phone type</label>
+                <select class="ra-select" formControlName="phoneNumberTypeId">
+                  <option [ngValue]="null">-</option>
+                  @for (o of phoneNumberTypeOptions; track o.value) {
+                    <option [ngValue]="o.value">{{ o.key }}</option>
+                  }
+                </select>
+              </div>
+              <div class="ra-field col-6">
+                <label>Phone</label>
+                <input
+                  class="ra-input"
+                  formControlName="phoneNumber"
+                  maxlength="20"
+                  placeholder="(000) 000-0000"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label>Cell phone</label>
+                <input
+                  class="ra-input"
+                  formControlName="cellPhoneNumber"
+                  maxlength="12"
+                  placeholder="(000) 000-0000"
+                />
+              </div>
+            </div>
+            <div class="mp-editfoot">
+              <button type="button" class="ap-btn ap-btn--ghost" (click)="cancelEdit()">
+                Cancel
+              </button>
+              <button type="button" class="ap-btn ap-btn--primary" (click)="requestSave()">
+                <app-icon name="check" [size]="15"></app-icon>
+                Save changes
+              </button>
+            </div>
+          } @else {
+            <div class="mp-dl">
+              <div class="mp-field full">
+                <span class="k">Email</span>
+                <span class="v" [class.empty]="!fv('email')">
+                  {{ fv('email') || '-' }}
+                  <span class="lock">
+                    <app-icon name="settings" [size]="11"></app-icon>
+                    Managed by support
+                  </span>
+                </span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Phone</span>
+                <span class="v mono" [class.empty]="!fv('phoneNumber')">
+                  {{ fv('phoneNumber') || '-' }}
+                </span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Cell phone</span>
+                <span class="v mono" [class.empty]="!fv('cellPhoneNumber')">
+                  {{ fv('cellPhoneNumber') || '-' }}
+                </span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Phone type</span>
+                <span class="v" [class.empty]="!phoneTypeLabel()">
+                  {{ phoneTypeLabel() || '-' }}
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Address -->
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-slate"><app-icon name="map" [size]="18"></app-icon></span>
+          <h3>Address</h3>
+          @if (editingSection !== 'address') {
+            <div class="right">
+              <button type="button" class="mp-editbtn" (click)="startEdit('address')">
+                <app-icon name="doc" [size]="14"></app-icon>
+                Edit
+              </button>
+            </div>
+          }
+        </div>
+        <div class="mp-card__body">
+          @if (editingSection === 'address') {
+            <div class="ra-grid">
+              <div class="ra-field col-6">
+                <label>Street</label>
+                <input class="ra-input" formControlName="street" maxlength="255" />
+              </div>
+              <div class="ra-field col-6">
+                <label>Unit #</label>
+                <input class="ra-input" formControlName="apptNumber" maxlength="100" />
+              </div>
+              <div class="ra-field col-4">
+                <label>City</label>
+                <input class="ra-input" formControlName="city" maxlength="50" />
+              </div>
+              <div class="ra-field col-4">
+                <label>State</label>
+                <select class="ra-select" formControlName="stateId">
+                  <option [ngValue]="null">-</option>
+                  @for (o of states; track o.id) {
+                    <option [ngValue]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="ra-field col-4">
+                <label>Zip code</label>
+                <input class="ra-input" formControlName="zipCode" maxlength="15" />
+              </div>
+            </div>
+            <div class="mp-editfoot">
+              <button type="button" class="ap-btn ap-btn--ghost" (click)="cancelEdit()">
+                Cancel
+              </button>
+              <button type="button" class="ap-btn ap-btn--primary" (click)="requestSave()">
+                <app-icon name="check" [size]="15"></app-icon>
+                Save changes
+              </button>
+            </div>
+          } @else {
+            <div class="mp-dl">
+              <div class="mp-field">
+                <span class="k">Street</span>
+                <span class="v" [class.empty]="!fv('street')">{{ fv('street') || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Unit #</span>
+                <span class="v" [class.empty]="!fv('apptNumber')">
+                  {{ fv('apptNumber') || '-' }}
+                </span>
+              </div>
+              <div class="mp-field">
+                <span class="k">City</span>
+                <span class="v" [class.empty]="!fv('city')">{{ fv('city') || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">State</span>
+                <span class="v" [class.empty]="!stateLabel()">{{ stateLabel() || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Zip code</span>
+                <span class="v mono" [class.empty]="!fv('zipCode')">
+                  {{ fv('zipCode') || '-' }}
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Preferences -->
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-amber"><app-icon name="settings" [size]="18"></app-icon></span>
+          <h3>Preferences</h3>
+          @if (editingSection !== 'preferences') {
+            <div class="right">
+              <button type="button" class="mp-editbtn" (click)="startEdit('preferences')">
+                <app-icon name="doc" [size]="14"></app-icon>
+                Edit
+              </button>
+            </div>
+          }
+        </div>
+        <div class="mp-card__body">
+          @if (editingSection === 'preferences') {
+            <div class="ra-grid">
+              <div class="ra-field col-6">
+                <label>Appointment language</label>
+                <select class="ra-select" formControlName="appointmentLanguageId">
+                  <option [ngValue]="null">-</option>
+                  @for (o of languages; track o.id) {
+                    <option [ngValue]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="ra-field col-6">
+                <label>Need an interpreter?</label>
+                <div class="ra-radios">
+                  <label>
+                    <input
+                      type="radio"
+                      name="mpNeedsInterpreter"
+                      [checked]="needsInterpreter"
+                      (change)="needsInterpreter = true"
+                    />
+                    Yes
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="mpNeedsInterpreter"
+                      [checked]="!needsInterpreter"
+                      (change)="needsInterpreter = false"
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+              @if (needsInterpreter) {
+                <div class="ra-field col-6">
+                  <label>Interpreter vendor / language</label>
+                  <input class="ra-input" formControlName="interpreterVendorName" maxlength="255" />
+                </div>
+              }
+              <div class="ra-field col-6">
+                <label>Other language</label>
+                <input class="ra-input" formControlName="othersLanguageName" maxlength="100" />
+              </div>
+            </div>
+            <div class="mp-editfoot">
+              <button type="button" class="ap-btn ap-btn--ghost" (click)="cancelEdit()">
+                Cancel
+              </button>
+              <button type="button" class="ap-btn ap-btn--primary" (click)="requestSave()">
+                <app-icon name="check" [size]="15"></app-icon>
+                Save changes
+              </button>
+            </div>
+          } @else {
+            <div class="mp-dl">
+              <div class="mp-field">
+                <span class="k">Appointment language</span>
+                <span class="v" [class.empty]="!languageLabel()">{{ languageLabel() || '-' }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Interpreter</span>
+                <span class="v">{{ interpreterSummary() }}</span>
+              </div>
+              <div class="mp-field">
+                <span class="k">Other language</span>
+                <span class="v" [class.empty]="!fv('othersLanguageName')">
+                  {{ fv('othersLanguageName') || '-' }}
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    } @else {
+      <!-- Attorney / Examiner: enriched read-only card -->
+      <section class="mp-card">
+        <div class="mp-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18"></app-icon></span>
+          <h3>Profile</h3>
+        </div>
+        <div class="mp-card__body">
+          <div class="mp-dl">
+            <div class="mp-field">
+              <span class="k">Name</span>
+              <span class="v" [class.empty]="!navDisplayName">{{ navDisplayName || '-' }}</span>
+            </div>
+            <div class="mp-field">
+              <span class="k">Role</span>
+              <span class="v">{{ roleLabel }}</span>
+            </div>
+            <div class="mp-field">
+              <span class="k">Firm / organization</span>
+              <span class="v" [class.empty]="!firmName">{{ firmName || '-' }}</span>
+            </div>
+            <div class="mp-field full">
+              <span class="k">Email</span>
+              <span class="v" [class.empty]="!userEmail">
+                {{ userEmail || '-' }}
+                <span class="lock">
+                  <app-icon name="settings" [size]="11"></app-icon>
+                  Managed by support
+                </span>
+              </span>
+            </div>
+          </div>
+          <div class="ra-note" style="margin-top: 16px">
+            <span class="i"><app-icon name="alert" [size]="15"></app-icon></span>
+            <span>
+              Your profile is managed through your firm's account. Contact support to update these
+              details.
+            </span>
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- Account & security -->
+    <section class="mp-card">
+      <div class="mp-card__head">
+        <span class="ic tint-slate"><app-icon name="settings" [size]="18"></app-icon></span>
+        <h3>Account &amp; security</h3>
+      </div>
+      <div>
+        <div class="mp-link">
+          <span class="ic tint-amber"><app-icon name="settings" [size]="17"></app-icon></span>
+          <div class="tx">
+            <b>Password</b>
+            <span>Change your password on the secure sign-in page.</span>
+          </div>
+          <button type="button" class="mp-link__action" (click)="changePassword()">
+            Change password
+            <app-icon name="chevRight" [size]="13"></app-icon>
+          </button>
+        </div>
+        <div class="mp-link">
+          <span class="ic tint-teal"><app-icon name="user" [size]="17"></app-icon></span>
+          <div class="tx">
+            <b>Email address</b>
+            <span>{{ userEmail }}</span>
+          </div>
+          <span class="mp-link__pill">
+            <app-icon name="settings" [size]="12"></app-icon>
+            Managed by support
+          </span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  @if (confirmVisible) {
+    <div class="ra-scrim" (click)="cancelConfirm()">
+      <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+        <div class="ra-modal__head">
+          <span
+            class="ic tint-blue"
+            style="
+              width: 40px;
+              height: 40px;
+              border-radius: 11px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            "
+          >
+            <app-icon name="check" [size]="19"></app-icon>
+          </span>
+          <h3>Save profile changes?</h3>
+          <button type="button" class="mp-modal__x" (click)="cancelConfirm()">
+            <app-icon name="x" [size]="17"></app-icon>
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <p style="margin: 0; font-size: 14px; color: var(--n-600); line-height: 1.55">
+            Your updated details will be saved to your profile and used for future appointment
+            requests.
+          </p>
+        </div>
+        <div class="ra-modal__foot">
+          <button type="button" class="ap-btn ap-btn--ghost" (click)="cancelConfirm()">
+            Keep editing
+          </button>
+          <button
+            type="button"
+            class="ap-btn ap-btn--primary"
+            [disabled]="isBusy"
+            (click)="confirmSave()"
+          >
+            <app-icon name="check" [size]="16"></app-icon>
+            Confirm &amp; save
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
