@@ -20,16 +20,6 @@ import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/de
 import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-examiner-routes';
 
 export const APP_ROUTES: Routes = [
-  // THROWAWAY (redesign foundation slice): preview surface for tokens, icons,
-  // status pills, and ap- primitives. Empty layout, no guard. DELETE this route
-  // and src/app/_dev/ after sign-off. See
-  // docs/plans/2026-06-12-redesign-foundation-design.md.
-  {
-    path: 'foundation-preview',
-    data: { layout: eLayoutType.empty },
-    loadComponent: () =>
-      import('./_dev/foundation-preview.component').then((c) => c.FoundationPreviewComponent),
-  },
   {
     path: '',
     pathMatch: 'full',
@@ -169,17 +159,6 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
-    // Redesign (temp, 2026-06-14): the new external appointment detail page.
-    // Mounted here for testing while appointments/view/:id keeps the legacy
-    // view; the home View/Documents actions swap to this after live sign-off.
-    path: 'appointments/detail/:id',
-    loadComponent: () =>
-      import('./appointments/appointment/components/external-appointment-detail.component').then(
-        (c) => c.ExternalAppointmentDetailComponent,
-      ),
-    canActivate: [authGuard],
-  },
-  {
     path: 'appointments/view/:id/change-log',
     loadComponent: () =>
       import('./appointments/appointment-change-logs/appointment-change-logs.component').then(
@@ -205,18 +184,11 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.Reports' },
   },
   {
+    // Redesign swap (2026-06-14): my-profile now serves the reworked page.
+    // PatientProfileRedesignComponent EXTENDS PatientProfileComponent, so the
+    // legacy class stays as the base. my-profile is external/patient-only, so
+    // no role split is needed (unlike appointments view/add).
     path: 'user-management/patients/my-profile',
-    loadComponent: () =>
-      import('./patients/patient/components/patient-profile.component').then(
-        (c) => c.PatientProfileComponent,
-      ),
-    canActivate: [authGuard],
-  },
-  {
-    // Redesign (temp, 2026-06-13): the new My Profile page. Mounted here for
-    // testing while .../my-profile keeps the legacy form; the navbar "My
-    // profile" links swap to this after live sign-off, then legacy is deleted.
-    path: 'user-management/patients/my-profile-redesign',
     loadComponent: () =>
       import('./patients/patient/components/patient-profile-redesign.component').then(
         (c) => c.PatientProfileRedesignComponent,
