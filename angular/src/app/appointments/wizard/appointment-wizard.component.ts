@@ -1,0 +1,398 @@
+import { Component, Injector, OnDestroy, OnInit, inject } from '@angular/core';
+import { ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import {
+  ConfigStateService as AbpConfigStateService,
+  ListService,
+  RestService,
+} from '@abp/ng.core';
+import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
+import { NgbDateAdapter, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
+import { NgxValidateCoreModule } from '@ngx-validate/core';
+import { Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
+
+import { AppointmentAddComponent } from '../appointment-add.component';
+import { AppointmentViewService } from '../appointment/services/appointment.service';
+import { AppointmentAddScheduleComponent } from '../sections/appointment-add-schedule.component';
+import { AppointmentAddPatientDemographicsComponent } from '../sections/appointment-add-patient-demographics.component';
+import { AppointmentAddEmployerDetailsComponent } from '../sections/appointment-add-employer-details.component';
+import { AppointmentAddAttorneySectionComponent } from '../sections/appointment-add-attorney-section.component';
+import { AppointmentAddClaimPartiesSectionComponent } from '../sections/appointment-add-claim-parties-section.component';
+import { AppointmentAddClaimInformationComponent } from '../sections/appointment-add-claim-information.component';
+import { AppointmentAddDocumentsComponent } from '../sections/appointment-add-documents.component';
+import { AppointmentAddAuthorizedUsersComponent } from '../sections/appointment-add-authorized-users.component';
+import { AppointmentAddCustomFieldsComponent } from '../sections/appointment-add-custom-fields.component';
+import { ConfirmAddressDialogComponent } from '../../shared/address/confirm-address-dialog.component';
+import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { ExternalNavbarComponent } from '../../shared/components/external-navbar/external-navbar.component';
+import { SubmitQueryModalComponent } from '../../user-queries/submit-query-modal.component';
+import { performFullLogout } from '../../shared/auth/full-logout';
+import { resolveExternalUserDisplayName } from '../../shared/auth/external-user-display-name';
+
+interface WizardStep {
+  key: string;
+  title: string;
+  sub: string;
+  icon: string;
+  tint: string;
+}
+
+// Step order (9 steps, matching the prototype). Insurance and Examiner are
+// separate steps, both driven by AppointmentAddClaimPartiesSectionComponent via
+// its `only` input. Attorney steps stay for all roles, matching the current
+// app's behavior (shouldShow*AttorneySection returns true for everyone).
+const STEPS: WizardStep[] = [
+  { key: 'schedule', title: 'Schedule', sub: 'Type & slot', icon: 'calendar', tint: 'tint-blue' },
+  { key: 'patient', title: 'Patient', sub: 'Demographics', icon: 'user', tint: 'tint-blue' },
+  { key: 'applicant', title: 'Applicant', sub: 'Attorney', icon: 'user', tint: 'tint-blue' },
+  { key: 'defense', title: 'Defense', sub: 'Attorney', icon: 'user', tint: 'tint-slate' },
+  { key: 'insurance', title: 'Insurance', sub: 'Carrier', icon: 'doc', tint: 'tint-teal' },
+  { key: 'examiner', title: 'Examiner', sub: 'Adjuster', icon: 'user', tint: 'tint-amber' },
+  { key: 'claim', title: 'Claim', sub: 'Injuries', icon: 'doc', tint: 'tint-purple' },
+  { key: 'docs', title: 'Docs', sub: 'Uploads', icon: 'doc', tint: 'tint-blue' },
+  { key: 'review', title: 'Review', sub: 'Confirm', icon: 'check', tint: 'tint-green' },
+];
+
+/**
+ * Request-an-Appointment / Re-evaluation wizard (redesign). EXTENDS
+ * AppointmentAddComponent so it inherits the entire battle-tested booking
+ * engine -- the 55-field reactive form, every cascade subscription, the
+ * multi-POST submit, reval/re-request modes, address standardization -- with
+ * zero logic duplication. This subclass only adds the redesigned .ra-* shell:
+ * the header band, the stepper, and the sticky footer nav, reusing the existing
+ * section components inside each step (their per-field .ra-* restyle is a
+ * follow-up). Mounted at /appointments/request while /appointments/add keeps
+ * the legacy template.
+ */
+@Component({
+  selector: 'app-appointment-wizard',
+  standalone: true,
+  imports: [
+    ReactiveFormsModule,
+    NgxValidateCoreModule,
+    IconComponent,
+    ExternalNavbarComponent,
+    SubmitQueryModalComponent,
+    AppointmentAddScheduleComponent,
+    AppointmentAddPatientDemographicsComponent,
+    AppointmentAddEmployerDetailsComponent,
+    AppointmentAddAttorneySectionComponent,
+    AppointmentAddClaimPartiesSectionComponent,
+    AppointmentAddClaimInformationComponent,
+    AppointmentAddDocumentsComponent,
+    AppointmentAddAuthorizedUsersComponent,
+    AppointmentAddCustomFieldsComponent,
+    ConfirmAddressDialogComponent,
+  ],
+  providers: [
+    ListService,
+    AppointmentViewService,
+    { provide: NgbDateAdapter, useClass: DateAdapter },
+    { provide: NgbTimeAdapter, useClass: TimeAdapter },
+  ],
+  templateUrl: './appointment-wizard.component.html',
+  styleUrl: './appointment-wizard.component.scss',
+})
+export class AppointmentWizardComponent
+  extends AppointmentAddComponent
+  implements OnInit, OnDestroy
+{
+  private readonly shellRouter = inject(Router);
+  private readonly shellInjector = inject(Injector);
+  private readonly shellConfig = inject(AbpConfigStateService);
+  private readonly shellRest = inject(RestService);
+
+  protected readonly steps = STEPS;
+  protected current = 0;
+  protected furthest = 0;
+  protected submitQueryVisible = false;
+  protected readonly erroredSteps = new Set<number>();
+  // Resolved appointment-type / location display names for the review step
+  // (the form stores only the GUID ids).
+  protected readonly typeNames = new Map<string, string>();
+  protected readonly locationNames = new Map<string, string>();
+
+  // navbar firm-aware display name (same resolution as the external home)
+  protected navDisplayName = '';
+  protected firmName = '';
+
+  // draft autosave
+  private readonly DRAFT_KEY = 'ra-wizard-draft';
+  private readonly draftSub = new Subscription();
+
+  // Controls validated when leaving each step (gates Continue). Disabled or
+  // not-required controls pass automatically; the engine has already applied
+  // the conditional validators (patient email, panel number, AA/DA-when-enabled,
+  // required claim examiner + insurance name).
+  private readonly stepControls: Record<string, string[]> = {
+    schedule: [
+      'appointmentTypeId',
+      'locationId',
+      'appointmentDate',
+      'appointmentTime',
+      'panelNumber',
+    ],
+    patient: [
+      'firstName',
+      'lastName',
+      'middleName',
+      'email',
+      'dateOfBirth',
+      'cellPhoneNumber',
+      'phoneNumber',
+      'socialSecurityNumber',
+      'street',
+      'address',
+      'city',
+      'zipCode',
+      'interpreterVendorName',
+      'refferedBy',
+      'employerName',
+      'employerOccupation',
+      'employerPhoneNumber',
+      'employerStreet',
+      'employerCity',
+      'employerZipCode',
+    ],
+    applicant: [
+      'applicantAttorneyFirstName',
+      'applicantAttorneyLastName',
+      'applicantAttorneyEmail',
+      'applicantAttorneyFirmName',
+      'applicantAttorneyWebAddress',
+      'applicantAttorneyPhoneNumber',
+      'applicantAttorneyFaxNumber',
+      'applicantAttorneyStreet',
+      'applicantAttorneyCity',
+      'applicantAttorneyStateId',
+      'applicantAttorneyZipCode',
+    ],
+    defense: [
+      'defenseAttorneyFirstName',
+      'defenseAttorneyLastName',
+      'defenseAttorneyEmail',
+      'defenseAttorneyFirmName',
+      'defenseAttorneyWebAddress',
+      'defenseAttorneyPhoneNumber',
+      'defenseAttorneyFaxNumber',
+      'defenseAttorneyStreet',
+      'defenseAttorneyCity',
+      'defenseAttorneyStateId',
+      'defenseAttorneyZipCode',
+    ],
+    insurance: [
+      'appointmentInsuranceName',
+      'appointmentInsuranceSuite',
+      'appointmentInsurancePhoneNumber',
+      'appointmentInsuranceFaxNumber',
+      'appointmentInsuranceStreet',
+      'appointmentInsuranceCity',
+      'appointmentInsuranceStateId',
+      'appointmentInsuranceZip',
+    ],
+    examiner: [
+      'appointmentClaimExaminerName',
+      'appointmentClaimExaminerEmail',
+      'appointmentClaimExaminerSuite',
+      'appointmentClaimExaminerPhoneNumber',
+      'appointmentClaimExaminerFax',
+      'appointmentClaimExaminerStreet',
+      'appointmentClaimExaminerCity',
+      'appointmentClaimExaminerStateId',
+      'appointmentClaimExaminerZip',
+    ],
+  };
+
+  ngOnInit(): void {
+    document.body.classList.add('redesign-shell');
+    this.loadNavName();
+    this.restoreDraft();
+    this.draftSub.add(
+      this.form.valueChanges.pipe(debounceTime(600)).subscribe(() => this.saveDraft()),
+    );
+    // Cache type + location names so the review step can show them by id.
+    this.getAppointmentTypeLookup({ maxResultCount: 200 }).subscribe((r) =>
+      (r.items ?? []).forEach((i) => this.typeNames.set(i.id ?? '', i.displayName ?? '')),
+    );
+    this.getLocationLookup({ maxResultCount: 200 }).subscribe((r) =>
+      (r.items ?? []).forEach((i) => this.locationNames.set(i.id ?? '', i.displayName ?? '')),
+    );
+  }
+
+  ngOnDestroy(): void {
+    document.body.classList.remove('redesign-shell');
+    this.draftSub.unsubscribe();
+    localStorage.removeItem(this.DRAFT_KEY);
+  }
+
+  protected get currentStep(): WizardStep {
+    return this.steps[this.current];
+  }
+  protected get isLastStep(): boolean {
+    return this.current === this.steps.length - 1;
+  }
+  protected get eyebrow(): string {
+    return this.isReevaluation ? 'Follow-up evaluation' : 'New evaluation';
+  }
+  protected get wizardTitle(): string {
+    return this.isReevaluation ? 'Request a Re-evaluation' : 'Request an Appointment';
+  }
+  protected get wizardSubtitle(): string {
+    return this.isReevaluation
+      ? 'Look up the prior appointment, then confirm the details for the follow-up.'
+      : 'Complete the steps below. Your progress is saved automatically as a draft.';
+  }
+  protected get navUserEmail(): string {
+    const u = this.shellConfig.getOne('currentUser') as {
+      email?: string;
+      userName?: string;
+    } | null;
+    return u?.email || u?.userName || '';
+  }
+
+  // ---- review-step display helpers ----
+  protected typeName(): string {
+    return this.typeNames.get(this.form.get('appointmentTypeId')?.value ?? '') ?? '-';
+  }
+  protected locationName(): string {
+    return this.locationNames.get(this.form.get('locationId')?.value ?? '') ?? '-';
+  }
+  protected fieldVal(name: string): string {
+    const v = this.form.get(name)?.value;
+    return v === null || v === undefined || v === '' ? '-' : String(v);
+  }
+  protected patientFullName(): string {
+    const n = [this.form.get('firstName')?.value, this.form.get('lastName')?.value]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return n || '-';
+  }
+  protected attorneyName(prefix: 'applicantAttorney' | 'defenseAttorney'): string {
+    const n = [
+      this.form.get(`${prefix}FirstName`)?.value,
+      this.form.get(`${prefix}LastName`)?.value,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return n || '-';
+  }
+
+  protected stepState(i: number): 'current' | 'done' | 'error' | 'disabled' {
+    if (i === this.current) return 'current';
+    if (this.erroredSteps.has(i)) return 'error';
+    if (i <= this.furthest) return 'done';
+    return 'disabled';
+  }
+  protected jumpTo(i: number): void {
+    if (i <= this.furthest) this.current = i;
+  }
+  protected nextStep(): void {
+    if (!this.validateCurrentStep()) {
+      this.erroredSteps.add(this.current);
+      return;
+    }
+    this.erroredSteps.delete(this.current);
+    this.current = Math.min(this.current + 1, this.steps.length - 1);
+    this.furthest = Math.max(this.furthest, this.current);
+  }
+
+  /** Validate the current step's controls (+ claim/docs gates) before advancing. */
+  private validateCurrentStep(): boolean {
+    const key = this.currentStep.key;
+    let valid = true;
+    for (const name of this.stepControls[key] ?? []) {
+      const c = this.form.get(name);
+      if (c && c.enabled && c.invalid) {
+        c.markAsTouched();
+        valid = false;
+      }
+    }
+    if (key === 'claim' && this.injuryDrafts.length === 0) {
+      this.claimInformationMissing = true;
+      valid = false;
+    }
+    if (
+      key === 'docs' &&
+      this.isPqmeType &&
+      this.hasPanelStrikeList &&
+      !this.stagedDocuments.some((d) => d.isStrikeList)
+    ) {
+      this.panelStrikeListMissing = true;
+      valid = false;
+    }
+    return valid;
+  }
+  protected prevStep(): void {
+    this.current = Math.max(0, this.current - 1);
+  }
+
+  // ---- navbar firm-aware display name (mirrors the external home) ----
+  private loadNavName(): void {
+    const u = this.shellConfig.getOne('currentUser') as {
+      name?: string;
+      surname?: string;
+      userName?: string;
+    } | null;
+    this.navDisplayName = resolveExternalUserDisplayName(u?.name, u?.surname, '', u?.userName);
+    this.shellRest
+      .request<
+        unknown,
+        { firmName?: string }
+      >({ method: 'GET', url: '/api/app/external-users/me' }, { apiName: 'Default' })
+      .subscribe({
+        next: (p) => {
+          this.firmName = p?.firmName ?? '';
+          this.navDisplayName = resolveExternalUserDisplayName(
+            u?.name,
+            u?.surname,
+            this.firmName,
+            u?.userName,
+          );
+        },
+        error: () => {
+          /* firm name optional */
+        },
+      });
+  }
+
+  // ---- draft autosave (survives an accidental refresh; cleared on submit or
+  // leaving the wizard). Patient demographics for a non-patient booker are
+  // owned by the async profile load, so they may not round-trip on refresh. ----
+  private saveDraft(): void {
+    try {
+      localStorage.setItem(
+        this.DRAFT_KEY,
+        JSON.stringify({ v: this.form.getRawValue(), step: this.current }),
+      );
+    } catch {
+      /* serialization / quota -- autosave is best-effort */
+    }
+  }
+  private restoreDraft(): void {
+    try {
+      const raw = localStorage.getItem(this.DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as { v?: Record<string, unknown>; step?: number };
+      if (d.v) this.form.patchValue(d.v);
+      if (typeof d.step === 'number') {
+        this.current = d.step;
+        this.furthest = Math.max(this.furthest, d.step);
+      }
+    } catch {
+      /* corrupt draft -- ignore */
+    }
+  }
+
+  protected openQuery(): void {
+    this.submitQueryVisible = true;
+  }
+  protected openDocuments(): void {
+    void this.shellRouter.navigateByUrl('/');
+  }
+  protected signOut(): void {
+    void performFullLogout(this.shellInjector);
+  }
+}

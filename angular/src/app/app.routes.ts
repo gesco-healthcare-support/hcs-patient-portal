@@ -157,6 +157,18 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    // Redesign (temp, 2026-06-13): the new booking wizard. Mounted here for
+    // testing while /appointments/add keeps the legacy form; the home action
+    // cards swap to this route after live sign-off, then the legacy form +
+    // its section children are deleted.
+    path: 'appointments/request',
+    loadComponent: () =>
+      import('./appointments/wizard/appointment-wizard.component').then(
+        (c) => c.AppointmentWizardComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
     // Redesign (temp, 2026-06-14): the new external appointment detail page.
     // Mounted here for testing while appointments/view/:id keeps the legacy
     // view; the home View/Documents actions swap to this after live sign-off.
