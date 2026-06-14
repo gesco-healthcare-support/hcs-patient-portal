@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Injector, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, Injector, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfigStateService, PagedResultDto, RestService } from '@abp/ng.core';
@@ -41,10 +41,7 @@ type MpSection = 'personal' | 'contact' | 'address' | 'preferences';
   imports: [CommonModule, ReactiveFormsModule, IconComponent, ExternalNavbarComponent],
   templateUrl: './patient-profile-redesign.component.html',
 })
-export class PatientProfileRedesignComponent
-  extends PatientProfileComponent
-  implements OnInit, OnDestroy
-{
+export class PatientProfileRedesignComponent extends PatientProfileComponent implements OnInit {
   // Re-injected under distinct names: the base declares these private, so they
   // are on the instance but not accessible from the subclass.
   private readonly mpRest = inject(RestService);
@@ -66,13 +63,8 @@ export class PatientProfileRedesignComponent
 
   override ngOnInit(): void {
     super.ngOnInit(); // loads /patients/me or /external-users/me into the inherited form
-    document.body.classList.add('redesign-shell');
     this.loadFirmName();
     this.loadLookups();
-  }
-
-  ngOnDestroy(): void {
-    document.body.classList.remove('redesign-shell');
   }
 
   protected get isPatient(): boolean {

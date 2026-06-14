@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, Injector, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, Injector, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfigStateService as AbpConfigStateService, RestService } from '@abp/ng.core';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
@@ -111,10 +111,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
   templateUrl: './external-appointment-detail.component.html',
   styleUrl: './external-appointment-detail.component.scss',
 })
-export class ExternalAppointmentDetailComponent
-  extends AppointmentViewComponent
-  implements OnInit, OnDestroy
-{
+export class ExternalAppointmentDetailComponent extends AppointmentViewComponent implements OnInit {
   private readonly shellRouter = inject(Router);
   private readonly shellInjector = inject(Injector);
   private readonly shellConfig = inject(AbpConfigStateService);
@@ -147,13 +144,8 @@ export class ExternalAppointmentDetailComponent
 
   override ngOnInit(): void {
     super.ngOnInit();
-    document.body.classList.add('redesign-shell');
     this.loadNavName();
     this.loadInfoRequest();
-  }
-
-  ngOnDestroy(): void {
-    document.body.classList.remove('redesign-shell');
   }
 
   // ---- status banner ----

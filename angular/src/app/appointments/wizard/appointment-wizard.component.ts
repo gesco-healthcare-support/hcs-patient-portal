@@ -207,7 +207,6 @@ export class AppointmentWizardComponent
   };
 
   ngOnInit(): void {
-    document.body.classList.add('redesign-shell');
     this.loadNavName();
     this.restoreDraft();
     this.draftSub.add(
@@ -223,7 +222,6 @@ export class AppointmentWizardComponent
   }
 
   ngOnDestroy(): void {
-    document.body.classList.remove('redesign-shell');
     this.draftSub.unsubscribe();
     localStorage.removeItem(this.DRAFT_KEY);
   }

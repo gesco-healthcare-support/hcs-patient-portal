@@ -1,4 +1,4 @@
-import { authGuard, eLayoutType, permissionGuard } from '@abp/ng.core';
+import { authGuard, permissionGuard } from '@abp/ng.core';
 import { Routes } from '@angular/router';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
@@ -37,11 +37,10 @@ export const APP_ROUTES: Routes = [
     // PR4 -- public, no-login document upload reached by a per-document
     // verification-code link. Intentionally guard-free (NO canMatch /
     // canActivate) so an anonymous patient reaches it without an OAuth
-    // redirect; eLayoutType.empty drops the authenticated app shell. The
-    // page authorizes via the code; the backend endpoint is [AllowAnonymous]
-    // + per-code rate-limited.
+    // redirect. The page renders chrome-less because the app uses a bare
+    // router-outlet (no LeptonX layout); it authorizes via the code, and the
+    // backend endpoint is [AllowAnonymous] + per-code rate-limited.
     path: 'public/document-upload/:id/:verificationCode',
-    data: { layout: eLayoutType.empty },
     loadComponent: () =>
       import('./public-document-upload/public-document-upload.component').then(
         (c) => c.PublicDocumentUploadComponent,
@@ -49,10 +48,10 @@ export const APP_ROUTES: Routes = [
   },
   {
     // Group D (2026-06-09) -- public, no-login opposing-side consent page reached by
-    // the single-use token link in the consent email. Guard-free + eLayoutType.empty
-    // (no app shell), same as the document-upload page; authorizes via the token.
+    // the single-use token link in the consent email. Guard-free + chrome-less
+    // (bare router-outlet, no LeptonX layout), same as document-upload; authorizes
+    // via the token.
     path: 'public/change-request-consent/:token',
-    data: { layout: eLayoutType.empty },
     loadComponent: () =>
       import('./public-change-request-consent/public-change-request-consent.component').then(
         (c) => c.PublicChangeRequestConsentComponent,
@@ -227,12 +226,12 @@ export const APP_ROUTES: Routes = [
     data: { requiredPolicy: 'CaseEvaluation.InternalUsers.Create' },
   },
   // Redesign (2026-06-14): catch-all 404. MUST stay last so the ABP lazy
-  // module routes above match first. eLayoutType.empty drops the LeptonX
-  // shell, so the branded NotFound card renders identically for external and
-  // internal users. API 404s are handled separately by AppHttpErrorComponent.
+  // module routes above match first. Renders chrome-less because the app uses a
+  // bare router-outlet (no LeptonX layout), so the branded NotFound card looks
+  // identical for external and internal users. API 404s are handled separately
+  // by AppHttpErrorComponent.
   {
     path: '**',
-    data: { layout: eLayoutType.empty },
     loadComponent: () =>
       import('./shared/ui/not-found/not-found.component').then((c) => c.NotFoundComponent),
   },

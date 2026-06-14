@@ -82,72 +82,10 @@
   }
 }
 
-/* Hide side nav/menu for patient users only */
-body.externaluser-role,
-html.externaluser-role {
-  .lpx-topbar-container,
-  .lpx-topbar {
-    display: none !important;
-  }
-
-  .lpx-sidebar-container,
-  .lpx-sidebar,
-  //.lpx-menu-container,
-  //.lpx-menu,
-
-  aside,
-  .externaluser-sidebar-hidden {
-    display: none !important;
-  }
-
-  .lpx-content-container,
-  main,
-  .externaluser-main-full {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-  }
-
-  /* Hide user text next to avatar for patient role */
-  lpx-avatar + .lpx-menu-item-text {
-    display: none !important;
-  }
-
-  /* OLD parity: external users see only the SoCal © footer, not the
-     Lepton "Theme by Volosoft" / About / Privacy / Contact, and no
-     cookie banner. */
-  .lpx-footer-container,
-  .lpx-footer,
-  .lpx-footbar,
-  .lpx-footbar-container,
-  .lpx-footbar-copyright,
-  abp-gdpr-cookie-consent {
-    display: none !important;
-  }
-}
-
-/* Redesign (2026-06-13): redesigned external pages that render their own
-   full-bleed chrome (app-external-navbar) add `redesign-shell` to <body>.
-   Hide LeptonX's right-side toolbar (settings / theme / language and the
-   avatar that lives in it -- the redesign navbar carries account + logout)
-   and let the content area fill the viewport edge-to-edge. Scoped to
-   redesigned pages so the not-yet-ported external pages keep their shell
-   (and the toolbar logout access external users rely on there). */
-body.redesign-shell {
-  .lpx-toolbar-container,
-  .lpx-toolbar,
-  lpx-avatar {
-    display: none !important;
-  }
-
-  .lpx-content-container,
-  .lpx-content-wrapper,
-  .lpx-content {
-    margin: 0 !important;
-    padding: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-}
+/* Redesign (2026-06-14): the LeptonX layout is no longer rendered (app.component
+   renders a bare <router-outlet>; each page owns its chrome). The former
+   `externaluser-role` / `redesign-shell` body-class hide rules are retired -
+   there is no LeptonX chrome left to hide. See feat/redesign-app-shell. */
 
 /*
  * abp-confirmation overlay fix: the wrapper element renders for both

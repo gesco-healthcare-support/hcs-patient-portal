@@ -3,7 +3,6 @@ import {
   Component,
   Injector,
   OnInit,
-  OnDestroy,
   computed,
   inject,
   signal,
@@ -149,7 +148,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   providers: [ListService, AppointmentService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ExternalHomeComponent implements OnInit, OnDestroy {
+export class ExternalHomeComponent implements OnInit {
   private readonly configState = inject(ConfigStateService);
   private readonly appointmentService = inject(AppointmentService);
   private readonly rest = inject(RestService);
@@ -231,10 +230,6 @@ export class ExternalHomeComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    // Redesigned full-bleed shell: hides the LeptonX toolbar/avatar and lets
-    // the content fill the viewport. Scoped via this body class so the
-    // not-yet-ported external pages keep their shell. See styles.scss.
-    document.body.classList.add('redesign-shell');
     const user = this.currentUser;
     this.role = this.resolveRole(user?.roles ?? []);
     this.view.set(this.role.defaultView);
@@ -255,10 +250,6 @@ export class ExternalHomeComponent implements OnInit, OnDestroy {
         this.rows.set((res.items ?? []).map((r) => this.toRow(r)));
         this.loading.set(false);
       });
-  }
-
-  ngOnDestroy(): void {
-    document.body.classList.remove('redesign-shell');
   }
 
   private toRow(r: AppointmentWithNavigationPropertiesDto): ExtRow {

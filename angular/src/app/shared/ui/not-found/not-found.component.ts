@@ -15,17 +15,6 @@ import {
   selector: 'app-not-found',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [StateMessageComponent],
-  // eLayoutType.empty does not drop the LeptonX shell in this app (the existing
-  // public pages render inside it too). Cover it with a fixed full-screen host,
-  // the same mechanism as the offline overlay, so the 404 is chrome-less for
-  // every user/layout without depending on the empty layout.
-  styles: `
-    :host {
-      position: fixed;
-      inset: 0;
-      z-index: 1080;
-    }
-  `,
   template: `
     <app-state-message
       tone="blue"
