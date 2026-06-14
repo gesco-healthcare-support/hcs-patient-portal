@@ -1,0 +1,13 @@
+// Wizard shell host. The bulk of the wizard styling lives in the global
+// styles/_ra-wizard.scss partial (shared with the step components).
+:host {
+  display: block;
+  background: var(--surface-app);
+  min-height: 100%;
+}
+
+.ra-placeholder {
+  color: var(--n-500);
+  font-size: 13.5px;
+  margin: 0;
+}

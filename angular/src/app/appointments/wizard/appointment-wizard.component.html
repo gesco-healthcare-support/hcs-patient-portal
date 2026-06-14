@@ -1,0 +1,93 @@
+<app-external-navbar
+  [clinicName]="clinicName"
+  [userName]="navUserName()"
+  [roleLabel]="navRoleLabel"
+  [userEmail]="navUserEmail"
+  [orgName]="navOrgName()"
+  (profileClick)="openProfile()"
+  (documentsClick)="openMyDocuments()"
+  (helpClick)="openQuery()"
+  (logoutClick)="signOut()"
+/>
+
+<div class="ra">
+  <div class="ra-head">
+    <div class="ra-head__in">
+      <div>
+        <p class="ra-head__eyebrow">{{ eyebrow }}</p>
+        <h1>{{ title }}</h1>
+        <p>{{ subtitle }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="ra-wrap">
+    <nav class="ra-stepper">
+      @for (s of steps(); track s.key; let i = $index) {
+        <button class="ra-step" type="button" [attr.data-state]="stepState(i)" (click)="jumpTo(i)">
+          <span class="ra-step__num">
+            @if (stepState(i) === 'done') {
+              <app-icon name="check" [size]="15" />
+            } @else {
+              {{ i + 1 }}
+            }
+          </span>
+          <span class="ra-step__tx">
+            <b>{{ s.title }}</b>
+            <span>{{ s.sub }}</span>
+          </span>
+        </button>
+      }
+    </nav>
+
+    <div class="ra-body">
+      <!-- Step components are added incrementally; placeholder card for now. -->
+      <div class="ra-card">
+        <div class="ra-card__head">
+          <span class="ic" [class]="currentStep().tint">
+            <app-icon [name]="currentStep().icon" [size]="20" />
+          </span>
+          <div>
+            <h3>{{ currentStep().title }}</h3>
+            <p>{{ currentStep().sub }}</p>
+          </div>
+        </div>
+        <div class="ra-card__body">
+          <p class="ra-placeholder">Step content for "{{ currentStep().title }}" is being built.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ra-foot">
+    <div class="ra-foot__in">
+      <span class="ra-foot__save">
+        <span class="dot"></span>
+        Draft saved
+      </span>
+      <span class="ra-foot__spacer"></span>
+      <button
+        class="ap-btn ap-btn--ghost"
+        type="button"
+        [disabled]="current() === 0"
+        (click)="back()"
+      >
+        <app-icon name="chevLeft" [size]="16" />
+        Back
+      </button>
+      @if (isLastStep) {
+        <button class="ap-btn ap-btn--primary" type="button" (click)="submit()">
+          <app-icon name="check" [size]="16" />
+          Submit request
+        </button>
+      } @else {
+        <button class="ap-btn ap-btn--primary" type="button" (click)="next()">
+          Continue
+          <app-icon name="chevRight" [size]="16" />
+        </button>
+      }
+    </div>
+  </div>
+</div>
+
+<app-submit-query-modal [(visible)]="submitQueryVisible" />

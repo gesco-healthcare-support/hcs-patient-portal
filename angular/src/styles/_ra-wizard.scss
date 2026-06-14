@@ -17,6 +17,32 @@
   }
 }
 
+// Icon tints for .ra-card__head .ic + modal heads (ported from after.css)
+.tint-blue {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.tint-slate {
+  background: var(--n-100);
+  color: var(--n-600);
+}
+.tint-teal {
+  background: var(--st-teal-bg);
+  color: var(--st-teal-fg);
+}
+.tint-amber {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.tint-green {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.tint-purple {
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+}
+
 // ---------------- Page header band ----------------
 .ra-head {
   background: linear-gradient(135deg, #07304f 0%, #0a4a7e 62%, #075ca1 100%);
