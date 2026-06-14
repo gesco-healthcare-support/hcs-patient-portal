@@ -1,11 +1,11 @@
 <app-external-navbar
-  [clinicName]="clinicName"
-  [userName]="navUserName()"
-  [roleLabel]="navRoleLabel"
+  [clinicName]="displayTenantName"
+  [userName]="displayUserName"
+  [roleLabel]="displayRoleName"
   [userEmail]="navUserEmail"
-  [orgName]="navOrgName()"
-  (profileClick)="openProfile()"
-  (documentsClick)="openMyDocuments()"
+  [orgName]="null"
+  (profileClick)="openMyProfile()"
+  (documentsClick)="openDocuments()"
   (helpClick)="openQuery()"
   (logoutClick)="signOut()"
 />
@@ -15,15 +15,15 @@
     <div class="ra-head__in">
       <div>
         <p class="ra-head__eyebrow">{{ eyebrow }}</p>
-        <h1>{{ title }}</h1>
-        <p>{{ subtitle }}</p>
+        <h1>{{ wizardTitle }}</h1>
+        <p>{{ wizardSubtitle }}</p>
       </div>
     </div>
   </div>
 
   <div class="ra-wrap">
     <nav class="ra-stepper">
-      @for (s of steps(); track s.key; let i = $index) {
+      @for (s of steps; track s.key; let i = $index) {
         <button class="ra-step" type="button" [attr.data-state]="stepState(i)" (click)="jumpTo(i)">
           <span class="ra-step__num">
             @if (stepState(i) === 'done') {
@@ -40,23 +40,175 @@
       }
     </nav>
 
-    <div class="ra-body">
-      <!-- Step components are added incrementally; placeholder card for now. -->
-      <div class="ra-card">
-        <div class="ra-card__head">
-          <span class="ic" [class]="currentStep().tint">
-            <app-icon [name]="currentStep().icon" [size]="20" />
-          </span>
-          <div>
-            <h3>{{ currentStep().title }}</h3>
-            <p>{{ currentStep().sub }}</p>
-          </div>
-        </div>
-        <div class="ra-card__body">
-          <p class="ra-placeholder">Step content for "{{ currentStep().title }}" is being built.</p>
-        </div>
+    @if (isProfileLoading) {
+      <div class="ra-note" style="margin-top: 18px">
+        <span class="i"><app-icon name="clock" [size]="16" /></span>
+        Loading your details...
       </div>
-    </div>
+    }
+
+    <form [formGroup]="form" class="ra-body" validateOnSubmit>
+      <input type="hidden" formControlName="identityUserId" />
+      <input type="hidden" formControlName="doctorAvailabilityId" />
+      @if (!isExternalUserNonPatient) {
+        <input type="hidden" formControlName="patientId" />
+      }
+
+      @switch (currentStep.key) {
+        @case ('schedule') {
+          @if (isReevaluation) {
+            <div class="ra-reval">
+              <div class="ra-field">
+                <label>Prior confirmation number</label>
+                <input
+                  #revalConf
+                  class="ra-input"
+                  type="text"
+                  placeholder="e.g. PQ-24817"
+                  [disabled]="isLoadingSource"
+                />
+              </div>
+              <button
+                class="ap-btn ap-btn--primary"
+                type="button"
+                [disabled]="isLoadingSource"
+                (click)="loadRevalSource(revalConf.value)"
+              >
+                Load prior appointment
+              </button>
+              @if (sourceLoadMessage) {
+                <div class="ra-reval__msg">{{ sourceLoadMessage }}</div>
+              }
+            </div>
+          }
+          <app-appointment-add-schedule
+            [form]="form"
+            [checkForAppointmentTypeSelected]="checkForAppointmentTypeSelected"
+            [isAvailableDatesLoading]="isAvailableDatesLoading"
+            [appointmentTimeOptions]="appointmentTimeOptions"
+            [minimumBookingRuleMessage]="minimumBookingRuleMessage"
+            [getAppointmentTypeLookup]="getAppointmentTypeLookup"
+            [getLocationLookup]="getLocationLookup"
+            [markAppointmentDateDisabled]="markAppointmentDateDisabled"
+            [isAvailableAppointmentDate]="isAvailableAppointmentDate"
+            [isFieldInvalid]="isFieldInvalidBound"
+            [isPqmeType]="isPqmeType"
+            (locationSelected)="onLocationSelected($event)"
+            (appointmentDateCleared)="clearAppointmentDate()"
+          />
+        }
+
+        @case ('patient') {
+          <app-appointment-add-patient-demographics
+            [form]="form"
+            [isExternalUserNonPatient]="isExternalUserNonPatient"
+            [isItAdmin]="isItAdmin"
+            [searchPatientByEmail]="searchPatientByEmail"
+            [patientEmailRequired]="patientEmailRequired"
+            [patientLoadMessage]="patientLoadMessage"
+            [dobMinDate]="dobMinDate"
+            [dobMaxDate]="dobMaxDate"
+            [getStateLookup]="getStateLookup"
+            [getAppointmentLanguageLookup]="getAppointmentLanguageLookup"
+            [isFieldInvalid]="isFieldInvalidBound"
+            (patientSelected)="onPatientSelected($event)"
+            (patientEmailChanged)="onPatientEmailInputChanged()"
+          />
+          <app-appointment-add-employer-details [form]="form" [getStateLookup]="getStateLookup" />
+        }
+
+        @case ('applicant') {
+          @if (shouldShowApplicantAttorneySection()) {
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="applicant"
+              [mandatory]="isApplicantAttorney && !isItAdmin"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="false"
+              [isFieldInvalid]="isFieldInvalidBound"
+            />
+          }
+        }
+
+        @case ('defense') {
+          @if (shouldShowDefenseAttorneySection()) {
+            <app-appointment-add-attorney-section
+              [form]="form"
+              role="defense"
+              [mandatory]="isDefenseAttorney && !isItAdmin"
+              [getStateLookup]="getStateLookup"
+              [isReadOnly]="false"
+              [isFieldInvalid]="isFieldInvalidBound"
+            />
+          }
+        }
+
+        @case ('parties') {
+          <app-appointment-add-claim-parties-section
+            [form]="form"
+            [getStateLookup]="getStateLookup"
+            [isFieldInvalid]="isFieldInvalidBound"
+          />
+        }
+
+        @case ('claim') {
+          <app-appointment-add-claim-information [injuryDrafts]="injuryDrafts" />
+          @if (claimInformationMissing && injuryDrafts.length === 0) {
+            <div class="ra-note warn" style="margin-top: 14px">
+              <span class="i"><app-icon name="alert" [size]="16" /></span>
+              At least one Claim Information entry is required before booking.
+            </div>
+          }
+        }
+
+        @case ('docs') {
+          <app-appointment-add-documents
+            [stagedDocuments]="stagedDocuments"
+            [disabled]="isSaving"
+            [isPqme]="isPqmeType"
+            [hasPanelStrikeList]="hasPanelStrikeList"
+            [documentTypeOptions]="documentTypeOptions"
+            (filesSelected)="onDocumentsSelected($event)"
+            (removeDocument)="removeStagedDocument($event)"
+            (retryUploads)="retryStagedUploads()"
+            (hasPanelStrikeListChange)="onHasPanelStrikeListChange($event)"
+            (documentTypeChange)="onDocumentTypeChange($event)"
+            (otherDocumentTypeNameChange)="onOtherDocumentTypeNameChange($event)"
+          />
+          @if (panelStrikeListMissing) {
+            <div class="ra-note warn" style="margin-top: 14px">
+              <span class="i"><app-icon name="alert" [size]="16" /></span>
+              Mark which uploaded document is the panel strike list before booking this PQME
+              appointment.
+            </div>
+          }
+          @if (otherLabelMissing) {
+            <div class="ra-note warn" style="margin-top: 14px">
+              <span class="i"><app-icon name="alert" [size]="16" /></span>
+              Enter a name for each document labeled "Other" before booking.
+            </div>
+          }
+        }
+
+        @case ('review') {
+          @if (shouldShowAuthorizedUserSection()) {
+            <app-appointment-add-authorized-users [users]="appointmentAuthorizedUsers" />
+          }
+          <app-appointment-add-custom-fields [customFieldsArray]="customFieldsArray" />
+          <div class="ra-note" style="margin-top: 4px">
+            <span class="i"><app-icon name="alert" [size]="16" /></span>
+            Review every step above, then submit. Once submitted you cannot edit the request
+            yourself -- contact staff to make changes.
+          </div>
+          @if (claimInformationMissing && injuryDrafts.length === 0) {
+            <div class="ra-note warn" style="margin-top: 14px">
+              <span class="i"><app-icon name="alert" [size]="16" /></span>
+              At least one Claim Information entry is required before booking.
+            </div>
+          }
+        }
+      }
+    </form>
   </div>
 
   <div class="ra-foot">
@@ -69,19 +221,24 @@
       <button
         class="ap-btn ap-btn--ghost"
         type="button"
-        [disabled]="current() === 0"
-        (click)="back()"
+        [disabled]="current === 0"
+        (click)="prevStep()"
       >
         <app-icon name="chevLeft" [size]="16" />
         Back
       </button>
       @if (isLastStep) {
-        <button class="ap-btn ap-btn--primary" type="button" (click)="submit()">
+        <button
+          class="ap-btn ap-btn--primary"
+          type="button"
+          [disabled]="isSaving"
+          (click)="onSubmit()"
+        >
           <app-icon name="check" [size]="16" />
           Submit request
         </button>
       } @else {
-        <button class="ap-btn ap-btn--primary" type="button" (click)="next()">
+        <button class="ap-btn ap-btn--primary" type="button" (click)="nextStep()">
           Continue
           <app-icon name="chevRight" [size]="16" />
         </button>
@@ -90,4 +247,10 @@
   </div>
 </div>
 
+@if (addressDialogItems) {
+  <app-confirm-address-dialog
+    [items]="addressDialogItems"
+    (resolved)="onAddressDialogResolved($event)"
+  />
+}
 <app-submit-query-modal [(visible)]="submitQueryVisible" />
