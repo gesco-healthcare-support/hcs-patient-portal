@@ -20,6 +20,7 @@ using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.UserQueries;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
@@ -69,6 +70,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<UserQuery> UserQueries { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
+    public DbSet<AppointmentInfoRequest> AppointmentInfoRequests { get; set; } = null!;
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<DoctorPreferredLocation> DoctorPreferredLocations { get; set; } = null!;
@@ -529,6 +531,23 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.UploadedByUserId).HasColumnName(nameof(AppointmentChangeRequestDocument.UploadedByUserId));
             b.HasIndex(x => x.AppointmentChangeRequestId);
             b.HasOne<AppointmentChangeRequest>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentChangeRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Send Back / Info Requested (2026-06-14): staff-flagged-fields request.
+        builder.Entity<AppointmentInfoRequest>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentInfoRequests", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentInfoRequest.AppointmentId)).IsRequired();
+            b.Property(x => x.Note).HasColumnName(nameof(AppointmentInfoRequest.Note)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.NoteMaxLength);
+            b.Property(x => x.RequestedFields).HasColumnName(nameof(AppointmentInfoRequest.RequestedFields)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.RequestedFieldsMaxLength);
+            b.Property(x => x.Status).HasColumnName(nameof(AppointmentInfoRequest.Status));
+            b.Property(x => x.RequestedByUserId).HasColumnName(nameof(AppointmentInfoRequest.RequestedByUserId));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentInfoRequest.ResolvedAt));
+            b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => new { x.AppointmentId, x.Status });
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
         // NotificationTemplate -- per-tenant code-keyed email + SMS template.

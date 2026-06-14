@@ -12,6 +12,7 @@
 @use 'styles/tokens';
 @use 'styles/ap-utilities';
 @use 'styles/ra-wizard';
+@use 'styles/ad-detail';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it
