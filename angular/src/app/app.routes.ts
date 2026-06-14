@@ -226,4 +226,14 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard, permissionGuard],
     data: { requiredPolicy: 'CaseEvaluation.InternalUsers.Create' },
   },
+  // Redesign (2026-06-14): catch-all 404. MUST stay last so the ABP lazy
+  // module routes above match first. eLayoutType.empty drops the LeptonX
+  // shell, so the branded NotFound card renders identically for external and
+  // internal users. API 404s are handled separately by AppHttpErrorComponent.
+  {
+    path: '**',
+    data: { layout: eLayoutType.empty },
+    loadComponent: () =>
+      import('./shared/ui/not-found/not-found.component').then((c) => c.NotFoundComponent),
+  },
 ];
