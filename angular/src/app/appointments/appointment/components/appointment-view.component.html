@@ -77,6 +77,15 @@
               }
             }
           }
+          @if (canRequestInfo) {
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              (click)="openRequestInfo()"
+            >
+              Request info
+            </button>
+          }
           @if (canReRequest) {
             <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
               {{ '::Appointment:Action:ReRequest' | abpLocalization }}
@@ -165,6 +174,12 @@
         [(visible)]="cancelRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-cancellation-request-modal>
+
+      <app-request-info-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="requestInfoModalVisible"
+        (succeeded)="onInfoRequestSucceeded()"
+      ></app-request-info-modal>
 
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">

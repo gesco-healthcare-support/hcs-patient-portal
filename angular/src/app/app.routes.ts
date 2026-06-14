@@ -157,6 +157,17 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    // Redesign (temp, 2026-06-14): the new external appointment detail page.
+    // Mounted here for testing while appointments/view/:id keeps the legacy
+    // view; the home View/Documents actions swap to this after live sign-off.
+    path: 'appointments/detail/:id',
+    loadComponent: () =>
+      import('./appointments/appointment/components/external-appointment-detail.component').then(
+        (c) => c.ExternalAppointmentDetailComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
     path: 'appointments/view/:id/change-log',
     loadComponent: () =>
       import('./appointments/appointment-change-logs/appointment-change-logs.component').then(

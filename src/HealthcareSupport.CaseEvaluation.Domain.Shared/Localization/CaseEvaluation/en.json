@@ -395,6 +395,8 @@
     "PriorConfirmationNumber": "Prior Approved Confirmation Number",
     "LoadPriorAppointment": "Load Prior Appointment",
     "Appointment": "Appointment",
+    "AppointmentInfoRequest:NoteRequired": "Please add a note explaining what needs to be fixed.",
+    "AppointmentInfoRequest:OnlyPendingCanBeSentBack": "Only a pending appointment can be sent back for more information.",
     "Menu:Appointments": "Appointments",
     "PanelNumber": "Panel Number",
     "IsPatientAlreadyExist": "Is Patient Already Exist",
