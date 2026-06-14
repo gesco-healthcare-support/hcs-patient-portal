@@ -9,6 +9,8 @@ import { hasAnyExternalRole } from './shared/auth/external-user-roles';
 import { AppointmentPendingCountService } from './appointments/services/appointment-pending-count.service';
 import { SessionIdentityWatcherService } from './shared/auth/session-identity-watcher.service';
 import { performFullLogout } from './shared/auth/full-logout';
+import { OfflineDetectionService } from './shared/services/offline-detection.service';
+import { OfflineOverlayComponent } from './shared/ui/offline/offline-overlay.component';
 
 const AUTH_SERVER_PORT = '44368';
 
@@ -32,8 +34,16 @@ function buildAuthServerLoginUrl(): string {
     <abp-loader-bar />
     <abp-dynamic-layout />
     <abp-gdpr-cookie-consent />
+    @if (offline()) {
+      <app-offline-overlay />
+    }
   `,
-  imports: [LoaderBarComponent, DynamicLayoutComponent, GdprCookieConsentComponent],
+  imports: [
+    LoaderBarComponent,
+    DynamicLayoutComponent,
+    GdprCookieConsentComponent,
+    OfflineOverlayComponent,
+  ],
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
@@ -46,6 +56,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // Bug D fix (2026-05-11): detects AuthServer cookie identity swap and
   // forces a full reload when sub changes. Same singleton-start pattern.
   private readonly sessionIdentityWatcher = inject(SessionIdentityWatcherService);
+  // Redesign (2026-06-14): app-wide offline overlay (state-screens Task 5).
+  // Started in ngOnInit; the template renders the overlay while offline() is true.
+  private readonly offlineDetection = inject(OfflineDetectionService);
+  protected readonly offline = this.offlineDetection.offline;
   private readonly subscription = new Subscription();
 
   ngOnInit(): void {
@@ -53,6 +67,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.updatePatientRoleClass();
     this.appointmentPendingCount.start();
     this.sessionIdentityWatcher.start();
+    this.offlineDetection.start();
 
     this.subscription.add(
       this.router.events
