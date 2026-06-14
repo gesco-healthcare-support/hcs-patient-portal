@@ -1,9 +1,9 @@
 <app-external-navbar
   [clinicName]="displayTenantName"
-  [userName]="displayUserName"
+  [userName]="navDisplayName"
   [roleLabel]="displayRoleName"
   [userEmail]="navUserEmail"
-  [orgName]="null"
+  [orgName]="firmName || null"
   (profileClick)="openMyProfile()"
   (documentsClick)="openDocuments()"
   (helpClick)="openQuery()"
@@ -143,9 +143,19 @@
           }
         }
 
-        @case ('parties') {
+        @case ('insurance') {
           <app-appointment-add-claim-parties-section
             [form]="form"
+            only="insurance"
+            [getStateLookup]="getStateLookup"
+            [isFieldInvalid]="isFieldInvalidBound"
+          />
+        }
+
+        @case ('examiner') {
+          <app-appointment-add-claim-parties-section
+            [form]="form"
+            only="examiner"
             [getStateLookup]="getStateLookup"
             [isFieldInvalid]="isFieldInvalidBound"
           />
@@ -191,6 +201,157 @@
         }
 
         @case ('review') {
+          <div class="ra-card">
+            <div class="ra-card__head">
+              <span class="ic tint-green"><app-icon name="check" [size]="20" /></span>
+              <div>
+                <h3>Review &amp; submit</h3>
+                <p>Confirm everything below before sending your request.</p>
+              </div>
+            </div>
+            <div class="ra-card__body">
+              <div class="ra-review">
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="calendar" [size]="15" />
+                    Appointment
+                    <button type="button" class="edit" (click)="jumpTo(0)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    <dt>Type</dt>
+                    <dd>{{ typeName() }}</dd>
+                    <dt>Location</dt>
+                    <dd>{{ locationName() }}</dd>
+                    <dt>Date</dt>
+                    <dd>{{ fieldVal('appointmentDate') }}</dd>
+                    <dt>Time</dt>
+                    <dd>{{ fieldVal('appointmentTime') }}</dd>
+                    @if (isPqmeType) {
+                      <dt>Panel #</dt>
+                      <dd>{{ fieldVal('panelNumber') }}</dd>
+                    }
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="user" [size]="15" />
+                    Patient
+                    <button type="button" class="edit" (click)="jumpTo(1)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    <dt>Name</dt>
+                    <dd>{{ patientFullName() }}</dd>
+                    <dt>DOB</dt>
+                    <dd>{{ fieldVal('dateOfBirth') }}</dd>
+                    <dt>Email</dt>
+                    <dd>{{ fieldVal('email') }}</dd>
+                    <dt>Cell</dt>
+                    <dd>{{ fieldVal('cellPhoneNumber') }}</dd>
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="map" [size]="15" />
+                    Employer
+                    <button type="button" class="edit" (click)="jumpTo(1)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    <dt>Employer</dt>
+                    <dd>{{ fieldVal('employerName') }}</dd>
+                    <dt>Occupation</dt>
+                    <dd>{{ fieldVal('employerOccupation') }}</dd>
+                    <dt>Phone</dt>
+                    <dd>{{ fieldVal('employerPhoneNumber') }}</dd>
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="user" [size]="15" />
+                    Applicant attorney
+                    <button type="button" class="edit" (click)="jumpTo(2)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    @if (form.get('applicantAttorneyEnabled')?.value) {
+                      <dt>Name</dt>
+                      <dd>{{ attorneyName('applicantAttorney') }}</dd>
+                      <dt>Firm</dt>
+                      <dd>{{ fieldVal('applicantAttorneyFirmName') }}</dd>
+                      <dt>Email</dt>
+                      <dd>{{ fieldVal('applicantAttorneyEmail') }}</dd>
+                    } @else {
+                      <dt>Status</dt>
+                      <dd>Self-represented</dd>
+                    }
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="user" [size]="15" />
+                    Defense attorney
+                    <button type="button" class="edit" (click)="jumpTo(3)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    @if (form.get('defenseAttorneyEnabled')?.value) {
+                      <dt>Name</dt>
+                      <dd>{{ attorneyName('defenseAttorney') }}</dd>
+                      <dt>Firm</dt>
+                      <dd>{{ fieldVal('defenseAttorneyFirmName') }}</dd>
+                      <dt>Email</dt>
+                      <dd>{{ fieldVal('defenseAttorneyEmail') }}</dd>
+                    } @else {
+                      <dt>Status</dt>
+                      <dd>None assigned</dd>
+                    }
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="doc" [size]="15" />
+                    Insurance
+                    <button type="button" class="edit" (click)="jumpTo(4)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    <dt>Company</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceName') }}</dd>
+                    <dt>Phone</dt>
+                    <dd>{{ fieldVal('appointmentInsurancePhoneNumber') }}</dd>
+                  </dl>
+                </div>
+                <div class="ra-review__group">
+                  <h4>
+                    <app-icon name="user" [size]="15" />
+                    Claim examiner
+                    <button type="button" class="edit" (click)="jumpTo(5)">Edit</button>
+                  </h4>
+                  <dl class="ra-dl">
+                    <dt>Name</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerName') }}</dd>
+                    <dt>Email</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerEmail') }}</dd>
+                    <dt>Phone</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerPhoneNumber') }}</dd>
+                  </dl>
+                </div>
+                <div class="ra-review__group ra-review__full">
+                  <h4>
+                    <app-icon name="doc" [size]="15" />
+                    Claim information
+                    <button type="button" class="edit" (click)="jumpTo(6)">Edit</button>
+                  </h4>
+                  <p class="ra-placeholder">{{ injuryDrafts.length }} claim entries added.</p>
+                </div>
+                <div class="ra-review__group ra-review__full">
+                  <h4>
+                    <app-icon name="doc" [size]="15" />
+                    Documents
+                    <button type="button" class="edit" (click)="jumpTo(7)">Edit</button>
+                  </h4>
+                  <p class="ra-placeholder">{{ stagedDocuments.length }} file(s) attached.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           @if (shouldShowAuthorizedUserSection()) {
             <app-appointment-add-authorized-users [users]="appointmentAuthorizedUsers" />
           }
