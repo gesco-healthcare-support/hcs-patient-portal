@@ -1,0 +1,452 @@
+<app-external-navbar
+  [clinicName]="navClinicName"
+  [userName]="navDisplayName"
+  [roleLabel]="navRoleLabelText"
+  [userEmail]="navUserEmailText"
+  [orgName]="firmName || null"
+  (profileClick)="openProfileNav()"
+  (documentsClick)="openDocumentsNav()"
+  (helpClick)="openQuery()"
+  (logoutClick)="signOut()"
+/>
+
+<div class="ad">
+  @if (isLoading) {
+    <div class="ad-wrap">
+      <div class="ad-empty">Loading appointment details...</div>
+    </div>
+  } @else if (appointment) {
+    <!-- status banner -->
+    <div class="ad-banner" [class]="'ad-banner--' + bannerVariant">
+      <div class="ad-banner__in">
+        <div class="ad-banner__crumb">
+          <a (click)="backToHome()">My appointments</a>
+          <app-icon name="chevRight" [size]="13" />
+          <span>{{ confNo }}</span>
+        </div>
+        <div class="ad-banner__top">
+          <h1>
+            <span class="ttl">{{ apptTypeName }}</span>
+            <span class="ad-statepill">
+              <span class="d"></span>
+              {{ statusLabel }}
+            </span>
+          </h1>
+        </div>
+        <div class="ad-banner__meta">
+          <div class="it">
+            <div class="k">Confirmation</div>
+            <div class="v mono">{{ confNo || '-' }}</div>
+          </div>
+          <div class="it">
+            <div class="k">Location</div>
+            <div class="v">{{ locationDisplayName || '-' }}</div>
+          </div>
+          <div class="it">
+            <div class="k">Date</div>
+            <div class="v">{{ (apptDate | date: 'EEE, MMM d, y') || '-' }}</div>
+          </div>
+          <div class="it">
+            <div class="k">Time</div>
+            <div class="v">{{ (apptDate | date: 'h:mm a') || '-' }}</div>
+          </div>
+        </div>
+        <div class="ad-callout">
+          <span class="ic"><app-icon [name]="callout.icon" [size]="19" /></span>
+          <div>
+            <b>{{ callout.title }}</b>
+            <span>{{ callout.body }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- sticky section nav + actions -->
+    <div class="ad-nav">
+      <div class="ad-nav__in">
+        <div class="ad-nav__links">
+          <a (click)="scrollTo('ad-sec-overview')">Overview</a>
+          <a (click)="scrollTo('ad-sec-patient')">Patient</a>
+          <a (click)="scrollTo('ad-sec-parties')">Case contacts</a>
+          <a (click)="scrollTo('ad-sec-claim')">Claim</a>
+          <a (click)="scrollTo('ad-sec-documents')">Documents</a>
+          <a (click)="scrollTo('ad-sec-users')">Access</a>
+        </div>
+        <div class="ad-nav__actions">
+          @if (canRequestChange) {
+            <button class="ap-btn ap-btn--ghost" type="button" (click)="openRescheduleRequest()">
+              <app-icon name="refresh" [size]="15" />
+              Reschedule
+            </button>
+            <button class="ap-btn ap-btn--ghost" type="button" (click)="openCancelRequest()">
+              <app-icon name="x" [size]="15" />
+              Cancel
+            </button>
+          }
+          @if (canReRequest) {
+            <button class="ap-btn ap-btn--primary" type="button" (click)="reRequest()">
+              <app-icon name="refresh" [size]="15" />
+              Re-request
+            </button>
+          }
+          <button
+            class="ap-btn ap-btn--primary"
+            type="button"
+            (click)="scrollTo('ad-sec-documents')"
+          >
+            <app-icon name="doc" [size]="15" />
+            Upload document
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ad-wrap">
+      <!-- outcome note -->
+      @if (showOutcomeNote && bannerVariant === 'approved' && fv('internalUserComments')) {
+        <div class="ad-note ad-note--approved">
+          <span class="ic"><app-icon name="check" [size]="18" /></span>
+          <div>
+            <b>Note from the clinic</b>
+            <p>{{ fv('internalUserComments') }}</p>
+          </div>
+        </div>
+      }
+      @if (showOutcomeNote && bannerVariant === 'rejected' && fv('rejectionNotes')) {
+        <div class="ad-note ad-note--rejected">
+          <span class="ic"><app-icon name="alert" [size]="18" /></span>
+          <div>
+            <b>Reason</b>
+            <p>{{ fv('rejectionNotes') }}</p>
+          </div>
+        </div>
+      }
+
+      <!-- Overview -->
+      <div class="ad-card" id="ad-sec-overview">
+        <div class="ad-card__head">
+          <span class="ic tint-blue"><app-icon name="calendar" [size]="18" /></span>
+          <h3>Appointment details</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Appointment type</span>
+              <span class="v" [class.empty]="!apptTypeName">
+                {{ apptTypeName || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Confirmation #</span>
+              <span class="v mono">{{ confNo || '-' }}</span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Panel #</span>
+              <span class="v" [class.empty]="!fv('panelNumber')">
+                {{ fv('panelNumber') || 'N/A' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Status</span>
+              <span class="v">{{ statusLabel }}</span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Location</span>
+              <span class="v" [class.empty]="!locationDisplayName">
+                {{ locationDisplayName || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Appointment date</span>
+              <span class="v">{{ (apptDate | date: 'EEE, MMM d, y, h:mm a') || '-' }}</span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Requested on</span>
+              <span class="v">{{ (requestedOn | date: 'MMM d, y') || '-' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Patient -->
+      <div class="ad-card" id="ad-sec-patient">
+        <div class="ad-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+          <h3>Patient</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Name</span>
+              <span class="v">{{ patientDisplayName || 'Not provided' }}</span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Date of birth</span>
+              <span class="v">
+                {{ (appointment.patient?.dateOfBirth | date: 'MMM d, y') || '-' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Email</span>
+              <span class="v" [class.empty]="!fv('patientEmail')">
+                {{ fv('patientEmail') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">SSN</span>
+              <span class="v mono" [class.empty]="!fv('patientSocialSecurityNumber')">
+                {{ fv('patientSocialSecurityNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Cell phone</span>
+              <span class="v" [class.empty]="!fv('patientCellPhoneNumber')">
+                {{ fv('patientCellPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Phone</span>
+              <span class="v" [class.empty]="!fv('patientPhoneNumber')">
+                {{ fv('patientPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field full">
+              <span class="k">Address</span>
+              <span class="v" [class.empty]="!fv('patientStreet')">
+                {{ fv('patientStreet') }} {{ fv('patientCity') }}
+                {{ stateName(fv('patientStateId')) }} {{ fv('patientZipCode') }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Case contacts: employer + attorneys + insurance + examiner -->
+      <div class="ad-card" id="ad-sec-parties">
+        <div class="ad-card__head">
+          <span class="ic tint-slate"><app-icon name="map" [size]="18" /></span>
+          <h3>Employer</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Employer</span>
+              <span class="v" [class.empty]="!fv('employerName')">
+                {{ fv('employerName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Occupation</span>
+              <span class="v" [class.empty]="!fv('employerOccupation')">
+                {{ fv('employerOccupation') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Phone</span>
+              <span class="v" [class.empty]="!fv('employerPhoneNumber')">
+                {{ fv('employerPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ad-card">
+        <div class="ad-card__head">
+          <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+          <h3>Applicant attorney</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Name</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyFirstName')">
+                {{ fv('applicantAttorneyFirstName') }} {{ fv('applicantAttorneyLastName') }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Firm</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyFirmName')">
+                {{ fv('applicantAttorneyFirmName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Email</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyEmail')">
+                {{ fv('applicantAttorneyEmail') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Phone</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyPhoneNumber')">
+                {{ fv('applicantAttorneyPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ad-card">
+        <div class="ad-card__head">
+          <span class="ic tint-slate"><app-icon name="user" [size]="18" /></span>
+          <h3>Defense attorney</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Name</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyFirstName')">
+                {{ fv('defenseAttorneyFirstName') }} {{ fv('defenseAttorneyLastName') }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Firm</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyFirmName')">
+                {{ fv('defenseAttorneyFirmName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Email</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyEmail')">
+                {{ fv('defenseAttorneyEmail') || 'Not provided' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ad-card">
+        <div class="ad-card__head">
+          <span class="ic tint-teal"><app-icon name="doc" [size]="18" /></span>
+          <h3>Insurance &amp; claim examiner</h3>
+        </div>
+        <div class="ad-card__body">
+          <div class="ad-dl">
+            <div class="ad-field">
+              <span class="k">Insurance company</span>
+              <span class="v" [class.empty]="!appointmentInsuranceCompanyName">
+                {{ appointmentInsuranceCompanyName || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Claim examiner</span>
+              <span class="v" [class.empty]="!appointmentClaimExaminerName">
+                {{ appointmentClaimExaminerName || 'Not provided' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Claim information -->
+      <div class="ad-card" id="ad-sec-claim">
+        <div class="ad-card__head">
+          <span class="ic tint-purple"><app-icon name="doc" [size]="18" /></span>
+          <h3>Claim information</h3>
+        </div>
+        <div class="ad-card__body">
+          @if (injuryDetails.length === 0) {
+            <div class="ad-empty">No claim information on file.</div>
+          } @else {
+            <table class="ad-table">
+              <thead>
+                <tr>
+                  <th>Date of injury</th>
+                  <th>Claim #</th>
+                  <th>ADJ #</th>
+                  <th>WCAB office</th>
+                  <th>Body parts</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (inj of injuryDetails; track inj.id) {
+                  <tr>
+                    <td>{{ (inj.dateOfInjury | date: 'MMM d, y') || '-' }}</td>
+                    <td class="num">{{ inj.claimNumber || '-' }}</td>
+                    <td class="num">{{ inj.wcabAdj || '-' }}</td>
+                    <td>{{ inj.wcabOfficeName || '-' }}</td>
+                    <td>
+                      {{ inj.bodyParts.length ? inj.bodyParts.join(', ') : inj.bodyPartsSummary }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+
+      <!-- Documents (reused engine component) -->
+      <div class="ad-card" id="ad-sec-documents">
+        <div class="ad-card__head">
+          <span class="ic tint-blue"><app-icon name="doc" [size]="18" /></span>
+          <h3>Documents</h3>
+        </div>
+        <div class="ad-card__body">
+          <app-appointment-documents
+            [appointmentId]="appointment.appointment?.id ?? null"
+            (documentsChanged)="packetPanel.refresh()"
+          />
+          <app-appointment-packet
+            #packetPanel
+            [appointmentId]="appointment.appointment?.id ?? null"
+          />
+        </div>
+      </div>
+
+      <!-- Access (authorized users) -->
+      <div class="ad-card" id="ad-sec-users">
+        <div class="ad-card__head">
+          <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
+          <h3>Authorized users</h3>
+        </div>
+        <div class="ad-card__body">
+          @if (appointmentAuthorizedUsers.length === 0) {
+            <div class="ad-empty">No additional authorized users.</div>
+          } @else {
+            <table class="ad-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Rights</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (u of appointmentAuthorizedUsers; track u.accessorId) {
+                  <tr>
+                    <td>{{ u.firstName }} {{ u.lastName }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.userRole }}</td>
+                    <td>{{ u.accessTypeId === 24 ? 'View & edit' : 'View only' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- change-request modals (reused) -->
+    <app-reschedule-request-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [locationId]="appointment.appointment?.locationId ?? null"
+      [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+      [(visible)]="rescheduleRequestVisible"
+      (succeeded)="onChangeRequestSucceeded($event)"
+    />
+    <app-cancellation-request-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="cancelRequestVisible"
+      (succeeded)="onChangeRequestSucceeded($event)"
+    />
+  } @else {
+    <div class="ad-wrap">
+      <div class="ad-empty">Appointment not found.</div>
+    </div>
+  }
+</div>
+
+<app-submit-query-modal [(visible)]="submitQueryVisible" />
