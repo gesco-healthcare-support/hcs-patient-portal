@@ -115,8 +115,8 @@
               </div>
               <div class="mp-field">
                 <span class="k">Date of birth</span>
-                <span class="v mono" [class.empty]="!fv('dateOfBirth')">
-                  {{ fv('dateOfBirth') || '-' }}
+                <span class="v mono" [class.empty]="!dobDisplay()">
+                  {{ dobDisplay() || '-' }}
                 </span>
               </div>
             </div>

@@ -143,11 +143,24 @@ export class PatientProfileRedesignComponent
     const vendor = this.fv('interpreterVendorName');
     return vendor ? `Yes -- ${vendor}` : 'No';
   }
+  /** DOB stored as a full ISO datetime; show + edit only the YYYY-MM-DD date part. */
+  protected dobDisplay(): string {
+    return this.fv('dateOfBirth').slice(0, 10);
+  }
 
   // ---- per-section edit + confirm ----
   protected startEdit(section: MpSection): void {
     this.snapshot = this.form.getRawValue();
-    if (section === 'preferences') {
+    if (section === 'personal') {
+      // Native <input type="date"> needs YYYY-MM-DD; the loaded value carries a
+      // time component. Trim it so the picker populates (and the save sends a
+      // date the API accepts).
+      const dob = this.form.get('dateOfBirth');
+      const v = dob?.value;
+      if (typeof v === 'string' && v.length > 10) {
+        dob!.setValue(v.slice(0, 10));
+      }
+    } else if (section === 'preferences') {
       this.needsInterpreter = !!this.form.get('interpreterVendorName')?.value;
     }
     this.editingSection = section;
