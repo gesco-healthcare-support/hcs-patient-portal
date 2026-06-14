@@ -17,6 +17,7 @@ import { AppointmentWithNavigationPropertiesDto } from '../proxy/appointments/mo
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
+import { EmptyStateComponent } from '../shared/ui/empty-state/empty-state.component';
 import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.component';
 import { ExternalNavbarComponent } from '../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../user-queries/submit-query-modal.component';
@@ -138,6 +139,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
     FormsModule,
     IconComponent,
     SkeletonComponent,
+    EmptyStateComponent,
     StatusPillComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,

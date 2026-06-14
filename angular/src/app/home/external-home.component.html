@@ -213,11 +213,22 @@
         }
       </div>
     } @else if (filtered().length === 0) {
-      <div class="ext-empty">
-        <span class="i"><app-icon name="inbox" [size]="40" /></span>
-        <b>No matching appointments</b>
-        <span>Try a different search, status, or filter.</span>
-      </div>
+      @if (rows().length === 0 && role.canBook) {
+        <app-empty-state
+          icon="inbox"
+          title="No appointment requests yet"
+          body="When you request an evaluation, it'll show up here so you can track its status and manage documents."
+          ctaLabel="Request an appointment"
+          ctaIcon="plus"
+          (ctaClick)="requestAppointment()"
+        />
+      } @else {
+        <app-empty-state
+          icon="inbox"
+          title="No matching appointments"
+          body="Try a different search, status, or filter."
+        />
+      }
     } @else if (view() === 'cards') {
       <div class="ext-cards">
         @for (a of filtered(); track a.id) {
