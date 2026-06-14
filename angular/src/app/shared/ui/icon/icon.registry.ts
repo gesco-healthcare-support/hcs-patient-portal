@@ -49,6 +49,7 @@ export const ICON_PATHS = {
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.7 2.7 0 0 1 5.1 1.1c0 1.8-2.5 2-2.5 3.6"/><line x1="12" y1="17.2" x2="12.01" y2="17.2"/>',
   lifebuoy:
     '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><line x1="5.6" y1="5.6" x2="9.6" y2="9.6"/><line x1="14.4" y1="14.4" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="14.4" y2="9.6"/><line x1="9.6" y1="14.4" x2="5.6" y2="18.4"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
 } as const;
 
 /** Union of valid icon names (e.g. 'search' | 'calendar' | ...). */

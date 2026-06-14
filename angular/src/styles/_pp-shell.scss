@@ -1,0 +1,161 @@
+// Public-page / message-screen shell. Ported from the design handoff
+// (design_handoff_appointment_portal/styles/pp-public.css). Shared by the
+// State Screens message states (app-state-message: error / 403 / 404 /
+// session-timeout / offline) and reused by the Public Pages rework.
+//
+// Tokens are the source of truth. The page-background gradient stops are kept
+// verbatim from the design (a background wash, not a brand token). The
+// prototype's `af-btn` maps to the app's `ap-btn` utility.
+
+.pp {
+  min-height: 100%;
+  background: linear-gradient(180deg, #eef5fb 0%, #f5f7fa 38%);
+  display: flex;
+  flex-direction: column;
+  color: var(--n-800);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+// brand header
+.pp-top {
+  padding: 26px 24px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+
+  img {
+    height: 40px;
+    width: auto;
+  }
+
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--n-500);
+    letter-spacing: 0.02em;
+
+    b {
+      color: var(--blue-700);
+      font-weight: 700;
+    }
+  }
+}
+
+.pp-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 22px 40px;
+}
+
+.pp-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  width: 100%;
+  max-width: 560px;
+  padding: 38px 38px 34px;
+
+  h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--n-900);
+    margin: 0 0 8px;
+    text-align: center;
+  }
+
+  .lead {
+    font-size: 15px;
+    color: var(--n-600);
+    line-height: 1.55;
+    text-align: center;
+    margin: 0 auto 22px;
+    max-width: 440px;
+  }
+}
+
+// status icon badge -- tone keys match StateMessageComponent's `tone` input
+.pp-ic {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+
+  &.blue {
+    background: var(--blue-50);
+    color: var(--blue-700);
+  }
+
+  &.green {
+    background: var(--green-50);
+    color: var(--green-700);
+  }
+
+  &.amber {
+    background: var(--st-pending-bg);
+    color: var(--st-pending-fg);
+  }
+
+  &.red {
+    background: var(--st-rejected-bg);
+    color: var(--st-rejected-fg);
+  }
+}
+
+// actions
+.pp-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+
+  .ap-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  &--single {
+    justify-content: center;
+  }
+}
+
+.pp-btn-lg {
+  padding: 14px 22px;
+  font-size: 15px;
+  border-radius: 12px;
+}
+
+// footer
+.pp-foot {
+  text-align: center;
+  padding: 0 22px 28px;
+  color: var(--n-400);
+  font-size: 12px;
+
+  a {
+    color: var(--blue-600);
+    text-decoration: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .pp-card {
+    padding: 28px 22px;
+  }
+
+  .pp-actions {
+    flex-direction: column;
+  }
+}

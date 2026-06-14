@@ -14,6 +14,9 @@
 @use 'styles/ra-wizard';
 @use 'styles/ad-detail';
 @use 'styles/mp-profile';
+// Redesign (2026-06-14): public-page / message-screen shell, shared by the
+// State Screens message states (app-state-message) and the Public Pages rework.
+@use 'styles/pp-shell';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it
