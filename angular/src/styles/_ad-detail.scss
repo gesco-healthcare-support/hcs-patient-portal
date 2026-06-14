@@ -297,6 +297,74 @@
   border: 1px solid #f6c5c5;
   color: var(--st-rejected-fg);
 }
+.ad-note--info-requested {
+  background: #f4effb;
+  border: 1px solid #ddccf2;
+  color: #4a3578;
+}
+
+// Send Back fix-it panel (status = Info requested)
+.sb-fixit .ic {
+  color: #6b4aa8;
+}
+.sb-fixit__body {
+  flex: 1;
+}
+.sb-note {
+  white-space: pre-wrap;
+}
+.sb-fields {
+  list-style: none;
+  margin: 12px 0 4px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.sb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sb-field__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3b2a5e;
+}
+.sb-field__hint,
+.sb-field__note {
+  font-size: 12px;
+  color: #6f5a93;
+}
+.sb-field__note {
+  font-style: italic;
+}
+.sb-field__input {
+  max-width: 360px;
+  padding: 7px 10px;
+  border: 1px solid #c9b6e6;
+  border-radius: var(--r-sm, 6px);
+  font-size: 13.5px;
+  background: #fff;
+  color: var(--ink, #1a1a1a);
+
+  &:focus {
+    outline: none;
+    border-color: #6b4aa8;
+    box-shadow: 0 0 0 3px rgba(107, 74, 168, 0.16);
+  }
+}
+.sb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.sb-confirm {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a3578;
+}
 
 // read-only field ledger
 .ad-dl {

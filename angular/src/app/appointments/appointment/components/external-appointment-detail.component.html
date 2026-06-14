@@ -122,6 +122,78 @@
         </div>
       }
 
+      <!-- Send Back fix-it (status = Info requested) -->
+      @if (bannerVariant === 'info-requested' && infoRequest) {
+        <div class="ad-note ad-note--info-requested sb-fixit">
+          <span class="ic"><app-icon name="help" [size]="18" /></span>
+          <div class="sb-fixit__body">
+            <b>What the clinic needs</b>
+            @if (infoRequest.note) {
+              <p class="sb-note">{{ infoRequest.note }}</p>
+            }
+            @if (hasFlaggedFields) {
+              <ul class="sb-fields">
+                @for (f of infoRequest.flaggedFields; track f.key) {
+                  <li class="sb-field">
+                    <span class="sb-field__label">{{ fieldLabel(f.key) }}</span>
+                    @if (hintFor(f.key)) {
+                      <span class="sb-field__hint">{{ hintFor(f.key) }}</span>
+                    }
+                    @if (isPatientEditable(f.key)) {
+                      <input
+                        class="sb-field__input"
+                        [type]="inputType(f.key)"
+                        [ngModel]="edits[f.key]"
+                        (ngModelChange)="edits[f.key] = $event"
+                        [placeholder]="
+                          f.key === 'socialSecurityNumber'
+                            ? 'Enter full SSN'
+                            : 'Enter corrected value'
+                        "
+                      />
+                    } @else {
+                      <span class="sb-field__note">
+                        Correct this in the section below, then resubmit.
+                      </span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+            <div class="sb-actions">
+              @if (!resubmitConfirmVisible) {
+                <button
+                  class="ap-btn ap-btn--primary"
+                  type="button"
+                  (click)="openResubmitConfirm()"
+                >
+                  <app-icon name="refresh" [size]="15" />
+                  Resubmit to clinic
+                </button>
+              } @else {
+                <span class="sb-confirm">Resubmit your corrected request to the clinic?</span>
+                <button
+                  class="ap-btn ap-btn--primary"
+                  type="button"
+                  [disabled]="isResubmitting"
+                  (click)="confirmResubmit()"
+                >
+                  {{ isResubmitting ? 'Resubmitting...' : 'Confirm resubmit' }}
+                </button>
+                <button
+                  class="ap-btn ap-btn--ghost"
+                  type="button"
+                  [disabled]="isResubmitting"
+                  (click)="cancelResubmit()"
+                >
+                  Cancel
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Overview -->
       <div class="ad-card" id="ad-sec-overview">
         <div class="ad-card__head">

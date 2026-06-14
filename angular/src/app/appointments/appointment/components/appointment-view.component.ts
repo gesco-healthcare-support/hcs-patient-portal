@@ -34,6 +34,7 @@ import { RejectAppointmentModalComponent } from './reject-appointment-modal.comp
 import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import { RequestInfoModalComponent } from './request-info-modal.component';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
@@ -137,6 +138,7 @@ type ApplicantAttorneyLookupResult = {
     CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
+    RequestInfoModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     SsnInputComponent,
@@ -164,6 +166,8 @@ export class AppointmentViewComponent implements OnInit {
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
   cancelRequestVisible = false;
+  // Send Back (2026-06-14): staff "Request info" modal visibility (Pending only).
+  requestInfoModalVisible = false;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -825,6 +829,28 @@ export class AppointmentViewComponent implements OnInit {
   openCancelRequest(): void {
     this.rescheduleRequestVisible = false;
     this.cancelRequestVisible = true;
+  }
+
+  /** Send Back (2026-06-14): staff opens the "Request info" modal (Pending only). */
+  openRequestInfo(): void {
+    this.requestInfoModalVisible = true;
+  }
+
+  /** Reload after a successful send-back so the status flips to Info Requested. */
+  onInfoRequestSucceeded(): void {
+    const id = this.appointment?.appointment?.id;
+    if (id) {
+      this.appointmentService.getWithNavigationProperties(id).subscribe({
+        next: (data) => {
+          this.appointment = data;
+        },
+      });
+    }
+  }
+
+  /** True when staff may send this appointment back for more information (Pending only). */
+  get canRequestInfo(): boolean {
+    return this.isInternalUser && this.currentStatus === AppointmentStatusType.Pending;
   }
 
   /**
