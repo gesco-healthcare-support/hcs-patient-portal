@@ -16,7 +16,11 @@ import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
-import type { PatientDto, PatientUpdateDto } from '../../../proxy/patients/models';
+import type {
+  PatientDto,
+  PatientUpdateDto,
+  PatientWithNavigationPropertiesDto,
+} from '../../../proxy/patients/models';
 import { firstValueFrom } from 'rxjs';
 
 interface CalloutCopy {
@@ -358,13 +362,18 @@ export class ExternalAppointmentDetailComponent
       return;
     }
     // Fetch a fresh, complete patient DTO so required fields + concurrency stamp are intact.
+    // The endpoint returns a WithNavigationProperties wrapper; the flat patient -- which
+    // carries the root-level firstName/lastName/email/concurrencyStamp the update DTO
+    // requires -- lives under `.patient`. Spreading the wrapper itself nests those fields,
+    // so the PUT 400s ("First Name/Last Name/Email/ConcurrencyStamp required"). Build the
+    // update body from `current.patient`.
     const current = await firstValueFrom(
-      this.shellRest.request<unknown, PatientDto>(
+      this.shellRest.request<unknown, PatientWithNavigationPropertiesDto>(
         { method: 'GET', url: `/api/app/patients/for-appointment-booking/${patientId}` },
         { apiName: 'Default' },
       ),
     );
-    const dto = { ...current } as PatientUpdateDto;
+    const dto = { ...(current.patient ?? {}) } as PatientUpdateDto;
     // The read DTO masks SSN: never echo the mask back. Send the typed value, or null
     // so the server's never-clear rule preserves the stored SSN.
     dto.socialSecurityNumber = this.edits['socialSecurityNumber']?.trim() || null;
