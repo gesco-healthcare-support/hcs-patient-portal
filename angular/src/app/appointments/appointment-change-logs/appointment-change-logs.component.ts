@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { LocalizationPipe } from '@abp/ng.core';
 import {
   AppointmentChangeLogService,
   AppointmentChangeLogDto,
 } from '../../proxy/appointment-change-logs';
+import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { ChangeLogTimelineComponent } from '../../appointment-change-logs/change-log-timeline.component';
 
 /**
  * Per-appointment change-log viewer. Group K (G-02-02) repoints this from ABP's
@@ -21,7 +22,7 @@ import {
   selector: 'app-appointment-change-logs',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, LocalizationPipe],
+  imports: [CommonModule, IconComponent, ChangeLogTimelineComponent],
   templateUrl: './appointment-change-logs.component.html',
 })
 export class AppointmentChangeLogsComponent implements OnInit {

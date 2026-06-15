@@ -114,6 +114,71 @@ public class ReportsAppService : CaseEvaluationAppService, IReportsAppService
         };
     }
 
+    public virtual async Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentReportInput input)
+    {
+        // Same filter guard as the grid; the status filter itself is intentionally
+        // ignored so the summary cards span every status for the rest of the filter set.
+        if (!ReportFilterValidator.HasAnyFilter(input))
+        {
+            throw new UserFriendlyException(L["Report:EnterAtLeastOneFilter"]);
+        }
+
+        if (!ReportFilterValidator.IsDateRangeValid(input.AppointmentDateMin, input.AppointmentDateMax))
+        {
+            throw new UserFriendlyException(L["Report:InvalidDateRange"]);
+        }
+
+        // Reuse the appointments-list status-count query (Prompt 10). It groups by
+        // raw status and never takes a status filter, so the cards stay complete.
+        var counts = await _appointmentRepository.GetStatusCountsAsync(
+            filterText: input.FilterText,
+            appointmentDateMin: input.AppointmentDateMin,
+            appointmentDateMax: input.AppointmentDateMax,
+            appointmentTypeId: input.AppointmentTypeId,
+            locationId: input.LocationId);
+
+        return counts
+            .Select(kvp => new AppointmentStatusCountDto { Status = kvp.Key, Count = kvp.Value })
+            .ToList();
+    }
+
+    [Authorize(CaseEvaluationPermissions.Reports.Export)]
+    public virtual async Task<DownloadResult> GetReportCsvAsync(GetAppointmentReportInput input)
+    {
+        if (!ReportFilterValidator.HasAnyFilter(input))
+        {
+            throw new UserFriendlyException(L["Report:EnterAtLeastOneFilter"]);
+        }
+
+        if (!ReportFilterValidator.IsDateRangeValid(input.AppointmentDateMin, input.AppointmentDateMax))
+        {
+            throw new UserFriendlyException(L["Report:InvalidDateRange"]);
+        }
+
+        var sorting = ReportFilterValidator.ResolveSorting(input.Sorting);
+
+        // Export the FULL filtered set (no paging), like the PDF, through the same
+        // ToMaskedRow so SSN/DOB masking cannot diverge between the two exports.
+        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(
+            filterText: input.FilterText,
+            appointmentDateMin: input.AppointmentDateMin,
+            appointmentDateMax: input.AppointmentDateMax,
+            appointmentTypeId: input.AppointmentTypeId,
+            locationId: input.LocationId,
+            appointmentStatus: input.AppointmentStatus,
+            sorting: sorting);
+
+        var rows = items.Select(ToMaskedRow).ToList();
+        var bytes = AppointmentReportCsv.Build(rows);
+
+        return new DownloadResult
+        {
+            Content = new MemoryStream(bytes),
+            ContentType = "text/csv",
+            FileName = "appointment-request-report.csv",
+        };
+    }
+
     private static AppointmentReportRowDto ToMaskedRow(AppointmentWithNavigationProperties nav)
     {
         var patient = nav.Patient;

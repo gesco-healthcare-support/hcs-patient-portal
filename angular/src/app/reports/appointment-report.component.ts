@@ -10,32 +10,59 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { EnvironmentService, LocalizationPipe, PagedResultDto } from '@abp/ng.core';
+import { EnvironmentService, PagedResultDto } from '@abp/ng.core';
 import {
   AppointmentReportRowDto,
   GetAppointmentReportInput,
   ReportService,
 } from '../proxy/reports';
+import type { AppointmentStatusCountDto } from '../proxy/appointments/models';
 import {
   AppointmentStatusType,
   appointmentStatusTypeOptions,
 } from '../proxy/enums/appointment-status-type.enum';
 import { AppointmentTypeService } from '../proxy/appointment-types';
 import { LocationService } from '../proxy/locations';
+import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
+import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.component';
+import type { AppointmentPillStatus } from '../shared/ui/status-pill/status-pill.component';
+import {
+  appointmentStatusToPill,
+  appointmentStatusToSegment,
+} from '../shared/ui/status-pill/appointment-status.util';
+
+type ColKey =
+  | 'conf'
+  | 'type'
+  | 'location'
+  | 'date'
+  | 'status'
+  | 'patient'
+  | 'dob'
+  | 'email'
+  | 'phone';
 
 /**
  * G-08-01: the Appointment Request Report -- an internal-only, cross-appointment
- * worklist (gated by CaseEvaluation.Reports). Mirrors the legacy report's quick
- * search + advanced filters and its ten columns. Rows arrive already
- * PHI-redacted from the server (SSN masked to last 4, DOB to birth year), so
- * the template renders them verbatim. The grid stays empty until the user
- * enters a search, matching the legacy behavior.
+ * worklist (gated by CaseEvaluation.Reports). Redesign (Prompt 13, 2026-06-15):
+ * re-skinned onto the internal-shell tokens (ia-* toolbar/table) with status
+ * summary cards (raw counts bucketed client-side via appointmentStatusToPill, so
+ * the cards stay in lockstep with the list pills), a column picker, and CSV
+ * alongside PDF export. Rows arrive PHI-redacted (SSN last-4, DOB birth year);
+ * SSN is never shown on screen (export-only). Empty until the user searches.
  */
 @Component({
   selector: 'app-appointment-report',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    IconComponent,
+    SkeletonComponent,
+    StatusPillComponent,
+  ],
   templateUrl: './appointment-report.component.html',
 })
 export class AppointmentReportComponent implements OnInit {
@@ -51,6 +78,43 @@ export class AppointmentReportComponent implements OnInit {
   readonly statusOptions = appointmentStatusTypeOptions;
   typeOptions: { id: string; name: string }[] = [];
   locationOptions: { id: string; name: string }[] = [];
+
+  // Status summary cards -- the six UI pill buckets, in list order. Counts are
+  // filled by bucketing the server's raw per-status counts (Option A).
+  readonly statSegments: { seg: string; label: string; sw: string }[] = [
+    { seg: 'pending', label: 'Pending', sw: 'var(--st-pending-dot)' },
+    { seg: 'info', label: 'Info Requested', sw: 'var(--st-purple-fg)' },
+    { seg: 'approved', label: 'Approved', sw: 'var(--green-500)' },
+    { seg: 'rescheduled', label: 'Rescheduled', sw: 'var(--blue-500)' },
+    { seg: 'cancelled', label: 'Cancelled', sw: 'var(--st-rejected-dot)' },
+    { seg: 'rejected', label: 'Rejected', sw: 'var(--n-700)' },
+  ];
+  segmentCounts: Record<string, number> = {};
+
+  // Column-picker visibility. All columns start visible.
+  colsOpen = false;
+  readonly colDefs: { key: ColKey; label: string }[] = [
+    { key: 'conf', label: 'Confirmation #' },
+    { key: 'type', label: 'Type' },
+    { key: 'location', label: 'Location' },
+    { key: 'date', label: 'Appointment' },
+    { key: 'status', label: 'Status' },
+    { key: 'patient', label: 'Patient' },
+    { key: 'dob', label: 'Date of birth' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+  ];
+  cols: Record<ColKey, boolean> = {
+    conf: true,
+    type: true,
+    location: true,
+    date: true,
+    status: true,
+    patient: true,
+    dob: true,
+    email: true,
+    phone: true,
+  };
 
   readonly filterForm = this.fb.group({
     filterText: [''],
@@ -112,29 +176,42 @@ export class AppointmentReportComponent implements OnInit {
     this.validationError = '';
     this.rows = [];
     this.totalCount = 0;
+    this.segmentCounts = {};
     this.hasSearched = false;
     this.pageIndex = 0;
   }
 
   exportPdf(): void {
-    this.validationError = '';
+    if (!this.guardExport()) {
+      return;
+    }
+    void this.download('pdf');
+  }
 
+  exportCsv(): void {
+    if (!this.guardExport()) {
+      return;
+    }
+    void this.download('csv');
+  }
+
+  private guardExport(): boolean {
+    this.validationError = '';
     if (!this.hasAnyFilter()) {
       this.validationError = 'Enter at least one search value.';
-      return;
+      return false;
     }
     if (!this.isDateRangeValid()) {
       this.validationError = 'Enter both From and To dates, with From on or before To.';
-      return;
+      return false;
     }
-
-    void this.downloadPdf();
+    return true;
   }
 
   // Authenticated blob download: HttpClient (with ABP's auth interceptor) +
   // a synthetic anchor click. NEVER window.open -- a new tab carries no Bearer
   // token and the export 401s. (See angular/src/app/CLAUDE.md.)
-  private async downloadPdf(): Promise<void> {
+  private async download(kind: 'pdf' | 'csv'): Promise<void> {
     const base = this.environmentService.getApiUrl('Default') ?? '';
     const raw = this.filterForm.getRawValue();
 
@@ -148,7 +225,7 @@ export class AppointmentReportComponent implements OnInit {
 
     try {
       const response = await firstValueFrom(
-        this.http.get(`${base}/api/app/reports/export-pdf`, {
+        this.http.get(`${base}/api/app/reports/export-${kind}`, {
           params,
           observe: 'response',
           responseType: 'blob',
@@ -164,7 +241,7 @@ export class AppointmentReportComponent implements OnInit {
 
       const disposition = response.headers.get('content-disposition') || '';
       const match = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(disposition);
-      const fileName = match ? decodeURIComponent(match[1]) : 'appointment-request-report.pdf';
+      const fileName = match ? decodeURIComponent(match[1]) : `appointment-request-report.${kind}`;
 
       const objectUrl = URL.createObjectURL(blob);
       try {
@@ -201,6 +278,46 @@ export class AppointmentReportComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+    this.loadStatusCounts();
+  }
+
+  // Status summary cards for the current filter set (status filter excluded
+  // server-side). Raw per-status counts are bucketed into the six UI pills.
+  private loadStatusCounts(): void {
+    this.reportService.getStatusCounts(this.buildInput()).subscribe({
+      next: (counts: AppointmentStatusCountDto[]) => {
+        const acc: Record<string, number> = {};
+        for (const c of counts ?? []) {
+          if (c.status === undefined || c.status === null) {
+            continue;
+          }
+          const seg = appointmentStatusToSegment(c.status);
+          acc[seg] = (acc[seg] ?? 0) + (c.count ?? 0);
+        }
+        this.segmentCounts = acc;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.segmentCounts = {};
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  statCount(seg: string): number {
+    return this.segmentCounts[seg] ?? 0;
+  }
+
+  toggleCol(key: ColKey): void {
+    this.cols = { ...this.cols, [key]: !this.cols[key] };
+  }
+
+  get shownColumnCount(): number {
+    return this.colDefs.filter((c) => this.cols[c.key]).length;
+  }
+
+  pill(value?: AppointmentStatusType): AppointmentPillStatus {
+    return appointmentStatusToPill(value ?? AppointmentStatusType.Pending);
   }
 
   statusLabel(value?: AppointmentStatusType): string {

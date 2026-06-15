@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Reports;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp;
@@ -44,6 +45,27 @@ public class ReportController : AbpController, IReportsAppService
     public virtual async Task<IActionResult> ExportPdfAsync([FromQuery] GetAppointmentReportInput input)
     {
         var result = await _reportsAppService.GetReportPdfAsync(input);
+        return File(result.Content, result.ContentType, result.FileName);
+    }
+
+    [HttpGet("status-counts")]
+    public virtual Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentReportInput input)
+    {
+        return _reportsAppService.GetStatusCountsAsync(input);
+    }
+
+    // Interface member, hidden from routing: the CSV is exposed as a file stream
+    // by ExportCsvAsync below, mirroring the PDF split.
+    [NonAction]
+    public virtual Task<DownloadResult> GetReportCsvAsync(GetAppointmentReportInput input)
+    {
+        return _reportsAppService.GetReportCsvAsync(input);
+    }
+
+    [HttpGet("export-csv")]
+    public virtual async Task<IActionResult> ExportCsvAsync([FromQuery] GetAppointmentReportInput input)
+    {
+        var result = await _reportsAppService.GetReportCsvAsync(input);
         return File(result.Content, result.ContentType, result.FileName);
     }
 }

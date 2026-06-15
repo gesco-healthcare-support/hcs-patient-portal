@@ -8,12 +8,14 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
+import { PagedResultDto } from '@abp/ng.core';
 import {
   AppointmentChangeLogDto,
   AppointmentChangeLogService,
   GetAppointmentChangeLogsInput,
 } from '../proxy/appointment-change-logs';
+import { IconComponent } from '../shared/ui/icon/icon.component';
+import { ChangeLogTimelineComponent } from './change-log-timeline.component';
 
 /**
  * Group K (G-02-01): internal-only global change-log list across all audited
@@ -25,7 +27,7 @@ import {
   selector: 'app-appointment-change-log-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe],
+  imports: [CommonModule, ReactiveFormsModule, IconComponent, ChangeLogTimelineComponent],
   templateUrl: './appointment-change-log-list.component.html',
 })
 export class AppointmentChangeLogListComponent implements OnInit {

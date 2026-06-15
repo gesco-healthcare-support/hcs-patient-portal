@@ -27,6 +27,10 @@
 @use 'styles/in-dash';
 // Redesign (2026-06-14): internal appointments list (chips, filters, table).
 @use 'styles/in-appts';
+// Redesign (Prompt 13, 2026-06-15): internal workflow surfaces.
+@use 'styles/cr-inbox';
+@use 'styles/clg-log';
+@use 'styles/rp-report';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

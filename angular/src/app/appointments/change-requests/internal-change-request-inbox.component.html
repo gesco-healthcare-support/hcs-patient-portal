@@ -1,0 +1,217 @@
+<!--
+  Internal Workflow (Prompt 13): unified supervisor change-request inbox. Tabs
+  filter the merged reschedule + cancellation queues client-side; rows expand to
+  the reason; approve (with NoBill/Late outcome + consent-override warning) and
+  reject (reason required) drive the inherited approval service. Class names
+  mirror the handoff in-work.css (.cr-*), ported in styles/_cr-inbox.scss; head /
+  chips / empty reuse _in-appts.scss; modals reuse _ra-wizard.scss.
+-->
+<div class="ia-head">
+  <div>
+    <h1>Change requests</h1>
+    <p>{{ counts().all }} pending request{{ counts().all === 1 ? '' : 's' }} awaiting review</p>
+  </div>
+</div>
+
+<div class="ia-chips">
+  <button class="ia-chip" type="button" [attr.data-on]="tab() === 'all'" (click)="tab.set('all')">
+    All
+    <span class="cnt">{{ counts().all }}</span>
+  </button>
+  <button
+    class="ia-chip"
+    type="button"
+    [attr.data-on]="tab() === 'reschedule'"
+    (click)="tab.set('reschedule')"
+  >
+    Reschedules
+    <span class="cnt">{{ counts().reschedule }}</span>
+  </button>
+  <button
+    class="ia-chip"
+    type="button"
+    [attr.data-on]="tab() === 'cancel'"
+    (click)="tab.set('cancel')"
+  >
+    Cancellations
+    <span class="cnt">{{ counts().cancel }}</span>
+  </button>
+</div>
+
+@if (loading()) {
+  @for (n of [1, 2, 3]; track n) {
+    <div class="cr-row" style="padding: 16px 18px">
+      <app-skeleton height="44px" radius="10px" />
+    </div>
+  }
+} @else if (visibleRows().length === 0) {
+  <div
+    class="ia-empty"
+    style="background: #fff; border: 1px solid var(--border); border-radius: var(--r-md)"
+  >
+    <app-icon name="inbox" [size]="36" />
+    <b>Queue clear</b>
+    <span>No pending change requests.</span>
+  </div>
+} @else {
+  @for (row of visibleRows(); track row.id) {
+    <div class="cr-row">
+      <div class="cr-row__main" [attr.data-open]="openId() === row.id" (click)="toggle(row)">
+        <span class="cr-row__type" [ngClass]="isReschedule(row) ? 'tint-amber' : 'tint-red'">
+          <app-icon [name]="isReschedule(row) ? 'refresh' : 'x'" [size]="18" />
+        </span>
+        <div class="cr-row__tx">
+          <div class="l1">
+            <b>{{ typeLabel(row) }}</b>
+            <span class="conf">{{ row.appointmentConfirmationNumber || '—' }}</span>
+          </div>
+          <div class="l2">
+            Requested {{ row.creationTime | date: 'MMM d, y, h:mm a' }}
+            @if (sideLabel(row)) {
+              &middot; {{ sideLabel(row) }} filed
+            }
+          </div>
+        </div>
+        <div class="cr-row__meta">
+          <span class="cr-age" [ngClass]="ageClass(row)">
+            <app-icon name="clock" [size]="12" />
+            {{ ageDays(row) }}d waiting
+          </span>
+          @if (consent(row); as c) {
+            @if (c.show) {
+              <span class="cr-consent" [ngClass]="c.cls">
+                <span class="d"></span>
+                {{ c.label }}
+              </span>
+            }
+          }
+        </div>
+        <div class="cr-row__acts" (click)="$event.stopPropagation()">
+          <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="view(row)">
+            <app-icon name="eye" [size]="14" />
+            View
+          </button>
+          <button class="af-btn af-btn--green af-btn--sm" type="button" (click)="openApprove(row)">
+            <app-icon name="check" [size]="14" />
+            Approve
+          </button>
+          <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="openReject(row)">
+            <app-icon name="x" [size]="14" />
+            Reject
+          </button>
+        </div>
+        <span class="cr-row__chev"><app-icon name="chevRight" [size]="17" /></span>
+      </div>
+
+      @if (openId() === row.id) {
+        <div class="cr-detail">
+          <div class="blk">
+            <h4>{{ isReschedule(row) ? 'Requested change' : 'Appointment to cancel' }}</h4>
+            <p>
+              @if (isReschedule(row)) {
+                A new time slot was requested. Open the appointment to review and confirm the slot
+                before approving.
+              } @else {
+                Cancelling this appointment. Both parties are notified once approved.
+              }
+            </p>
+          </div>
+          <div class="blk">
+            <h4>Reason given</h4>
+            <p>{{ reasonOf(row) || 'No reason provided.' }}</p>
+          </div>
+        </div>
+      }
+    </div>
+  }
+}
+
+@if (modal(); as m) {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      @if (m.kind === 'approve') {
+        <div class="ra-modal__head">
+          <h3>Approve {{ isReschedule(m.row) ? 'reschedule' : 'cancellation' }}</h3>
+          <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+            <app-icon name="x" [size]="17" />
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <p style="margin: 0 0 14px; font-size: 14px; color: var(--n-600); line-height: 1.5">
+            @if (isReschedule(m.row)) {
+              Move
+              <b>{{ m.row.appointmentConfirmationNumber }}</b>
+              to the requested slot and record the billing outcome.
+            } @else {
+              Cancel
+              <b>{{ m.row.appointmentConfirmationNumber }}</b>
+              ? Both parties will be notified.
+            }
+          </p>
+          <div class="ra-field col-12">
+            <label>Billing outcome</label>
+            <select class="ra-input" [ngModel]="outcome()" (ngModelChange)="outcome.set($event)">
+              @for (opt of outcomeOptions(m.row); track opt.value) {
+                <option [ngValue]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          @if (overrideWarning(m.row); as warn) {
+            <div class="ra-note warn" style="margin-top: 12px">
+              <span class="i"><app-icon name="alert" [size]="15" /></span>
+              <span>{{ warn }}</span>
+            </div>
+          }
+        </div>
+        <div class="ra-modal__foot">
+          <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+          <button
+            class="af-btn af-btn--green"
+            type="button"
+            [disabled]="isBusy() || outcome() === null"
+            (click)="confirmApprove()"
+          >
+            <app-icon name="check" [size]="15" />
+            {{ isBusy() ? 'Approving…' : 'Approve' }}
+          </button>
+        </div>
+      } @else {
+        <div class="ra-modal__head">
+          <h3>Reject {{ isReschedule(m.row) ? 'reschedule' : 'cancellation' }}</h3>
+          <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+            <app-icon name="x" [size]="17" />
+          </button>
+        </div>
+        <div class="ra-modal__body">
+          <div class="ra-field col-12">
+            <label>
+              Rejection reason
+              <span class="req">*</span>
+            </label>
+            <textarea
+              class="ra-input"
+              rows="4"
+              maxlength="500"
+              [ngModel]="reason()"
+              (ngModelChange)="reason.set($event)"
+              placeholder="Explain why — the requester sees this message."
+            ></textarea>
+            <div class="ra-hint" style="text-align: right">{{ reason().length }}/500</div>
+          </div>
+        </div>
+        <div class="ra-modal__foot">
+          <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+          <button
+            class="af-btn af-btn--primary"
+            type="button"
+            [disabled]="isBusy() || !reason().trim()"
+            (click)="confirmReject()"
+          >
+            <app-icon name="x" [size]="15" />
+            {{ isBusy() ? 'Rejecting…' : 'Reject' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

@@ -59,10 +59,9 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         id: 'change-requests',
         label: 'Change Requests',
         icon: 'refresh',
-        // The /appointments/change-requests parent has no index route (only
-        // reschedules / cancellations children), so the nav targets the first
-        // queue. See change-request-routes.ts.
-        route: '/appointments/change-requests/reschedules',
+        // Prompt 13 (2026-06-15): the reschedule + cancellation queues are unified
+        // into one tabbed inbox at the parent path. See change-request-routes.ts.
+        route: '/appointments/change-requests',
         roles: ['supervisor'],
         badge: 'changeRequests',
       },
