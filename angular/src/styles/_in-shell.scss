@@ -364,7 +364,10 @@
 .in-content {
   flex: 1;
   padding: 26px 28px 60px;
-  max-width: 1320px;
+  // Wide cap (was 1320px, which centered the content and wasted ~340px of side
+  // gutter on a 1920px screen). 1760px lets the content fill a standard desktop
+  // while still bounding line length on ultra-wide monitors. The 28px padding stays.
+  max-width: 1760px;
   width: 100%;
   margin: 0 auto;
 }

@@ -127,6 +127,10 @@ export class InternalAppointmentsComponent implements OnInit {
 
   // ---- per-row kebab + reschedule/cancel modals ----
   protected readonly menuId = signal<string | null>(null);
+  // The kebab dropdown is positioned fixed (computed from the button rect) so it
+  // escapes the horizontally-scrollable table's overflow clip; otherwise it was
+  // clipped and only nudged the scrollbar instead of opening.
+  protected readonly menuPos = signal<{ top: number; left: number } | null>(null);
   protected readonly selectedRow = signal<Row | null>(null);
   protected readonly rescheduleVisible = signal(false);
   protected readonly cancelVisible = signal(false);
@@ -375,9 +379,16 @@ export class InternalAppointmentsComponent implements OnInit {
   }
 
   // ---- kebab actions ----
-  protected toggleMenu(row: Row): void {
+  protected toggleMenu(row: Row, event: MouseEvent): void {
     const id = this.rowId(row);
-    this.menuId.set(this.menuId() === id ? null : id);
+    if (this.menuId() === id) {
+      this.menuId.set(null);
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const menuWidth = 190;
+    this.menuPos.set({ top: rect.bottom + 4, left: Math.max(8, rect.right - menuWidth) });
+    this.menuId.set(id);
   }
 
   protected closeMenu(): void {

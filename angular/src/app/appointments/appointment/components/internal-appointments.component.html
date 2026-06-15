@@ -236,13 +236,22 @@
                   <span class="ia-sub">&mdash;</span>
                 }
               </td>
-              <td class="ia-kebab-cell" (click)="$event.stopPropagation()">
-                <button class="ia-kebab" type="button" (click)="toggleMenu(a)">
+              <td class="ia-actions-cell" (click)="$event.stopPropagation()">
+                <button
+                  class="ia-kebab"
+                  type="button"
+                  aria-label="More actions"
+                  (click)="toggleMenu(a, $event)"
+                >
                   <app-icon name="dots" [size]="16" />
                 </button>
                 @if (menuId() === rowId(a)) {
                   <div class="ia-clickaway" (click)="closeMenu()"></div>
-                  <div class="ia-menu">
+                  <div
+                    class="ia-menu"
+                    [style.top.px]="menuPos()?.top"
+                    [style.left.px]="menuPos()?.left"
+                  >
                     <button type="button" (click)="review(a)">
                       <span class="i"><app-icon name="eye" [size]="15" /></span>
                       Review

@@ -372,8 +372,11 @@
   justify-content: center;
   cursor: pointer;
 }
-.ia-kebab-cell {
-  position: relative;
+.ia-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .ia-table tbody tr:hover .ia-kebab {
   border-color: var(--border);
@@ -384,9 +387,10 @@
   color: var(--blue-700);
 }
 .ia-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
+  // Fixed (positioned from the button rect in toggleMenu) so the dropdown
+  // escapes the horizontally-scrollable table's overflow clip instead of being
+  // hidden / nudging the scrollbar.
+  position: fixed;
   width: 190px;
   background: #fff;
   border: 1px solid var(--border);
