@@ -5,7 +5,7 @@
   editable sections between read ledgers and the inherited reactive form.
 -->
 @if (isLoading) {
-  <div class="ad">
+  <div class="ad ad--wide">
     <div class="ad-wrap" style="padding-top: 24px">
       <app-skeleton width="320px" height="28px" />
       <div style="height: 16px"></div>
@@ -15,7 +15,7 @@
     </div>
   </div>
 } @else if (errorMessage && !appointment) {
-  <div class="ad">
+  <div class="ad ad--wide">
     <div class="ad-wrap" style="padding-top: 24px">
       <div class="ad-note ad-note--rejected">
         <span class="ic"><app-icon name="alert" [size]="18" /></span>
@@ -27,7 +27,7 @@
     </div>
   </div>
 } @else if (appointment) {
-  <div class="ad">
+  <div class="ad ad--wide">
     <!-- status banner -->
     <div class="ad-banner" [ngClass]="'ad-banner--' + bannerVariant">
       <div class="ad-banner__in">
@@ -93,6 +93,10 @@
               Cancel
             </button>
           } @else {
+            <button class="af-btn af-btn--glass" type="button" (click)="back()">
+              <app-icon name="chevLeft" [size]="15" />
+              Back to appointments
+            </button>
             @if (can('approve')) {
               <button class="af-btn af-btn--green" type="button" (click)="approve()">
                 <app-icon name="check" [size]="15" />

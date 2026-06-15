@@ -224,6 +224,14 @@
   margin: 0 auto;
   padding: 24px 26px 80px;
 }
+
+// Internal detail (in-shell) fills the wider shell content area. The external
+// read-only detail keeps the 1080px reading measure; only .ad--wide opts in,
+// so the external page is unchanged.
+.ad--wide .ad-banner__in,
+.ad--wide .ad-wrap {
+  max-width: 1560px;
+}
 .ad-card {
   background: #fff;
   border: 1px solid var(--border);

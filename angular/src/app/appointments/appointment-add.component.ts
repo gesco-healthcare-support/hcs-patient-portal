@@ -1654,7 +1654,7 @@ export class AppointmentAddComponent {
     this.isSaving = true;
     try {
       if (await this.uploadStagedDocuments(this.createdAppointmentIdForRetry)) {
-        this.router.navigateByUrl('/');
+        this.navigateAfterBooking();
       }
     } finally {
       this.isSaving = false;
@@ -1986,7 +1986,7 @@ export class AppointmentAddComponent {
       // bookers in a single transaction whose gates run on complete data.
       await this.autoApproveIfInternalBooker(createdAppointment?.id);
 
-      this.router.navigateByUrl('/');
+      this.navigateAfterBooking();
     } catch (err: unknown) {
       // Slot rework plan 5: surface the 3 new booking error codes inline
       // and refetch the picker so subsequent attempts see current state.
@@ -2170,6 +2170,16 @@ export class AppointmentAddComponent {
     this.form.patchValue({ applicantAttorneyEnabled: true, defenseAttorneyEnabled: true });
     this.updateLocationSelection(null);
     this.clearTimeSlots();
+  }
+
+  /**
+   * Post-booking navigation target. Defaults to the external home (`/`); the
+   * in-shell internal wizard overrides this to land staff on the appointments
+   * list instead. Extracted so that override is additive and the external flow
+   * stays byte-identical.
+   */
+  protected navigateAfterBooking(): void {
+    this.router.navigateByUrl('/');
   }
 
   goBack(): void {

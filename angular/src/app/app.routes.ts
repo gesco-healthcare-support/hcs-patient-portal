@@ -52,8 +52,15 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   { path: 'appointments', children: APPOINTMENT_ROUTES },
   { path: 'appointments/change-requests', children: CHANGE_REQUEST_ROUTES },
   {
+    // Redesign (2026-06-15): internal staff book via the redesigned wizard,
+    // wrapped by the shell. The wizard suppresses its own external navbar for
+    // internal bookers (isInternalBooker) so only the shell chrome shows.
+    // authGuard only (no permissionGuard), matching the prior in-shell add route.
     path: 'appointments/add',
-    loadComponent: () => Promise.resolve(AppointmentAddComponent),
+    loadComponent: () =>
+      import('./appointments/wizard/appointment-wizard.component').then(
+        (c) => c.AppointmentWizardComponent,
+      ),
     canActivate: [authGuard],
   },
   {
@@ -247,10 +254,12 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
-    // Redesign (temp, 2026-06-13): the new external booking wizard. Mounted here
-    // while /appointments/add keeps the legacy form; the home action cards swap
-    // to this route after live sign-off, then the legacy form is deleted.
+    // Redesign (temp, 2026-06-13): the new external booking wizard. External-only
+    // as of 2026-06-15 (externalUserOnlyMatchGuard) -- internal staff book the
+    // same wizard at the in-shell /appointments/add, so they must never land on
+    // this chrome-less route; they fall through to the shell instead.
     path: 'appointments/request',
+    canMatch: [externalUserOnlyMatchGuard],
     loadComponent: () =>
       import('./appointments/wizard/appointment-wizard.component').then(
         (c) => c.AppointmentWizardComponent,

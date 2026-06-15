@@ -1,14 +1,19 @@
-<app-external-navbar
-  [clinicName]="displayTenantName"
-  [userName]="navDisplayName"
-  [roleLabel]="displayRoleName"
-  [userEmail]="navUserEmail"
-  [orgName]="firmName || null"
-  (profileClick)="openMyProfile()"
-  (documentsClick)="openDocuments()"
-  (helpClick)="openQuery()"
-  (logoutClick)="signOut()"
-/>
+<!-- External chrome only. Internal staff reach this wizard inside the navy
+  shell (in-shell /appointments/add), which supplies its own topbar + sidebar,
+  so the external navbar is suppressed for them. -->
+@if (!isInternalBooker) {
+  <app-external-navbar
+    [clinicName]="displayTenantName"
+    [userName]="navDisplayName"
+    [roleLabel]="displayRoleName"
+    [userEmail]="navUserEmail"
+    [orgName]="firmName || null"
+    (profileClick)="openMyProfile()"
+    (documentsClick)="openDocuments()"
+    (helpClick)="openQuery()"
+    (logoutClick)="signOut()"
+  />
+}
 
 <div class="ra">
   <div class="ra-head">
@@ -364,8 +369,7 @@
           <app-appointment-add-custom-fields [customFieldsArray]="customFieldsArray" />
           <div class="ra-note" style="margin-top: 4px">
             <span class="i"><app-icon name="alert" [size]="16" /></span>
-            Review every step above, then submit. Once submitted you cannot edit the request
-            yourself -- contact staff to make changes.
+            {{ reviewSubmitNote }}
           </div>
           @if (claimInformationMissing && injuryDrafts.length === 0) {
             <div class="ra-note warn" style="margin-top: 14px">

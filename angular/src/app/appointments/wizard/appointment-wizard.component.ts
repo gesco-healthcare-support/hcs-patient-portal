@@ -30,6 +30,7 @@ import { ExternalNavbarComponent } from '../../shared/components/external-navbar
 import { SubmitQueryModalComponent } from '../../user-queries/submit-query-modal.component';
 import { performFullLogout } from '../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../shared/auth/external-user-display-name';
+import * as wizardCopy from './wizard-copy.util';
 
 interface WizardStep {
   key: string;
@@ -233,15 +234,18 @@ export class AppointmentWizardComponent
     return this.current === this.steps.length - 1;
   }
   protected get eyebrow(): string {
-    return this.isReevaluation ? 'Follow-up evaluation' : 'New evaluation';
+    return wizardCopy.wizardEyebrow(this.isInternalBooker, this.isReevaluation);
   }
   protected get wizardTitle(): string {
-    return this.isReevaluation ? 'Request a Re-evaluation' : 'Request an Appointment';
+    return wizardCopy.wizardTitle(this.isInternalBooker, this.isReevaluation);
   }
   protected get wizardSubtitle(): string {
-    return this.isReevaluation
-      ? 'Look up the prior appointment, then confirm the details for the follow-up.'
-      : 'Complete the steps below. Your progress is saved automatically as a draft.';
+    return wizardCopy.wizardSubtitle(this.isInternalBooker, this.isReevaluation);
+  }
+  // Review-step submit note; staff get edit-after copy instead of the
+  // patient-voiced "contact staff" warning.
+  protected get reviewSubmitNote(): string {
+    return wizardCopy.reviewSubmitNote(this.isInternalBooker);
   }
   protected get navUserEmail(): string {
     const u = this.shellConfig.getOne('currentUser') as {
@@ -394,5 +398,15 @@ export class AppointmentWizardComponent
   }
   protected signOut(): void {
     void performFullLogout(this.shellInjector);
+  }
+
+  // Internal staff book inside the shell, so after a successful booking send
+  // them to the appointments list rather than the external home.
+  protected override navigateAfterBooking(): void {
+    if (this.isInternalBooker) {
+      void this.shellRouter.navigateByUrl('/appointments');
+    } else {
+      super.navigateAfterBooking();
+    }
   }
 }

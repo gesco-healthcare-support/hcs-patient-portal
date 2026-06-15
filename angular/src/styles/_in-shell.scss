@@ -372,6 +372,22 @@
   margin: 0 auto;
 }
 
+// ---------------- In-shell wizard footer offset ----------------
+// The booking wizard's sticky footer (.ra-foot, styles/_ra-wizard.scss) is
+// position:fixed with left:0, so on its own it spans the full viewport and
+// slides under the navy sidebar. When the wizard renders inside this shell
+// (internal /appointments/add) it must clear the sidebar -- 256px expanded,
+// 72px collapsed -- mirroring the sidebar width transition. The collapsed rule
+// is declared second so it wins at equal specificity (both .in and .in--collapsed
+// sit on the same shell root element).
+.in .ra-foot {
+  left: 256px;
+  transition: left 0.18s ease;
+}
+.in--collapsed .ra-foot {
+  left: 72px;
+}
+
 // topbar account menu
 .in-acct {
   display: flex;
