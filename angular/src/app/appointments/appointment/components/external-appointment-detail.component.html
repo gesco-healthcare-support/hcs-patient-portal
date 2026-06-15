@@ -78,6 +78,10 @@
           <a (click)="scrollTo('ad-sec-users')">Access</a>
         </div>
         <div class="ad-nav__actions">
+          <button class="ap-btn ap-btn--ghost" type="button" (click)="backToHome()">
+            <app-icon name="chevLeft" [size]="15" />
+            Back to my appointments
+          </button>
           @if (canRequestChange) {
             <button class="ap-btn ap-btn--ghost" type="button" (click)="openRescheduleRequest()">
               <app-icon name="refresh" [size]="15" />

@@ -400,13 +400,24 @@ export class AppointmentWizardComponent
     void performFullLogout(this.shellInjector);
   }
 
-  // Internal staff book inside the shell, so after a successful booking send
-  // them to the appointments list rather than the external home.
+  // Where leaving the wizard lands: staff book inside the shell (-> the
+  // appointments list), external users came from the home page (-> home). Shared
+  // by the post-booking redirect and the header Back button.
+  private get landingUrl(): string {
+    return this.isInternalBooker ? '/appointments' : '/';
+  }
+
   protected override navigateAfterBooking(): void {
-    if (this.isInternalBooker) {
-      void this.shellRouter.navigateByUrl('/appointments');
-    } else {
-      super.navigateAfterBooking();
-    }
+    void this.shellRouter.navigateByUrl(this.landingUrl);
+  }
+
+  // Header Back button label + action. Distinct from the footer "Back", which
+  // steps within the wizard; this leaves the wizard entirely so neither audience
+  // is stranded (external users have no sidebar to fall back on).
+  protected get backLabel(): string {
+    return this.isInternalBooker ? 'Back to appointments' : 'Back to home';
+  }
+  protected backOut(): void {
+    void this.shellRouter.navigateByUrl(this.landingUrl);
   }
 }

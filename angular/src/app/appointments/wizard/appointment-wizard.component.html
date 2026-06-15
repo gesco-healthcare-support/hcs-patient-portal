@@ -18,6 +18,10 @@
 <div class="ra">
   <div class="ra-head">
     <div class="ra-head__in">
+      <button class="ra-back" type="button" (click)="backOut()">
+        <app-icon name="chevLeft" [size]="16" />
+        {{ backLabel }}
+      </button>
       <div>
         <p class="ra-head__eyebrow">{{ eyebrow }}</p>
         <h1>{{ wizardTitle }}</h1>

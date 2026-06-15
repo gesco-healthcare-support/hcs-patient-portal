@@ -67,6 +67,28 @@
   position: relative;
   z-index: 2;
 }
+// Header Back button (leaves the wizard). On the dark header band, so it uses a
+// glass treatment; distinct from the footer step-Back. Shown for both audiences
+// so external users (no sidebar) are never stranded on the wizard.
+.ra-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s;
+}
+.ra-back:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
 .ra-head__eyebrow {
   font-size: 12px;
   font-weight: 700;
