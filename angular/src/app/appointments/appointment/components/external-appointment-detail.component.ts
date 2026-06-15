@@ -218,6 +218,24 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     void performFullLogout(this.shellInjector);
   }
 
+  /**
+   * Redesign swap (2026-06-15): external re-request launches the booking WIZARD
+   * (/appointments/request) instead of the legacy add form. The internal
+   * AppointmentViewComponent.reRequest() keeps targeting /appointments/add so
+   * staff stay on the in-shell legacy form. Same mode=rerequest + source conf#
+   * contract; the wizard inherits the re-request load + reSubmit path. Uses
+   * shellRouter because the parent's `router` is private.
+   */
+  override reRequest(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    void this.shellRouter.navigate(['/appointments/request'], {
+      queryParams: { mode: 'rerequest', source: conf },
+    });
+  }
+
   private loadNavName(): void {
     const u = this.shellConfig.getOne('currentUser') as {
       name?: string;

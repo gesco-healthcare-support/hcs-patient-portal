@@ -1,0 +1,488 @@
+// Internal staff shell -- collapsible navy sidebar + topbar. Ported from the
+// design handoff (design_handoff_appointment_portal/styles/in-shell.css) onto
+// the global tokens (_tokens.scss). Consumed by InternalShellLayoutComponent.
+//
+// Deviations from the prototype CSS, each deliberate:
+//   - `.in` min-height 100% -> 100vh: the app root is a bare router-outlet (no
+//     LeptonX layout), so the shell fills the viewport itself.
+//   - The prototype's topbar search box and sidebar-footer account block are
+//     omitted -- the account menu lives in the topbar and there is no search in
+//     the MVP; their selectors are dropped rather than left as dead styles.
+//   - The mobile off-canvas sidebar (<=860px) is deferred (plan "out of scope");
+//     shipping it without an open toggle would hide the sidebar with no way back.
+
+.in {
+  display: flex;
+  min-height: 100vh;
+  background: var(--surface-app);
+  color: var(--n-800);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+// ---------------- Sidebar ----------------
+.in-side {
+  width: 256px;
+  flex: none;
+  align-self: stretch;
+  background: linear-gradient(185deg, #07304f 0%, #06365b 55%, #053a66 100%);
+  color: #b9d0e4;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  transition: width 0.18s ease;
+}
+.in--collapsed .in-side {
+  width: 72px;
+}
+.in-side__brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 18px 16px 16px;
+  min-height: 64px;
+}
+.in-side__brand .mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex: none;
+  background: linear-gradient(135deg, #fff, #eaf2f9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--blue-700);
+  font-weight: 800;
+  font-size: 17px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.in-side__brand .tt {
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+}
+.in-side__brand .tt b {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: block;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.in-side__brand .tt span {
+  color: #7ba0c2;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.in--collapsed .in-side__brand .tt {
+  display: none;
+}
+
+.in-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 12px 16px;
+}
+.in-nav::-webkit-scrollbar {
+  width: 8px;
+}
+.in-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+}
+.in-sect {
+  padding: 16px 10px 7px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5d83a6;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.in--collapsed .in-sect {
+  text-align: center;
+  padding: 14px 0 6px;
+  color: #3f5f80;
+}
+.in--collapsed .in-sect span {
+  display: none;
+}
+.in--collapsed .in-sect::after {
+  content: '\00b7';
+}
+
+.in-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: #b9d0e4;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.14s,
+    color 0.14s;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.in-link .i {
+  width: 20px;
+  flex: none;
+  opacity: 0.85;
+  display: inline-flex;
+  justify-content: center;
+}
+.in-link .lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.in-link .badge {
+  background: var(--green-500);
+  color: #1c2a08;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.in-link:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.in-link.on {
+  background: rgba(157, 193, 59, 0.16);
+  color: #fff;
+}
+.in-link.on .i {
+  opacity: 1;
+  color: var(--green-500);
+}
+.in-link.on::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--green-500);
+}
+.in--collapsed .in-link {
+  justify-content: center;
+  padding: 10px;
+}
+.in--collapsed .in-link .lbl,
+.in--collapsed .in-link .badge {
+  display: none;
+}
+.in--collapsed .in-link .i {
+  opacity: 0.95;
+}
+// collapsed flyout tooltip
+.in--collapsed .in-link[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--n-900);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 80;
+  box-shadow: var(--sh-md);
+}
+.in-link .pip {
+  position: absolute;
+  top: 8px;
+  left: 26px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-500);
+  display: none;
+}
+.in--collapsed .in-link.has-badge .pip {
+  display: block;
+}
+
+// ---------------- Main + topbar ----------------
+.in-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.in-top {
+  height: 64px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.in-collapse {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--n-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+.in-collapse:hover {
+  background: var(--n-50);
+  color: var(--blue-700);
+}
+.in-crumb {
+  font-size: 13.5px;
+  color: var(--n-500);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.in-crumb b {
+  color: var(--n-800);
+  font-weight: 700;
+}
+.in-top .spacer {
+  flex: 1;
+}
+// Topbar New-appointment button: keep the shared ap-btn compact within the 64px bar.
+.in-top .ap-btn {
+  padding: 9px 14px;
+  font-size: 13.5px;
+  gap: 7px;
+}
+.in-iconbtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--n-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.in-iconbtn:hover {
+  background: var(--n-50);
+  color: var(--blue-700);
+}
+.in-iconbtn .nip {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--st-rejected-dot);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  font-family: var(--font-num);
+}
+
+// tenant chip / switcher
+.in-tenant {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-700);
+  transition: all 0.14s;
+}
+.in-tenant:hover {
+  border-color: var(--blue-200);
+  background: var(--blue-50);
+}
+.in-tenant .mk {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--blue-700);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.in-tenant.host .mk {
+  background: var(--green-600);
+}
+
+.in-content {
+  flex: 1;
+  padding: 26px 28px 60px;
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+// topbar account menu
+.in-acct {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 11px 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.in-acct:hover {
+  border-color: var(--border-strong);
+  background: var(--n-25);
+}
+.in-acct[aria-expanded='true'] {
+  border-color: var(--blue-200);
+  background: var(--blue-50);
+}
+.in-acct .ava {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.in-acct .who {
+  line-height: 1.2;
+  text-align: left;
+}
+.in-acct .who b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--n-900);
+  white-space: nowrap;
+}
+.in-acct .who span {
+  font-size: 11px;
+  color: var(--n-500);
+  white-space: nowrap;
+}
+.in-acct .cv {
+  color: var(--n-400);
+}
+.in-acctwrap {
+  position: relative;
+}
+.in-acct__pop {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 224px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: var(--sh-lg);
+  padding: 7px;
+  z-index: 80;
+  animation: inPop 0.15s ease both;
+}
+.in-acct__pop a,
+.in-acct__pop button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--n-700);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+}
+.in-acct__pop a .i,
+.in-acct__pop button .i {
+  color: var(--n-400);
+}
+.in-acct__pop a:hover,
+.in-acct__pop button:hover {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.in-acct__pop a:hover .i,
+.in-acct__pop button:hover .i {
+  color: var(--blue-600);
+}
+.in-acct__pop .danger:hover {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.in-acct__pop .danger:hover .i {
+  color: var(--st-rejected-fg);
+}
+.in-acct__div {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+}
+.in-clickaway {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+@keyframes inPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

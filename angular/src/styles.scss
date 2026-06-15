@@ -19,6 +19,8 @@
 @use 'styles/pp-shell';
 // Redesign (2026-06-14): shimmer skeleton styles for loading states.
 @use 'styles/state-skeleton';
+// Redesign (2026-06-14): internal staff shell (navy sidebar + topbar).
+@use 'styles/in-shell';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

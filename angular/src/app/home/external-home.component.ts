@@ -344,11 +344,15 @@ export class ExternalHomeComponent implements OnInit {
   }
 
   // ---- navigation / actions (all hit real routes) ----
+  // Redesign swap (2026-06-15): booking now launches the new wizard
+  // (/appointments/request) instead of the legacy add form. type=1 = new,
+  // type=2 = re-evaluation -- resolved in AppointmentAddComponent's constructor,
+  // which the wizard inherits.
   protected requestAppointment(): void {
-    this.router.navigateByUrl('/appointments/add?type=1');
+    this.router.navigateByUrl('/appointments/request?type=1');
   }
   protected requestReEvaluation(): void {
-    this.router.navigateByUrl('/appointments/add?type=2');
+    this.router.navigateByUrl('/appointments/request?type=2');
   }
   protected viewAppointment(id: string): void {
     this.router.navigate(['/appointments/view', id]);
