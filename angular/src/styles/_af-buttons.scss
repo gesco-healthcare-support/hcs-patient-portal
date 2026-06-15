@@ -1,0 +1,64 @@
+/* ============================================================
+   Shared button system (af-btn). Ported from the design handoff
+   (design_handoff_appointment_portal/styles/after.css "Buttons"), which
+   the redesigned surfaces reuse. The handoff styled <a> elements, so two
+   rules are added for the Angular <button> ports: font-family + cursor
+   (a <button> does not inherit the page font or get a pointer cursor).
+   ============================================================ */
+.af-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.af-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.af-btn--primary {
+  background: var(--blue-700);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(5, 84, 149, 0.4);
+}
+.af-btn--primary:hover {
+  background: var(--blue-800);
+  box-shadow: 0 4px 14px -3px rgba(5, 84, 149, 0.5);
+  transform: translateY(-1px);
+}
+.af-btn--ghost {
+  background: #fff;
+  border-color: var(--border-strong);
+  color: var(--n-700);
+}
+.af-btn--ghost:hover {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+  background: var(--blue-50);
+}
+.af-btn--green {
+  background: var(--green-500);
+  color: #20300a;
+}
+.af-btn--green:hover {
+  background: var(--green-600);
+  color: #fff;
+}
+.af-btn--lg {
+  padding: 13px 22px;
+  font-size: 14.5px;
+  border-radius: 12px;
+}
+.af-btn--sm {
+  padding: 7px 12px;
+  font-size: 12.5px;
+  border-radius: 9px;
+}
