@@ -26,4 +26,10 @@ public class DashboardController : AbpController, IDashboardAppService
     {
         return _appService.GetAsync();
     }
+
+    [HttpGet("overview")]
+    public Task<DashboardDto> GetDashboardAsync([FromQuery] DashboardRange range)
+    {
+        return _appService.GetDashboardAsync(range);
+    }
 }

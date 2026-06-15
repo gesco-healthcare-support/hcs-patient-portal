@@ -21,6 +21,8 @@
 @use 'styles/state-skeleton';
 // Redesign (2026-06-14): internal staff shell (navy sidebar + topbar).
 @use 'styles/in-shell';
+// Redesign (2026-06-14): internal dashboard (KPIs, charts, schedule, activity).
+@use 'styles/in-dash';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

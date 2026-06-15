@@ -41,7 +41,7 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   {
     path: 'dashboard',
     loadComponent: () =>
-      import('./dashboard/dashboard.component').then((c) => c.DashboardComponent),
+      import('./dashboard/internal-dashboard.component').then((c) => c.InternalDashboardComponent),
     canActivate: [authGuard, permissionGuard],
   },
   // Internal appointment views. The external equivalents (read-only detail at
