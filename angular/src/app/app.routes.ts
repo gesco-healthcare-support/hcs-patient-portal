@@ -116,16 +116,16 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   {
     path: 'doctor-management/doctor-availabilities/generate',
     loadComponent: () =>
-      import('./doctor-availabilities/doctor-availability/components/doctor-availability-generate.component').then(
-        (c) => c.DoctorAvailabilityGenerateComponent,
+      import('./doctor-availabilities/doctor-availability/internal-generate-slots.component').then(
+        (c) => c.InternalGenerateSlotsComponent,
       ),
     canActivate: [authGuard, permissionGuard],
   },
   {
     path: 'doctor-management/doctor-availabilities/add',
     loadComponent: () =>
-      import('./doctor-availabilities/doctor-availability/components/doctor-availability-generate.component').then(
-        (c) => c.DoctorAvailabilityGenerateComponent,
+      import('./doctor-availabilities/doctor-availability/internal-generate-slots.component').then(
+        (c) => c.InternalGenerateSlotsComponent,
       ),
     canActivate: [authGuard, permissionGuard],
   },

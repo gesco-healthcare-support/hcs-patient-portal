@@ -1,0 +1,136 @@
+<div class="ia-head">
+  <div>
+    <h1>WCAB offices</h1>
+    <p>{{ rows().length }} Workers' Compensation Appeals Board venue(s)</p>
+  </div>
+  <a class="af-btn af-btn--primary" (click)="openNew()">
+    <app-icon name="plus" [size]="16" />
+    New office
+  </a>
+</div>
+
+@if (loading()) {
+  <div class="ia-empty">Loading WCAB offices...</div>
+} @else if (rows().length === 0) {
+  <div class="ia-empty">No WCAB offices yet. Add your first venue.</div>
+} @else {
+  <div class="ia-wrap" style="max-width: 640px">
+    <table class="ia-table" style="min-width: 0">
+      <thead>
+        <tr>
+          <th>Office name</th>
+          <th>Code</th>
+          <th style="text-align: right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.wcabOffice?.id) {
+          <tr (click)="openEdit(row)" style="cursor: pointer">
+            <td>
+              <b style="color: var(--n-900)">{{ row.wcabOffice?.name }}</b>
+            </td>
+            <td>{{ row.wcabOffice?.abbreviation }}</td>
+            <td style="text-align: right" (click)="$event.stopPropagation()">
+              <span style="display: inline-flex; gap: 6px">
+                <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
+                  <app-icon name="doc" [size]="14" />
+                </button>
+                <button
+                  class="ra-rowbtn danger"
+                  type="button"
+                  title="Delete"
+                  (click)="askDelete(row)"
+                >
+                  <app-icon name="x" [size]="14" />
+                </button>
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (form(); as f) {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>{{ f.id ? 'Edit WCAB office' : 'New WCAB office' }}</h3>
+        <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <div class="ra-grid">
+          <div class="ra-field col-8">
+            <label>
+              Office name
+              <span class="req">*</span>
+            </label>
+            <input
+              class="ra-input"
+              maxlength="100"
+              [ngModel]="f.name"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ name: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>
+              Code
+              <span class="req">*</span>
+            </label>
+            <input
+              class="ra-input"
+              maxlength="50"
+              [ngModel]="f.abbreviation"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ abbreviation: $event })"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+        <button class="af-btn af-btn--primary" type="button" [disabled]="isBusy()" (click)="save()">
+          <app-icon name="check" [size]="15" />
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (confirmDelete(); as row) {
+  <div class="ra-scrim" (click)="cancelDelete()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>Delete WCAB office?</h3>
+        <button class="ext-iconbtn x" type="button" (click)="cancelDelete()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p style="margin: 0; font-size: 14px; color: var(--n-600); line-height: 1.5">
+          Delete
+          <b>{{ row.wcabOffice?.name }}</b>
+          ?
+        </p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="cancelDelete()">Cancel</button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          style="background: var(--st-rejected-fg)"
+          [disabled]="isBusy()"
+          (click)="confirmDeleteRow()"
+        >
+          <app-icon name="x" [size]="15" />
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

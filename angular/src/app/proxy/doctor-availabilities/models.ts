@@ -52,6 +52,7 @@ export interface DoctorAvailabilityGenerateInputDto {
   fromDate?: string;
   toDate?: string;
   selectedDays?: number[] | null;
+  selectedDates?: string[] | null;
   timeRanges?: TimeRangeDto[];
   bookingStatusId?: BookingStatus;
   locationId?: string;

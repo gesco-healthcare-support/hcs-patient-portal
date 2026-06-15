@@ -31,6 +31,9 @@
 @use 'styles/cr-inbox';
 @use 'styles/clg-log';
 @use 'styles/rp-report';
+// Redesign (Prompt 14, 2026-06-15): internal scheduling (availabilities,
+// generate, locations, WCAB).
+@use 'styles/in-sched';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

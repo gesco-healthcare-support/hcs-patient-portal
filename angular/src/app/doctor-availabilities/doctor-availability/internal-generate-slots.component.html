@@ -1,0 +1,347 @@
+<div class="ia-head">
+  <div>
+    <h1>Generate slots</h1>
+    <p>
+      Define the rules, preview the result, then submit. Conflicting slots are skipped
+      automatically.
+    </p>
+  </div>
+</div>
+
+<div class="ra-card" style="margin-bottom: 16px">
+  <div class="ra-card__body" style="padding: 22px">
+    <div class="ra-grid">
+      <div class="ra-field col-4">
+        <label>
+          Location
+          <span class="req">*</span>
+        </label>
+        <select
+          class="ra-select"
+          [ngModel]="locationId()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="locationId.set($event)"
+        >
+          <option value="">Select location</option>
+          @for (loc of locations(); track loc.id) {
+            <option [value]="loc.id">{{ loc.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="ra-field col-8">
+        <label>Schedule pattern</label>
+        <div class="av-toggle" style="align-self: flex-start">
+          <button type="button" [attr.data-on]="mode() === 'range'" (click)="setMode('range')">
+            <app-icon name="refresh" [size]="14" />
+            Date range + weekdays
+          </button>
+          <button type="button" [attr.data-on]="mode() === 'pick'" (click)="setMode('pick')">
+            <app-icon name="calendar" [size]="14" />
+            Pick days on calendar
+          </button>
+        </div>
+      </div>
+
+      @if (mode() === 'range') {
+        <div class="ra-field col-4">
+          <label>
+            From date
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input"
+            type="date"
+            [ngModel]="fromDate()"
+            [ngModelOptions]="{ standalone: true }"
+            (ngModelChange)="fromDate.set($event)"
+          />
+        </div>
+        <div class="ra-field col-4">
+          <label>
+            To date
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input"
+            type="date"
+            [ngModel]="toDate()"
+            [ngModelOptions]="{ standalone: true }"
+            (ngModelChange)="toDate.set($event)"
+          />
+        </div>
+        <div class="ra-field col-12">
+          <label>Weekdays</label>
+          <div class="gn-days">
+            @for (lbl of weekdayLabels; track lbl; let i = $index) {
+              <button
+                type="button"
+                class="gn-day"
+                [attr.data-on]="weekdays()[i]"
+                (click)="toggleWeekday(i)"
+              >
+                {{ lbl }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="ra-field col-12">
+          <label>
+            Days
+            <span class="req">*</span>
+            <span class="opt">(click to toggle -- supports irregular patterns)</span>
+          </label>
+          <div class="gn-cal">
+            <div class="gn-cal__head">
+              <button
+                class="ra-rowbtn"
+                type="button"
+                (click)="shiftMonth(-1)"
+                aria-label="Previous month"
+              >
+                <app-icon name="chevLeft" [size]="14" />
+              </button>
+              <b>{{ monthLabel() }}</b>
+              <button
+                class="ra-rowbtn"
+                type="button"
+                (click)="shiftMonth(1)"
+                aria-label="Next month"
+              >
+                <app-icon name="chevRight" [size]="14" />
+              </button>
+            </div>
+            <div class="gn-cal__grid">
+              @for (dow of weekdayLabels; track dow) {
+                <span class="gn-cal__dow">{{ dow.charAt(0) }}</span>
+              }
+              @for (cell of monthCells(); track $index) {
+                @if (cell.blank) {
+                  <span></span>
+                } @else {
+                  <button
+                    type="button"
+                    class="gn-cal__day"
+                    [attr.data-on]="cell.selected"
+                    [disabled]="cell.disabled"
+                    (click)="toggleDate(cell)"
+                  >
+                    {{ cell.day }}
+                  </button>
+                }
+              }
+            </div>
+            <div class="gn-cal__hint">
+              <span>
+                <b>{{ selectedDates().length }}</b>
+                day(s) selected
+              </span>
+              @if (selectedDates().length > 0) {
+                <button type="button" (click)="clearDates()">Clear</button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <div class="ra-field col-12">
+        <label>
+          Time ranges
+          <span class="req">*</span>
+        </label>
+        @for (r of timeRanges(); track $index; let i = $index) {
+          <div class="gn-range">
+            <div class="ra-field">
+              <label style="font-size: 11.5px">From time</label>
+              <input
+                class="ra-input"
+                type="time"
+                [value]="r.fromTime"
+                (change)="setRange(i, 'fromTime', $any($event.target).value)"
+              />
+            </div>
+            <div class="ra-field">
+              <label style="font-size: 11.5px">To time</label>
+              <input
+                class="ra-input"
+                type="time"
+                [value]="r.toTime"
+                (change)="setRange(i, 'toTime', $any($event.target).value)"
+              />
+            </div>
+            <div class="ra-field">
+              <label style="font-size: 11.5px">
+                Duration override
+                <span class="opt">(min)</span>
+              </label>
+              <input
+                class="ra-input"
+                type="number"
+                min="1"
+                [placeholder]="durationMinutes()"
+                [value]="r.durationOverride ?? ''"
+                (change)="setRange(i, 'durationOverride', $any($event.target).value)"
+              />
+            </div>
+            <button
+              class="ra-rowbtn danger"
+              type="button"
+              [disabled]="timeRanges().length <= 1"
+              style="height: 42px; width: 40px"
+              (click)="removeRange(i)"
+            >
+              <app-icon name="x" [size]="14" />
+            </button>
+          </div>
+        }
+        <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="addRange()">
+          <app-icon name="plus" [size]="13" />
+          Add time range
+        </button>
+      </div>
+
+      <div class="ra-field col-3">
+        <label>
+          Capacity
+          <span class="req">*</span>
+        </label>
+        <input
+          class="ra-input"
+          type="number"
+          min="1"
+          [ngModel]="capacity()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="capacity.set(+$event)"
+        />
+        <div class="ra-hint">Appointments allowed per slot.</div>
+      </div>
+      <div class="ra-field col-3">
+        <label>
+          Default duration (min)
+          <span class="req">*</span>
+        </label>
+        <input
+          class="ra-input"
+          type="number"
+          min="1"
+          [ngModel]="durationMinutes()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="durationMinutes.set(+$event)"
+        />
+      </div>
+      <div class="ra-field col-6">
+        <label>
+          Appointment types
+          <span class="opt">(empty = any type)</span>
+        </label>
+        <div class="gn-types">
+          @for (t of appointmentTypes(); track t.id) {
+            <button
+              type="button"
+              class="gn-type"
+              [attr.data-on]="isTypeOn(t.id)"
+              (click)="toggleType(t.id)"
+            >
+              {{ t.name }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="mp-editfoot">
+      <span
+        class="ra-hint"
+        [style.color]="overLimit() ? 'var(--st-rejected-fg)' : 'var(--n-500)'"
+        style="margin-right: auto"
+      >
+        ~{{ estimate() }} slot(s)
+        @if (overLimit()) {
+          -- over the {{ slotLimit }} limit
+        }
+      </span>
+      <button class="af-btn af-btn--ghost" type="button" (click)="reset()">Reset</button>
+      <button
+        class="af-btn af-btn--primary"
+        type="button"
+        [disabled]="isBusy()"
+        (click)="genPreview()"
+      >
+        <app-icon name="refresh" [size]="15" />
+        Generate preview
+      </button>
+    </div>
+  </div>
+</div>
+
+@if (preview(); as p) {
+  <div class="gn-summary" [class.conflict]="conflicts() > 0">
+    <app-icon [name]="conflicts() > 0 ? 'alert' : 'check'" [size]="16" />
+    <span>
+      <b>{{ totalSlots() }}</b>
+      slot(s) across
+      <b>{{ previewDays().length }}</b>
+      day(s).
+    </span>
+    @if (conflicts() > 0) {
+      <span>
+        <b>{{ conflicts() }}</b>
+        conflict(s) will be skipped;
+        <b>{{ creatable() }}</b>
+        will be created.
+      </span>
+    } @else {
+      <span>No conflicts.</span>
+    }
+  </div>
+
+  <div
+    class="av-grid"
+    style="margin-bottom: 16px"
+    [style.grid-template-columns]="'repeat(' + previewCols() + ', 1fr)'"
+  >
+    @for (day of previewDays(); track day.label) {
+      <div class="av-day">
+        <div class="av-day__head">
+          <div class="d1">
+            <span class="num">{{ day.label }}</span>
+          </div>
+          <div class="ut">{{ day.slots.length }} slot(s)</div>
+        </div>
+        <div class="av-day__body">
+          @if (day.slots.length === 0) {
+            <div class="av-day__empty">No slots</div>
+          } @else {
+            @for (slot of day.slots; track slot.key) {
+              <div
+                class="av-slot"
+                [class.available]="!slot.conflict"
+                [class.conflict]="slot.conflict"
+                [title]="slot.conflict ? 'Conflicts with an existing slot' : ''"
+              >
+                <span class="t">{{ slot.timeLabel }}</span>
+                @if (slot.conflict) {
+                  <span class="c">Conflict -- will skip</span>
+                }
+              </div>
+            }
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <div style="display: flex; justify-content: flex-end; gap: 10px">
+    <button class="af-btn af-btn--ghost" type="button" (click)="cancelPreview()">Cancel</button>
+    <button
+      class="af-btn af-btn--green"
+      type="button"
+      [disabled]="!canSubmit() || isBusy()"
+      (click)="submit()"
+    >
+      <app-icon name="check" [size]="16" />
+      Create {{ creatable() }} slot(s)
+    </button>
+  </div>
+}

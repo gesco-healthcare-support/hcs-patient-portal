@@ -271,6 +271,7 @@
     "DoctorAvailability:TimeRangesOverlap": "Time ranges overlap: {0}-{1} and {2}-{3}.",
     "DoctorAvailability:SelectedDayOutOfRange": "SelectedDays must contain values between 0 (Sunday) and 6 (Saturday).",
     "DoctorAvailability:SelectedDaysDuplicate": "SelectedDays must not contain duplicates.",
+    "DoctorAvailability:SelectedDatesDuplicate": "Selected dates must not contain duplicates.",
     "DoctorAvailability:GenerationCountExceedsLimit": "This generation would produce more than {0} slots. Split into smaller batches.",
     "DoctorAvailability:GenerationConflictReserved": "Time slot overlaps a closed slot at this location.",
     "DoctorAvailability:GenerationConflictExists": "Time slot already exists at this location.",
