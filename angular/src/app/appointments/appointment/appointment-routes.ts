@@ -12,8 +12,13 @@ import { authGuard, permissionGuard } from '@abp/ng.core';
 export const APPOINTMENT_ROUTES: Routes = [
   {
     path: '',
+    // Redesign (Prompt 10, 2026-06-14): the staff queue is the redesigned
+    // InternalAppointmentsComponent (chips + counts + filter drawer + bulk bar),
+    // replacing the legacy NgxDatatable AppointmentComponent.
     loadComponent: () => {
-      return import('./components/appointment.component').then((c) => c.AppointmentComponent);
+      return import('./components/internal-appointments.component').then(
+        (c) => c.InternalAppointmentsComponent,
+      );
     },
     canActivate: [authGuard, permissionGuard],
   },

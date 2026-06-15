@@ -11,6 +11,18 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public interface IAppointmentsAppService : IApplicationService
 {
     Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input);
+
+    /// <summary>
+    /// Redesign (Prompt 10, 2026-06-14): per-status appointment counts for the
+    /// internal list's chips. Honors the SAME tenant + external-party visibility
+    /// and the SAME filters (text / panel / type / location / date range) as
+    /// <see cref="GetListAsync"/>, but ignores paging and the status filter so
+    /// every chip shows its true total within the current filter set. Returns one
+    /// row per raw status that has at least one match; the Angular list buckets
+    /// them into the six UI pills.
+    /// </summary>
+    Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentsInput input);
+
     Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id);
     Task<AppointmentDto> GetAsync(Guid id);
     Task<PagedResultDto<LookupDto<Guid>>> GetPatientLookupAsync(LookupRequestDto input);

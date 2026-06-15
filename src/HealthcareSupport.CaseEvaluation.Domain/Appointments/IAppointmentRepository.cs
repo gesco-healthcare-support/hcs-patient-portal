@@ -16,9 +16,18 @@ public interface IAppointmentRepository : IRepository<Appointment, Guid>
     // per-party visibility (Patient / AA / DA / CE see only the appointments
     // they are involved in). null = no narrowing (admin / Intake Staff / etc.
     // see everything in their tenant).
-    Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default);
+    Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, CancellationToken cancellationToken = default);
     Task<List<Appointment>> GetListAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default);
-    Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default);
+    Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Redesign (Prompt 10, 2026-06-14): per-status appointment counts honoring
+    /// the SAME filters + visibility as <see cref="GetCountAsync"/>, but WITHOUT
+    /// any status filter -- so the internal list's chips show every status's true
+    /// total within the other active filters. Returns a map of raw status -> count
+    /// (statuses with zero matches are absent; caller treats missing as 0).
+    /// </summary>
+    Task<Dictionary<AppointmentStatusType, int>> GetStatusCountsAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Phase 11g (2026-05-04) -- locates the most recent appointment in

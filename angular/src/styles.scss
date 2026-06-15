@@ -23,6 +23,8 @@
 @use 'styles/in-shell';
 // Redesign (2026-06-14): internal dashboard (KPIs, charts, schedule, activity).
 @use 'styles/in-dash';
+// Redesign (2026-06-14): internal appointments list (chips, filters, table).
+@use 'styles/in-appts';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

@@ -51,6 +51,11 @@ export interface AppointmentCreateDto {
   customFieldValues?: CustomFieldValueInputDto[];
 }
 
+export interface AppointmentStatusCountDto {
+  status?: AppointmentStatusType;
+  count?: number;
+}
+
 export interface AppointmentDto extends FullAuditedEntityDto<string> {
   panelNumber?: string | null;
   appointmentDate?: string;
@@ -147,6 +152,7 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   appointmentTypeId?: string | null;
   locationId?: string | null;
   appointmentStatus?: AppointmentStatusType | null;
+  appointmentStatuses?: AppointmentStatusType[];
 }
 
 export interface RejectAppointmentInput {

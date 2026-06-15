@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Enums;
 using Volo.Abp.Application.Dtos;
 using System;
+using System.Collections.Generic;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -30,6 +31,16 @@ public class GetAppointmentsInput : PagedAndSortedResultRequestDto
     /// Powers the dashboard-card deep-link to /appointments?appointmentStatus=N.
     /// </summary>
     public AppointmentStatusType? AppointmentStatus { get; set; }
+
+    /// <summary>
+    /// Redesign (Prompt 10, 2026-06-14): multi-status filter for the internal
+    /// list's pill chips. A single UI pill (e.g. Cancelled) spans several raw
+    /// statuses (CancelledNoBill / CancelledLate / CancellationRequested /
+    /// NoShow), so the redesigned list sends the pill's full status set here.
+    /// When non-empty it filters in addition to <see cref="AppointmentStatus"/>;
+    /// the single-value filter stays for the dashboard deep-link parity.
+    /// </summary>
+    public List<AppointmentStatusType>? AppointmentStatuses { get; set; }
 
     public GetAppointmentsInput()
     {

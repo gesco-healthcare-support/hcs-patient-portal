@@ -117,8 +117,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // another tenant's data.
         var visibleIds = await ComputeExternalPartyVisibilityAsync();
 
-        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds);
-        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds);
+        var totalCount = await _appointmentRepository.GetCountAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, visibleIds, input.AppointmentStatuses);
+        var items = await _appointmentRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.PanelNumber, input.AppointmentDateMin, input.AppointmentDateMax, input.IdentityUserId, input.AccessorIdentityUserId, input.AppointmentTypeId, input.LocationId, input.AppointmentStatus, input.Sorting, input.MaxResultCount, input.SkipCount, visibleIds, input.AppointmentStatuses);
         var dtoItems = ObjectMapper.Map<List<AppointmentWithNavigationProperties>, List<AppointmentWithNavigationPropertiesDto>>(items);
         // F1 / Design B (2026-05-29) -- mask nested PatientDto.SocialSecurityNumber
         // to the last 4 for ALL callers. See docs/plans/2026-05-29-ssn-redact-on-type.md.
@@ -131,6 +131,35 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             TotalCount = totalCount,
             Items = dtoItems
         };
+    }
+
+    /// <summary>
+    /// Prompt 10 (2026-06-14): per-status counts for the internal list's chips.
+    /// Reuses the SAME external-party visibility narrowing as
+    /// <see cref="GetListAsync"/> (internal staff see the whole tenant; external
+    /// callers see only their own), so an external caller who somehow reaches the
+    /// endpoint gets counts for only the rows they could list. Authorization is the
+    /// list's broad <c>[Authorize]</c> -- the chips are an internal surface, but the
+    /// visibility narrowing keeps the endpoint safe for any authenticated caller.
+    /// </summary>
+    [Authorize]
+    public virtual async Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentsInput input)
+    {
+        var visibleIds = await ComputeExternalPartyVisibilityAsync();
+        var counts = await _appointmentRepository.GetStatusCountsAsync(
+            input.FilterText,
+            input.PanelNumber,
+            input.AppointmentDateMin,
+            input.AppointmentDateMax,
+            input.IdentityUserId,
+            input.AccessorIdentityUserId,
+            input.AppointmentTypeId,
+            input.LocationId,
+            visibleIds);
+
+        return counts
+            .Select(kvp => new AppointmentStatusCountDto { Status = kvp.Key, Count = kvp.Value })
+            .ToList();
     }
 
     // S-NEW-2 (Adrian 2026-04-30): for any external-role caller (Patient, AA,

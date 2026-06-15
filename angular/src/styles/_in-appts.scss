@@ -1,0 +1,520 @@
+/* ============================================================
+   Internal Appointments list (Prompt 10) -- toolbar, status chips,
+   collapsible filters, dense table w/ select + kebab, due-date urgency,
+   pager. Ported from design_handoff_appointment_portal/styles/in-appts.css
+   onto the global tokens. Renders inside the internal shell.
+   ============================================================ */
+.ia-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.ia-head h1 {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--n-900);
+  margin: 0;
+}
+.ia-head p {
+  font-size: 13.5px;
+  color: var(--n-500);
+  margin: 3px 0 0;
+}
+
+.ia-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ia-search {
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0 14px;
+  color: var(--n-400);
+  transition: all 0.15s;
+}
+.ia-search:focus-within {
+  border-color: var(--blue-400);
+  box-shadow: 0 0 0 4px var(--blue-50);
+  color: var(--blue-600);
+}
+.ia-search input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 11px 0;
+  font-size: 13.5px;
+  width: 100%;
+  color: var(--n-800);
+  font-family: var(--font);
+}
+.ia-fbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-700);
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.ia-fbtn:hover,
+.ia-fbtn[aria-expanded='true'] {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+  background: var(--blue-50);
+}
+.ia-fbtn .badge {
+  background: var(--blue-700);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-num);
+}
+
+.ia-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ia-chip {
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-600);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ia-chip:hover {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+}
+.ia-chip[data-on='true'] {
+  background: var(--blue-700);
+  color: #fff;
+  border-color: var(--blue-700);
+}
+.ia-chip .cnt {
+  background: var(--n-100);
+  color: var(--n-600);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.ia-chip[data-on='true'] .cnt {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+.ia-filters {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.ia-filters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.ia-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-600);
+  margin-bottom: 5px;
+}
+.ia-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--n-800);
+  font-family: var(--font);
+  height: 40px;
+}
+.ia-input:focus {
+  outline: none;
+  border-color: var(--blue-400);
+  box-shadow: 0 0 0 4px var(--blue-50);
+}
+.ia-filters__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* booker typeahead dropdown */
+.ia-typeahead {
+  position: relative;
+}
+.ia-typeahead__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--sh-lg);
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ia-typeahead__menu button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--n-700);
+  cursor: pointer;
+  font-family: var(--font);
+}
+.ia-typeahead__menu button:hover {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+/* bulk bar */
+.ia-bulk {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--blue-700);
+  color: #fff;
+  border-radius: var(--r-md);
+  padding: 11px 16px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ia-bulk .x {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.ia-bulk .af-btn--ghost {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.ia-bulk .af-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* table */
+.ia-wrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+.ia-scroll {
+  overflow-x: auto;
+}
+.ia-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  min-width: 920px;
+}
+.ia-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--n-500);
+  padding: 12px 14px;
+  background: var(--n-50);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ia-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--n-100);
+  color: var(--n-700);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ia-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ia-table tbody tr:hover {
+  background: var(--blue-50);
+}
+.ia-table tbody tr.sel {
+  background: var(--blue-50);
+}
+.ia-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ia-chk {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--blue-700);
+  cursor: pointer;
+}
+.ia-conf {
+  font-family: var(--font-num);
+  font-weight: 700;
+  color: var(--blue-700);
+}
+.ia-pt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ia-pt .ava {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ia-pt b {
+  font-weight: 700;
+  color: var(--n-900);
+}
+.ia-sub {
+  color: var(--n-400);
+  font-size: 12px;
+}
+.ia-panel {
+  font-family: var(--font-num);
+  color: var(--n-700);
+}
+.ia-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ia-due .dl {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.ia-due .dl.ok {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.ia-due .dl.warn {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.ia-due .dl.crit {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.ia-kebab {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--n-500);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ia-kebab-cell {
+  position: relative;
+}
+.ia-table tbody tr:hover .ia-kebab {
+  border-color: var(--border);
+  background: #fff;
+}
+.ia-kebab:hover {
+  border-color: var(--blue-300) !important;
+  color: var(--blue-700);
+}
+.ia-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  width: 190px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--sh-lg);
+  padding: 6px;
+  z-index: 50;
+  animation: iaPop 0.14s ease both;
+}
+.ia-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--n-700);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+}
+.ia-menu button .i {
+  color: var(--n-400);
+  display: inline-flex;
+}
+.ia-menu button:hover {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.ia-menu button:hover .i {
+  color: var(--blue-600);
+}
+.ia-menu .danger:hover {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+.ia-menu__div {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 4px;
+}
+.ia-clickaway {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+@keyframes iaPop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* pager */
+.ia-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.ia-pager .info {
+  font-size: 13px;
+  color: var(--n-500);
+}
+.ia-pager .right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ia-pager select {
+  padding: 6px 26px 6px 10px;
+  font-size: 12.5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--n-700);
+  font-family: var(--font);
+  appearance: none;
+}
+.ia-pp {
+  display: flex;
+  gap: 5px;
+}
+.ia-pp button {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--n-600);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ia-pp button.on {
+  background: var(--blue-700);
+  color: #fff;
+  border-color: var(--blue-700);
+}
+.ia-pp button:hover:not(.on) {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+}
+.ia-pp button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ia-empty {
+  text-align: center;
+  padding: 54px 20px;
+  color: var(--n-400);
+}
+.ia-empty b {
+  display: block;
+  color: var(--n-600);
+  font-size: 15px;
+  margin-top: 8px;
+}
