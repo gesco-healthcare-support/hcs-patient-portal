@@ -24,9 +24,13 @@ export const APPOINTMENT_ROUTES: Routes = [
   },
   {
     path: 'view/:id',
+    // Redesign (Prompt 11, 2026-06-15): internal staff detail is the redesigned
+    // InternalAppointmentDetailComponent (status banner + office actions + edit
+    // mode), which EXTENDS the legacy AppointmentViewComponent. The external
+    // read-only detail is a separate top-level role-split route.
     loadComponent: () => {
-      return import('./components/appointment-view.component').then(
-        (c) => c.AppointmentViewComponent,
+      return import('./components/internal-appointment-detail.component').then(
+        (c) => c.InternalAppointmentDetailComponent,
       );
     },
     canActivate: [authGuard],

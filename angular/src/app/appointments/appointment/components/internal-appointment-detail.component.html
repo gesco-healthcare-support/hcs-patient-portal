@@ -1,0 +1,1226 @@
+<!--
+  Internal Appointment Detail (redesign, Prompt 11). Re-skins the inherited
+  AppointmentViewComponent engine into the .ad banner + .ad-card layout. Form
+  bindings are lifted from appointment-view.component.html; editMode toggles the
+  editable sections between read ledgers and the inherited reactive form.
+-->
+@if (isLoading) {
+  <div class="ad">
+    <div class="ad-wrap" style="padding-top: 24px">
+      <app-skeleton width="320px" height="28px" />
+      <div style="height: 16px"></div>
+      <app-skeleton height="120px" />
+      <div style="height: 16px"></div>
+      <app-skeleton height="220px" />
+    </div>
+  </div>
+} @else if (errorMessage && !appointment) {
+  <div class="ad">
+    <div class="ad-wrap" style="padding-top: 24px">
+      <div class="ad-note ad-note--rejected">
+        <span class="ic"><app-icon name="alert" [size]="18" /></span>
+        <div>
+          <b>Unable to load</b>
+          <p>{{ errorMessage }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+} @else if (appointment) {
+  <div class="ad">
+    <!-- status banner -->
+    <div class="ad-banner" [ngClass]="'ad-banner--' + bannerVariant">
+      <div class="ad-banner__in">
+        <div class="ad-banner__top">
+          <div style="min-width: 0">
+            <div class="ad-banner__crumb">
+              <a (click)="back()">Appointments</a>
+              <app-icon name="chevRight" [size]="12" />
+              {{ confNo }}
+            </div>
+            <h1>
+              <span class="ttl">
+                {{ apptTypeName }}
+                <span style="font-weight: 500; opacity: 0.85">
+                  &middot; {{ patientDisplayName }}
+                </span>
+              </span>
+              <span class="ad-statepill">
+                <span class="d"></span>
+                {{ statusLabel }}
+              </span>
+            </h1>
+            <div class="ad-banner__meta">
+              <div class="it">
+                <div class="k">Confirmation</div>
+                <div class="v mono">{{ confNo }}</div>
+              </div>
+              <div class="it">
+                <div class="k">Panel #</div>
+                <div class="v mono">{{ fv('panelNumber') || '—' }}</div>
+              </div>
+              <div class="it">
+                <div class="k">Location</div>
+                <div class="v">{{ locationName || '—' }}</div>
+              </div>
+              <div class="it">
+                <div class="k">Date &amp; time</div>
+                <div class="v">
+                  {{ apptDate | date: 'MMM d, y' }} &middot; {{ apptDate | date: 'h:mm a' }}
+                </div>
+              </div>
+              <div class="it">
+                <div class="k">Requested on</div>
+                <div class="v">{{ requestedOn | date: 'MMM d, y' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ad-actions" style="margin-top: 16px">
+          @if (editMode) {
+            <button
+              class="af-btn af-btn--green"
+              type="button"
+              (click)="saveEdit()"
+              [disabled]="isSaving"
+            >
+              <app-icon name="check" [size]="15" />
+              {{ isSaving ? 'Saving…' : 'Save changes' }}
+            </button>
+            <button class="af-btn af-btn--glass" type="button" (click)="cancelEdit()">
+              <app-icon name="x" [size]="15" />
+              Cancel
+            </button>
+          } @else {
+            @if (can('approve')) {
+              <button class="af-btn af-btn--green" type="button" (click)="approve()">
+                <app-icon name="check" [size]="15" />
+                Approve
+              </button>
+            }
+            @if (can('reject')) {
+              <button class="af-btn af-btn--glass" type="button" (click)="reject()">
+                <app-icon name="x" [size]="15" />
+                Reject
+              </button>
+            }
+            @if (can('reschedule')) {
+              <button class="af-btn af-btn--glass" type="button" (click)="reschedule()">
+                <app-icon name="refresh" [size]="15" />
+                Reschedule
+              </button>
+            }
+            @if (can('cancel')) {
+              <button class="af-btn af-btn--glass" type="button" (click)="cancel()">
+                <app-icon name="x" [size]="15" />
+                Cancel
+              </button>
+            }
+            @if (can('requestInfo')) {
+              <button class="af-btn af-btn--glass" type="button" (click)="requestInfo()">
+                <app-icon name="help" [size]="15" />
+                Request info
+              </button>
+            }
+            @if (canReRequest) {
+              <button class="af-btn af-btn--glass" type="button" (click)="reRequest()">
+                <app-icon name="refresh" [size]="15" />
+                Re-request
+              </button>
+            }
+            <button class="af-btn af-btn--glass" type="button" (click)="enterEdit()">
+              <app-icon name="doc" [size]="15" />
+              Edit details
+            </button>
+            @if (canViewChangeLog) {
+              <button class="af-btn af-btn--glass" type="button" (click)="openChangeLog()">
+                <app-icon name="clock" [size]="15" />
+                Change log
+              </button>
+            }
+            @if (canDownloadDemographics) {
+              <button class="af-btn af-btn--glass" type="button" (click)="downloadDemographics()">
+                <app-icon name="arrowDown" [size]="15" />
+                Demographics
+              </button>
+            }
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="ad-wrap">
+      <!-- outcome / message notes -->
+      @if (rejectionReason) {
+        <div class="ad-note ad-note--rejected">
+          <span class="ic"><app-icon name="alert" [size]="18" /></span>
+          <div>
+            <b>Rejection reason</b>
+            <p>{{ rejectionReason }}</p>
+          </div>
+        </div>
+      }
+      @if (approvalComments) {
+        <div class="ad-note ad-note--approved">
+          <span class="ic"><app-icon name="check" [size]="18" /></span>
+          <div>
+            <b>Approval comments</b>
+            <p>{{ approvalComments }}</p>
+          </div>
+        </div>
+      }
+      @if (successMessage) {
+        <div class="ad-note ad-note--approved">
+          <span class="ic"><app-icon name="check" [size]="18" /></span>
+          <div>
+            <b>Saved</b>
+            <p>{{ successMessage }}</p>
+          </div>
+        </div>
+      }
+      @if (errorMessage) {
+        <div class="ad-note ad-note--rejected">
+          <span class="ic"><app-icon name="alert" [size]="18" /></span>
+          <div>
+            <b>Something went wrong</b>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="$event.preventDefault()">
+        <!-- 1 . Appointment details (panel editable; type/location/date fixed) -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-blue"><app-icon name="calendar" [size]="18" /></span>
+            <h3>Appointment details</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (editMode) {
+              <div class="ra-grid">
+                <div class="ra-field col-3">
+                  <label>Appointment type</label>
+                  <div class="v">{{ apptTypeName || '—' }}</div>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Panel number</label>
+                  <input
+                    class="ra-input"
+                    formControlName="panelNumber"
+                    maxlength="50"
+                    [class.is-invalid]="isFieldInvalid('panelNumber')"
+                  />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Location</label>
+                  <div class="v">{{ locationName || '—' }}</div>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Appointment date</label>
+                  <div class="v">{{ apptDate | date: 'MMM d, y' }}</div>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Appointment time</label>
+                  <div class="v">{{ apptDate | date: 'h:mm a' }}</div>
+                </div>
+              </div>
+            } @else {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">Appointment type</span>
+                  <span class="v">{{ apptTypeName || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Panel number</span>
+                  <span class="v mono">{{ fv('panelNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Location</span>
+                  <span class="v">{{ locationName || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Appointment date</span>
+                  <span class="v mono">{{ apptDate | date: 'MMM d, y' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Appointment time</span>
+                  <span class="v mono">{{ apptDate | date: 'h:mm a' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 2 . Patient demographics -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+            <h3>Patient demographics</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (editMode) {
+              <div class="ra-grid">
+                <div class="ra-field col-3">
+                  <label>Last name</label>
+                  <input class="ra-input" formControlName="patientLastName" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>First name</label>
+                  <input class="ra-input" formControlName="patientFirstName" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Middle name</label>
+                  <input class="ra-input" formControlName="patientMiddleName" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Gender</label>
+                  <div class="ra-radios">
+                    @for (option of genderOptions; track option.key) {
+                      <label class="ra-radio">
+                        <input
+                          type="radio"
+                          formControlName="patientGenderId"
+                          [value]="option.value"
+                        />
+                        {{ option.key }}
+                      </label>
+                    }
+                  </div>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Date of birth</label>
+                  <input
+                    class="ra-input"
+                    readonly
+                    formControlName="patientDateOfBirth"
+                    ngbDatepicker
+                    #dob="ngbDatepicker"
+                    [minDate]="dobMinDate"
+                    [maxDate]="dobMaxDate"
+                    navigation="select"
+                    (click)="dob.open()"
+                  />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Email</label>
+                  <input class="ra-input" formControlName="patientEmail" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Cell phone</label>
+                  <input class="ra-input" formControlName="patientCellPhoneNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Phone number</label>
+                  <input class="ra-input" formControlName="patientPhoneNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Social Security #</label>
+                  <app-ssn-input
+                    formControlName="patientSocialSecurityNumber"
+                    [invalid]="isFieldInvalid('patientSocialSecurityNumber')"
+                    [patientId]="appointment?.patient?.id"
+                    [patientIdentityUserId]="appointment?.patient?.identityUserId"
+                    [currentMaskedSsn]="appointment?.patient?.socialSecurityNumber"
+                  ></app-ssn-input>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Street</label>
+                  <input class="ra-input" formControlName="patientStreet" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Unit #</label>
+                  <input class="ra-input" formControlName="patientApptNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>City</label>
+                  <input class="ra-input" formControlName="patientCity" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>State</label>
+                  <app-lookup-select
+                    cid="id-patient-state"
+                    formControlName="patientStateId"
+                    [getFn]="getStateLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Zip code</label>
+                  <input class="ra-input" formControlName="patientZipCode" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Appointment language</label>
+                  <app-lookup-select
+                    cid="id-patient-language"
+                    formControlName="patientAppointmentLanguageId"
+                    [getFn]="getAppointmentLanguageLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Referred by</label>
+                  <input class="ra-input" formControlName="patientRefferedBy" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Needs interpreter</label>
+                  <div class="ra-radios">
+                    <label class="ra-radio">
+                      <input
+                        type="radio"
+                        formControlName="patientNeedsInterpreter"
+                        [value]="true"
+                      />
+                      Yes
+                    </label>
+                    <label class="ra-radio">
+                      <input
+                        type="radio"
+                        formControlName="patientNeedsInterpreter"
+                        [value]="false"
+                      />
+                      No
+                    </label>
+                  </div>
+                </div>
+                @if (needsInterpreter) {
+                  <div class="ra-field col-6">
+                    <label>Interpreter vendor</label>
+                    <input class="ra-input" formControlName="patientInterpreterVendorName" />
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">Last name</span>
+                  <span class="v">{{ fv('patientLastName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">First name</span>
+                  <span class="v">{{ fv('patientFirstName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Middle name</span>
+                  <span class="v">{{ fv('patientMiddleName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Gender</span>
+                  <span class="v">{{ genderLabel || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Date of birth</span>
+                  <span class="v mono">
+                    {{ appointment?.patient?.dateOfBirth | date: 'MMM d, y' }}
+                  </span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Email</span>
+                  <span class="v">{{ fv('patientEmail') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Cell phone</span>
+                  <span class="v mono">{{ fv('patientCellPhoneNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone number</span>
+                  <span class="v mono">{{ fv('patientPhoneNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Social Security #</span>
+                  <span class="v mono">
+                    {{ appointment?.patient?.socialSecurityNumber || '—' }}
+                  </span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ fv('patientStreet') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Unit #</span>
+                  <span class="v">{{ fv('patientApptNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ fv('patientCity') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">{{ stateName(fv('patientStateId')) || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip code</span>
+                  <span class="v mono">{{ fv('patientZipCode') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Appointment language</span>
+                  <span class="v">
+                    {{ languageName(fv('patientAppointmentLanguageId')) || '—' }}
+                  </span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Referred by</span>
+                  <span class="v">{{ fv('patientRefferedBy') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Needs interpreter</span>
+                  <span class="v">{{ needsInterpreter ? 'Yes' : 'No' }}</span>
+                </div>
+                @if (needsInterpreter) {
+                  <div class="ad-field">
+                    <span class="k">Interpreter vendor</span>
+                    <span class="v">{{ fv('patientInterpreterVendorName') || '—' }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 3 . Employer -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-slate"><app-icon name="map" [size]="18" /></span>
+            <h3>Employer details</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (editMode) {
+              <div class="ra-grid">
+                <div class="ra-field col-4">
+                  <label>Employer name</label>
+                  <input class="ra-input" formControlName="employerName" />
+                </div>
+                <div class="ra-field col-4">
+                  <label>Occupation</label>
+                  <input class="ra-input" formControlName="employerOccupation" />
+                </div>
+                <div class="ra-field col-4">
+                  <label>Phone number</label>
+                  <input class="ra-input" formControlName="employerPhoneNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Street</label>
+                  <input class="ra-input" formControlName="employerStreet" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>City</label>
+                  <input class="ra-input" formControlName="employerCity" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>State</label>
+                  <app-lookup-select
+                    cid="id-employer-state"
+                    formControlName="employerStateId"
+                    [getFn]="getStateLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Zip code</label>
+                  <input class="ra-input" formControlName="employerZipCode" />
+                </div>
+              </div>
+            } @else {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">Employer name</span>
+                  <span class="v">{{ fv('employerName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Occupation</span>
+                  <span class="v">{{ fv('employerOccupation') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone number</span>
+                  <span class="v mono">{{ fv('employerPhoneNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ fv('employerStreet') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ fv('employerCity') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">{{ stateName(fv('employerStateId')) || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip code</span>
+                  <span class="v mono">{{ fv('employerZipCode') || '—' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 4 . Applicant attorney -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+            <h3>Applicant attorney</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (editMode) {
+              @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
+                <div class="ra-grid" style="margin-bottom: 12px">
+                  <div class="ra-field col-6">
+                    <label>Look up by email</label>
+                    <input
+                      class="ra-input"
+                      type="email"
+                      placeholder="Enter email to load"
+                      formControlName="applicantAttorneyEmailSearch"
+                    />
+                  </div>
+                  <div class="ra-field col-3" style="justify-content: flex-end">
+                    <button
+                      class="af-btn af-btn--ghost"
+                      type="button"
+                      [disabled]="
+                        !form.get('applicantAttorneyEmailSearch')?.value ||
+                        isApplicantAttorneyLoading
+                      "
+                      (click)="loadApplicantAttorneyByEmail()"
+                    >
+                      Load
+                    </button>
+                  </div>
+                </div>
+              }
+              <div class="ra-grid">
+                <div class="ra-field col-3">
+                  <label>First name</label>
+                  <input class="ra-input" formControlName="applicantAttorneyFirstName" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Last name</label>
+                  <input class="ra-input" formControlName="applicantAttorneyLastName" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Email</label>
+                  <input class="ra-input" formControlName="applicantAttorneyEmail" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Firm name</label>
+                  <input class="ra-input" formControlName="applicantAttorneyFirmName" />
+                </div>
+                <div class="ra-field col-6">
+                  <label>Web address</label>
+                  <input class="ra-input" formControlName="applicantAttorneyWebAddress" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Phone</label>
+                  <input class="ra-input" formControlName="applicantAttorneyPhoneNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Fax</label>
+                  <input class="ra-input" formControlName="applicantAttorneyFaxNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Street</label>
+                  <input class="ra-input" formControlName="applicantAttorneyStreet" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>City</label>
+                  <input class="ra-input" formControlName="applicantAttorneyCity" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>State</label>
+                  <app-lookup-select
+                    cid="id-aa-state"
+                    formControlName="applicantAttorneyStateId"
+                    [getFn]="getStateLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Zip</label>
+                  <input class="ra-input" formControlName="applicantAttorneyZipCode" />
+                </div>
+              </div>
+            } @else {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">First name</span>
+                  <span class="v">{{ fv('applicantAttorneyFirstName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Last name</span>
+                  <span class="v">{{ fv('applicantAttorneyLastName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Email</span>
+                  <span class="v">{{ fv('applicantAttorneyEmail') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Firm name</span>
+                  <span class="v">{{ fv('applicantAttorneyFirmName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Web address</span>
+                  <span class="v">{{ fv('applicantAttorneyWebAddress') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone</span>
+                  <span class="v mono">{{ fv('applicantAttorneyPhoneNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Fax</span>
+                  <span class="v mono">{{ fv('applicantAttorneyFaxNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ fv('applicantAttorneyStreet') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ fv('applicantAttorneyCity') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">{{ stateName(fv('applicantAttorneyStateId')) || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip</span>
+                  <span class="v mono">{{ fv('applicantAttorneyZipCode') || '—' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 5 . Defense attorney -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-slate"><app-icon name="user" [size]="18" /></span>
+            <h3>Defense attorney</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (editMode) {
+              @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
+                <div class="ra-grid" style="margin-bottom: 12px">
+                  <div class="ra-field col-6">
+                    <label>Look up by email</label>
+                    <input
+                      class="ra-input"
+                      type="email"
+                      placeholder="Enter email to load"
+                      formControlName="defenseAttorneyEmailSearch"
+                    />
+                  </div>
+                  <div class="ra-field col-3" style="justify-content: flex-end">
+                    <button
+                      class="af-btn af-btn--ghost"
+                      type="button"
+                      [disabled]="
+                        !form.get('defenseAttorneyEmailSearch')?.value || isDefenseAttorneyLoading
+                      "
+                      (click)="loadDefenseAttorneyByEmail()"
+                    >
+                      Load
+                    </button>
+                  </div>
+                </div>
+              }
+              <div class="ra-grid">
+                <div class="ra-field col-3">
+                  <label>First name</label>
+                  <input class="ra-input" formControlName="defenseAttorneyFirstName" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Last name</label>
+                  <input class="ra-input" formControlName="defenseAttorneyLastName" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Email</label>
+                  <input class="ra-input" formControlName="defenseAttorneyEmail" readonly />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Firm name</label>
+                  <input class="ra-input" formControlName="defenseAttorneyFirmName" />
+                </div>
+                <div class="ra-field col-6">
+                  <label>Web address</label>
+                  <input class="ra-input" formControlName="defenseAttorneyWebAddress" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Phone</label>
+                  <input class="ra-input" formControlName="defenseAttorneyPhoneNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Fax</label>
+                  <input class="ra-input" formControlName="defenseAttorneyFaxNumber" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>Street</label>
+                  <input class="ra-input" formControlName="defenseAttorneyStreet" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>City</label>
+                  <input class="ra-input" formControlName="defenseAttorneyCity" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>State</label>
+                  <app-lookup-select
+                    cid="id-da-state"
+                    formControlName="defenseAttorneyStateId"
+                    [getFn]="getStateLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label>Zip</label>
+                  <input class="ra-input" formControlName="defenseAttorneyZipCode" />
+                </div>
+              </div>
+            } @else {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">First name</span>
+                  <span class="v">{{ fv('defenseAttorneyFirstName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Last name</span>
+                  <span class="v">{{ fv('defenseAttorneyLastName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Email</span>
+                  <span class="v">{{ fv('defenseAttorneyEmail') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Firm name</span>
+                  <span class="v">{{ fv('defenseAttorneyFirmName') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Web address</span>
+                  <span class="v">{{ fv('defenseAttorneyWebAddress') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone</span>
+                  <span class="v mono">{{ fv('defenseAttorneyPhoneNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Fax</span>
+                  <span class="v mono">{{ fv('defenseAttorneyFaxNumber') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ fv('defenseAttorneyStreet') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ fv('defenseAttorneyCity') || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">{{ stateName(fv('defenseAttorneyStateId')) || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip</span>
+                  <span class="v mono">{{ fv('defenseAttorneyZipCode') || '—' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 6 . Insurance (read-only nav-prop) -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-teal"><app-icon name="doc" [size]="18" /></span>
+            <h3>Insurance</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (appointment?.primaryInsurance) {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">Insurance company</span>
+                  <span class="v">{{ appointment?.primaryInsurance?.name || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Suite</span>
+                  <span class="v">{{ appointment?.primaryInsurance?.suite || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone</span>
+                  <span class="v mono">
+                    {{ appointment?.primaryInsurance?.phoneNumber || '—' }}
+                  </span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Fax</span>
+                  <span class="v mono">{{ appointment?.primaryInsurance?.faxNumber || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ appointment?.primaryInsurance?.street || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ appointment?.primaryInsurance?.city || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">
+                    {{ stateName(appointment?.primaryInsurance?.stateId) || '—' }}
+                  </span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip</span>
+                  <span class="v mono">{{ appointment?.primaryInsurance?.zip || '—' }}</span>
+                </div>
+              </div>
+            } @else {
+              <div class="ad-empty">No insurance information added.</div>
+            }
+          </div>
+        </section>
+
+        <!-- 7 . Claim examiner (read-only nav-prop) -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-amber"><app-icon name="user" [size]="18" /></span>
+            <h3>Claim examiner</h3>
+          </div>
+          <div class="ad-card__body">
+            @if (appointment?.claimExaminer) {
+              <div class="ad-dl">
+                <div class="ad-field">
+                  <span class="k">Name</span>
+                  <span class="v">{{ appointment?.claimExaminer?.name || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Email</span>
+                  <span class="v">{{ appointment?.claimExaminer?.email || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Phone</span>
+                  <span class="v mono">{{ appointment?.claimExaminer?.phoneNumber || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Suite</span>
+                  <span class="v">{{ appointment?.claimExaminer?.suite || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Fax</span>
+                  <span class="v mono">{{ appointment?.claimExaminer?.fax || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Street</span>
+                  <span class="v">{{ appointment?.claimExaminer?.street || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">City</span>
+                  <span class="v">{{ appointment?.claimExaminer?.city || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">State</span>
+                  <span class="v">{{ stateName(appointment?.claimExaminer?.stateId) || '—' }}</span>
+                </div>
+                <div class="ad-field">
+                  <span class="k">Zip</span>
+                  <span class="v mono">{{ appointment?.claimExaminer?.zip || '—' }}</span>
+                </div>
+              </div>
+            } @else {
+              <div class="ad-empty">No claim examiner information added.</div>
+            }
+          </div>
+        </section>
+
+        <!-- 8 . Claim information (read-only table) -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-purple"><app-icon name="doc" [size]="18" /></span>
+            <h3>Claim information</h3>
+          </div>
+          <div class="ad-card__body" style="padding: 0">
+            <table class="ad-table">
+              <thead>
+                <tr>
+                  <th>Date of injury</th>
+                  <th>Claim #</th>
+                  <th>ADJ #</th>
+                  <th>WCAB office</th>
+                  <th>Body parts</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (injury of injuryDetails; track injury.id) {
+                  <tr>
+                    <td class="mono">
+                      @if (injury.isCumulativeInjury) {
+                        {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }} &rarr;
+                        {{ injury.toDateOfInjury | date: 'MM/dd/yyyy' }}
+                      } @else {
+                        {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
+                      }
+                    </td>
+                    <td class="mono">{{ injury.claimNumber }}</td>
+                    <td class="mono">{{ injury.wcabAdj }}</td>
+                    <td>{{ injury.wcabOfficeName }}</td>
+                    <td>
+                      {{
+                        injury.bodyParts.length > 0
+                          ? injury.bodyParts.join(', ')
+                          : injury.bodyPartsSummary
+                      }}
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--n-400); padding: 24px">
+                      No claim information.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 9 . Documents -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-blue"><app-icon name="doc" [size]="18" /></span>
+            <h3>Documents</h3>
+          </div>
+          <div class="ad-card__body">
+            <app-appointment-documents
+              id="appointment-documents-anchor"
+              [appointmentId]="appointment.appointment?.id ?? null"
+              (documentsChanged)="packetPanel.refresh()"
+            ></app-appointment-documents>
+            <app-appointment-packet
+              #packetPanel
+              [appointmentId]="appointment.appointment?.id ?? null"
+            ></app-appointment-packet>
+          </div>
+        </section>
+
+        <!-- 10 . Authorized users -->
+        <section class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
+            <h3>Additional authorized users</h3>
+            @if (canManageAccessors()) {
+              <div class="right">
+                <button
+                  class="af-btn af-btn--primary af-btn--sm"
+                  type="button"
+                  (click)="openAddAuthorizedUserModal()"
+                >
+                  <app-icon name="plus" [size]="14" />
+                  Add user
+                </button>
+              </div>
+            }
+          </div>
+          <div class="ad-card__body" style="padding: 0">
+            <table class="ad-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Rights</th>
+                  <th style="text-align: right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of appointmentAuthorizedUsers; track row.accessorId) {
+                  <tr>
+                    <td>{{ row.firstName }} {{ row.lastName }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.userRole }}</td>
+                    <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
+                    <td style="text-align: right; white-space: nowrap">
+                      @if (canManageAccessors()) {
+                        <span style="display: inline-flex; gap: 6px; justify-content: flex-end">
+                          <button
+                            class="ra-rowbtn"
+                            type="button"
+                            title="Edit"
+                            (click)="openEditAuthorizedUserModal(row)"
+                          >
+                            <app-icon name="doc" [size]="14" />
+                          </button>
+                          <button
+                            class="ra-rowbtn danger"
+                            type="button"
+                            title="Remove"
+                            (click)="removeAuthorizedUser(row)"
+                          >
+                            <app-icon name="x" [size]="14" />
+                          </button>
+                        </span>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--n-400); padding: 24px">
+                      No additional authorized users.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 11 . Internal staff panel -->
+        <section
+          class="ad-card"
+          style="
+            border-color: var(--blue-200);
+            background: linear-gradient(180deg, var(--blue-50), #fff 60%);
+          "
+        >
+          <div class="ad-card__head">
+            <span class="ic tint-blue"><app-icon name="settings" [size]="18" /></span>
+            <h3>Internal &mdash; staff only</h3>
+          </div>
+          <div class="ad-card__body">
+            <div class="ad-dl">
+              <div class="ad-field">
+                <span class="k">Booker (identity)</span>
+                <span class="v">{{ bookerEmail || '—' }}</span>
+              </div>
+              @if (decideBy) {
+                <div class="ad-field">
+                  <span class="k">Decision due</span>
+                  <span class="v mono">
+                    {{ decideBy.due | date: 'MMM d, y' }} ({{ decideBy.label }})
+                  </span>
+                </div>
+              }
+              <div class="ad-field">
+                <span class="k">Created</span>
+                <span class="v mono">{{ requestedOn | date: 'MMM d, y · h:mm a' }}</span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Last modified</span>
+                <span class="v mono">{{ modifiedOn | date: 'MMM d, y · h:mm a' }}</span>
+              </div>
+              @if (approvalComments) {
+                <div class="ad-field full">
+                  <span class="k">Approval comments</span>
+                  <span class="v">{{ approvalComments }}</span>
+                </div>
+              }
+              @if (rejectionReason) {
+                <div class="ad-field full">
+                  <span class="k">Rejection reason</span>
+                  <span class="v">{{ rejectionReason }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+      </form>
+    </div>
+
+    <!-- lifecycle modals (reuse the inherited engine's visibility flags) -->
+    <app-approve-confirmation-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="approveModalVisible"
+      (succeeded)="onActionSucceeded($event)"
+    ></app-approve-confirmation-modal>
+    <app-reject-appointment-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="rejectModalVisible"
+      (succeeded)="onActionSucceeded($event)"
+    ></app-reject-appointment-modal>
+    <app-reschedule-request-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [locationId]="appointment.appointment?.locationId ?? null"
+      [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+      [(visible)]="rescheduleRequestVisible"
+      (succeeded)="onChangeRequestSucceeded($event)"
+    ></app-reschedule-request-modal>
+    <app-cancellation-request-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="cancelRequestVisible"
+      (succeeded)="onChangeRequestSucceeded($event)"
+    ></app-cancellation-request-modal>
+    <app-request-info-modal
+      [appointmentId]="appointment.appointment?.id ?? null"
+      [(visible)]="requestInfoModalVisible"
+      (succeeded)="onInfoRequestSucceeded()"
+    ></app-request-info-modal>
+
+    <!-- authorized-user modal (re-skinned ra-modal over the inherited form) -->
+    @if (isAuthorizedUserModalOpen) {
+      <div class="ra-scrim" (click)="closeAuthorizedUserModal()">
+        <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+          <div class="ra-modal__head">
+            <h3>
+              {{
+                authorizedUserModalMode === 'edit' ? 'Edit authorized user' : 'Add authorized user'
+              }}
+            </h3>
+            <button class="ext-iconbtn x" type="button" (click)="closeAuthorizedUserModal()">
+              <app-icon name="x" [size]="17" />
+            </button>
+          </div>
+          <div class="ra-modal__body" [formGroup]="authorizedUserForm">
+            <div class="ra-grid">
+              <div class="ra-field col-6">
+                <label>First name</label>
+                <input class="ra-input" formControlName="firstName" maxlength="64" />
+              </div>
+              <div class="ra-field col-6">
+                <label>Last name</label>
+                <input class="ra-input" formControlName="lastName" maxlength="64" />
+              </div>
+              <div class="ra-field col-6">
+                <label>
+                  Email
+                  <span class="req">*</span>
+                </label>
+                <input
+                  class="ra-input"
+                  type="email"
+                  formControlName="email"
+                  maxlength="256"
+                  placeholder="name@example.com"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label>
+                  User role
+                  <span class="req">*</span>
+                </label>
+                <select class="ra-select" formControlName="userRole">
+                  <option value="">Select role</option>
+                  @for (role of roleOptions; track role) {
+                    <option [value]="role">{{ role }}</option>
+                  }
+                </select>
+              </div>
+              <div class="ra-field col-6">
+                <label>Rights</label>
+                <select class="ra-select" formControlName="accessTypeId">
+                  @for (option of accessTypeOptions; track option.value) {
+                    <option [ngValue]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="ra-modal__foot">
+            <button class="af-btn af-btn--ghost" type="button" (click)="closeAuthorizedUserModal()">
+              Cancel
+            </button>
+            <button
+              class="af-btn af-btn--primary"
+              type="button"
+              (click)="saveAuthorizedUserFromModal()"
+            >
+              <app-icon name="check" [size]="15" />
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

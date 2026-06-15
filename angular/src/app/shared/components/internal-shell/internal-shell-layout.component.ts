@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   HostListener,
   Injector,
@@ -62,7 +61,12 @@ interface ShellTenant {
   standalone: true,
   imports: [RouterOutlet, RouterLink, IconComponent],
   templateUrl: './internal-shell-layout.component.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  // Default (not OnPush) on purpose: the shell hosts legacy default-CD pages
+  // (appointment detail/add extend AppointmentViewComponent/AppointmentAddComponent,
+  // which load via manual .subscribe + plain-property assignment -- no async pipe,
+  // markForCheck, or signals). Under an OnPush shell their async updates would not
+  // render. OnPush+signal pages (dashboard, list) keep their own change-detection
+  // optimization regardless of the parent strategy; the shell chrome is cheap to check.
 })
 export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
