@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { ConfigStateService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { Subscription, filter } from 'rxjs';
 import { IconComponent } from '../../ui/icon/icon.component';
 import { performFullLogout } from '../../auth/full-logout';
@@ -70,6 +70,7 @@ interface ShellTenant {
 })
 export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private readonly configState = inject(ConfigStateService);
+  private readonly permission = inject(PermissionService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   protected readonly badge = inject(InternalNavBadgeService);
@@ -101,10 +102,18 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     return this.hostScope() && (rk === 'itadmin' || rk === 'admin');
   });
 
-  /** Role/host-filtered nav groups for the current user. */
+  /**
+   * Role/host-filtered nav groups for the current user, further gated by the
+   * granted ABP permission so a visible item always resolves (no click-into-403).
+   * Recomputes on identity/config change via roleKey()/hostScope(); at that point
+   * the granted policies are loaded (they arrive with currentUser in one config
+   * payload), so getGrantedPolicy reads fresh values.
+   */
   protected readonly groups = computed(() => {
     const rk = this.roleKey();
-    return rk ? resolveNavGroups(rk, this.hostScope()) : [];
+    return rk
+      ? resolveNavGroups(rk, this.hostScope(), (policy) => this.permission.getGrantedPolicy(policy))
+      : [];
   });
 
   /** Id of the nav item whose route is the longest prefix of the current URL. */

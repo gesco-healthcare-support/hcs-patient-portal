@@ -205,11 +205,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             .FirstOrDefaultAsync(ct);
     }
 
-    public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, Guid? patientId = null, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, appointmentStatuses, visibleAppointmentIds);
+        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, appointmentStatuses, visibleAppointmentIds, patientId);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentConsts.GetDefaultSorting(true) : sorting);
         var page = await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
 
@@ -309,7 +309,7 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                };
     }
 
-    protected virtual IQueryable<AppointmentWithNavigationProperties> ApplyFilter(CaseEvaluationDbContext dbContext, IQueryable<AppointmentWithNavigationProperties> query, string? filterText, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null)
+    protected virtual IQueryable<AppointmentWithNavigationProperties> ApplyFilter(CaseEvaluationDbContext dbContext, IQueryable<AppointmentWithNavigationProperties> query, string? filterText, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, Guid? patientId = null)
     {
         var accessorUserId = accessorIdentityUserId; // Capture for closure
         var ft = filterText;
@@ -349,7 +349,9 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             // Prompt 10 (2026-06-14): pill chips on the internal list filter by a
             // status SET (one pill spans several raw statuses). Applied in addition
             // to the single-status filter above so both can coexist.
-            .WhereIf(appointmentStatuses != null && appointmentStatuses.Count > 0, e => appointmentStatuses!.Contains(e.Appointment.AppointmentStatus));
+            .WhereIf(appointmentStatuses != null && appointmentStatuses.Count > 0, e => appointmentStatuses!.Contains(e.Appointment.AppointmentStatus))
+            // Prompt 15 (2026-06-15): patient-detail appointments table filters to one patient.
+            .WhereIf(patientId.HasValue && patientId.Value != Guid.Empty, e => e.Appointment.PatientId == patientId!.Value);
     }
 
     protected virtual IQueryable<Appointment> ApplyFilter(IQueryable<Appointment> query, string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null)
@@ -364,11 +366,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, IReadOnlyCollection<AppointmentStatusType>? appointmentStatuses = null, Guid? patientId = null, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, appointmentStatuses, visibleAppointmentIds);
+        query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, appointmentStatuses, visibleAppointmentIds, patientId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 

@@ -6,6 +6,8 @@ export interface AppointmentLanguageCreateDto {
 
 export interface AppointmentLanguageDto extends FullAuditedEntityDto<string> {
   name?: string;
+  isSystem?: boolean;
+  usageCount?: number | null;
 }
 
 export interface AppointmentLanguageUpdateDto {

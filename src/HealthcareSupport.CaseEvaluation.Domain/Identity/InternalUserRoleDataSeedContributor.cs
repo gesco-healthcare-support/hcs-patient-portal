@@ -375,9 +375,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("Reports");
         yield return $"{Group}.Reports.Export";
 
-        // D.1 / W-I-2: read-only field-config access (the booker form fetches
-        // these to render per-AppointmentType field state). Edit stays admin-only.
+        // D.1 / W-I-2: field-config access. The booker form fetches these to
+        // render per-AppointmentType field state. Prompt 15 (2026-06-16, Adrian
+        // decision): the redesign places the Field Configuration panel in the
+        // Staff Supervisor's Configuration hub, so the supervisor now also gets
+        // Create + Edit to manage per-type field rules (was read-only before).
         yield return Default("CustomFields");
+        yield return Create("CustomFields");
+        yield return Edit("CustomFields");
 
         // Phase 2.5 (2026-05-01) -- supervisor approval surface for booking
         // approval + cancel / reschedule requests; tenant-side notification

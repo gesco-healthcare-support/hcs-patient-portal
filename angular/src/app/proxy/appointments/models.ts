@@ -153,6 +153,7 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   locationId?: string | null;
   appointmentStatus?: AppointmentStatusType | null;
   appointmentStatuses?: AppointmentStatusType[];
+  patientId?: string | null;
 }
 
 export interface RejectAppointmentInput {

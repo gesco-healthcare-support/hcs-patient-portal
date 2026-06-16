@@ -128,7 +128,7 @@ export class AppointmentService {
     this.restService.request<any, PagedResultDto<AppointmentWithNavigationPropertiesDto>>({
       method: 'GET',
       url: '/api/app/appointments',
-      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, patientId: input.patientId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
 
@@ -163,7 +163,7 @@ export class AppointmentService {
     this.restService.request<any, AppointmentStatusCountDto[]>({
       method: 'GET',
       url: '/api/app/appointments/status-counts',
-      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+      params: { filterText: input.filterText, panelNumber: input.panelNumber, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, identityUserId: input.identityUserId, accessorIdentityUserId: input.accessorIdentityUserId, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentStatuses: input.appointmentStatuses, patientId: input.patientId, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
 

@@ -291,6 +291,41 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse,
                 System.Net.HttpStatusCode.Conflict);
+
+            // Prompt 15 (2026-06-15) -- config-lookup + people delete guards.
+            // System rows are read-only (400, like AppointmentDocumentType
+            // above); in-use rows conflict with current state (409). Without
+            // these the SPA gets ABP's default 403 and shows no message.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentTypeSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentTypeInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentStatusSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentLanguageSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentLanguageInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.StateSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.StateInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.PatientInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DefenseAttorneyInUse,
+                System.Net.HttpStatusCode.Conflict);
         });
     }
 

@@ -48,8 +48,13 @@ public class AppointmentTypeDataSeedContributor : IDataSeedContributor, ITransie
                 continue;
             }
 
+            // Prompt 15 / item 32: which seeded type is "core" was left to the
+            // implementer. Per the prompt's fallback rule, only the first
+            // seeded type (AME) is marked system-locked; IME / PQME stay
+            // admin-editable. Adjust here if more types should be reserved.
+            var isSystem = id == CaseEvaluationSeedIds.AppointmentTypes.Ame;
             await _repository.InsertAsync(
-                new AppointmentType(id, name, description, eval, maxTime), autoSave: false);
+                new AppointmentType(id, name, description, eval, maxTime, isSystem), autoSave: false);
         }
     }
 

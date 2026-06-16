@@ -34,6 +34,10 @@
 // Redesign (Prompt 14, 2026-06-15): internal scheduling (availabilities,
 // generate, locations, WCAB).
 @use 'styles/in-sched';
+// Redesign (Prompt 15, 2026-06-15): internal configuration hub (cf-rail shared
+// with People) + people hub (portal chip, patient detail header/grid).
+@use 'styles/in-config';
+@use 'styles/in-people';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

@@ -21,6 +21,15 @@ export class ExternalSignupService {
     { apiName: this.apiName,...config });
   
 
+  getActiveInvitedEmails = (emails: string[], config?: Partial<Rest.Config>) =>
+    this.restService.request<any, string[]>({
+      method: 'GET',
+      url: '/api/app/external-signup/active-invited-emails',
+      params: { emails },
+    },
+    { apiName: this.apiName,...config });
+
+
   getExternalUserLookup = (filter?: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, ListResultDto<ExternalUserLookupDto>>({
       method: 'GET',

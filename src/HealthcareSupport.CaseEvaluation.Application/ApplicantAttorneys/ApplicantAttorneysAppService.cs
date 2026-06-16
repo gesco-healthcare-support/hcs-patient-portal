@@ -14,6 +14,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 
 namespace HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
@@ -29,13 +30,15 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
+    protected IRepository<AppointmentApplicantAttorney, Guid> _appointmentApplicantAttorneyRepository;
 
-    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository)
+    public ApplicantAttorneysAppService(IApplicantAttorneyRepository applicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentApplicantAttorney, Guid> appointmentApplicantAttorneyRepository)
     {
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _applicantAttorneyManager = applicantAttorneyManager;
         _stateRepository = stateRepository;
         _identityUserRepository = identityUserRepository;
+        _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
     }
 
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Default)]
@@ -92,6 +95,12 @@ public class ApplicantAttorneysAppService : CaseEvaluationAppService, IApplicant
     [Authorize(CaseEvaluationPermissions.ApplicantAttorneys.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Prompt 15 / item 32: block delete while any appointment references
+        // this applicant attorney (AppointmentApplicantAttorney.ApplicantAttorneyId).
+        if (await _appointmentApplicantAttorneyRepository.AnyAsync(x => x.ApplicantAttorneyId == id))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ApplicantAttorneyInUse);
+        }
         await _applicantAttorneyRepository.DeleteAsync(id);
     }
 

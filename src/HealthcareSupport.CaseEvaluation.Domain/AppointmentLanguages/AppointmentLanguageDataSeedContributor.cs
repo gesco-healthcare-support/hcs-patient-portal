@@ -28,7 +28,7 @@ public class AppointmentLanguageDataSeedContributor : IDataSeedContributor, ITra
             return;
         }
 
-        foreach (var (id, name) in Seeds)
+        foreach (var (id, name, isSystem) in Seeds)
         {
             var existing = await _repository.FindAsync(id);
             if (existing != null)
@@ -36,24 +36,25 @@ public class AppointmentLanguageDataSeedContributor : IDataSeedContributor, ITra
                 continue;
             }
 
-            await _repository.InsertAsync(new AppointmentLanguage(id, name), autoSave: false);
+            await _repository.InsertAsync(new AppointmentLanguage(id, name, isSystem), autoSave: false);
         }
     }
 
-    private static readonly (Guid Id, string Name)[] Seeds =
+    // Prompt 15 / item 32: "English" is the reserved system language (system-locked).
+    private static readonly (Guid Id, string Name, bool IsSystem)[] Seeds =
     {
         (CaseEvaluationSeedIds.AppointmentLanguages.English,
-            "English"),
-        (new Guid("a0a00003-0000-4000-9000-000000000002"), "Spanish"),
-        (new Guid("a0a00003-0000-4000-9000-000000000003"), "Vietnamese"),
-        (new Guid("a0a00003-0000-4000-9000-000000000004"), "Korean"),
-        (new Guid("a0a00003-0000-4000-9000-000000000005"), "Chinese Mandarin"),
-        (new Guid("a0a00003-0000-4000-9000-000000000006"), "Chinese Cantonese"),
-        (new Guid("a0a00003-0000-4000-9000-000000000007"), "Tagalog"),
-        (new Guid("a0a00003-0000-4000-9000-000000000008"), "Russian"),
-        (new Guid("a0a00003-0000-4000-9000-000000000009"), "Armenian"),
-        (new Guid("a0a00003-0000-4000-9000-00000000000a"), "Portuguese"),
-        (new Guid("a0a00003-0000-4000-9000-00000000000b"), "Japanese"),
-        (new Guid("a0a00003-0000-4000-9000-00000000000c"), "Hmong"),
+            "English", true),
+        (new Guid("a0a00003-0000-4000-9000-000000000002"), "Spanish", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000003"), "Vietnamese", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000004"), "Korean", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000005"), "Chinese Mandarin", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000006"), "Chinese Cantonese", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000007"), "Tagalog", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000008"), "Russian", false),
+        (new Guid("a0a00003-0000-4000-9000-000000000009"), "Armenian", false),
+        (new Guid("a0a00003-0000-4000-9000-00000000000a"), "Portuguese", false),
+        (new Guid("a0a00003-0000-4000-9000-00000000000b"), "Japanese", false),
+        (new Guid("a0a00003-0000-4000-9000-00000000000c"), "Hmong", false),
     };
 }

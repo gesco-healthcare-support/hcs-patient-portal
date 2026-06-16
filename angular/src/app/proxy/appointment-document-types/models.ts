@@ -11,6 +11,7 @@ export interface AppointmentDocumentTypeDto extends FullAuditedEntityDto<string>
   appointmentTypeId?: string | null;
   isSystem?: boolean;
   isActive?: boolean;
+  usageCount?: number | null;
 }
 
 export interface AppointmentDocumentTypeUpdateDto {

@@ -15,14 +15,19 @@ public class State : FullAuditedAggregateRoot<Guid>
     [NotNull]
     public virtual string Name { get; set; } = null!;
 
+    /// <summary>Reserved system state: not editable or deletable by admins.
+    /// Mirrors <c>AppointmentDocumentType.IsSystem</c>.</summary>
+    public virtual bool IsSystem { get; set; }
+
     protected State()
     {
     }
 
-    public State(Guid id, string name)
+    public State(Guid id, string name, bool isSystem = false)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
         Name = name;
+        IsSystem = isSystem;
     }
 }

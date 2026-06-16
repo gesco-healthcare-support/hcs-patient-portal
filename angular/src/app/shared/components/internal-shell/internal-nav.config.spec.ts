@@ -71,3 +71,32 @@ describe('resolveNavGroups', () => {
     expect(count).toBe(total);
   });
 });
+
+describe('permission gating (requiredPolicy)', () => {
+  it('hides a role-visible item when its requiredPolicy is not granted', () => {
+    // A supervisor sees States by role, but the granted-policy check denies it
+    // (e.g. an admin revoked CaseEvaluation.States from the role).
+    const deny = (p: string) => p !== 'CaseEvaluation.States';
+    const ids = itemIds(filterNavGroups(IN_NAV, 'supervisor', deny));
+    expect(ids).not.toContain('states');
+    // a sibling whose policy is still granted stays visible
+    expect(ids).toContain('appt-types');
+  });
+
+  it('keeps items that carry no requiredPolicy regardless of the predicate', () => {
+    const denyAll = () => false;
+    const ids = itemIds(filterNavGroups(IN_NAV, 'supervisor', denyAll));
+    // Dashboard carries no ABP policy -> always shown by role.
+    expect(ids).toContain('dashboard');
+    // ...but every policy-carrying item is filtered out.
+    expect(ids).not.toContain('appointments');
+    expect(ids).not.toContain('patients');
+  });
+
+  it('resolveNavGroups forwards the granted-policy predicate', () => {
+    const deny = (p: string) => p !== 'CaseEvaluation.Patients';
+    const ids = itemIds(resolveNavGroups('supervisor', false, deny));
+    expect(ids).not.toContain('patients');
+    expect(ids).toContain('applicant-attorneys');
+  });
+});

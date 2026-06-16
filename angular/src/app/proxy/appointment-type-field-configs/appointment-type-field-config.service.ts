@@ -1,4 +1,4 @@
-import type { AppointmentTypeFieldConfigCreateDto, AppointmentTypeFieldConfigDto, AppointmentTypeFieldConfigUpdateDto } from './models';
+import type { AppointmentTypeFieldConfigBatchItemDto, AppointmentTypeFieldConfigCreateDto, AppointmentTypeFieldConfigDto, AppointmentTypeFieldConfigUpdateDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
@@ -57,6 +57,15 @@ export class AppointmentTypeFieldConfigService {
       method: 'PUT',
       url: `/api/app/appointment-type-field-configs/${id}`,
       body: input,
+    },
+    { apiName: this.apiName,...config });
+
+
+  saveForAppointmentType = (appointmentTypeId: string, items: AppointmentTypeFieldConfigBatchItemDto[], config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentTypeFieldConfigDto[]>({
+      method: 'PUT',
+      url: `/api/app/appointment-type-field-configs/by-appointment-type/${appointmentTypeId}`,
+      body: items,
     },
     { apiName: this.apiName,...config });
 }

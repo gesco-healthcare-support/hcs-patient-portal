@@ -48,6 +48,19 @@ public interface IExternalSignupAppService : IApplicationService
     Task<InvitationValidationDto> ValidateInviteAsync(string token);
 
     /// <summary>
+    /// 2026-06-15 (B3) -- returns the subset of <paramref name="emails"/>
+    /// that currently have an ACTIVE invitation (issued, not yet accepted,
+    /// not expired, not soft-deleted) in the caller's tenant. The internal
+    /// People hub uses this to render the "Invited" portal-status chip for
+    /// record-only people (no login yet) who were sent an invite. Matched
+    /// case-insensitively; returned lowercased. Gated by the same permission
+    /// as issuing an invite (<c>InviteExternalUser</c>) so the chip and the
+    /// invite action share one trust boundary -- a viewer who cannot invite
+    /// simply does not call this and the chip degrades to Linked / None.
+    /// </summary>
+    Task<List<string>> GetActiveInvitedEmailsAsync(List<string> emails);
+
+    /// <summary>
     /// Dev-only test helper: flip <c>EmailConfirmed=true</c> on the user
     /// matching <paramref name="email"/> across all tenants. Lets demo
     /// testing skip the inbox round-trip when verifying flows that depend

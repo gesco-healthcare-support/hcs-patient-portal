@@ -27,6 +27,15 @@ public class GetAppointmentsInput : PagedAndSortedResultRequestDto
     public Guid? LocationId { get; set; }
 
     /// <summary>
+    /// Prompt 15 (2026-06-15): filter to one patient's appointments. Powers the
+    /// internal People hub's patient-detail appointments table. Unlike
+    /// <see cref="IdentityUserId"/> (the booker/owner identity, absent on
+    /// record-only patients), this filters by the appointment's PatientId FK, so
+    /// it works for record-only patients too.
+    /// </summary>
+    public Guid? PatientId { get; set; }
+
+    /// <summary>
     /// W2-6: filter by appointment status (1=Pending, 2=Approved, etc.).
     /// Powers the dashboard-card deep-link to /appointments?appointmentStatus=N.
     /// </summary>

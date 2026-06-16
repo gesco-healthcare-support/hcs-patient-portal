@@ -60,6 +60,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // InviteExternalUser NotificationTemplate (same path as
     // ResetPassword / PasswordChange).
     private readonly InvitationManager _invitationManager;
+    // 2026-06-15 (B3): direct invitation-repository access for the internal
+    // People hub's active-invited-email lookup (portal-status chip). The
+    // AppService already queries several repositories directly, so keeping
+    // the bulk-email filter inline is consistent with that style.
+    private readonly IInvitationRepository _invitationRepository;
     private readonly INotificationDispatcher _notificationDispatcher;
     // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
     // gate on EnvironmentName so they cannot be invoked in production.
@@ -112,6 +117,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
         InvitationManager invitationManager,
+        IInvitationRepository invitationRepository,
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
@@ -138,10 +144,58 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
         _invitationManager = invitationManager;
+        _invitationRepository = invitationRepository;
         _notificationDispatcher = notificationDispatcher;
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
         _localizer = localizer;
+    }
+
+    /// <summary>
+    /// 2026-06-15 (B3) -- returns the subset of <paramref name="emails"/>
+    /// that currently have an ACTIVE invitation in the caller's tenant. See
+    /// <see cref="IExternalSignupAppService.GetActiveInvitedEmailsAsync"/>.
+    /// The internal People hub passes only the current page's record-only
+    /// emails (those without a login), so the query-string list stays small.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<List<string>> GetActiveInvitedEmailsAsync(List<string> emails)
+    {
+        if (emails == null || emails.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        // Normalize + dedupe so the IN-clause is minimal and matches the
+        // lowercased form invites are stored in (InviteExternalUserAsync
+        // lowercases the email before IssueAsync).
+        var normalized = emails
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToList();
+        if (normalized.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        // Active = not accepted AND not expired. ABP's ISoftDelete filter
+        // excludes revoked rows and the IMultiTenant filter scopes the query
+        // to the caller's tenant, so this mirrors Invitation.IsActive(nowUtc)
+        // as a server-side predicate.
+        var nowUtc = Clock.Now.ToUniversalTime();
+        var query = await _invitationRepository.GetQueryableAsync();
+        var matched = await AsyncExecuter.ToListAsync(
+            query
+                .Where(i => i.AcceptedAt == null
+                            && i.ExpiresAt > nowUtc
+                            && normalized.Contains(i.Email.ToLower()))
+                .Select(i => i.Email));
+
+        return matched
+            .Select(e => e.ToLowerInvariant())
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>

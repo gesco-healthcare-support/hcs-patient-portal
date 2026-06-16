@@ -38,7 +38,11 @@ public class StateDataSeedContributor : IDataSeedContributor, ITransientDependen
                 continue;
             }
 
-            await _stateRepository.InsertAsync(new State(id, name), autoSave: false);
+            // Prompt 15 / item 32: California is the reserved system state
+            // (referenced by WcabOffice + Location seed rows), so it is
+            // system-locked. All other states are admin-editable.
+            var isSystem = id == CaseEvaluationSeedIds.States.California;
+            await _stateRepository.InsertAsync(new State(id, name, isSystem), autoSave: false);
         }
     }
 

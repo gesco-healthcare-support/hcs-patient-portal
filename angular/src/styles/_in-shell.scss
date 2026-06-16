@@ -363,11 +363,13 @@
 
 .in-content {
   flex: 1;
-  padding: 26px 28px 60px;
-  // Wide cap (was 1320px, which centered the content and wasted ~340px of side
-  // gutter on a 1920px screen). 1760px lets the content fill a standard desktop
-  // while still bounding line length on ultra-wide monitors. The 28px padding stays.
-  max-width: 1760px;
+  // Prompt 15 (2026-06-15): fluid side gutters + a higher cap so wide / ultrawide
+  // monitors fill instead of stranding a dead band. A fixed 28px pad + a 1760px
+  // cap left ~400px of empty gutter each side at 2560px (looked unfinished). The
+  // gutter now scales with the viewport (clamp) and the cap is raised so the
+  // content keeps using the width; line length on ultra-wide still stays bounded.
+  padding: 24px clamp(16px, 3vw, 64px) 64px;
+  max-width: 2240px;
   width: 100%;
   margin: 0 auto;
 }

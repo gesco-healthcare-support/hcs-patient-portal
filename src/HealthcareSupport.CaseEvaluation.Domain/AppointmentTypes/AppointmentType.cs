@@ -33,6 +33,10 @@ public class AppointmentType : FullAuditedEntity<Guid>
     /// </summary>
     public virtual AppointmentMaxTimeCategory? MaxTimeCategory { get; set; }
 
+    /// <summary>Reserved system type: not editable or deletable by admins.
+    /// Mirrors <c>AppointmentDocumentType.IsSystem</c>.</summary>
+    public virtual bool IsSystem { get; set; }
+
     public virtual ICollection<DoctorAppointmentType> DoctorAppointmentTypes { get; set; } = new Collection<DoctorAppointmentType>();
 
     protected AppointmentType()
@@ -44,7 +48,8 @@ public class AppointmentType : FullAuditedEntity<Guid>
         string name,
         string? description = null,
         EvaluationType? evaluationType = null,
-        AppointmentMaxTimeCategory? maxTimeCategory = null)
+        AppointmentMaxTimeCategory? maxTimeCategory = null,
+        bool isSystem = false)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
@@ -54,5 +59,6 @@ public class AppointmentType : FullAuditedEntity<Guid>
         Description = description;
         EvaluationType = evaluationType;
         MaxTimeCategory = maxTimeCategory;
+        IsSystem = isSystem;
     }
 }

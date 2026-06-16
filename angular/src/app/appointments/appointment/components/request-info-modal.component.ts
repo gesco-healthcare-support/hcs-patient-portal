@@ -11,29 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
-
-/** One flaggable field the staff can request a fix on. `key` is the stable
- *  identifier the external fix-it page maps to an input. */
-interface FlaggableField {
-  key: string;
-  label: string;
-  group: string;
-}
-
-const FLAGGABLE_FIELDS: FlaggableField[] = [
-  { key: 'panelNumber', label: 'Panel number', group: 'Schedule' },
-  { key: 'appointmentDate', label: 'Appointment date', group: 'Schedule' },
-  { key: 'dateOfBirth', label: 'Date of birth', group: 'Patient' },
-  { key: 'socialSecurityNumber', label: 'Social Security #', group: 'Patient' },
-  { key: 'address', label: 'Address', group: 'Patient' },
-  { key: 'cellPhoneNumber', label: 'Cell phone', group: 'Patient' },
-  { key: 'appointmentLanguageId', label: 'Language', group: 'Patient' },
-  { key: 'applicantAttorneyEmail', label: 'Applicant attorney email', group: 'Attorneys' },
-  { key: 'defenseAttorneyFirmName', label: 'Defense attorney firm', group: 'Attorneys' },
-  { key: 'appointmentInsuranceName', label: 'Insurance company', group: 'Insurance' },
-  { key: 'appointmentClaimExaminerEmail', label: 'Claim examiner email', group: 'Examiner' },
-  { key: 'documents', label: 'Documents', group: 'Documents' },
-];
+import { FLAGGABLE_FIELDS, FlaggableField } from '../send-back-fields';
 
 /**
  * Staff "Request info" / Send Back modal (2026-06-14). Lets internal staff flag

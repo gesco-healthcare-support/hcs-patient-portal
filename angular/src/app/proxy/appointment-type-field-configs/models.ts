@@ -5,6 +5,7 @@ export interface AppointmentTypeFieldConfigCreateDto {
   fieldName?: string;
   hidden?: boolean;
   readOnly?: boolean;
+  required?: boolean;
   defaultValue?: string | null;
 }
 
@@ -14,6 +15,7 @@ export interface AppointmentTypeFieldConfigDto extends FullAuditedEntityDto<stri
   fieldName?: string;
   hidden?: boolean;
   readOnly?: boolean;
+  required?: boolean;
   defaultValue?: string | null;
   concurrencyStamp?: string | null;
 }
@@ -21,6 +23,15 @@ export interface AppointmentTypeFieldConfigDto extends FullAuditedEntityDto<stri
 export interface AppointmentTypeFieldConfigUpdateDto {
   hidden?: boolean;
   readOnly?: boolean;
+  required?: boolean;
   defaultValue?: string | null;
   concurrencyStamp?: string | null;
+}
+
+export interface AppointmentTypeFieldConfigBatchItemDto {
+  fieldName?: string;
+  hidden?: boolean;
+  readOnly?: boolean;
+  required?: boolean;
+  defaultValue?: string | null;
 }

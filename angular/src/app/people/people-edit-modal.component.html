@@ -1,0 +1,257 @@
+<div class="ra-scrim" (click)="cancelled.emit()">
+  <div class="ra-modal ra-modal--lg" (click)="$event.stopPropagation()">
+    <div class="ra-modal__head">
+      <h3>{{ draft().id ? 'Edit ' + section.singular : 'New ' + section.singular }}</h3>
+      <button type="button" class="x" (click)="cancelled.emit()">
+        <app-icon name="x" [size]="17" />
+      </button>
+    </div>
+    <div class="ra-modal__body">
+      <div class="ra-grid">
+        <div class="ra-field col-4">
+          <label>
+            First name
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input"
+            [ngModel]="draft().firstName"
+            (ngModelChange)="patch({ firstName: $event })"
+          />
+        </div>
+        <div class="ra-field col-4">
+          <label>
+            Last name
+            <span class="req">*</span>
+          </label>
+          <input
+            class="ra-input"
+            [ngModel]="draft().lastName"
+            (ngModelChange)="patch({ lastName: $event })"
+          />
+        </div>
+
+        @if (section.isPatient) {
+          <div class="ra-field col-4">
+            <label>Middle name</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().middleName"
+              (ngModelChange)="patch({ middleName: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Gender</label>
+            <select
+              class="ra-select"
+              [ngModel]="draft().genderId"
+              (ngModelChange)="patch({ genderId: $event })"
+            >
+              <option [ngValue]="null">--</option>
+              @for (g of genders; track g.value) {
+                <option [ngValue]="g.value">{{ g.key }}</option>
+              }
+            </select>
+          </div>
+          <div class="ra-field col-4">
+            <label>Date of birth</label>
+            <input
+              class="ra-input"
+              type="date"
+              [ngModel]="draft().dateOfBirth"
+              (ngModelChange)="patch({ dateOfBirth: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Email</label>
+            <input
+              class="ra-input"
+              type="email"
+              [ngModel]="draft().email"
+              (ngModelChange)="patch({ email: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Phone</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().phoneNumber"
+              (ngModelChange)="patch({ phoneNumber: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Cell phone</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().cellPhoneNumber"
+              (ngModelChange)="patch({ cellPhoneNumber: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Phone type</label>
+            <select
+              class="ra-select"
+              [ngModel]="draft().phoneNumberTypeId"
+              (ngModelChange)="patch({ phoneNumberTypeId: $event })"
+            >
+              <option [ngValue]="null">--</option>
+              @for (p of phoneTypes; track p.value) {
+                <option [ngValue]="p.value">{{ p.key }}</option>
+              }
+            </select>
+          </div>
+          <div class="ra-field col-12">
+            <label>Social Security #</label>
+            <input
+              class="ra-input"
+              autocomplete="off"
+              placeholder="Enter to replace -- stored securely, shown masked. Blank keeps the current value."
+              [ngModel]="draft().socialSecurityNumber"
+              (ngModelChange)="patch({ socialSecurityNumber: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Street</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().street"
+              (ngModelChange)="patch({ street: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>City</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().city"
+              (ngModelChange)="patch({ city: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>State</label>
+            <select
+              class="ra-select"
+              [ngModel]="draft().stateId"
+              (ngModelChange)="patch({ stateId: $event })"
+            >
+              <option [ngValue]="''">--</option>
+              @for (s of states; track s.id) {
+                <option [ngValue]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="ra-field col-4">
+            <label>Zip code</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().zipCode"
+              (ngModelChange)="patch({ zipCode: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Appointment language</label>
+            <select
+              class="ra-select"
+              [ngModel]="draft().appointmentLanguageId"
+              (ngModelChange)="patch({ appointmentLanguageId: $event })"
+            >
+              <option [ngValue]="''">--</option>
+              @for (l of languages; track l.id) {
+                <option [ngValue]="l.id">{{ l.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="ra-field col-4">
+            <label>Other language</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().othersLanguageName"
+              (ngModelChange)="patch({ othersLanguageName: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Interpreter vendor</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().interpreterVendorName"
+              (ngModelChange)="patch({ interpreterVendorName: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>Appt #</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().apptNumber"
+              (ngModelChange)="patch({ apptNumber: $event })"
+            />
+          </div>
+        } @else if (section.hasFirm) {
+          <div class="ra-field col-4">
+            <label>Firm name</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().firmName"
+              (ngModelChange)="patch({ firmName: $event })"
+            />
+          </div>
+          <div class="ra-field col-8">
+            <label>Firm address</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().firmAddress"
+              (ngModelChange)="patch({ firmAddress: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>Phone</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().phoneNumber"
+              (ngModelChange)="patch({ phoneNumber: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>Fax</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().faxNumber"
+              (ngModelChange)="patch({ faxNumber: $event })"
+            />
+          </div>
+        } @else {
+          <div class="ra-field col-12">
+            <label>Email</label>
+            <input
+              class="ra-input"
+              type="email"
+              [ngModel]="draft().email"
+              (ngModelChange)="patch({ email: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>Phone</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().phoneNumber"
+              (ngModelChange)="patch({ phoneNumber: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>Fax</label>
+            <input
+              class="ra-input"
+              [ngModel]="draft().faxNumber"
+              (ngModelChange)="patch({ faxNumber: $event })"
+            />
+          </div>
+        }
+      </div>
+    </div>
+    <div class="ra-modal__foot">
+      <button type="button" class="af-btn af-btn--ghost" (click)="cancelled.emit()">Cancel</button>
+      <button type="button" class="af-btn af-btn--primary" [disabled]="busy" (click)="onSave()">
+        <app-icon name="check" [size]="15" />
+        Save
+      </button>
+    </div>
+  </div>
+</div>

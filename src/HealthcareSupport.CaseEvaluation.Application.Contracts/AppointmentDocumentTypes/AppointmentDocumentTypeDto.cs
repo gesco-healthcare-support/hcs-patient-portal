@@ -20,4 +20,8 @@ public class AppointmentDocumentTypeDto : FullAuditedEntityDto<Guid>
     public bool IsSystem { get; set; }
 
     public bool IsActive { get; set; }
+
+    /// <summary>Number of AppointmentDocument rows referencing this type. Null
+    /// means "not tracked" (e.g. single-row reads that do not compute it).</summary>
+    public int? UsageCount { get; set; }
 }

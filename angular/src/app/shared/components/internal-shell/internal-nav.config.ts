@@ -22,6 +22,17 @@ export interface InternalNavItem {
   route: string;
   /** Role keys that see this item ('admin' superuser sees everything). */
   roles: InternalRoleKey[];
+  /**
+   * ABP permission policy that actually gates the item's route -- the SAME
+   * `requiredPolicy` string the route guard checks (verified against the route
+   * providers, Prompt 15 2026-06-15). When set, the nav hides the item unless
+   * the policy is granted, so a visible item always resolves (never a
+   * click-into-403). Items with no single ABP policy (Dashboard) or whose
+   * policy lives in an ABP framework module not declared in our source
+   * (Users & Roles, Notification Templates, System Parameters, Audit Logs)
+   * omit it and fall back to the coarse role filter.
+   */
+  requiredPolicy?: string;
   /** Live count badge, when this item carries one. */
   badge?: NavBadgeKey;
 }
@@ -34,7 +45,7 @@ export interface InternalNavGroup {
 /**
  * Tenant operational nav (Staff Supervisor + Intake Staff; also IT Admin once
  * a tenant-switch flow exists -- out of scope for the MVP). Routes verified
- * against app.routes.ts.
+ * against app.routes.ts; requiredPolicy verified against the route providers.
  */
 export const IN_NAV: readonly InternalNavGroup[] = [
   {
@@ -53,6 +64,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'calendar',
         route: '/appointments',
         roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.Appointments',
         badge: 'appointments',
       },
       {
@@ -63,6 +75,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         // into one tabbed inbox at the parent path. See change-request-routes.ts.
         route: '/appointments/change-requests',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests',
         badge: 'changeRequests',
       },
       {
@@ -71,8 +84,16 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'clock',
         route: '/appointment-change-logs',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentChangeLogs',
       },
-      { id: 'reports', label: 'Reports', icon: 'list', route: '/reports', roles: ['supervisor'] },
+      {
+        id: 'reports',
+        label: 'Reports',
+        icon: 'list',
+        route: '/reports',
+        roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.Reports',
+      },
     ],
   },
   {
@@ -84,6 +105,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'calendar',
         route: '/doctor-management/doctor-availabilities',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {
         id: 'locations',
@@ -91,6 +113,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'map',
         route: '/doctor-management/locations',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.Locations',
       },
       {
         id: 'wcab',
@@ -98,6 +121,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'map',
         route: '/doctor-management/wcab-offices',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.WcabOffices',
       },
     ],
   },
@@ -110,6 +134,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'list',
         route: '/appointment-management/appointment-types',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentTypes',
       },
       {
         id: 'appt-statuses',
@@ -117,6 +142,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'list',
         route: '/appointment-management/appointment-statuses',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentStatuses',
       },
       {
         id: 'doc-types',
@@ -124,6 +150,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'doc',
         route: '/appointment-management/document-types',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentDocumentTypes',
       },
       {
         id: 'languages',
@@ -131,6 +158,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'list',
         route: '/appointment-management/appointment-languages',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.AppointmentLanguages',
       },
       {
         id: 'states',
@@ -138,6 +166,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'map',
         route: '/configurations/states',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.States',
       },
     ],
   },
@@ -150,6 +179,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'users',
         route: '/user-management/patients',
         roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.Patients',
       },
       {
         id: 'applicant-attorneys',
@@ -157,6 +187,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'user',
         route: '/applicant-attorneys',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.ApplicantAttorneys',
       },
       {
         id: 'defense-attorneys',
@@ -164,6 +195,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'user',
         route: '/defense-attorneys',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.DefenseAttorneys',
       },
       {
         id: 'claim-examiners',
@@ -171,6 +203,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'user',
         route: '/claim-examiners',
         roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.ClaimExaminers',
       },
     ],
   },
@@ -183,6 +216,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'user',
         route: '/users/invite',
         roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },
       {
         id: 'identity',
@@ -219,6 +253,8 @@ export const IN_NAV: readonly InternalNavGroup[] = [
 /**
  * IT Admin platform (host / cross-tenant) nav. Routes target the ABP SaaS +
  * admin lazy modules; verify they render inside the shell's child outlet.
+ * These items are IT-Admin role-gated; their ABP framework policies are not
+ * declared in our source, so they keep the role filter (no requiredPolicy).
  */
 export const IN_NAV_HOST: readonly InternalNavGroup[] = [
   {
@@ -250,6 +286,7 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         icon: 'user',
         route: '/internal-users',
         roles: ['itadmin'],
+        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
       },
     ],
   },
@@ -283,18 +320,29 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
 ];
 
 /**
- * Keep only the items the role key can see; drop groups left empty. The
- * 'admin' superuser sees every item. (A null role key -- an external user --
- * is filtered out upstream; the shell never renders for them.)
+ * Keep only the items the user can both SEE (role key) and OPEN (granted
+ * permission). The role filter is the coarse first pass; the `isGranted`
+ * predicate (ABP PermissionService) is authoritative for any item carrying a
+ * `requiredPolicy`, so the nav can never show a link that the route guard
+ * would 403. Items without a `requiredPolicy` fall back to role-only. The
+ * 'admin' superuser sees every item (and ABP grants it every policy). A null
+ * role key -- an external user -- is filtered out upstream; the shell never
+ * renders for them. `isGranted` defaults to allow-all so role-only callers
+ * (and unit tests) keep their existing semantics.
  */
 export function filterNavGroups(
   groups: readonly InternalNavGroup[],
   roleKey: InternalRoleKey,
+  isGranted: (policy: string) => boolean = () => true,
 ): InternalNavGroup[] {
   return groups
     .map((g) => ({
       ...g,
-      items: g.items.filter((it) => roleKey === 'admin' || it.roles.includes(roleKey)),
+      items: g.items.filter(
+        (it) =>
+          (roleKey === 'admin' || it.roles.includes(roleKey)) &&
+          (!it.requiredPolicy || isGranted(it.requiredPolicy)),
+      ),
     }))
     .filter((g) => g.items.length > 0);
 }
@@ -306,9 +354,14 @@ export function filterNavGroups(
  * Supervisor or Intake Staff inside a tenant -- gets the tenant operational nav
  * (IN_NAV). This guarantees a Supervisor lands on IN_NAV even if the ABP seed
  * scopes the role at host, and lets a future IT-Admin tenant-switch flip to
- * IN_NAV naturally.
+ * IN_NAV naturally. `isGranted` (ABP PermissionService.getGrantedPolicy) gates
+ * each item's `requiredPolicy`; it defaults to allow-all for role-only callers.
  */
-export function resolveNavGroups(roleKey: InternalRoleKey, hostScope: boolean): InternalNavGroup[] {
+export function resolveNavGroups(
+  roleKey: InternalRoleKey,
+  hostScope: boolean,
+  isGranted: (policy: string) => boolean = () => true,
+): InternalNavGroup[] {
   const usesHostNav = hostScope && (roleKey === 'itadmin' || roleKey === 'admin');
-  return filterNavGroups(usesHostNav ? IN_NAV_HOST : IN_NAV, roleKey);
+  return filterNavGroups(usesHostNav ? IN_NAV_HOST : IN_NAV, roleKey, isGranted);
 }

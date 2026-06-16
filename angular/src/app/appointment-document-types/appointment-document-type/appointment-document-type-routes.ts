@@ -5,10 +5,11 @@ export const APPOINTMENT_DOCUMENT_TYPE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/appointment-document-type.component').then(
-        (c) => c.AppointmentDocumentTypeComponent,
+      return import('../../configuration/internal-configuration.component').then(
+        (c) => c.InternalConfigurationComponent,
       );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'doctypes', requiredPolicy: 'CaseEvaluation.AppointmentDocumentTypes' },
   },
 ];

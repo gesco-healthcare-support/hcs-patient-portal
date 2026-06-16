@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 
@@ -14,23 +16,32 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
 {
     protected IAppointmentDocumentTypeRepository _appointmentDocumentTypeRepository;
     protected AppointmentDocumentTypeManager _appointmentDocumentTypeManager;
+    protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
 
     public AppointmentDocumentTypesAppService(
         IAppointmentDocumentTypeRepository appointmentDocumentTypeRepository,
-        AppointmentDocumentTypeManager appointmentDocumentTypeManager)
+        AppointmentDocumentTypeManager appointmentDocumentTypeManager,
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
     {
         _appointmentDocumentTypeRepository = appointmentDocumentTypeRepository;
         _appointmentDocumentTypeManager = appointmentDocumentTypeManager;
+        _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
     public virtual async Task<PagedResultDto<AppointmentDocumentTypeDto>> GetListAsync(GetAppointmentDocumentTypesInput input)
     {
         var totalCount = await _appointmentDocumentTypeRepository.GetCountAsync(input.FilterText, input.AppointmentTypeId);
         var items = await _appointmentDocumentTypeRepository.GetListAsync(input.FilterText, input.AppointmentTypeId, input.Sorting, input.MaxResultCount, input.SkipCount);
+        var dtoItems = ObjectMapper.Map<List<AppointmentDocumentType>, List<AppointmentDocumentTypeDto>>(items);
+        // Prompt 15 / item 32: per-row UsageCount = referencing AppointmentDocument rows.
+        foreach (var dto in dtoItems)
+        {
+            dto.UsageCount = (int)await _appointmentDocumentRepository.CountAsync(d => d.AppointmentDocumentTypeId == dto.Id);
+        }
         return new PagedResultDto<AppointmentDocumentTypeDto>
         {
             TotalCount = totalCount,
-            Items = ObjectMapper.Map<List<AppointmentDocumentType>, List<AppointmentDocumentTypeDto>>(items)
+            Items = dtoItems
         };
     }
 
