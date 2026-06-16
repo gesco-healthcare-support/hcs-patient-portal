@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { PermissionService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
+import { isHostScope } from '../shared/auth/internal-user-roles';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import type {
@@ -57,6 +58,7 @@ export class InternalAdminHubComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly gateway = inject(AdminSectionGateway);
   private readonly permission = inject(PermissionService);
+  private readonly config = inject(ConfigStateService);
   private readonly toaster = inject(ToasterService);
 
   protected readonly sections = ADMIN_SECTIONS;
@@ -144,11 +146,30 @@ export class InternalAdminHubComponent {
     });
   }
 
+  /**
+   * A section shows when its policy is granted AND (it is not tenant-scoped, or
+   * we are inside a clinic). Tenant-scoped sections 403 at host scope, so IT
+   * Admin reaches them by switching into a clinic first.
+   */
   protected canSee(section: AdminSection): boolean {
-    return this.permission.getGrantedPolicy(section.policy);
+    if (!this.permission.getGrantedPolicy(section.policy)) {
+      return false;
+    }
+    return !section.tenantScoped || !isHostScope(this.config);
   }
 
+  /** The current section is a tenant-scoped one being viewed at host scope. */
+  protected readonly activeBlockedAtHost = computed(
+    () => this.meta().tenantScoped && isHostScope(this.config),
+  );
+
   private load(): void {
+    // Tenant-scoped section opened at host scope: do not call the API (it 403s);
+    // the template shows a "switch into a clinic" placeholder instead.
+    if (this.activeBlockedAtHost()) {
+      this.loading.set(false);
+      return;
+    }
     const key = this.section();
     this.loading.set(true);
     if (key === 'templates') {

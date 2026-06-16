@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
+import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { ExternalUserType } from '../proxy/external-signups/external-user-type.enum';
@@ -73,6 +74,7 @@ export class InternalUsersHubComponent {
   private readonly gateway = inject(UsersSectionGateway);
   private readonly permission = inject(PermissionService);
   private readonly toaster = inject(ToasterService);
+  private readonly impersonation = inject(ImpersonationService);
 
   protected readonly sections = USERS_SECTIONS;
   protected readonly roleOptions = INVITE_ROLE_OPTIONS;
@@ -431,13 +433,26 @@ export class InternalUsersHubComponent {
       error: () => undefined,
     });
   }
-  /** "Switch into tenant": navigate to the tenant's subdomain portal. */
+  /**
+   * "Switch into clinic" -- IT Admin only (the Tenants section is gated by
+   * Saas.Tenants, which only IT Admin holds). Uses ABP tenant impersonation
+   * (Saas.Tenants.Impersonation): signs in as the clinic's `admin` user with
+   * full tenant access via an impersonation token, then ImpersonationService
+   * reloads the app into that tenant's context. The token's tenant claim wins
+   * over the admin.localhost subdomain because CurrentUserTenantResolveContributor
+   * is registered before the domain resolver (CaseEvaluationHttpApiHostModule).
+   * Staff Supervisor's business-only switch is a separate, deferred effort
+   * (stock ABP cannot scope tenant impersonation down -- see the access-model plan).
+   */
   protected switchTenant(row: TenantRow): void {
-    const loc = window.location;
-    const labels = loc.hostname.split('.');
-    const base = labels.length > 1 ? labels.slice(1).join('.') : loc.hostname;
-    const port = loc.port ? ':' + loc.port : '';
-    this.toaster.success('Opening ' + row.name + '...');
-    loc.href = `${loc.protocol}//${row.subdomain}.${base}${port}/dashboard`;
+    if (this.isBusy()) {
+      return;
+    }
+    this.isBusy.set(true);
+    this.toaster.info('Switching into ' + row.name + '...');
+    this.impersonation
+      .impersonateTenant(row.id, 'admin')
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({ error: () => undefined });
   }
 }

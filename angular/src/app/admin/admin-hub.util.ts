@@ -19,6 +19,14 @@ export interface AdminSection {
   route: string;
   /** ABP policy gating the rail item + its route. */
   policy: string;
+  /**
+   * True when the section manages TENANT-scoped data (Notification Templates,
+   * System Parameters): it 403s at host scope because there is no tenant, so the
+   * hub hides it at host. IT Admin reaches these by switching into a clinic
+   * (impersonation), where the section then resolves. Host-or-both sections
+   * (Users & Roles, Audit Logs) work at host and stay visible.
+   */
+  tenantScoped: boolean;
 }
 
 /**
@@ -36,6 +44,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'Notification Templates',
     route: '/admin/templates',
     policy: 'CaseEvaluation.NotificationTemplates',
+    tenantScoped: true,
   },
   {
     key: 'parameters',
@@ -43,6 +52,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'System Parameters',
     route: '/admin/parameters',
     policy: 'CaseEvaluation.SystemParameters',
+    tenantScoped: true,
   },
   {
     key: 'roles',
@@ -50,6 +60,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'Users & Roles',
     route: '/admin/roles',
     policy: 'AbpIdentity.Roles',
+    tenantScoped: false,
   },
   {
     key: 'audit',
@@ -57,6 +68,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'Audit Logs',
     route: '/admin/audit',
     policy: 'AuditLogging.AuditLogs',
+    tenantScoped: false,
   },
 ];
 

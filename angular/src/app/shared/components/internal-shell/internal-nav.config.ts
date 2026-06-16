@@ -301,22 +301,9 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         roles: ['itadmin'],
         requiredPolicy: 'AbpIdentity.Roles',
       },
-      {
-        id: 'notif-templates',
-        label: 'Notification Templates',
-        icon: 'doc',
-        route: '/admin/templates',
-        roles: ['itadmin'],
-        requiredPolicy: 'CaseEvaluation.NotificationTemplates',
-      },
-      {
-        id: 'settings',
-        label: 'System Parameters',
-        icon: 'settings',
-        route: '/admin/parameters',
-        roles: ['itadmin'],
-        requiredPolicy: 'CaseEvaluation.SystemParameters',
-      },
+      // Notification Templates + System Parameters are TENANT-scoped (they 403 at
+      // host); IT Admin manages them by switching into a clinic, where the tenant
+      // nav (IN_NAV) surfaces them. Intentionally absent from the host nav.
       {
         id: 'audit',
         label: 'Audit Logs',

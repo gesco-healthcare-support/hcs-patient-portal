@@ -20,8 +20,16 @@
   </nav>
 
   <div class="cf-content">
+    @if (activeBlockedAtHost()) {
+      <div class="ia-empty">
+        <app-icon name="grid" [size]="30" />
+        <b>Switch into a clinic to manage this</b>
+        {{ meta().label }} is configured per clinic. Open the Tenants page, switch into a clinic,
+        then manage its settings there.
+      </div>
+    }
     <!-- ============ Notification Templates ============ -->
-    @if (section() === 'templates') {
+    @if (section() === 'templates' && !activeBlockedAtHost()) {
       <div class="ia-toolbar">
         <div class="ia-search" style="max-width: 280px">
           <app-icon name="search" [size]="16" />
@@ -192,7 +200,7 @@
     }
 
     <!-- ============ System Parameters ============ -->
-    @if (section() === 'parameters') {
+    @if (section() === 'parameters' && !activeBlockedAtHost()) {
       @if (params(); as p) {
         @for (g of spGroups; track g.title) {
           <div class="sp-group">

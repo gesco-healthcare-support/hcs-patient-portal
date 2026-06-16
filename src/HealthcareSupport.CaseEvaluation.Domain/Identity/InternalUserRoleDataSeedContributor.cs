@@ -224,7 +224,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// entity will be invalid permission strings if it were in AllEntities,
     /// so it is yielded as a one-off Default below.
     /// </summary>
-    private static IEnumerable<string> ItAdminGrants()
+    internal static IEnumerable<string> ItAdminGrants()
     {
         yield return $"{Group}.Dashboard.Host";
 
@@ -298,6 +298,35 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // receive this grant -- tenant creation stays a host-side power.
         yield return "Saas.Tenants";
         yield return "Saas.Tenants.Create";
+
+        // Roles & access matrix (2026-06-16): IT Admin is the technical platform admin and
+        // holds the ABP framework powers the custom seed previously omitted -- this is what
+        // makes Roles / Audit / File / Language management + the clinic-switch reachable.
+        // (Framework permission strings verified against ABP 10.0.2 source, spike
+        // wf_3bdc4d2a-5e0.) All are Host- or Both-sided, so valid for this host-scoped role.
+        yield return "Saas.Tenants.Impersonation";
+        yield return "AbpIdentity.Roles";
+        yield return "AbpIdentity.Roles.ManagePermissions";
+        yield return "AuditLogging.AuditLogs";
+        // Full File + Language management (parents + action children) -- the File
+        // Management page lists DIRECTORIES first, so the DirectoryDescriptor grant is
+        // required or the explorer 403s; the Languages page needs the Languages action
+        // children for create/edit/delete/set-default.
+        yield return "FileManagement.DirectoryDescriptor";
+        yield return "FileManagement.DirectoryDescriptor.Create";
+        yield return "FileManagement.DirectoryDescriptor.Update";
+        yield return "FileManagement.DirectoryDescriptor.Delete";
+        yield return "FileManagement.FileDescriptor";
+        yield return "FileManagement.FileDescriptor.Create";
+        yield return "FileManagement.FileDescriptor.Update";
+        yield return "FileManagement.FileDescriptor.Delete";
+        yield return "LanguageManagement.Languages";
+        yield return "LanguageManagement.Languages.Create";
+        yield return "LanguageManagement.Languages.Edit";
+        yield return "LanguageManagement.Languages.Delete";
+        yield return "LanguageManagement.Languages.ChangeDefault";
+        yield return "LanguageManagement.LanguageTexts";
+        yield return "LanguageManagement.LanguageTexts.Edit";
     }
 
     /// <summary>
@@ -313,7 +342,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// to approve uploaded documents, regenerate the IME packet, view the
     /// audit log, and read the per-AppointmentType field configuration.
     /// </summary>
-    private static IEnumerable<string> StaffSupervisorGrants()
+    internal static IEnumerable<string> StaffSupervisorGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 
@@ -403,6 +432,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("NotificationTemplates");
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
+        // Roles & access matrix (2026-06-16): the business admin EDITS system parameters
+        // (booking rules) and VIEWS the audit log read-only for oversight within the clinic.
+        // SystemParameters is Both; AuditLogging.AuditLogs is Both (tenants view their own
+        // audit logs). Both valid at this role's tenant scope -- verified at reseed.
+        yield return Edit("SystemParameters");
+        yield return "AuditLogging.AuditLogs";
 
         // G-03-01 (2026-06-03) -- Staff Supervisor co-owns the document-category
         // master with IT Admin. Default/Create/Edit only: retiring a type is a
@@ -446,7 +481,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// may upload (the upload happens via the Appointments.Edit path) and
     /// approve/reject; structural edits to a document row stay supervisor-tier.
     /// </summary>
-    private static IEnumerable<string> IntakeStaffGrants()
+    internal static IEnumerable<string> IntakeStaffGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 

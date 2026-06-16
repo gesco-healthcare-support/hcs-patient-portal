@@ -227,9 +227,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private refreshIdentity(): void {
     this.user.set((this.configState.getOne('currentUser') as ShellUser) ?? null);
     this.tenant.set((this.configState.getOne('currentTenant') as ShellTenant) ?? null);
-    // isHostScope is the canonical host check; assert parity with the signal so
-    // a future change to either stays consistent (no runtime effect).
-    void isHostScope;
+    // Host scope follows the active tenant context (null currentTenant = host).
+    // Previously hardcoded true (pre-tenant-switch MVP); now reactive so the nav
+    // flips to the tenant view when IT Admin impersonates into a clinic
+    // (currentTenant becomes the impersonated tenant) and back on exit.
+    this.hostScope.set(isHostScope(this.configState));
   }
 }
 
