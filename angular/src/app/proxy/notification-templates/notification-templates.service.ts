@@ -1,4 +1,4 @@
-import type { GetNotificationTemplatesInput, NotificationTemplateDto, NotificationTemplateTypeDto, NotificationTemplateUpdateDto, NotificationTemplateWithNavigationPropertiesDto } from './models';
+import type { GetNotificationTemplatesInput, NotificationTemplateDto, NotificationTemplateTypeDto, NotificationTemplateUpdateDto, NotificationTemplateVariableDto, NotificationTemplateWithNavigationPropertiesDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { ListResultDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -40,6 +40,22 @@ export class NotificationTemplatesService {
     this.restService.request<any, ListResultDto<NotificationTemplateTypeDto>>({
       method: 'GET',
       url: '/api/app/notification-templates/template-type-lookup',
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getVariables = (templateCode: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, ListResultDto<NotificationTemplateVariableDto>>({
+      method: 'GET',
+      url: `/api/app/notification-templates/${templateCode}/variables`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  sendTest = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, void>({
+      method: 'POST',
+      url: `/api/app/notification-templates/${id}/send-test`,
     },
     { apiName: this.apiName,...config });
   

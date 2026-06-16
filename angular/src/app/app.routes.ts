@@ -77,8 +77,15 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
     loadChildren: () => import('@volo/abp.ng.identity').then((c) => c.createRoutes()),
   },
   {
+    // Prompt 16 Part B (2026-06-16): custom Languages list replaces the ABP
+    // language-management module page. The Language Texts editor is cancelled.
     path: 'language-management',
-    loadChildren: () => import('@volo/abp.ng.language-management').then((c) => c.createRoutes()),
+    loadComponent: () =>
+      import('./languages/language-management.component').then(
+        (c) => c.LanguageManagementComponent,
+      ),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'LanguageManagement.Languages' },
   },
   {
     path: 'saas',
@@ -98,8 +105,13 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
       import('@volo/abp.ng.text-template-management').then((c) => c.createRoutes()),
   },
   {
+    // Prompt 16 Part B (2026-06-16): custom blob-storage explorer replaces the
+    // ABP file-management module page.
     path: 'file-management',
-    loadChildren: () => import('@volo/abp.ng.file-management').then((c) => c.createRoutes()),
+    loadComponent: () =>
+      import('./files/file-management.component').then((c) => c.FileManagementComponent),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'FileManagement.FileDescriptor' },
   },
   {
     path: 'setting-management',
@@ -197,6 +209,45 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   },
   // Back-compat: the legacy /internal-users path now lands on the hub.
   { path: 'internal-users', redirectTo: 'users/internal', pathMatch: 'full' },
+  // Prompt 16 Part B (2026-06-16): Admin hub. One standalone component at four
+  // section routes (deep-linkable + per-route gated); replaces the ABP module
+  // admin pages (text-template-management, setting-management, identity roles,
+  // audit-logs) that the nav used to point at. Each route's requiredPolicy
+  // matches the rail's getGrantedPolicy gate so visibility == access.
+  {
+    path: 'admin',
+    children: [
+      { path: '', redirectTo: 'templates', pathMatch: 'full' },
+      {
+        path: 'templates',
+        loadComponent: () =>
+          import('./admin/internal-admin-hub.component').then((c) => c.InternalAdminHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'templates', requiredPolicy: 'CaseEvaluation.NotificationTemplates' },
+      },
+      {
+        path: 'parameters',
+        loadComponent: () =>
+          import('./admin/internal-admin-hub.component').then((c) => c.InternalAdminHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'parameters', requiredPolicy: 'CaseEvaluation.SystemParameters' },
+      },
+      {
+        path: 'roles',
+        loadComponent: () =>
+          import('./admin/internal-admin-hub.component').then((c) => c.InternalAdminHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'roles', requiredPolicy: 'AbpIdentity.Roles' },
+      },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./admin/internal-admin-hub.component').then((c) => c.InternalAdminHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'audit', requiredPolicy: 'AuditLogging.AuditLogs' },
+      },
+    ],
+  },
 ];
 
 export const APP_ROUTES: Routes = [

@@ -62,12 +62,79 @@ ABP module admin UIs with custom standalone surfaces.
 
 ## Resolved decisions (2026-06-16)
 
-1. Editions: NO prototype exists. Adrian is generating one via claude design; build is
-   DEFERRED until the prototype lands (task B-F6 parked - NOT in this build).
-2. openiddict / file-management / language-management: NO prototype. Adrian may generate
-   prototypes via claude design; pending that, they stay as stock ABP routes removed from
-   the internal nav (out of this build's scope). My recommendation: only Editions is worth
-   redesigning; these three are deep platform tooling the design deliberately omitted.
+1. Editions: CANCELLED (Adrian, 2026-06-16) -- never prototyped; unnecessary. Not built;
+   task B-F6 dropped.
+2. API management / OpenIddict: CANCELLED (2026-06-16) -- never prototyped; unnecessary.
+   File Management: KEEP as a redesigned page (prototype in design_handoff_part_B). Language
+   Management: KEEP the Languages list only; the Language Texts editor is CANCELLED.
+   Revised Part B = Admin hub (Notification Templates, System Parameters, Users & Roles
+   matrix, Audit Logs) + File Management + Language Management (Languages). Sequence:
+   finish Part A UI -> Part B -> cross-cutting hardening sweep.
+
+   Backend status: A-B1..A-B4 DONE + committed (50a8d38 invites mgmt, 70204e3 firmName,
+   59053a0 admin reset, acf92bc tenant counts), proxies regenerated (8c66243). Full
+   solution builds; Domain.Tests 73/73 + Application.Tests 783/783 green. Stack live
+   (migration applied, api restarted).
+
+   PART A COMPLETE (2026-06-16): Users & Access hub shipped -- util+styles 48909bb, hub
+   36c20f2 (internal-users-hub.component + users-section.gateway, 4 sections invite/
+   pending/internal/tenants, routes /users/{invite,pending,internal,tenants} + redirect
+   /internal-users, nav repointed, Editions item dropped, legacy invite/internal-users
+   forms de-routed but kept on disk). ng build clean; 17 util tests green; angular live
+   on :4250. Live 3-role verification deferred to the final hardening pass (Adrian seq).
+
+   PART B EXECUTION (revised 2026-06-16; supersedes B-F1..B-F8 below):
+   - Backend first: B-B1 NotificationTemplates send-test (render + dispatch to current
+     user via INotificationDispatcher; NotificationTemplatesAppService is
+     RemoteService(IsEnabled=false) + a manual controller; UpdateAsync gated
+     NotificationTemplates.Edit). B-B2 variable-catalog (new static
+     NotificationTemplateVariableCatalog mapping each code -> its ##Var## tokens) +
+     derived isCustomized (row content vs seeded EmailBodies/*.html default -- if costly,
+     ship the catalog + defer isCustomized). Then regenerate proxies.
+   - Admin hub: 2nd hub mirroring the Users hub -- InternalAdminHubComponent +
+     admin-section.gateway + admin-hub.util + _in-admin.scss, cf-rail 4 sections:
+     Notification Templates (NotificationTemplatesService + send-test/catalog),
+     System Parameters (SystemParametersService get/update -- backend already exists),
+     Permission Matrix (@abp/ng.permission-management PermissionsService + @volo identity
+     IdentityRoleService; IT-Admin role locked), Audit Logs (@volo/abp.ng.audit-logging,
+     read-only + filters + CSV). Routes /admin/{templates,parameters,roles,audit};
+     repoint IN_NAV/IN_NAV_HOST Administration items (notif-templates, settings, identity,
+     audit) to /admin/*.
+   - Separate pages: File Management + Language Management (Languages list only) -- custom
+     rebuilds over @volo file-management + language-management, prototypes in
+     design_handoff_part_B (File Management - Redesign.html / Language Management -
+     Redesign.html). Cancelled: Editions, API/OpenIddict, Language Texts.
+   - Then Prompt 17 (Send back / Request info), then the cross-cutting hardening pass.
+
+   PART B COMPLETE (2026-06-16): sub-branch feat/redesign-internal-admin off
+   feat/redesign-internal-users (stacked, since Part A is unmerged + shares
+   app.routes/nav/styles). Commits:
+   - d0cfbf6 feat(notif-templates): send-test (SendTestAsync; render+dispatch to
+     current user via INotificationDispatcher, email-only, inactive guard) +
+     variable catalog (GetVariablesAsync) + IsCustomized on the read DTO, sourced
+     from a new NotificationTemplateSeedDefaults single-source-of-truth (the seed
+     contributor now delegates to it). 90/90 Domain.Tests (17 new catalog tests).
+   - f5f46b0 chore(proxy): regenerated for sendTest/getVariables + isCustomized +
+     NotificationTemplateVariableDto.
+   - 9f4ec87 feat(admin): InternalAdminHubComponent at /admin/{templates,
+     parameters,roles,audit} -- Notification Templates (split list+editor,
+     variable chips, live preview, send-test, customized badge), System
+     Parameters (grouped editor, honest units, save gated .Edit), Users & Roles
+     (permission matrix over ABP PermissionsService + IdentityRoleService, IT
+     Admin locked), Audit Logs (filter + expand + client CSV). admin-hub.util
+     (15/15 spec) + admin-section.gateway + _in-admin.scss; nav repointed.
+   - b566f69 feat(language-mgmt): custom Languages list over Volo LanguageService
+     (Language Texts cancelled); added edit/trash/globe/folder/folderOpen/upload/
+     download/file icons; exposed File + Languages in host nav.
+   - 72785eb feat(file-mgmt): custom blob explorer over Volo Directory/File
+     descriptor services (breadcrumb nav, new folder, upload, download, rename,
+     delete; sidebar tree deferred to hardening).
+   ng build clean; api restarted (send-test/catalog live); angular restarted
+   (:4250 200). Live 3-role verification of Part B folded into the hardening pass.
+   Backend send-test integration test deferred: the AppService test host is ABP-
+   license-gated locally (see test docstring) -- pure catalog logic is unit-
+   tested; send-test verified live in hardening. NOT yet merged to
+   feat/internal-user-pages (awaiting live sign-off, per the per-page rule).
 3. Override badge: ADD a derived `isCustomized` flag (part of B-B2). [CONFIRMED]
 4. Manage-invites / reset-password permissions: reuse
    `CaseEvaluation.UserManagement.InviteExternalUser` for invite list/resend/revoke and a

@@ -21334,6 +21334,40 @@
                     "type": "HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateDto",
                     "typeSimple": "HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateDto"
                   }
+                },
+                {
+                  "name": "SendTestAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "GetVariablesAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "templateCode",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateVariableDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateVariableDto>"
+                  }
                 }
               ]
             }
@@ -21578,6 +21612,80 @@
               "returnValue": {
                 "type": "HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateDto",
                 "typeSimple": "HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplatesAppService"
+            },
+            "SendTestAsyncById": {
+              "uniqueName": "SendTestAsyncById",
+              "name": "SendTestAsync",
+              "httpMethod": "POST",
+              "url": "api/app/notification-templates/{id}/send-test",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplatesAppService"
+            },
+            "GetVariablesAsyncByTemplateCode": {
+              "uniqueName": "GetVariablesAsyncByTemplateCode",
+              "name": "GetVariablesAsync",
+              "httpMethod": "GET",
+              "url": "api/app/notification-templates/{templateCode}/variables",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "templateCode",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "templateCode",
+                  "name": "templateCode",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateVariableDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.ListResultDto<HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateVariableDto>"
               },
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplatesAppService"
@@ -57893,6 +58001,19 @@
           "isNullable": false
         },
         {
+          "name": "IsCustomized",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
           "name": "ConcurrencyStamp",
           "jsonName": null,
           "type": "System.String",
@@ -58003,6 +58124,41 @@
         },
         {
           "name": "ConcurrencyStamp",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateVariableDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Token",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Label",
           "jsonName": null,
           "type": "System.String",
           "typeSimple": "string",

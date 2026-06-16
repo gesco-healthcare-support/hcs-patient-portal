@@ -41,6 +41,12 @@
 // Redesign (Prompt 16, 2026-06-16): Users & Access hub (invite, pending invites,
 // internal users, tenants) -- ux-* result/expiry/role/edition chips.
 @use 'styles/in-users';
+// Prompt 16 Part B (2026-06-16): Admin hub -- notification templates (nt-*),
+// system parameters (sp-*), permission matrix (pm-*), audit logs (au-*).
+@use 'styles/in-admin';
+// Prompt 16 Part B (2026-06-16): Language management (lg-*) + File management (fm-*).
+@use 'styles/in-lang';
+@use 'styles/in-files';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

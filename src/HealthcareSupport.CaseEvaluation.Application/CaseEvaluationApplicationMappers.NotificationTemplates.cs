@@ -22,7 +22,13 @@ namespace HealthcareSupport.CaseEvaluation;
 public partial class NotificationTemplateToNotificationTemplateDtoMapper
     : MapperBase<NotificationTemplate, NotificationTemplateDto>
 {
+    // IsCustomized is a derived flag the entity has no source for; the
+    // AppService sets it after mapping (see MapToDto). Ignore it here so
+    // Mapperly does not flag an unmapped target member.
+    [MapperIgnoreTarget(nameof(NotificationTemplateDto.IsCustomized))]
     public override partial NotificationTemplateDto Map(NotificationTemplate source);
+
+    [MapperIgnoreTarget(nameof(NotificationTemplateDto.IsCustomized))]
     public override partial void Map(NotificationTemplate source, NotificationTemplateDto destination);
 }
 
