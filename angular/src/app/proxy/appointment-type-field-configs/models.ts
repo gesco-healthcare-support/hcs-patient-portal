@@ -1,5 +1,13 @@
 import type { FullAuditedEntityDto } from '@abp/ng.core';
 
+export interface AppointmentTypeFieldConfigBatchItemDto {
+  fieldName?: string;
+  hidden?: boolean;
+  readOnly?: boolean;
+  required?: boolean;
+  defaultValue?: string | null;
+}
+
 export interface AppointmentTypeFieldConfigCreateDto {
   appointmentTypeId?: string;
   fieldName?: string;
@@ -26,12 +34,4 @@ export interface AppointmentTypeFieldConfigUpdateDto {
   required?: boolean;
   defaultValue?: string | null;
   concurrencyStamp?: string | null;
-}
-
-export interface AppointmentTypeFieldConfigBatchItemDto {
-  fieldName?: string;
-  hidden?: boolean;
-  readOnly?: boolean;
-  required?: boolean;
-  defaultValue?: string | null;
 }

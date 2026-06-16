@@ -236,6 +236,15 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:InternalUser.TenantMismatch";
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B3) -- raised by
+    /// <c>InternalUsersAppService.SendPasswordResetEmailAsync</c> when no
+    /// IdentityUser exists for the supplied id in the caller's tenant scope.
+    /// Localization key <c>InternalUser:NotFound</c>.
+    /// </summary>
+    public const string InternalUserNotFound =
+        "CaseEvaluation:InternalUser.NotFound";
+
+    /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
     /// <c>AvailableDate</c> falls inside the per-tenant

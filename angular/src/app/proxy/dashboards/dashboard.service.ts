@@ -1,5 +1,5 @@
 import type { DashboardRange } from './dashboard-range.enum';
-import type { DashboardCountersDto, DashboardDto } from './models';
+import type { DashboardCountersDto, DashboardDto, TenantSummaryDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
@@ -24,6 +24,14 @@ export class DashboardService {
       method: 'GET',
       url: '/api/app/dashboard/overview',
       params: { range },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getTenantSummaries = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, TenantSummaryDto[]>({
+      method: 'GET',
+      url: '/api/app/dashboard/tenant-summaries',
     },
     { apiName: this.apiName,...config });
 }

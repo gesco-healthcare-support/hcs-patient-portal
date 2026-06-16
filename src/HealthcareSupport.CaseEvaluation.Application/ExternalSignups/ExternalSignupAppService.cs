@@ -567,6 +567,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // under the invitation's tenant regardless of any
             // ?__tenant= or cookie context on the request.
             input.TenantId = acceptedInvitation.TenantId;
+            // #21 (2026-06-16): if the inviter pre-set a firm name and the
+            // recipient left it blank, carry it through so the required
+            // attorney firm-name validation passes with the invited value.
+            if (string.IsNullOrWhiteSpace(input.FirmName)
+                && !string.IsNullOrWhiteSpace(acceptedInvitation.FirmName))
+            {
+                input.FirmName = acceptedInvitation.FirmName;
+            }
         }
 
         // Phase 8 (2026-05-03) -- OLD-parity validation:
@@ -1081,13 +1089,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var firstName = string.IsNullOrWhiteSpace(input.FirstName) ? null : input.FirstName.Trim();
         var lastName = string.IsNullOrWhiteSpace(input.LastName) ? null : input.LastName.Trim();
 
+        // #21 (2026-06-16): persist firm name for attorney invites only so
+        // registration can pre-fill the firm; null for non-attorney roles.
+        var firmName = IsAttorneyRole(input.UserType) && !string.IsNullOrWhiteSpace(input.FirmName)
+            ? input.FirmName.Trim()
+            : null;
+
         var (invitation, rawToken) = await _invitationManager.IssueAsync(
             tenantId: tenantId.Value,
             email: normalizedEmail,
             userType: input.UserType,
             invitedByUserId: invitedByUserId,
             firstName: firstName,
-            lastName: lastName);
+            lastName: lastName,
+            firmName: firmName);
 
         // BUG-029 v3 fix (2026-05-21): invite URL now routes through
         // IAccountUrlBuilder, which composes the tenant subdomain.
@@ -1132,6 +1147,166 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1) -- paged invite-management list for the
+    /// internal "Pending Invites" surface. Returns EVERY invitation in the
+    /// caller's tenant including revoked (soft-deleted) rows, with a derived
+    /// <see cref="InvitationStatus"/> so the UI can facet client-side. The
+    /// IMultiTenant filter still scopes the query to the caller's tenant.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<PagedResultDto<InvitationDto>> GetInvitesAsync(GetInvitesInput input)
+    {
+        var nowUtc = Clock.Now.ToUniversalTime();
+        var filter = input.Filter?.Trim();
+
+        // Disable the soft-delete filter so revoked invitations still surface
+        // (as Status = Revoked). The IMultiTenant filter is left on, so the
+        // list stays scoped to the caller's tenant.
+        using (_dataFilter.Disable<ISoftDelete>())
+        {
+            var query = await _invitationRepository.GetQueryableAsync();
+            query = query.WhereIf(
+                !string.IsNullOrWhiteSpace(filter),
+                i => i.Email.Contains(filter!));
+
+            var totalCount = await AsyncExecuter.CountAsync(query);
+
+            var items = await AsyncExecuter.ToListAsync(
+                query.OrderByDescending(i => i.CreationTime)
+                    .Skip(input.SkipCount)
+                    .Take(input.MaxResultCount));
+
+            var inviterNames = await ResolveInviterNamesAsync(
+                items.Select(i => i.InvitedByUserId).Distinct().ToList());
+
+            var dtos = items.Select(i => new InvitationDto
+            {
+                Id = i.Id,
+                Email = i.Email,
+                UserType = i.UserType,
+                RoleName = ToRoleName(i.UserType),
+                FirstName = i.FirstName,
+                LastName = i.LastName,
+                FirmName = i.FirmName,
+                InvitedByUserId = i.InvitedByUserId,
+                InvitedByName = inviterNames.TryGetValue(i.InvitedByUserId, out var inviter) ? inviter : null,
+                CreationTime = i.CreationTime,
+                ExpiresAt = i.ExpiresAt,
+                AcceptedAt = i.AcceptedAt,
+                Status = InvitationStatusResolver.Resolve(i.IsDeleted, i.AcceptedAt, i.ExpiresAt, nowUtc),
+            }).ToList();
+
+            return new PagedResultDto<InvitationDto>(totalCount, dtos);
+        }
+    }
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- re-issues a pending invitation in place (fresh
+    /// token + reset 7-day expiry, old token invalidated) and re-dispatches the
+    /// invite email. Returns the new invite URL so the admin can copy it.
+    /// Rejects an already-accepted invitation. GetAsync is tenant- and
+    /// soft-delete-filtered, so a revoked or cross-tenant id surfaces as a clean
+    /// EntityNotFoundException (404).
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<InviteExternalUserResultDto> ResendInviteAsync(Guid id)
+    {
+        var invitation = await _invitationRepository.GetAsync(id);
+        if (invitation.AcceptedAt.HasValue)
+        {
+            throw new UserFriendlyException(L["Cannot resend an invitation that has already been accepted."]);
+        }
+
+        var tenantId = invitation.TenantId
+            ?? throw new UserFriendlyException(L["Tenant context required for invite."]);
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId)
+            ?? throw new UserFriendlyException(L["Could not resolve tenant name for invite."]);
+        var roleName = ToRoleName(invitation.UserType);
+
+        var rawToken = await _invitationManager.ResendAsync(invitation);
+        var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(tenantId, rawToken);
+
+        // Dispatch mirrors InviteExternalUserAsync; failure is swallowed so the
+        // admin can always copy + share the inviteUrl in the response.
+        try
+        {
+            await _notificationDispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: invitation.Email,
+                        role: MapToRecipientRole(invitation.UserType),
+                        isRegistered: false),
+                },
+                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, invitation.FirstName, invitation.LastName),
+                contextTag: $"InviteResend/{roleName}/{tenantId}/{invitation.Id}");
+        }
+        catch (Exception)
+        {
+            // Swallowed by design -- the dispatcher logs its own failures.
+        }
+
+        return new InviteExternalUserResultDto
+        {
+            InviteUrl = inviteUrl,
+            Email = invitation.Email,
+            RoleName = roleName,
+            TenantName = tenantName,
+            ExpiresAt = invitation.ExpiresAt,
+        };
+    }
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- revokes (soft-deletes) a pending invitation so its
+    /// token stops validating immediately (the ISoftDelete filter excludes it
+    /// from FindByTokenHashAsync). Rejects an already-accepted invitation.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task RevokeInviteAsync(Guid id)
+    {
+        var invitation = await _invitationRepository.GetAsync(id);
+        if (invitation.AcceptedAt.HasValue)
+        {
+            throw new UserFriendlyException(L["Cannot revoke an invitation that has already been accepted."]);
+        }
+
+        await _invitationRepository.DeleteAsync(invitation, autoSave: true);
+    }
+
+    /// <summary>
+    /// Batched lookup of inviter display names for the invite list. Resolves in
+    /// the caller's tenant scope (internal staff issue invites from within their
+    /// tenant). Returns full name, falling back to username/email; an id that
+    /// cannot be resolved (e.g. a host user) is simply absent from the map.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> ResolveInviterNamesAsync(List<Guid> userIds)
+    {
+        var result = new Dictionary<Guid, string>();
+        if (userIds.Count == 0)
+        {
+            return result;
+        }
+
+        var query = await _identityUserRepository.GetQueryableAsync();
+        var users = await AsyncExecuter.ToListAsync(
+            query.Where(u => userIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.Surname, u.UserName, u.Email }));
+
+        foreach (var u in users)
+        {
+            var display = $"{u.Name} {u.Surname}".Trim();
+            if (string.IsNullOrWhiteSpace(display))
+            {
+                display = u.UserName ?? u.Email ?? string.Empty;
+            }
+            result[u.Id] = display;
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// 2026-05-15 -- anonymous validation endpoint for the JS overlay on
     /// <c>/Account/Register</c>. Throws <c>BusinessException</c> with one
     /// of <c>InviteInvalid</c> / <c>InviteExpired</c> /
@@ -1159,6 +1334,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             ExpiresAt = invitation.ExpiresAt,
             FirstName = invitation.FirstName,
             LastName = invitation.LastName,
+            FirmName = invitation.FirmName,
         };
     }
 

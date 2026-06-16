@@ -52,20 +52,20 @@ export class AppointmentTypeFieldConfigService {
     { apiName: this.apiName,...config });
   
 
-  update = (id: string, input: AppointmentTypeFieldConfigUpdateDto, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, AppointmentTypeFieldConfigDto>({
-      method: 'PUT',
-      url: `/api/app/appointment-type-field-configs/${id}`,
-      body: input,
-    },
-    { apiName: this.apiName,...config });
-
-
   saveForAppointmentType = (appointmentTypeId: string, items: AppointmentTypeFieldConfigBatchItemDto[], config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentTypeFieldConfigDto[]>({
       method: 'PUT',
       url: `/api/app/appointment-type-field-configs/by-appointment-type/${appointmentTypeId}`,
       body: items,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  update = (id: string, input: AppointmentTypeFieldConfigUpdateDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentTypeFieldConfigDto>({
+      method: 'PUT',
+      url: `/api/app/appointment-type-field-configs/${id}`,
+      body: input,
     },
     { apiName: this.apiName,...config });
 }

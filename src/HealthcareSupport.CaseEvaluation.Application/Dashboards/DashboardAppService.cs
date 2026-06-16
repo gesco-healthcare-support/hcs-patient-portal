@@ -16,6 +16,7 @@ using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Saas.Tenants;
 
@@ -35,6 +36,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly IDataFilter _dataFilter;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
 
     public DashboardAppService(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -46,7 +48,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         IRepository<Location, Guid> locationRepository,
         ISystemParameterRepository systemParameterRepository,
         IDataFilter dataFilter,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        IRepository<IdentityUser, Guid> identityUserRepository)
     {
         _appointmentRepository = appointmentRepository;
         _changeRequestRepository = changeRequestRepository;
@@ -58,6 +61,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         _systemParameterRepository = systemParameterRepository;
         _dataFilter = dataFilter;
         _authorizationService = authorizationService;
+        _identityUserRepository = identityUserRepository;
     }
 
     [Authorize]
@@ -202,6 +206,35 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         }
 
         return await BuildTenantDashboardAsync(range);
+    }
+
+    /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B4) -- host-only per-tenant user + appointment
+    /// counts for the Tenants management table. Disables the IMultiTenant filter
+    /// so the per-tenant CountAsync predicates see every tenant's rows; only
+    /// aggregate counts (not PHI) leave the server. Gated by <c>Saas.Tenants</c>
+    /// (the same permission the host Tenants page uses), which IT Admin holds.
+    /// </summary>
+    [Authorize("Saas.Tenants")]
+    public virtual async Task<List<TenantSummaryDto>> GetTenantSummariesAsync()
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenants = await _tenantRepository.GetListAsync();
+            var summaries = new List<TenantSummaryDto>(tenants.Count);
+            foreach (var tenant in tenants)
+            {
+                var id = tenant.Id;
+                summaries.Add(new TenantSummaryDto
+                {
+                    TenantId = id,
+                    Name = tenant.Name,
+                    UserCount = await _identityUserRepository.CountAsync(u => u.TenantId == id),
+                    AppointmentCount = await _appointmentRepository.CountAsync(a => a.TenantId == id),
+                });
+            }
+            return summaries.OrderBy(s => s.Name).ToList();
+        }
     }
 
     private async Task<DashboardDto> BuildHostDashboardAsync()

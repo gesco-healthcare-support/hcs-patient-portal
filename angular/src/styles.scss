@@ -38,6 +38,9 @@
 // with People) + people hub (portal chip, patient detail header/grid).
 @use 'styles/in-config';
 @use 'styles/in-people';
+// Redesign (Prompt 16, 2026-06-16): Users & Access hub (invite, pending invites,
+// internal users, tenants) -- ux-* result/expiry/role/edition chips.
+@use 'styles/in-users';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

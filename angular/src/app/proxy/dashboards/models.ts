@@ -79,3 +79,10 @@ export interface DashboardTrendPointDto {
   label?: string;
   count?: number;
 }
+
+export interface TenantSummaryDto {
+  tenantId?: string;
+  name?: string;
+  userCount?: number;
+  appointmentCount?: number;
+}

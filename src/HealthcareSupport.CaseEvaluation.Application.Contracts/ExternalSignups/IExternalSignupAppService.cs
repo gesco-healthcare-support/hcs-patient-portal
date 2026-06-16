@@ -37,6 +37,29 @@ public interface IExternalSignupAppService : IApplicationService
     Task<InviteExternalUserResultDto> InviteExternalUserAsync(InviteExternalUserDto input);
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1) -- paged list of every invitation in the
+    /// caller's tenant (Pending / Accepted / Expired / Revoked) for the
+    /// internal "Pending Invites" management surface. Includes soft-deleted
+    /// (revoked) rows. Gated by <c>InviteExternalUser</c>.
+    /// </summary>
+    Task<PagedResultDto<InvitationDto>> GetInvitesAsync(GetInvitesInput input);
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- re-issues the invitation in place (fresh token +
+    /// reset 7-day expiry) and re-dispatches the invite email. Returns the new
+    /// invite URL so the admin can copy it. Rejects an already-accepted
+    /// invitation. Gated by <c>InviteExternalUser</c>.
+    /// </summary>
+    Task<InviteExternalUserResultDto> ResendInviteAsync(Guid id);
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- revokes (soft-deletes) a pending invitation so its
+    /// token stops validating. Rejects an already-accepted invitation. Gated by
+    /// <c>InviteExternalUser</c>.
+    /// </summary>
+    Task RevokeInviteAsync(Guid id);
+
+    /// <summary>
     /// 2026-05-15 -- anonymous endpoint that validates a raw invite
     /// token against the persisted <c>Invitation</c> row and returns the
     /// resolved email + role for the JS overlay on

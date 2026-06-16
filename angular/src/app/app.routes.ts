@@ -150,30 +150,53 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   { path: 'applicant-attorneys', children: APPLICANT_ATTORNEY_ROUTES },
   { path: 'defense-attorneys', children: DEFENSE_ATTORNEY_ROUTES },
   { path: 'claim-examiners', children: CLAIM_EXAMINER_ROUTES },
-  // 2026-05-15 -- admin invite UI for external users. Gated by the
-  // CaseEvaluation.UserManagement.InviteExternalUser permission so external
-  // roles get a 403 page instead of the form; server-side re-enforced.
+  // Prompt 16 (2026-06-16): Users & Access hub. One standalone component mounted
+  // at four section routes (deep-linkable + per-route gated); replaces the legacy
+  // invite + internal-users forms. /users/invite stays the People-hub invite
+  // deep-link target (consumes ?email + ?userType). Legacy components kept on
+  // disk until live sign-off, just de-routed here.
   {
-    path: 'users/invite',
-    loadComponent: () =>
-      import('./external-users/components/invite-external-user.component').then(
-        (c) => c.InviteExternalUserComponent,
-      ),
-    canActivate: [authGuard, permissionGuard],
-    data: { requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser' },
+    path: 'users',
+    children: [
+      { path: '', redirectTo: 'invite', pathMatch: 'full' },
+      {
+        path: 'invite',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: {
+          section: 'invite',
+          requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
+        },
+      },
+      {
+        path: 'pending',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: {
+          section: 'pending',
+          requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
+        },
+      },
+      {
+        path: 'internal',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'staff', requiredPolicy: 'CaseEvaluation.InternalUsers.Create' },
+      },
+      {
+        path: 'tenants',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'tenants', requiredPolicy: 'Saas.Tenants' },
+      },
+    ],
   },
-  // 2026-05-15 -- IT Admin internal-user creation. Gated by the
-  // CaseEvaluation.InternalUsers.Create permission (host-scoped); the
-  // AppService re-validates server-side.
-  {
-    path: 'internal-users',
-    loadComponent: () =>
-      import('./internal-users/components/internal-users-form.component').then(
-        (c) => c.InternalUsersFormComponent,
-      ),
-    canActivate: [authGuard, permissionGuard],
-    data: { requiredPolicy: 'CaseEvaluation.InternalUsers.Create' },
-  },
+  // Back-compat: the legacy /internal-users path now lands on the hub.
+  { path: 'internal-users', redirectTo: 'users/internal', pathMatch: 'full' },
 ];
 
 export const APP_ROUTES: Routes = [

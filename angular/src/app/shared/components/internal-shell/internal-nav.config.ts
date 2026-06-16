@@ -267,26 +267,22 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
     sect: 'SaaS',
     items: [
       {
+        // Prompt 16 (2026-06-16): the redesigned Users & Access hub serves IT Admin's
+        // invite / pending / internal-users / tenants surfaces via its rail. Editions
+        // was cancelled (no real use). Tenants keeps a direct link to the hub section.
+        id: 'users-access',
+        label: 'Users & Access',
+        icon: 'user',
+        route: '/users/invite',
+        roles: ['itadmin'],
+        requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
+      },
+      {
         id: 'tenants',
         label: 'Tenants',
         icon: 'users',
-        route: '/saas/tenants',
+        route: '/users/tenants',
         roles: ['itadmin'],
-      },
-      {
-        id: 'editions',
-        label: 'Editions',
-        icon: 'list',
-        route: '/saas/editions',
-        roles: ['itadmin'],
-      },
-      {
-        id: 'internal-users',
-        label: 'Internal Users',
-        icon: 'user',
-        route: '/internal-users',
-        roles: ['itadmin'],
-        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
       },
     ],
   },

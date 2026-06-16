@@ -41,6 +41,13 @@ public class InviteExternalUserDto
     public string? LastName { get; set; }
 
     /// <summary>
+    /// Optional firm name, attorney invites only (2026-06-16 / #21). Pre-fills
+    /// the attorney's firm on the register form; ignored for non-attorney roles.
+    /// </summary>
+    [StringLength(256)]
+    public string? FirmName { get; set; }
+
+    /// <summary>
     /// External role the invitation grants. Restricted to the four
     /// external roles: Patient, ApplicantAttorney, DefenseAttorney,
     /// ClaimExaminer. The AppService rejects any other value with 400.

@@ -11,9 +11,9 @@ export interface StateCreateDto {
 
 export interface StateDto extends FullAuditedEntityDto<string> {
   name?: string;
+  concurrencyStamp?: string;
   isSystem?: boolean;
   usageCount?: number | null;
-  concurrencyStamp?: string;
 }
 
 export interface StateUpdateDto {

@@ -1,8 +1,8 @@
 import type { AppointmentReportRowDto, GetAppointmentReportInput } from './models';
-import type { AppointmentStatusCountDto } from '../appointments/models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
+import type { AppointmentStatusCountDto } from '../appointments/models';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
 
 @Injectable({
@@ -11,6 +11,15 @@ import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
 export class ReportService {
   private restService = inject(RestService);
   apiName = 'Default';
+  
+
+  exportCsv = (input: GetAppointmentReportInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, IActionResult>({
+      method: 'GET',
+      url: '/api/app/reports/export-csv',
+      params: { filterText: input.filterText, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+    },
+    { apiName: this.apiName,...config });
   
 
   exportPdf = (input: GetAppointmentReportInput, config?: Partial<Rest.Config>) =>
@@ -29,21 +38,12 @@ export class ReportService {
       params: { filterText: input.filterText, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
-
+  
 
   getStatusCounts = (input: GetAppointmentReportInput, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentStatusCountDto[]>({
       method: 'GET',
       url: '/api/app/reports/status-counts',
-      params: { filterText: input.filterText, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
-    },
-    { apiName: this.apiName,...config });
-
-
-  exportCsv = (input: GetAppointmentReportInput, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, IActionResult>({
-      method: 'GET',
-      url: '/api/app/reports/export-csv',
       params: { filterText: input.filterText, appointmentTypeId: input.appointmentTypeId, locationId: input.locationId, appointmentStatus: input.appointmentStatus, appointmentDateMin: input.appointmentDateMin, appointmentDateMax: input.appointmentDateMax, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });

@@ -50,4 +50,12 @@ public static class InvitationConsts
     /// StringLength so the invite-time and accept-time name budgets agree.
     /// </summary>
     public const int NameMaxLength = 128;
+
+    /// <summary>
+    /// Maximum firm-name column length on the Invitation row (2026-06-16,
+    /// Prompt 16 / #21). Optional, attorney invites only -- pre-fills the
+    /// attorney's firm at registration. 256 matches the FirmName user
+    /// extension-property budget.
+    /// </summary>
+    public const int FirmNameMaxLength = 256;
 }

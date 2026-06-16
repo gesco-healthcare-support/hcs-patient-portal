@@ -288,6 +288,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // Staff still does NOT -- creating users stays a supervisor/admin power.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
 
         // 2026-05-19 -- IT Admin can create new tenants from the Volo
         // SaaS Tenants page (/saas/tenants). Host Admin (admin@abp.io)
@@ -427,8 +428,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // InternalUsers is MultiTenancySides.Both so the tenant-side grant is
         // valid; InternalUsersAppService.CreatableRoleNames bounds creatable
         // roles to the two tenant tiers. IT Admin (host) stays seed-only.
+        // 2026-06-16 (A-B3): .Edit also gates the admin password-reset action.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
     }
 
     /// <summary>

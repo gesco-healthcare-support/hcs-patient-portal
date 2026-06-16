@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Asp.Versioning;
 using HealthcareSupport.CaseEvaluation.Dashboards;
@@ -31,5 +32,11 @@ public class DashboardController : AbpController, IDashboardAppService
     public Task<DashboardDto> GetDashboardAsync([FromQuery] DashboardRange range)
     {
         return _appService.GetDashboardAsync(range);
+    }
+
+    [HttpGet("tenant-summaries")]
+    public Task<List<TenantSummaryDto>> GetTenantSummariesAsync()
+    {
+        return _appService.GetTenantSummariesAsync();
     }
 }

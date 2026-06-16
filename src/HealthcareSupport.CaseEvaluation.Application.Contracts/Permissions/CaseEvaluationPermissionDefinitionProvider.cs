@@ -207,6 +207,9 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         internalUsersPermission.AddChild(
             CaseEvaluationPermissions.InternalUsers.Create,
             L("Permission:InternalUsers.Create"));
+        internalUsersPermission.AddChild(
+            CaseEvaluationPermissions.InternalUsers.Edit,
+            L("Permission:InternalUsers.Edit"));
     }
 
     private static LocalizableString L(string name)

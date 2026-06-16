@@ -51,11 +51,6 @@ export interface AppointmentCreateDto {
   customFieldValues?: CustomFieldValueInputDto[];
 }
 
-export interface AppointmentStatusCountDto {
-  status?: AppointmentStatusType;
-  count?: number;
-}
-
 export interface AppointmentDto extends FullAuditedEntityDto<string> {
   panelNumber?: string | null;
   appointmentDate?: string;
@@ -78,6 +73,11 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
   refferedBy?: string | null;
+}
+
+export interface AppointmentStatusCountDto {
+  status?: AppointmentStatusType;
+  count?: number;
 }
 
 export interface AppointmentUpdateDto {
@@ -151,9 +151,9 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   accessorIdentityUserId?: string | null;
   appointmentTypeId?: string | null;
   locationId?: string | null;
-  appointmentStatus?: AppointmentStatusType | null;
-  appointmentStatuses?: AppointmentStatusType[];
   patientId?: string | null;
+  appointmentStatus?: AppointmentStatusType | null;
+  appointmentStatuses?: AppointmentStatusType[] | null;
 }
 
 export interface RejectAppointmentInput {
