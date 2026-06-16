@@ -135,7 +135,8 @@ export class PeopleSectionGateway {
       id: a?.id ?? '',
       firstName: a?.firstName ?? '',
       lastName: a?.lastName ?? '',
-      email: identityUser?.email ?? null,
+      // prefer the attorney record's own email; fall back to the linked identity's
+      email: a?.email ?? identityUser?.email ?? null,
       phoneNumber: a?.phoneNumber ?? null,
       identityUserId: a?.identityUserId ?? null,
       portal: a?.identityUserId ? 'linked' : 'none',
@@ -256,6 +257,7 @@ export class PeopleSectionGateway {
       firmName: f.firmName.trim() || null,
       firmAddress: f.firmAddress.trim() || null,
       webAddress: f.webAddress.trim() || null,
+      email: f.email.trim() || null,
       phoneNumber: f.phoneNumber.trim() || null,
       faxNumber: f.faxNumber.trim() || null,
       stateId: f.stateId || null,

@@ -341,6 +341,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Edit("WcabOffices");
         yield return Delete("WcabOffices");
 
+        // F3 (2026-06-16): the AppointmentStatus lookup is enum-driven reference
+        // data, so grant VIEW only (no Create/Edit/Delete) -- the Configuration >
+        // Statuses section then renders read-only via per-action gating, letting
+        // the supervisor see the canonical statuses without implying they are
+        // editable. (Runtime status uses the AppointmentStatusType enum.)
+        yield return Default("AppointmentStatuses");
+
         foreach (var entity in OperationalEntities)
         {
             yield return Default(entity);

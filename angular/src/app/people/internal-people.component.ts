@@ -365,6 +365,8 @@ export class InternalPeopleComponent {
       firmAddress: r.firmAddress ?? '',
       webAddress: r.webAddress ?? '',
       faxNumber: r.faxNumber ?? '',
+      // carry the row's concurrency stamp so updates pass the required check
+      concurrencyStamp: r.concurrencyStamp,
     };
   }
 

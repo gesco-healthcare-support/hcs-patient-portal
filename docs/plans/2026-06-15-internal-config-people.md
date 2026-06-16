@@ -303,3 +303,35 @@ TODO (next session):
   resolves). Spot-check Supervisor (stafsuper1) sees the full tenant nav. If
   feasible, revoke one permission via the admin UI and confirm its nav item
   disappears (proves permission-driven, not role-driven).
+
+## Post-verification follow-ups (2026-06-16)
+
+Live verification (stafsuper1) surfaced gaps. Adrian approved these fixes. On
+sub-branch `fix/config-people-followups` off `feat/internal-user-pages`; atomic
+commit per item; batch live-verify + squash-merge at the end.
+
+- **F5a [code]** Expose attorney Email end-to-end. The ApplicantAttorney /
+  DefenseAttorney ENTITIES already store `Email`, but their Create/Update/read
+  DTOs omit it, so the People hub cannot edit it. Add `Email` to the 3 DTOs each
+  + map it (Mapperly auto-maps; entity has the field) + regen the proxies + add
+  an Email input to the attorney branch of the people edit modal. ClaimExaminer
+  already has email end-to-end (no change).
+- **F2 [code]** Backfill `IsSystem` on canonical lookup rows. Seeders set
+  IsSystem only on insert, so pre-existing English/California/AME (and any system
+  doc-type) stay false and show no System chip. Add a host-context EF migration
+  whose Up runs idempotent `UPDATE ... SET IsSystem=1 WHERE Id IN (<seed guids>)`
+  keyed by CaseEvaluationSeedIds. Production-safe + idempotent (no wipe).
+- **F3 [code]** Grant Staff Supervisor `AppointmentStatuses.Default` (view only)
+  in the role seeder. The status lookup is enum-driven/non-functional, so with
+  per-action gating the supervisor sees the 6 seeded statuses as read-only
+  reference (no Create/Edit/Delete buttons). Keeps the design's section honest.
+- **F1 [verify]** Drive clistaff1 (Intake) live: no Config/attorney/examiner rail,
+  Patients shown without Delete, field-config hidden, nothing 403s.
+- **F4 [verify]** Clean the stray PQME field-config (SSN hidden) test row created
+  during verification: reopen panel -> SSN Visible -> Save.
+- **F6 [docs]** Document that AppointmentDocumentType has no per-row required
+  flag (required-docs is the RequiredDocumentEvaluator/package mechanism); the
+  modal's isActive/"Inactive" mapping stays. No code change.
+
+Deferred (noted, not in scope): gated SSN reveal for Patients.RevealSsn holders
+(Intake); attorney appointments-count column.

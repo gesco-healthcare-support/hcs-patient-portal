@@ -202,6 +202,15 @@
             />
           </div>
           <div class="ra-field col-6">
+            <label>Email</label>
+            <input
+              class="ra-input"
+              type="email"
+              [ngModel]="draft().email"
+              (ngModelChange)="patch({ email: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
             <label>Phone</label>
             <input
               class="ra-input"
