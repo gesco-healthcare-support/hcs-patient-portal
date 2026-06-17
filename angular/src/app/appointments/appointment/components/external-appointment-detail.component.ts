@@ -3,7 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { Component, Injector, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfigStateService as AbpConfigStateService, RestService } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
+import {
+  allFixed,
+  buildCorrectionsPayload,
+  fixItProgress,
+  isInlineEditable,
+} from './external-fix-it.util';
 import { AppointmentViewComponent } from './appointment-view.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
@@ -17,11 +24,7 @@ import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
-import type {
-  PatientDto,
-  PatientUpdateDto,
-  PatientWithNavigationPropertiesDto,
-} from '../../../proxy/patients/models';
+import type { PatientDto } from '../../../proxy/patients/models';
 import { firstValueFrom } from 'rxjs';
 
 interface CalloutCopy {
@@ -117,23 +120,20 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly shellConfig = inject(AbpConfigStateService);
   private readonly shellRest = inject(RestService);
   private readonly detailRoute = inject(ActivatedRoute);
+  private readonly fixItToaster = inject(ToasterService);
 
   // Send Back fix-it: the open info request (staff note + flagged fields).
   protected infoRequest: OpenInfoRequest | null = null;
   protected resubmitConfirmVisible = false;
   protected isResubmitting = false;
-  // Local edit model for flagged patient-demographic fields. Kept separate from
-  // the inherited reactive form, which super.ngOnInit() disables for external
-  // read-only viewing. Patient-level keys are editable inline here; other flagged
-  // keys (schedule/attorney/insurance/documents) are shown for context and fixed
-  // via their own affordances (documents via the document manager below).
+  // Local edit model for every inline-editable flagged field (patient demographics,
+  // attorney/examiner email, insurance, defense firm). Kept separate from the
+  // inherited reactive form, which super.ngOnInit() disables for external read-only
+  // viewing. The writes go through the locked corrections endpoint; documents are
+  // replaced via the existing documents section below.
   protected edits: Record<string, string> = {};
-  private readonly patientEditableKeys = [
-    'socialSecurityNumber',
-    'cellPhoneNumber',
-    'address',
-    'dateOfBirth',
-  ];
+  protected readonly touched = new Set<string>();
+  protected languageOptions: { id: string; name: string }[] = [];
 
   protected navClinicName = 'Appointment Portal';
   protected navDisplayName = '';
@@ -146,6 +146,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     super.ngOnInit();
     this.loadNavName();
     this.loadInfoRequest();
+    this.loadLanguageOptions();
   }
 
   // ---- status banner ----
@@ -298,30 +299,105 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
       });
   }
 
-  /** Seed editable patient fields from the loaded appointment. SSN starts blank --
-   *  the read DTO masks it to last-4, so it must never be echoed back as the value. */
+  /**
+   * Seed the inline edit model from the loaded appointment so each input starts
+   * with the current value (SSN starts blank -- the read DTO masks it, so it must
+   * never be echoed back). Pre-fill is best-effort; an empty start is harmless
+   * because the requester types the correction regardless.
+   */
   private seedEdits(): void {
     const p = this.patientNav;
-    for (const f of this.infoRequest?.flaggedFields ?? []) {
-      if (!this.isPatientEditable(f.key)) {
-        continue;
-      }
-      if (f.key === 'socialSecurityNumber') {
-        this.edits[f.key] = '';
-      } else if (f.key === 'dateOfBirth') {
-        this.edits[f.key] = (p?.dateOfBirth ?? '').slice(0, 10);
-      } else {
-        this.edits[f.key] = String((p as Record<string, unknown> | undefined)?.[f.key] ?? '');
-      }
+    const appt = this.appointment?.appointment as Record<string, unknown> | undefined;
+    const insurance = (this.appointment as { primaryInsurance?: { name?: string } } | null)
+      ?.primaryInsurance;
+    const defense = (
+      this.appointment as {
+        appointmentDefenseAttorney?: { defenseAttorney?: { firmName?: string } };
+      } | null
+    )?.appointmentDefenseAttorney?.defenseAttorney;
+
+    const seed: Record<string, string> = {
+      dateOfBirth: (p?.dateOfBirth ?? '').slice(0, 10),
+      socialSecurityNumber: '',
+      address: String(p?.address ?? ''),
+      cellPhoneNumber: String(p?.cellPhoneNumber ?? ''),
+      appointmentLanguageId: String(p?.appointmentLanguageId ?? ''),
+      applicantAttorneyEmail: String(appt?.['applicantAttorneyEmail'] ?? ''),
+      appointmentClaimExaminerEmail: String(appt?.['claimExaminerEmail'] ?? ''),
+      appointmentInsuranceName: String(insurance?.name ?? ''),
+      defenseAttorneyFirmName: String(defense?.firmName ?? ''),
+    };
+
+    for (const key of this.editableFlaggedKeys) {
+      this.edits[key] = seed[key] ?? '';
     }
+  }
+
+  private loadLanguageOptions(): void {
+    this.getAppointmentLanguageLookup({ filter: '', skipCount: 0, maxResultCount: 100 }).subscribe({
+      next: (res) => {
+        this.languageOptions = (res.items ?? []).map((i) => ({
+          id: i.id ?? '',
+          name: i.displayName ?? '',
+        }));
+      },
+      error: () => {
+        /* lookup optional; language stays a plain text field */
+      },
+    });
   }
 
   protected get hasFlaggedFields(): boolean {
     return (this.infoRequest?.flaggedFields?.length ?? 0) > 0;
   }
-  protected isPatientEditable(key: string): boolean {
-    return this.patientEditableKeys.includes(key);
+
+  /** All flagged keys, in the order staff selected them. */
+  protected get flaggedKeys(): string[] {
+    return (this.infoRequest?.flaggedFields ?? []).map((f) => f.key);
   }
+
+  /** Flagged keys the requester edits inline (everything except documents). */
+  protected get editableFlaggedKeys(): string[] {
+    return this.flaggedKeys.filter((k) => isInlineEditable(k));
+  }
+
+  protected get documentFlagged(): boolean {
+    return this.flaggedKeys.includes('documents');
+  }
+
+  protected isInlineEditable(key: string): boolean {
+    return isInlineEditable(key);
+  }
+  protected isLanguage(key: string): boolean {
+    return key === 'appointmentLanguageId';
+  }
+  protected isFixed(key: string): boolean {
+    return this.touched.has(key);
+  }
+  protected onEdit(key: string, value: string): void {
+    this.edits[key] = value;
+    this.touched.add(key);
+  }
+
+  /** Acknowledge the document replacement (the upload happens in the Documents section). */
+  protected ackDocumentReplaced(): void {
+    this.touched.add('documents');
+    this.fixItToaster.success('Thanks -- upload your replacement in the Documents section below.');
+  }
+
+  protected get fixedCount(): number {
+    return fixItProgress(this.flaggedKeys, this.touched).fixed;
+  }
+  protected get totalFlagged(): number {
+    return this.flaggedKeys.length;
+  }
+  protected get progressPct(): number {
+    return this.totalFlagged === 0 ? 0 : Math.round((this.fixedCount / this.totalFlagged) * 100);
+  }
+  protected get canResubmit(): boolean {
+    return allFixed(this.flaggedKeys, this.touched);
+  }
+
   protected fieldLabel(key: string): string {
     return FIELD_LABELS[key] ?? key;
   }
@@ -339,11 +415,20 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     this.resubmitConfirmVisible = false;
   }
 
+  /** Save the corrections without resubmitting -- the requester can finish later. */
+  protected async saveLater(): Promise<void> {
+    if (this.isResubmitting) {
+      return;
+    }
+    if (await this.saveCorrections()) {
+      this.fixItToaster.success('Saved -- finish anytime from your home page.');
+    }
+  }
+
   /**
-   * Resubmit a sent-back appointment. If any patient-demographic field was flagged,
-   * save the edits first via the booking patient-update endpoint (fetching a fresh
-   * DTO for the concurrency stamp; SSN is only written when the user typed a new
-   * value, never the masked read value), then transition InfoRequested -> Pending.
+   * Resubmit: persist the corrections through the locked corrections endpoint, then
+   * transition InfoRequested -> Pending. Both calls run server-side under the
+   * edit-access guard; the corrections endpoint re-locks to the flagged set.
    */
   protected async confirmResubmit(): Promise<void> {
     const id = this.detailRoute.snapshot.paramMap.get('id');
@@ -352,7 +437,10 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     }
     this.isResubmitting = true;
     try {
-      await this.savePatientEditsIfAny();
+      if (!(await this.saveCorrections())) {
+        this.isResubmitting = false;
+        return;
+      }
       await firstValueFrom(
         this.shellRest.request<unknown, void>(
           { method: 'POST', url: `/api/app/appointment-info-requests/resubmit/${id}` },
@@ -366,47 +454,30 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     }
   }
 
-  private async savePatientEditsIfAny(): Promise<void> {
-    const flagged = this.infoRequest?.flaggedFields ?? [];
-    const editablePatientKeys = flagged.map((f) => f.key).filter((k) => this.isPatientEditable(k));
-    const patientId = this.patientNav?.id ?? this.appointment?.appointment?.patientId;
-    if (editablePatientKeys.length === 0 || !patientId) {
-      return;
+  /** POST the flagged-field corrections; returns false on failure (ABP shows the error). */
+  private async saveCorrections(): Promise<boolean> {
+    const id = this.detailRoute.snapshot.paramMap.get('id');
+    if (!id) {
+      return false;
     }
-    // Fetch a fresh, complete patient DTO so required fields + concurrency stamp are intact.
-    // The endpoint returns a WithNavigationProperties wrapper; the flat patient -- which
-    // carries the root-level firstName/lastName/email/concurrencyStamp the update DTO
-    // requires -- lives under `.patient`. Spreading the wrapper itself nests those fields,
-    // so the PUT 400s ("First Name/Last Name/Email/ConcurrencyStamp required"). Build the
-    // update body from `current.patient`.
-    const current = await firstValueFrom(
-      this.shellRest.request<unknown, PatientWithNavigationPropertiesDto>(
-        { method: 'GET', url: `/api/app/patients/for-appointment-booking/${patientId}` },
-        { apiName: 'Default' },
-      ),
-    );
-    const dto = { ...(current.patient ?? {}) } as PatientUpdateDto;
-    // The read DTO masks SSN: never echo the mask back. Send the typed value, or null
-    // so the server's never-clear rule preserves the stored SSN.
-    dto.socialSecurityNumber = this.edits['socialSecurityNumber']?.trim() || null;
-    if (editablePatientKeys.includes('cellPhoneNumber')) {
-      dto.cellPhoneNumber = this.edits['cellPhoneNumber']?.trim() || null;
+    const payload = buildCorrectionsPayload(this.flaggedKeys, this.edits);
+    if (Object.keys(payload).length === 0) {
+      return true; // nothing to persist (e.g. a document-only correction)
     }
-    if (editablePatientKeys.includes('address')) {
-      dto.address = this.edits['address']?.trim() || null;
+    try {
+      await firstValueFrom(
+        this.shellRest.request<typeof payload, void>(
+          {
+            method: 'POST',
+            url: `/api/app/appointment-info-requests/corrections/${id}`,
+            body: payload,
+          },
+          { apiName: 'Default' },
+        ),
+      );
+      return true;
+    } catch {
+      return false;
     }
-    if (editablePatientKeys.includes('dateOfBirth') && this.edits['dateOfBirth']) {
-      dto.dateOfBirth = this.edits['dateOfBirth'];
-    }
-    await firstValueFrom(
-      this.shellRest.request<PatientUpdateDto, PatientDto>(
-        {
-          method: 'PUT',
-          url: `/api/app/patients/for-appointment-booking/${patientId}`,
-          body: dto,
-        },
-        { apiName: 'Default' },
-      ),
-    );
   }
 }

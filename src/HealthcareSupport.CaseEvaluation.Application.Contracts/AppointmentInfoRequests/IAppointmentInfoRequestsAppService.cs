@@ -14,6 +14,13 @@ public interface IAppointmentInfoRequestsAppService : IApplicationService
     /// <summary>Staff-only. Open an info request + move the appointment to InfoRequested.</summary>
     Task<AppointmentInfoRequestDto> SendBackAsync(Guid appointmentId, SendBackAppointmentInput input);
 
+    /// <summary>
+    /// External party. Apply the requester's corrections to the flagged fields only
+    /// (server-side locked to the open request's flagged set). Does NOT change status;
+    /// the requester resubmits separately via <see cref="ResubmitAsync"/>.
+    /// </summary>
+    Task SaveCorrectionsAsync(Guid appointmentId, SaveInfoRequestCorrectionsInput input);
+
     /// <summary>External party. Resolve the open request + move the appointment back to Pending.</summary>
     Task ResubmitAsync(Guid appointmentId);
 

@@ -1,4 +1,4 @@
-import type { AppointmentInfoRequestDto, SendBackAppointmentInput } from './models';
+import type { AppointmentInfoRequestDto, SaveInfoRequestCorrectionsInput, SendBackAppointmentInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
@@ -22,6 +22,15 @@ export class AppointmentInfoRequestService {
     this.restService.request<any, void>({
       method: 'POST',
       url: `/api/app/appointment-info-requests/resubmit/${appointmentId}`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  saveCorrections = (appointmentId: string, input: SaveInfoRequestCorrectionsInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, void>({
+      method: 'POST',
+      url: `/api/app/appointment-info-requests/corrections/${appointmentId}`,
+      body: input,
     },
     { apiName: this.apiName,...config });
   

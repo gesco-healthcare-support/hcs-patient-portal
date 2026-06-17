@@ -33,6 +33,14 @@ public class AppointmentInfoRequestController : AbpController, IAppointmentInfoR
         [FromBody] SendBackAppointmentInput input)
         => _service.SendBackAsync(appointmentId, input);
 
+    /// <summary>External party: apply the requester's corrections to the flagged fields.</summary>
+    [HttpPost]
+    [Route("corrections/{appointmentId}")]
+    public virtual Task SaveCorrectionsAsync(
+        Guid appointmentId,
+        [FromBody] SaveInfoRequestCorrectionsInput input)
+        => _service.SaveCorrectionsAsync(appointmentId, input);
+
     /// <summary>External party: resolve the open request, move back to Pending.</summary>
     [HttpPost]
     [Route("resubmit/{appointmentId}")]

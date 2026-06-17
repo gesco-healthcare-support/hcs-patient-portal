@@ -16,6 +16,19 @@ export interface FlaggedFieldDto {
   hint?: string | null;
 }
 
+export interface SaveInfoRequestCorrectionsInput {
+  dateOfBirth?: string | null;
+  socialSecurityNumber?: string | null;
+  address?: string | null;
+  cellPhoneNumber?: string | null;
+  appointmentLanguageId?: string | null;
+  applicantAttorneyEmail?: string | null;
+  claimExaminerEmail?: string | null;
+  insuranceName?: string | null;
+  insurancePhoneNumber?: string | null;
+  defenseAttorneyFirmName?: string | null;
+}
+
 export interface SendBackAppointmentInput {
   note: string;
   flaggedFields?: FlaggedFieldDto[];
