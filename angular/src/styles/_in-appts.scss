@@ -175,6 +175,15 @@
   border-color: var(--blue-400);
   box-shadow: 0 0 0 4px var(--blue-50);
 }
+// #7 (2026-06-17): native type=date inputs ignore placeholder, so the start/end
+// date filters carry a small inline label instead (the toolbar has no labels).
+.ia-datelbl {
+  display: inline-flex;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-600);
+}
 .ia-filters__foot {
   display: flex;
   justify-content: flex-end;

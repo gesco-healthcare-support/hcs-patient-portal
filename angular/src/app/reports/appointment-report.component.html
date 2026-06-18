@@ -62,8 +62,24 @@
       <option [value]="s.value">{{ s.key }}</option>
     }
   </select>
-  <input class="ia-input" type="date" formControlName="appointmentDateMin" />
-  <input class="ia-input" type="date" formControlName="appointmentDateMax" />
+  <span class="ia-datelbl">Start date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="appointmentDateMin"
+    aria-label="Start date"
+    title="Start date"
+    style="width: 150px"
+  />
+  <span class="ia-datelbl">End date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="appointmentDateMax"
+    aria-label="End date"
+    title="End date"
+    style="width: 150px"
+  />
   <div class="rp-cols">
     <button
       class="ia-fbtn"

@@ -396,7 +396,7 @@
                     <app-icon name="chevRight" [size]="15" />
                   </span>
                 </td>
-                <td class="ia-sub au-num">{{ l.executionTime }}</td>
+                <td class="ia-sub au-num">{{ l.executionTime | date: 'MMM d, y, h:mm a' }}</td>
                 <td>
                   <b>{{ l.userName || 'anonymous' }}</b>
                 </td>

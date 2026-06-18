@@ -37,8 +37,24 @@
       <option [value]="opt">{{ opt }}</option>
     }
   </select>
-  <input class="ia-input" type="date" formControlName="startTime" />
-  <input class="ia-input" type="date" formControlName="endTime" />
+  <span class="ia-datelbl">Start date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="startTime"
+    aria-label="Start date"
+    title="Start date"
+    style="width: 150px"
+  />
+  <span class="ia-datelbl">End date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="endTime"
+    aria-label="End date"
+    title="End date"
+    style="width: 150px"
+  />
   <button class="af-btn af-btn--ghost" type="button" (click)="clearFilters()">Clear</button>
   <button class="af-btn af-btn--primary" type="submit">
     <app-icon name="search" [size]="15" />

@@ -67,6 +67,7 @@ import type { LookupDto, LookupRequestDto } from '../../proxy/shared/models';
     NgbDatepickerModule,
   ],
   templateUrl: './appointment-add-schedule.component.html',
+  styleUrl: './appointment-add-schedule.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppointmentAddScheduleComponent {

@@ -936,6 +936,13 @@ textarea.ra-input {
       border-color 0.14s ease,
       box-shadow 0.14s ease;
   }
+  // #13a/b/d (2026-06-17): the .form-control { width: 100% } above overrides
+  // Bootstrap's .input-group > .form-control { width: 1% }, so addon buttons
+  // (date calendar, SSN reveal, body-part trash) wrapped onto the next line.
+  // Keep each input and its addon button on one row.
+  .input-group {
+    flex-wrap: nowrap;
+  }
   textarea.form-control {
     min-height: 84px;
   }
