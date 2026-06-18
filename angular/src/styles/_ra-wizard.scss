@@ -683,9 +683,6 @@ textarea.ra-input {
   align-items: center;
   gap: 4px;
 }
-.ra-review__group h4 .edit:hover {
-  text-decoration: underline;
-}
 .ra-dl {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -792,6 +789,11 @@ textarea.ra-input {
 }
 .ra-modal--md {
   max-width: 620px;
+}
+// #5 (2026-06-18): wider create/edit modal (people) so the 2-up field grid has
+// room for longer values instead of cramped inputs + side whitespace.
+.ra-modal--xl {
+  max-width: 1040px;
 }
 .ra-modal__head {
   padding: 18px 22px;

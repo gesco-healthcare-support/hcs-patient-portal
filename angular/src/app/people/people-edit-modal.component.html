@@ -1,5 +1,5 @@
 <div class="ra-scrim" (click)="cancelled.emit()">
-  <div class="ra-modal ra-modal--lg" (click)="$event.stopPropagation()">
+  <div class="ra-modal ra-modal--xl" (click)="$event.stopPropagation()">
     <div class="ra-modal__head">
       <h3>{{ draft().id ? 'Edit ' + section.singular : 'New ' + section.singular }}</h3>
       <button type="button" class="x" (click)="cancelled.emit()">
@@ -8,7 +8,7 @@
     </div>
     <div class="ra-modal__body">
       <div class="ra-grid">
-        <div class="ra-field col-4">
+        <div class="ra-field col-6">
           <label>
             First name
             <span class="req">*</span>
@@ -19,7 +19,7 @@
             (ngModelChange)="patch({ firstName: $event })"
           />
         </div>
-        <div class="ra-field col-4">
+        <div class="ra-field col-6">
           <label>
             Last name
             <span class="req">*</span>
@@ -32,7 +32,7 @@
         </div>
 
         @if (section.isPatient) {
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Middle name</label>
             <input
               class="ra-input"
@@ -40,7 +40,7 @@
               (ngModelChange)="patch({ middleName: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Gender</label>
             <select
               class="ra-select"
@@ -53,7 +53,7 @@
               }
             </select>
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Date of birth</label>
             <input
               class="ra-input"
@@ -62,7 +62,7 @@
               (ngModelChange)="patch({ dateOfBirth: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Email</label>
             <input
               class="ra-input"
@@ -71,7 +71,7 @@
               (ngModelChange)="patch({ email: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Phone</label>
             <input
               class="ra-input"
@@ -79,7 +79,7 @@
               (ngModelChange)="patch({ phoneNumber: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Cell phone</label>
             <input
               class="ra-input"
@@ -87,7 +87,7 @@
               (ngModelChange)="patch({ cellPhoneNumber: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Phone type</label>
             <select
               class="ra-select"
@@ -110,7 +110,7 @@
               (ngModelChange)="patch({ socialSecurityNumber: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Street</label>
             <input
               class="ra-input"
@@ -118,7 +118,7 @@
               (ngModelChange)="patch({ street: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>City</label>
             <input
               class="ra-input"
@@ -126,7 +126,7 @@
               (ngModelChange)="patch({ city: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>State</label>
             <select
               class="ra-select"
@@ -139,7 +139,7 @@
               }
             </select>
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Zip code</label>
             <input
               class="ra-input"
@@ -147,7 +147,7 @@
               (ngModelChange)="patch({ zipCode: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Appointment language</label>
             <select
               class="ra-select"
@@ -160,7 +160,7 @@
               }
             </select>
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Other language</label>
             <input
               class="ra-input"
@@ -168,7 +168,7 @@
               (ngModelChange)="patch({ othersLanguageName: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Interpreter vendor</label>
             <input
               class="ra-input"
@@ -176,7 +176,7 @@
               (ngModelChange)="patch({ interpreterVendorName: $event })"
             />
           </div>
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Appt #</label>
             <input
               class="ra-input"
@@ -185,7 +185,7 @@
             />
           </div>
         } @else if (section.hasFirm) {
-          <div class="ra-field col-4">
+          <div class="ra-field col-6">
             <label>Firm name</label>
             <input
               class="ra-input"

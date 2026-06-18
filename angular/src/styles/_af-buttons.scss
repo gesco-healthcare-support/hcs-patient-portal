@@ -19,6 +19,10 @@
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  // #1c (2026-06-18): these button classes are applied to <a> elements (router
+  // links), so without this the browser renders the default anchor underline,
+  // making the "New X" action buttons look like hyperlinks.
+  text-decoration: none;
 }
 .af-btn:disabled {
   opacity: 0.55;
