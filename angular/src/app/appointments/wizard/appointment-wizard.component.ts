@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import {
   ConfigStateService as AbpConfigStateService,
   ListService,
+  LocalizationPipe,
   RestService,
 } from '@abp/ng.core';
 import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
@@ -89,6 +90,7 @@ const STEPS: WizardStep[] = [
     AppointmentAddCustomFieldsComponent,
     ConfirmAddressDialogComponent,
     SsnMaskPipe,
+    LocalizationPipe,
   ],
   providers: [
     ListService,

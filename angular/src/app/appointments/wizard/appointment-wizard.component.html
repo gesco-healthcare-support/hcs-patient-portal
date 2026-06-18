@@ -258,6 +258,12 @@
                     <dd>{{ patientFullName() }}</dd>
                     <dt>DOB</dt>
                     <dd>{{ fieldVal('dateOfBirth') }}</dd>
+                    <dt>Gender</dt>
+                    @if (form.get('genderId')?.value) {
+                      <dd>{{ '::Enum:Gender.' + form.get('genderId')?.value | abpLocalization }}</dd>
+                    } @else {
+                      <dd>-</dd>
+                    }
                     <dt>Email</dt>
                     <dd>{{ fieldVal('email') }}</dd>
                     <dt>Cell</dt>
