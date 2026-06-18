@@ -262,6 +262,28 @@
                     <dd>{{ fieldVal('email') }}</dd>
                     <dt>Cell</dt>
                     <dd>{{ fieldVal('cellPhoneNumber') }}</dd>
+                    <dt>Phone</dt>
+                    <dd>{{ fieldVal('phoneNumber') }}</dd>
+                    <dt>SSN</dt>
+                    <dd>{{ (form.get('socialSecurityNumber')?.value | ssnMask) || '-' }}</dd>
+                    <dt>Language</dt>
+                    <dd>{{ languageName(form.get('appointmentLanguageId')?.value) }}</dd>
+                    <dt>Interpreter</dt>
+                    <dd>{{ form.get('needsInterpreter')?.value ? 'Yes' : 'No' }}</dd>
+                    <dt>Interpreter vendor</dt>
+                    <dd>{{ fieldVal('interpreterVendorName') }}</dd>
+                    <dt>Referred by</dt>
+                    <dd>{{ fieldVal('refferedBy') }}</dd>
+                    <dt>Street</dt>
+                    <dd>{{ fieldVal('street') }}</dd>
+                    <dt>Address 2</dt>
+                    <dd>{{ fieldVal('address') }}</dd>
+                    <dt>City</dt>
+                    <dd>{{ fieldVal('city') }}</dd>
+                    <dt>State</dt>
+                    <dd>{{ stateName(form.get('stateId')?.value) }}</dd>
+                    <dt>ZIP</dt>
+                    <dd>{{ fieldVal('zipCode') }}</dd>
                   </dl>
                 </div>
                 <div class="ra-review__group">
@@ -277,6 +299,14 @@
                     <dd>{{ fieldVal('employerOccupation') }}</dd>
                     <dt>Phone</dt>
                     <dd>{{ fieldVal('employerPhoneNumber') }}</dd>
+                    <dt>Street</dt>
+                    <dd>{{ fieldVal('employerStreet') }}</dd>
+                    <dt>City</dt>
+                    <dd>{{ fieldVal('employerCity') }}</dd>
+                    <dt>State</dt>
+                    <dd>{{ stateName(form.get('employerStateId')?.value) }}</dd>
+                    <dt>ZIP</dt>
+                    <dd>{{ fieldVal('employerZipCode') }}</dd>
                   </dl>
                 </div>
                 <div class="ra-review__group">
@@ -293,6 +323,20 @@
                       <dd>{{ fieldVal('applicantAttorneyFirmName') }}</dd>
                       <dt>Email</dt>
                       <dd>{{ fieldVal('applicantAttorneyEmail') }}</dd>
+                      <dt>Website</dt>
+                      <dd>{{ fieldVal('applicantAttorneyWebAddress') }}</dd>
+                      <dt>Phone</dt>
+                      <dd>{{ fieldVal('applicantAttorneyPhoneNumber') }}</dd>
+                      <dt>Fax</dt>
+                      <dd>{{ fieldVal('applicantAttorneyFaxNumber') }}</dd>
+                      <dt>Street</dt>
+                      <dd>{{ fieldVal('applicantAttorneyStreet') }}</dd>
+                      <dt>City</dt>
+                      <dd>{{ fieldVal('applicantAttorneyCity') }}</dd>
+                      <dt>State</dt>
+                      <dd>{{ stateName(form.get('applicantAttorneyStateId')?.value) }}</dd>
+                      <dt>ZIP</dt>
+                      <dd>{{ fieldVal('applicantAttorneyZipCode') }}</dd>
                     } @else {
                       <dt>Status</dt>
                       <dd>Self-represented</dd>
@@ -313,6 +357,20 @@
                       <dd>{{ fieldVal('defenseAttorneyFirmName') }}</dd>
                       <dt>Email</dt>
                       <dd>{{ fieldVal('defenseAttorneyEmail') }}</dd>
+                      <dt>Website</dt>
+                      <dd>{{ fieldVal('defenseAttorneyWebAddress') }}</dd>
+                      <dt>Phone</dt>
+                      <dd>{{ fieldVal('defenseAttorneyPhoneNumber') }}</dd>
+                      <dt>Fax</dt>
+                      <dd>{{ fieldVal('defenseAttorneyFaxNumber') }}</dd>
+                      <dt>Street</dt>
+                      <dd>{{ fieldVal('defenseAttorneyStreet') }}</dd>
+                      <dt>City</dt>
+                      <dd>{{ fieldVal('defenseAttorneyCity') }}</dd>
+                      <dt>State</dt>
+                      <dd>{{ stateName(form.get('defenseAttorneyStateId')?.value) }}</dd>
+                      <dt>ZIP</dt>
+                      <dd>{{ fieldVal('defenseAttorneyZipCode') }}</dd>
                     } @else {
                       <dt>Status</dt>
                       <dd>None assigned</dd>
@@ -328,8 +386,20 @@
                   <dl class="ra-dl">
                     <dt>Company</dt>
                     <dd>{{ fieldVal('appointmentInsuranceName') }}</dd>
+                    <dt>Suite</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceSuite') }}</dd>
                     <dt>Phone</dt>
                     <dd>{{ fieldVal('appointmentInsurancePhoneNumber') }}</dd>
+                    <dt>Fax</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceFaxNumber') }}</dd>
+                    <dt>Street</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceStreet') }}</dd>
+                    <dt>City</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceCity') }}</dd>
+                    <dt>State</dt>
+                    <dd>{{ stateName(form.get('appointmentInsuranceStateId')?.value) }}</dd>
+                    <dt>ZIP</dt>
+                    <dd>{{ fieldVal('appointmentInsuranceZip') }}</dd>
                   </dl>
                 </div>
                 <div class="ra-review__group">
@@ -343,8 +413,20 @@
                     <dd>{{ fieldVal('appointmentClaimExaminerName') }}</dd>
                     <dt>Email</dt>
                     <dd>{{ fieldVal('appointmentClaimExaminerEmail') }}</dd>
+                    <dt>Suite</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerSuite') }}</dd>
                     <dt>Phone</dt>
                     <dd>{{ fieldVal('appointmentClaimExaminerPhoneNumber') }}</dd>
+                    <dt>Fax</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerFax') }}</dd>
+                    <dt>Street</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerStreet') }}</dd>
+                    <dt>City</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerCity') }}</dd>
+                    <dt>State</dt>
+                    <dd>{{ stateName(form.get('appointmentClaimExaminerStateId')?.value) }}</dd>
+                    <dt>ZIP</dt>
+                    <dd>{{ fieldVal('appointmentClaimExaminerZip') }}</dd>
                   </dl>
                 </div>
                 <div class="ra-review__group ra-review__full">
@@ -353,7 +435,39 @@
                     Claim information
                     <button type="button" class="edit" (click)="jumpTo(6)">Edit</button>
                   </h4>
-                  <p class="ra-placeholder">{{ injuryDrafts.length }} claim entries added.</p>
+                  @if (injuryDrafts.length === 0) {
+                    <p class="ra-placeholder">No claim information added.</p>
+                  } @else {
+                    @for (injury of injuryDrafts; track $index) {
+                      <div class="ra-injury">
+                        <div class="ra-injury__hd">
+                          Injury {{ $index + 1 }}
+                          @if (injury.isCumulativeInjury) {
+                            <span class="ra-injury__tag">Cumulative trauma</span>
+                          }
+                        </div>
+                        <dl class="ra-dl">
+                          @if (injury.isCumulativeInjury) {
+                            <dt>From</dt>
+                            <dd>{{ injury.dateOfInjury || '-' }}</dd>
+                            <dt>To</dt>
+                            <dd>{{ injury.toDateOfInjury || '-' }}</dd>
+                          } @else {
+                            <dt>Date of injury</dt>
+                            <dd>{{ injury.dateOfInjury || '-' }}</dd>
+                          }
+                          <dt>Claim #</dt>
+                          <dd>{{ injury.claimNumber || '-' }}</dd>
+                          <dt>WCAB office</dt>
+                          <dd>{{ wcabName(injury.wcabOfficeId) }}</dd>
+                          <dt>ADJ #</dt>
+                          <dd>{{ injury.wcabAdj || '-' }}</dd>
+                          <dt>Body parts</dt>
+                          <dd>{{ injury.bodyParts.length ? injury.bodyParts.join(', ') : '-' }}</dd>
+                        </dl>
+                      </div>
+                    }
+                  }
                 </div>
                 <div class="ra-review__group ra-review__full">
                   <h4>
@@ -361,7 +475,21 @@
                     Documents
                     <button type="button" class="edit" (click)="jumpTo(7)">Edit</button>
                   </h4>
-                  <p class="ra-placeholder">{{ stagedDocuments.length }} file(s) attached.</p>
+                  @if (stagedDocuments.length === 0) {
+                    <p class="ra-placeholder">No documents attached.</p>
+                  } @else {
+                    <ul class="ra-files">
+                      @for (doc of stagedDocuments; track $index) {
+                        <li>
+                          <app-icon name="doc" [size]="14" />
+                          <span class="ra-files__nm">{{ doc.file.name }}</span>
+                          @if (doc.isStrikeList) {
+                            <span class="ra-injury__tag">Panel strike list</span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
                 </div>
               </div>
             </div>

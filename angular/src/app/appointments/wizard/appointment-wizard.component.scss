@@ -11,3 +11,53 @@
   font-size: 13.5px;
   margin: 0;
 }
+
+// Review-step full-mirror additions (#13e). Scoped to the wizard so they stay
+// clear of the shared styles/_ra-wizard.scss partial (Track A owns that). The
+// .ra-review / .ra-dl primitives still come from that global partial; these
+// only style the per-injury blocks and the attached-file list.
+.ra-injury {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.ra-injury:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+.ra-injury__hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--n-800);
+}
+.ra-injury__tag {
+  padding: 1px 8px;
+  border: 1px solid var(--blue-200);
+  border-radius: var(--r-pill);
+  background: var(--blue-50);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-700);
+}
+.ra-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ra-files li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--n-800);
+}
+.ra-files__nm {
+  font-weight: 600;
+  word-break: break-all;
+}

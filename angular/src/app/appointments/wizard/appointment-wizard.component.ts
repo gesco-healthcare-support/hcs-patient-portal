@@ -30,6 +30,7 @@ import { ExternalNavbarComponent } from '../../shared/components/external-navbar
 import { SubmitQueryModalComponent } from '../../user-queries/submit-query-modal.component';
 import { performFullLogout } from '../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../shared/auth/external-user-display-name';
+import { SsnMaskPipe } from '../../shared/pipes/ssn-mask.pipe';
 import * as wizardCopy from './wizard-copy.util';
 
 interface WizardStep {
@@ -87,6 +88,7 @@ const STEPS: WizardStep[] = [
     AppointmentAddAuthorizedUsersComponent,
     AppointmentAddCustomFieldsComponent,
     ConfirmAddressDialogComponent,
+    SsnMaskPipe,
   ],
   providers: [
     ListService,
@@ -115,6 +117,12 @@ export class AppointmentWizardComponent
   // (the form stores only the GUID ids).
   protected readonly typeNames = new Map<string, string>();
   protected readonly locationNames = new Map<string, string>();
+  // Same id->name resolution as type/location, for the full review mirror: the
+  // form stores GUID ids for state / language / WCAB office, so the review
+  // resolves them to display names rather than printing raw ids.
+  protected readonly stateNames = new Map<string, string>();
+  protected readonly languageNames = new Map<string, string>();
+  protected readonly wcabNames = new Map<string, string>();
 
   // navbar firm-aware display name (same resolution as the external home)
   protected navDisplayName = '';
@@ -220,6 +228,26 @@ export class AppointmentWizardComponent
     this.getLocationLookup({ maxResultCount: 200 }).subscribe((r) =>
       (r.items ?? []).forEach((i) => this.locationNames.set(i.id ?? '', i.displayName ?? '')),
     );
+    this.getStateLookup({ maxResultCount: 1000 }).subscribe((r) =>
+      (r.items ?? []).forEach((i) => this.stateNames.set(i.id ?? '', i.displayName ?? '')),
+    );
+    this.getAppointmentLanguageLookup({ maxResultCount: 200 }).subscribe((r) =>
+      (r.items ?? []).forEach((i) => this.languageNames.set(i.id ?? '', i.displayName ?? '')),
+    );
+    // WCAB offices have no lookup helper on the parent, so fetch the same
+    // endpoint the claim-information modal uses to resolve venue names by id.
+    this.shellRest
+      .request<unknown, { items?: { id?: string; displayName?: string }[] }>(
+        {
+          method: 'GET',
+          url: '/api/app/appointment-injury-details/wcab-office-lookup',
+          params: { skipCount: 0, maxResultCount: 200 },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe((r) =>
+        (r?.items ?? []).forEach((i) => this.wcabNames.set(i.id ?? '', i.displayName ?? '')),
+      );
   }
 
   ngOnDestroy(): void {
@@ -267,11 +295,26 @@ export class AppointmentWizardComponent
     return v === null || v === undefined || v === '' ? '-' : String(v);
   }
   protected patientFullName(): string {
-    const n = [this.form.get('firstName')?.value, this.form.get('lastName')?.value]
+    const n = [
+      this.form.get('firstName')?.value,
+      this.form.get('middleName')?.value,
+      this.form.get('lastName')?.value,
+    ]
       .filter(Boolean)
       .join(' ')
       .trim();
     return n || '-';
+  }
+  // Resolve a stored GUID id to its display name for the review mirror; '-' when
+  // unset or not (yet) in the lookup map.
+  protected stateName(id: string | null | undefined): string {
+    return (id && this.stateNames.get(id)) || '-';
+  }
+  protected languageName(id: string | null | undefined): string {
+    return (id && this.languageNames.get(id)) || '-';
+  }
+  protected wcabName(id: string | null | undefined): string {
+    return (id && this.wcabNames.get(id)) || '-';
   }
   protected attorneyName(prefix: 'applicantAttorney' | 'defenseAttorney'): string {
     const n = [
