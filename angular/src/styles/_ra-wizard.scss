@@ -61,9 +61,9 @@
   background: radial-gradient(circle, rgba(157, 193, 59, 0.16), transparent 68%);
 }
 .ra-head__in {
-  max-width: 1100px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 26px 26px 50px;
+  padding: 26px clamp(16px, 3vw, 64px) 50px;
   position: relative;
   z-index: 2;
 }
@@ -112,9 +112,11 @@
 
 // ---------------- Wizard shell ----------------
 .ra-wrap {
-  max-width: 1100px;
+  // #16 (2026-06-18): fluid gutters + higher cap (mirrors .in-content) so wide
+  // screens stretch the form instead of stranding side whitespace.
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 0 26px 140px;
+  padding: 0 clamp(16px, 3vw, 64px) 140px;
 }
 
 // stepper -- pulled up over the header band; fits all steps, never scrolls
@@ -738,9 +740,9 @@ textarea.ra-input {
   border-top: 1px solid var(--border);
 }
 .ra-foot__in {
-  max-width: 1100px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 13px 26px;
+  padding: 13px clamp(16px, 3vw, 64px);
   display: flex;
   align-items: center;
   gap: 14px;

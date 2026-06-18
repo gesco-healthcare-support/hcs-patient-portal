@@ -41,9 +41,9 @@
   background: linear-gradient(135deg, #3b2a5e, #54398a 62%, #6b4aa8);
 }
 .ad-banner__in {
-  max-width: 1080px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 24px 26px 26px;
+  padding: 24px clamp(16px, 3vw, 64px) 26px;
   position: relative;
   z-index: 2;
 }
@@ -177,9 +177,9 @@
   border-bottom: 1px solid var(--border);
 }
 .ad-nav__in {
-  max-width: 1080px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 0 26px;
+  padding: 0 clamp(16px, 3vw, 64px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -220,17 +220,20 @@
 
 // ---------------- Body ----------------
 .ad-wrap {
-  max-width: 1080px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 24px 26px 80px;
+  padding: 24px clamp(16px, 3vw, 64px) 80px;
 }
 
-// Internal detail (in-shell) fills the wider shell content area. The external
-// read-only detail keeps the 1080px reading measure; only .ad--wide opts in,
-// so the external page is unchanged.
+// #16 (2026-06-18): fluid side gutters + a higher cap so wide screens stretch
+// content instead of stranding whitespace (mirrors .in-content). External
+// detail now reads to 1560px; internal detail (.ad--wide, inside the wider
+// shell) fills to the shell cap. Banner, nav, and body share the cap so the
+// gradient band edge stays aligned with the content.
 .ad--wide .ad-banner__in,
+.ad--wide .ad-nav__in,
 .ad--wide .ad-wrap {
-  max-width: 1560px;
+  max-width: 2240px;
 }
 .ad-card {
   background: #fff;

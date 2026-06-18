@@ -38,9 +38,9 @@
   background: radial-gradient(circle, rgba(157, 193, 59, 0.16), transparent 68%);
 }
 .mp-head__in {
-  max-width: 920px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 30px 26px 32px;
+  padding: 30px clamp(16px, 3vw, 64px) 32px;
   position: relative;
   z-index: 2;
   display: flex;
@@ -100,9 +100,10 @@
 
 /* ---------------- Body ---------------- */
 .mp-wrap {
-  max-width: 920px;
+  // #16 (2026-06-18): fluid gutters + higher cap (mirrors .in-content).
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 26px 80px;
+  padding: 24px clamp(16px, 3vw, 64px) 80px;
   display: flex;
   flex-direction: column;
   gap: 18px;
