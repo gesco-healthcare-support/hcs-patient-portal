@@ -105,6 +105,8 @@ export class InternalDashboardComponent implements OnInit {
   protected readonly trendMax = computed(() =>
     Math.max(1, ...(this.data()?.trend ?? []).map((t) => t.count ?? 0)),
   );
+  /** Mid-point tick for the trend chart's y-axis (#10). */
+  protected readonly trendMid = computed(() => Math.round(this.trendMax() / 2));
 
   ngOnInit(): void {
     const user = this.configState.getOne('currentUser') as { roles?: string[] } | null;

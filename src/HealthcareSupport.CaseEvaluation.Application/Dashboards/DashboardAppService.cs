@@ -379,7 +379,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             var weekEnd = weekStart.AddDays(7);
             var count = await _appointmentRepository.CountAsync(
                 a => a.CreationTime >= weekStart && a.CreationTime < weekEnd);
-            trend.Add(new DashboardTrendPointDto { Label = $"Wk {TrendWeeks - i}", Count = count });
+            trend.Add(new DashboardTrendPointDto { Label = $"Wk {TrendWeeks - i}", WeekStart = weekStart, Count = count });
         }
         return trend;
     }

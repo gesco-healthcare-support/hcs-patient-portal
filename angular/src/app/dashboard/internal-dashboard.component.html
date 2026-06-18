@@ -245,17 +245,24 @@
               <a (click)="openReports()">Reports</a>
             </div>
             <div class="dh-card__body">
-              <div class="dh-bars">
-                @for (pt of d.trend; track pt.label) {
-                  <div class="dh-barcol">
-                    <div
-                      class="bar"
-                      [attr.data-v]="pt.count"
-                      [style.height]="barHeight(pt.count)"
-                    ></div>
-                    <span class="lb">{{ pt.label }}</span>
-                  </div>
-                }
+              <div class="dh-chart">
+                <div class="dh-yaxis">
+                  <span>{{ trendMax() }}</span>
+                  <span>{{ trendMid() }}</span>
+                  <span>0</span>
+                </div>
+                <div class="dh-bars">
+                  @for (pt of d.trend; track pt.weekStart) {
+                    <div class="dh-barcol">
+                      <div
+                        class="bar"
+                        [attr.data-v]="pt.count"
+                        [style.height]="barHeight(pt.count)"
+                      ></div>
+                      <span class="lb">{{ pt.weekStart | date: 'MMM d' }}</span>
+                    </div>
+                  }
+                </div>
               </div>
             </div>
           </div>

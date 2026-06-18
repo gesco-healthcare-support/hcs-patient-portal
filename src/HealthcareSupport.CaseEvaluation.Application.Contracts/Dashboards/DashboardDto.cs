@@ -72,6 +72,10 @@ public class DashboardStatusSliceDto
 public class DashboardTrendPointDto
 {
     public string Label { get; set; } = string.Empty;
+
+    /// <summary>UTC start (Monday) of the week this point covers, for the chart's real-date axis.</summary>
+    public DateTime WeekStart { get; set; }
+
     public int Count { get; set; }
 }
 

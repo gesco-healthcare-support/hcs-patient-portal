@@ -314,6 +314,27 @@
 }
 
 // bar chart (trend)
+// #10 (2026-06-18): a left y-axis scale (max / mid / 0) sits beside the bars so
+// counts are readable; the bars themselves are unchanged.
+.dh-chart {
+  display: flex;
+  gap: 10px;
+}
+.dh-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 180px;
+  padding-top: 10px;
+  min-width: 22px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--n-400);
+}
+.dh-chart .dh-bars {
+  flex: 1;
+}
 .dh-bars {
   display: flex;
   align-items: flex-end;
