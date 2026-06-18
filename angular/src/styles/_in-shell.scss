@@ -105,7 +105,14 @@
 .in-nav:hover::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.24);
 }
+// Accordion group header (a <button>). Keeps the prototype's tiny uppercase
+// label, adds a chevron that rotates with the expanded state. Full-width and
+// transparent so it reads as a section label, not a control, until hovered.
 .in-sect {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   padding: 16px 10px 7px;
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -113,13 +120,39 @@
   color: #5d83a6;
   font-weight: 700;
   white-space: nowrap;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.in-sect span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.in-sect:hover {
+  color: #7ba0c2;
+}
+.in-sect__chev {
+  flex: none;
+  display: inline-flex;
+  opacity: 0.7;
+  // Closed points right; opening rotates it back down to vertical.
+  transform: rotate(-90deg);
+  transition: transform 0.16s ease;
+}
+.in-sect.open .in-sect__chev {
+  transform: rotate(0deg);
 }
 .in--collapsed .in-sect {
-  text-align: center;
+  justify-content: center;
   padding: 14px 0 6px;
   color: #3f5f80;
+  cursor: default;
 }
-.in--collapsed .in-sect span {
+.in--collapsed .in-sect span,
+.in--collapsed .in-sect__chev {
   display: none;
 }
 .in--collapsed .in-sect::after {

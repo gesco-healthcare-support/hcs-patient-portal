@@ -85,6 +85,14 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly collapsed = signal(false);
   protected readonly acctOpen = signal(false);
 
+  /**
+   * Per-group accordion state: section name -> explicitly toggled open/closed.
+   * Unset sections fall back to "open only when they contain the active route"
+   * (see isSectionOpen), so the rail is collapsed-by-default except where the
+   * user currently is; an explicit click then sticks for the session.
+   */
+  private readonly sectionToggles = signal<Record<string, boolean>>({});
+
   private configSub: Subscription | null = null;
   private routerSub: Subscription | null = null;
 
@@ -131,6 +139,17 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
       }
     }
     return bestId;
+  });
+
+  /** Section (group.sect) that contains the active item; drives default-open. */
+  protected readonly activeSect = computed<string | null>(() => {
+    const id = this.activeId();
+    for (const group of this.groups()) {
+      for (const item of group.items) {
+        if (item.id === id) return group.sect;
+      }
+    }
+    return null;
   });
 
   protected readonly crumb = computed<string>(() => {
@@ -204,6 +223,21 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 
   protected toggleCollapse(): void {
     this.collapsed.update((v) => !v);
+  }
+
+  /**
+   * Is a nav group expanded? Defaults to collapsed unless the group holds the
+   * active route; an explicit toggle (toggleSection) overrides that default.
+   * The icon-rail collapsed sidebar shows every item regardless, so this only
+   * governs the expanded sidebar.
+   */
+  protected isSectionOpen(sect: string): boolean {
+    return this.sectionToggles()[sect] ?? sect === this.activeSect();
+  }
+
+  protected toggleSection(sect: string): void {
+    const open = this.isSectionOpen(sect);
+    this.sectionToggles.update((m) => ({ ...m, [sect]: !open }));
   }
 
   protected toggleAcct(): void {

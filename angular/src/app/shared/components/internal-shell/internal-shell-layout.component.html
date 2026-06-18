@@ -10,24 +10,37 @@
 
     <nav class="in-nav">
       @for (group of groups(); track group.sect) {
-        <div class="in-sect">
+        <!-- Accordion group header: a real <button>, so Enter/Space activate it
+             natively (explicit keydown handlers would double-fire on a button).
+             Its items collapse beneath it; the icon-rail (collapsed) sidebar
+             always shows them since the accordion makes no sense at 72px. -->
+        <button
+          class="in-sect"
+          type="button"
+          [class.open]="isSectionOpen(group.sect)"
+          [attr.aria-expanded]="isSectionOpen(group.sect)"
+          (click)="toggleSection(group.sect)"
+        >
           <span>{{ group.sect }}</span>
-        </div>
-        @for (item of group.items; track item.id) {
-          <a
-            class="in-link"
-            [class.on]="item.id === activeId()"
-            [class.has-badge]="badgeCount(item.badge) > 0"
-            [routerLink]="item.route"
-            [attr.data-tip]="item.label"
-          >
-            <span class="i"><app-icon [name]="item.icon" [size]="18" /></span>
-            <span class="lbl">{{ item.label }}</span>
-            @if (badgeCount(item.badge) > 0) {
-              <span class="badge">{{ badgeCount(item.badge) }}</span>
-              <span class="pip"></span>
-            }
-          </a>
+          <app-icon class="in-sect__chev" name="chevDown" [size]="13" />
+        </button>
+        @if (collapsed() || isSectionOpen(group.sect)) {
+          @for (item of group.items; track item.id) {
+            <a
+              class="in-link"
+              [class.on]="item.id === activeId()"
+              [class.has-badge]="badgeCount(item.badge) > 0"
+              [routerLink]="item.route"
+              [attr.data-tip]="item.label"
+            >
+              <span class="i"><app-icon [name]="item.icon" [size]="18" /></span>
+              <span class="lbl">{{ item.label }}</span>
+              @if (badgeCount(item.badge) > 0) {
+                <span class="badge">{{ badgeCount(item.badge) }}</span>
+                <span class="pip"></span>
+              }
+            </a>
+          }
         }
       }
     </nav>
