@@ -49,6 +49,12 @@
                 <span class="d"></span>
                 {{ statusLabel }}
               </span>
+              @if (showResubmittedBadge) {
+                <span class="sb-resub">
+                  <app-icon name="check" [size]="12" />
+                  Resubmitted
+                </span>
+              }
             </h1>
             <div class="ad-banner__meta">
               <div class="it">
@@ -73,6 +79,16 @@
                 <div class="k">Requested on</div>
                 <div class="v">{{ requestedOn | date: 'MMM d, y' }}</div>
               </div>
+              @if (showResubmittedBadge && resubmittedRound) {
+                <div class="it">
+                  <div class="k">Resubmitted</div>
+                  <div class="v">{{ resubmittedRound.resolvedAt | date: 'MMM d, y' }}</div>
+                </div>
+                <div class="it">
+                  <div class="k">Round</div>
+                  <div class="v mono">{{ resubmittedRound.roundNumber }}</div>
+                </div>
+              }
             </div>
           </div>
         </div>
@@ -191,6 +207,98 @@
             <p>{{ errorMessage }}</p>
           </div>
         </div>
+      }
+
+      <!-- Send Back review (Branch 2): what-changed diff + request history -->
+      @if (diffRows.length > 0) {
+        <section class="ad-card" style="border-color: var(--green-100)">
+          <div
+            class="ad-card__head ad-card__head--toggle"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="diffOpen"
+            (click)="toggleDiff()"
+            (keydown.enter)="toggleDiff()"
+            (keydown.space)="$event.preventDefault(); toggleDiff()"
+          >
+            <span class="ic tint-green"><app-icon name="check" [size]="18" /></span>
+            <h3>What changed since your request</h3>
+            <span class="right">
+              <app-icon name="chevDown" [size]="18" class="ad-chev" [class.is-open]="diffOpen" />
+            </span>
+          </div>
+          @if (diffOpen) {
+            <div class="ad-card__body">
+              @for (row of diffRows; track row.label) {
+                <div class="sb-diff">
+                  <span class="f">{{ row.label }}</span>
+                  <span class="old">{{ row.oldValue || '-' }}</span>
+                  <span class="arr"><app-icon name="chevRight" [size]="13" /></span>
+                  <span class="new">{{ row.newValue || '-' }}</span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      @if (infoHistory.length > 0) {
+        <section class="ad-card">
+          <div
+            class="ad-card__head ad-card__head--toggle"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="historyOpen"
+            (click)="toggleHistory()"
+            (keydown.enter)="toggleHistory()"
+            (keydown.space)="$event.preventDefault(); toggleHistory()"
+          >
+            <span class="ic tint-purple"><app-icon name="help" [size]="18" /></span>
+            <h3>Request history</h3>
+            <span class="right">
+              <app-icon name="chevDown" [size]="18" class="ad-chev" [class.is-open]="historyOpen" />
+            </span>
+          </div>
+          @if (historyOpen) {
+            <div class="ad-card__body" style="padding: 0">
+              @for (round of infoHistory; track round.id) {
+                @if (round.isResolved) {
+                  <div class="clg-entry">
+                    <div class="clg-head" style="cursor: default">
+                      <span class="ic tint-green"><app-icon name="check" [size]="16" /></span>
+                      <span class="tx">
+                        <span class="t1">
+                          <b>Resubmitted by {{ round.resubmittedByName || 'the requester' }}</b>
+                        </span>
+                        <span class="t2">
+                          {{ round.resolvedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                          {{ roundFixedSummary(round) }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                }
+                <div class="clg-entry">
+                  <div class="clg-head" style="cursor: default">
+                    <span class="ic tint-purple"><app-icon name="help" [size]="16" /></span>
+                    <span class="tx">
+                      <span class="t1">
+                        <b>Info requested by {{ round.requestedByName || 'staff' }}</b>
+                      </span>
+                      <span class="t2">
+                        {{ round.requestedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                        {{ roundFlaggedSummary(round) }}
+                        @if (round.note) {
+                          &middot; "{{ roundNotePreview(round.note) }}"
+                        }
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </section>
       }
 
       <form [formGroup]="form" (ngSubmit)="$event.preventDefault()">

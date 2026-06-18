@@ -12,6 +12,8 @@ import { AppointmentService } from '../../../proxy/appointments/appointment.serv
 import { AppointmentChangeRequestApprovalService } from '../../../proxy/appointment-change-requests/appointment-change-request-approval.service';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
+import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
+import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
@@ -33,6 +35,15 @@ import {
   statusLabel,
   type DetailAction,
 } from './internal-detail.util';
+import {
+  changedRows,
+  fixedSummary,
+  flaggedSummary,
+  latestRound,
+  notePreview,
+  wasResubmitted,
+  type DiffRow,
+} from './send-back-history.util';
 
 /**
  * Internal Appointment Detail (redesign, Prompt 11). EXTENDS
@@ -74,10 +85,14 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly detailPermission = inject(PermissionService);
   private readonly detailToaster = inject(ToasterService);
   private readonly detailLocalization = inject(LocalizationService);
+  private readonly infoRequestApi = inject(AppointmentInfoRequestService);
 
   /** Edit-details mode: read ledgers (false) vs editable form inputs (true). */
   protected editMode = false;
   private formSnapshot: Record<string, unknown> | null = null;
+
+  /** Send Back rounds (newest-first) for the staff review cards. */
+  protected infoHistory: AppointmentInfoRequestRoundDto[] = [];
 
   // Resolve the patient's appointment-language GUID to a display name for the
   // read ledger (mirrors the inherited stateName map; the parent only loads states).
@@ -94,6 +109,7 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
         });
       },
     });
+    this.loadHistory();
   }
 
   protected languageName(id?: string | null): string {
@@ -115,6 +131,57 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   }
   protected can(action: DetailAction): boolean {
     return this.actions.includes(action);
+  }
+
+  // ---- send-back review (Branch 2) ----
+  private loadHistory(): void {
+    const id = this.detailRoute.snapshot.paramMap.get('id');
+    if (!id) {
+      return;
+    }
+    this.infoRequestApi.getHistory(id).subscribe({
+      next: (rounds) => (this.infoHistory = rounds ?? []),
+    });
+  }
+
+  /** Show the "Resubmitted" badge when the latest round was resubmitted and still Pending. */
+  protected get showResubmittedBadge(): boolean {
+    return this.pill === 'Pending' && wasResubmitted(this.infoHistory);
+  }
+
+  /** The latest round when it is resolved (drives the diff card + banner meta). */
+  protected get resubmittedRound(): AppointmentInfoRequestRoundDto | null {
+    const round = latestRound(this.infoHistory);
+    return round?.isResolved ? round : null;
+  }
+
+  /** Changed field rows for the "What changed since your request" card. */
+  protected get diffRows(): DiffRow[] {
+    return changedRows(this.resubmittedRound);
+  }
+
+  /** Collapsible state for the What-changed diff card (open by default). */
+  protected diffOpen = true;
+
+  protected toggleDiff(): void {
+    this.diffOpen = !this.diffOpen;
+  }
+
+  /** Collapsible state for the Request history card (open by default). */
+  protected historyOpen = true;
+
+  protected toggleHistory(): void {
+    this.historyOpen = !this.historyOpen;
+  }
+
+  protected roundFixedSummary(round: AppointmentInfoRequestRoundDto): string {
+    return fixedSummary(round);
+  }
+  protected roundFlaggedSummary(round: AppointmentInfoRequestRoundDto): string {
+    return flaggedSummary(round);
+  }
+  protected roundNotePreview(note?: string | null): string {
+    return notePreview(note);
   }
 
   // ---- meta / nav-prop accessors ----
@@ -277,6 +344,7 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
     if (!id) {
       return;
     }
+    this.loadHistory();
     this.detailAppointments.getWithNavigationProperties(id).subscribe({
       next: (data) => {
         this.appointment = data;

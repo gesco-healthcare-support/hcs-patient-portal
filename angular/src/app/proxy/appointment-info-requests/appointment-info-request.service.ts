@@ -1,4 +1,4 @@
-import type { AppointmentInfoRequestDto, SaveInfoRequestCorrectionsInput, SendBackAppointmentInput } from './models';
+import type { AppointmentInfoRequestDto, AppointmentInfoRequestRoundDto, SaveInfoRequestCorrectionsInput, SendBackAppointmentInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
@@ -8,6 +8,14 @@ import { Injectable, inject } from '@angular/core';
 export class AppointmentInfoRequestService {
   private restService = inject(RestService);
   apiName = 'Default';
+  
+
+  getHistory = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentInfoRequestRoundDto[]>({
+      method: 'GET',
+      url: `/api/app/appointment-info-requests/history/${appointmentId}`,
+    },
+    { apiName: this.apiName,...config });
   
 
   getOpen = (appointmentId: string, config?: Partial<Rest.Config>) =>

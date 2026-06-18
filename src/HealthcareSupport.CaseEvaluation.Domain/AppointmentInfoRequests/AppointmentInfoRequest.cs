@@ -42,6 +42,15 @@ public class AppointmentInfoRequest : FullAuditedAggregateRoot<Guid>, IMultiTena
     /// <summary>UTC timestamp the external user resubmitted (Status -&gt; Resolved).</summary>
     public virtual DateTime? ResolvedAt { get; protected set; }
 
+    /// <summary>
+    /// JSON map of flagged-key -&gt; display value captured at SEND-BACK (the staff
+    /// diff "before"). SSN is masked at capture; null on rows created before Branch 2.
+    /// </summary>
+    public virtual string? BeforeValues { get; protected set; }
+
+    /// <summary>JSON map of flagged-key -&gt; display value captured at RESUBMIT (the diff "after").</summary>
+    public virtual string? AfterValues { get; protected set; }
+
     protected AppointmentInfoRequest()
     {
     }
@@ -75,5 +84,17 @@ public class AppointmentInfoRequest : FullAuditedAggregateRoot<Guid>, IMultiTena
         }
         Status = InfoRequestStatus.Resolved;
         ResolvedAt = nowUtc;
+    }
+
+    /// <summary>Store the flagged fields' values at send-back time (the diff "before").</summary>
+    public void CaptureBeforeValues(string snapshotJson)
+    {
+        BeforeValues = snapshotJson;
+    }
+
+    /// <summary>Store the flagged fields' values at resubmit time (the diff "after").</summary>
+    public void CaptureAfterValues(string snapshotJson)
+    {
+        AfterValues = snapshotJson;
     }
 }

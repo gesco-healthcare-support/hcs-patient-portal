@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
@@ -52,4 +53,10 @@ public class AppointmentInfoRequestController : AbpController, IAppointmentInfoR
     [Route("open/{appointmentId}")]
     public virtual Task<AppointmentInfoRequestDto?> GetOpenAsync(Guid appointmentId)
         => _service.GetOpenAsync(appointmentId);
+
+    /// <summary>Staff: the full Send Back history (rounds + per-field diff) for review.</summary>
+    [HttpGet]
+    [Route("history/{appointmentId}")]
+    public virtual Task<List<AppointmentInfoRequestRoundDto>> GetHistoryAsync(Guid appointmentId)
+        => _service.GetHistoryAsync(appointmentId);
 }

@@ -11,9 +11,30 @@ export interface AppointmentInfoRequestDto {
   resolvedAt?: string | null;
 }
 
+export interface AppointmentInfoRequestRoundDto {
+  id?: string;
+  roundNumber?: number;
+  note?: string;
+  requestedByName?: string | null;
+  requestedAt?: string;
+  isResolved?: boolean;
+  resolvedAt?: string | null;
+  resubmittedByName?: string | null;
+  flaggedCount?: number;
+  fixedCount?: number;
+  diffs?: InfoRequestFieldDiffDto[];
+}
+
 export interface FlaggedFieldDto {
   key?: string;
   hint?: string | null;
+}
+
+export interface InfoRequestFieldDiffDto {
+  key?: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  changed?: boolean;
 }
 
 export interface SaveInfoRequestCorrectionsInput {

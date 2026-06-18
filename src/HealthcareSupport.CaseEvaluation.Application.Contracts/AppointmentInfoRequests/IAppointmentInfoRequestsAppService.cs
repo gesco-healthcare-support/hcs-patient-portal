@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Volo.Abp.Application.Services;
 
@@ -26,4 +27,11 @@ public interface IAppointmentInfoRequestsAppService : IApplicationService
 
     /// <summary>The open (unresolved) info request for the appointment, or null when none is open.</summary>
     Task<AppointmentInfoRequestDto?> GetOpenAsync(Guid appointmentId);
+
+    /// <summary>
+    /// The full Send Back history for the appointment (newest-first), each round with
+    /// its note, requester/resubmitter names, fixed/flagged counts, and a per-field
+    /// old-&gt;new diff. Staff review surface; gated by the read-access guard.
+    /// </summary>
+    Task<List<AppointmentInfoRequestRoundDto>> GetHistoryAsync(Guid appointmentId);
 }

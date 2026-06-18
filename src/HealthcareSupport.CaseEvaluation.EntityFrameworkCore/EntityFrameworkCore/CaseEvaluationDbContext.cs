@@ -545,6 +545,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Status).HasColumnName(nameof(AppointmentInfoRequest.Status));
             b.Property(x => x.RequestedByUserId).HasColumnName(nameof(AppointmentInfoRequest.RequestedByUserId));
             b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentInfoRequest.ResolvedAt));
+            b.Property(x => x.BeforeValues).HasColumnName(nameof(AppointmentInfoRequest.BeforeValues));
+            b.Property(x => x.AfterValues).HasColumnName(nameof(AppointmentInfoRequest.AfterValues));
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.Status });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);

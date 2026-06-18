@@ -164,55 +164,91 @@ Alternatives rejected:
 
 ### Branch 2 -- staff diff review + request history (feat/redesign-send-back-review)
 
-- B2-T1: Snapshot flagged-field values for a per-round before/after.
-  - approach: tdd
-  - files-touched: [src/.../Domain/AppointmentInfoRequests/AppointmentInfoRequest.cs,
-    src/.../Domain.Shared/AppointmentInfoRequests/AppointmentInfoRequestConsts.cs,
-    src/.../Application/AppointmentInfoRequests/AppointmentInfoRequestsAppService.cs]
-  - acceptance: send-back stores the flagged fields' values at send time; resubmit stores
-    the new values at resubmit time (so each round has before + after). Unit test verifies
-    both captures round-trip through the entity.
+B2 design decisions (2026-06-17, after B1 merge):
+- Snapshot = two NULLABLE JSON columns on `AppointmentInfoRequest`: `BeforeValues` (captured
+  in SendBackAsync) + `AfterValues` (captured in ResubmitAsync). Additive/nullable so the one
+  live row + migration stay safe. Each is a JSON map of flagged-key -> human-readable string.
+- Snapshot stores DISPLAY strings, not raw: language resolved to its name, DOB formatted, SSN
+  MASKED AT CAPTURE (to the same masked form shown in the detail). The new table never holds a
+  second raw SSN; the diff shows masked old -> masked new. (Caveat: an SSN change that does not
+  alter the visible digits shows identical masked values -- acceptable for HIPAA.)
+- Scalar fields only. `documents` is EXCLUDED from the diff/history (Adrian, 2026-06-17): it is
+  not in the corrections endpoint, and staff confirm replacements in the existing Documents
+  card + change log. The 10 scalar keys are exactly `SaveInfoRequestCorrectionsInput`'s.
+- Resubmitter name = the row's `LastModifierId` (set when ResubmitAsync updates the row); no
+  new column. Requester name = `RequestedByUserId`. Both resolved to display names in
+  GetHistoryAsync via the identity-user store.
+- Backend diff DTO stays lean (key + old + new + changed); the FE maps key -> label from
+  `FLAGGABLE_FIELDS`. Round summary ("N of N fixed") = count of changed scalar diffs.
+- Branch created off feat/internal-user-pages as `feat/redesign-send-back-review`.
 
-- B2-T2: EF migration for the snapshot column(s).
+- B2-T1: Snapshot flagged scalar values for a per-round before/after.
+  - approach: tdd
+  - files-touched: [src/.../Domain/AppointmentInfoRequests/AppointmentInfoRequest.cs (2 nullable
+    columns + a CaptureBeforeValues / CaptureAfterValues method),
+    src/.../Domain.Shared/AppointmentInfoRequests/AppointmentInfoRequestConsts.cs
+    (ValuesSnapshotMaxLength),
+    src/.../Application/AppointmentInfoRequests/InfoRequestSnapshot.cs (new, PURE: raw field
+    values -> ordered key->displayValue map; masks SSN, formats DOB; only flagged keys),
+    src/.../Application/AppointmentInfoRequests/AppointmentInfoRequestsAppService.cs
+    (read the flagged keys' homes -> InfoRequestSnapshot -> capture on the entity at
+    send-back + resubmit)]
+  - acceptance: send-back stores before-values for flagged scalar keys; resubmit stores
+    after-values; SSN masked in both; language stored as its name. Unit tests on the pure
+    mapper (SSN masked, DOB formatted, only flagged keys present, documents key dropped) +
+    entity round-trip of the two JSON columns.
+
+- B2-T2: EF migration for the two snapshot columns.
   - approach: code
   - files-touched: [src/.../EntityFrameworkCore/Migrations/* (generated),
     CaseEvaluationDbContextModelSnapshot.cs]
-  - acceptance: `dotnet build` passes; `docker compose run --rm db-migrator` applies the
-    migration cleanly; columns are additive/nullable (safe Down()).
+  - acceptance: `dotnet build` passes; `docker compose run --rm db-migrator` applies cleanly;
+    both columns are nullable nvarchar with a safe Down().
 
 - B2-T3: History + diff read endpoint.
   - approach: tdd
   - files-touched: [src/.../Application.Contracts/AppointmentInfoRequests/IAppointmentInfoRequestsAppService.cs,
+    src/.../Application.Contracts/AppointmentInfoRequests/AppointmentInfoRequestRoundDto.cs (new),
+    src/.../Application.Contracts/AppointmentInfoRequests/InfoRequestFieldDiffDto.cs (new),
     src/.../Application/AppointmentInfoRequests/AppointmentInfoRequestsAppService.cs,
-    new DTOs (round + per-field diff)]
+    src/.../HttpApi/Controllers/AppointmentInfoRequests/AppointmentInfoRequestController.cs (GET route)]
   - acceptance: `GetHistoryAsync(appointmentId)` returns rounds newest-first, each with
-    requester/resubmitter + timestamps, "N of N fixed", the note, and per-field old->new
-    diff rows; SSN values are masked in the diff. Unit test: diff reflects changed fields;
-    SSN masked; ordering correct. Read gated by the existing read-access guard.
+    RoundNumber (oldest=1), Note, requester + resubmitter display names + timestamps,
+    FlaggedCount, FixedCount (= changed scalar diffs), and per-field old->new diff rows
+    (documents excluded; SSN already masked from the stored snapshot). Read gated by
+    `EnsureCanReadAsync`. A pure diff builder is unit-tested: diff reflects changed fields,
+    documents never appears, ordering + FixedCount correct, null snapshot -> empty diff.
 
 - B2-T4: Regenerate the Angular proxy.
   - approach: code
   - files-touched: [angular/src/app/proxy/appointment-info-requests/*]
-  - acceptance: proxy exposes `getHistory`; generated via abp CLI, not hand-edited; app
-    builds.
+  - acceptance: proxy exposes `getHistory` + the round/diff models; generated via abp CLI
+    (`abp generate-proxy -t ng -u http://localhost:44377`, no trailing slash), not hand-edited;
+    app builds.
 
 - B2-T5: Staff diff + history cards on the internal appointment detail.
   - approach: test-after
-  - files-touched: [angular/src/app/appointments/appointment/components/internal-appointment-detail.component.ts,
+  - files-touched: [angular/src/app/appointments/appointment/components/send-back-history.util.ts (new),
+    angular/src/app/appointments/appointment/components/internal-appointment-detail.component.ts,
     angular/src/app/appointments/appointment/components/internal-appointment-detail.component.html,
-    angular/src/app/appointments/appointment/components/internal-detail.util.ts,
-    angular/src/app/appointments/appointment/components/send-back-history.util.ts (new)]
-  - acceptance: when a resolved round exists, the detail shows "What changed since your
-    request" (old strikethrough -> new per field, SSN masked) and "Request history"
-    (chronological rounds) above the field sections; the banner shows a "Resubmitted"
-    badge + "Resubmitted: {date}" + "Round: {n}"; diff-row building is in the util and
-    unit-tested; matches the prototype copy.
+    angular/src/styles/_ad-detail.scss]
+  - acceptance: on load, fetch history via the proxy. When the latest round is resolved, the
+    detail shows "What changed since your request" (sb-diff: label | old strikethrough |
+    arrow | new, SSN masked, documents absent) and "Request history" (rounds newest-first:
+    "Resubmitted by {name} - N of N flagged items fixed" / "Info requested by {name} -
+    N fields flagged - note") above the field form; the banner gains a "Resubmitted" badge
+    (sb-resub) + "Resubmitted: {date}" + "Round: {n}". Diff-row + round-summary building lives
+    in send-back-history.util.ts (FE maps key->label from FLAGGABLE_FIELDS) and is unit-tested.
+    Port `.sb-diff` + `.sb-resub` from sb-feature.css into _ad-detail.scss; reuse existing
+    `.clg-entry` timeline styles (add minimal if absent). Matches the prototype copy.
 
 - B2-T6: Live-verify B2 and squash-merge B2.
   - approach: code
   - files-touched: []
-  - acceptance: a full round (send back -> resubmit) shows the staff the diff + history with
-    SSN masked; no console errors; squash-merge to feat/internal-user-pages and push.
+  - acceptance: on Falkinstein, a full round (staff send back -> external correct + resubmit)
+    shows staff the diff (correct old->new per scalar field, SSN masked) + the history entries
+    + the Resubmitted badge/Round meta; no console errors. On sign-off, squash-merge to
+    feat/internal-user-pages + push.
 
 ## Risk / Rollback
 
