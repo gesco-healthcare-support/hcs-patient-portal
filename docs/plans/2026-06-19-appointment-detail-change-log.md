@@ -215,13 +215,16 @@ T1 is committable on its own (component + spec). T2 and T3 each become their own
   shows nothing". Fixed by injecting ChangeDetectorRef + markForCheck in both
   subscribes, matching the global AppointmentChangeLogList component. External detail
   + internal detail are Default CD, so they need no such fix.
-- T4 (live Falkinstein screenshots): IN PROGRESS. Verified on Falkinstein (chrome):
-  new code is deployed (the "Field-level audit" heading + updated subtitle render),
-  getHistory returns 5 real rounds for A00001, and the internal detail inline
-  "Request history" renders them. The change-log rounds section was blocked by the
-  OnPush bug above; needs a SECOND Angular restart to serve e0996c7, then re-shoot
-  both surfaces (internal change-log rounds + external lighter-summary history as
-  appatty1, who is A00001's booker/creator -> passes the read guard).
+- T4 (live Falkinstein screenshots): DONE. After rebuilding + restarting the angular
+  container (it had stopped -- the only "error" was the app being unreachable; the
+  ng build itself only emits pre-existing NG8113 warnings), both surfaces verified as
+  staff (stafsuper1) and external (appatty1) on appointment A00001:
+  - Internal change-log page: the "Resubmit / request history" section renders all 5
+    rounds above the "Field-level audit" timeline, including the real DOB diff
+    03/10/1984 -> 03/12/1984. (Required the markForCheck fix e0996c7.)
+  - External detail: the "History" section + nav link render the lighter summary
+    (note, who/when, "N of M fixed" counts). PHI verified: requester shows "HCS staff"
+    (no staff name leaked), NO field-level values, patient SSN shows "Not provided".
 - Test data: A00001 (id e2ea909e-...edf0) already has 5 send-back rounds incl. a real
   DOB diff -- no data setup needed.
 - Context note: #3 (config hub + WCAB) landed as commit 2885512 -- unblocks the
