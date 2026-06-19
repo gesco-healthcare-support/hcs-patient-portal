@@ -2,12 +2,11 @@ import { CommonModule } from '@angular/common';
 import { Component, Injector, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ConfigStateService } from '@abp/ng.core';
+import { ConfigStateService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs';
 
 import { MyAttorneyProfileService } from '../../proxy/my-attorney-profiles/my-attorney-profile.service';
-import { StateService } from '../../proxy/states/state.service';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { ExternalNavbarComponent } from '../../shared/components/external-navbar/external-navbar.component';
 import { performFullLogout } from '../../shared/auth/full-logout';
@@ -32,7 +31,7 @@ interface StateOption {
 })
 export class AttorneyProfileComponent implements OnInit {
   private readonly api = inject(MyAttorneyProfileService);
-  private readonly stateApi = inject(StateService);
+  private readonly rest = inject(RestService);
   private readonly fb = inject(FormBuilder);
   private readonly toaster = inject(ToasterService);
   private readonly router = inject(Router);
@@ -102,10 +101,25 @@ export class AttorneyProfileComponent implements OnInit {
   }
 
   private loadStates(): void {
-    this.stateApi.getList({ skipCount: 0, maxResultCount: 100, sorting: 'name' }).subscribe({
-      next: (res) =>
-        (this.states = (res.items ?? []).map((s) => ({ id: s.id!, name: s.name ?? '' }))),
-    });
+    // Use the non-gated lookup external users can call. The gated /api/app/states
+    // CRUD endpoint 403s for an external attorney (and trips the global access
+    // overlay). Mirrors the external booking state dropdown.
+    this.rest
+      .request<unknown, { items?: { id?: string; displayName?: string }[] }>(
+        {
+          method: 'GET',
+          url: '/api/app/patients/state-lookup',
+          params: { maxResultCount: 100, skipCount: 0 },
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (res) =>
+          (this.states = (res.items ?? []).map((s) => ({
+            id: s.id ?? '',
+            name: s.displayName ?? '',
+          }))),
+      });
   }
 
   private loadNav(): void {
