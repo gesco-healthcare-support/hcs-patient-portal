@@ -158,13 +158,21 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* ngx-quill's component :host sets display:block and a height that clips to the
+   container alone, so the toolbar's ~42px overflowed down into the next field
+   (the "SMS body" label landed in the email-body box). :host wins at equal
+   specificity (it loads after global CSS), so override with !important: a flex
+   column with auto height sizes the host to toolbar + container. */
 .nt-editor {
-  display: block;
+  display: flex !important;
+  flex-direction: column;
+  height: auto !important;
 }
 .nt-editor .ql-toolbar {
   border-top-left-radius: var(--r-md);
   border-top-right-radius: var(--r-md);
   border-color: var(--border-strong);
+  flex: 0 0 auto;
 }
 .nt-editor .ql-container {
   border-bottom-left-radius: var(--r-md);
@@ -172,6 +180,8 @@
   border-color: var(--border-strong);
   font-family: inherit;
   font-size: 13.5px;
+  flex: 1 1 auto;
+  min-height: 200px;
 }
 .nt-editor .ql-editor {
   min-height: 200px;

@@ -118,7 +118,7 @@ export class InternalAdminHubComponent {
     previewSegments(this.ntDraft()?.subject, this.ntLabelByToken()),
   );
   // ---- #6: client-side pager over the filtered list (~62 fixed codes) ----
-  protected readonly ntPageSize = 20;
+  protected readonly ntPageSize = 10;
   protected readonly ntPage = signal(0);
   protected readonly ntTotalPages = computed(() =>
     Math.max(1, Math.ceil(this.ntShown().length / this.ntPageSize)),
