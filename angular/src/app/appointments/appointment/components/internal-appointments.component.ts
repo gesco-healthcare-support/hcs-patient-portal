@@ -112,6 +112,12 @@ export class InternalAppointmentsComponent implements OnInit {
   protected readonly rows = signal<Row[]>([]);
   protected readonly totalCount = signal(0);
   protected readonly loading = signal(true);
+  // True when the list REQUEST failed (vs a valid empty 200). Drives the
+  // error/retry state so a failed load is never silently shown as "0 of 0"
+  // beside populated status chips (Session A triage 2026-06-19).
+  protected readonly loadError = signal(false);
+  protected readonly loadErrorMessage =
+    'We could not load the appointments list. Check your connection and try again.';
   protected readonly chipCounts = signal<Record<ExternalStatusSegment, number>>(
     bucketChipCounts([]),
   );
@@ -221,23 +227,40 @@ export class InternalAppointmentsComponent implements OnInit {
 
   private loadList(): void {
     this.loading.set(true);
+    this.loadError.set(false);
     this.appointmentService.getList(this.buildInput(true)).subscribe({
       next: (res) => {
         this.rows.set(res.items ?? []);
         this.totalCount.set(res.totalCount ?? 0);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        // A failed request is NOT an empty result: clear stale rows, raise the
+        // error state, and surface a toast so the empty table reads as "load
+        // failed" rather than "0 appointments" next to populated chips.
+        this.rows.set([]);
+        this.totalCount.set(0);
+        this.loading.set(false);
+        this.loadError.set(true);
+        this.toaster.error(this.loadErrorMessage, 'Failed to load');
+      },
     });
   }
 
   private loadCounts(): void {
     // Counts ignore the status filter (the endpoint omits it) so each chip shows
-    // its true total within the OTHER active filters.
+    // its true total within the OTHER active filters. A counts failure stays
+    // quiet (chips fall back to zero): loadList owns the single user-facing
+    // error toast, so a shared failure (e.g. token expiry) does not double-toast.
     this.appointmentService.getStatusCounts(this.buildInput(false)).subscribe({
       next: (counts) => this.chipCounts.set(bucketChipCounts(counts)),
       error: () => this.chipCounts.set(bucketChipCounts([])),
     });
+  }
+
+  /** Retry both the list and the chip counts after a failed load. */
+  protected retry(): void {
+    this.reload();
   }
 
   private loadLookups(): void {

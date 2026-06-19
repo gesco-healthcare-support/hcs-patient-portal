@@ -198,6 +198,20 @@
               <td colspan="10"><app-skeleton height="22px" /></td>
             </tr>
           }
+        } @else if (loadError()) {
+          <tr>
+            <td colspan="10">
+              <div class="ia-empty">
+                <app-icon name="alert" [size]="36" />
+                <b>Could not load appointments</b>
+                <span>{{ loadErrorMessage }}</span>
+                <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="retry()">
+                  <app-icon name="refresh" [size]="14" />
+                  Retry
+                </button>
+              </div>
+            </td>
+          </tr>
         } @else {
           @for (a of rows(); track rowId(a)) {
             <tr [class.sel]="isSelected(a)" (click)="review(a)">
