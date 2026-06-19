@@ -1,5 +1,11 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   AppointmentChangeLogService,
@@ -40,6 +46,9 @@ export class AppointmentChangeLogsComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly changeLogService = inject(AppointmentChangeLogService);
   private readonly infoRequestService = inject(AppointmentInfoRequestService);
+  // OnPush: the HTTP callbacks below assign imperatively, so they must
+  // markForCheck to re-render (mirrors the global AppointmentChangeLogList).
+  private readonly cdr = inject(ChangeDetectorRef);
 
   appointmentId: string | null = null;
   isLoading = true;
@@ -62,17 +71,25 @@ export class AppointmentChangeLogsComponent implements OnInit {
       next: (rows) => {
         this.entries = rows ?? [];
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.errorMessage = 'Failed to load change log.';
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
     });
     // Independent of the audit call: a failure here surfaces an inline note in
     // the history section but leaves the audit timeline below intact.
     this.infoRequestService.getHistory(id).subscribe({
-      next: (rows) => (this.rounds = rows ?? []),
-      error: () => (this.roundsError = true),
+      next: (rows) => {
+        this.rounds = rows ?? [];
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.roundsError = true;
+        this.cdr.markForCheck();
+      },
     });
   }
 
