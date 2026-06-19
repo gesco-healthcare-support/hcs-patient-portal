@@ -125,6 +125,90 @@ post-multi-tenant).
 - DEFERRED: 11 (-> multi-tenant prep), appointment-change-control (-> post-multi-tenant,
   own spec 2026-06-19-appointment-change-control.md).
 
+## Round 2 -- triaged 2026-06-19 (Session A, read-only diagnosis)
+
+Six more product-owner issues. Diagnosed via 4 parallel read-only code probes + structural
+analysis. THREE conflict with intentional design or with the reported symptom -- flagged
+DECISION / VERIFY below; they are not straightforward bug fixes.
+
+| # | Issue | Category | Migration | Lane | Severity |
+| --- | --- | --- | --- | --- | --- |
+| R2-1 | Request History accordion open by default on /appointments/view/:id | FE | No | B (appts) | Low |
+| R2-2 | Some appointments have no booker/creator identity; linking + dedup weak | Full-stack | Likely | B (appts/accounts) | High |
+| R2-3 | Availabilities chips: only booked/reserved; "Capacity remaining"; per-slot dropdown of names + appt numbers | Full-stack (small) | No | A (rework of #2) | Medium |
+| R2-4 | DA + CE external users not identical to AA (register/login/firm/options) | Full-stack | Likely | B (accounts) | HIGH + DECISION |
+| R2-5 | Password-reset emails do not arrive (defatty1); invites do | Full-stack | No | B (accounts) | Medium (symptom of R2-4) |
+| R2-6 | Send-back: per-field granularity (address -> sub-fields) + confirm it mutates the appointment | Full-stack | Maybe | B (send-back) | Med-High + VERIFY |
+
+### R2-1 -- Request History open by default
+`internal-appointment-detail.component.ts:171` `protected historyOpen = true;` -> set `false`
+(toggle `toggleHistory()` :173 + template `@if (historyOpen)` :262 already exist). One-line FE fix.
+
+### R2-2 -- Booker identity null + dedup
+"Record-only" bookings (IP6, 2026-06-05) intentionally persist an appointment with
+`IdentityUserId`/`CreatorId` null (booker creates for an unregistered patient; backfilled when
+the patient later claims it). REAL GAP: the internal list visibility filter matches
+`a.CreatorId == userId` (AppointmentsAppService.cs:~221), so a null-creator appointment is never
+visible to its booker. Dedup weakness: inconsistent email normalization -- SQL `.ToLower()` vs
+app `ToLowerInvariant()` (ExternalSignupAppService.cs:869-878, 935-956), no locking on the claim
+-> duplicate/missed-link risk under concurrent signup or odd casing.
+DECISION (D-R2-B): require a booker identity on every appointment (forbid null CreatorId), or
+keep record-only and fix the visibility gap? Either way harden dedup (one normalization, unique
+index, race handling) + stress-test.
+
+### R2-3 -- Availabilities chip rework (refines shipped #2)
+FE (internal-availabilities.component.html:119-126; avail-grid.util.ts GridSlot): (1) guard chips
+to `statusKey !== 'available'` (only booked/reserved); (2) "Capacity {{n}}" -> "Capacity
+remaining" (remaining = capacity - activeCount); (3) capacity>1 -> a per-slot DROPDOWN listing
+each patient NAME + APPOINTMENT NUMBER instead of inline open chips.
+Backend: SlotPatientNamesDto + GetActivePatientNamesForSlotsAsync (EfCoreAppointmentRepository
+:458-501) return names only -- add the appointment/confirmation number per patient and expose
+remaining capacity to the grid. No migration. A's lane (migration-free, the #2 area).
+
+### R2-4 -- DA/CE external-user parity (DECISION) ***
+The asymmetry is INTENTIONAL in code (decision "D-2") and CONTRADICTS the requirement that all 4
+external roles be identical:
+- external-home.component.ts:94-122 hardcodes `canBook:false, canReeval:false` for DA + CE (AA =
+  true/true at :80-91) -> DA/CE never see "Request an appointment" / "Request a re-evaluation".
+- ExternalSignupAppService.cs:710-727 creates a profile row ONLY for AA at registration; DA/CE
+  are deferred to auto-link (created only if they already have appointments). CE has no profile
+  entity at MVP (:827-830).
+- Firm name is stored in IdentityUser.ExtraProperties["FirmName"] (:646-648), NOT the
+  DefenseAttorney entity (which has a FirmName column, DefenseAttorney.cs:31), so /defense-attorneys
+  (which queries the entity) shows a blank firm.
+- defatty1 login failure: invite-accept sets EmailConfirmed=true (:753), so likely a password
+  issue or a confirm-gap -- VERIFY the IdentityUser row (EmailConfirmed / Email / IsActive / TenantId).
+DECISION (D-R2-A): reverse D-2 so DA + CE match AA end-to-end -- profile row at registration,
+firm name on the entity, booking + re-eval options, identical permissions. Large full-stack; CE
+likely needs a new profile entity + migration.
+
+### R2-5 -- Password-reset email (symptom of R2-4)
+PasswordResetGate requires `EmailConfirmed == true` (PasswordResetGate.cs:55-59) and silently
+no-ops otherwise; invite emails bypass that gate (AccessorInvitedEmailHandler only null-checks
+the user). Both paths use the SAME real Azure SMTP (smtp.azurecomm.net, noreply@gesco.com; no dev
+catcher), so delivery works -- the reset just never fires for an unconfirmed/incomplete account.
+Resolves with R2-4 (ensure DA/CE accounts are confirmed + valid). VERIFY defatty1 EmailConfirmed.
+
+### R2-6 -- Send-back granularity + mutation (VERIFY part b)
+Part (a) CONFIRMED: "address" is ONE flaggable key (send-back-fields.ts:44) -> one input on the
+fix-it page; needs decomposition into street/city/state/zip across send-back-fields.ts +
+SaveInfoRequestCorrectionsInput + ApplyPatientCorrectionsAsync (AppointmentInfoRequestsAppService
+.cs:259-298). If Patient stores address as one column, the sub-fields need a Patient schema change
+(migration).
+Part (b) CONTRADICTS the report: SaveCorrectionsAsync (AppointmentInfoRequestsAppService.cs
+:131-163) ALREADY writes corrections to the Patient/Appointment/Insurance/DefenseAttorney
+entities via UpdateAsync(autoSave:true); the change-log AfterValues snapshot is supplementary,
+not instead-of. So resubmit SHOULD mutate the appointment today. VERIFY with a live resubmit -- if
+it genuinely does not change the appointment, that is the real bug to pin; otherwise R2-6 is just
+part (a) granularity.
+
+### Round-2 open decisions for Adrian
+- D-R2-A (R2-4 / R2-5): reverse "D-2" -- make all 4 external roles identical (DA/CE profiles +
+  firm name on entity + booking/re-eval options + confirmed accounts)? Big full-stack.
+- D-R2-B (R2-2): require a booker identity on every appointment, or keep record-only and fix the
+  visibility-filter gap? Plus harden + stress-test dedup.
+- D-R2-C (R2-6b): live re-test whether resubmit mutates the appointment (code says it does).
+
 ## Fastest order to knock down what is left
 
 Weekend sequence overall: bug list (below) -> multi-tenant implementation + infra +
