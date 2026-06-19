@@ -208,9 +208,21 @@ T1 is committable on its own (component + spec). T2 and T3 each become their own
   type-check pass; lint clean.
 - T3 (external history section): DONE, commit 2b4386d. Dev build + template
   type-check pass; lint clean.
-- T4 (live Falkinstein screenshots): PENDING. Needs (a) a coordinated Angular
-  container restart so the dev server serves the new code (Windows->container
-  file-watch does not propagate -- restart via Adrian/Session A), and (b) test data:
-  an appointment with at least one Send Back round that appatty1 is a party to.
+- T2 follow-up FIX: render change-log via markForCheck, commit e0996c7. During T4
+  verification the change-log page sat stuck on "Loading change log" -- the page is
+  OnPush but (pre-existing) never called markForCheck, so neither the audit nor the
+  new rounds rendered after their HTTP calls returned. This was a real cause of "#14
+  shows nothing". Fixed by injecting ChangeDetectorRef + markForCheck in both
+  subscribes, matching the global AppointmentChangeLogList component. External detail
+  + internal detail are Default CD, so they need no such fix.
+- T4 (live Falkinstein screenshots): IN PROGRESS. Verified on Falkinstein (chrome):
+  new code is deployed (the "Field-level audit" heading + updated subtitle render),
+  getHistory returns 5 real rounds for A00001, and the internal detail inline
+  "Request history" renders them. The change-log rounds section was blocked by the
+  OnPush bug above; needs a SECOND Angular restart to serve e0996c7, then re-shoot
+  both surfaces (internal change-log rounds + external lighter-summary history as
+  appatty1, who is A00001's booker/creator -> passes the read guard).
+- Test data: A00001 (id e2ea909e-...edf0) already has 5 send-back rounds incl. a real
+  DOB diff -- no data setup needed.
 - Context note: #3 (config hub + WCAB) landed as commit 2885512 -- unblocks the
   later #4/#6 config-hub UI (not part of #14).
