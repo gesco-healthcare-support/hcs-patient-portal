@@ -119,6 +119,11 @@ export interface GetDoctorAvailabilityLookupInput {
   availableDateTo?: string | null;
 }
 
+export interface SlotPatientNamesDto {
+  slotId?: string;
+  names?: string[];
+}
+
 export interface TimeRangeDto {
   fromTime?: string;
   toTime?: string;

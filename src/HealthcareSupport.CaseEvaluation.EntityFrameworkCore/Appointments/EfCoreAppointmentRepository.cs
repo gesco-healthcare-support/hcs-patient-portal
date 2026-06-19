@@ -454,4 +454,49 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             .Select(g => new { SlotId = g.Key, Count = (long)g.Count() })
             .ToDictionaryAsync(x => x.SlotId, x => x.Count, GetCancellationToken(cancellationToken));
     }
+
+    public virtual async Task<Dictionary<Guid, List<string>>> GetActivePatientNamesForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default)
+    {
+        // #2 (2026-06-19) -- bulk slot -> patient-name projection for the week-view
+        // chips. Predicate mirrors GetActiveCountsForSlotsAsync (exclude the five
+        // slot-freed terminal statuses); joins Patient for the display name so the
+        // grid shows who holds each booked/reserved slot. One round-trip; the
+        // per-slot grouping runs in memory over the bounded week-of-slots result.
+        if (doctorAvailabilityIds == null || doctorAvailabilityIds.Count == 0)
+        {
+            return new Dictionary<Guid, List<string>>();
+        }
+
+        var dbContext = await GetDbContextAsync();
+        var rows = await (await GetDbSetAsync())
+            .Where(x => doctorAvailabilityIds.Contains(x.DoctorAvailabilityId))
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate)
+            .Join(
+                dbContext.Set<Patient>(),
+                appointment => appointment.PatientId,
+                patient => patient.Id,
+                (appointment, patient) => new
+                {
+                    appointment.DoctorAvailabilityId,
+                    patient.FirstName,
+                    patient.LastName,
+                })
+            .ToListAsync(GetCancellationToken(cancellationToken));
+
+        return rows
+            .GroupBy(r => r.DoctorAvailabilityId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .Select(r => $"{r.FirstName} {r.LastName}".Trim())
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToList());
+    }
 }

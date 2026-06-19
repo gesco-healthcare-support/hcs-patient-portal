@@ -60,12 +60,16 @@ export class InternalAvailabilitiesComponent implements OnInit {
   protected readonly view = signal<'grid' | 'table'>('grid');
   protected readonly weekOffset = signal(0);
   protected readonly rows = signal<DoctorAvailabilityWithNavigationPropertiesDto[]>([]);
+  /** #2 -- booked/reserved patient names keyed by slot id (for the grid chips). */
+  protected readonly patientNames = signal<Record<string, string[]>>({});
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   protected readonly confirmDay = signal<WeekDayColumn | null>(null);
 
   protected readonly weekDates = computed(() => weekDatesFor(this.anchor, this.weekOffset()));
   protected readonly weekRange = computed(() => formatWeekRange(this.weekDates()));
-  protected readonly columns = computed(() => buildWeekColumns(this.rows(), this.weekDates()));
+  protected readonly columns = computed(() =>
+    buildWeekColumns(this.rows(), this.weekDates(), this.patientNames()),
+  );
 
   /** Columns with slots narrowed to the status filter (counts stay complete). */
   protected readonly displayColumns = computed(() => {
@@ -119,9 +123,42 @@ export class InternalAvailabilitiesComponent implements OnInit {
       })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (res) => this.rows.set(res.items ?? []),
-        error: () => this.rows.set([]),
+        next: (res) => {
+          const items = res.items ?? [];
+          this.rows.set(items);
+          this.loadPatientNames(items);
+        },
+        error: () => {
+          this.rows.set([]);
+          this.patientNames.set({});
+        },
       });
+  }
+
+  /**
+   * #2 (2026-06-19) -- fetch the booked/reserved patient names for the loaded
+   * week's slots in one bulk call, keyed by slot id for the grid chips. Runs
+   * after getList so the grid paints immediately and chips fill in when the names
+   * arrive; only slots with a non-terminal appointment come back.
+   */
+  private loadPatientNames(items: DoctorAvailabilityWithNavigationPropertiesDto[]): void {
+    this.patientNames.set({});
+    const slotIds = items.map((it) => it.doctorAvailability?.id).filter((id): id is string => !!id);
+    if (slotIds.length === 0) {
+      return;
+    }
+    this.service.getSlotPatientNames(slotIds).subscribe({
+      next: (names) => {
+        const map: Record<string, string[]> = {};
+        for (const row of names) {
+          if (row.slotId) {
+            map[row.slotId] = row.names ?? [];
+          }
+        }
+        this.patientNames.set(map);
+      },
+      error: () => this.patientNames.set({}),
+    });
   }
 
   private toIso(d: Date): string {

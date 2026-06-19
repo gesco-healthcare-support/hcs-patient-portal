@@ -117,6 +117,13 @@
               >
                 <span class="t">{{ slot.timeLabel }}</span>
                 <span class="c">Capacity {{ slot.capacity }}</span>
+                @if (slot.patientNames.length > 0) {
+                  <div class="av-slot__names">
+                    @for (name of slot.patientNames; track $index) {
+                      <span class="av-slot__name" [title]="name">{{ name }}</span>
+                    }
+                  </div>
+                }
                 <button class="x" type="button" title="Delete slot" (click)="deleteSlot(slot.id)">
                   <app-icon name="x" [size]="12" />
                 </button>

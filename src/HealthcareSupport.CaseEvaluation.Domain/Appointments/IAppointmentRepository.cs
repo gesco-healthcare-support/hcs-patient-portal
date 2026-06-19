@@ -64,4 +64,15 @@ public interface IAppointmentRepository : IRepository<Appointment, Guid>
     Task<Dictionary<Guid, long>> GetActiveCountsForSlotsAsync(
         List<Guid> doctorAvailabilityIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// #2 (2026-06-19) -- bulk variant of <see cref="GetActiveCountsForSlotsAsync"/>
+    /// that returns the PATIENT NAMES (not just counts) holding each slot, for the
+    /// internal availabilities week-view chips. Same non-terminal predicate; joins
+    /// Patient for the display name. Keyed by slot id; slots with no active
+    /// appointment are absent (caller treats missing as none).
+    /// </summary>
+    Task<Dictionary<Guid, List<string>>> GetActivePatientNamesForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default);
 }

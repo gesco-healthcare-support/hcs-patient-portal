@@ -619,6 +619,26 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
     }
 
     /// <summary>
+    /// #2 (2026-06-19) -- booked/reserved patient names per slot for the internal
+    /// week-view chips. Bulk over the visible week's slot ids (one round-trip);
+    /// only slots with at least one non-terminal appointment come back. Internal-
+    /// only -- patient names are not exposed on any external surface.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
+    public virtual async Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds)
+    {
+        if (slotIds == null || slotIds.Count == 0)
+        {
+            return new List<SlotPatientNamesDto>();
+        }
+
+        var namesBySlot = await _appointmentRepository.GetActivePatientNamesForSlotsAsync(slotIds);
+        return namesBySlot
+            .Select(kvp => new SlotPatientNamesDto { SlotId = kvp.Key, Names = kvp.Value })
+            .ToList();
+    }
+
+    /// <summary>
     /// In-flight slot statuses (<c>Reserved</c> or <c>Booked</c>) that
     /// block administrative mutation. Mirrors OLD
     /// <c>DoctorsAvailabilityDomain.cs</c>'s repeated check pattern.

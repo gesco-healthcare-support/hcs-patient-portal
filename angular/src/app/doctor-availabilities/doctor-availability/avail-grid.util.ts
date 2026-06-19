@@ -18,6 +18,8 @@ export interface GridSlot {
   fromTime: string;
   toTime: string;
   timeLabel: string;
+  /** #2 -- booked/reserved patient names on this slot (empty for available). */
+  patientNames: string[];
 }
 
 export interface WeekDayColumn {
@@ -152,6 +154,7 @@ export function formatWeekRange(weekDates: Date[]): string {
 export function buildWeekColumns(
   items: DoctorAvailabilityWithNavigationPropertiesDto[],
   weekDates: Date[],
+  patientNames: Record<string, string[]> = {},
 ): WeekDayColumn[] {
   return weekDates.map((d) => {
     const iso = isoDate(d);
@@ -166,6 +169,7 @@ export function buildWeekColumns(
           fromTime: da.fromTime ?? '',
           toTime: da.toTime ?? '',
           timeLabel: formatTimeRange(da.fromTime, da.toTime),
+          patientNames: patientNames[da.id ?? ''] ?? [],
         };
       })
       .sort((a, b) => a.fromTime.localeCompare(b.fromTime));
