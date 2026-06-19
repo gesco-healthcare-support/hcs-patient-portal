@@ -48,15 +48,18 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly INotificationTemplateTypeRepository _typeRepository;
     private readonly INotificationDispatcher _notificationDispatcher;
+    private readonly IEmailBodySanitizer _emailBodySanitizer;
 
     public NotificationTemplatesAppService(
         INotificationTemplateRepository templateRepository,
         INotificationTemplateTypeRepository typeRepository,
-        INotificationDispatcher notificationDispatcher)
+        INotificationDispatcher notificationDispatcher,
+        IEmailBodySanitizer emailBodySanitizer)
     {
         _templateRepository = templateRepository;
         _typeRepository = typeRepository;
         _notificationDispatcher = notificationDispatcher;
+        _emailBodySanitizer = emailBodySanitizer;
     }
 
     public virtual async Task<PagedResultDto<NotificationTemplateWithNavigationPropertiesDto>> GetListAsync(
@@ -120,6 +123,12 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         Check.NotNull(input, nameof(input));
         ValidateBodies(input);
         ValidateSubjectLength(input);
+
+        // #6 (2026-06-19): sanitize the HTML email body before persist. The
+        // renderer returns stored bodies verbatim, so the stored value must
+        // already be XSS-safe. BodySms is left untouched -- it is sent as plain
+        // text, never HTML, so HTML sanitization does not apply.
+        input.BodyEmail = _emailBodySanitizer.Sanitize(input.BodyEmail);
 
         var entity = await _templateRepository.GetAsync(id);
 
