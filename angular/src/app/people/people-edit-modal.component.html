@@ -15,6 +15,7 @@
           </label>
           <input
             class="ra-input"
+            placeholder="First name"
             [ngModel]="draft().firstName"
             (ngModelChange)="patch({ firstName: $event })"
           />
@@ -26,6 +27,7 @@
           </label>
           <input
             class="ra-input"
+            placeholder="Last name"
             [ngModel]="draft().lastName"
             (ngModelChange)="patch({ lastName: $event })"
           />
@@ -36,6 +38,7 @@
             <label>Middle name</label>
             <input
               class="ra-input"
+              placeholder="Middle name"
               [ngModel]="draft().middleName"
               (ngModelChange)="patch({ middleName: $event })"
             />
@@ -67,6 +70,7 @@
             <input
               class="ra-input"
               type="email"
+              placeholder="name@example.com"
               [ngModel]="draft().email"
               (ngModelChange)="patch({ email: $event })"
             />
@@ -75,6 +79,7 @@
             <label>Phone</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().phoneNumber"
               (ngModelChange)="patch({ phoneNumber: $event })"
             />
@@ -83,6 +88,7 @@
             <label>Cell phone</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().cellPhoneNumber"
               (ngModelChange)="patch({ cellPhoneNumber: $event })"
             />
@@ -114,6 +120,7 @@
             <label>Street</label>
             <input
               class="ra-input"
+              placeholder="Street address"
               [ngModel]="draft().street"
               (ngModelChange)="patch({ street: $event })"
             />
@@ -122,6 +129,7 @@
             <label>City</label>
             <input
               class="ra-input"
+              placeholder="City"
               [ngModel]="draft().city"
               (ngModelChange)="patch({ city: $event })"
             />
@@ -143,6 +151,7 @@
             <label>Zip code</label>
             <input
               class="ra-input"
+              placeholder="ZIP code"
               [ngModel]="draft().zipCode"
               (ngModelChange)="patch({ zipCode: $event })"
             />
@@ -164,6 +173,7 @@
             <label>Other language</label>
             <input
               class="ra-input"
+              placeholder="Other language"
               [ngModel]="draft().othersLanguageName"
               (ngModelChange)="patch({ othersLanguageName: $event })"
             />
@@ -172,6 +182,7 @@
             <label>Interpreter vendor</label>
             <input
               class="ra-input"
+              placeholder="Interpreter vendor"
               [ngModel]="draft().interpreterVendorName"
               (ngModelChange)="patch({ interpreterVendorName: $event })"
             />
@@ -180,6 +191,7 @@
             <label>Appt #</label>
             <input
               class="ra-input"
+              placeholder="Appointment number"
               [ngModel]="draft().apptNumber"
               (ngModelChange)="patch({ apptNumber: $event })"
             />
@@ -189,6 +201,7 @@
             <label>Firm name</label>
             <input
               class="ra-input"
+              placeholder="Firm name"
               [ngModel]="draft().firmName"
               (ngModelChange)="patch({ firmName: $event })"
             />
@@ -197,6 +210,7 @@
             <label>Firm address</label>
             <input
               class="ra-input"
+              placeholder="Street, city, state, ZIP"
               [ngModel]="draft().firmAddress"
               (ngModelChange)="patch({ firmAddress: $event })"
             />
@@ -206,6 +220,7 @@
             <input
               class="ra-input"
               type="email"
+              placeholder="name@example.com"
               [ngModel]="draft().email"
               (ngModelChange)="patch({ email: $event })"
             />
@@ -214,6 +229,7 @@
             <label>Phone</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().phoneNumber"
               (ngModelChange)="patch({ phoneNumber: $event })"
             />
@@ -222,6 +238,7 @@
             <label>Fax</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().faxNumber"
               (ngModelChange)="patch({ faxNumber: $event })"
             />
@@ -232,6 +249,7 @@
             <input
               class="ra-input"
               type="email"
+              placeholder="name@example.com"
               [ngModel]="draft().email"
               (ngModelChange)="patch({ email: $event })"
             />
@@ -240,6 +258,7 @@
             <label>Phone</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().phoneNumber"
               (ngModelChange)="patch({ phoneNumber: $event })"
             />
@@ -248,6 +267,7 @@
             <label>Fax</label>
             <input
               class="ra-input"
+              placeholder="(555) 555-0100"
               [ngModel]="draft().faxNumber"
               (ngModelChange)="patch({ faxNumber: $event })"
             />
