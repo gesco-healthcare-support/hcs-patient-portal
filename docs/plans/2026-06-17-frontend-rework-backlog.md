@@ -33,7 +33,7 @@ post-multi-tenant).
 | --- | --- | --- | --- | --- | --- |
 | 1a/1b | Sidebar: collapse Configuration + People groups | DONE (8f7a66d) | FE+Design | No | Menu is a hardcoded Angular array (internal-nav.config.ts:50); shipped as collapsible accordion groups. |
 | 1c | No underlines on button labels | DONE (b1685a1) | FE | No | Root cause: `.af-btn`/`.ap-btn` used on `<a>` elements -> browser anchor underline. Fix: `text-decoration:none` on both; 5 stray hover underlines also removed. |
-| 2 | Doctor Availabilities week-view rework | OPEN | Full-stack | Yes | Per-day available/booked/reserved counts already computed FE-side; patient names per slot are NOT in the DTO. Patient-name chips need a new endpoint. |
+| 2 | Doctor Availabilities week-view rework | DONE (A: 0f904e7) | Full-stack (no migration) | Yes | Added a bulk slot->patient-names read endpoint (mirrors GetActiveCountsForSlotsAsync + Patient join); week grid now renders per-slot patient chips. Verified end-to-end (endpoint 200 returns names; chip renders on a reserved slot). |
 | 3 | WCAB Offices whitespace | DONE (2885512) | FE+Design | No (route) | Standard filter+table+modal, ~40% whitespace. A "Locations" page already exists under Scheduling. Decision: merge into the Configuration hub. |
 | 4 | Document Types: one doc -> mark which appointment types need it | OPEN | Full-stack | Yes | Today 1 row per (name, appointment-type) by design ("Medical Records" seeded 3x). Inversion = new M2M + dedupe migration + app service + UI. |
 | 5 | New Patient/AA/DA modals: whitespace + tiny inputs | DONE (b1685a1) | FE+Design | No | Live modal is `app-people-edit-modal`. Shipped: `ra-modal--xl` (1040px) + fields `col-4`->`col-6` (2-up); field placeholders added (f84e998). |
@@ -48,7 +48,7 @@ post-multi-tenant).
 | 13c | "Web Address" -> "Website" (AA + DA) | DONE (d5ebeaf) | FE | No | Label swapped on both attorney sections. |
 | 13 (highlight) | Highlight available appointment dates | DONE (d5ebeaf) | FE | No | ViewEncapsulation fix: green `.available-day` rule moved into the schedule component's SCSS; 27 days render rgb(25,135,84). |
 | 13e | Review page: full claim info + all fields | DONE (cce23d7, 140162e) | FE+Design | No | Full-mirror review + patient gender now shown. |
-| 14 | Appointment-detail change log shows nothing (incl. booker resubmit edits) | OPEN | Full-stack | Yes | Change-log route projects ABP audit over only 5 entity types; resubmit writes to Patient/DefenseAttorney (not scanned) -> ~no rows. Cheapest lever: surface B2 `GetHistoryAsync` (already plain-language who/when/old->new) on the detail page + an external version. Effort M. |
+| 14 | Appointment-detail change log shows nothing (incl. booker resubmit edits) | DONE (B: e57423c..e0996c7) | Full-stack -> FE-only | No | Session B surfaced the existing `GetHistoryAsync` rounds on the internal change-log page + a lighter external-detail summary (no backend/migration needed -- the endpoint + read-guard already admit external parties). Incl. a markForCheck fix for the stuck-loading change-log page. |
 | 15 | Real draft save/resume on the booking wizard | OPEN | Full-stack | Yes | "Draft saved" pill is cosmetic; localStorage autosave is wiped on navigate-away (ngOnDestroy). Needs AppointmentDraft entity + migration + AppService + save-on-Continue + CanDeactivate modal + resume + first-of-its-kind background cleanup worker. Effort XL; holds PHI -> tdd. |
 | 16 | Systemic excess margins on wide screens (supersedes #8) | DONE (bf14ebd) | FE+Design | No | Shipped shared fluid-gutter (clamp + high max-width): external detail/wizard ->1560, my-profile ->1100, internal detail `.ad--wide` ->2240. |
 | 17 | Sidebar: only Configuration + People collapsible, moved to bottom | DONE (c7fab6b) | FE | No | Refinement of #1a/1b: Workspace/Scheduling/Administration stay open; `collapsible` flag on the nav group + a static header for the rest. |
@@ -104,7 +104,13 @@ post-multi-tenant).
   13-highlight, 13e, 16, 10 (complete -- completion line 41a9fe7), #3 (WCAB in the
   config hub, 2885512), #17 (sidebar collapse refinement, c7fab6b), and the #5 field
   placeholders (f84e998).
-- OPEN (the bug-list backlog): 2, 4, 6, 9, 14, 15.
+- DONE since: #14 (Session B, e57423c..e0996c7 -- FE-only surfacing of GetHistoryAsync);
+  #2 (Session A, 0f904e7 -- availabilities patient chips + bulk read endpoint, no migration).
+- IN PROGRESS: #9 (Session B).
+- OPEN (need EF migrations -> Session B's lane): 4, 6, 15.
+- PRE-EXISTING BUG FOUND (not #2): the internal Appointments list shows 0 rows while the
+  status chips count 4 (All=4, Approved=2, etc.) + a console error -- GetStatusCounts and
+  GetListWithNavigationProperties disagree for the same supervisor. Flagged separately.
 - DEFERRED: 11 (-> multi-tenant prep), appointment-change-control (-> post-multi-tenant,
   own spec 2026-06-19-appointment-change-control.md).
 
