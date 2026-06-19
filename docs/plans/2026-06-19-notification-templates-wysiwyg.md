@@ -90,7 +90,12 @@ Alternatives rejected:
 - T4: Front-end list pagination.
   - approach: code
   - files-touched: [angular/src/app/admin/internal-admin-hub.component.ts, angular/src/app/admin/internal-admin-hub.component.html, angular/src/styles/(admin scss)]
-  - detail: page size 20; pass `skipCount`/`maxResultCount` to the list service call; render a pager driven by the response `totalCount`; reuse the existing `ia-table` / pagination pattern from the internal list pages.
+  - detail: page size 20; CLIENT-SIDE pagination over the already-fetched,
+    client-filtered list (`ntShown`). Deviation from the original server-side
+    plan, decided 2026-06-19: the seeded code set is fixed at ~62 rows and the
+    list already filters client-side instantly -- server paging is YAGNI here and
+    would replace the instant filter with per-keystroke round-trips. The 200-row
+    fetch cap is unchanged (62 << 200; no truncation risk for years).
   - acceptance: the templates list shows a pager; paging changes the visible rows; filters reset to page 1.
 
 - T5: Live verification on Falkinstein.
@@ -122,3 +127,31 @@ in the WYSIWYG, insert a `##Var##` via the button, paste a `<script>alert(1)</sc
 and the formatting + `##Var##` + any templated link href intact. Run Send-test and confirm the
 email renders as HTML. Page through the templates list with the new pager. Backend: `dotnet
 test` for the sanitizer + AppService tests; api compiles clean on container restart.
+
+## Build status (2026-06-19)
+
+DONE -- all tasks. Commits on feat/frontend-rework:
+
+- `2a0d7e5` docs: this plan
+- `b06f453` T1: `IEmailBodySanitizer` (Ganss HtmlSanitizer) + 8 pure unit tests (RED->GREEN)
+- `51ae631` T2: sanitize BodyEmail in `UpdateAsync` + license-blocked integration assertion
+- `14d4084` T3+T4: ngx-quill@28.0.2 editor + cursor `##Var##` insert + client-side pager (20/pg)
+
+Verified live on Falkinstein (Staff Supervisor), api healthy + angular built (93s):
+
+- WYSIWYG renders real template HTML (formatting, inline-styled `##PortalUrl##` button-link).
+- Insert-variable button inserts `##Token##` into the editor.
+- Server sanitization (direct API PUT, bypassing Quill's client clean): `<script>`, `onclick`,
+  and `javascript:` href all stripped; `##ResetUrl##`/`##PortalUrl##` token URLs,
+  `##PatientName##` text, and https links preserved. Test data restored after.
+- Pager: Page 1 -> 2 of 4, rows change, Previous enables.
+
+Notes / follow-ups (not blocking #6):
+
+- ngx-quill pin corrected to 28.0.2 (peers Angular 20; latest 31 peers Angular 22).
+- Initial bundle exceeds the 2 MB budget by ~274 kB (Quill) -- warning only; revisit by
+  lazy-loading the admin route if it is not already.
+- `InternalAdminHubComponent` is ~510 lines, over the 250 Angular cap (inherited 4-section
+  hub) -- flagged, not refactored under #6.
+- Pre-existing red test `Codes_All_Has64Codes` (expects 62, actual 63) from the send-back
+  code addition (`cdd9ba1`) -- Session B / notification-codes lane, not #6.
