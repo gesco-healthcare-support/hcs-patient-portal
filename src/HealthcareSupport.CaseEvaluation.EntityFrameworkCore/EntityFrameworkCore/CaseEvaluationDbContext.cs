@@ -204,18 +204,37 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
 
         // G-03-01: tenant-scoped document-category master. IMultiTenant, so it
         // lives in BOTH the host and tenant DBs -- NOT wrapped in IsHostDatabase.
-        // AppointmentTypeId is a loose Guid reference (no FK): AppointmentType is
-        // host-only and absent from tenant DBs, so a constraint cannot span them.
+        // #4 (2026-06-19): the per-row AppointmentTypeId was replaced by a M2M
+        // join (AppointmentDocumentTypeAppointmentType) + the AppliesToAll flag.
         builder.Entity<AppointmentDocumentType>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName("TenantId");
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
-            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.AppliesToAll).HasColumnName("AppliesToAll");
             b.Property(x => x.IsSystem).HasColumnName("IsSystem");
             b.Property(x => x.IsActive).HasColumnName("IsActive");
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
+            b.HasIndex(x => new { x.TenantId, x.Name });
+        });
+
+        // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the
+        // parent it lives in BOTH DBs; AppointmentTypeId is a loose Guid (no FK)
+        // because AppointmentType is host-only. The soft-delete filter mirrors
+        // the principal so EF does not warn about a navigation inconsistency; the
+        // parent's IMultiTenant filter follows through the required navigation.
+        builder.Entity<AppointmentDocumentTypeAppointmentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypeAppointmentType", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.AppointmentDocumentTypeId, x.AppointmentTypeId });
+            b.HasOne(x => x.AppointmentDocumentType)
+                .WithMany(x => x.AppointmentTypes)
+                .HasForeignKey(x => x.AppointmentDocumentTypeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.AppointmentTypeId);
+            b.HasQueryFilter(x => !x.AppointmentDocumentType.IsDeleted);
         });
 
         if (builder.IsHostDatabase())

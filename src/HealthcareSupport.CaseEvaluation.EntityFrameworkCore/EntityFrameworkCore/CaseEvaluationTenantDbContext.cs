@@ -107,18 +107,34 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
         });
         // G-03-01: tenant-scoped document-category master (verbatim duplicate of
-        // the host-context block, per the dual-DbContext convention). Loose
-        // AppointmentTypeId column -- no FK (AppointmentType is absent here).
+        // the host-context block, per the dual-DbContext convention). #4
+        // (2026-06-19): per-row AppointmentTypeId replaced by a M2M join +
+        // AppliesToAll flag.
         builder.Entity<AppointmentDocumentType>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName("TenantId");
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
-            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.AppliesToAll).HasColumnName("AppliesToAll");
             b.Property(x => x.IsSystem).HasColumnName("IsSystem");
             b.Property(x => x.IsActive).HasColumnName("IsActive");
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
+            b.HasIndex(x => new { x.TenantId, x.Name });
+        });
+        // #4 (2026-06-19): document-category <-> appointment-type M2M (loose
+        // AppointmentTypeId, no FK -- AppointmentType is absent here).
+        builder.Entity<AppointmentDocumentTypeAppointmentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypeAppointmentType", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.AppointmentDocumentTypeId, x.AppointmentTypeId });
+            b.HasOne(x => x.AppointmentDocumentType)
+                .WithMany(x => x.AppointmentTypes)
+                .HasForeignKey(x => x.AppointmentDocumentTypeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.AppointmentTypeId);
+            b.HasQueryFilter(x => !x.AppointmentDocumentType.IsDeleted);
         });
         builder.Entity<AppointmentLanguage>(b =>
         {

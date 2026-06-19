@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -32,11 +33,13 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
     {
         var totalCount = await _appointmentDocumentTypeRepository.GetCountAsync(input.FilterText, input.AppointmentTypeId);
         var items = await _appointmentDocumentTypeRepository.GetListAsync(input.FilterText, input.AppointmentTypeId, input.Sorting, input.MaxResultCount, input.SkipCount);
-        var dtoItems = ObjectMapper.Map<List<AppointmentDocumentType>, List<AppointmentDocumentTypeDto>>(items);
-        // Prompt 15 / item 32: per-row UsageCount = referencing AppointmentDocument rows.
-        foreach (var dto in dtoItems)
+        var dtoItems = new List<AppointmentDocumentTypeDto>(items.Count);
+        foreach (var entity in items)
         {
-            dto.UsageCount = (int)await _appointmentDocumentRepository.CountAsync(d => d.AppointmentDocumentTypeId == dto.Id);
+            var dto = MapWithAppointmentTypes(entity);
+            // Prompt 15 / item 32: per-row UsageCount = referencing AppointmentDocument rows.
+            dto.UsageCount = (int)await _appointmentDocumentRepository.CountAsync(d => d.AppointmentDocumentTypeId == entity.Id);
+            dtoItems.Add(dto);
         }
         return new PagedResultDto<AppointmentDocumentTypeDto>
         {
@@ -47,7 +50,16 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
 
     public virtual async Task<AppointmentDocumentTypeDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<AppointmentDocumentType, AppointmentDocumentTypeDto>(await _appointmentDocumentTypeRepository.GetAsync(id));
+        return MapWithAppointmentTypes(await _appointmentDocumentTypeRepository.GetWithAppointmentTypesAsync(id));
+    }
+
+    /// <summary>Maps an entity plus its M2M set (the join collection is not auto-
+    /// mapped, like UsageCount; it is projected here from the loaded join rows).</summary>
+    private AppointmentDocumentTypeDto MapWithAppointmentTypes(AppointmentDocumentType entity)
+    {
+        var dto = ObjectMapper.Map<AppointmentDocumentType, AppointmentDocumentTypeDto>(entity);
+        dto.AppointmentTypeIds = entity.AppointmentTypes.Select(j => j.AppointmentTypeId).ToList();
+        return dto;
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete)]
@@ -59,15 +71,17 @@ public class AppointmentDocumentTypesAppService : CaseEvaluationAppService, IApp
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Create)]
     public virtual async Task<AppointmentDocumentTypeDto> CreateAsync(AppointmentDocumentTypeCreateDto input)
     {
-        var appointmentDocumentType = await _appointmentDocumentTypeManager.CreateAsync(input.Name, input.AppointmentTypeId, input.IsActive);
-        return ObjectMapper.Map<AppointmentDocumentType, AppointmentDocumentTypeDto>(appointmentDocumentType);
+        var appointmentDocumentType = await _appointmentDocumentTypeManager.CreateAsync(
+            input.Name, input.AppointmentTypeIds, input.AppliesToAll, input.IsActive);
+        return MapWithAppointmentTypes(appointmentDocumentType);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Edit)]
     public virtual async Task<AppointmentDocumentTypeDto> UpdateAsync(Guid id, AppointmentDocumentTypeUpdateDto input)
     {
-        var appointmentDocumentType = await _appointmentDocumentTypeManager.UpdateAsync(id, input.Name, input.AppointmentTypeId, input.IsActive);
-        return ObjectMapper.Map<AppointmentDocumentType, AppointmentDocumentTypeDto>(appointmentDocumentType);
+        var appointmentDocumentType = await _appointmentDocumentTypeManager.UpdateAsync(
+            id, input.Name, input.AppointmentTypeIds, input.AppliesToAll, input.IsActive);
+        return MapWithAppointmentTypes(appointmentDocumentType);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete)]

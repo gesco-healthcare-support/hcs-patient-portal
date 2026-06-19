@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using Volo.Abp;
@@ -9,10 +10,15 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 
 /// <summary>
 /// Owns the invariants the legacy app lacked (its CRUD validated nothing):
-/// name uniqueness per appointment type, protection of the reserved
+/// name uniqueness per tenant, protection of the reserved
 /// <see cref="AppointmentDocumentType.IsSystem"/> rows from edit/delete, and
 /// (PR2) an in-use-before-delete guard now that
 /// <see cref="AppointmentDocument.AppointmentDocumentTypeId"/> can reference a type.
+///
+/// <para>#4 (2026-06-19): a category is one record with a M2M set of appointment
+/// types (or <see cref="AppointmentDocumentType.AppliesToAll"/>). Create/Update
+/// reconcile that set, and uniqueness is now per-tenant (one "Medical Records"
+/// per office) rather than per appointment type.</para>
 /// </summary>
 public class AppointmentDocumentTypeManager : DomainService
 {
@@ -27,11 +33,15 @@ public class AppointmentDocumentTypeManager : DomainService
         _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
-    public virtual async Task<AppointmentDocumentType> CreateAsync(string name, Guid? appointmentTypeId, bool isActive = true)
+    public virtual async Task<AppointmentDocumentType> CreateAsync(
+        string name,
+        List<Guid> appointmentTypeIds,
+        bool appliesToAll,
+        bool isActive = true)
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), AppointmentDocumentTypeConsts.NameMaxLength);
-        await EnsureNameIsUniqueAsync(name, appointmentTypeId, excludeId: null);
+        await EnsureNameIsUniqueAsync(name, excludeId: null);
 
         // Stamp the owning tenant explicitly from the resolved request tenant.
         // ABP auto-populates IMultiTenant.TenantId on insert only for entities
@@ -43,25 +53,34 @@ public class AppointmentDocumentTypeManager : DomainService
         var entity = new AppointmentDocumentType(
             GuidGenerator.Create(),
             name,
-            appointmentTypeId,
+            appliesToAll,
             isActive,
             isSystem: false,
             tenantId: CurrentTenant.Id);
+        entity.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         return await _appointmentDocumentTypeRepository.InsertAsync(entity);
     }
 
-    public virtual async Task<AppointmentDocumentType> UpdateAsync(Guid id, string name, Guid? appointmentTypeId, bool isActive)
+    public virtual async Task<AppointmentDocumentType> UpdateAsync(
+        Guid id,
+        string name,
+        List<Guid> appointmentTypeIds,
+        bool appliesToAll,
+        bool isActive)
     {
         Check.NotNullOrWhiteSpace(name, nameof(name));
         Check.Length(name, nameof(name), AppointmentDocumentTypeConsts.NameMaxLength);
 
-        var entity = await _appointmentDocumentTypeRepository.GetAsync(id);
+        // Load WITH the join set so SetAppointmentTypes reconciles against the
+        // current set instead of re-adding everything to an empty collection.
+        var entity = await _appointmentDocumentTypeRepository.GetWithAppointmentTypesAsync(id);
         EnsureNotSystem(entity);
-        await EnsureNameIsUniqueAsync(name, appointmentTypeId, excludeId: id);
+        await EnsureNameIsUniqueAsync(name, excludeId: id);
 
         entity.Name = name;
-        entity.AppointmentTypeId = appointmentTypeId;
+        entity.AppliesToAll = appliesToAll;
         entity.IsActive = isActive;
+        entity.SetAppointmentTypes(appointmentTypeIds ?? new List<Guid>());
         return await _appointmentDocumentTypeRepository.UpdateAsync(entity);
     }
 
@@ -100,9 +119,9 @@ public class AppointmentDocumentTypeManager : DomainService
         }
     }
 
-    private async Task EnsureNameIsUniqueAsync(string name, Guid? appointmentTypeId, Guid? excludeId)
+    private async Task EnsureNameIsUniqueAsync(string name, Guid? excludeId)
     {
-        if (await _appointmentDocumentTypeRepository.NameExistsAsync(name, appointmentTypeId, excludeId))
+        if (await _appointmentDocumentTypeRepository.NameExistsAsync(name, excludeId))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeNameAlreadyExists);
         }

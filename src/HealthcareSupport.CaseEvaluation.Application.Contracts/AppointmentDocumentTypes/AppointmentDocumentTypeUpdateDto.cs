@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
@@ -9,9 +10,12 @@ public class AppointmentDocumentTypeUpdateDto
     [StringLength(AppointmentDocumentTypeConsts.NameMaxLength)]
     public string Name { get; set; } = null!;
 
-    /// <summary>Optional appointment-type scope. Null means the category applies
-    /// to every appointment type.</summary>
-    public Guid? AppointmentTypeId { get; set; }
+    /// <summary>The appointment types this category is offered for. Ignored when
+    /// <see cref="AppliesToAll"/> is true.</summary>
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
+
+    /// <summary>True to offer this category for every appointment type.</summary>
+    public bool AppliesToAll { get; set; }
 
     public bool IsActive { get; set; } = true;
 }

@@ -103,11 +103,16 @@ public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase
 [Mapper]
 public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
 {
-    // UsageCount is computed in AppointmentDocumentTypesAppService.GetListAsync, not auto-mapped.
+    // UsageCount + AppointmentTypeIds are projected in the app service (the join
+    // collection is not auto-mappable to a Guid list), so ignore them here.
     [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
     public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
 
     [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
     public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
 }
 
