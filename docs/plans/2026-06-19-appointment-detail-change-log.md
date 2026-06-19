@@ -120,6 +120,10 @@ requested fields updated" summary, and genericizes the staff requester to "HCS s
   - files-touched:
     - angular/src/app/appointments/appointment-change-logs/appointment-change-logs.component.ts
     - angular/src/app/appointments/appointment-change-logs/appointment-change-logs.component.html
+    - angular/src/app/appointments/appointment-change-logs/appointment-change-logs.component.scss (new)
+  - implementation note: added a component-scoped `.scss` for the two section
+    headings (Resubmit/request history vs Field-level audit) instead of inline
+    styles -- keeps the page clean and touches no shared `_*.scss`.
   - details: Inject `AppointmentInfoRequestService`; in `ngOnInit` call `getHistory(id)`
     alongside the existing `getByAppointment(id)` (independent subscriptions, each with its
     own loading/error flag, or `forkJoin` -- keep the audit timeline rendering even if the
@@ -138,6 +142,11 @@ requested fields updated" summary, and genericizes the staff requester to "HCS s
   - files-touched:
     - angular/src/app/appointments/appointment/components/external-appointment-detail.component.ts
     - angular/src/app/appointments/appointment/components/external-appointment-detail.component.html
+  - implementation note (open question resolved): used the typed
+    `AppointmentInfoRequestService.getHistory()` proxy (not the page's `RestService`
+    pattern). Same endpoint, which authorizes external parties via the read guard;
+    type-safe and consistent with T2 + the internal detail. No external-auth reason
+    to fall back to `RestService`. Nav link + section render only when rounds exist.
   - details: Load the rounds in `ngOnInit` via `loadHistory()`, mirroring the existing
     `loadInfoRequest()` pattern (prefer the `AppointmentInfoRequestService.getHistory()`
     proxy for type safety, consistent with the internal detail; fall back to the existing
@@ -191,3 +200,17 @@ T1 is committable on its own (component + spec). T2 and T3 each become their own
 - Proxy regen: NOT required (getHistory + change-log proxies already exist).
 - EF migration: NOT required.
 - Session A handshake: none needed. No shared-file edits. No #3 dependency.
+
+## Build status (2026-06-19)
+
+- T1 (component + spec): DONE, commit e57423c. 3/3 karma specs pass; lint clean.
+- T2 (internal change-log augment): DONE, commit 482ad44. Dev build + template
+  type-check pass; lint clean.
+- T3 (external history section): DONE, commit 2b4386d. Dev build + template
+  type-check pass; lint clean.
+- T4 (live Falkinstein screenshots): PENDING. Needs (a) a coordinated Angular
+  container restart so the dev server serves the new code (Windows->container
+  file-watch does not propagate -- restart via Adrian/Session A), and (b) test data:
+  an appointment with at least one Send Back round that appatty1 is a party to.
+- Context note: #3 (config hub + WCAB) landed as commit 2885512 -- unblocks the
+  later #4/#6 config-hub UI (not part of #14).
