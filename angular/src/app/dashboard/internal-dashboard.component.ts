@@ -102,11 +102,38 @@ export class InternalDashboardComponent implements OnInit {
     return `conic-gradient(${stops.join(', ')})`;
   });
 
-  protected readonly trendMax = computed(() =>
-    Math.max(1, ...(this.data()?.trend ?? []).map((t) => t.count ?? 0)),
-  );
+  protected readonly trendMax = computed(() => {
+    const trend = this.data()?.trend ?? [];
+    return Math.max(
+      1,
+      ...trend.map((t) => t.count ?? 0),
+      ...trend.map((t) => t.completedCount ?? 0),
+    );
+  });
   /** Mid-point tick for the trend chart's y-axis (#10). */
   protected readonly trendMid = computed(() => Math.round(this.trendMax() / 2));
+
+  /**
+   * Completion-line vertices (#10) in the chart's 0-100 viewBox space: x at each
+   * week column's center, y inverted so trendMax sits at the top. Shares the bars'
+   * y-scale so "approved out" reads against "received in".
+   */
+  protected readonly trendLine = computed(() => {
+    const trend = this.data()?.trend ?? [];
+    const n = trend.length;
+    const max = this.trendMax();
+    return trend.map((t, i) => ({
+      x: n > 0 ? ((i + 0.5) / n) * 100 : 0,
+      y: (1 - (t.completedCount ?? 0) / max) * 100,
+      count: t.completedCount ?? 0,
+    }));
+  });
+  /** SVG polyline "x,y x,y ..." for the completion line. */
+  protected readonly trendLinePath = computed(() =>
+    this.trendLine()
+      .map((p) => `${p.x},${p.y}`)
+      .join(' '),
+  );
 
   ngOnInit(): void {
     const user = this.configState.getOne('currentUser') as { roles?: string[] } | null;

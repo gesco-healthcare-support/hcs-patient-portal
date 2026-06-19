@@ -79,6 +79,7 @@ export interface DashboardTrendPointDto {
   label?: string;
   weekStart?: string;
   count?: number;
+  completedCount?: number;
 }
 
 export interface TenantSummaryDto {

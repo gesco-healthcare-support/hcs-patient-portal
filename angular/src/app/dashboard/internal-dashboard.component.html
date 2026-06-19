@@ -245,6 +245,16 @@
               <a (click)="openReports()">Reports</a>
             </div>
             <div class="dh-card__body">
+              <div class="dh-trendlegend">
+                <span>
+                  <i class="sw sw--bar"></i>
+                  Received
+                </span>
+                <span>
+                  <i class="sw sw--line"></i>
+                  Approved
+                </span>
+              </div>
               <div class="dh-chart">
                 <div class="dh-yaxis">
                   <span>{{ trendMax() }}</span>
@@ -260,6 +270,23 @@
                         [style.height]="barHeight(pt.count)"
                       ></div>
                       <span class="lb">{{ pt.weekStart | date: 'MMM d' }}</span>
+                    </div>
+                  }
+                  @if (trendLine().length) {
+                    <div class="dh-overlay">
+                      @if (trendLine().length > 1) {
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                          <polyline [attr.points]="trendLinePath()" />
+                        </svg>
+                      }
+                      @for (p of trendLine(); track $index) {
+                        <span
+                          class="dh-dot"
+                          [style.left.%]="p.x"
+                          [style.top.%]="p.y"
+                          [attr.title]="p.count + ' approved'"
+                        ></span>
+                      }
                     </div>
                   }
                 </div>

@@ -76,7 +76,11 @@ public class DashboardTrendPointDto
     /// <summary>UTC start (Monday) of the week this point covers, for the chart's real-date axis.</summary>
     public DateTime WeekStart { get; set; }
 
+    /// <summary>Requests RECEIVED that week (by creation date) -- the volume bar.</summary>
     public int Count { get; set; }
+
+    /// <summary>Requests APPROVED that week (by approve date) -- the completion line (#10).</summary>
+    public int CompletedCount { get; set; }
 }
 
 public class DashboardDeadlineItemDto

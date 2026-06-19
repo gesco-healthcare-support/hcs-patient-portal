@@ -379,6 +379,73 @@
   font-weight: 600;
 }
 
+// #10 (2026-06-19): completion line overlaid on the volume bars. The overlay
+// covers exactly the bar region (offset by the bars' 10px top padding) so its
+// 0-100 coords share the bars' y-scale; non-scaling stroke keeps the line width
+// constant under the preserveAspectRatio="none" stretch. pointer-events:none so
+// the bars keep their hover tooltip.
+.dh-bars {
+  position: relative;
+}
+.dh-overlay {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.dh-overlay svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dh-overlay polyline {
+  fill: none;
+  stroke: var(--green-500);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.dh-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-500);
+  border: 2px solid #fff;
+  transform: translate(-50%, -50%);
+}
+.dh-trendlegend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--n-500);
+}
+.dh-trendlegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dh-trendlegend .sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.dh-trendlegend .sw--bar {
+  background: linear-gradient(180deg, var(--blue-400), var(--blue-700));
+}
+.dh-trendlegend .sw--line {
+  height: 0;
+  width: 14px;
+  border-radius: 0;
+  border-top: 2px solid var(--green-500);
+}
+
 // donut (status breakdown)
 .dh-donutwrap {
   display: flex;

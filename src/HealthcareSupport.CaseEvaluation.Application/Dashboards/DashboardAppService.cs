@@ -377,9 +377,23 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         {
             var weekStart = lastMondayUtc.AddDays(-7 * i);
             var weekEnd = weekStart.AddDays(7);
+            // Volume bar: requests RECEIVED that week (by creation date).
             var count = await _appointmentRepository.CountAsync(
                 a => a.CreationTime >= weekStart && a.CreationTime < weekEnd);
-            trend.Add(new DashboardTrendPointDto { Label = $"Wk {TrendWeeks - i}", WeekStart = weekStart, Count = count });
+            // Completion line: requests APPROVED that week (by approve date), mirroring
+            // the ApprovedRequests hero KPI so "received in" and "approved out" compare.
+            var completedCount = await _appointmentRepository.CountAsync(
+                a => a.AppointmentStatus == AppointmentStatusType.Approved
+                     && a.AppointmentApproveDate != null
+                     && a.AppointmentApproveDate >= weekStart
+                     && a.AppointmentApproveDate < weekEnd);
+            trend.Add(new DashboardTrendPointDto
+            {
+                Label = $"Wk {TrendWeeks - i}",
+                WeekStart = weekStart,
+                Count = count,
+                CompletedCount = completedCount,
+            });
         }
         return trend;
     }
