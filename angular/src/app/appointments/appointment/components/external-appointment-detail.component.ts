@@ -25,6 +25,9 @@ import { resolveExternalUserDisplayName } from '../../../shared/auth/external-us
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
 import type { AppointmentPillStatus } from '../../../shared/ui/status-pill/status-pill.component';
 import type { PatientDto } from '../../../proxy/patients/models';
+import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
+import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
+import { InfoRequestHistoryComponent } from './info-request-history.component';
 import { firstValueFrom } from 'rxjs';
 
 interface CalloutCopy {
@@ -110,6 +113,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     SkeletonComponent,
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
+    InfoRequestHistoryComponent,
   ],
   templateUrl: './external-appointment-detail.component.html',
   styleUrl: './external-appointment-detail.component.scss',
@@ -121,9 +125,12 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly shellRest = inject(RestService);
   private readonly detailRoute = inject(ActivatedRoute);
   private readonly fixItToaster = inject(ToasterService);
+  private readonly infoRequestApi = inject(AppointmentInfoRequestService);
 
   // Send Back fix-it: the open info request (staff note + flagged fields).
   protected infoRequest: OpenInfoRequest | null = null;
+  // Send Back / request-info rounds for the read-only History section (newest-first).
+  protected historyRounds: AppointmentInfoRequestRoundDto[] = [];
   protected resubmitConfirmVisible = false;
   protected isResubmitting = false;
   // Local edit model for every inline-editable flagged field (patient demographics,
@@ -146,6 +153,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     super.ngOnInit();
     this.loadNavName();
     this.loadInfoRequest();
+    this.loadHistory();
     this.loadLanguageOptions();
   }
 
@@ -297,6 +305,25 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
           /* no open request -> ordinary read-only view */
         },
       });
+  }
+
+  /**
+   * Load the Send Back / request-info rounds for the read-only History section.
+   * Uses the typed proxy (the same endpoint the internal detail uses; it
+   * authorizes external parties via the appointment read guard). A failure leaves
+   * the History section hidden -- it is supplementary to the appointment detail.
+   */
+  private loadHistory(): void {
+    const id = this.detailRoute.snapshot.paramMap.get('id');
+    if (!id) {
+      return;
+    }
+    this.infoRequestApi.getHistory(id).subscribe({
+      next: (rounds) => (this.historyRounds = rounds ?? []),
+      error: () => {
+        /* no history available -> History section stays hidden */
+      },
+    });
   }
 
   /**

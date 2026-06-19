@@ -76,6 +76,9 @@
           <a (click)="scrollTo('ad-sec-claim')">Claim</a>
           <a (click)="scrollTo('ad-sec-documents')">Documents</a>
           <a (click)="scrollTo('ad-sec-users')">Access</a>
+          @if (historyRounds.length > 0) {
+            <a (click)="scrollTo('ad-sec-history')">History</a>
+          }
         </div>
         <div class="ad-nav__actions">
           <button class="ap-btn ap-btn--ghost" type="button" (click)="backToHome()">
@@ -591,6 +594,19 @@
           }
         </div>
       </div>
+
+      <!-- History: Send Back / request-info rounds (lighter summary, no field values) -->
+      @if (historyRounds.length > 0) {
+        <div class="ad-card" id="ad-sec-history">
+          <div class="ad-card__head">
+            <span class="ic tint-slate"><app-icon name="help" [size]="18" /></span>
+            <h3>History</h3>
+          </div>
+          <div class="ad-card__body" style="padding: 0">
+            <app-info-request-history [rounds]="historyRounds" [externalView]="true" />
+          </div>
+        </div>
+      }
     </div>
 
     <!-- change-request modals (reused) -->
