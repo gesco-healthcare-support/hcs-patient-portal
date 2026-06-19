@@ -348,6 +348,28 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ApplicantAttorneyEmail).HasColumnName(nameof(Appointment.ApplicantAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.DefenseAttorneyEmail).HasColumnName(nameof(Appointment.DefenseAttorneyEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
             b.Property(x => x.ClaimExaminerEmail).HasColumnName(nameof(Appointment.ClaimExaminerEmail)).HasMaxLength(AppointmentConsts.PartyEmailMaxLength);
+            // #9 attorney snapshot (2026-06-19): booking-time name/firm/contact copy.
+            // Widths mirror the master consts so a snapshot never truncates the source.
+            b.Property(x => x.ApplicantAttorneyFirstName).HasColumnName(nameof(Appointment.ApplicantAttorneyFirstName)).HasMaxLength(ApplicantAttorneyConsts.FirstNameMaxLength);
+            b.Property(x => x.ApplicantAttorneyLastName).HasColumnName(nameof(Appointment.ApplicantAttorneyLastName)).HasMaxLength(ApplicantAttorneyConsts.LastNameMaxLength);
+            b.Property(x => x.ApplicantAttorneyFirmName).HasColumnName(nameof(Appointment.ApplicantAttorneyFirmName)).HasMaxLength(ApplicantAttorneyConsts.FirmNameMaxLength);
+            b.Property(x => x.ApplicantAttorneyWebAddress).HasColumnName(nameof(Appointment.ApplicantAttorneyWebAddress)).HasMaxLength(ApplicantAttorneyConsts.WebAddressMaxLength);
+            b.Property(x => x.ApplicantAttorneyPhoneNumber).HasColumnName(nameof(Appointment.ApplicantAttorneyPhoneNumber)).HasMaxLength(ApplicantAttorneyConsts.PhoneNumberMaxLength);
+            b.Property(x => x.ApplicantAttorneyFaxNumber).HasColumnName(nameof(Appointment.ApplicantAttorneyFaxNumber)).HasMaxLength(ApplicantAttorneyConsts.FaxNumberMaxLength);
+            b.Property(x => x.ApplicantAttorneyStreet).HasColumnName(nameof(Appointment.ApplicantAttorneyStreet)).HasMaxLength(ApplicantAttorneyConsts.StreetMaxLength);
+            b.Property(x => x.ApplicantAttorneyCity).HasColumnName(nameof(Appointment.ApplicantAttorneyCity)).HasMaxLength(ApplicantAttorneyConsts.CityMaxLength);
+            b.Property(x => x.ApplicantAttorneyStateId).HasColumnName(nameof(Appointment.ApplicantAttorneyStateId));
+            b.Property(x => x.ApplicantAttorneyZipCode).HasColumnName(nameof(Appointment.ApplicantAttorneyZipCode)).HasMaxLength(ApplicantAttorneyConsts.ZipCodeMaxLength);
+            b.Property(x => x.DefenseAttorneyFirstName).HasColumnName(nameof(Appointment.DefenseAttorneyFirstName)).HasMaxLength(DefenseAttorneyConsts.FirstNameMaxLength);
+            b.Property(x => x.DefenseAttorneyLastName).HasColumnName(nameof(Appointment.DefenseAttorneyLastName)).HasMaxLength(DefenseAttorneyConsts.LastNameMaxLength);
+            b.Property(x => x.DefenseAttorneyFirmName).HasColumnName(nameof(Appointment.DefenseAttorneyFirmName)).HasMaxLength(DefenseAttorneyConsts.FirmNameMaxLength);
+            b.Property(x => x.DefenseAttorneyWebAddress).HasColumnName(nameof(Appointment.DefenseAttorneyWebAddress)).HasMaxLength(DefenseAttorneyConsts.WebAddressMaxLength);
+            b.Property(x => x.DefenseAttorneyPhoneNumber).HasColumnName(nameof(Appointment.DefenseAttorneyPhoneNumber)).HasMaxLength(DefenseAttorneyConsts.PhoneNumberMaxLength);
+            b.Property(x => x.DefenseAttorneyFaxNumber).HasColumnName(nameof(Appointment.DefenseAttorneyFaxNumber)).HasMaxLength(DefenseAttorneyConsts.FaxNumberMaxLength);
+            b.Property(x => x.DefenseAttorneyStreet).HasColumnName(nameof(Appointment.DefenseAttorneyStreet)).HasMaxLength(DefenseAttorneyConsts.StreetMaxLength);
+            b.Property(x => x.DefenseAttorneyCity).HasColumnName(nameof(Appointment.DefenseAttorneyCity)).HasMaxLength(DefenseAttorneyConsts.CityMaxLength);
+            b.Property(x => x.DefenseAttorneyStateId).HasColumnName(nameof(Appointment.DefenseAttorneyStateId));
+            b.Property(x => x.DefenseAttorneyZipCode).HasColumnName(nameof(Appointment.DefenseAttorneyZipCode)).HasMaxLength(DefenseAttorneyConsts.ZipCodeMaxLength);
             b.Property(x => x.RefferedBy).HasColumnName(nameof(Appointment.RefferedBy)).HasMaxLength(AppointmentConsts.RefferedByMaxLength);
             b.Property(x => x.OriginalAppointmentId).HasColumnName(nameof(Appointment.OriginalAppointmentId));
             b.Property(x => x.ReScheduleReason).HasColumnName(nameof(Appointment.ReScheduleReason)).HasMaxLength(AppointmentConsts.ReasonMaxLength);

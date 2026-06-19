@@ -63,6 +63,72 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     [CanBeNull]
     public virtual string? ClaimExaminerEmail { get; set; }
 
+    // ---- Attorney snapshot (#9, 2026-06-19) ----
+    // Booking-time copy of the applicant / defense attorney's name + firm + contact,
+    // captured from the master when the attorney is linked to (or edited on) THIS
+    // appointment. The detail reads snapshot ?? master, so an attorney's later
+    // self-edit of their master record never rewrites past appointments. Null on
+    // appointments booked before these columns existed -- those fall back to the
+    // master join (forward-only immutability; no backfill).
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyFirstName { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyLastName { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyFirmName { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyWebAddress { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyPhoneNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyFaxNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyStreet { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyCity { get; set; }
+
+    public virtual Guid? ApplicantAttorneyStateId { get; set; }
+
+    [CanBeNull]
+    public virtual string? ApplicantAttorneyZipCode { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyFirstName { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyLastName { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyFirmName { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyWebAddress { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyPhoneNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyFaxNumber { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyStreet { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyCity { get; set; }
+
+    public virtual Guid? DefenseAttorneyStateId { get; set; }
+
+    [CanBeNull]
+    public virtual string? DefenseAttorneyZipCode { get; set; }
+
     /// <summary>
     /// 2026-06-09: optional per-appointment "Referred By" (referring source).
     /// Per-appointment by design -- NOT carried over from the patient or prior
