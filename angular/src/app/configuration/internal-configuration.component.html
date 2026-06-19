@@ -12,20 +12,7 @@
 </div>
 
 <div class="cf">
-  <nav class="cf-rail">
-    @for (s of sections; track s.key) {
-      @if (canSee(s)) {
-        <a
-          class="cf-railitem"
-          [routerLink]="[s.route]"
-          [attr.data-on]="s.key === section() ? 'true' : null"
-        >
-          <span class="i"><app-icon [name]="s.icon" [size]="16" /></span>
-          {{ s.label }}
-        </a>
-      }
-    }
-  </nav>
+  <app-config-rail />
 
   <div class="ia-wrap">
     <table class="ia-table">

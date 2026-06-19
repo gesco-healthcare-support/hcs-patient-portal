@@ -6,6 +6,7 @@ import { finalize } from 'rxjs/operators';
 import { WcabOfficeService } from '../../proxy/wcab-offices/wcab-office.service';
 import type { WcabOfficeWithNavigationPropertiesDto } from '../../proxy/wcab-offices/models';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { ConfigRailComponent } from '../../configuration/config-rail.component';
 
 interface WcabFormState {
   id: string | null;
@@ -31,7 +32,7 @@ interface WcabFormState {
   selector: 'app-internal-wcab-offices',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, ConfigRailComponent],
   templateUrl: './internal-wcab-offices.component.html',
 })
 export class InternalWcabOfficesComponent implements OnInit {

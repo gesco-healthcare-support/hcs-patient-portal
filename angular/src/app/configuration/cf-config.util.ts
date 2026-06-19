@@ -94,6 +94,35 @@ export const CONFIG_SECTIONS: ConfigSection[] = [
   },
 ];
 
+/** A left-rail item for the shared Configuration rail (the five lookups plus WCAB). */
+export interface ConfigRailItem {
+  label: string;
+  icon: string;
+  route: string;
+  policy: string;
+}
+
+/**
+ * The Configuration hub rail, shared by the hub and the WCAB Offices page
+ * (#3, 2026-06-19). The five lookup sections derive from CONFIG_SECTIONS so the
+ * rail never drifts; WCAB is appended -- it is a rich page (address/state) that
+ * keeps its own component but now renders inside the hub shell.
+ */
+export const CONFIG_RAIL_ITEMS: ConfigRailItem[] = [
+  ...CONFIG_SECTIONS.map((s) => ({
+    label: s.label,
+    icon: s.icon,
+    route: s.route,
+    policy: s.policy,
+  })),
+  {
+    label: 'WCAB Offices',
+    icon: 'map',
+    route: '/doctor-management/wcab-offices',
+    policy: 'CaseEvaluation.WcabOffices',
+  },
+];
+
 /**
  * A lookup row normalized across all five sections so the table renders one
  * shape. Section-specific columns (description, isActive) are optional.

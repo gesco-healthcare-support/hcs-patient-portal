@@ -9,48 +9,54 @@
   </a>
 </div>
 
-@if (loading()) {
-  <div class="ia-empty">Loading WCAB offices...</div>
-} @else if (rows().length === 0) {
-  <div class="ia-empty">No WCAB offices yet. Add your first venue.</div>
-} @else {
-  <div class="ia-wrap" style="max-width: 640px">
-    <table class="ia-table" style="min-width: 0">
-      <thead>
-        <tr>
-          <th>Office name</th>
-          <th>Code</th>
-          <th style="text-align: right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rows(); track row.wcabOffice?.id) {
-          <tr (click)="openEdit(row)" style="cursor: pointer">
-            <td>
-              <b style="color: var(--n-900)">{{ row.wcabOffice?.name }}</b>
-            </td>
-            <td>{{ row.wcabOffice?.abbreviation }}</td>
-            <td style="text-align: right" (click)="$event.stopPropagation()">
-              <span style="display: inline-flex; gap: 6px">
-                <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
-                  <app-icon name="doc" [size]="14" />
-                </button>
-                <button
-                  class="ra-rowbtn danger"
-                  type="button"
-                  title="Delete"
-                  (click)="askDelete(row)"
-                >
-                  <app-icon name="x" [size]="14" />
-                </button>
-              </span>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+<div class="cf">
+  <app-config-rail />
+
+  <div>
+    @if (loading()) {
+      <div class="ia-empty">Loading WCAB offices...</div>
+    } @else if (rows().length === 0) {
+      <div class="ia-empty">No WCAB offices yet. Add your first venue.</div>
+    } @else {
+      <div class="ia-wrap" style="max-width: 640px">
+        <table class="ia-table" style="min-width: 0">
+          <thead>
+            <tr>
+              <th>Office name</th>
+              <th>Code</th>
+              <th style="text-align: right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.wcabOffice?.id) {
+              <tr (click)="openEdit(row)" style="cursor: pointer">
+                <td>
+                  <b style="color: var(--n-900)">{{ row.wcabOffice?.name }}</b>
+                </td>
+                <td>{{ row.wcabOffice?.abbreviation }}</td>
+                <td style="text-align: right" (click)="$event.stopPropagation()">
+                  <span style="display: inline-flex; gap: 6px">
+                    <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
+                      <app-icon name="doc" [size]="14" />
+                    </button>
+                    <button
+                      class="ra-rowbtn danger"
+                      type="button"
+                      title="Delete"
+                      (click)="askDelete(row)"
+                    >
+                      <app-icon name="x" [size]="14" />
+                    </button>
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   </div>
-}
+</div>
 
 @if (form(); as f) {
   <div class="ra-scrim" (click)="closeModal()">

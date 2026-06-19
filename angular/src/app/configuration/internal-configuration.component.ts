@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -9,6 +9,7 @@ import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { AppointmentTypeFieldConfigService } from '../proxy/appointment-type-field-configs/appointment-type-field-config.service';
 import { ConfigSectionGateway } from './config-section.gateway';
+import { ConfigRailComponent } from './config-rail.component';
 import {
   buildFieldCatalog,
   CONFIG_SECTIONS,
@@ -35,7 +36,7 @@ import {
   selector: 'app-internal-configuration',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, ConfigRailComponent],
   templateUrl: './internal-configuration.component.html',
 })
 export class InternalConfigurationComponent {
@@ -83,11 +84,6 @@ export class InternalConfigurationComponent {
         next: (rows) => this.rows.set(rows),
         error: () => this.rows.set([]),
       });
-  }
-
-  // ---- rail ----
-  protected canSee(section: ConfigSection): boolean {
-    return this.permission.getGrantedPolicy(section.policy);
   }
 
   // ---- per-action gating: only offer an action the user can actually perform,
