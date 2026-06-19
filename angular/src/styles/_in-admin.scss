@@ -126,6 +126,57 @@
   color: var(--blue-700);
 }
 
+/* #6 (2026-06-19): list pager + WYSIWYG email-body editor (ngx-quill snow). */
+.nt-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--n-100);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-600);
+}
+.nt-pager button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  color: var(--n-600);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nt-pager button:hover:not(:disabled) {
+  border-color: var(--blue-300);
+  color: var(--blue-700);
+}
+.nt-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.nt-editor {
+  display: block;
+}
+.nt-editor .ql-toolbar {
+  border-top-left-radius: var(--r-md);
+  border-top-right-radius: var(--r-md);
+  border-color: var(--border-strong);
+}
+.nt-editor .ql-container {
+  border-bottom-left-radius: var(--r-md);
+  border-bottom-right-radius: var(--r-md);
+  border-color: var(--border-strong);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+.nt-editor .ql-editor {
+  min-height: 200px;
+}
+
 /* ---- system parameters ---- */
 .sp-group {
   background: #fff;

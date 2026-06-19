@@ -36,13 +36,13 @@
           <input
             placeholder="Search templates..."
             [ngModel]="ntQuery()"
-            (ngModelChange)="ntQuery.set($event)"
+            (ngModelChange)="setNtQuery($event)"
           />
         </div>
         <select
           class="ia-input"
           [ngModel]="ntTypeFilter()"
-          (ngModelChange)="ntTypeFilter.set($event)"
+          (ngModelChange)="setNtTypeFilter($event)"
         >
           <option value="">All types</option>
           @for (t of ntTypes(); track t.id) {
@@ -52,7 +52,7 @@
       </div>
       <div class="nt">
         <div class="nt-list">
-          @for (r of ntShown(); track r.id) {
+          @for (r of ntPaged(); track r.id) {
             <button
               class="nt-item"
               [attr.data-on]="r.id === ntSelectedId()"
@@ -69,6 +69,27 @@
             </button>
           } @empty {
             <div class="ia-empty">No templates match.</div>
+          }
+          @if (ntTotalPages() > 1) {
+            <div class="nt-pager">
+              <button
+                type="button"
+                [disabled]="ntPage() === 0"
+                (click)="goNtPage(-1)"
+                aria-label="Previous page"
+              >
+                <app-icon name="chevLeft" [size]="15" />
+              </button>
+              <span>Page {{ ntPage() + 1 }} of {{ ntTotalPages() }}</span>
+              <button
+                type="button"
+                [disabled]="ntPage() + 1 >= ntTotalPages()"
+                (click)="goNtPage(1)"
+                aria-label="Next page"
+              >
+                <app-icon name="chevRight" [size]="15" />
+              </button>
+            </div>
           }
         </div>
 
@@ -126,12 +147,14 @@
                   }
                   <div class="ra-field col-12">
                     <label>Email body</label>
-                    <textarea
-                      class="ra-input"
-                      rows="7"
+                    <quill-editor
+                      class="nt-editor"
                       [ngModel]="d.bodyEmail"
                       (ngModelChange)="patchDraft({ bodyEmail: $event })"
-                    ></textarea>
+                      [modules]="quillModules"
+                      (onEditorCreated)="onEditorCreated($event)"
+                      placeholder="Compose the email body..."
+                    ></quill-editor>
                   </div>
                   <div class="ra-field col-12">
                     <label>
@@ -147,21 +170,12 @@
                   </div>
                   <div class="ra-field col-12">
                     <label>
-                      Preview
+                      Subject preview
                       <span class="opt">(sample values)</span>
                     </label>
                     <div class="nt-preview">
                       <div class="sub">
                         @for (seg of ntPreviewSubject(); track $index) {
-                          @if (seg.isVar) {
-                            <b>{{ seg.text }}</b>
-                          } @else {
-                            {{ seg.text }}
-                          }
-                        }
-                      </div>
-                      <div class="bd">
-                        @for (seg of ntPreviewBody(); track $index) {
                           @if (seg.isVar) {
                             <b>{{ seg.text }}</b>
                           } @else {

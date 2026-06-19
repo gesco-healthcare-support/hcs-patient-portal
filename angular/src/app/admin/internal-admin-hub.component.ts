@@ -14,6 +14,8 @@ import type {
 } from '@abp/ng.permission-management/proxy';
 import type { AuditLogDto } from '@volo/abp.ng.audit-logging/proxy';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { QuillEditorComponent } from 'ngx-quill';
+import type Quill from 'quill';
 import type { NotificationTemplateVariableDto } from '../proxy/notification-templates/models';
 import type { SystemParameterDto } from '../proxy/system-parameters/models';
 import {
@@ -51,7 +53,7 @@ interface NtDraft {
   selector: 'app-internal-admin-hub',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, IconComponent, QuillEditorComponent],
   templateUrl: './internal-admin-hub.component.html',
 })
 export class InternalAdminHubComponent {
@@ -82,6 +84,18 @@ export class InternalAdminHubComponent {
   protected readonly ntSelectedId = signal<string | null>(null);
   protected readonly ntDraft = signal<NtDraft | null>(null);
   protected readonly ntVariables = signal<NotificationTemplateVariableDto[]>([]);
+  /** Live Quill instance for the email body (cursor-aware variable inserts). */
+  private editor: Quill | null = null;
+  /** Toolbar: common email formatting. ##Var## tokens insert as literal text. */
+  protected readonly quillModules = {
+    toolbar: [
+      [{ header: [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['link'],
+      ['clean'],
+    ],
+  };
 
   protected readonly ntShown = computed(() => {
     const q = this.ntQuery().trim().toLowerCase();
@@ -103,9 +117,16 @@ export class InternalAdminHubComponent {
   protected readonly ntPreviewSubject = computed(() =>
     previewSegments(this.ntDraft()?.subject, this.ntLabelByToken()),
   );
-  protected readonly ntPreviewBody = computed(() =>
-    previewSegments(this.ntDraft()?.bodyEmail, this.ntLabelByToken()),
+  // ---- #6: client-side pager over the filtered list (~62 fixed codes) ----
+  protected readonly ntPageSize = 20;
+  protected readonly ntPage = signal(0);
+  protected readonly ntTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.ntShown().length / this.ntPageSize)),
   );
+  protected readonly ntPaged = computed(() => {
+    const start = this.ntPage() * this.ntPageSize;
+    return this.ntShown().slice(start, start + this.ntPageSize);
+  });
 
   // ---- System Parameters ----
   protected readonly params = signal<SystemParameterDto | null>(null);
@@ -229,12 +250,41 @@ export class InternalAdminHubComponent {
       this.ntDraft.set({ ...current, ...partial });
     }
   }
+  protected setNtQuery(value: string): void {
+    this.ntQuery.set(value);
+    this.ntPage.set(0);
+  }
+  protected setNtTypeFilter(value: string): void {
+    this.ntTypeFilter.set(value);
+    this.ntPage.set(0);
+  }
+  protected goNtPage(delta: number): void {
+    const next = this.ntPage() + delta;
+    if (next >= 0 && next < this.ntTotalPages()) {
+      this.ntPage.set(next);
+    }
+  }
+  /** Capture the Quill instance so variable inserts land at the cursor. */
+  protected onEditorCreated(editor: Quill): void {
+    this.editor = editor;
+  }
   protected insertVar(token: string | undefined): void {
     const current = this.ntDraft();
-    if (current && token) {
-      this.ntDraft.set({ ...current, bodyEmail: insertVariable(current.bodyEmail, token) });
-      this.toaster.info('##' + token + '## inserted.');
+    if (!current || !token) {
+      return;
     }
+    const placeholder = '##' + token + '##';
+    if (this.editor) {
+      // Insert at the caret (or end if unfocused); ngModelChange syncs the draft.
+      const range = this.editor.getSelection(true);
+      const index = range ? range.index : this.editor.getLength();
+      this.editor.insertText(index, placeholder, 'user');
+      this.editor.setSelection(index + placeholder.length, 0);
+    } else {
+      // Editor not ready: fall back to appending to the body string.
+      this.ntDraft.set({ ...current, bodyEmail: insertVariable(current.bodyEmail, token) });
+    }
+    this.toaster.info(placeholder + ' inserted.');
   }
   protected sendTest(): void {
     const row = this.ntSelected();
