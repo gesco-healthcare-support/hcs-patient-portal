@@ -1,7 +1,7 @@
 ---
 feature: aa-da-self-edit-snapshot
 date: 2026-06-19
-status: draft
+status: in-progress
 base-branch: feat/frontend-rework
 lane: Session B
 related-issues: []
@@ -177,3 +177,38 @@ Commit small + explicit-path after each task. One migration only (T1).
 - Proxy regen: REQUIRED after T5 -- Session A single-writer; handshake via Adrian.
 - Shared-file edits (frontend phase): app.routes.ts + external-navbar -- coordinate via Adrian.
 - Not gated by any Session A item; #3 already landed.
+
+## Build status (2026-06-19) -- COMPLETE
+
+- T1 columns + migration: 04c537c. Migration applied to the shared DB (host +
+  Falkinstein tenant) via the db-migrator rebuild.
+- T2 capture (single choke point = the appointment-attorney managers): b1e0e94.
+  AttorneySnapshot helper unit-tested (2/2). Covers booking, staff edit, ext-signup.
+- T3 expose on AppointmentDto: in cac171c (Mapperly auto-maps).
+- T4 self-scoped MyAttorneyProfile service: 03787ed. 3/3 integration tests
+  (resolve-own, update-own + identity preserved, deny-no-master). No target id is
+  accepted, so cross-party edits are structurally impossible.
+- T5 build + regen: full solution build green; api rebuilt + healthy + exposing
+  the endpoint; proxy regenerated (ee1cdba, MyAttorneyProfiles + AppointmentDto
+  snapshot fields). Ran the regen this session since Session A was paused.
+- T6 attorney my-profile page + route + role-aware navbar + T7 detail snapshot
+  overlay: 5daf9a8. State-lookup 403 fix (use /api/app/patients/state-lookup):
+  17f0295.
+- T8 live verify (Falkinstein, appatty1 applicant attorney):
+  - My-profile loads the caller's own master (Marcus Bennett / Bennett Applicant
+    Law LLP); state dropdown populated; no access overlay.
+  - Self-edit save -> PUT /api/app/my-attorney-profile 200; master firm updated;
+    email/identity preserved.
+  - External appointment detail still renders the attorney block with the snapshot
+    overlay in place; pre-migration (null-snapshot) appointments fall back to the
+    master cleanly (no-backfill design). The snapshot OVERRIDE for new bookings is
+    covered by the T2 capture unit tests; a full past-appt-unchanged live demo needs
+    a post-migration booking with the caller as the appointment's attorney.
+
+### Infra fix made en route
+- chore/fix de6dfeb + 14759bd: the EF test project's transitive SQLitePCLRaw
+  advisory (NU1903) failed restore-as-error and blocked C# commits; set
+  NuGetAuditMode=direct on that test project (test-only; prod uses SQL Server).
+- cac171c note: shared git index swept Session A's staged #2 plan + backlog into a
+  Session B commit; left as-is (content valid, not pushed). Pathspec commits adopted
+  thereafter (see ~/.claude memory parallel-build-shared-git-index).
