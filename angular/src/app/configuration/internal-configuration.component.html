@@ -67,6 +67,9 @@
                     Inactive
                   </span>
                 }
+                @if (meta().hasAppointmentTypes) {
+                  <span class="cf-lock">{{ typesSummary(row) }}</span>
+                }
               </span>
             </td>
             <td style="text-align: right" (click)="$event.stopPropagation()">
@@ -267,6 +270,44 @@
                 <span class="track"></span>
               </label>
             </div>
+          }
+          @if (meta().hasAppointmentTypes) {
+            <div class="ra-field col-12">
+              <label class="ra-switch">
+                Applies to all appointment types
+                <input
+                  type="checkbox"
+                  [ngModel]="f.appliesToAll"
+                  (ngModelChange)="patch({ appliesToAll: $event })"
+                />
+                <span class="track"></span>
+              </label>
+            </div>
+            @if (!f.appliesToAll) {
+              <div class="ra-field col-12">
+                <label>Appointment types</label>
+                <div
+                  class="cf-typeset"
+                  style="display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 4px 0"
+                >
+                  @for (t of appointmentTypeOptions(); track t.id) {
+                    <label
+                      class="cf-typeopt"
+                      style="display: inline-flex; align-items: center; gap: 6px; font-weight: 400"
+                    >
+                      <input
+                        type="checkbox"
+                        [checked]="isTypeSelected(t.id)"
+                        (change)="toggleAppointmentType(t.id)"
+                      />
+                      {{ t.name }}
+                    </label>
+                  } @empty {
+                    <span class="ia-sub">No appointment types defined.</span>
+                  }
+                </div>
+              </div>
+            }
           }
           @if (f.isSystem) {
             <div class="ra-field col-12">

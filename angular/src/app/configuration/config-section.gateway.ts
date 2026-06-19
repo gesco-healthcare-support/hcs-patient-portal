@@ -58,7 +58,8 @@ export class ConfigSectionGateway {
               usageCount: d.usageCount ?? null,
               isSystem: !!d.isSystem,
               isActive: d.isActive ?? true,
-              appointmentTypeId: d.appointmentTypeId ?? null,
+              appointmentTypeIds: d.appointmentTypeIds ?? [],
+              appliesToAll: !!d.appliesToAll,
             })),
           ),
         );
@@ -99,7 +100,8 @@ export class ConfigSectionGateway {
         return this.docTypes.create({
           name,
           isActive: form.isActive,
-          appointmentTypeId: form.appointmentTypeId,
+          appliesToAll: form.appliesToAll,
+          appointmentTypeIds: form.appliesToAll ? [] : form.appointmentTypeIds,
         });
       case 'languages':
         return this.languages.create({ name });
@@ -120,7 +122,8 @@ export class ConfigSectionGateway {
         return this.docTypes.update(id, {
           name,
           isActive: form.isActive,
-          appointmentTypeId: form.appointmentTypeId,
+          appliesToAll: form.appliesToAll,
+          appointmentTypeIds: form.appliesToAll ? [] : form.appointmentTypeIds,
         });
       case 'languages':
         return this.languages.update(id, { name });

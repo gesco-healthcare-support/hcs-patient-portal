@@ -47330,17 +47330,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "AppliesToAll",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "IsActive",
@@ -47378,17 +47391,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "AppliesToAll",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "IsSystem",
@@ -47452,17 +47478,30 @@
           "isNullable": false
         },
         {
-          "name": "AppointmentTypeId",
+          "name": "AppointmentTypeIds",
           "jsonName": null,
-          "type": "System.Guid?",
-          "typeSimple": "string?",
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
-          "isNullable": true
+          "isNullable": false
+        },
+        {
+          "name": "AppliesToAll",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         },
         {
           "name": "IsActive",

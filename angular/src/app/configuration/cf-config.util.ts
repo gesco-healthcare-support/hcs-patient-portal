@@ -28,6 +28,9 @@ export interface ConfigSection {
   hasDescription: boolean;
   /** Document types carry an Active flag (isActive) instead of any "required". */
   hasActive: boolean;
+  /** #4: document types are offered to a SET of appointment types (M2M) plus an
+   * "applies to all" flag; drives the multi-select in the create/edit modal. */
+  hasAppointmentTypes?: boolean;
   /**
    * Singular noun for the usage count -- the unit differs per section
    * (B2 counts appointments for types, patients for languages, etc.), so the
@@ -68,6 +71,7 @@ export const CONFIG_SECTIONS: ConfigSection[] = [
     policy: 'CaseEvaluation.AppointmentDocumentTypes',
     hasDescription: false,
     hasActive: true,
+    hasAppointmentTypes: true,
     usageNoun: 'document',
   },
   {
@@ -134,7 +138,10 @@ export interface ConfigRow {
   usageCount?: number | null;
   isSystem: boolean;
   isActive?: boolean;
-  appointmentTypeId?: string | null;
+  /** #4: appointment types this document type is offered for (M2M). */
+  appointmentTypeIds?: string[];
+  /** #4: offered for every appointment type. */
+  appliesToAll?: boolean;
   concurrencyStamp?: string;
 }
 
@@ -145,7 +152,9 @@ export interface ConfigFormState {
   description: string;
   isActive: boolean;
   isSystem: boolean;
-  appointmentTypeId: string | null;
+  /** #4 (document types): the offered appointment-type set + "applies to all". */
+  appointmentTypeIds: string[];
+  appliesToAll: boolean;
   concurrencyStamp?: string;
 }
 

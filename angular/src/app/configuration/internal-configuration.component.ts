@@ -8,6 +8,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { AppointmentTypeFieldConfigService } from '../proxy/appointment-type-field-configs/appointment-type-field-config.service';
+import { AppointmentTypeService } from '../proxy/appointment-types/appointment-type.service';
 import { ConfigSectionGateway } from './config-section.gateway';
 import { ConfigRailComponent } from './config-rail.component';
 import {
@@ -43,6 +44,7 @@ export class InternalConfigurationComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly gateway = inject(ConfigSectionGateway);
   private readonly fieldConfigService = inject(AppointmentTypeFieldConfigService);
+  private readonly appointmentTypeService = inject(AppointmentTypeService);
   private readonly permission = inject(PermissionService);
   private readonly toaster = inject(ToasterService);
 
@@ -58,6 +60,9 @@ export class InternalConfigurationComponent {
   protected readonly isBusy = signal(false);
   protected readonly rows = signal<ConfigRow[]>([]);
   protected readonly form = signal<ConfigFormState | null>(null);
+  // #4: appointment-type options for the document-type multi-select (loaded once
+  // per visit to a section that needs them).
+  protected readonly appointmentTypeOptions = signal<{ id: string; name: string }[]>([]);
 
   // Field Configuration (Appointment Types only).
   protected readonly fcOpenId = signal<string | null>(null);
@@ -72,6 +77,9 @@ export class InternalConfigurationComponent {
       this.fcOpenId.set(null);
       this.form.set(null);
       this.load();
+      if (this.meta().hasAppointmentTypes) {
+        this.loadAppointmentTypeOptions();
+      }
     });
   }
 
@@ -84,6 +92,17 @@ export class InternalConfigurationComponent {
         next: (rows) => this.rows.set(rows),
         error: () => this.rows.set([]),
       });
+  }
+
+  // #4: appointment types feed the document-type multi-select labels.
+  private loadAppointmentTypeOptions(): void {
+    this.appointmentTypeService.getList({ maxResultCount: 200, skipCount: 0 }).subscribe({
+      next: (res) =>
+        this.appointmentTypeOptions.set(
+          (res.items ?? []).map((t) => ({ id: t.id ?? '', name: t.name ?? '' })),
+        ),
+      error: () => this.appointmentTypeOptions.set([]),
+    });
   }
 
   // ---- per-action gating: only offer an action the user can actually perform,
@@ -140,7 +159,8 @@ export class InternalConfigurationComponent {
       description: '',
       isActive: true,
       isSystem: false,
-      appointmentTypeId: null,
+      appointmentTypeIds: [],
+      appliesToAll: false,
     });
   }
   protected openEdit(row: ConfigRow): void {
@@ -150,9 +170,33 @@ export class InternalConfigurationComponent {
       description: row.description ?? '',
       isActive: row.isActive ?? true,
       isSystem: row.isSystem,
-      appointmentTypeId: row.appointmentTypeId ?? null,
+      appointmentTypeIds: [...(row.appointmentTypeIds ?? [])],
+      appliesToAll: row.appliesToAll ?? false,
       concurrencyStamp: row.concurrencyStamp,
     });
+  }
+
+  // ---- #4: document-type appointment-type multi-select ----
+  protected isTypeSelected(id: string): boolean {
+    return this.form()?.appointmentTypeIds.includes(id) ?? false;
+  }
+  protected toggleAppointmentType(id: string): void {
+    const current = this.form();
+    if (!current) {
+      return;
+    }
+    const set = current.appointmentTypeIds.includes(id)
+      ? current.appointmentTypeIds.filter((x) => x !== id)
+      : [...current.appointmentTypeIds, id];
+    this.form.set({ ...current, appointmentTypeIds: set });
+  }
+  /** Chip label for the list column: "All types", "N types", or "No types". */
+  protected typesSummary(row: ConfigRow): string {
+    if (row.appliesToAll) {
+      return 'All types';
+    }
+    const count = row.appointmentTypeIds?.length ?? 0;
+    return count === 0 ? 'No types' : `${count} type${count === 1 ? '' : 's'}`;
   }
   protected closeModal(): void {
     if (!this.isBusy()) {
