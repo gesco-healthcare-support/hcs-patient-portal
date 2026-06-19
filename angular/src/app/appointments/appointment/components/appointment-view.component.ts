@@ -1477,6 +1477,7 @@ export class AppointmentViewComponent implements OnInit {
         next: (data) => {
           if (data) {
             this.applyApplicantAttorneyLookup(data);
+            this.overlayApplicantAttorneySnapshot();
           } else {
             onEmpty?.();
           }
@@ -1508,8 +1509,70 @@ export class AppointmentViewComponent implements OnInit {
           if (data) {
             this.applyDefenseAttorneyLookup(data);
           }
+          this.overlayDefenseAttorneySnapshot();
         },
       });
+  }
+
+  /**
+   * #9 (2026-06-19): display-only override. After the live attorney master loads,
+   * overlay the appointment's booking-time snapshot (when present) so the detail shows
+   * what was recorded at booking, not a later master self-edit. A null snapshot
+   * (pre-migration appointments) leaves the master values in place (fallback). Only the
+   * initial display load calls these -- the edit-lookup paths do not -- so picking a
+   * different attorney while editing is unaffected. Staff appointment-edit saves still
+   * re-capture the snapshot from the master (see AppointmentApplicantAttorneyManager).
+   */
+  private overlayApplicantAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('applicantAttorneyFirstName', a.applicantAttorneyFirstName);
+    set('applicantAttorneyLastName', a.applicantAttorneyLastName);
+    set('applicantAttorneyFirmName', a.applicantAttorneyFirmName);
+    set('applicantAttorneyWebAddress', a.applicantAttorneyWebAddress);
+    set('applicantAttorneyPhoneNumber', a.applicantAttorneyPhoneNumber);
+    set('applicantAttorneyFaxNumber', a.applicantAttorneyFaxNumber);
+    set('applicantAttorneyStreet', a.applicantAttorneyStreet);
+    set('applicantAttorneyCity', a.applicantAttorneyCity);
+    set('applicantAttorneyStateId', a.applicantAttorneyStateId);
+    set('applicantAttorneyZipCode', a.applicantAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
+  }
+
+  private overlayDefenseAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('defenseAttorneyFirstName', a.defenseAttorneyFirstName);
+    set('defenseAttorneyLastName', a.defenseAttorneyLastName);
+    set('defenseAttorneyFirmName', a.defenseAttorneyFirmName);
+    set('defenseAttorneyWebAddress', a.defenseAttorneyWebAddress);
+    set('defenseAttorneyPhoneNumber', a.defenseAttorneyPhoneNumber);
+    set('defenseAttorneyFaxNumber', a.defenseAttorneyFaxNumber);
+    set('defenseAttorneyStreet', a.defenseAttorneyStreet);
+    set('defenseAttorneyCity', a.defenseAttorneyCity);
+    set('defenseAttorneyStateId', a.defenseAttorneyStateId);
+    set('defenseAttorneyZipCode', a.defenseAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
   }
 
   // S-5.4: load injury details (Claim Information rows) for the appointment.

@@ -352,6 +352,17 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    // #9 (2026-06-19): external attorney self-edit. Mirrors the patient my-profile
+    // (external-only, outside the internal shell). Edits the attorney master only;
+    // past appointments keep their booking-time snapshot.
+    path: 'user-management/attorneys/my-profile',
+    loadComponent: () =>
+      import('./attorneys/attorney-profile/attorney-profile.component').then(
+        (c) => c.AttorneyProfileComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
     // Redesign internal shell (2026-06-14): wrap the internal staff routes in the
     // navy sidebar + topbar. canMatch (internalUserOnlyMatchGuard) renders the
     // shell only for staff + anonymous; pure-external users fall through to the
