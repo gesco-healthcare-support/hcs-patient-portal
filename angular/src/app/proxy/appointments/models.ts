@@ -72,6 +72,26 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  applicantAttorneyFirstName?: string | null;
+  applicantAttorneyLastName?: string | null;
+  applicantAttorneyFirmName?: string | null;
+  applicantAttorneyWebAddress?: string | null;
+  applicantAttorneyPhoneNumber?: string | null;
+  applicantAttorneyFaxNumber?: string | null;
+  applicantAttorneyStreet?: string | null;
+  applicantAttorneyCity?: string | null;
+  applicantAttorneyStateId?: string | null;
+  applicantAttorneyZipCode?: string | null;
+  defenseAttorneyFirstName?: string | null;
+  defenseAttorneyLastName?: string | null;
+  defenseAttorneyFirmName?: string | null;
+  defenseAttorneyWebAddress?: string | null;
+  defenseAttorneyPhoneNumber?: string | null;
+  defenseAttorneyFaxNumber?: string | null;
+  defenseAttorneyStreet?: string | null;
+  defenseAttorneyCity?: string | null;
+  defenseAttorneyStateId?: string | null;
+  defenseAttorneyZipCode?: string | null;
   refferedBy?: string | null;
 }
 
