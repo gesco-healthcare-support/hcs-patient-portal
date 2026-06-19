@@ -2,12 +2,44 @@
 doc: document-types-m2m
 date: 2026-06-19
 type: plan
-status: draft
+status: in-progress
 base-branch: feat/frontend-rework
 backlog-item: 4
 session: B
 approach: mixed (tdd domain + test-after integration/UI + verify-live migration)
 ---
+
+## Build status (2026-06-19)
+
+- T1 DONE (0a2fac96): join entity + AppliesToAll + manager reconcile + per-tenant
+  uniqueness. 4/4 manager tests green (incl. new reconcile + uniqueness tests).
+- T2 DONE (0a2fac96): EF join config in BOTH DbContexts; repo join-filter + Include +
+  per-tenant NameExists + GetWithAppointmentTypesAsync.
+- T3 CODE DONE (aa1f1687): migration DocumentTypes_OneRecord_M2M -- offline SQL script
+  verified (data step ordered before the column drop; EF accepts it). APPLY PENDING
+  (needs DB backup + db-migrator/api rebuild; one-way).
+- T4 DONE (0a2fac96): DTO field swap (AppointmentTypeIds + AppliesToAll); app service
+  projects the set; Mapperly ignores added.
+- T5 DONE (0a2fac96): seeder dedupe (one record per name with a type set).
+- T6 DONE: backend builds clean (0 warnings); migration APPLIED + verified live
+  (9->6 doc-types, Medical Records 3->1, 8 join rows, 0 orphaned document refs, system
+  AppliesToAll set; pre-migration DB backed up to CaseEvaluation_preDocTypeM2M.bak).
+  Proxy regen DONE (Adrian-authorized, api rebuilt first): models.ts gained
+  appointmentTypeIds + appliesToAll.
+- T7 DONE (5bd66f17): config-hub multi-select + "applies to all" switch + per-row
+  type-summary chip; gateway maps/sends the set. Angular bundle compiles clean.
+- T8 PARTIAL: data layer verified live via SQL; T7 verified by a clean ng build. Live
+  UI screenshot deferred -- the internal deep-link reload 404s (known nested-route
+  gotcha) and in-app nav as stafsuper1 needs a click-through; not finished in-window.
+- BONUS (ca19c4c0): fixed the handed-off appointments-list silent-load-failure bug
+  (error state + toast + retry, distinct from an empty 200).
+
+## Remaining (next session, small)
+
+- T8 visual: log in as stafsuper1, click Configuration -> Document Types (in-app, no
+  deep-link reload), screenshot the "All types"/"N types" chips + open a doc type to
+  confirm the multi-select + "applies to all" toggle. Confirm the booking-wizard
+  document picker still lists the right types per appointment type.
 
 # #4 Document Types: one record + many-to-many to appointment types
 
