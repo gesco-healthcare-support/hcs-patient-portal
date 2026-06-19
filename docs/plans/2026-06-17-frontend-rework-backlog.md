@@ -1,20 +1,23 @@
 ---
 doc: frontend-rework-backlog
 date: 2026-06-17
+updated: 2026-06-19
 type: reference
 status: living
 base-branch: feat/frontend-rework
-source: Adrian post-merge testing observations (13-item list)
+source: Adrian post-merge testing observations (13-item list + 3 follow-ups)
 ---
 
 # Frontend Rework - Post-Merge Backlog
 
-Triage of Adrian's 13-item observation list captured after the send-back
-(Prompt 17) merge, ahead of the testing / bug-fix phase. Grounded in 8 read-only
-code probes plus 2 live diagnoses on Falkinstein. This is the single source for
-the categorization, the locked design decisions, and the two reproduced bugs.
+Triage of Adrian's observation list captured after the send-back (Prompt 17) merge,
+ahead of the testing / bug-fix phase. Grounded in read-only code probes plus live
+diagnoses on Falkinstein. Single source for the categorization, the locked design
+decisions, the reproduced bugs, and the running done/open status.
 
-Buildable plan for the frontend-only subset: `2026-06-17-fe-quick-batch.md`.
+Buildable plan for the frontend-only subset: `2026-06-17-fe-quick-batch.md` (SHIPPED).
+New feature spawned from this backlog: `2026-06-19-appointment-change-control.md` (draft,
+post-multi-tenant).
 
 ## Legend
 
@@ -22,33 +25,37 @@ Buildable plan for the frontend-only subset: `2026-06-17-fe-quick-batch.md`.
 - FE+Design  = frontend change that needs UX / layout design work.
 - Full-stack = needs backend (entity / endpoint / migration / permission).
 - Diagnose   = reproduce / clarify before it is categorizable.
+- Status: DONE (commit) / PARTIAL / OPEN / DEFERRED (-> where).
 
 ## Categorization
 
-| # | Item | Category | Backend | Key fact |
-| --- | --- | --- | --- | --- |
-| 1a/1b | Sidebar: collapse Configuration + People groups | FE+Design | No | Menu is a hardcoded Angular array (internal-nav.config.ts:50). Config hub already renders an in-page rail of the same siblings (duplication). |
-| 1c | No underlines on button labels | FE (diagnose) | No | No global underline rule found; sidebar links already text-decoration:none. Underlines are scoped hover states. Need Adrian to point at which buttons. |
-| 2 | Doctor Availabilities week-view rework | Full-stack | Yes | Per-day available/booked/reserved counts already computed FE-side; patient names per slot are NOT in the DTO. Patient-name chips need a new endpoint. |
-| 3 | WCAB Offices whitespace | FE+Design | No (route) | Standard filter+table+modal, ~40% whitespace. A "Locations" page already exists under Scheduling. |
-| 4 | Document Types: one doc -> mark which appointment types need it | Full-stack | Yes | Today 1 row per (name, appointment-type) by design ("Medical Records" seeded 3x). Inversion = new M2M + dedupe migration + app service + UI. |
-| 5 | New Patient/AA/DA modals: whitespace + tiny inputs | FE+Design (reclassified) | No | Live modal is `app-people-edit-modal` (860px `.ra-modal--lg`, 12-col `.ra-grid`, fields use `col-N` spans) -- NOT the legacy `abp-modal` detail components. Tuning the field grid is design. |
-| 6 | Notification Templates rework (formatting + list) | Full-stack | Yes | Stored plain text, no format field; email sender hardcodes IsBodyHtml=true across ~59 handlers. |
-| 7 | Date filters: smaller + start/end labels | FE | No | .ia-input width:100% forces full width. Native type=date ignores placeholder -> needs labels. |
-| 8 | Hardcoded side margins (my-profile, request, view) | FOLDED into #16 | No | These three are the external redesign pages; the systemic version is #16. Track there. |
-| 9 | AA/DA edit name + firm; unlock; keep past appts | Full-stack | Yes | No self-edit endpoint exists. Appointments resolve firm by FK to a shared master, so an edit changes past appts unless we snapshot. |
-| 10 | Dashboard "Requests over time" graph | FE+Design | Yes (small) | Backend already returns real 6-week date windows; FE labels them "Wk N" with no y-axis. Completion line needs per-status counts. |
-| 11 | /users/internal 403 for staff supervisor | Full-stack (bug) | Yes | DIAGNOSED below. |
-| 12 | Audit Time column raw format | FE | No | internal-admin-hub.component.html:399 binds executionTime raw. Add a date pipe. |
-| 13a/b/d | Calendar / SSN-eye / trash buttons wrap to next line | FE | No | Same root cause: Bootstrap .input-group flex-wrap in narrow columns. One shared fix. |
-| 13c | "Web Address" -> "Website" (AA + DA) | FE | No | Hardcoded string (appointment-add-attorney-section.component.html:78); i18n key exists. |
-| 13 (highlight) | Highlight available appointment dates | FE | No | DIAGNOSED below. Class applied, style not rendering. |
-| 13e | Review page: full claim info + all fields | FE+Design | No | Today shows "{N} claim entries added" + a subset. Full-mirror rework. |
-| 14 | Appointment-detail change log shows nothing (incl. booker resubmit edits) | Full-stack | Yes | No inline panel; the change-log route projects ABP audit over only 5 entity types, and resubmit writes to Patient/DefenseAttorney (not scanned) -> ~no rows. Lever: B2 `GetHistoryAsync` already returns plain-language who/when/old->new, just not shown here or to external users. Effort L. |
-| 15 | Real draft save/resume on the booking wizard | Full-stack | Yes | "Draft saved" pill is cosmetic; a localStorage autosave exists but is wiped on navigate-away (ngOnDestroy). No backend draft, no nav guard, no expiry worker. Needs AppointmentDraft entity + migration + AppService + save-on-Continue + CanDeactivate modal + resume + a first-of-its-kind background cleanup worker. Effort XL; holds PHI -> tdd. |
-| 16 | Systemic excess margins on wide screens (supersedes #8) | FE+Design | No | Internal shell already fluid (`.in-content` clamp+2240px, Prompt 15); only outlier is internal detail `.ad--wide` (1560px cap), effort S. External redesign pages keep fixed caps (`.ad-wrap` 1080, `.ra-wrap` 1100, `.mp-wrap` 920) + banded sub-wrappers -> convert to a shared fluid-gutter mixin across _ad-detail/_ra-wizard/_mp-profile, effort M. |
+| # | Item | Status | Category | Backend | Key fact |
+| --- | --- | --- | --- | --- | --- |
+| 1a/1b | Sidebar: collapse Configuration + People groups | DONE (8f7a66d) | FE+Design | No | Menu is a hardcoded Angular array (internal-nav.config.ts:50); shipped as collapsible accordion groups. |
+| 1c | No underlines on button labels | DONE (b1685a1) | FE | No | Root cause: `.af-btn`/`.ap-btn` used on `<a>` elements -> browser anchor underline. Fix: `text-decoration:none` on both; 5 stray hover underlines also removed. |
+| 2 | Doctor Availabilities week-view rework | OPEN | Full-stack | Yes | Per-day available/booked/reserved counts already computed FE-side; patient names per slot are NOT in the DTO. Patient-name chips need a new endpoint. |
+| 3 | WCAB Offices whitespace | DONE (2885512) | FE+Design | No (route) | Standard filter+table+modal, ~40% whitespace. A "Locations" page already exists under Scheduling. Decision: merge into the Configuration hub. |
+| 4 | Document Types: one doc -> mark which appointment types need it | OPEN | Full-stack | Yes | Today 1 row per (name, appointment-type) by design ("Medical Records" seeded 3x). Inversion = new M2M + dedupe migration + app service + UI. |
+| 5 | New Patient/AA/DA modals: whitespace + tiny inputs | DONE (b1685a1) | FE+Design | No | Live modal is `app-people-edit-modal`. Shipped: `ra-modal--xl` (1040px) + fields `col-4`->`col-6` (2-up); field placeholders added (f84e998). |
+| 6 | Notification Templates rework (formatting + list) | OPEN | Full-stack | Yes | Stored plain text, no format field; email sender hardcodes IsBodyHtml=true across ~59 handlers. |
+| 7 | Date filters: smaller + start/end labels | DONE (d5ebeaf) | FE | No | `.ia-input` capped (~150px) + Start/End labels added; change-logs + reports. |
+| 8 | Hardcoded side margins (my-profile, request, view) | DONE (via #16, bf14ebd) | FOLDED into #16 | No | Shipped as part of the systemic #16 fluid-gutter pass. |
+| 9 | AA/DA edit name + firm; unlock; keep past appts | OPEN | Full-stack | Yes | No self-edit endpoint exists. Appointments resolve firm by FK to a shared master, so an edit changes past appts unless we snapshot. |
+| 10 | Dashboard "Requests over time" graph | DONE (2abba65, 41a9fe7) | FE+Design + Full-stack (small) | Yes | Bars + real 6-week dates + y-axis (2abba65, WeekStart on DTO); approved-completions line + Received/Approved legend (41a9fe7, CompletedCount on DTO + per-week query). |
+| 11 | /users/internal 403 for staff supervisor | DEFERRED -> multi-tenant prep | Full-stack (bug) | Yes | Re-gate attempt FAILED (see diagnosis). Folded into the cross-tenant access work (IT Admin already has it; Staff Supervisor needs it). |
+| 12 | Audit Time column raw format | DONE (d5ebeaf) | FE | No | `executionTime` now bound through a date pipe ("Jun 18, 2026, 3:12 AM"). |
+| 13a/b/d | Calendar / SSN-eye / trash buttons wrap to next line | DONE (d5ebeaf) | FE | No | Shared Bootstrap `.input-group` flex-wrap in narrow columns; one fix, buttons now inline. |
+| 13c | "Web Address" -> "Website" (AA + DA) | DONE (d5ebeaf) | FE | No | Label swapped on both attorney sections. |
+| 13 (highlight) | Highlight available appointment dates | DONE (d5ebeaf) | FE | No | ViewEncapsulation fix: green `.available-day` rule moved into the schedule component's SCSS; 27 days render rgb(25,135,84). |
+| 13e | Review page: full claim info + all fields | DONE (cce23d7, 140162e) | FE+Design | No | Full-mirror review + patient gender now shown. |
+| 14 | Appointment-detail change log shows nothing (incl. booker resubmit edits) | OPEN | Full-stack | Yes | Change-log route projects ABP audit over only 5 entity types; resubmit writes to Patient/DefenseAttorney (not scanned) -> ~no rows. Cheapest lever: surface B2 `GetHistoryAsync` (already plain-language who/when/old->new) on the detail page + an external version. Effort M. |
+| 15 | Real draft save/resume on the booking wizard | OPEN | Full-stack | Yes | "Draft saved" pill is cosmetic; localStorage autosave is wiped on navigate-away (ngOnDestroy). Needs AppointmentDraft entity + migration + AppService + save-on-Continue + CanDeactivate modal + resume + first-of-its-kind background cleanup worker. Effort XL; holds PHI -> tdd. |
+| 16 | Systemic excess margins on wide screens (supersedes #8) | DONE (bf14ebd) | FE+Design | No | Shipped shared fluid-gutter (clamp + high max-width): external detail/wizard ->1560, my-profile ->1100, internal detail `.ad--wide` ->2240. |
+| 17 | Sidebar: only Configuration + People collapsible, moved to bottom | DONE (c7fab6b) | FE | No | Refinement of #1a/1b: Workspace/Scheduling/Administration stay open; `collapsible` flag on the nav group + a static header for the rest. |
 
 ## Locked decisions
+
+(Most have shipped; retained as design rationale. See Status column above.)
 
 | # | Decision | Effect on scope |
 | --- | --- | --- |
@@ -56,71 +63,96 @@ Buildable plan for the frontend-only subset: `2026-06-17-fe-quick-batch.md`.
 | 6 | WYSIWYG rich-text editor | Pipeline already sends HTML (IsBodyHtml=true), so keep that; store sanitized HTML, render it in preview. Work is FE editor + server-side HTML sanitization + list pagination |
 | 9 | Snapshot firm/name onto the appointment at booking | Full-stack: denormalize firm/name onto Appointment + capture at booking + new self-edit endpoint + FE unlock |
 | 2 | Full scope incl. patient-name chips | Full-stack: new endpoint mapping slots -> booked/reserved patients + FE status-bar/chip rework |
-| 1a/1b | Collapsible accordion sidebar groups | FE + design |
+| 1a/1b | Collapsible accordion sidebar groups | SHIPPED |
 | 3 | Merge WCAB into the Configuration hub ("Locations") | FE/IA: routing + hub entry; near-empty standalone page retired |
-| 10 | Volume bars + completion line, real dates + y-axis | Full-stack (small): backend adds completed/approved counts per week; FE rebuilds the chart |
-| 13e | Full mirror of the form in review (incl. empty fields + full claim entries) | FE + design |
+| 10 | Volume bars + completion line, real dates + y-axis | Bars/dates/y-axis SHIPPED; completion line still needs backend completed/approved counts per week |
+| 13e | Full mirror of the form in review (incl. empty fields + full claim entries) | SHIPPED |
 
-## Diagnoses (reproduced live on Falkinstein, 2026-06-17)
+## Diagnoses (reproduced live on Falkinstein)
 
-### #11 - /users/internal 403 for staff supervisor (Full-stack bug)
+### #11 - /users/internal 403 for staff supervisor (DEFERRED -> multi-tenant prep)
 
 - Account stafsuper1 (role "Staff Supervisor") carries CaseEvaluation.InternalUsers
-  + .Create + .Edit (109 granted policies). Route guard (InternalUsers.Create)
-  PASSES, so the page renders.
+  + .Create + .Edit. Route guard (InternalUsers.Create) PASSES, so the page renders.
 - The page's data call GET /api/app/user-extended returns 403, tripping the global
   "You don't have access" overlay and leaving the table empty.
-- Root cause: UserExtendedAppService (UserExtendedAppService.cs:17) extends ABP's
-  IdentityUserAppService with NO method override and NO [Authorize], so its
-  list/create/update/delete inherit ABP's AbpIdentity.Users.* permissions. Staff
-  Supervisor lacks AbpIdentity.Users. Route and endpoint are gated by two
-  different permission families.
-- DECISION: re-gate the app-service CRUD methods to CaseEvaluation.InternalUsers.*
-  (least-privilege; aligns route + endpoint). NOT a reseed.
+- Root cause: UserExtendedAppService extends ABP's IdentityUserAppService; its CRUD
+  inherits ABP's AbpIdentity.Users.* permissions. Staff Supervisor lacks AbpIdentity.Users.
+  Route and endpoint are gated by two different permission families.
+- ATTEMPTED FIX (FAILED, branch fix/internal-users-403, un-merged):
+  1. Override GetListAsync/GetAsync/UpdateAsync with [Authorize(CaseEvaluation.InternalUsers.*)]
+     -- did NOT work: ABP AND-combines inherited method [Authorize] (AuthorizeAttribute is
+     Inherited=true), so the override ADDS a requirement, it does not replace AbpIdentity.Users.
+  2. Grant AbpIdentity.Users to the tenant Staff Supervisor role -- did NOT take effect even
+     after --no-cache db-migrator rebuild + reseed + Redis FLUSHALL: AbpIdentity.Users is
+     host-restricted / not grantable to a tenant-scoped role.
+- DECISION: fold into multi-tenant prep. Needs a non-inheriting internal-users service AND a
+  cross-tenant access design (IT Admin already has cross-tenant; Staff Supervisor needs it).
+  See ~/.claude memory abp-identity-appservice-regating-and-tenant-grants.
 
-### #13 - appointment date field (FE only)
+### #13 - appointment date field (FE only) -- RESOLVED
 
-1. Available-date highlight is wired but invisible. The availability fetch fires
-   (GET /api/app/doctor-availabilities/lookup -> 200) and 27 June days get the
-   `.available-day` class. But computed style on those days is background
-   transparent + navy text, identical to non-available days. Likely a
-   ViewEncapsulation mismatch: the [dayTemplate] lives in
-   app-appointment-add-schedule, the green `.available-day` rule lives in the
-   parent appointment-add.component.scss, so the emulated style never matches the
-   projected span. (MEDIUM confidence; confirm at fix time.)
-2. Calendar button wraps below the input - confirmed by bounding boxes (input
-   bottom y515, button top y515 and left of input right). Cause is the shared
-   Bootstrap .input-group { flex-wrap: wrap } in a narrow column - same root cause
-   as the SSN eye (#13b) and the claim-modal trash button (#13d).
+1. Available-date highlight: was invisible due to a ViewEncapsulation mismatch ([dayTemplate]
+   in app-appointment-add-schedule, green rule in the parent SCSS). Fixed by moving the
+   `.available-day` rule into the schedule component. Days now render green.
+2. Calendar/SSN/trash buttons wrapped below the input via the shared Bootstrap
+   `.input-group { flex-wrap: wrap }` in narrow columns. Fixed.
 
-## Sequencing
+## Status summary (2026-06-19)
 
-1. Frontend-only batch (`2026-06-17-fe-quick-batch.md`) -- SHIPPED + verified:
-   items 7, 12, 13a/b/d (button wraps), 13c (Website), and the #13 available-day
-   highlight. Item 1c deferred pending Adrian locating the underlined buttons.
-2. Reclassified to FE+Design during build (touch the redesign layout system):
-   #5 (people-edit-modal grid) and #8 (page max-widths) -- moved to bucket 3.
-3. Remaining (separate plans, per item, via RPE):
-   - FE+Design = 1a/1b, 3, 5, 10, 13e, 16 (systemic margins; subsumes 8).
-   - Full-stack = 2, 4, 6, 9, 11, 14 (detail change log), 15 (draft save/resume).
+- SHIPPED on feat/frontend-rework: 1a/1b, 1c, 5, 7, 8 (via 16), 12, 13a/b/d, 13c,
+  13-highlight, 13e, 16, 10 (complete -- completion line 41a9fe7), #3 (WCAB in the
+  config hub, 2885512), #17 (sidebar collapse refinement, c7fab6b), and the #5 field
+  placeholders (f84e998).
+- OPEN (the bug-list backlog): 2, 4, 6, 9, 14, 15.
+- DEFERRED: 11 (-> multi-tenant prep), appointment-change-control (-> post-multi-tenant,
+  own spec 2026-06-19-appointment-change-control.md).
+
+## Fastest order to knock down what is left
+
+Weekend sequence overall: bug list (below) -> multi-tenant implementation + infra +
+2-tenant live test -> appointment-change-control build.
+
+Tier 1 -- genuinely fast, low/no backend (clear these first):
+1. [DONE 2885512] #3 WCAB -> rail entry + own component in the Configuration hub shell.
+2. #10 completion line. Backend adds per-week completed/approved counts to the existing
+   dashboard DTO/builder (WeekStart already added); FE draws a line over the shipped bars. S.
+
+Tier 2 -- medium, high user value:
+3. #14 detail change log. Surface B2 `GetHistoryAsync` on the appointment detail page +
+   an external read path (cheaper than widening the audit scan). M.
+
+Tier 3 -- large full-stack, each its own RPE plan (order by value/risk):
+4. #9 AA/DA self-edit + snapshot-at-booking (denormalize + capture + self-edit endpoint). L.
+5. #4 document types one-record + M2M (join entity + dedupe migration + app service + UI). L.
+6. #6 notification templates WYSIWYG + server-side sanitization + list pagination. L.
+7. #2 doctor availabilities week-view + patient-name chips (new slots->patients endpoint). L.
+
+Tier 4 -- XL, schedule on its own (do NOT cram into the fast pass):
+8. #15 draft save/resume (AppointmentDraft entity + migration + AppService + CanDeactivate
+   guard + resume + a first-of-its-kind background cleanup worker; PHI-bearing -> tdd). XL.
+
+Realistic fast pass before pivoting to multi-tenant = Tier 1 (+ #14 if time). The Tier 3
+items are roughly a day each; decide how many to clear before the multi-tenant pivot.
 
 ## New items added 2026-06-18 (investigation findings)
 
-- #14 (change logs): the per-appointment change-log surface is an ABP-audit
-  projection scanning only 5 entity types with deny-by-default redaction, so
-  booker resubmit edits (written to Patient/DefenseAttorney) produce almost no
-  visible rows, and it is internal-only + one click off the detail page. The B2
-  `GetHistoryAsync` (AppointmentInfoRequestsAppService) already returns
-  human-readable rounds (who/when/old->new) -- the cheapest path is to surface
-  that on the detail page (and an external version), not to widen the audit scan.
+- #14 (change logs): per-appointment change-log is an ABP-audit projection scanning only 5
+  entity types with deny-by-default redaction; booker resubmit edits (Patient/DefenseAttorney)
+  produce almost no visible rows, and it is internal-only + one click off the detail page.
+  Cheapest path: surface B2 `GetHistoryAsync` on the detail page (+ external version).
 - #15 (draft save): the wizard backs BOTH internal /appointments/add and external
-  /appointments/request. "Draft saved" is a static label; a localStorage autosave
-  exists but ngOnDestroy wipes it on navigate-away. No backend draft entity,
-  status, nav-guard, or background worker exist. Auto-discard-when-date-passed
-  requires a persisted draft + a recurring worker (none today). XL, PHI-bearing.
-- #16 (margins): internal is ~95% already fluid (Prompt 15 `.in-content`); the
-  only internal fix is the `.ad--wide` 1560px cap on the detail page (~3 lines,
-  S). External redesign pages (`.ad-wrap`/`.ra-wrap`/`.mp-wrap` + their banded
-  header/nav/footer sub-wrappers) still use fixed centered columns; fix is one
-  shared fluid-gutter mixin (clamp + high max-width) across 3 partials (M). Leave
-  the centered-card state/public pages narrow (intentional).
+  /appointments/request. "Draft saved" is a static label; localStorage autosave is wiped on
+  navigate-away. No backend draft entity, status, nav-guard, or worker exist. XL, PHI-bearing.
+- #16 (margins): SHIPPED. Internal was ~95% already fluid; the fix converted the external
+  redesign pages + internal `.ad--wide` to a shared fluid-gutter (clamp + high max-width).
+
+## New items added 2026-06-19
+
+- appointment-change-control (NEW FEATURE, spec'd, deferred to post-multi-tenant). Internal
+  staff get direct edit/reschedule/cancel from request time; external parties route every
+  change (date/type/cancel + any field) through one unified request-and-approve path that
+  can never apply unilaterally, with opposing-party consent on Tier-A (date/type/cancel).
+  Builds on the existing opposing-party consent-link infrastructure (Group D, 2026-06-09).
+  Full spec + 15-task breakdown: 2026-06-19-appointment-change-control.md. Supersedes the
+  lost "pre-approval reschedule/cancel" change.
