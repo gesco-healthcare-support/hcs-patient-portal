@@ -37,7 +37,7 @@ post-multi-tenant).
 | 3 | WCAB Offices whitespace | DONE (2885512) | FE+Design | No (route) | Standard filter+table+modal, ~40% whitespace. A "Locations" page already exists under Scheduling. Decision: merge into the Configuration hub. |
 | 4 | Document Types: one doc -> mark which appointment types need it | OPEN | Full-stack | Yes | Today 1 row per (name, appointment-type) by design ("Medical Records" seeded 3x). Inversion = new M2M + dedupe migration + app service + UI. |
 | 5 | New Patient/AA/DA modals: whitespace + tiny inputs | DONE (b1685a1) | FE+Design | No | Live modal is `app-people-edit-modal`. Shipped: `ra-modal--xl` (1040px) + fields `col-4`->`col-6` (2-up); field placeholders added (f84e998). |
-| 6 | Notification Templates rework (formatting + list) | OPEN | Full-stack | Yes | Stored plain text, no format field; email sender hardcodes IsBodyHtml=true across ~59 handlers. |
+| 6 | Notification Templates rework (formatting + list) | DONE (A: b06f453, 51ae631, 14d4084) | Full-stack (no migration) | Yes | ngx-quill WYSIWYG on BodyEmail + caret ##Var## insert; server-side Ganss HtmlSanitizer in UpdateAsync (preserves ##Token## URLs); client-side list pager (20/pg). Correction to the old note: BodyEmail is already nvarchar(max) sent with IsBodyHtml=true at dispatch, so it was already HTML -- no schema/format-field change needed. Verified live. |
 | 7 | Date filters: smaller + start/end labels | DONE (d5ebeaf) | FE | No | `.ia-input` capped (~150px) + Start/End labels added; change-logs + reports. |
 | 8 | Hardcoded side margins (my-profile, request, view) | DONE (via #16, bf14ebd) | FOLDED into #16 | No | Shipped as part of the systemic #16 fluid-gutter pass. |
 | 9 | AA/DA edit name + firm; unlock; keep past appts | OPEN | Full-stack | Yes | No self-edit endpoint exists. Appointments resolve firm by FK to a shared master, so an edit changes past appts unless we snapshot. |
@@ -105,12 +105,23 @@ post-multi-tenant).
   config hub, 2885512), #17 (sidebar collapse refinement, c7fab6b), and the #5 field
   placeholders (f84e998).
 - DONE since: #14 (Session B, e57423c..e0996c7 -- FE-only surfacing of GetHistoryAsync);
-  #2 (Session A, 0f904e7 -- availabilities patient chips + bulk read endpoint, no migration).
-- IN PROGRESS: #9 (Session B).
-- OPEN (need EF migrations -> Session B's lane): 4, 6, 15.
-- PRE-EXISTING BUG FOUND (not #2): the internal Appointments list shows 0 rows while the
-  status chips count 4 (All=4, Approved=2, etc.) + a console error -- GetStatusCounts and
-  GetListWithNavigationProperties disagree for the same supervisor. Flagged separately.
+  #2 (Session A, 0f904e7 -- availabilities patient chips + bulk read endpoint, no migration);
+  #9 (Session B, ..5daf9a8 -- attorney self-edit + snapshot; reported complete T1-T8 in 4508db6);
+  #6 (Session A, b06f453..14d4084 -- notification-template WYSIWYG + server HTML sanitize + pager).
+- OPEN (need EF migrations -> Session B's lane): 4, 15.
+- BUG TRIAGED 2026-06-19 (was "Appointments list shows 0 rows while chips count 4" + console
+  error): NOT a query/visibility bug. GetListAsync + GetStatusCountsAsync share
+  ComputeExternalPartyVisibilityAsync, which returns null (no narrowing) for internal users
+  (AppointmentsAppService.cs:118,148,209) -- so for a supervisor they apply identical filters
+  and cannot persistently disagree. A status-filter-only mismatch would return HTTP 200 with 0
+  items and NO console error; the reported error means the list REQUEST itself failed (token
+  expiry mid-session is the prime suspect) while the separate counts call succeeded. The FE then
+  leaves the list empty on error (internal-appointments.component.ts:230,
+  `error: () => this.loading.set(false)` -- no toast, no error state), so first-load failure
+  reads as "Showing 0-0 of 0" beside populated chips. Not reproducing now (list=counts=6, no
+  console errors). FIX (Session B's appointments lane): surface a load failure (toaster +
+  retry/error state) and distinguish "no appointments" (200, 0 items) from "failed to load",
+  instead of the silent empty list.
 - DEFERRED: 11 (-> multi-tenant prep), appointment-change-control (-> post-multi-tenant,
   own spec 2026-06-19-appointment-change-control.md).
 
