@@ -39,6 +39,13 @@ export interface InternalNavItem {
 
 export interface InternalNavGroup {
   sect: string;
+  /**
+   * When true the group renders as a collapsible accordion (toggle + chevron);
+   * otherwise it is an always-open static header. Only Configuration and People
+   * collapse (2026-06-19) -- the operational groups stay open so their items are
+   * always one click away.
+   */
+  collapsible?: boolean;
   items: InternalNavItem[];
 }
 
@@ -118,7 +125,53 @@ export const IN_NAV: readonly InternalNavGroup[] = [
     ],
   },
   {
+    sect: 'Administration',
+    items: [
+      {
+        id: 'invite-external',
+        label: 'Users & Access',
+        icon: 'user',
+        route: '/users/invite',
+        roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
+      },
+      {
+        id: 'identity',
+        label: 'Users & Roles',
+        icon: 'users',
+        route: '/admin/roles',
+        roles: ['supervisor'],
+        requiredPolicy: 'AbpIdentity.Roles',
+      },
+      {
+        id: 'notif-templates',
+        label: 'Notification Templates',
+        icon: 'doc',
+        route: '/admin/templates',
+        roles: ['supervisor'],
+        requiredPolicy: 'CaseEvaluation.NotificationTemplates',
+      },
+      {
+        id: 'settings',
+        label: 'System Parameters',
+        icon: 'settings',
+        route: '/admin/parameters',
+        roles: ['supervisor', 'intake'],
+        requiredPolicy: 'CaseEvaluation.SystemParameters',
+      },
+      {
+        id: 'audit',
+        label: 'Audit Logs',
+        icon: 'clock',
+        route: '/admin/audit',
+        roles: ['supervisor'],
+        requiredPolicy: 'AuditLogging.AuditLogs',
+      },
+    ],
+  },
+  {
     sect: 'Configuration',
+    collapsible: true,
     items: [
       {
         id: 'appt-types',
@@ -172,6 +225,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
   },
   {
     sect: 'People',
+    collapsible: true,
     items: [
       {
         id: 'patients',
@@ -204,51 +258,6 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         route: '/claim-examiners',
         roles: ['supervisor'],
         requiredPolicy: 'CaseEvaluation.ClaimExaminers',
-      },
-    ],
-  },
-  {
-    sect: 'Administration',
-    items: [
-      {
-        id: 'invite-external',
-        label: 'Users & Access',
-        icon: 'user',
-        route: '/users/invite',
-        roles: ['supervisor', 'intake'],
-        requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
-      },
-      {
-        id: 'identity',
-        label: 'Users & Roles',
-        icon: 'users',
-        route: '/admin/roles',
-        roles: ['supervisor'],
-        requiredPolicy: 'AbpIdentity.Roles',
-      },
-      {
-        id: 'notif-templates',
-        label: 'Notification Templates',
-        icon: 'doc',
-        route: '/admin/templates',
-        roles: ['supervisor'],
-        requiredPolicy: 'CaseEvaluation.NotificationTemplates',
-      },
-      {
-        id: 'settings',
-        label: 'System Parameters',
-        icon: 'settings',
-        route: '/admin/parameters',
-        roles: ['supervisor', 'intake'],
-        requiredPolicy: 'CaseEvaluation.SystemParameters',
-      },
-      {
-        id: 'audit',
-        label: 'Audit Logs',
-        icon: 'clock',
-        route: '/admin/audit',
-        roles: ['supervisor'],
-        requiredPolicy: 'AuditLogging.AuditLogs',
       },
     ],
   },

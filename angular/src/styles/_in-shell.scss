@@ -134,6 +134,14 @@
 .in-sect:hover {
   color: #7ba0c2;
 }
+// Static (non-collapsible) section header: a plain label, not a control, so it
+// neither shows the pointer cursor nor brightens on hover.
+.in-sect--static {
+  cursor: default;
+}
+.in-sect--static:hover {
+  color: #5d83a6;
+}
 .in-sect__chev {
   flex: none;
   display: inline-flex;
