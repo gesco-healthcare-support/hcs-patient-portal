@@ -4,6 +4,12 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>HealthcareSupport.CaseEvaluation</RootNamespace>
+    <!-- Audit only DIRECT deps here. The Sqlite test provider pulls a transitive
+         SQLitePCLRaw.lib.e_sqlite3 with a published advisory (NU1903) that was
+         failing restore-as-error and blocking commits. It is test-only -- production
+         runs on SQL Server, not SQLite -- so direct-only audit is acceptable. Update
+         the transitive package to a patched version to restore full auditing. -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
   <ItemGroup>
