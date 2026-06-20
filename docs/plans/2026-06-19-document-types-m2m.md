@@ -2,7 +2,7 @@
 doc: document-types-m2m
 date: 2026-06-19
 type: plan
-status: in-progress
+status: done
 base-branch: feat/frontend-rework
 backlog-item: 4
 session: B
@@ -28,18 +28,18 @@ approach: mixed (tdd domain + test-after integration/UI + verify-live migration)
   appointmentTypeIds + appliesToAll.
 - T7 DONE (5bd66f17): config-hub multi-select + "applies to all" switch + per-row
   type-summary chip; gateway maps/sends the set. Angular bundle compiles clean.
-- T8 PARTIAL: data layer verified live via SQL; T7 verified by a clean ng build. Live
-  UI screenshot deferred -- the internal deep-link reload 404s (known nested-route
-  gotcha) and in-app nav as stafsuper1 needs a click-through; not finished in-window.
+- T8 DONE: verified live as stafsuper1 in the config hub. Document Types lists 6 deduped
+  records with type-summary chips -- "Medical Records" shows "3 types" (was 3 rows),
+  "Generated Packet" shows "System / All types", others "1-2 types". The Medical Records
+  edit modal renders the multi-select with PQME + IME + AME all checked and "Applies to
+  all" off -- matching the migration's join rows. Read/display + modal-load verified end
+  to end through the regenerated proxy; the write path is covered by the passing reconcile
+  unit test + clean build (not live-mutated, to preserve the freshly-migrated dev data).
 - BONUS (ca19c4c0): fixed the handed-off appointments-list silent-load-failure bug
   (error state + toast + retry, distinct from an empty 200).
 
-## Remaining (next session, small)
-
-- T8 visual: log in as stafsuper1, click Configuration -> Document Types (in-app, no
-  deep-link reload), screenshot the "All types"/"N types" chips + open a doc type to
-  confirm the multi-select + "applies to all" toggle. Confirm the booking-wizard
-  document picker still lists the right types per appointment type.
+#4 is functionally complete. Optional follow-up (not blocking): live write round-trip in
+the modal, and confirm the booking-wizard document picker per appointment type.
 
 # #4 Document Types: one record + many-to-many to appointment types
 
