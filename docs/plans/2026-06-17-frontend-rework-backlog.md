@@ -35,12 +35,12 @@ post-multi-tenant).
 | 1c | No underlines on button labels | DONE (b1685a1) | FE | No | Root cause: `.af-btn`/`.ap-btn` used on `<a>` elements -> browser anchor underline. Fix: `text-decoration:none` on both; 5 stray hover underlines also removed. |
 | 2 | Doctor Availabilities week-view rework | DONE (A: 0f904e7) | Full-stack (no migration) | Yes | Added a bulk slot->patient-names read endpoint (mirrors GetActiveCountsForSlotsAsync + Patient join); week grid now renders per-slot patient chips. Verified end-to-end (endpoint 200 returns names; chip renders on a reserved slot). |
 | 3 | WCAB Offices whitespace | DONE (2885512) | FE+Design | No (route) | Standard filter+table+modal, ~40% whitespace. A "Locations" page already exists under Scheduling. Decision: merge into the Configuration hub. |
-| 4 | Document Types: one doc -> mark which appointment types need it | OPEN | Full-stack | Yes | Today 1 row per (name, appointment-type) by design ("Medical Records" seeded 3x). Inversion = new M2M + dedupe migration + app service + UI. |
+| 4 | Document Types: one doc -> mark which appointment types need it | DONE (5bd66f17) | Full-stack | Yes | Shipped: one DocumentType + M2M to appointment types, dedupe migration, app service, edit-from-document UI. T8 verified live (5b2e89e5). |
 | 5 | New Patient/AA/DA modals: whitespace + tiny inputs | DONE (b1685a1) | FE+Design | No | Live modal is `app-people-edit-modal`. Shipped: `ra-modal--xl` (1040px) + fields `col-4`->`col-6` (2-up); field placeholders added (f84e998). |
 | 6 | Notification Templates rework (formatting + list) | DONE (A: b06f453, 51ae631, 14d4084) | Full-stack (no migration) | Yes | ngx-quill WYSIWYG on BodyEmail + caret ##Var## insert; server-side Ganss HtmlSanitizer in UpdateAsync (preserves ##Token## URLs); client-side list pager (20/pg). Correction to the old note: BodyEmail is already nvarchar(max) sent with IsBodyHtml=true at dispatch, so it was already HTML -- no schema/format-field change needed. Verified live. |
 | 7 | Date filters: smaller + start/end labels | DONE (d5ebeaf) | FE | No | `.ia-input` capped (~150px) + Start/End labels added; change-logs + reports. |
 | 8 | Hardcoded side margins (my-profile, request, view) | DONE (via #16, bf14ebd) | FOLDED into #16 | No | Shipped as part of the systemic #16 fluid-gutter pass. |
-| 9 | AA/DA edit name + firm; unlock; keep past appts | OPEN | Full-stack | Yes | No self-edit endpoint exists. Appointments resolve firm by FK to a shared master, so an edit changes past appts unless we snapshot. |
+| 9 | AA/DA edit name + firm; unlock; keep past appts | DONE (5daf9a85) | Full-stack | Yes | Shipped: self-scoped MyAttorneyProfile service + page; firm/name snapshotted onto Appointment at booking so self-edits never rewrite past appts. Complete T1-T8 (4508db66). |
 | 10 | Dashboard "Requests over time" graph | DONE (2abba65, 41a9fe7) | FE+Design + Full-stack (small) | Yes | Bars + real 6-week dates + y-axis (2abba65, WeekStart on DTO); approved-completions line + Received/Approved legend (41a9fe7, CompletedCount on DTO + per-week query). |
 | 11 | /users/internal 403 for staff supervisor | DEFERRED -> multi-tenant prep | Full-stack (bug) | Yes | Re-gate attempt FAILED (see diagnosis). Folded into the cross-tenant access work (IT Admin already has it; Staff Supervisor needs it). |
 | 12 | Audit Time column raw format | DONE (d5ebeaf) | FE | No | `executionTime` now bound through a date pipe ("Jun 18, 2026, 3:12 AM"). |
@@ -49,7 +49,7 @@ post-multi-tenant).
 | 13 (highlight) | Highlight available appointment dates | DONE (d5ebeaf) | FE | No | ViewEncapsulation fix: green `.available-day` rule moved into the schedule component's SCSS; 27 days render rgb(25,135,84). |
 | 13e | Review page: full claim info + all fields | DONE (cce23d7, 140162e) | FE+Design | No | Full-mirror review + patient gender now shown. |
 | 14 | Appointment-detail change log shows nothing (incl. booker resubmit edits) | DONE (B: e57423c..e0996c7) | Full-stack -> FE-only | No | Session B surfaced the existing `GetHistoryAsync` rounds on the internal change-log page + a lighter external-detail summary (no backend/migration needed -- the endpoint + read-guard already admit external parties). Incl. a markForCheck fix for the stuck-loading change-log page. |
-| 15 | Real draft save/resume on the booking wizard | OPEN | Full-stack | Yes | "Draft saved" pill is cosmetic; localStorage autosave is wiped on navigate-away (ngOnDestroy). Needs AppointmentDraft entity + migration + AppService + save-on-Continue + CanDeactivate modal + resume + first-of-its-kind background cleanup worker. Effort XL; holds PHI -> tdd. |
+| 15 | Real draft save/resume on the booking wizard | DONE (d5131e02, ff130f54) | Full-stack | Yes | Shipped: AppointmentDraft entity (CreationAudited, PHI hard-purge) + migration + self-scoped AppService + save-on-Continue + CanDeactivate leave modal + resume + nightly TTL cleanup Hangfire job. 11 backend tests green; live-verified. |
 | 16 | Systemic excess margins on wide screens (supersedes #8) | DONE (bf14ebd) | FE+Design | No | Shipped shared fluid-gutter (clamp + high max-width): external detail/wizard ->1560, my-profile ->1100, internal detail `.ad--wide` ->2240. |
 | 17 | Sidebar: only Configuration + People collapsible, moved to bottom | DONE (c7fab6b) | FE | No | Refinement of #1a/1b: Workspace/Scheduling/Administration stay open; `collapsible` flag on the nav group + a static header for the rest. |
 
@@ -108,7 +108,8 @@ post-multi-tenant).
   #2 (Session A, 0f904e7 -- availabilities patient chips + bulk read endpoint, no migration);
   #9 (Session B, ..5daf9a8 -- attorney self-edit + snapshot; reported complete T1-T8 in 4508db6);
   #6 (Session A, b06f453..14d4084 -- notification-template WYSIWYG + server HTML sanitize + pager).
-- OPEN (need EF migrations -> Session B's lane): 4, 15.
+- OPEN (need EF migrations -> Session B's lane): 4, 15. [BOTH DONE 2026-06-22 -- see
+  Status update below: #4 5bd66f17, #15 d5131e02/ff130f54.]
 - BUG TRIAGED 2026-06-19 (was "Appointments list shows 0 rows while chips count 4" + console
   error): NOT a query/visibility bug. GetListAsync + GetStatusCountsAsync share
   ComputeExternalPartyVisibilityAsync, which returns null (no narrowing) for internal users
@@ -125,20 +126,52 @@ post-multi-tenant).
 - DEFERRED: 11 (-> multi-tenant prep), appointment-change-control (-> post-multi-tenant,
   own spec 2026-06-19-appointment-change-control.md).
 
+## Status update 2026-06-22
+
+13-item list + 3 follow-ups: ALL DONE. #4 (5bd66f17) and #15 (d5131e02, ff130f54)
+shipped since the 2026-06-19 summary; #9 (5daf9a85) row reconciled. Only #11 remains
+DEFERRED to multi-tenant prep.
+
+Round 2 (plan `2026-06-22-round-2-fixes.md`): R2-1, R2-3, R2-6 DONE; R2-2 PARTIAL.
+REMAINING this round (RPE feature-build, in order):
+
+- R2-2 booker identity: add `BookedByUserId` to Appointment (set from CurrentUser at
+  create) + fix the internal list visibility filter that hides null-creator bookings.
+  Migration. (In progress when this status was written.)
+- R2-4 DA full parity: DA master on register (mirror AA) + EmailConfirmed; move DA
+  FirmName from IdentityUser.ExtraProperties to the DefenseAttorney.FirmName column.
+- R2-4 CE complete user: firm fields on ClaimExaminer (migration) + master-on-register
+  + self-scoped MyClaimExaminerProfile service + DTOs + Angular page + booking/re-eval
+  options; CE appointment permissions already granted.
+- R2-5 reset email: resolves with R2-4 (EmailConfirmed on DA/CE); verify defatty1.
+- Filtered unique index on (TenantId, Email) for AA/DA/CE (migration).
+- Committed OpenIddict ClientId seeding fix (replace the local docker-compose.override
+  workaround).
+
+Then: Azure hosting + multi-tenant for 2-tenant alpha (folds in #11 cross-tenant access).
+
 ## Round 2 -- triaged 2026-06-19 (Session A, read-only diagnosis)
 
 Six more product-owner issues. Diagnosed via 4 parallel read-only code probes + structural
 analysis. THREE conflict with intentional design or with the reported symptom -- flagged
 DECISION / VERIFY below; they are not straightforward bug fixes.
 
-| # | Issue | Category | Migration | Lane | Severity |
-| --- | --- | --- | --- | --- | --- |
-| R2-1 | Request History accordion open by default on /appointments/view/:id | FE | No | B (appts) | Low |
-| R2-2 | Some appointments have no booker/creator identity; linking + dedup weak | Full-stack | Likely | B (appts/accounts) | High |
-| R2-3 | Availabilities chips: only booked/reserved; "Capacity remaining"; per-slot dropdown of names + appt numbers | Full-stack (small) | No | A (rework of #2) | Medium |
-| R2-4 | DA + CE external users not identical to AA (register/login/firm/options) | Full-stack | Likely | B (accounts) | HIGH + DECISION |
-| R2-5 | Password-reset emails do not arrive (defatty1); invites do | Full-stack | No | B (accounts) | Medium (symptom of R2-4) |
-| R2-6 | Send-back: per-field granularity (address -> sub-fields) + confirm it mutates the appointment | Full-stack | Maybe | B (send-back) | Med-High + VERIFY |
+| # | Issue | Status | Category | Migration | Lane | Severity |
+| --- | --- | --- | --- | --- | --- | --- |
+| R2-1 | Request History accordion open by default on /appointments/view/:id | DONE (e2b21bd8) | FE | No | B (appts) | Low |
+| R2-2 | Some appointments have no booker/creator identity; linking + dedup weak | PARTIAL | Full-stack | Yes | B (appts/accounts) | High |
+| R2-3 | Availabilities week-grid: only booked/reserved + tame slot overflow | DONE (0a1a5467) | Full-stack (small) | No | A->B | Medium |
+| R2-4 | DA + CE external users not identical to AA (register/login/firm/options) | OPEN | Full-stack | Likely | B (accounts) | HIGH + DECISION |
+| R2-5 | Password-reset emails do not arrive (defatty1); invites do | OPEN | Full-stack | No | B (accounts) | Medium (symptom of R2-4) |
+| R2-6 | Send-back: per-field granularity (address -> sub-fields) + confirm it mutates the appointment | DONE (4ee10fc0) | Full-stack | No | B (send-back) | Med-High |
+
+R2-2 PARTIAL: email-authoritative party matching shipped (cbb1a627, AA+DA); the
+booker-identity half (BookedByUserId on Appointment + visibility-filter fix) and the
+filtered unique-email index are still OPEN. R2-3 was re-scoped live by Adrian to the
+INTERNAL week-grid overflow (capped columns + "+X more" + Booked/reserved filter), not
+the original capacity-remaining + per-slot name dropdown framing below. R2-6 confirmed
+part (b): the correction flow DOES mutate the Patient/Appointment; shipped part (a) by
+splitting address into street/city/stateId/zipCode (keys match booking-form controls).
 
 ### R2-1 -- Request History open by default
 `internal-appointment-detail.component.ts:171` `protected historyOpen = true;` -> set `false`
@@ -156,7 +189,13 @@ DECISION (D-R2-B): require a booker identity on every appointment (forbid null C
 keep record-only and fix the visibility gap? Either way harden dedup (one normalization, unique
 index, race handling) + stress-test.
 
-### R2-3 -- Availabilities chip rework (refines shipped #2)
+### R2-3 -- Availabilities chip rework (refines shipped #2) -- DONE (0a1a5467)
+Re-scoped live by Adrian to the INTERNAL week-grid OVERFLOW problem (a full day of
+15-20 min slots overflows the column). Shipped: capped columns + "+X more" toggle +
+a "Booked & reserved" status filter so staff can hide available slots. The original
+capacity-remaining + per-slot name/number dropdown framing below was the pre-clarified
+scope; the external booking picker was explicitly left unchanged.
+
 FE (internal-availabilities.component.html:119-126; avail-grid.util.ts GridSlot): (1) guard chips
 to `statusKey !== 'available'` (only booked/reserved); (2) "Capacity {{n}}" -> "Capacity
 remaining" (remaining = capacity - activeCount); (3) capacity>1 -> a per-slot DROPDOWN listing
@@ -202,12 +241,15 @@ not instead-of. So resubmit SHOULD mutate the appointment today. VERIFY with a l
 it genuinely does not change the appointment, that is the real bug to pin; otherwise R2-6 is just
 part (a) granularity.
 
-### Round-2 open decisions for Adrian
-- D-R2-A (R2-4 / R2-5): reverse "D-2" -- make all 4 external roles identical (DA/CE profiles +
-  firm name on entity + booking/re-eval options + confirmed accounts)? Big full-stack.
-- D-R2-B (R2-2): require a booker identity on every appointment, or keep record-only and fix the
-  visibility-filter gap? Plus harden + stress-test dedup.
-- D-R2-C (R2-6b): live re-test whether resubmit mutates the appointment (code says it does).
+### Round-2 decisions for Adrian -- RESOLVED 2026-06-22 (see 2026-06-22-round-2-fixes.md)
+- D-R2-A (R2-4 / R2-5): RESOLVED YES. Reverse "D-2" -- all 4 external roles identical: DA full
+  parity with AA, CE becomes a complete user (entity + firm fields + profile + booking/re-eval
+  + identical permissions). Matching is email-authoritative (link, never duplicate).
+- D-R2-B (R2-2): RESOLVED -- require a booker identity on every appointment (BookedByUserId from
+  the logged-in booker, incl. a paralegal acting on behalf) AND harden dedup (one normalization
+  + filtered unique email index). No production data to migrate.
+- D-R2-C (R2-6b): RESOLVED -- confirmed the correction flow DOES mutate Patient/Appointment;
+  R2-6 shipped the part-(a) address granularity.
 
 ## Fastest order to knock down what is left
 
