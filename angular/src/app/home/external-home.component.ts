@@ -109,9 +109,11 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   {
     match: 'claim examiner',
     config: {
+      // R2-4 (2026-06-22): all 4 external roles share the same capabilities
+      // (book + re-eval + view); only their stored data differs.
       label: 'Claim Examiner',
-      canBook: false,
-      canReeval: false,
+      canBook: true,
+      canReeval: true,
       showPatientCol: true,
       showDob: true,
       defaultView: 'table',

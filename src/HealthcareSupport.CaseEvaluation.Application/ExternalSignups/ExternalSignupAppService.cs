@@ -43,6 +43,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly PatientManager _patientManager;
     private readonly IPatientRepository _patientRepository;
     private readonly IClaimExaminerRepository _claimExaminerRepository;
+    private readonly ClaimExaminerManager _claimExaminerManager;
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -102,6 +103,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         PatientManager patientManager,
         IPatientRepository patientRepository,
         IClaimExaminerRepository claimExaminerRepository,
+        ClaimExaminerManager claimExaminerManager,
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
@@ -129,6 +131,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _patientManager = patientManager;
         _patientRepository = patientRepository;
         _claimExaminerRepository = claimExaminerRepository;
+        _claimExaminerManager = claimExaminerManager;
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
@@ -742,6 +745,24 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         stateId: null,
                         identityUserId: user.Id,
                         firmName: input.FirmName?.Trim(),
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
+                }
+            }
+            else if (input.UserType == ExternalUserType.ClaimExaminer)
+            {
+                // R2-4 (2026-06-22): Claim Examiner is a full external user like the
+                // others -- create its master at registration so the CE surfaces for
+                // linking and has a record to self-edit. CE has no firm fields (its
+                // schema differs by design); name + email come from the register form.
+                var existingClaimExaminer = await _claimExaminerRepository
+                    .FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+                if (existingClaimExaminer == null)
+                {
+                    await _claimExaminerManager.CreateAsync(
+                        stateId: null,
+                        identityUserId: user.Id,
                         email: input.Email,
                         firstName: user.Name,
                         lastName: user.Surname);
