@@ -34,6 +34,7 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
     public const string RoleName = "Patient";
 
     private readonly IdentityUserManager _userManager;
+    private readonly IdentityRoleManager _roleManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly PatientManager _patientManager;
@@ -42,6 +43,7 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
 
     public DemoPatientDataSeedContributor(
         IdentityUserManager userManager,
+        IdentityRoleManager roleManager,
         ICurrentTenant currentTenant,
         IRepository<Tenant, Guid> tenantRepository,
         PatientManager patientManager,
@@ -49,6 +51,7 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
         ILogger<DemoPatientDataSeedContributor> logger)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _currentTenant = currentTenant;
         _tenantRepository = tenantRepository;
         _patientManager = patientManager;
@@ -167,6 +170,15 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
 
         if (!await _userManager.IsInRoleAsync(user, RoleName))
         {
+            // Seed-order independence: the tenant's external roles are created by
+            // ExternalUserRoleDataSeedContributor, which ABP may run AFTER this
+            // dev-only contributor (contributor order is not guaranteed). Ensure
+            // the Patient role exists first so a fresh seed never aborts on
+            // "Role PATIENT does not exist". ExternalUserRole grants the role's
+            // permissions unconditionally, so a role created here is still
+            // permissioned correctly when that contributor runs.
+            await EnsurePatientRoleExistsAsync(tenantId);
+
             var addRoleResult = await _userManager.AddToRoleAsync(user, RoleName);
             if (!addRoleResult.Succeeded)
             {
@@ -179,6 +191,19 @@ public class DemoPatientDataSeedContributor : IDataSeedContributor, ITransientDe
         }
 
         return user;
+    }
+
+    /// <summary>Creates the tenant Patient role if it is absent (idempotent), so
+    /// the demo patient can be assigned to it regardless of seed-contributor
+    /// order. Permissions are granted by ExternalUserRoleDataSeedContributor.</summary>
+    private async Task EnsurePatientRoleExistsAsync(Guid tenantId)
+    {
+        if (await _roleManager.FindByNameAsync(RoleName) != null)
+        {
+            return;
+        }
+
+        await _roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), RoleName, tenantId));
     }
 
     private async Task<Tenant?> FindTenantAsync(Guid tenantId)
