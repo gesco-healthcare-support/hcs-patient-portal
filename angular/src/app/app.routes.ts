@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { postLoginRedirectGuard } from './shared/auth/post-login-redirect.guard';
 import { internalUserOnlyMatchGuard } from './shared/auth/internal-user-match.guard';
 import { externalUserOnlyMatchGuard } from './shared/auth/external-user-match.guard';
+import { appointmentWizardCanDeactivateGuard } from './appointments/wizard/appointment-wizard-can-deactivate.guard';
 import { InternalShellLayoutComponent } from './shared/components/internal-shell/internal-shell-layout.component';
 import { GDPR_COOKIE_CONSENT_ROUTES } from './gdpr-cookie-consent/gdpr-cookie-consent.routes';
 import { STATE_ROUTES } from './states/state/state-routes';
@@ -62,6 +63,7 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
         (c) => c.AppointmentWizardComponent,
       ),
     canActivate: [authGuard],
+    canDeactivate: [appointmentWizardCanDeactivateGuard],
   },
   {
     path: 'appointments/view/:id/change-log',
@@ -339,6 +341,7 @@ export const APP_ROUTES: Routes = [
         (c) => c.AppointmentWizardComponent,
       ),
     canActivate: [authGuard],
+    canDeactivate: [appointmentWizardCanDeactivateGuard],
   },
   {
     // Redesign swap (2026-06-14): my-profile serves the reworked page.

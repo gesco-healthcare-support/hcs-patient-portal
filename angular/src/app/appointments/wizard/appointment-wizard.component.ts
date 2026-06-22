@@ -7,7 +7,7 @@ import {
   LocalizationPipe,
   RestService,
 } from '@abp/ng.core';
-import { DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
+import { Confirmation, ConfirmationService, DateAdapter, TimeAdapter } from '@abp/ng.theme.shared';
 import { NgbDateAdapter, NgbTimeAdapter } from '@ng-bootstrap/ng-bootstrap';
 import { NgxValidateCoreModule } from '@ngx-validate/core';
 import { Subscription } from 'rxjs';
@@ -33,6 +33,8 @@ import { performFullLogout } from '../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../shared/auth/external-user-display-name';
 import { SsnMaskPipe } from '../../shared/pipes/ssn-mask.pipe';
 import * as wizardCopy from './wizard-copy.util';
+import { AppointmentDraftService } from '../../proxy/appointment-drafts/appointment-draft.service';
+import type { AppointmentDraftDto } from '../../proxy/appointment-drafts/models';
 
 interface WizardStep {
   key: string;
@@ -109,6 +111,8 @@ export class AppointmentWizardComponent
   private readonly shellInjector = inject(Injector);
   private readonly shellConfig = inject(AbpConfigStateService);
   private readonly shellRest = inject(RestService);
+  private readonly draftService = inject(AppointmentDraftService);
+  private readonly confirmation = inject(ConfirmationService);
 
   protected readonly steps = STEPS;
   protected current = 0;
@@ -130,9 +134,16 @@ export class AppointmentWizardComponent
   protected navDisplayName = '';
   protected firmName = '';
 
-  // draft autosave
+  // draft autosave (#15: localStorage is the instant per-keystroke cache; the
+  // server draft is the durable cross-session store).
   private readonly DRAFT_KEY = 'ra-wizard-draft';
   private readonly draftSub = new Subscription();
+  // #15 draft state -- only active for a fresh 'new' booking (set in ngOnInit).
+  protected draftEnabled = false;
+  protected submitted = false;
+  protected draftState: 'idle' | 'saving' | 'saved' = 'idle';
+  protected leavePromptVisible = false;
+  private leaveResolver?: (allow: boolean) => void;
 
   // Controls validated when leaving each step (gates Continue). Disabled or
   // not-required controls pass automatically; the engine has already applied
@@ -219,10 +230,16 @@ export class AppointmentWizardComponent
 
   ngOnInit(): void {
     this.loadNavName();
-    this.restoreDraft();
-    this.draftSub.add(
-      this.form.valueChanges.pipe(debounceTime(600)).subscribe(() => this.saveDraft()),
-    );
+    // #15: server-persisted drafts only for a fresh 'new' booking. Reval /
+    // re-request prefill from a source appointment, so a saved draft would
+    // collide with that prefill (Adrian decision 2026-06-22).
+    this.draftEnabled = this.bookingMode === 'new';
+    if (this.draftEnabled) {
+      this.initDraft();
+      this.draftSub.add(
+        this.form.valueChanges.pipe(debounceTime(600)).subscribe(() => this.saveDraft()),
+      );
+    }
     // Cache type + location names so the review step can show them by id.
     this.getAppointmentTypeLookup({ maxResultCount: 200 }).subscribe((r) =>
       (r.items ?? []).forEach((i) => this.typeNames.set(i.id ?? '', i.displayName ?? '')),
@@ -254,7 +271,9 @@ export class AppointmentWizardComponent
 
   ngOnDestroy(): void {
     this.draftSub.unsubscribe();
-    localStorage.removeItem(this.DRAFT_KEY);
+    // #15: do NOT wipe here -- the server draft is the durable store (survives
+    // navigate-away) and is cleared explicitly on submit / discard. The leave
+    // guard already runs before destroy for a dirty form.
   }
 
   protected get currentStep(): WizardStep {
@@ -346,6 +365,8 @@ export class AppointmentWizardComponent
     this.erroredSteps.delete(this.current);
     this.current = Math.min(this.current + 1, this.steps.length - 1);
     this.furthest = Math.max(this.furthest, this.current);
+    // #15: each Continue is a server checkpoint so the draft survives leaving.
+    this.persistServerDraft();
   }
 
   /** Validate the current step's controls (+ claim/docs gates) before advancing. */
@@ -407,9 +428,82 @@ export class AppointmentWizardComponent
       });
   }
 
-  // ---- draft autosave (survives an accidental refresh; cleared on submit or
-  // leaving the wizard). Patient demographics for a non-patient booker are
-  // owned by the async profile load, so they may not round-trip on refresh. ----
+  // ---- draft save / resume (#15) ------------------------------------------
+  // localStorage is the instant per-keystroke cache; the server draft is the
+  // durable cross-session store written at checkpoints (step Continue + the
+  // leave prompt's Save). Resume reads the server draft on open. Patient
+  // demographics for a non-patient booker are owned by the async profile load,
+  // so they may not round-trip on refresh.
+
+  /** On open: offer to resume a server draft, else restore a same-session local cache. */
+  private initDraft(): void {
+    this.draftService.getMine().subscribe({
+      next: (draft) => {
+        if (draft?.payloadJson) {
+          this.promptResume(draft);
+        } else {
+          this.restoreDraft();
+        }
+      },
+      error: () => this.restoreDraft(),
+    });
+  }
+
+  private promptResume(draft: AppointmentDraftDto): void {
+    const label = draft.label ? ` ${draft.label}` : '';
+    this.confirmation
+      .warn(
+        `You have an unfinished${label} request. Resume where you left off, or start fresh?`,
+        'Resume saved request?',
+        { yesText: 'Resume', cancelText: 'Start fresh' },
+      )
+      .subscribe((status) => {
+        if (status === Confirmation.Status.confirm) {
+          this.applyDraftPayload(draft.payloadJson);
+          this.draftState = 'saved';
+        } else {
+          this.discardServerDraft();
+        }
+      });
+  }
+
+  private applyDraftPayload(json?: string): void {
+    if (!json) {
+      return;
+    }
+    try {
+      const d = JSON.parse(json) as { v?: Record<string, unknown>; step?: number };
+      if (d.v) this.form.patchValue(d.v);
+      if (typeof d.step === 'number') {
+        this.current = d.step;
+        this.furthest = Math.max(this.furthest, d.step);
+      }
+    } catch {
+      /* corrupt payload -- ignore */
+    }
+  }
+
+  /** Checkpoint persist to the server (step Continue + the leave prompt's Save). */
+  private persistServerDraft(): void {
+    if (!this.draftEnabled) {
+      return;
+    }
+    const payloadJson = JSON.stringify({ v: this.form.getRawValue(), step: this.current });
+    // Non-PHI resume label: the appointment-type display name (e.g. "AME").
+    const label = this.typeNames.get(this.form.get('appointmentTypeId')?.value ?? '') || null;
+    this.draftState = 'saving';
+    this.draftService.upsert({ payloadJson, currentStep: this.current, label }).subscribe({
+      next: () => (this.draftState = 'saved'),
+      error: () => (this.draftState = 'idle'),
+    });
+  }
+
+  private discardServerDraft(): void {
+    this.draftService.discardMine().subscribe({ error: () => undefined });
+    localStorage.removeItem(this.DRAFT_KEY);
+    this.draftState = 'idle';
+  }
+
   private saveDraft(): void {
     try {
       localStorage.setItem(
@@ -420,6 +514,7 @@ export class AppointmentWizardComponent
       /* serialization / quota -- autosave is best-effort */
     }
   }
+
   private restoreDraft(): void {
     try {
       const raw = localStorage.getItem(this.DRAFT_KEY);
@@ -433,6 +528,42 @@ export class AppointmentWizardComponent
     } catch {
       /* corrupt draft -- ignore */
     }
+  }
+
+  // ---- leave guard (#15 CanDeactivate) ------------------------------------
+  /**
+   * Called by appointmentWizardCanDeactivateGuard. Prompts Save / Discard / Stay
+   * when the booker abandons a dirty 'new' booking; a clean form, a
+   * reval/re-request session, or a successful submit leaves without prompting.
+   */
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.draftEnabled || this.submitted || !this.form.dirty) {
+      return true;
+    }
+    this.leavePromptVisible = true;
+    return new Promise<boolean>((resolve) => (this.leaveResolver = resolve));
+  }
+
+  protected onLeaveSave(): void {
+    this.persistServerDraft();
+    this.leavePromptVisible = false;
+    this.resolveLeave(true);
+  }
+
+  protected onLeaveDiscard(): void {
+    this.discardServerDraft();
+    this.leavePromptVisible = false;
+    this.resolveLeave(true);
+  }
+
+  protected onLeaveStay(): void {
+    this.leavePromptVisible = false;
+    this.resolveLeave(false);
+  }
+
+  private resolveLeave(allow: boolean): void {
+    this.leaveResolver?.(allow);
+    this.leaveResolver = undefined;
   }
 
   protected openQuery(): void {
@@ -453,6 +584,12 @@ export class AppointmentWizardComponent
   }
 
   protected override navigateAfterBooking(): void {
+    // #15: booking succeeded -> the draft is consumed; drop it so it never
+    // resurfaces, and flag submitted so the leave guard does not prompt.
+    this.submitted = true;
+    if (this.draftEnabled) {
+      this.discardServerDraft();
+    }
     void this.shellRouter.navigateByUrl(this.landingUrl);
   }
 

@@ -3739,6 +3739,124 @@
       "rootPath": "app",
       "remoteServiceName": "Default",
       "controllers": {
+        "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftAppService": {
+          "controllerName": "AppointmentDraft",
+          "controllerGroupName": "AppointmentDraft",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftAppService",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.IAppointmentDraftAppService",
+              "name": "IAppointmentDraftAppService",
+              "methods": [
+                {
+                  "name": "GetMineAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto"
+                  }
+                },
+                {
+                  "name": "UpsertAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto"
+                  }
+                },
+                {
+                  "name": "DiscardMineAsync",
+                  "parametersOnMethod": [],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetMineAsync": {
+              "uniqueName": "GetMineAsync",
+              "name": "GetMineAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointment-draft/mine",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.IAppointmentDraftAppService"
+            },
+            "UpsertAsyncByInput": {
+              "uniqueName": "UpsertAsyncByInput",
+              "name": "UpsertAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-draft/upsert",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.IAppointmentDraftAppService"
+            },
+            "DiscardMineAsync": {
+              "uniqueName": "DiscardMineAsync",
+              "name": "DiscardMineAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-draft/discard-mine",
+              "supportedVersions": [],
+              "parametersOnMethod": [],
+              "parameters": [],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.AppointmentDrafts.IAppointmentDraftAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.ApplicantAttorneys.ApplicantAttorneyController": {
           "controllerName": "ApplicantAttorney",
           "controllerGroupName": "ApplicantAttorney",
@@ -47546,6 +47664,115 @@
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraftDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "PayloadJson",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "CurrentStep",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Label",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "LastSavedTime",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.AppointmentDrafts.UpsertAppointmentDraftInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "PayloadJson",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "CurrentStep",
+          "jsonName": null,
+          "type": "System.Int32",
+          "typeSimple": "number",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Label",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 200,
           "minimum": null,
           "maximum": null,
           "regex": null,
