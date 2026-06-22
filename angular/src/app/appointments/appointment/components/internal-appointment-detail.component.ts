@@ -167,8 +167,8 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
     this.diffOpen = !this.diffOpen;
   }
 
-  /** Collapsible state for the Request history card (open by default). */
-  protected historyOpen = true;
+  /** Collapsible state for the Request history card (collapsed by default; R2-1). */
+  protected historyOpen = false;
 
   protected toggleHistory(): void {
     this.historyOpen = !this.historyOpen;
