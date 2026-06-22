@@ -1240,6 +1240,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.CronExpression,
             options);
+
+        // #15 (2026-06-22) -- daily 03:00 PT TTL purge of stale booking drafts
+        // (transient PHI). Physical delete; minimizes data at rest.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob>(
+            HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs.DraftCleanupJob.CronExpression,
+            options);
     }
 
     private static TimeZoneInfo TryGetPacificTimeZone()

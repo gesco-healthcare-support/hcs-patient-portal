@@ -31,6 +31,7 @@ using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -82,6 +83,7 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
+    public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
 
     public CaseEvaluationDbContext(DbContextOptions<CaseEvaluationDbContext> options) : base(options)
     {
@@ -216,6 +218,23 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.IsSystem).HasColumnName("IsSystem");
             b.Property(x => x.IsActive).HasColumnName("IsActive");
             b.HasIndex(x => new { x.TenantId, x.Name });
+        });
+
+        // #15 (2026-06-22): self-scoped booking-draft store. IMultiTenant, so it
+        // lives in BOTH DBs -- NOT wrapped in IsHostDatabase. PayloadJson is an
+        // unbounded PHI blob (nvarchar(max)); the (TenantId, CreatorId) index
+        // serves the one-draft-per-user lookup and LastSavedTime the TTL purge.
+        builder.Entity<AppointmentDraft>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDrafts", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.PayloadJson).HasColumnName("PayloadJson").IsRequired();
+            b.Property(x => x.CurrentStep).HasColumnName("CurrentStep");
+            b.Property(x => x.Label).HasColumnName("Label").HasMaxLength(AppointmentDraftConsts.LabelMaxLength);
+            b.Property(x => x.LastSavedTime).HasColumnName("LastSavedTime");
+            b.HasIndex(x => new { x.TenantId, x.CreatorId });
+            b.HasIndex(x => x.LastSavedTime);
         });
 
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the
