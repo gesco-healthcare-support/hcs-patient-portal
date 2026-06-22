@@ -47,7 +47,10 @@ const FIELD_LABELS: Record<string, string> = {
   appointmentDate: 'Appointment date',
   dateOfBirth: 'Date of birth',
   socialSecurityNumber: 'Social Security #',
-  address: 'Address',
+  street: 'Street address',
+  city: 'City',
+  stateId: 'State',
+  zipCode: 'ZIP code',
   cellPhoneNumber: 'Cell phone',
   appointmentLanguageId: 'Language',
   applicantAttorneyEmail: 'Applicant attorney email',
@@ -141,6 +144,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected edits: Record<string, string> = {};
   protected readonly touched = new Set<string>();
   protected languageOptions: { id: string; name: string }[] = [];
+  protected stateOptions: { id: string; name: string }[] = [];
 
   protected navClinicName = 'Appointment Portal';
   protected navDisplayName = '';
@@ -155,6 +159,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     this.loadInfoRequest();
     this.loadHistory();
     this.loadLanguageOptions();
+    this.loadStateOptions();
   }
 
   // ---- status banner ----
@@ -352,7 +357,10 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     const seed: Record<string, string> = {
       dateOfBirth: (p?.dateOfBirth ?? '').slice(0, 10),
       socialSecurityNumber: '',
-      address: String(p?.address ?? ''),
+      street: String(p?.street ?? ''),
+      city: String(p?.city ?? ''),
+      stateId: String(p?.stateId ?? ''),
+      zipCode: String(p?.zipCode ?? ''),
       cellPhoneNumber: String(p?.cellPhoneNumber ?? ''),
       appointmentLanguageId: String(p?.appointmentLanguageId ?? ''),
       applicantAttorneyEmail: String(appt?.['applicantAttorneyEmail'] ?? ''),
@@ -380,6 +388,20 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     });
   }
 
+  private loadStateOptions(): void {
+    this.getStateLookup({ filter: '', skipCount: 0, maxResultCount: 100 }).subscribe({
+      next: (res) => {
+        this.stateOptions = (res.items ?? []).map((i) => ({
+          id: i.id ?? '',
+          name: i.displayName ?? '',
+        }));
+      },
+      error: () => {
+        /* lookup optional; state stays a plain text field */
+      },
+    });
+  }
+
   protected get hasFlaggedFields(): boolean {
     return (this.infoRequest?.flaggedFields?.length ?? 0) > 0;
   }
@@ -403,6 +425,9 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   }
   protected isLanguage(key: string): boolean {
     return key === 'appointmentLanguageId';
+  }
+  protected isState(key: string): boolean {
+    return key === 'stateId';
   }
   protected isFixed(key: string): boolean {
     return this.touched.has(key);

@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.States;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -40,6 +41,7 @@ public class AppointmentInfoRequestsAppService
     private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseLinkRepository;
     private readonly IRepository<DefenseAttorney, Guid> _defenseRepository;
     private readonly IRepository<AppointmentLanguage, Guid> _languageRepository;
+    private readonly IRepository<State, Guid> _stateRepository;
     private readonly IIdentityUserRepository _userRepository;
 
     public AppointmentInfoRequestsAppService(
@@ -52,6 +54,7 @@ public class AppointmentInfoRequestsAppService
         IRepository<AppointmentDefenseAttorney, Guid> defenseLinkRepository,
         IRepository<DefenseAttorney, Guid> defenseRepository,
         IRepository<AppointmentLanguage, Guid> languageRepository,
+        IRepository<State, Guid> stateRepository,
         IIdentityUserRepository userRepository)
     {
         _infoRequestRepository = infoRequestRepository;
@@ -63,6 +66,7 @@ public class AppointmentInfoRequestsAppService
         _defenseLinkRepository = defenseLinkRepository;
         _defenseRepository = defenseRepository;
         _languageRepository = languageRepository;
+        _stateRepository = stateRepository;
         _userRepository = userRepository;
     }
 
@@ -188,7 +192,8 @@ public class AppointmentInfoRequestsAppService
 
     private static readonly string[] PatientSnapshotKeys =
     {
-        "dateOfBirth", "socialSecurityNumber", "address", "cellPhoneNumber", "appointmentLanguageId",
+        "dateOfBirth", "socialSecurityNumber", "street", "city", "stateId", "zipCode",
+        "cellPhoneNumber", "appointmentLanguageId",
     };
 
     /// <summary>
@@ -199,7 +204,8 @@ public class AppointmentInfoRequestsAppService
     private async Task<string> BuildSnapshotJsonAsync(Appointment appointment, ISet<string> flaggedKeys)
     {
         DateTime? dob = null;
-        string? ssn = null, address = null, cell = null, languageName = null, insuranceName = null, defenseFirm = null;
+        string? ssn = null, street = null, city = null, stateName = null, zip = null,
+            cell = null, languageName = null, insuranceName = null, defenseFirm = null;
 
         if (flaggedKeys.Overlaps(PatientSnapshotKeys))
         {
@@ -208,11 +214,17 @@ public class AppointmentInfoRequestsAppService
             {
                 dob = patient.DateOfBirth;
                 ssn = patient.SocialSecurityNumber;
-                address = patient.Address;
+                street = patient.Street;
+                city = patient.City;
+                zip = patient.ZipCode;
                 cell = patient.CellPhoneNumber;
                 if (flaggedKeys.Contains("appointmentLanguageId") && patient.AppointmentLanguageId is Guid languageId)
                 {
                     languageName = (await _languageRepository.FindAsync(languageId))?.Name;
+                }
+                if (flaggedKeys.Contains("stateId") && patient.StateId is Guid stateId)
+                {
+                    stateName = (await _stateRepository.FindAsync(stateId))?.Name;
                 }
             }
         }
@@ -237,7 +249,10 @@ public class AppointmentInfoRequestsAppService
         {
             DateOfBirth = dob,
             SocialSecurityNumber = ssn,
-            Address = address,
+            Street = street,
+            City = city,
+            StateName = stateName,
+            ZipCode = zip,
             CellPhoneNumber = cell,
             AppointmentLanguageName = languageName,
             ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
@@ -260,7 +275,10 @@ public class AppointmentInfoRequestsAppService
     {
         var touchesPatient = input.DateOfBirth.HasValue
             || input.SocialSecurityNumber != null
-            || input.Address != null
+            || input.Street != null
+            || input.City != null
+            || input.StateId.HasValue
+            || input.ZipCode != null
             || input.CellPhoneNumber != null
             || input.AppointmentLanguageId.HasValue;
         if (!touchesPatient)
@@ -282,9 +300,21 @@ public class AppointmentInfoRequestsAppService
         {
             patient.SocialSecurityNumber = input.SocialSecurityNumber;
         }
-        if (input.Address != null)
+        if (input.Street != null)
         {
-            patient.Address = input.Address;
+            patient.Street = input.Street;
+        }
+        if (input.City != null)
+        {
+            patient.City = input.City;
+        }
+        if (input.StateId.HasValue)
+        {
+            patient.StateId = input.StateId;
+        }
+        if (input.ZipCode != null)
+        {
+            patient.ZipCode = input.ZipCode;
         }
         if (input.CellPhoneNumber != null)
         {

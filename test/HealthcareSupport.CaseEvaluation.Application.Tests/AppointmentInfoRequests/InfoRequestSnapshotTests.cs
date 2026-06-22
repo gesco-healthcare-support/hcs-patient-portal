@@ -20,7 +20,7 @@ public class InfoRequestSnapshotTests
         var values = new InfoRequestSnapshot.FieldValues
         {
             CellPhoneNumber = "(213) 555-0148",
-            Address = "128 W 4th St",
+            Street = "128 W 4th St",
             ApplicantAttorneyEmail = "aa@example.test",
         };
 
@@ -57,10 +57,10 @@ public class InfoRequestSnapshotTests
     public void Excludes_the_documents_key()
     {
         var map = InfoRequestSnapshot.Capture(
-            new InfoRequestSnapshot.FieldValues { Address = "128 W 4th St" },
-            new HashSet<string> { "documents", "address" });
+            new InfoRequestSnapshot.FieldValues { Street = "128 W 4th St" },
+            new HashSet<string> { "documents", "street" });
 
-        map.ShouldContainKey("address");
+        map.ShouldContainKey("street");
         map.ShouldNotContainKey("documents");
     }
 
@@ -68,11 +68,11 @@ public class InfoRequestSnapshotTests
     public void Flagged_but_empty_value_maps_to_empty_string()
     {
         var map = InfoRequestSnapshot.Capture(
-            new InfoRequestSnapshot.FieldValues { Address = null },
-            new HashSet<string> { "address" });
+            new InfoRequestSnapshot.FieldValues { Street = null },
+            new HashSet<string> { "street" });
 
-        map.ShouldContainKey("address");
-        map["address"].ShouldBe(string.Empty);
+        map.ShouldContainKey("street");
+        map["street"].ShouldBe(string.Empty);
     }
 
     [Fact]
@@ -83,6 +83,17 @@ public class InfoRequestSnapshotTests
             new HashSet<string> { "appointmentInsuranceName" });
 
         map["appointmentInsuranceName"].ShouldBe("Statewide Mutual");
+    }
+
+    [Fact]
+    public void State_name_is_the_value_for_the_state_key()
+    {
+        // StateId is a Guid; the snapshot stores the resolved display name, like language.
+        var map = InfoRequestSnapshot.Capture(
+            new InfoRequestSnapshot.FieldValues { StateName = "California" },
+            new HashSet<string> { "stateId" });
+
+        map["stateId"].ShouldBe("California");
     }
 
     [Fact]

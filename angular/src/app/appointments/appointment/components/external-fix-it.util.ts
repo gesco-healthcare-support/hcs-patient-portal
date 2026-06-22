@@ -17,7 +17,10 @@ export type FixSource =
 export const FIX_SOURCE: Record<string, FixSource> = {
   dateOfBirth: 'patient',
   socialSecurityNumber: 'patient',
-  address: 'patient',
+  street: 'patient',
+  city: 'patient',
+  stateId: 'patient',
+  zipCode: 'patient',
   cellPhoneNumber: 'patient',
   appointmentLanguageId: 'patient',
   applicantAttorneyEmail: 'appointment-aa',
@@ -61,7 +64,11 @@ export function allFixed(flaggedKeys: readonly string[], touched: ReadonlySet<st
 export interface CorrectionsPayload {
   dateOfBirth?: string;
   socialSecurityNumber?: string;
-  address?: string;
+  street?: string;
+  city?: string;
+  /** State is a Guid; carried as its string id (mirrors appointmentLanguageId). */
+  stateId?: string;
+  zipCode?: string;
   cellPhoneNumber?: string;
   appointmentLanguageId?: string;
   applicantAttorneyEmail?: string;
@@ -74,7 +81,10 @@ export interface CorrectionsPayload {
 const PAYLOAD_KEY: Record<string, keyof CorrectionsPayload | null> = {
   dateOfBirth: 'dateOfBirth',
   socialSecurityNumber: 'socialSecurityNumber',
-  address: 'address',
+  street: 'street',
+  city: 'city',
+  stateId: 'stateId',
+  zipCode: 'zipCode',
   cellPhoneNumber: 'cellPhoneNumber',
   appointmentLanguageId: 'appointmentLanguageId',
   applicantAttorneyEmail: 'applicantAttorneyEmail',

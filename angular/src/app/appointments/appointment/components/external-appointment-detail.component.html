@@ -178,6 +178,19 @@
                         </option>
                       }
                     </select>
+                  } @else if (isState(key)) {
+                    <select
+                      [id]="'fix-' + key"
+                      [class.sb-flag]="!isFixed(key)"
+                      (change)="onEdit(key, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!edits[key]">Select a state</option>
+                      @for (opt of stateOptions; track opt.id) {
+                        <option [value]="opt.id" [selected]="opt.id === edits[key]">
+                          {{ opt.name }}
+                        </option>
+                      }
+                    </select>
                   } @else {
                     <input
                       [id]="'fix-' + key"

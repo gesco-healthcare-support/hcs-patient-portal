@@ -33,7 +33,10 @@ internal static class InfoRequestCorrectionLock
 
         Require(input.DateOfBirth.HasValue, "dateOfBirth");
         Require(input.SocialSecurityNumber != null, "socialSecurityNumber");
-        Require(input.Address != null, "address");
+        Require(input.Street != null, "street");
+        Require(input.City != null, "city");
+        Require(input.StateId.HasValue, "stateId");
+        Require(input.ZipCode != null, "zipCode");
         Require(input.CellPhoneNumber != null, "cellPhoneNumber");
         Require(input.AppointmentLanguageId.HasValue, "appointmentLanguageId");
         Require(input.ApplicantAttorneyEmail != null, "applicantAttorneyEmail");

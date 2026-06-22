@@ -23,7 +23,7 @@ describe('external-fix-it.util', () => {
 
   describe('fixItProgress', () => {
     it('counts addressed flagged fields', () => {
-      const flagged = ['dateOfBirth', 'address', 'documents'];
+      const flagged = ['dateOfBirth', 'street', 'documents'];
       const touched = new Set(['dateOfBirth']);
       expect(fixItProgress(flagged, touched)).toEqual({ fixed: 1, total: 3 });
     });
@@ -59,16 +59,16 @@ describe('external-fix-it.util', () => {
     });
 
     it('omits edits to fields that were not flagged', () => {
-      const payload = buildCorrectionsPayload(['address'], {
-        address: '128 W 4th St',
+      const payload = buildCorrectionsPayload(['street'], {
+        street: '128 W 4th St',
         cellPhoneNumber: '(213) 555-0148',
       });
-      expect(payload).toEqual({ address: '128 W 4th St' });
+      expect(payload).toEqual({ street: '128 W 4th St' });
     });
 
     it('omits blank edits and documents', () => {
-      const payload = buildCorrectionsPayload(['address', 'documents'], {
-        address: '   ',
+      const payload = buildCorrectionsPayload(['street', 'documents'], {
+        street: '   ',
         documents: 'whatever',
       });
       expect(payload).toEqual({});

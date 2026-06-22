@@ -7,10 +7,11 @@
  *     persists this `key` verbatim as the config row's FieldName.
  *
  * The backend does NOT validate FieldName against a catalog, so this registry IS
- * the source of truth. 11 of the 12 keys are live booking-form control names in
- * `appointment-add.component.ts`, so a field's hidden / read-only / default-value
- * config takes effect on the real booking form; `documents` has no booking-form
- * control and is stored-only.
+ * the source of truth. 14 of the 15 keys are live booking-form control names in
+ * `appointment-add.component.ts` (the patient address is split into the
+ * street/city/stateId/zipCode controls), so a field's hidden / read-only /
+ * default-value config takes effect on the real booking form; `documents` has no
+ * booking-form control and is stored-only.
  *
  * `sendBackFlaggable` separates the two concerns: every field is configurable in
  * the Field Configuration panel, but only requester-provided fields can be sent
@@ -41,7 +42,10 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
     group: 'Patient',
     sendBackFlaggable: true,
   },
-  { key: 'address', label: 'Address', group: 'Patient', sendBackFlaggable: true },
+  { key: 'street', label: 'Street address', group: 'Patient', sendBackFlaggable: true },
+  { key: 'city', label: 'City', group: 'Patient', sendBackFlaggable: true },
+  { key: 'stateId', label: 'State', group: 'Patient', sendBackFlaggable: true },
+  { key: 'zipCode', label: 'ZIP code', group: 'Patient', sendBackFlaggable: true },
   { key: 'cellPhoneNumber', label: 'Cell phone', group: 'Patient', sendBackFlaggable: true },
   {
     key: 'appointmentLanguageId',

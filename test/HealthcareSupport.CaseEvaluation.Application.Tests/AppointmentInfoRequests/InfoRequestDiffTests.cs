@@ -40,9 +40,9 @@ public class InfoRequestDiffTests
     public void Marks_unchanged_when_values_match()
     {
         var diffs = InfoRequestSnapshot.BuildDiff(
-            Map(("address", "128 W 4th St")),
-            Map(("address", "128 W 4th St")),
-            new HashSet<string> { "address" });
+            Map(("street", "128 W 4th St")),
+            Map(("street", "128 W 4th St")),
+            new HashSet<string> { "street" });
 
         diffs[0].Changed.ShouldBeFalse();
     }
@@ -64,12 +64,12 @@ public class InfoRequestDiffTests
     public void Excludes_the_documents_key()
     {
         var diffs = InfoRequestSnapshot.BuildDiff(
-            Map(("address", "a")),
-            Map(("address", "b")),
-            new HashSet<string> { "documents", "address" });
+            Map(("street", "a")),
+            Map(("street", "b")),
+            new HashSet<string> { "documents", "street" });
 
         diffs.Count.ShouldBe(1);
-        diffs[0].Key.ShouldBe("address");
+        diffs[0].Key.ShouldBe("street");
     }
 
     [Fact]

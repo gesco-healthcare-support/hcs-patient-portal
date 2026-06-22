@@ -26,7 +26,11 @@ internal static class InfoRequestSnapshot
     {
         public DateTime? DateOfBirth { get; init; }
         public string? SocialSecurityNumber { get; init; }
-        public string? Address { get; init; }
+        public string? Street { get; init; }
+        public string? City { get; init; }
+        /// <summary>Resolved state display name (StateId is a Guid; the diff shows the name).</summary>
+        public string? StateName { get; init; }
+        public string? ZipCode { get; init; }
         public string? CellPhoneNumber { get; init; }
         public string? AppointmentLanguageName { get; init; }
         public string? ApplicantAttorneyEmail { get; init; }
@@ -54,7 +58,10 @@ internal static class InfoRequestSnapshot
 
         Add("dateOfBirth", values.DateOfBirth?.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture));
         Add("socialSecurityNumber", MaskSsn(values.SocialSecurityNumber));
-        Add("address", values.Address);
+        Add("street", values.Street);
+        Add("city", values.City);
+        Add("stateId", values.StateName);
+        Add("zipCode", values.ZipCode);
         Add("cellPhoneNumber", values.CellPhoneNumber);
         Add("appointmentLanguageId", values.AppointmentLanguageName);
         Add("applicantAttorneyEmail", values.ApplicantAttorneyEmail);
@@ -68,7 +75,8 @@ internal static class InfoRequestSnapshot
     /// <summary>Registry order of the scalar flaggable keys (documents/panel/date excluded).</summary>
     private static readonly string[] OrderedScalarKeys =
     {
-        "dateOfBirth", "socialSecurityNumber", "address", "cellPhoneNumber", "appointmentLanguageId",
+        "dateOfBirth", "socialSecurityNumber", "street", "city", "stateId", "zipCode",
+        "cellPhoneNumber", "appointmentLanguageId",
         "applicantAttorneyEmail", "defenseAttorneyFirmName", "appointmentInsuranceName",
         "appointmentClaimExaminerEmail",
     };

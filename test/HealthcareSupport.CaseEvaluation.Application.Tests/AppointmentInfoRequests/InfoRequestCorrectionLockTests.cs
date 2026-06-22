@@ -44,6 +44,31 @@ public class InfoRequestCorrectionLockTests
     }
 
     [Fact]
+    public void Allows_address_sub_field_changes_when_each_is_flagged()
+    {
+        var input = new SaveInfoRequestCorrectionsInput
+        {
+            Street = "128 W 4th St",
+            City = "Los Angeles",
+            StateId = Guid.NewGuid(),
+            ZipCode = "90013",
+        };
+        var flagged = new HashSet<string> { "street", "city", "stateId", "zipCode" };
+
+        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Rejects_an_unflagged_address_sub_field()
+    {
+        // Only street was flagged; correcting the zip is an unflagged change.
+        var input = new SaveInfoRequestCorrectionsInput { ZipCode = "90013" };
+        var flagged = new HashSet<string> { "street" };
+
+        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldContain("zipCode");
+    }
+
+    [Fact]
     public void Empty_input_has_no_violations()
     {
         InfoRequestCorrectionLock
