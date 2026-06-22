@@ -753,6 +753,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Email).HasColumnName(nameof(ApplicantAttorney.Email)).HasMaxLength(ApplicantAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<ClaimExaminer>(b =>
         {
@@ -769,6 +772,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.ZipCode).HasColumnName(nameof(ClaimExaminer.ZipCode)).HasMaxLength(ClaimExaminerConsts.ZipCodeMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
@@ -797,6 +803,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.Email).HasColumnName(nameof(DefenseAttorney.Email)).HasMaxLength(DefenseAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<AppointmentDefenseAttorney>(b =>
         {
