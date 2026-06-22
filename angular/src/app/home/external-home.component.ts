@@ -93,16 +93,17 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   {
     match: 'defense attorney',
     config: {
+      // R2-4 (2026-06-22, D-R2-A): Defense Attorney now has full parity with
+      // Applicant Attorney -- booking + re-evaluation enabled.
       label: 'Defense Attorney',
-      canBook: false,
-      canReeval: false,
+      canBook: true,
+      canReeval: true,
       showPatientCol: true,
       showDob: true,
       defaultView: 'table',
       listTitle: 'Case appointments',
       listSub: 'Evaluations on the claims you are defending',
-      heroSub:
-        'Review evaluation requests, respond to changes, and manage documents for your claims.',
+      heroSub: 'Book evaluations, respond to changes, and manage documents for your claims.',
     },
   },
   {

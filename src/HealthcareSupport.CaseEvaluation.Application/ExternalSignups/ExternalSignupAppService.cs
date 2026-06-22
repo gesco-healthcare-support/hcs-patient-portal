@@ -725,6 +725,28 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         identityUserId: user.Id);
                 }
             }
+            else if (input.UserType == ExternalUserType.DefenseAttorney)
+            {
+                // R2-4 (2026-06-22, D-R2-A reverses D-2): Defense Attorney now gets a
+                // saved master at registration, exactly like Applicant Attorney -- so the
+                // DA surfaces in the booker pre-fill + tenant-admin management page, the
+                // appointment-DA join can point at a real row, and the self-edit profile
+                // (MyAttorneyProfileAppService, which already supports DA) has a record to
+                // edit. FirmName is stored on the DefenseAttorney entity (not only the
+                // IdentityUser ExtraProperties), so /defense-attorneys shows the firm.
+                var existingDefenseAttorney = await _defenseAttorneyRepository
+                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
+                if (existingDefenseAttorney == null)
+                {
+                    await _defenseAttorneyManager.CreateAsync(
+                        stateId: null,
+                        identityUserId: user.Id,
+                        firmName: input.FirmName?.Trim(),
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
+                }
+            }
 
             // S-5.2: auto-link the new user to any pre-existing appointments where the
             // booker captured the matching party email at booking time (PatientEmail /
