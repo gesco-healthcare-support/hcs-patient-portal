@@ -217,13 +217,17 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
 
   // ---- navbar ----
   protected openProfileNav(): void {
-    // #9: attorneys get their own self-edit profile; everyone else the patient one.
+    // Each external role to its own self-edit profile; patient is the fallback.
     const roles =
       (this.shellConfig.getOne('currentUser') as { roles?: string[] } | null)?.roles ?? [];
     const isAttorney = roles.includes('Applicant Attorney') || roles.includes('Defense Attorney');
-    void this.shellRouter.navigateByUrl(
-      isAttorney ? '/user-management/attorneys/my-profile' : '/user-management/patients/my-profile',
-    );
+    const isClaimExaminer = roles.includes('Claim Examiner');
+    const target = isAttorney
+      ? '/user-management/attorneys/my-profile'
+      : isClaimExaminer
+        ? '/user-management/claim-examiners/my-profile'
+        : '/user-management/patients/my-profile';
+    void this.shellRouter.navigateByUrl(target);
   }
   protected openDocumentsNav(): void {
     void this.shellRouter.navigateByUrl('/');

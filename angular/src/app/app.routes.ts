@@ -366,6 +366,16 @@ export const APP_ROUTES: Routes = [
     canActivate: [authGuard],
   },
   {
+    // R2-4 (2026-06-22): external claim-examiner self-edit, mirrors the attorney
+    // my-profile. Edits the CE master only; past appointments keep their snapshot.
+    path: 'user-management/claim-examiners/my-profile',
+    loadComponent: () =>
+      import('./claim-examiners/claim-examiner-profile/claim-examiner-profile.component').then(
+        (c) => c.ClaimExaminerProfileComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
     // Redesign internal shell (2026-06-14): wrap the internal staff routes in the
     // navy sidebar + topbar. canMatch (internalUserOnlyMatchGuard) renders the
     // shell only for staff + anonymous; pure-external users fall through to the
