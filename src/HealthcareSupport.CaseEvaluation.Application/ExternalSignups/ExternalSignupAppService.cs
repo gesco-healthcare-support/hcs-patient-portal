@@ -382,16 +382,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [Authorize]
     public virtual async Task<ListResultDto<ExternalUserLookupDto>> GetExternalUserLookupAsync(string? filter = null)
     {
-        // R2-4 (2026-06-22): all 4 external roles surface in this lookup. The old D-2
-        // restriction (Patient + Applicant Attorney only) is reversed -- the 4 roles are
-        // capability-equal, so a booker/accessor picker must find a Defense Attorney or
-        // Claim Examiner exactly like an Applicant Attorney.
+        // HIPAA (2026-06-22): this lookup is NOT relationship-scoped -- it returns every
+        // user in the listed roles to ANY authenticated caller, which leaks party PII
+        // across unrelated appointments. Reverted to the prior Patient + Applicant Attorney
+        // set as an INTERIM mitigation (undoing a same-day over-broadening to DA/CE). The
+        // correct fix is to scope results to parties the caller shares an appointment with
+        // (then all 4 roles can be included safely). Do NOT widen this list until that
+        // scoping is in place.
         var allowedRoleNames = new[]
         {
             "Patient",
             "Applicant Attorney",
-            "Defense Attorney",
-            "Claim Examiner",
         };
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
@@ -768,6 +769,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         firstName: user.Name,
                         lastName: user.Surname);
                 }
+            }
+
+            // R2-4 dedup fix (2026-06-22): flush the party master the branch above
+            // (AA/DA/CE) just created so the AutoLink step below finds it via its
+            // IdentityUserId query and does NOT create a second, blank master for the same
+            // identity (the duplicate-master bug). Manager.CreateAsync uses a non-autosaved
+            // InsertAsync, so without this flush AutoLink's DB query misses the new row.
+            // Still inside this unit of work -- a later failure rolls everything back.
+            if (CurrentUnitOfWork != null)
+            {
+                await CurrentUnitOfWork.SaveChangesAsync();
             }
 
             // S-5.2: auto-link the new user to any pre-existing appointments where the
