@@ -209,16 +209,15 @@ roles in some inline snippets; those snippets are stale. The canonical source is
 ## External User Lookup
 
 The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of
-external users filtered to the roles: **Patient** and **Applicant Attorney** only.
-Defense Attorney and Claim Examiner are intentionally excluded from this picker -- per
-design decision D-2, their saved profiles are not surfaced in any lookup, dropdown, or
-autocomplete to other tenant users. This lookup is used in the UI when assigning
-appointment accessors or booking on behalf of another user.
+external users across all four roles: **Patient, Applicant Attorney, Defense Attorney,
+and Claim Examiner**. (Reversed 2026-06-22: the old "D-2" decision restricted this to
+Patient + Applicant Attorney; the four external roles are capability-equal, so a
+booker/accessor picker must surface all of them.) This lookup is used in the UI when
+assigning appointment accessors or booking on behalf of another user.
 
 The `GetMyProfileAsync` method allows authenticated external users to retrieve their own
-profile, including their assigned role. Note: the role resolution in `GetMyProfileAsync`
-checks for Patient, Applicant Attorney, and Defense Attorney; Claim Examiner is not
-currently included in that check (the field returns an empty string for CE users).
+profile, including their assigned role. Role resolution covers all four external roles
+(Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
 
 ---
 

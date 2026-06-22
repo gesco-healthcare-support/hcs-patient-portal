@@ -15,11 +15,11 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
 [RemoteService(IsEnabled = false)]
-// Class-level authorization demoted from `Default` to plain `[Authorize]` so
-// external roles (Patient + AA, the lookup-eligible bookers per Adrian D-2)
-// can call `GetWcabOfficeLookupAsync`. Per-method `[Authorize(...Default)]`
-// is preserved on the broader read endpoints so admin-side enumeration
-// remains gated. (Step 1.4 / W-A-3, 2026-04-30.)
+// Class-level authorization demoted from `Default` to plain `[Authorize]` so any
+// authenticated external role can call `GetWcabOfficeLookupAsync` (the WCAB-office
+// lookup the booking form needs). Per-method `[Authorize(...Default)]` is preserved
+// on the broader read endpoints so admin-side enumeration remains gated.
+// (Step 1.4 / W-A-3, 2026-04-30.)
 [Authorize]
 public class AppointmentInjuryDetailsAppService : CaseEvaluationAppService, IAppointmentInjuryDetailsAppService
 {

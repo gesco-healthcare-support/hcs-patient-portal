@@ -78,13 +78,13 @@ Claim Examiner data lives in each injury draft's child FormGroup (built in
 `AppointmentAddClaimInformationComponent`). The CE email fan-out at submit time reads
 from `injuryDrafts[0].claimExaminer.email`, not from this top-level control.
 
-### DA is excluded from the external-user-lookup endpoint by design
+### All four external roles surface in the external-user-lookup endpoint
 
-`GET /api/public/external-signup/external-user-lookup` filters out the Defense
-Attorney role per the D-2 decision. `defenseAttorneyOptions` will always be an empty
-array even when DA users are registered. The DA pre-fill flow uses the email-search
-box, not the dropdown. Do not add DA to the lookup endpoint's `allowedRoleNames`
-without re-evaluating D-2.
+`GET /api/public/external-signup/external-user-lookup` returns Patient, Applicant
+Attorney, Defense Attorney, and Claim Examiner users (R2-4, 2026-06-22 -- reversed the
+old D-2 restriction). `defenseAttorneyOptions` therefore populates from registered DA
+users; the email-search box remains available alongside the dropdown. The four external
+roles are capability-equal, so do not re-narrow `allowedRoleNames` to a subset.
 
 ### AA/DA attorney section is free-entry -- no own-role auto pre-fill (firm model, D7/C4)
 

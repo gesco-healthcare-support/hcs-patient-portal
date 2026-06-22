@@ -382,14 +382,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [Authorize]
     public virtual async Task<ListResultDto<ExternalUserLookupDto>> GetExternalUserLookupAsync(string? filter = null)
     {
-        // Adrian (2026-04-30): only Patient and Applicant Attorney are exposed via this lookup.
-        // Defense Attorney and Claim Examiner are intentionally excluded -- per D-2 in the
-        // Wave-2 demo-lifecycle report, DA/CE register and login normally but their saved
-        // profiles do not surface in any picker, dropdown, or autocomplete to other tenant users.
+        // R2-4 (2026-06-22): all 4 external roles surface in this lookup. The old D-2
+        // restriction (Patient + Applicant Attorney only) is reversed -- the 4 roles are
+        // capability-equal, so a booker/accessor picker must find a Defense Attorney or
+        // Claim Examiner exactly like an Applicant Attorney.
         var allowedRoleNames = new[]
         {
             "Patient",
             "Applicant Attorney",
+            "Defense Attorney",
+            "Claim Examiner",
         };
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
@@ -497,7 +499,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var userRole = roleNames.FirstOrDefault(r =>
             string.Equals(r, "Patient", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r, "Claim Examiner", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 
         // Phase 9 (2026-05-03) -- surface IsExternalUser + IsAccessor
         // extension props registered in Phase 2.4 so the Angular SPA can
@@ -712,13 +715,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             }
             else if (input.UserType == ExternalUserType.ApplicantAttorney)
             {
-                // Adrian D-2 (2026-04-30): Applicant Attorney is the only non-Patient external
-                // role that gets a saved profile. Creating an empty AA row here makes the
-                // booker-side pre-fill ("Search by email" + lookup picker) discover this AA
-                // on next booking, the tenant-admin AA management page surfaces them, and the
-                // appointment-AA join can point at a real row.
-                // Defense Attorney + Claim Examiner are intentionally NOT created -- per D-2,
-                // their saved profiles are not exposed in any lookup or pre-fill surface.
+                // Create an empty AA master so the booker-side pre-fill ("Search by email"
+                // + lookup picker) discovers this AA on next booking, the tenant-admin AA
+                // management page surfaces them, and the appointment-AA join can point at a
+                // real row. R2-4 (2026-06-22) reverses the old D-2 asymmetry: Defense Attorney
+                // + Claim Examiner now get the same master treatment in their branches below.
                 var existingApplicantAttorney = await _applicantAttorneyRepository
                     .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
                 if (existingApplicantAttorney == null)
