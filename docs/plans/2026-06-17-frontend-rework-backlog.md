@@ -132,21 +132,34 @@ post-multi-tenant).
 shipped since the 2026-06-19 summary; #9 (5daf9a85) row reconciled. Only #11 remains
 DEFERRED to multi-tenant prep.
 
-Round 2 (plan `2026-06-22-round-2-fixes.md`): R2-1, R2-3, R2-6 DONE; R2-2 PARTIAL.
-REMAINING this round (RPE feature-build, in order):
+Round 2 (plan `2026-06-22-round-2-fixes.md`): ALL CODE SHIPPED. Commits:
 
-- R2-2 booker identity: add `BookedByUserId` to Appointment (set from CurrentUser at
-  create) + fix the internal list visibility filter that hides null-creator bookings.
-  Migration. (In progress when this status was written.)
-- R2-4 DA full parity: DA master on register (mirror AA) + EmailConfirmed; move DA
-  FirmName from IdentityUser.ExtraProperties to the DefenseAttorney.FirmName column.
-- R2-4 CE complete user: firm fields on ClaimExaminer (migration) + master-on-register
-  + self-scoped MyClaimExaminerProfile service + DTOs + Angular page + booking/re-eval
-  options; CE appointment permissions already granted.
-- R2-5 reset email: resolves with R2-4 (EmailConfirmed on DA/CE); verify defatty1.
-- Filtered unique index on (TenantId, Email) for AA/DA/CE (migration).
-- Committed OpenIddict ClientId seeding fix (replace the local docker-compose.override
-  workaround).
+- R2-2 booker identity: `BookedByUserId` on Appointment, stamped from CurrentUser at
+  create; list + read-guard coalesce `CreatorId ?? BookedByUserId`; carried onto
+  reschedule clones. Migration AddAppointmentBookedByUserId. (e4c27056)
+- R2-2 dedup hardening: filtered unique index `(TenantId, Email)` on AA/DA/CE.
+  Migration AddPartyEmailUniqueIndexes. (8a319126)
+- R2-4 DA parity: DA master created on register with FirmName on the entity; DA
+  booking + re-eval enabled. (798d5bde)
+- R2-4 CE complete user (NO new fields/migration -- CE keeps its own schema; the
+  earlier "firm fields + migration" framing was dropped per Adrian): CE master on
+  register, CE book + re-eval, self-scoped MyClaimExaminerProfile service + DTOs
+  (a45854ce, 20aed36b) + Angular self-edit page + role-aware nav (8e940994).
+- R2-5 reset email: RESOLVED AS DESIGNED (no code). PasswordResetGate's verified-only
+  gate is intentional OLD-parity; per Adrian (2026-06-22) leave it -- DA/CE accounts
+  just need to confirm via the verification email registration already sends.
+- R2-6 address sub-fields: (4ee10fc0, see above).
+- Committed OpenIddict ClientId seeding fix replaces the local override. (4413fed2)
+
+Key correction: the 4 external roles have IDENTICAL capabilities but DIFFERENT data
+schemas (Adrian, 2026-06-22). The old "D-2" asymmetry (AA-only profile; DA/CE no
+booking) is fully reversed. Do NOT make their schemas match.
+
+REMAINING (not code): live-verify on the running stack -- restart api + apply the two
+migrations (reseed fresh; the unique index needs no pre-existing duplicate emails) +
+restart angular, then exercise: book a party whose email exists -> one master; DA + CE
+register -> master created -> self-edit profile saves; CE/DA see Request appointment +
+re-eval; fresh reseed logs in with no override.
 
 Then: Azure hosting + multi-tenant for 2-tenant alpha (folds in #11 cross-tenant access).
 
@@ -161,8 +174,8 @@ DECISION / VERIFY below; they are not straightforward bug fixes.
 | R2-1 | Request History accordion open by default on /appointments/view/:id | DONE (e2b21bd8) | FE | No | B (appts) | Low |
 | R2-2 | Some appointments have no booker/creator identity; linking + dedup weak | PARTIAL | Full-stack | Yes | B (appts/accounts) | High |
 | R2-3 | Availabilities week-grid: only booked/reserved + tame slot overflow | DONE (0a1a5467) | Full-stack (small) | No | A->B | Medium |
-| R2-4 | DA + CE external users not identical to AA (register/login/firm/options) | OPEN | Full-stack | Likely | B (accounts) | HIGH + DECISION |
-| R2-5 | Password-reset emails do not arrive (defatty1); invites do | OPEN | Full-stack | No | B (accounts) | Medium (symptom of R2-4) |
+| R2-4 | DA + CE external users not identical to AA (register/login/firm/options) | DONE (798d5bde, 20aed36b, a45854ce, 8e940994) | Full-stack | No (CE) | B (accounts) | HIGH |
+| R2-5 | Password-reset emails do not arrive (defatty1); invites do | RESOLVED (no code) | Full-stack | No | B (accounts) | Medium |
 | R2-6 | Send-back: per-field granularity (address -> sub-fields) + confirm it mutates the appointment | DONE (4ee10fc0) | Full-stack | No | B (send-back) | Med-High |
 
 R2-2 PARTIAL: email-authoritative party matching shipped (cbb1a627, AA+DA); the
