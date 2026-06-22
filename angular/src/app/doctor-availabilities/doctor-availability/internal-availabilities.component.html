@@ -30,6 +30,7 @@
     (ngModelChange)="statusFilter.set($event)"
   >
     <option value="all">All statuses</option>
+    <option value="busy">Booked &amp; reserved</option>
     <option value="available">Available</option>
     <option value="booked">Booked</option>
     <option value="reserved">Reserved</option>
@@ -108,7 +109,7 @@
           @if (col.slots.length === 0) {
             <div class="av-day__empty">No slots</div>
           } @else {
-            @for (slot of col.slots; track slot.id) {
+            @for (slot of previewSlots(col); track slot.id) {
               <div
                 class="av-slot"
                 [class.available]="slot.statusKey === 'available'"
@@ -128,6 +129,29 @@
                   <app-icon name="x" [size]="12" />
                 </button>
               </div>
+            }
+            @if (col.slots.length > slotPreview) {
+              <button
+                type="button"
+                style="
+                  width: 100%;
+                  margin-top: 4px;
+                  font-size: 12px;
+                  padding: 4px;
+                  border: 1px dashed var(--n-300, #cbd5e1);
+                  border-radius: 6px;
+                  background: transparent;
+                  color: var(--n-600, #475569);
+                  cursor: pointer;
+                "
+                (click)="toggleExpand(col.iso)"
+              >
+                {{
+                  isExpanded(col.iso)
+                    ? 'Show less'
+                    : '+ ' + (col.slots.length - slotPreview) + ' more'
+                }}
+              </button>
             }
           }
         </div>

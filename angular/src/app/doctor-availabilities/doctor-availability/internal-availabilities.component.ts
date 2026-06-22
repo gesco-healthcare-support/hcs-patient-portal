@@ -22,7 +22,7 @@ import {
   type WeekDayColumn,
 } from './avail-grid.util';
 
-type StatusFilter = 'all' | SlotStatusKey;
+type StatusFilter = 'all' | 'busy' | SlotStatusKey;
 interface LocationOption {
   id: string;
   name: string;
@@ -77,6 +77,14 @@ export class InternalAvailabilitiesComponent implements OnInit {
     const cols = this.columns();
     if (filter === 'all') {
       return cols;
+    }
+    if (filter === 'busy') {
+      // R2-3: booked + reserved only -- hides the available flood that makes a
+      // full work day of 15-20min slots overflow the week grid.
+      return cols.map((c) => ({
+        ...c,
+        slots: c.slots.filter((s) => s.statusKey === 'booked' || s.statusKey === 'reserved'),
+      }));
     }
     return cols.map((c) => ({ ...c, slots: c.slots.filter((s) => s.statusKey === filter) }));
   });
@@ -254,5 +262,13 @@ export class InternalAvailabilitiesComponent implements OnInit {
   }
   protected isExpanded(iso: string): boolean {
     return this.expanded().has(iso);
+  }
+
+  // R2-3: cap how many slots a day column renders so a full work day of
+  // 15-20min slots no longer overflows the grid; the per-day expander
+  // (toggleExpand) reveals the rest.
+  protected readonly slotPreview = 8;
+  protected previewSlots(col: WeekDayColumn) {
+    return this.isExpanded(col.iso) ? col.slots : col.slots.slice(0, this.slotPreview);
   }
 }
