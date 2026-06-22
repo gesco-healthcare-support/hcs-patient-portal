@@ -382,17 +382,36 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [Authorize]
     public virtual async Task<ListResultDto<ExternalUserLookupDto>> GetExternalUserLookupAsync(string? filter = null)
     {
-        // HIPAA (2026-06-22): this lookup is NOT relationship-scoped -- it returns every
-        // user in the listed roles to ANY authenticated caller, which leaks party PII
-        // across unrelated appointments. Reverted to the prior Patient + Applicant Attorney
-        // set as an INTERIM mitigation (undoing a same-day over-broadening to DA/CE). The
-        // correct fix is to scope results to parties the caller shares an appointment with
-        // (then all 4 roles can be included safely). Do NOT widen this list until that
-        // scoping is in place.
+        // HIPAA (2026-06-22): search-driven + relationship-aware -- never an enumerable
+        // list of tenant users.
+        //   (1) Require a search term: no blanket listing of everyone.
+        //   (2) External callers must not enumerate parties they have no relationship with.
+        //       Until the co-party scoping lands (results limited to parties on the
+        //       caller's shared appointments), external callers get NO results here.
+        //       Internal staff, who administer the whole tenant, keep the search.
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+        var externalRoleNames = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
+        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
+        var callerIsExternalOnly = callerRoles.Length > 0
+            && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
+        if (callerIsExternalOnly)
+        {
+            // TODO (R2-4 follow-up): scope to parties on the caller's shared appointments
+            // instead of returning empty, so external parties can find their co-parties.
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+
+        // Internal staff only (external callers returned empty above). Staff administer the
+        // whole tenant, so all 4 external roles are safely searchable by the term.
         var allowedRoleNames = new[]
         {
             "Patient",
             "Applicant Attorney",
+            "Defense Attorney",
+            "Claim Examiner",
         };
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
