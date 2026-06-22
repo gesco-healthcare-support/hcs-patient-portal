@@ -106,6 +106,13 @@ services:
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "http://localhost:${NG_PORT:-4200}"
       OpenIddict__Applications__CaseEvaluation_Swagger__RootUrl: "http://localhost:${API_PORT:-44327}"
+      # R2 (2026-06-22): the client ids live in the migrator appsettings.json, but the
+      # dev container shadows its appsettings.Local.json with dev-empty-local.json, so
+      # the OpenIddict data seeder skipped these clients on a fresh DB (login then failed
+      # with "client_id invalid"). Supply them here so a clean clone seeds the App +
+      # Swagger clients with no local override needed.
+      OpenIddict__Applications__CaseEvaluation_App__ClientId: "CaseEvaluation_App"
+      OpenIddict__Applications__CaseEvaluation_Swagger__ClientId: "CaseEvaluation_Swagger"
       # 2026-05-13: MinIO blob storage for the seven document containers
       # (see CaseEvaluationDomainModule.ConfigureBlobStoring). Endpoint
       # uses the docker network alias; AccessKey + SecretKey come from
