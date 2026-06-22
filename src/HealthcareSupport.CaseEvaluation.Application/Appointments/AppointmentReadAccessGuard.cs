@@ -112,7 +112,10 @@ public class AppointmentReadAccessGuard : ITransientDependency
             callerUserId: _currentUser.Id,
             callerEmail: _currentUser.Email,
             callerIsInternalUser: false,
-            appointmentCreatorId: appointment.CreatorId,
+            // R2-2: BookedByUserId is the reliable booker; coalesce with CreatorId so
+            // the booker can read/edit their own (possibly null-creator) booking. Same
+            // coalesce as the list query (ComputeExternalPartyVisibilityAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
             patientIdentityUserId: patientIdentityUserId,
             applicantAttorneyIdentityUserIds: null,
             defenseAttorneyIdentityUserIds: null,
@@ -172,7 +175,8 @@ public class AppointmentReadAccessGuard : ITransientDependency
         return AppointmentAccessRules.CanEdit(
             callerUserId: _currentUser.Id,
             callerIsInternalUser: isInternal,
-            appointmentCreatorId: appointment.CreatorId,
+            // R2-2: coalesce booker with CreatorId (see EnsureCanReadAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId,
             accessorEntries: accessorEntries);
     }
 
@@ -213,7 +217,8 @@ public class AppointmentReadAccessGuard : ITransientDependency
             callerUserId: _currentUser.Id,
             callerIsInternalUser: BookingFlowRoles.IsInternalUserCaller(callerRoles),
             callerIsAuthorizedExternalAccessorManager: BookingFlowRoles.IsExternalAccessorManager(callerRoles),
-            appointmentCreatorId: appointment.CreatorId);
+            // R2-2: coalesce booker with CreatorId (see EnsureCanReadAsync).
+            appointmentCreatorId: appointment.CreatorId ?? appointment.BookedByUserId);
         return Task.FromResult(allowed);
     }
 

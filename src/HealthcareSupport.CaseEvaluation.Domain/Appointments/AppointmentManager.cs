@@ -44,7 +44,7 @@ public class AppointmentManager : DomainService
         _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
-    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
+    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null, Guid? bookedByUserId = null)
     {
         Check.NotNull(patientId, nameof(patientId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
@@ -58,6 +58,12 @@ public class AppointmentManager : DomainService
         EnsurePanelNumberMatchesType(appointmentTypeId, panelNumber);
         EnsureAppointmentDateNotInPast(appointmentDate);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
+        if (bookedByUserId.HasValue)
+        {
+            // R2-2: stamp the logged-in booker so the appointment is always
+            // visible to whoever booked it, even when the audit CreatorId is null.
+            appointment.RecordBookedBy(bookedByUserId.Value);
+        }
         if (appointmentStatus == AppointmentStatusType.Approved)
         {
             // Companion-field stamp when an aggregate is created already

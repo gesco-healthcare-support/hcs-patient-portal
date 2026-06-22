@@ -216,9 +216,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var patientQuery = await _patientRepository.GetQueryableAsync();
         var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
 
-        // 1. Booker (CreatorId).
+        // 1. Booker. R2-2: BookedByUserId is the reliable booker (stamped at create);
+        // CreatorId is the legacy/audit fallback. Coalesce so a record-only booking
+        // (null CreatorId) still surfaces to whoever booked it. The read guard applies
+        // the same coalesce so list and click agree.
         var bookerIds = await AsyncExecuter.ToListAsync(
-            appointmentQuery.Where(a => a.CreatorId == userId).Select(a => a.Id));
+            appointmentQuery.Where(a => (a.CreatorId ?? a.BookedByUserId) == userId).Select(a => a.Id));
 
         // 2. Patient identity (Patient.IdentityUserId). Patient is IMultiTenant;
         // constrain by TenantId manually since the home query may run outside an
@@ -542,7 +545,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
 
         return await appointmentQuery
-            .Where(a => a.CreatorId == userId
+            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
                         || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
             .Select(a => a.PatientId)
             .Distinct()
@@ -561,7 +564,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var attorneyLinkQuery = await _appointmentApplicantAttorneyRepository.GetQueryableAsync();
 
         return await appointmentQuery
-            .Where(a => a.CreatorId == userId
+            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
                         || attorneyLinkQuery.Any(aaa => aaa.AppointmentId == a.Id && aaa.IdentityUserId == userId))
             .Select(a => a.IdentityUserId)
             .Distinct()
@@ -580,7 +583,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
 
         return await appointmentQuery
-            .Where(a => a.CreatorId == userId
+            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
                         || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
             .Select(a => a.PatientId)
             .Distinct()
@@ -599,7 +602,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var defenseLinkQuery = await _appointmentDefenseAttorneyRepository.GetQueryableAsync();
 
         return await appointmentQuery
-            .Where(a => a.CreatorId == userId
+            .Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
                         || defenseLinkQuery.Any(ada => ada.AppointmentId == a.Id && ada.IdentityUserId == userId))
             .Select(a => a.IdentityUserId)
             .Distinct()
@@ -923,7 +926,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 requestConfirmationNumber,
                 initialStatus,
                 input.PanelNumber,
-                input.DueDate);
+                input.DueDate,
+                bookedByUserId: CurrentUser.Id);
         });
 
         // S-5.1: snapshot party emails at booking time for async fan-out (step 6.1).

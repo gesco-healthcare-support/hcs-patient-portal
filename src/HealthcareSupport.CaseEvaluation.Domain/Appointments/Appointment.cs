@@ -170,6 +170,17 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public virtual bool IsBeyondLimit { get; set; }
 
+    /// <summary>
+    /// R2-2 (2026-06-22): the user who booked this appointment -- the logged-in
+    /// party, or staff / a paralegal acting on their behalf. Stamped explicitly at
+    /// create time via <see cref="RecordBookedBy"/> so the booker's own list always
+    /// shows the appointment, independent of the ABP audit <c>CreatorId</c> (which
+    /// the audit interceptor skips on a tenant-claim mismatch, and which is null on
+    /// record-only bookings for an unregistered patient). Carried forward onto a
+    /// reschedule clone so the booker stays linked across the lifecycle.
+    /// </summary>
+    public virtual Guid? BookedByUserId { get; set; }
+
     protected Appointment()
     {
     }
@@ -190,5 +201,19 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
         AppointmentTypeId = appointmentTypeId;
         LocationId = locationId;
         DoctorAvailabilityId = doctorAvailabilityId;
+    }
+
+    /// <summary>
+    /// Stamps the booking user at create time. Throws on an empty id so every
+    /// appointment carries a real booker identity (D-R2-B). The reschedule clone
+    /// copies the value directly via the property to preserve the original booker.
+    /// </summary>
+    public virtual void RecordBookedBy(Guid bookedByUserId)
+    {
+        if (bookedByUserId == Guid.Empty)
+        {
+            throw new ArgumentException("Booked-by user id is required.", nameof(bookedByUserId));
+        }
+        BookedByUserId = bookedByUserId;
     }
 }
