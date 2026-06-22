@@ -51,11 +51,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> _locationRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> _doctorAvailabilityRepository;
     protected IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> _doctorRepository;
-    protected IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
+    protected IApplicantAttorneyRepository _applicantAttorneyRepository;
     protected IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     protected ApplicantAttorneyManager _applicantAttorneyManager;
     protected AppointmentApplicantAttorneyManager _appointmentApplicantAttorneyManager;
-    protected IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
+    protected IDefenseAttorneyRepository _defenseAttorneyRepository;
     protected IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
     protected DefenseAttorneyManager _defenseAttorneyManager;
     protected AppointmentDefenseAttorneyManager _appointmentDefenseAttorneyManager;
@@ -77,7 +77,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // its optional localizer parameter. Mirror of the BUG-025 pattern.
     protected IStringLocalizer<CaseEvaluationResource> _localizer;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IRepository<DefenseAttorney, Guid> defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -1337,6 +1337,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
 
+        // R2-2 (2026-06-22): email is the authoritative identity for a party. If
+        // the booker did not pick an explicit master but typed an email that
+        // already matches one, reuse that master (filling only blank fields)
+        // instead of creating a duplicate account for the same email.
+        var existingByEmail = normalisedEmail == null
+            ? null
+            : await _applicantAttorneyRepository.FindByNormalizedEmailAsync(normalisedEmail);
+
         ApplicantAttorney applicantAttorney;
         if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != Guid.Empty)
         {
@@ -1357,6 +1365,25 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 normalisedEmail,
                 input.FirstName,
                 input.LastName);
+        }
+        else if (existingByEmail != null)
+        {
+            applicantAttorney = await _applicantAttorneyManager.UpdateAsync(
+                existingByEmail.Id,
+                input.StateId ?? existingByEmail.StateId,
+                resolvedUserId ?? existingByEmail.IdentityUserId,
+                input.FirmName ?? existingByEmail.FirmName,
+                existingByEmail.FirmAddress,
+                input.PhoneNumber ?? existingByEmail.PhoneNumber,
+                input.WebAddress ?? existingByEmail.WebAddress,
+                input.FaxNumber ?? existingByEmail.FaxNumber,
+                input.Street ?? existingByEmail.Street,
+                input.City ?? existingByEmail.City,
+                input.ZipCode ?? existingByEmail.ZipCode,
+                existingByEmail.ConcurrencyStamp,
+                normalisedEmail,
+                input.FirstName ?? existingByEmail.FirstName,
+                input.LastName ?? existingByEmail.LastName);
         }
         else
         {
@@ -1562,6 +1589,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
 
+        // R2-2 (2026-06-22): email is the authoritative identity for a party.
+        // Reuse an existing master matched by email (filling only blank fields)
+        // rather than creating a duplicate account for the same email.
+        var existingByEmail = normalisedEmail == null
+            ? null
+            : await _defenseAttorneyRepository.FindByNormalizedEmailAsync(normalisedEmail);
+
         DefenseAttorney defenseAttorney;
         if (input.DefenseAttorneyId.HasValue && input.DefenseAttorneyId.Value != Guid.Empty)
         {
@@ -1582,6 +1616,25 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 normalisedEmail,
                 input.FirstName,
                 input.LastName);
+        }
+        else if (existingByEmail != null)
+        {
+            defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
+                existingByEmail.Id,
+                input.StateId ?? existingByEmail.StateId,
+                resolvedUserId ?? existingByEmail.IdentityUserId,
+                input.FirmName ?? existingByEmail.FirmName,
+                existingByEmail.FirmAddress,
+                input.PhoneNumber ?? existingByEmail.PhoneNumber,
+                input.WebAddress ?? existingByEmail.WebAddress,
+                input.FaxNumber ?? existingByEmail.FaxNumber,
+                input.Street ?? existingByEmail.Street,
+                input.City ?? existingByEmail.City,
+                input.ZipCode ?? existingByEmail.ZipCode,
+                existingByEmail.ConcurrencyStamp,
+                normalisedEmail,
+                input.FirstName ?? existingByEmail.FirstName,
+                input.LastName ?? existingByEmail.LastName);
         }
         else
         {
