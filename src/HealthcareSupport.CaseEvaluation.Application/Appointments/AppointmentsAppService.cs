@@ -76,8 +76,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // helper (testable without DI) can pull the localized message via
     // its optional localizer parameter. Mirror of the BUG-025 pattern.
     protected IStringLocalizer<CaseEvaluationResource> _localizer;
+    // 2026-06-22 -- shared "which appointments may this caller see" rule, also
+    // consumed by the external-user lookup so the two cannot drift apart.
+    protected AppointmentVisibilityService _appointmentVisibilityService;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -103,6 +106,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _customFieldValueRepository = customFieldValueRepository;
         _readAccessGuard = readAccessGuard;
         _localizer = localizer;
+        _appointmentVisibilityService = appointmentVisibilityService;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -162,140 +166,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             .ToList();
     }
 
-    // S-NEW-2 (Adrian 2026-04-30): for any external-role caller (Patient, AA,
-    // DA, CE), build the set of appointment IDs the caller is involved on so
-    // the list / count endpoints surface only those rows. Internal callers
-    // bypass the filter and see everything in the tenant. Returns null for
-    // internal users (no narrowing); returns an empty list for external users
-    // with zero involvement (returns no rows). Returns a populated list
-    // otherwise.
-    //
-    // Coverage (#2 / Phase 5, 2026-06-12 -- role-gated):
-    //   1. Booker        -- Appointment.CreatorId == CurrentUser.Id
-    //   2. Patient       -- Patient.IdentityUserId == CurrentUser.Id
-    //                       (Patient is NOT IMultiTenant; manual TenantId guard.
-    //                        Role-correct: stamped only for the actual patient.)
-    //   3. Accessor      -- AppointmentAccessor.IdentityUserId == CurrentUser.Id
-    //                       (explicit per-appointment grant; role-agnostic).
-    //   4. Email + role  -- a party-email column == CurrentUser.Email AND the
-    //                       caller holds that column's role (PatientEmail->Patient,
-    //                       ApplicantAttorneyEmail->Applicant Attorney,
-    //                       DefenseAttorneyEmail->Defense Attorney,
-    //                       ClaimExaminerEmail->Claim Examiner). Via the shared
-    //                       AppointmentAccessRules.IsAppointmentEmailRoleVisible.
-    //
-    // The prior id-based AA/DA link unions + the role-AGNOSTIC email/CE matches
-    // were REMOVED: they surfaced a column to a user lacking its role (Option A,
-    // see docs/plans/2026-06-11-firm-based-aa-da-registration.md). The read guard
-    // (AppointmentReadAccessGuard) applies the SAME rule so list and click agree.
-    private async Task<IReadOnlyCollection<Guid>?> ComputeExternalPartyVisibilityAsync()
-    {
-        if (!CurrentUser.Id.HasValue)
-        {
-            return Array.Empty<Guid>();
-        }
-
-        // Internal-role check: anyone with a non-external role bypasses the
-        // narrowing. Use the canonical role names from
-        // ExternalUserRoleDataSeedContributor.
-        var externalRoles = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
-        var roles = CurrentUser.Roles ?? Array.Empty<string>();
-        var hasOnlyExternalRoles = roles.Length > 0
-            && roles.All(r => externalRoles.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
-        if (!hasOnlyExternalRoles)
-        {
-            // Internal user (admin / Intake Staff / Staff Supervisor / Doctor)
-            // OR a multi-role user with at least one internal role.
-            return null;
-        }
-
-        var userId = CurrentUser.Id.Value;
-        var userEmail = CurrentUser.Email;
-
-        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
-        var patientQuery = await _patientRepository.GetQueryableAsync();
-        var accessorQuery = await _appointmentAccessorRepository.GetQueryableAsync();
-
-        // 1. Booker. R2-2: BookedByUserId is the reliable booker (stamped at create);
-        // CreatorId is the legacy/audit fallback. Coalesce so a record-only booking
-        // (null CreatorId) still surfaces to whoever booked it. The read guard applies
-        // the same coalesce so list and click agree.
-        var bookerIds = await AsyncExecuter.ToListAsync(
-            appointmentQuery.Where(a => (a.CreatorId ?? a.BookedByUserId) == userId).Select(a => a.Id));
-
-        // 2. Patient identity (Patient.IdentityUserId). Patient is IMultiTenant;
-        // constrain by TenantId manually since the home query may run outside an
-        // explicit tenant scope. Role-correct: IdentityUserId is stamped only for
-        // the actual patient (claimed by email at registration), so this cannot
-        // surface another role's appointment.
-        var patientIds = await AsyncExecuter.ToListAsync(
-            patientQuery
-                .Where(p => p.TenantId == CurrentTenant.Id && p.IdentityUserId == userId)
-                .Select(p => p.Id));
-        var patientAppointmentIds = patientIds.Count == 0
-            ? new List<Guid>()
-            : await AsyncExecuter.ToListAsync(
-                appointmentQuery.Where(a => patientIds.Contains(a.PatientId)).Select(a => a.Id));
-
-        // 3. Appointment accessor grants (explicit per-appointment access).
-        // Phase 5 FIX: previously keyed on CreatorId (a no-op duplicate of #1), so
-        // an accessor-invited user never saw the appointment in their list. Use the
-        // real AppointmentAccessor table so a D9 accessor (e.g. an opposing-side
-        // firm granted access) sees it. Role-agnostic by design -- an accessor was
-        // explicitly granted access.
-        var accessorAppointmentIds = await AsyncExecuter.ToListAsync(
-            accessorQuery.Where(a => a.IdentityUserId == userId).Select(a => a.AppointmentId));
-
-        // 4. Email + role visibility (#2 / Phase 5). Surface an appointment ONLY
-        // where the caller's email is a party-email column AND the caller holds
-        // that column's role. This REPLACES the prior role-AGNOSTIC email match
-        // plus the id-based AA/DA link and CE-email unions: those would reveal a
-        // column to a user who lacks that column's role (a latent over-show today;
-        // a hard leak once linking keys purely by email). Reuses the shared
-        // AppointmentAccessRules.IsAppointmentEmailRoleVisible rule so this list and
-        // the per-appointment read guard agree exactly. The candidate set is first
-        // narrowed in SQL to appointments naming the caller's email, then the pure
-        // rule applies the role gate in memory against CurrentUser.Roles.
-        var emailRoleAppointmentIds = new List<Guid>();
-        if (!string.IsNullOrWhiteSpace(userEmail))
-        {
-            var callerEmailLower = userEmail.Trim().ToLower();
-            var candidates = await AsyncExecuter.ToListAsync(
-                appointmentQuery
-                    .Where(a =>
-                        (a.PatientEmail != null && a.PatientEmail.ToLower() == callerEmailLower) ||
-                        (a.ApplicantAttorneyEmail != null && a.ApplicantAttorneyEmail.ToLower() == callerEmailLower) ||
-                        (a.DefenseAttorneyEmail != null && a.DefenseAttorneyEmail.ToLower() == callerEmailLower) ||
-                        (a.ClaimExaminerEmail != null && a.ClaimExaminerEmail.ToLower() == callerEmailLower))
-                    .Select(a => new
-                    {
-                        a.Id,
-                        a.PatientEmail,
-                        a.ApplicantAttorneyEmail,
-                        a.DefenseAttorneyEmail,
-                        a.ClaimExaminerEmail,
-                    }));
-            foreach (var c in candidates)
-            {
-                if (AppointmentAccessRules.IsAppointmentEmailRoleVisible(
-                        userEmail,
-                        roles,
-                        c.PatientEmail,
-                        c.ApplicantAttorneyEmail,
-                        c.DefenseAttorneyEmail,
-                        c.ClaimExaminerEmail))
-                {
-                    emailRoleAppointmentIds.Add(c.Id);
-                }
-            }
-        }
-
-        var union = new HashSet<Guid>(bookerIds);
-        union.UnionWith(patientAppointmentIds);
-        union.UnionWith(accessorAppointmentIds);
-        union.UnionWith(emailRoleAppointmentIds);
-        return union.ToList();
-    }
+    // S-NEW-2 (Adrian 2026-04-30) -- the external-party visibility rule moved to
+    // AppointmentVisibilityService (2026-06-22) so the appointment list and the
+    // external-user lookup share ONE definition and cannot drift apart. This thin
+    // wrapper preserves the existing GetListAsync / GetCount call sites. See that
+    // service for the four pathways and the leak-free email+role rule.
+    private Task<IReadOnlyCollection<Guid>?> ComputeExternalPartyVisibilityAsync()
+        => _appointmentVisibilityService.GetVisibleAppointmentIdsAsync();
 
 
     [Authorize]
