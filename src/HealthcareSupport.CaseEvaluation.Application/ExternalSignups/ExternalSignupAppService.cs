@@ -27,8 +27,10 @@ using Volo.Abp.Account.Emailing;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using System.Linq.Expressions;
 using Volo.Saas.Tenants;
 using Microsoft.Extensions.Hosting;
 using Volo.Abp.MultiTenancy;
@@ -261,8 +263,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     /// <summary>
     /// Dev-only: delete the IdentityUser rows matching the given emails plus
-    /// any dependent Patient / ApplicantAttorney / DefenseAttorney profile
-    /// rows. Lets the demo re-register the same emails repeatedly. Cross-
+    /// any dependent Patient / ApplicantAttorney / DefenseAttorney / ClaimExaminer
+    /// master rows. The masters are HARD-deleted: ABP soft-delete would leave the
+    /// row physically present, and the filtered unique <c>(TenantId, Email)</c>
+    /// index counts a soft-deleted row, so a soft delete would block re-registering
+    /// the same email. Lets the demo re-register the same emails repeatedly. Cross-
     /// tenant lookup. Throws if not Development.
     /// </summary>
     [AllowAnonymous]
@@ -307,6 +312,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             {
                 using (CurrentTenant.Change(t.TenantId))
                 {
+                    // Remove dependent masters first (child rows), then the user.
+                    await HardDeleteDependentMastersAsync(t.Id);
+
                     var managed = await _userManager.GetByIdAsync(t.Id);
                     if (managed != null)
                     {
@@ -325,6 +333,45 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Hard-delete every external-party master linked to the given identity, so a
+    /// dev re-registration with the same email is not blocked by a leftover row.
+    /// Caller runs inside the target tenant scope.
+    /// </summary>
+    private async Task HardDeleteDependentMastersAsync(Guid identityUserId)
+    {
+        await HardDeleteByIdentityUserAsync(_patientRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_applicantAttorneyRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_defenseAttorneyRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_claimExaminerRepository, identityUserId);
+    }
+
+    private async Task HardDeleteByIdentityUserAsync<T>(
+        IRepository<T, Guid> repository,
+        Guid identityUserId)
+        where T : class, IEntity<Guid>, ISoftDelete
+    {
+        var predicate = BuildIdentityUserPredicate<T>(identityUserId);
+        var rows = await AsyncExecuter.ToListAsync(
+            (await repository.GetQueryableAsync()).Where(predicate));
+        foreach (var row in rows)
+        {
+            await repository.HardDeleteAsync(row, autoSave: true);
+        }
+    }
+
+    // Each master carries a `Guid? IdentityUserId`, but the four types share no
+    // common interface for it, so build the `x.IdentityUserId == id` predicate by
+    // expression. Keeps HardDeleteByIdentityUserAsync generic over all masters.
+    private static Expression<Func<T, bool>> BuildIdentityUserPredicate<T>(Guid identityUserId)
+    {
+        var parameter = Expression.Parameter(typeof(T), "x");
+        var property = Expression.Property(parameter, "IdentityUserId");
+        var target = Expression.Convert(Expression.Constant(identityUserId), property.Type);
+        var body = Expression.Equal(property, target);
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
     }
 
     private void EnsureDevelopmentOnly(string operation)
