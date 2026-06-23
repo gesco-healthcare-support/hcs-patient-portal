@@ -250,6 +250,12 @@
       </div>
     </div>
 
+    @if (leadTimeWarning()) {
+      <div class="ra-hint" style="color: var(--st-rejected-fg); margin-top: 10px; font-weight: 600">
+        {{ leadTimeWarning() }}
+      </div>
+    }
+
     <div class="mp-editfoot">
       <span
         class="ra-hint"

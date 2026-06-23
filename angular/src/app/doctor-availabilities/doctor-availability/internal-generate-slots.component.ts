@@ -12,6 +12,7 @@ import { Router } from '@angular/router';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
+import { SystemParametersService } from '../../proxy/system-parameters-controllers/system-parameters.service';
 import type { DoctorAvailabilitySlotsPreviewDto } from '../../proxy/doctor-availabilities/models';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { isoDate } from './avail-grid.util';
@@ -60,6 +61,7 @@ const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 })
 export class InternalGenerateSlotsComponent implements OnInit {
   private readonly service = inject(DoctorAvailabilityService);
+  private readonly systemParams = inject(SystemParametersService);
   private readonly toaster = inject(ToasterService);
   private readonly router = inject(Router);
 
@@ -73,6 +75,10 @@ export class InternalGenerateSlotsComponent implements OnInit {
   protected readonly isBusy = signal(false);
   protected readonly locations = signal<LookupOption[]>([]);
   protected readonly appointmentTypes = signal<LookupOption[]>([]);
+  // 2026-06-23: tenant booking lead time (days). Slots dated within today+lead
+  // can never be booked, so the form warns before they are generated. 0 = unknown
+  // (fetch failed / no read permission) -> no warning rather than a wrong one.
+  protected readonly leadTimeDays = signal(0);
 
   protected readonly locationId = signal('');
   protected readonly mode = signal<GenMode>('range');
@@ -120,6 +126,32 @@ export class InternalGenerateSlotsComponent implements OnInit {
     Math.min(Math.max(this.previewDays().length, 1), 7),
   );
 
+  // 2026-06-23: earliest bookable date = today + lead time. Empty until the lead
+  // time is known (fetch may 403 / return 0).
+  protected readonly earliestBookableIso = computed(() => {
+    const lead = this.leadTimeDays();
+    return lead > 0 ? isoDate(this.addDays(this.today, lead)) : '';
+  });
+
+  // Non-empty when any date this form would generate falls inside the lead-time
+  // window (i.e. before earliestBookableIso). Such slots can never be booked.
+  protected readonly leadTimeWarning = computed<string>(() => {
+    const earliestBookable = this.earliestBookableIso();
+    if (!earliestBookable) {
+      return '';
+    }
+    const earliestGenerated = this.earliestGeneratedIso();
+    if (!earliestGenerated || earliestGenerated >= earliestBookable) {
+      return '';
+    }
+    const lead = this.leadTimeDays();
+    return (
+      `Some selected dates are within the ${lead}-day booking lead time (before ` +
+      `${earliestBookable}) and will NOT be bookable -- a slot dated inside the lead ` +
+      `time can never be booked. The earliest bookable date is ${earliestBookable}.`
+    );
+  });
+
   protected readonly monthLabel = computed(() =>
     this.monthCursor().toLocaleString('en-US', { month: 'long', year: 'numeric' }),
   );
@@ -166,12 +198,41 @@ export class InternalGenerateSlotsComponent implements OnInit {
           ),
         error: () => undefined,
       });
+    // Booking lead time drives the in-window warning. Read access is gated by
+    // SystemParameters.Default; on a miss we leave lead time at 0 (no warning).
+    this.systemParams.get().subscribe({
+      next: (p) => this.leadTimeDays.set(p.appointmentLeadTime ?? 0),
+      error: () => undefined,
+    });
   }
 
   private addDays(d: Date, n: number): Date {
     const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     r.setDate(r.getDate() + n);
     return r;
+  }
+
+  // Earliest date this form would generate: the min picked day (pick mode) or the
+  // first selected-weekday on/after fromDate within the range (range mode). Used
+  // only to decide whether any generated date lands inside the lead-time window.
+  private earliestGeneratedIso(): string | null {
+    if (this.mode() === 'pick') {
+      const ds = this.selectedDates();
+      return ds.length ? ds.slice().sort()[0] : null;
+    }
+    const from = this.fromDate();
+    const to = this.toDate();
+    if (!from || !to || from > to) {
+      return null;
+    }
+    const weekdays = this.weekdays();
+    const end = new Date(to + 'T00:00:00');
+    for (let d = new Date(from + 'T00:00:00'); d <= end; d.setDate(d.getDate() + 1)) {
+      if (weekdays[d.getDay()]) {
+        return isoDate(d);
+      }
+    }
+    return null;
   }
 
   // ---- form mutations ----
