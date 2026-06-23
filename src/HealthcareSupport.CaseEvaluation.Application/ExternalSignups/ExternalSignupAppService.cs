@@ -95,6 +95,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // (tests bypass DI), so we pass this through as an optional parameter --
     // tests call with null + assert against the English fallback string.
     private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
+    // 2026-06-22 -- shared appointment-visibility rule. The external-user lookup
+    // scopes an external caller's results to the SAME appointments that caller can
+    // see, so the lookup and the appointment list cannot drift apart.
+    private readonly AppointmentVisibilityService _appointmentVisibilityService;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -123,7 +127,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
-        IStringLocalizer<CaseEvaluationResource> localizer)
+        IStringLocalizer<CaseEvaluationResource> localizer,
+        AppointmentVisibilityService appointmentVisibilityService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -152,6 +157,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
         _localizer = localizer;
+        _appointmentVisibilityService = appointmentVisibilityService;
     }
 
     /// <summary>
@@ -399,9 +405,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
         if (callerIsExternalOnly)
         {
-            // TODO (R2-4 follow-up): scope to parties on the caller's shared appointments
-            // instead of returning empty, so external parties can find their co-parties.
-            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+            // HIPAA-scoped: an external caller may look up ONLY the co-parties named
+            // on appointments they can already see. Leak-equivalent -- the caller
+            // already sees those parties on each appointment's detail. The scope is
+            // the SAME visible-appointment set the appointment list uses, so the two
+            // cannot diverge. See AppointmentVisibilityService + ExternalCoPartyRules.
+            return await GetCoPartyLookupAsync(filter);
         }
 
         // Internal staff only (external callers returned empty above). Staff administer the
@@ -498,6 +507,103 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return (name != null && name.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
                (surname != null && surname.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
                (email != null && email.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 2026-06-22 -- relationship-scoped lookup for an external-only caller.
+    /// Returns the REGISTERED co-parties named on the appointments the caller can
+    /// already see (<see cref="AppointmentVisibilityService"/>), matched against
+    /// the search <paramref name="filter"/> and tagged with each party's
+    /// role-on-the-appointment. Leak-equivalent: every co-party returned here is
+    /// already visible to the caller on the appointment's detail page. Unregistered
+    /// co-parties (no account) are reachable via the separate exact-email booking
+    /// lookup, so they are intentionally omitted (the DTO needs a real
+    /// IdentityUserId for the picker to bind).
+    /// </summary>
+    private async Task<ListResultDto<ExternalUserLookupDto>> GetCoPartyLookupAsync(string? filter)
+    {
+        var visibleIds = await _appointmentVisibilityService.GetVisibleAppointmentIdsAsync();
+        if (visibleIds == null || visibleIds.Count == 0)
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+
+        var idList = visibleIds.ToList();
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var partyRows = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => idList.Contains(a.Id))
+                .Select(a => new
+                {
+                    a.PatientEmail,
+                    a.ApplicantAttorneyEmail,
+                    a.DefenseAttorneyEmail,
+                    a.ClaimExaminerEmail,
+                }));
+
+        var coParties = ExternalCoPartyRules.CollectCoParties(
+            CurrentUser.Email,
+            partyRows.Select(r => new ExternalCoPartyRules.AppointmentParties(
+                r.PatientEmail,
+                r.ApplicantAttorneyEmail,
+                r.DefenseAttorneyEmail,
+                r.ClaimExaminerEmail)));
+        if (coParties.Count == 0)
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+
+        // Resolve co-party emails to registered accounts within the caller's tenant.
+        var coPartyEmailsLower = coParties
+            .Select(c => c.Email.ToLowerInvariant())
+            .Distinct()
+            .ToList();
+        var currentUserId = CurrentUser.Id;
+        var userQuery = await _identityUserRepository.GetQueryableAsync();
+        var matchedUsers = await AsyncExecuter.ToListAsync(
+            userQuery.Where(u => u.Email != null
+                && coPartyEmailsLower.Contains(u.Email.ToLower())
+                && (!currentUserId.HasValue || u.Id != currentUserId.Value)));
+
+        var userByEmail = new Dictionary<string, IdentityUser>(StringComparer.OrdinalIgnoreCase);
+        foreach (var u in matchedUsers)
+        {
+            if (!string.IsNullOrWhiteSpace(u.Email))
+            {
+                userByEmail[u.Email.Trim()] = u;
+            }
+        }
+
+        var items = new List<ExternalUserLookupDto>();
+        foreach (var coParty in coParties)
+        {
+            if (!userByEmail.TryGetValue(coParty.Email, out var user))
+            {
+                continue;
+            }
+
+            var firstName = user.Name ?? string.Empty;
+            var lastName = user.Surname ?? string.Empty;
+            var email = user.Email ?? string.Empty;
+            if (!MatchesExternalUserFilter(firstName, lastName, email, filter))
+            {
+                continue;
+            }
+
+            items.Add(new ExternalUserLookupDto
+            {
+                IdentityUserId = user.Id,
+                FirstName = firstName,
+                LastName = lastName,
+                Email = email,
+                UserRole = coParty.Role,
+                FirmName = user.GetProperty<string>(
+                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty,
+            });
+        }
+
+        items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
+        return new ListResultDto<ExternalUserLookupDto>(items);
     }
 
     [Authorize]
