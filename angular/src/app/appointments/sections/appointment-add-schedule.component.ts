@@ -94,6 +94,10 @@ export class AppointmentAddScheduleComponent {
   // validator are applied programmatically on the parent control (AF3/AF4); this
   // input drives the visual affordance only.
   @Input() isPqmeType = false;
+  // 2026-06-23: non-empty when the lookup resolved with zero bookable dates for
+  // the chosen type+location, so the date UI explains WHY (lead-time window)
+  // instead of showing a silently all-disabled calendar. Empty = hide.
+  @Input() noBookableDatesMessage = '';
 
   @Output() locationSelected = new EventEmitter<string>();
   @Output() appointmentDateCleared = new EventEmitter<void>();

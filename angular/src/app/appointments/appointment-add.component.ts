@@ -2241,6 +2241,31 @@ export class AppointmentAddComponent {
     return this.isBeforeMinimumBookingDateKey(selectedDate);
   }
 
+  /**
+   * 2026-06-23: explains an all-disabled calendar. Non-empty only once a type +
+   * location are chosen, the slot lookup has resolved, and it returned zero
+   * bookable dates -- i.e. no published availability sits at/after the booking
+   * lead time (the server lookup excludes within-window slots). Without this the
+   * booker sees a silently all-grey calendar with no reason. Uses the FE
+   * minimumBookingDays constant (mirrors the server AppointmentLeadTime default);
+   * sourcing the live per-tenant value is deferred -- the system-parameter read
+   * 403s for external bookers and the value is informational here.
+   */
+  get noBookableDatesMessage(): string {
+    if (!this.checkForAppointmentTypeSelected || this.isAvailableDatesLoading) {
+      return '';
+    }
+    if (this.availableDateKeys.size > 0) {
+      return '';
+    }
+    const days: number = this.minimumBookingDays;
+    return (
+      'No appointment dates are available for the selected type and location. ' +
+      `Appointments must be booked at least ${days} day${days === 1 ? '' : 's'} ahead, ` +
+      'and no availability is published in that window yet.'
+    );
+  }
+
   clearDueDate(): void {
     this.form.patchValue({ dueDate: null });
   }
