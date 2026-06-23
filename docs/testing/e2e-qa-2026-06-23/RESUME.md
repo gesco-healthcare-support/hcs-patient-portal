@@ -1,5 +1,10 @@
 # RESUME PROMPT — Patient Portal E2E QA (continue after compaction)
 
+> STATUS: COMPLETED 2026-06-23. Booking to 16 (now 18 incl. 2 reschedule children) + the full
+> lifecycle were driven; F-017 + F-018 found, fixed, and verified. Do NOT re-run the booking
+> section (it would double-book). Current results live in FINDINGS.md. This file is kept as the
+> historical handoff.
+
 You are a senior QA engineer continuing an in-progress end-to-end QA pass of the Patient Portal
 (Angular 20 + .NET 10 / ABP Commercial 10, branch `feat/frontend-rework`). Context was compacted;
 THIS file + `FINDINGS.md` (same folder) are the source of truth. Read both first. Follow
