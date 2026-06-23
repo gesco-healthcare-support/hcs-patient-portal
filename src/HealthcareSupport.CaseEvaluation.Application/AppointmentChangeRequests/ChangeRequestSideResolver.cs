@@ -30,7 +30,8 @@ public class ChangeRequestSideResolver : ITransientDependency
         _recipientResolver = recipientResolver;
     }
 
-    public virtual async Task<ChangeRequestSideResolution?> ResolveAsync(Guid appointmentId, string? submitterEmail)
+    public virtual async Task<ChangeRequestSideResolution?> ResolveAsync(
+        Guid appointmentId, string? submitterEmail, IEnumerable<string?>? submitterRoles = null)
     {
         var recipients = (await _recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted))
             .Where(r => !string.IsNullOrWhiteSpace(r.To))
@@ -40,7 +41,11 @@ public class ChangeRequestSideResolver : ITransientDependency
             ? null
             : recipients.FirstOrDefault(r => string.Equals(r.To, submitterEmail, StringComparison.OrdinalIgnoreCase));
 
-        var side = ClassifySide(submitterParty?.Role);
+        // F-014 fix (2026-06-23): the submitter is often the BOOKER (paralegal) who is not a
+        // named party on the appointment, so an email match yields no side and consent used to
+        // be skipped. Fall back to the submitter's registered role to place them on a side:
+        // Patient / Applicant Attorney = Side A; Defense Attorney / Claim Examiner = Side B.
+        var side = ClassifySide(submitterParty?.Role) ?? ClassifySideFromRoles(submitterRoles);
         if (side == null)
         {
             return null;
@@ -72,6 +77,39 @@ public class ChangeRequestSideResolver : ITransientDependency
         RecipientRole.ClaimExaminer => ChangeRequestSide.SideB,
         _ => null,
     };
+
+    /// <summary>
+    /// F-014 fallback: classify the submitter's side from their registered role name when they
+    /// are not a named party on the appointment (the booker/paralegal acting on behalf). Side A
+    /// = Applicant Attorney / Patient; Side B = Defense Attorney / Claim Examiner. Returns null
+    /// for internal/neutral roles so consent stays unresolved (Staff Supervisor finalizes).
+    /// </summary>
+    private static ChangeRequestSide? ClassifySideFromRoles(IEnumerable<string?>? roles)
+    {
+        if (roles == null)
+        {
+            return null;
+        }
+        foreach (var role in roles)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                continue;
+            }
+            var trimmed = role.Trim();
+            if (string.Equals(trimmed, "Applicant Attorney", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "Patient", StringComparison.OrdinalIgnoreCase))
+            {
+                return ChangeRequestSide.SideA;
+            }
+            if (string.Equals(trimmed, "Defense Attorney", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "Claim Examiner", StringComparison.OrdinalIgnoreCase))
+            {
+                return ChangeRequestSide.SideB;
+            }
+        }
+        return null;
+    }
 }
 
 /// <summary>

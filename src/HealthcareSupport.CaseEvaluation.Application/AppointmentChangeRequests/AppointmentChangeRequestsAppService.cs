@@ -157,10 +157,11 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
 
     private async Task EnsureCanEditAsync(Guid appointmentId)
     {
-        // Same slim edit rule (internal / creator / Edit-accessor) as before, now
-        // centralised in AppointmentReadAccessGuard.CanEditAsync. Keep this flow's own
-        // error code so the change-request contract is unchanged.
-        if (!await _readAccessGuard.CanEditAsync(appointmentId))
+        // F-013 fix (2026-06-23): use the change-request access rule (booker + every named
+        // party + Edit-accessor) instead of the slim creator/Edit-accessor rule, which 403'd
+        // the named attorney-of-record + patient on paralegal-booked appointments. Keep this
+        // flow's own error code so the change-request contract is unchanged.
+        if (!await _readAccessGuard.CanRequestChangeAsync(appointmentId))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestEditAccessRequired)
                 .WithData("appointmentId", appointmentId);
@@ -181,7 +182,10 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             return;
         }
 
-        var resolution = await _sideResolver.ResolveAsync(changeRequest.AppointmentId, CurrentUser.Email);
+        // F-014: pass the submitter's roles so the resolver can place a booker/paralegal
+        // (who is not a named party) on a side and still issue opposing-side consent.
+        var resolution = await _sideResolver.ResolveAsync(
+            changeRequest.AppointmentId, CurrentUser.Email, CurrentUser.Roles);
         if (resolution == null)
         {
             Logger.LogWarning(
