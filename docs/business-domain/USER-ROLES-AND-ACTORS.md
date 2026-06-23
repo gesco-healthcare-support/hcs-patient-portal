@@ -208,12 +208,21 @@ roles in some inline snippets; those snippets are stale. The canonical source is
 
 ## External User Lookup
 
-The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of
-external users across all four roles: **Patient, Applicant Attorney, Defense Attorney,
-and Claim Examiner**. (Reversed 2026-06-22: the old "D-2" decision restricted this to
-Patient + Applicant Attorney; the four external roles are capability-equal, so a
-booker/accessor picker must surface all of them.) This lookup is used in the UI when
-assigning appointment accessors or booking on behalf of another user.
+`ExternalSignupAppService.GetExternalUserLookupAsync(filter)` is a SEARCH: a typed term is
+required (a blank filter returns nothing -- never an enumerable list of every tenant user).
+It covers all four external roles (**Patient, Applicant Attorney, Defense Attorney, Claim
+Examiner**), but the result set is scoped by the caller:
+
+- **Internal staff** (admin / Intake Staff / Staff Supervisor / Doctor) search the whole
+  tenant.
+- **External callers** see ONLY their co-parties -- the parties named on appointments the
+  caller can already see (`AppointmentVisibilityService` + `ExternalCoPartyRules`). This is
+  a HIPAA boundary: an external user must not enumerate parties on cases they are not on.
+
+(History: the old "D-2" decision restricted the roles to Patient + Applicant Attorney;
+reversed 2026-06-22 because the four roles are capability-equal. A second pass the same day
+added the co-party scoping so external callers cannot enumerate strangers.) The lookup
+feeds the booking/accessor pickers as a search bar, like the patient lookup.
 
 The `GetMyProfileAsync` method allows authenticated external users to retrieve their own
 profile, including their assigned role. Role resolution covers all four external roles
