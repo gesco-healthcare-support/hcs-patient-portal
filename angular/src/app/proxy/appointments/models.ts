@@ -123,6 +123,7 @@ export interface AppointmentWithNavigationPropertiesDto {
   appointment?: AppointmentDto;
   patient?: PatientDto | null;
   identityUser?: IdentityUserDto | null;
+  bookedByUser?: IdentityUserDto | null;
   appointmentType?: AppointmentTypeDto | null;
   location?: LocationDto | null;
   doctorAvailability?: DoctorAvailabilityDto | null;

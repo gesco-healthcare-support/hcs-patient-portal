@@ -42,6 +42,17 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
 
         if (result != null)
         {
+            // QA F-011: resolve the actual booker (explicit BookedByUserId, with
+            // the audit CreatorId as fallback -- the same precedence the
+            // visibility queries use) so the detail view's "Booker (identity)"
+            // reflects who booked, not the patient/owner IdentityUser (which is
+            // unreliable) or the responsible user assigned on approval.
+            var bookerUserId = result.Appointment.BookedByUserId ?? result.Appointment.CreatorId;
+            if (bookerUserId is Guid bookerId && bookerId != Guid.Empty)
+            {
+                result.BookedByUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { bookerId }, cancellationToken);
+            }
+
             var appApplicantAttorney = await dbContext.Set<AppointmentApplicantAttorney>()
                 .Where(aa => aa.AppointmentId == id)
                 .FirstOrDefaultAsync(cancellationToken);
