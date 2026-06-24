@@ -888,18 +888,26 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             }
             else if (input.UserType == ExternalUserType.ApplicantAttorney)
             {
-                // Create an empty AA master so the booker-side pre-fill ("Search by email"
-                // + lookup picker) discovers this AA on next booking, the tenant-admin AA
-                // management page surfaces them, and the appointment-AA join can point at a
-                // real row. R2-4 (2026-06-22) reverses the old D-2 asymmetry: Defense Attorney
-                // + Claim Examiner now get the same master treatment in their branches below.
+                // Create the AA master WITH email + name + firm so the booker-side pre-fill
+                // ("Search by email" + lookup picker) discovers this AA on next booking, the
+                // tenant-admin AA management page surfaces them, and the appointment-AA join can
+                // point at a real row. F-006 / dedup fix (2026-06-23): the R2-4 (2026-06-22)
+                // parity change set email/name/firm for Defense Attorney + Claim Examiner but
+                // MISSED this Applicant Attorney branch, leaving a null-email master that the
+                // booking's find-by-email (FindByNormalizedEmailAsync) could not match -> a
+                // duplicate populated master was created on first booking. Now mirrors the DA
+                // branch below so the registration master is matched + reused.
                 var existingApplicantAttorney = await _applicantAttorneyRepository
                     .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
                 if (existingApplicantAttorney == null)
                 {
                     await _applicantAttorneyManager.CreateAsync(
                         stateId: null,
-                        identityUserId: user.Id);
+                        identityUserId: user.Id,
+                        firmName: input.FirmName?.Trim(),
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
                 }
             }
             else if (input.UserType == ExternalUserType.DefenseAttorney)
