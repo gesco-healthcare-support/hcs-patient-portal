@@ -32,11 +32,21 @@
       <div class="ra-field col-8">
         <label>Schedule pattern</label>
         <div class="av-toggle" style="align-self: flex-start">
-          <button type="button" [attr.data-on]="mode() === 'range'" (click)="setMode('range')">
+          <button
+            type="button"
+            [attr.data-on]="mode() === 'range'"
+            [attr.aria-pressed]="mode() === 'range'"
+            (click)="setMode('range')"
+          >
             <app-icon name="refresh" [size]="14" />
             Date range + weekdays
           </button>
-          <button type="button" [attr.data-on]="mode() === 'pick'" (click)="setMode('pick')">
+          <button
+            type="button"
+            [attr.data-on]="mode() === 'pick'"
+            [attr.aria-pressed]="mode() === 'pick'"
+            (click)="setMode('pick')"
+          >
             <app-icon name="calendar" [size]="14" />
             Pick days on calendar
           </button>
@@ -78,6 +88,7 @@
                 type="button"
                 class="gn-day"
                 [attr.data-on]="weekdays()[i]"
+                [attr.aria-pressed]="weekdays()[i]"
                 (click)="toggleWeekday(i)"
               >
                 {{ lbl }}
@@ -124,6 +135,7 @@
                     type="button"
                     class="gn-cal__day"
                     [attr.data-on]="cell.selected"
+                    [attr.aria-pressed]="cell.selected"
                     [disabled]="cell.disabled"
                     (click)="toggleDate(cell)"
                   >
@@ -241,6 +253,7 @@
               type="button"
               class="gn-type"
               [attr.data-on]="isTypeOn(t.id)"
+              [attr.aria-pressed]="isTypeOn(t.id)"
               (click)="toggleType(t.id)"
             >
               {{ t.name }}
