@@ -171,6 +171,31 @@ Status: COMPLETE (interactive run; Adrian present throughout).
 - The public consent page reads "A request to **cancellation** appointment A00009 has been
   submitted..." Should be "A request to cancel" (or "A request for cancellation of"). Cosmetic.
 
+## UI re-validation on a wizard-booked appointment (2026-06-23, A00019)
+
+Per Adrian: booked ONE appointment through the REWORKED wizard (home -> "Request an Appointment"
+-> /appointments/request, 9-step wizard) as paralegal defatty1 (patient Olivia Turner, AA appatty1,
+DA defatty2, CE claimE1) -> A00019 Pending. Then validated both fixes on it through the UI:
+
+- F-018 (resubmit gate): staff "Request info" flagged Documents -> A00019 Info Requested. As the
+  booker (defatty1) the un-fixed resubmit (API bypass of the disabled button) returned 403
+  "Please complete all the requested corrections before resubmitting to the clinic." Then via the
+  fix-it page: uploaded a PDF -> "1 of 1 fixed" -> Resubmit enabled -> confirm -> Pending. Staff
+  approved. Server gate holds AND the happy path works on a wizard-booked appointment.
+- F-017 (reschedule time): staff rescheduled approved A00019 to the Jul 23 9:30 AM slot -> A00019
+  Rescheduled, child A00020 created Approved with AppointmentDate 2026-07-23 09:30 (matches slot).
+  UI list shows A00020 "Jul 23, 2026 9:30 AM" next to the pre-fix A00017 "12:00 AM"
+  (screenshot F017-A00020-correct-time-after-fix.png). The internal staff Reschedule shares the
+  fixed clone path; internal reschedule bypasses opposing consent (by design).
+
+- ATTORNEY LINK RECORDS (answers the dataset-fidelity caveat): the wizard-booked A00019 has
+  AppApplicantAttorneys + AppDefenseAttorneys rows (AArec=1, DArec=1) and its detail shows the
+  full attorney name/firm/email -- CONFIRMING that UI bookings create the link records while the
+  round-2 API bookings (A00007-A00018) did not (they show "Not provided"). Backfill is optional
+  (cosmetic/demo only; consent + notifications work off the appointment's scalar email fields).
+- Candidate (NEW): on A00019 the internal "Booker (identity)" shows patient2@gesco.com (the patient)
+  rather than the actual booker defatty1. Relates to F-011 (the field binds to the wrong identity).
+
 ## Medium
 
 ### F-006 (medium, data consistency) -- Applicant Attorney master FirmName not persisted (Defense is)
@@ -187,6 +212,31 @@ Status: COMPLETE (interactive run; Adrian present throughout).
   (rather than the IdentityUser ext prop), applicant firm shows blank while defense firm
   shows. To be confirmed during booking/display. Likely a missed assignment in the AA
   master-creation path vs the DA path.
+- ROOT CAUSE + FIXED 2026-06-23 (escalated by F-019 below): ExternalSignupAppService:900 created
+  the AA registration master with only stateId + identityUserId -- NULL email/firstName/lastName/
+  firmName. The R2-4 (2026-06-22) parity change set these for the Defense + Claim Examiner branches
+  but MISSED the Applicant Attorney branch. Fixed by passing firmName/email/firstName/lastName
+  (manager already supported them), mirroring the DA branch. api rebuilt clean.
+
+### F-019 (MEDIUM, data integrity) -- [FIXED + cleaned up 2026-06-23] duplicate Applicant Attorney master records
+- Symptom (Adrian): 6 AppApplicantAttorneys masters for 3 attorneys (appatty1/2/3) -- a null-email
+  master + a populated master each -- while Defense + Patient correctly had one per person.
+- Root cause: the F-006 null-email AA registration master could not be matched by the booking's
+  find-or-create-by-email (FindByNormalizedEmailAsync), so the first booking created a SECOND
+  (populated) master. DA/Patient registration masters carry the email, so booking reuses them.
+- NOT caused by the round-2 API backfill (masters created 17:48-19:05 at registration/booking;
+  backfill at 23:09 only added link rows and reused the populated masters). The 3 null-email
+  masters were orphans (0 appointment links).
+- FIXED: (1) F-006 code fix above (registration now saves the AA master with email) so future
+  bookings match + reuse it; (2) soft-deleted the 3 orphan null-email masters. Verified:
+  AA=3, DA=3, Patient=3 active masters (one per person), 0 orphans.
+- DEEPER / LATENT (separate, recommended for pre-merge): registration de-dupes attorney/CE masters
+  by IdentityUserId only. If an AA/DA/CE is BOOKED before they REGISTER, the booking makes a master
+  (email, null identity); at registration the role branch (keyed on identity) does not see it and
+  creates a 2nd master, then AutoLink (ExternalSignupAppService:1095) claims the booking master --
+  leaving TWO masters for ONE login. The Patient branch avoids this by CLAIMING the existing
+  email master first (line 859-866); AA/DA/CE should adopt the same claim-first pattern. This
+  produces a duplicate PROFILE row, never a duplicate login account (AbpUser email is unique).
 
 ### F-011 (medium, data accuracy) -- internal "Booker (identity)" shows responsible user, not actual booker
 - Flow: internal appointment detail (stafsuper1) > "Internal -- staff only" > Booker (identity).
@@ -370,11 +420,20 @@ STILL NOT DRIVEN (with reasons):
 - Reschedule via the in-app date-picker UI: driven via the API endpoint instead (the picker needs
   real click/select, a harness limitation, not an app bug). The same AppService path is exercised.
 
-FIDELITY CAVEAT (test method, not a bug):
-- Round-2 appointments (A00007-A00017) were booked via API, which stores the party EMAILS but does
-  NOT create the attorney LINK records (AppAppointmentApplicantAttorneys / *DefenseAttorneys) that
-  the UI booking creates. Consequence: their detail view shows "Not provided" for attorney
-  name/firm/email even though the scalar email exists. Consent + notifications work off the scalar
-  emails (proven), and approval is not gated on attorney records -- so lifecycle results are valid.
-  If a pristine dataset is wanted for demos, the attorney link records can be backfilled via
-  POST /api/app/appointment-applicant-attorneys and /appointment-defense-attorneys.
+FIDELITY CAVEAT (test method, not a bug) -- RESOLVED 2026-06-23:
+- Round-2 appointments were booked via the bare Appointments CreateAsync, which stores the party
+  EMAILS + (separately) injury + CE, but does NOT create the attorney LINK records
+  (AppAppointmentApplicantAttorneys / *DefenseAttorneys), EmployerDetails, or PrimaryInsurance that
+  the UI wizard creates. So their detail view showed "Not provided" for attorney/employer/insurance.
+  Consent + notifications run off the scalar emails (proven) and approval gates only need injury+CE,
+  so all lifecycle results were valid.
+- RESOLVED: backfilled the full record set on the 14 incomplete appointments (A00004, A00005,
+  A00007-A00018) via the app's own create endpoints -- appointment-applicant-attorneys (link to the
+  attorney master + identity user), appointment-defense-attorneys, appointment-employer-details,
+  appointment-primary-insurances. ALL 20 appointments now carry AA + DA + Employer + Insurance + CE
+  + Injury (DB audit: 0 incomplete). Verified in the UI: A00007 detail now renders Marcus Bennett /
+  Alicia Perez / Acme Logistics Inc / Pacific Mutual (screenshot A00007-complete-records-after-backfill.png).
+- LESSON for future API-driven test data: a faithful appointment = CreateAsync + injury + ACTIVE CE
+  + applicant-attorney link + defense-attorney link + employer-details + primary-insurance. The
+  attorney links reference the attorney MASTER id + the attorney's identity-user id (both obtainable
+  from any existing complete appointment's link rows), not free-text.
