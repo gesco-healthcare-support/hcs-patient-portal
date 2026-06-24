@@ -24,3 +24,13 @@ Dockerfile.* text eol=lf
 *.dockerfile text eol=lf
 docker-compose*.yml text eol=lf
 docker-compose*.yaml text eol=lf
+
+# --- Generated code: keep out of diffs/line-counts; collapse on GitHub ---
+# `-diff` makes git render these as "binary" so they don't count toward +/- line
+# totals (locally or on GitHub). `linguist-generated=true` collapses them in PR
+# diffs and removes them from the language-stats bar. The files stay fully tracked
+# and committed and remain openable in an editor -- ONLY the diff rendering changes;
+# nothing functional is affected.
+**/Migrations/**          linguist-generated=true -diff
+**/TenantMigrations/**    linguist-generated=true -diff
+angular/src/app/proxy/**  linguist-generated=true -diff
