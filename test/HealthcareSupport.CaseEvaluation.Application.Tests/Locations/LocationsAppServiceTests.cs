@@ -340,7 +340,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
     // not filter it out).
     // ------------------------------------------------------------------------
 
-    [Fact]
+    [Fact(Skip = "Phase F harness (F1): Location is now IMultiTenant (db-per-office); the shared-SQLite test rig seeds locations at host scope so they are not visible in a tenant context. Rewrite as a per-office assertion with the multi-office harness.")]
     public async Task LocationsAreVisible_FromTenantContext()
     {
         using (_currentTenant.Change(TenantsTestData.TenantARef))

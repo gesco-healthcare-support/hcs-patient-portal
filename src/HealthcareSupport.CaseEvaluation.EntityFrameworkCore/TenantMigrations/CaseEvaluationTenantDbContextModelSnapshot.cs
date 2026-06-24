@@ -26,10 +26,273 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage", b =>
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("FaxNumber");
+
+                    b.Property<string>("FirmAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("FirmAddress");
+
+                    b.Property<string>("FirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirmName");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirstName");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("LastName");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("WebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("WebAddress");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
+                    b.ToTable("AppApplicantAttorneys", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AccessTypeId")
+                        .HasColumnType("int")
+                        .HasColumnName("AccessTypeId");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<Guid>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.ToTable("AppAppointmentAccessors", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys.AppointmentApplicantAttorney", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ApplicantAttorneyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicantAttorneyId");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.ToTable("AppAppointmentApplicantAttorneys", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentBodyParts.AppointmentBodyPart", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentInjuryDetailId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyPartDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("BodyPartDescription");
 
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
@@ -61,6 +324,1144 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentInjuryDetailId");
+
+                    b.ToTable("AppAppointmentBodyParts", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AdminOverrideSlotId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AdminOverrideSlotId");
+
+                    b.Property<string>("AdminReScheduleReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("AdminReScheduleReason");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<Guid?>("ApprovedById")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ApprovedById");
+
+                    b.Property<int?>("CancellationOutcome")
+                        .HasColumnType("int")
+                        .HasColumnName("CancellationOutcome");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("CancellationReason");
+
+                    b.Property<int>("ChangeRequestType")
+                        .HasColumnType("int")
+                        .HasColumnName("ChangeRequestType");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime?>("ConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ConsentExpiresAt");
+
+                    b.Property<DateTime?>("ConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ConsentRespondedAt");
+
+                    b.Property<string>("ConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ConsentRespondedByEmail");
+
+                    b.Property<int>("ConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("ConsentStatus");
+
+                    b.Property<string>("ConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("ConsentTokenHash");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsBeyondLimit")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsBeyondLimit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("NewDoctorAvailabilityId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("NewDoctorAvailabilityId");
+
+                    b.Property<string>("ReScheduleReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("ReScheduleReason");
+
+                    b.Property<Guid?>("RejectedById")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RejectedById");
+
+                    b.Property<string>("RejectionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("RejectionNotes");
+
+                    b.Property<int>("RequestStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("RequestStatus");
+
+                    b.Property<int?>("RequestingSide")
+                        .HasColumnType("int")
+                        .HasColumnName("RequestingSide");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SubmittedByUserId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("ConsentTokenHash");
+
+                    b.HasIndex("AppointmentId", "RequestStatus");
+
+                    b.ToTable("AppAppointmentChangeRequests", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentChangeRequestId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentChangeRequestId");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("BlobName");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("DocumentName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DocumentName");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSize");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UploadedByUserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentChangeRequestId");
+
+                    b.ToTable("AppAppointmentChangeRequestDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers.AppointmentClaimExaminer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("Fax")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasColumnName("Fax");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Name");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Street");
+
+                    b.Property<string>("Suite")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Suite");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("Zip")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Zip");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppAppointmentClaimExaminers", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys.AppointmentDefenseAttorney", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("DefenseAttorneyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("DefenseAttorneyId");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.ToTable("AppAppointmentDefenseAttorneys", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AppliesToAll")
+                        .HasColumnType("bit")
+                        .HasColumnName("AppliesToAll");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsSystem");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name");
+
+                    b.ToTable("AppAppointmentDocumentTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeAppointmentType", b =>
+                {
+                    b.Property<Guid>("AppointmentDocumentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("AppointmentDocumentTypeId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.ToTable("AppAppointmentDocumentTypeAppointmentType", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppointmentDocumentTypeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentDocumentTypeId");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("BlobName");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("DocumentName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DocumentName");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSize");
+
+                    b.Property<bool>("IsAdHoc")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsAdHoc");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsJointDeclaration")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsJointDeclaration");
+
+                    b.Property<bool>("IsPanelStrikeList")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsPanelStrikeList");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("OtherDocumentTypeName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("OtherDocumentTypeName");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RejectedByUserId");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("RejectionReason");
+
+                    b.Property<Guid?>("ResponsibleUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ResponsibleUserId");
+
+                    b.Property<Guid?>("SourceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SourceDocumentId");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UploadedByUserId");
+
+                    b.Property<Guid?>("VerificationCode")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("VerificationCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("VerificationCode");
+
+                    b.HasIndex("AppointmentId", "Status");
+
+                    b.ToTable("AppAppointmentDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("BlobName");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("ErrorMessage");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("GeneratedAt");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int")
+                        .HasColumnName("Kind");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("RegeneratedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RegeneratedAt");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("TenantId", "AppointmentId", "Kind")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [TenantId] IS NOT NULL");
+
+                    b.ToTable("AppAppointmentPackets", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDrafts.AppointmentDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<int>("CurrentStep")
+                        .HasColumnType("int")
+                        .HasColumnName("CurrentStep");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Label");
+
+                    b.Property<DateTime>("LastSavedTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastSavedTime");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("PayloadJson");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastSavedTime");
+
+                    b.HasIndex("TenantId", "CreatorId");
+
+                    b.ToTable("AppAppointmentDrafts", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails.AppointmentEmployerDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("EmployerName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("EmployerName");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Occupation")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Occupation");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppAppointmentEmployerDetails", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInfoRequests.AppointmentInfoRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AfterValues")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<string>("BeforeValues")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Note");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RequestedByUserId");
+
+                    b.Property<string>("RequestedFields")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("RequestedFields");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ResolvedAt");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("AppointmentId", "Status");
+
+                    b.ToTable("AppAppointmentInfoRequests", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyPartsSummary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("BodyPartsSummary");
+
+                    b.Property<string>("ClaimNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ClaimNumber");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<DateTime>("DateOfInjury")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsCumulativeInjury")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<DateTime?>("ToDateOfInjury")
+                        .HasColumnType("date");
+
+                    b.Property<string>("WcabAdj")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("WcabAdj");
+
+                    b.Property<Guid?>("WcabOfficeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("WcabOfficeId");
+
+                    b.ToTable("AppAppointmentInjuryDetails", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -74,6 +1475,110 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasKey("Id");
 
                     b.ToTable("AppAppointmentLanguages", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances.AppointmentPrimaryInsurance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FaxNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("FaxNumber");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Name");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<string>("Suite")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Suite");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("Zip")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Zip");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppAppointmentPrimaryInsurances", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentStatuses.AppointmentStatus", b =>
@@ -102,6 +1607,9 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
@@ -152,11 +1660,18 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("nvarchar(200)")
                         .HasColumnName("Description");
 
+                    b.Property<int?>("EvaluationType")
+                        .HasColumnType("int")
+                        .HasColumnName("EvaluationType");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
@@ -165,6 +1680,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.Property<Guid?>("LastModifierId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
+
+                    b.Property<int?>("MaxTimeCategory")
+                        .HasColumnType("int")
+                        .HasColumnName("MaxTimeCategory");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -179,6 +1698,293 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasKey("Id");
 
                     b.ToTable("AppAppointmentTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Appointments.Appointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ApplicantAttorneyCity")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyCity");
+
+                    b.Property<string>("ApplicantAttorneyEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ApplicantAttorneyEmail");
+
+                    b.Property<string>("ApplicantAttorneyFaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("ApplicantAttorneyFaxNumber");
+
+                    b.Property<string>("ApplicantAttorneyFirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyFirmName");
+
+                    b.Property<string>("ApplicantAttorneyFirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyFirstName");
+
+                    b.Property<string>("ApplicantAttorneyLastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ApplicantAttorneyLastName");
+
+                    b.Property<string>("ApplicantAttorneyPhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("ApplicantAttorneyPhoneNumber");
+
+                    b.Property<Guid?>("ApplicantAttorneyStateId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ApplicantAttorneyStateId");
+
+                    b.Property<string>("ApplicantAttorneyStreet")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("ApplicantAttorneyStreet");
+
+                    b.Property<string>("ApplicantAttorneyWebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ApplicantAttorneyWebAddress");
+
+                    b.Property<string>("ApplicantAttorneyZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ApplicantAttorneyZipCode");
+
+                    b.Property<DateTime?>("AppointmentApproveDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("AppointmentApproveDate");
+
+                    b.Property<DateTime>("AppointmentDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("AppointmentDate");
+
+                    b.Property<int>("AppointmentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentStatus");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BookedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("CancellationReason");
+
+                    b.Property<Guid?>("CancelledById")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CancelledById");
+
+                    b.Property<string>("ClaimExaminerEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ClaimExaminerEmail");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<string>("DefenseAttorneyCity")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyCity");
+
+                    b.Property<string>("DefenseAttorneyEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("DefenseAttorneyEmail");
+
+                    b.Property<string>("DefenseAttorneyFaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("DefenseAttorneyFaxNumber");
+
+                    b.Property<string>("DefenseAttorneyFirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyFirmName");
+
+                    b.Property<string>("DefenseAttorneyFirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyFirstName");
+
+                    b.Property<string>("DefenseAttorneyLastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("DefenseAttorneyLastName");
+
+                    b.Property<string>("DefenseAttorneyPhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("DefenseAttorneyPhoneNumber");
+
+                    b.Property<Guid?>("DefenseAttorneyStateId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DefenseAttorneyStateId");
+
+                    b.Property<string>("DefenseAttorneyStreet")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("DefenseAttorneyStreet");
+
+                    b.Property<string>("DefenseAttorneyWebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("DefenseAttorneyWebAddress");
+
+                    b.Property<string>("DefenseAttorneyZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("DefenseAttorneyZipCode");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<Guid>("DoctorAvailabilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DueDate");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InternalUserComments")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)")
+                        .HasColumnName("InternalUserComments");
+
+                    b.Property<bool>("IsBeyondLimit")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsBeyondLimit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsPatientAlreadyExist")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsPatientAlreadyExist");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("OriginalAppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("OriginalAppointmentId");
+
+                    b.Property<string>("PanelNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("PanelNumber");
+
+                    b.Property<string>("PatientEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("PatientEmail");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PrimaryResponsibleUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PrimaryResponsibleUserId");
+
+                    b.Property<string>("ReScheduleReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("ReScheduleReason");
+
+                    b.Property<Guid?>("ReScheduledById")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ReScheduledById");
+
+                    b.Property<string>("RefferedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("RefferedBy");
+
+                    b.Property<Guid?>("RejectedById")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RejectedById");
+
+                    b.Property<string>("RejectionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("RejectionNotes");
+
+                    b.Property<string>("RequestConfirmationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("RequestConfirmationNumber");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.HasIndex("DoctorAvailabilityId");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId", "RequestConfirmationNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber")
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppAppointments", (string)null);
                 });
 
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Books.Book", b =>
@@ -233,7 +2039,1533 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.ToTable("AppBooks", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("FaxNumber");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirstName");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("LastName");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
+                    b.ToTable("AppClaimExaminers", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.CustomFields.CustomField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentTypeId");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<string>("DefaultValue")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DefaultValue");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("DisplayOrder");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FieldLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("FieldLabel");
+
+                    b.Property<int?>("FieldLength")
+                        .HasColumnType("int")
+                        .HasColumnName("FieldLength");
+
+                    b.Property<int>("FieldType")
+                        .HasColumnType("int")
+                        .HasColumnName("FieldType");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsMandatory");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("MultipleValues")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("MultipleValues");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AppointmentTypeId", "IsActive");
+
+                    b.ToTable("AppCustomFields", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("CustomFieldId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CustomFieldId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("Value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.HasIndex("CustomFieldId");
+
+                    b.ToTable("AppCustomFieldValues", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FaxNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)")
+                        .HasColumnName("FaxNumber");
+
+                    b.Property<string>("FirmAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("FirmAddress");
+
+                    b.Property<string>("FirmName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirmName");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirstName");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("LastName");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("WebAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("WebAddress");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
+                    b.ToTable("AppDefenseAttorneys", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AvailableDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("AvailableDate");
+
+                    b.Property<int>("BookingStatusId")
+                        .HasColumnType("int")
+                        .HasColumnName("BookingStatusId");
+
+                    b.Property<int>("Capacity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(3)
+                        .HasColumnName("Capacity");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<TimeOnly>("FromTime")
+                        .HasColumnType("time")
+                        .HasColumnName("FromTime");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<TimeOnly>("ToTime")
+                        .HasColumnType("time")
+                        .HasColumnName("ToTime");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.ToTable("AppDoctorAvailabilities", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityAppointmentType", b =>
+                {
+                    b.Property<Guid>("DoctorAvailabilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("DoctorAvailabilityId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.HasIndex("DoctorAvailabilityId", "AppointmentTypeId");
+
+                    b.ToTable("AppDoctorAvailabilityAppointmentType", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocation", b =>
+                {
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DoctorId");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LocationId");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("DoctorId", "LocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("DoctorId", "IsActive");
+
+                    b.ToTable("AppDoctorPreferredLocations", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.Doctor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(49)
+                        .HasColumnType("nvarchar(49)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirstName");
+
+                    b.Property<int>("Gender")
+                        .HasColumnType("int")
+                        .HasColumnName("Gender");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("LastName");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AppEntity_Doctors_TenantId_Unique")
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.ToTable("AppDoctors", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.DoctorAppointmentType", b =>
+                {
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("DoctorId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.HasIndex("DoctorId", "AppointmentTypeId");
+
+                    b.ToTable("AppDoctorAppointmentType", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.DoctorLocation", b =>
+                {
+                    b.Property<Guid>("DoctorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("DoctorId", "LocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("DoctorId", "LocationId");
+
+                    b.ToTable("AppDoctorLocation", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Documents.Document", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("BlobName");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Invitations.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("AcceptedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FirmName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("UserType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("AppInvitations", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.Location", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Address");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Name");
+
+                    b.Property<decimal>("ParkingFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("ParkingFee");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppLocations", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.LocationAppointmentType", b =>
+                {
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("LocationId", "AppointmentTypeId");
+
+                    b.HasIndex("AppointmentTypeId");
+
+                    b.ToTable("AppLocationAppointmentType", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyEmail")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BodyEmail");
+
+                    b.Property<string>("BodySms")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BodySms");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Description");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Subject");
+
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("TemplateCode");
+
+                    b.Property<Guid>("TemplateTypeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TemplateTypeId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateTypeId");
+
+                    b.HasIndex("TenantId", "TemplateCode")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppNotificationTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Name");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppNotificationTemplateTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.DocumentPackage", b =>
+                {
+                    b.Property<Guid>("PackageDetailId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PackageDetailId");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DocumentId");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.HasKey("PackageDetailId", "DocumentId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.ToTable("AppDocumentPackages", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.PackageDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppointmentTypeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentTypeId");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("PackageName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("PackageName");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppPackageDetails", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Patients.Patient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Address");
+
+                    b.Property<Guid?>("AppointmentLanguageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ApptNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ApptNumber");
+
+                    b.Property<string>("CellPhoneNumber")
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)")
+                        .HasColumnName("CellPhoneNumber");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<DateTime>("DateOfBirth")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DateOfBirth");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Email");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("FirstName");
+
+                    b.Property<int>("GenderId")
+                        .HasColumnType("int")
+                        .HasColumnName("GenderId");
+
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InterpreterVendorName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("InterpreterVendorName");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("LastName");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("MiddleName");
+
+                    b.Property<string>("OthersLanguageName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("OthersLanguageName");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("PhoneNumber");
+
+                    b.Property<int>("PhoneNumberTypeId")
+                        .HasColumnType("int")
+                        .HasColumnName("PhoneNumberTypeId");
+
+                    b.Property<string>("SocialSecurityNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("SocialSecurityNumber");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("Street");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentLanguageId");
+
+                    b.HasIndex("IdentityUserId");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppPatients", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.States.State", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Name");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppStates", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AppointmentCancelTime")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentCancelTime");
+
+                    b.Property<int>("AppointmentDueDays")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentDueDays");
+
+                    b.Property<int>("AppointmentDurationTime")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentDurationTime");
+
+                    b.Property<int>("AppointmentLeadTime")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentLeadTime");
+
+                    b.Property<int>("AppointmentMaxTimeAME")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentMaxTimeAME");
+
+                    b.Property<int>("AppointmentMaxTimeInternal")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentMaxTimeInternal");
+
+                    b.Property<int>("AppointmentMaxTimeOTHER")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentMaxTimeOTHER");
+
+                    b.Property<int>("AppointmentMaxTimePQME")
+                        .HasColumnType("int")
+                        .HasColumnName("AppointmentMaxTimePQME");
+
+                    b.Property<int>("AutoCancelCutoffTime")
+                        .HasColumnType("int")
+                        .HasColumnName("AutoCancelCutoffTime");
+
+                    b.Property<string>("CcEmailIds")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("CcEmailIds");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsCustomField")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsCustomField");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<int>("JointDeclarationUploadCutoffDays")
+                        .HasColumnType("int")
+                        .HasColumnName("JointDeclarationUploadCutoffDays");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<int>("PendingAppointmentOverDueNotificationDays")
+                        .HasColumnType("int")
+                        .HasColumnName("PendingAppointmentOverDueNotificationDays");
+
+                    b.Property<int>("ReminderCutoffTime")
+                        .HasColumnType("int")
+                        .HasColumnName("ReminderCutoffTime");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppSystemParameters", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.UserQueries.UserQuery", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -280,10 +3612,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("Message")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("Name");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -291,7 +3623,99 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AppStates", (string)null);
+                    b.ToTable("AppUserQueries", (string)null);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Abbreviation")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Abbreviation");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Address");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("City");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Name");
+
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)")
+                        .HasColumnName("ZipCode");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StateId");
+
+                    b.ToTable("AppWcabOffices", (string)null);
                 });
 
             modelBuilder.Entity("Volo.Abp.AuditLogging.AuditLog", b =>
@@ -1589,6 +5013,424 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.ToTable("FmFileDescriptors", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney", b =>
+                {
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys.AppointmentApplicantAttorney", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney", null)
+                        .WithMany()
+                        .HasForeignKey("ApplicantAttorneyId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentBodyParts.AppointmentBodyPart", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetail", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentInjuryDetailId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequest", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequestDocument", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.AppointmentChangeRequest", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentChangeRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers.AppointmentClaimExaminer", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys.AppointmentDefenseAttorney", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney", null)
+                        .WithMany()
+                        .HasForeignKey("DefenseAttorneyId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentTypeAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentType", "AppointmentDocumentType")
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("AppointmentDocumentTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentDocumentType");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails.AppointmentEmployerDetail", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInfoRequests.AppointmentInfoRequest", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails.AppointmentInjuryDetail", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice", null)
+                        .WithMany()
+                        .HasForeignKey("WcabOfficeId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances.AppointmentPrimaryInsurance", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Appointments.Appointment", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", null)
+                        .WithMany()
+                        .HasForeignKey("DoctorAvailabilityId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.ClaimExaminers.ClaimExaminer", b =>
+                {
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.CustomFields.CustomFieldValue", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.CustomFields.CustomField", null)
+                        .WithMany()
+                        .HasForeignKey("CustomFieldId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DefenseAttorneys.DefenseAttorney", b =>
+                {
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilityAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", "AppointmentType")
+                        .WithMany()
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", "DoctorAvailability")
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("DoctorAvailabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentType");
+
+                    b.Navigation("DoctorAvailability");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocation", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Doctors.Doctor", null)
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.DoctorAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", "AppointmentType")
+                        .WithMany("DoctorAppointmentTypes")
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Doctors.Doctor", "Doctor")
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentType");
+
+                    b.Navigation("Doctor");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.DoctorLocation", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Doctors.Doctor", "Doctor")
+                        .WithMany("Locations")
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", "Location")
+                        .WithMany("DoctorLocations")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Doctor");
+
+                    b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.Location", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.LocationAppointmentType", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", "AppointmentType")
+                        .WithMany()
+                        .HasForeignKey("AppointmentTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Locations.Location", null)
+                        .WithMany("AppointmentTypes")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppointmentType");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateType", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateTypeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.DocumentPackage", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.Documents.Document", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.PackageDetails.PackageDetail", null)
+                        .WithMany("DocumentPackages")
+                        .HasForeignKey("PackageDetailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Patients.Patient", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentLanguages.AppointmentLanguage", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentLanguageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("IdentityUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.WcabOffices.WcabOffice", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.States.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("Volo.Abp.AuditLogging.AuditLogAction", b =>
                 {
                     b.HasOne("Volo.Abp.AuditLogging.AuditLog", null)
@@ -1725,6 +5567,40 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.HasOne("Volo.FileManagement.Directories.DirectoryDescriptor", null)
                         .WithMany()
                         .HasForeignKey("DirectoryId");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes.AppointmentDocumentType", b =>
+                {
+                    b.Navigation("AppointmentTypes");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType", b =>
+                {
+                    b.Navigation("DoctorAppointmentTypes");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability", b =>
+                {
+                    b.Navigation("AppointmentTypes");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Doctors.Doctor", b =>
+                {
+                    b.Navigation("AppointmentTypes");
+
+                    b.Navigation("Locations");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.Locations.Location", b =>
+                {
+                    b.Navigation("AppointmentTypes");
+
+                    b.Navigation("DoctorLocations");
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PackageDetails.PackageDetail", b =>
+                {
+                    b.Navigation("DocumentPackages");
                 });
 
             modelBuilder.Entity("Volo.Abp.AuditLogging.AuditLog", b =>

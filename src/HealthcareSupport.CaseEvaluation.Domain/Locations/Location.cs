@@ -13,8 +13,12 @@ using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.Locations;
 
-public class Location : FullAuditedAggregateRoot<Guid>
+public class Location : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    // Office-owned list (db-per-office): clinic locations are specific to each
+    // office. No seeded defaults; the office creates its own.
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
     public virtual string Name { get; set; } = null!;
 
