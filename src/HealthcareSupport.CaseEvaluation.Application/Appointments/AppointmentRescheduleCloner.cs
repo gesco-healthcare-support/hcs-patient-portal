@@ -115,6 +115,10 @@ internal static class AppointmentRescheduleCloner
         // does not lose the staff context it was previously assigned to.
         clone.PrimaryResponsibleUserId = source.PrimaryResponsibleUserId;
 
+        // R2-2: keep the original booker on the reschedule clone so the booker
+        // stays linked (and visible to themselves) across the lifecycle.
+        clone.BookedByUserId = source.BookedByUserId;
+
         // Beyond-limit override is per-supervisor-decision; carry forward
         // if the source had it OR if the caller asks for it on this clone.
         clone.IsBeyondLimit = source.IsBeyondLimit || isBeyondLimit;

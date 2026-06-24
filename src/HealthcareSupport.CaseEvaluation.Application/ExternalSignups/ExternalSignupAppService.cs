@@ -27,8 +27,10 @@ using Volo.Abp.Account.Emailing;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using System.Linq.Expressions;
 using Volo.Saas.Tenants;
 using Microsoft.Extensions.Hosting;
 using Volo.Abp.MultiTenancy;
@@ -43,6 +45,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     private readonly PatientManager _patientManager;
     private readonly IPatientRepository _patientRepository;
     private readonly IClaimExaminerRepository _claimExaminerRepository;
+    private readonly ClaimExaminerManager _claimExaminerManager;
     private readonly ApplicantAttorneyManager _applicantAttorneyManager;
     private readonly IApplicantAttorneyRepository _applicantAttorneyRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -60,6 +63,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // InviteExternalUser NotificationTemplate (same path as
     // ResetPassword / PasswordChange).
     private readonly InvitationManager _invitationManager;
+    // 2026-06-15 (B3): direct invitation-repository access for the internal
+    // People hub's active-invited-email lookup (portal-status chip). The
+    // AppService already queries several repositories directly, so keeping
+    // the bulk-email filter inline is consistent with that style.
+    private readonly IInvitationRepository _invitationRepository;
     private readonly INotificationDispatcher _notificationDispatcher;
     // 2026-05-06: dev-only test helpers (MarkEmailConfirmed / DeleteTestUsers)
     // gate on EnvironmentName so they cannot be invoked in production.
@@ -89,6 +97,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // (tests bypass DI), so we pass this through as an optional parameter --
     // tests call with null + assert against the English fallback string.
     private readonly IStringLocalizer<CaseEvaluationResource> _localizer;
+    // 2026-06-22 -- shared appointment-visibility rule. The external-user lookup
+    // scopes an external caller's results to the SAME appointments that caller can
+    // see, so the lookup and the appointment list cannot drift apart.
+    private readonly AppointmentVisibilityService _appointmentVisibilityService;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -97,6 +109,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         PatientManager patientManager,
         IPatientRepository patientRepository,
         IClaimExaminerRepository claimExaminerRepository,
+        ClaimExaminerManager claimExaminerManager,
         ApplicantAttorneyManager applicantAttorneyManager,
         IApplicantAttorneyRepository applicantAttorneyRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
@@ -112,10 +125,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IHostEnvironment hostEnvironment,
         IDataFilter dataFilter,
         InvitationManager invitationManager,
+        IInvitationRepository invitationRepository,
         INotificationDispatcher notificationDispatcher,
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
-        IStringLocalizer<CaseEvaluationResource> localizer)
+        IStringLocalizer<CaseEvaluationResource> localizer,
+        AppointmentVisibilityService appointmentVisibilityService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -123,6 +138,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _patientManager = patientManager;
         _patientRepository = patientRepository;
         _claimExaminerRepository = claimExaminerRepository;
+        _claimExaminerManager = claimExaminerManager;
         _applicantAttorneyManager = applicantAttorneyManager;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _identityUserRepository = identityUserRepository;
@@ -138,10 +154,59 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _hostEnvironment = hostEnvironment;
         _dataFilter = dataFilter;
         _invitationManager = invitationManager;
+        _invitationRepository = invitationRepository;
         _notificationDispatcher = notificationDispatcher;
         _accountEmailer = accountEmailer;
         _accountUrlBuilder = accountUrlBuilder;
         _localizer = localizer;
+        _appointmentVisibilityService = appointmentVisibilityService;
+    }
+
+    /// <summary>
+    /// 2026-06-15 (B3) -- returns the subset of <paramref name="emails"/>
+    /// that currently have an ACTIVE invitation in the caller's tenant. See
+    /// <see cref="IExternalSignupAppService.GetActiveInvitedEmailsAsync"/>.
+    /// The internal People hub passes only the current page's record-only
+    /// emails (those without a login), so the query-string list stays small.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<List<string>> GetActiveInvitedEmailsAsync(List<string> emails)
+    {
+        if (emails == null || emails.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        // Normalize + dedupe so the IN-clause is minimal and matches the
+        // lowercased form invites are stored in (InviteExternalUserAsync
+        // lowercases the email before IssueAsync).
+        var normalized = emails
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToList();
+        if (normalized.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        // Active = not accepted AND not expired. ABP's ISoftDelete filter
+        // excludes revoked rows and the IMultiTenant filter scopes the query
+        // to the caller's tenant, so this mirrors Invitation.IsActive(nowUtc)
+        // as a server-side predicate.
+        var nowUtc = Clock.Now.ToUniversalTime();
+        var query = await _invitationRepository.GetQueryableAsync();
+        var matched = await AsyncExecuter.ToListAsync(
+            query
+                .Where(i => i.AcceptedAt == null
+                            && i.ExpiresAt > nowUtc
+                            && normalized.Contains(i.Email.ToLower()))
+                .Select(i => i.Email));
+
+        return matched
+            .Select(e => e.ToLowerInvariant())
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>
@@ -198,8 +263,11 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
     /// <summary>
     /// Dev-only: delete the IdentityUser rows matching the given emails plus
-    /// any dependent Patient / ApplicantAttorney / DefenseAttorney profile
-    /// rows. Lets the demo re-register the same emails repeatedly. Cross-
+    /// any dependent Patient / ApplicantAttorney / DefenseAttorney / ClaimExaminer
+    /// master rows. The masters are HARD-deleted: ABP soft-delete would leave the
+    /// row physically present, and the filtered unique <c>(TenantId, Email)</c>
+    /// index counts a soft-deleted row, so a soft delete would block re-registering
+    /// the same email. Lets the demo re-register the same emails repeatedly. Cross-
     /// tenant lookup. Throws if not Development.
     /// </summary>
     [AllowAnonymous]
@@ -244,6 +312,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             {
                 using (CurrentTenant.Change(t.TenantId))
                 {
+                    // Remove dependent masters first (child rows), then the user.
+                    await HardDeleteDependentMastersAsync(t.Id);
+
                     var managed = await _userManager.GetByIdAsync(t.Id);
                     if (managed != null)
                     {
@@ -262,6 +333,45 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Hard-delete every external-party master linked to the given identity, so a
+    /// dev re-registration with the same email is not blocked by a leftover row.
+    /// Caller runs inside the target tenant scope.
+    /// </summary>
+    private async Task HardDeleteDependentMastersAsync(Guid identityUserId)
+    {
+        await HardDeleteByIdentityUserAsync(_patientRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_applicantAttorneyRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_defenseAttorneyRepository, identityUserId);
+        await HardDeleteByIdentityUserAsync(_claimExaminerRepository, identityUserId);
+    }
+
+    private async Task HardDeleteByIdentityUserAsync<T>(
+        IRepository<T, Guid> repository,
+        Guid identityUserId)
+        where T : class, IEntity<Guid>, ISoftDelete
+    {
+        var predicate = BuildIdentityUserPredicate<T>(identityUserId);
+        var rows = await AsyncExecuter.ToListAsync(
+            (await repository.GetQueryableAsync()).Where(predicate));
+        foreach (var row in rows)
+        {
+            await repository.HardDeleteAsync(row, autoSave: true);
+        }
+    }
+
+    // Each master carries a `Guid? IdentityUserId`, but the four types share no
+    // common interface for it, so build the `x.IdentityUserId == id` predicate by
+    // expression. Keeps HardDeleteByIdentityUserAsync generic over all masters.
+    private static Expression<Func<T, bool>> BuildIdentityUserPredicate<T>(Guid identityUserId)
+    {
+        var parameter = Expression.Parameter(typeof(T), "x");
+        var property = Expression.Property(parameter, "IdentityUserId");
+        var target = Expression.Convert(Expression.Constant(identityUserId), property.Type);
+        var body = Expression.Equal(property, target);
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
     }
 
     private void EnsureDevelopmentOnly(string operation)
@@ -325,14 +435,39 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     [Authorize]
     public virtual async Task<ListResultDto<ExternalUserLookupDto>> GetExternalUserLookupAsync(string? filter = null)
     {
-        // Adrian (2026-04-30): only Patient and Applicant Attorney are exposed via this lookup.
-        // Defense Attorney and Claim Examiner are intentionally excluded -- per D-2 in the
-        // Wave-2 demo-lifecycle report, DA/CE register and login normally but their saved
-        // profiles do not surface in any picker, dropdown, or autocomplete to other tenant users.
+        // HIPAA (2026-06-22): search-driven + relationship-aware -- never an enumerable
+        // list of tenant users.
+        //   (1) Require a search term: no blanket listing of everyone.
+        //   (2) External callers must not enumerate parties they have no relationship with.
+        //       Until the co-party scoping lands (results limited to parties on the
+        //       caller's shared appointments), external callers get NO results here.
+        //       Internal staff, who administer the whole tenant, keep the search.
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+        var externalRoleNames = new[] { "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner" };
+        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
+        var callerIsExternalOnly = callerRoles.Length > 0
+            && callerRoles.All(r => externalRoleNames.Any(er => string.Equals(r, er, StringComparison.OrdinalIgnoreCase)));
+        if (callerIsExternalOnly)
+        {
+            // HIPAA-scoped: an external caller may look up ONLY the co-parties named
+            // on appointments they can already see. Leak-equivalent -- the caller
+            // already sees those parties on each appointment's detail. The scope is
+            // the SAME visible-appointment set the appointment list uses, so the two
+            // cannot diverge. See AppointmentVisibilityService + ExternalCoPartyRules.
+            return await GetCoPartyLookupAsync(filter);
+        }
+
+        // Internal staff only (external callers returned empty above). Staff administer the
+        // whole tenant, so all 4 external roles are safely searchable by the term.
         var allowedRoleNames = new[]
         {
             "Patient",
             "Applicant Attorney",
+            "Defense Attorney",
+            "Claim Examiner",
         };
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
@@ -421,6 +556,103 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                (email != null && email.Contains(filter, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// 2026-06-22 -- relationship-scoped lookup for an external-only caller.
+    /// Returns the REGISTERED co-parties named on the appointments the caller can
+    /// already see (<see cref="AppointmentVisibilityService"/>), matched against
+    /// the search <paramref name="filter"/> and tagged with each party's
+    /// role-on-the-appointment. Leak-equivalent: every co-party returned here is
+    /// already visible to the caller on the appointment's detail page. Unregistered
+    /// co-parties (no account) are reachable via the separate exact-email booking
+    /// lookup, so they are intentionally omitted (the DTO needs a real
+    /// IdentityUserId for the picker to bind).
+    /// </summary>
+    private async Task<ListResultDto<ExternalUserLookupDto>> GetCoPartyLookupAsync(string? filter)
+    {
+        var visibleIds = await _appointmentVisibilityService.GetVisibleAppointmentIdsAsync();
+        if (visibleIds == null || visibleIds.Count == 0)
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+
+        var idList = visibleIds.ToList();
+        var appointmentQuery = await _appointmentRepository.GetQueryableAsync();
+        var partyRows = await AsyncExecuter.ToListAsync(
+            appointmentQuery
+                .Where(a => idList.Contains(a.Id))
+                .Select(a => new
+                {
+                    a.PatientEmail,
+                    a.ApplicantAttorneyEmail,
+                    a.DefenseAttorneyEmail,
+                    a.ClaimExaminerEmail,
+                }));
+
+        var coParties = ExternalCoPartyRules.CollectCoParties(
+            CurrentUser.Email,
+            partyRows.Select(r => new ExternalCoPartyRules.AppointmentParties(
+                r.PatientEmail,
+                r.ApplicantAttorneyEmail,
+                r.DefenseAttorneyEmail,
+                r.ClaimExaminerEmail)));
+        if (coParties.Count == 0)
+        {
+            return new ListResultDto<ExternalUserLookupDto>(new List<ExternalUserLookupDto>());
+        }
+
+        // Resolve co-party emails to registered accounts within the caller's tenant.
+        var coPartyEmailsLower = coParties
+            .Select(c => c.Email.ToLowerInvariant())
+            .Distinct()
+            .ToList();
+        var currentUserId = CurrentUser.Id;
+        var userQuery = await _identityUserRepository.GetQueryableAsync();
+        var matchedUsers = await AsyncExecuter.ToListAsync(
+            userQuery.Where(u => u.Email != null
+                && coPartyEmailsLower.Contains(u.Email.ToLower())
+                && (!currentUserId.HasValue || u.Id != currentUserId.Value)));
+
+        var userByEmail = new Dictionary<string, IdentityUser>(StringComparer.OrdinalIgnoreCase);
+        foreach (var u in matchedUsers)
+        {
+            if (!string.IsNullOrWhiteSpace(u.Email))
+            {
+                userByEmail[u.Email.Trim()] = u;
+            }
+        }
+
+        var items = new List<ExternalUserLookupDto>();
+        foreach (var coParty in coParties)
+        {
+            if (!userByEmail.TryGetValue(coParty.Email, out var user))
+            {
+                continue;
+            }
+
+            var firstName = user.Name ?? string.Empty;
+            var lastName = user.Surname ?? string.Empty;
+            var email = user.Email ?? string.Empty;
+            if (!MatchesExternalUserFilter(firstName, lastName, email, filter))
+            {
+                continue;
+            }
+
+            items.Add(new ExternalUserLookupDto
+            {
+                IdentityUserId = user.Id,
+                FirstName = firstName,
+                LastName = lastName,
+                Email = email,
+                UserRole = coParty.Role,
+                FirmName = user.GetProperty<string>(
+                    CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName) ?? string.Empty,
+            });
+        }
+
+        items = items.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ToList();
+        return new ListResultDto<ExternalUserLookupDto>(items);
+    }
+
     [Authorize]
     public virtual async Task<ExternalUserProfileDto> GetMyProfileAsync()
     {
@@ -440,7 +672,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var userRole = roleNames.FirstOrDefault(r =>
             string.Equals(r, "Patient", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r, "Claim Examiner", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 
         // Phase 9 (2026-05-03) -- surface IsExternalUser + IsAccessor
         // extension props registered in Phase 2.4 so the Angular SPA can
@@ -513,6 +746,14 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // under the invitation's tenant regardless of any
             // ?__tenant= or cookie context on the request.
             input.TenantId = acceptedInvitation.TenantId;
+            // #21 (2026-06-16): if the inviter pre-set a firm name and the
+            // recipient left it blank, carry it through so the required
+            // attorney firm-name validation passes with the invited value.
+            if (string.IsNullOrWhiteSpace(input.FirmName)
+                && !string.IsNullOrWhiteSpace(acceptedInvitation.FirmName))
+            {
+                input.FirmName = acceptedInvitation.FirmName;
+            }
         }
 
         // Phase 8 (2026-05-03) -- OLD-parity validation:
@@ -647,21 +888,78 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             }
             else if (input.UserType == ExternalUserType.ApplicantAttorney)
             {
-                // Adrian D-2 (2026-04-30): Applicant Attorney is the only non-Patient external
-                // role that gets a saved profile. Creating an empty AA row here makes the
-                // booker-side pre-fill ("Search by email" + lookup picker) discover this AA
-                // on next booking, the tenant-admin AA management page surfaces them, and the
-                // appointment-AA join can point at a real row.
-                // Defense Attorney + Claim Examiner are intentionally NOT created -- per D-2,
-                // their saved profiles are not exposed in any lookup or pre-fill surface.
+                // Create the AA master WITH email + name + firm so the booker-side pre-fill
+                // ("Search by email" + lookup picker) discovers this AA on next booking, the
+                // tenant-admin AA management page surfaces them, and the appointment-AA join can
+                // point at a real row. F-006 / dedup fix (2026-06-23): the R2-4 (2026-06-22)
+                // parity change set email/name/firm for Defense Attorney + Claim Examiner but
+                // MISSED this Applicant Attorney branch, leaving a null-email master that the
+                // booking's find-by-email (FindByNormalizedEmailAsync) could not match -> a
+                // duplicate populated master was created on first booking. Now mirrors the DA
+                // branch below so the registration master is matched + reused.
                 var existingApplicantAttorney = await _applicantAttorneyRepository
                     .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
                 if (existingApplicantAttorney == null)
                 {
                     await _applicantAttorneyManager.CreateAsync(
                         stateId: null,
-                        identityUserId: user.Id);
+                        identityUserId: user.Id,
+                        firmName: input.FirmName?.Trim(),
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
                 }
+            }
+            else if (input.UserType == ExternalUserType.DefenseAttorney)
+            {
+                // R2-4 (2026-06-22, D-R2-A reverses D-2): Defense Attorney now gets a
+                // saved master at registration, exactly like Applicant Attorney -- so the
+                // DA surfaces in the booker pre-fill + tenant-admin management page, the
+                // appointment-DA join can point at a real row, and the self-edit profile
+                // (MyAttorneyProfileAppService, which already supports DA) has a record to
+                // edit. FirmName is stored on the DefenseAttorney entity (not only the
+                // IdentityUser ExtraProperties), so /defense-attorneys shows the firm.
+                var existingDefenseAttorney = await _defenseAttorneyRepository
+                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
+                if (existingDefenseAttorney == null)
+                {
+                    await _defenseAttorneyManager.CreateAsync(
+                        stateId: null,
+                        identityUserId: user.Id,
+                        firmName: input.FirmName?.Trim(),
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
+                }
+            }
+            else if (input.UserType == ExternalUserType.ClaimExaminer)
+            {
+                // R2-4 (2026-06-22): Claim Examiner is a full external user like the
+                // others -- create its master at registration so the CE surfaces for
+                // linking and has a record to self-edit. CE has no firm fields (its
+                // schema differs by design); name + email come from the register form.
+                var existingClaimExaminer = await _claimExaminerRepository
+                    .FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+                if (existingClaimExaminer == null)
+                {
+                    await _claimExaminerManager.CreateAsync(
+                        stateId: null,
+                        identityUserId: user.Id,
+                        email: input.Email,
+                        firstName: user.Name,
+                        lastName: user.Surname);
+                }
+            }
+
+            // R2-4 dedup fix (2026-06-22): flush the party master the branch above
+            // (AA/DA/CE) just created so the AutoLink step below finds it via its
+            // IdentityUserId query and does NOT create a second, blank master for the same
+            // identity (the duplicate-master bug). Manager.CreateAsync uses a non-autosaved
+            // InsertAsync, so without this flush AutoLink's DB query misses the new row.
+            // Still inside this unit of work -- a later failure rolls everything back.
+            if (CurrentUnitOfWork != null)
+            {
+                await CurrentUnitOfWork.SaveChangesAsync();
             }
 
             // S-5.2: auto-link the new user to any pre-existing appointments where the
@@ -1027,13 +1325,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var firstName = string.IsNullOrWhiteSpace(input.FirstName) ? null : input.FirstName.Trim();
         var lastName = string.IsNullOrWhiteSpace(input.LastName) ? null : input.LastName.Trim();
 
+        // #21 (2026-06-16): persist firm name for attorney invites only so
+        // registration can pre-fill the firm; null for non-attorney roles.
+        var firmName = IsAttorneyRole(input.UserType) && !string.IsNullOrWhiteSpace(input.FirmName)
+            ? input.FirmName.Trim()
+            : null;
+
         var (invitation, rawToken) = await _invitationManager.IssueAsync(
             tenantId: tenantId.Value,
             email: normalizedEmail,
             userType: input.UserType,
             invitedByUserId: invitedByUserId,
             firstName: firstName,
-            lastName: lastName);
+            lastName: lastName,
+            firmName: firmName);
 
         // BUG-029 v3 fix (2026-05-21): invite URL now routes through
         // IAccountUrlBuilder, which composes the tenant subdomain.
@@ -1078,6 +1383,166 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B1) -- paged invite-management list for the
+    /// internal "Pending Invites" surface. Returns EVERY invitation in the
+    /// caller's tenant including revoked (soft-deleted) rows, with a derived
+    /// <see cref="InvitationStatus"/> so the UI can facet client-side. The
+    /// IMultiTenant filter still scopes the query to the caller's tenant.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<PagedResultDto<InvitationDto>> GetInvitesAsync(GetInvitesInput input)
+    {
+        var nowUtc = Clock.Now.ToUniversalTime();
+        var filter = input.Filter?.Trim();
+
+        // Disable the soft-delete filter so revoked invitations still surface
+        // (as Status = Revoked). The IMultiTenant filter is left on, so the
+        // list stays scoped to the caller's tenant.
+        using (_dataFilter.Disable<ISoftDelete>())
+        {
+            var query = await _invitationRepository.GetQueryableAsync();
+            query = query.WhereIf(
+                !string.IsNullOrWhiteSpace(filter),
+                i => i.Email.Contains(filter!));
+
+            var totalCount = await AsyncExecuter.CountAsync(query);
+
+            var items = await AsyncExecuter.ToListAsync(
+                query.OrderByDescending(i => i.CreationTime)
+                    .Skip(input.SkipCount)
+                    .Take(input.MaxResultCount));
+
+            var inviterNames = await ResolveInviterNamesAsync(
+                items.Select(i => i.InvitedByUserId).Distinct().ToList());
+
+            var dtos = items.Select(i => new InvitationDto
+            {
+                Id = i.Id,
+                Email = i.Email,
+                UserType = i.UserType,
+                RoleName = ToRoleName(i.UserType),
+                FirstName = i.FirstName,
+                LastName = i.LastName,
+                FirmName = i.FirmName,
+                InvitedByUserId = i.InvitedByUserId,
+                InvitedByName = inviterNames.TryGetValue(i.InvitedByUserId, out var inviter) ? inviter : null,
+                CreationTime = i.CreationTime,
+                ExpiresAt = i.ExpiresAt,
+                AcceptedAt = i.AcceptedAt,
+                Status = InvitationStatusResolver.Resolve(i.IsDeleted, i.AcceptedAt, i.ExpiresAt, nowUtc),
+            }).ToList();
+
+            return new PagedResultDto<InvitationDto>(totalCount, dtos);
+        }
+    }
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- re-issues a pending invitation in place (fresh
+    /// token + reset 7-day expiry, old token invalidated) and re-dispatches the
+    /// invite email. Returns the new invite URL so the admin can copy it.
+    /// Rejects an already-accepted invitation. GetAsync is tenant- and
+    /// soft-delete-filtered, so a revoked or cross-tenant id surfaces as a clean
+    /// EntityNotFoundException (404).
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task<InviteExternalUserResultDto> ResendInviteAsync(Guid id)
+    {
+        var invitation = await _invitationRepository.GetAsync(id);
+        if (invitation.AcceptedAt.HasValue)
+        {
+            throw new UserFriendlyException(L["Cannot resend an invitation that has already been accepted."]);
+        }
+
+        var tenantId = invitation.TenantId
+            ?? throw new UserFriendlyException(L["Tenant context required for invite."]);
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId)
+            ?? throw new UserFriendlyException(L["Could not resolve tenant name for invite."]);
+        var roleName = ToRoleName(invitation.UserType);
+
+        var rawToken = await _invitationManager.ResendAsync(invitation);
+        var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(tenantId, rawToken);
+
+        // Dispatch mirrors InviteExternalUserAsync; failure is swallowed so the
+        // admin can always copy + share the inviteUrl in the response.
+        try
+        {
+            await _notificationDispatcher.DispatchAsync(
+                templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
+                recipients: new[]
+                {
+                    new NotificationRecipient(
+                        email: invitation.Email,
+                        role: MapToRecipientRole(invitation.UserType),
+                        isRegistered: false),
+                },
+                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, invitation.FirstName, invitation.LastName),
+                contextTag: $"InviteResend/{roleName}/{tenantId}/{invitation.Id}");
+        }
+        catch (Exception)
+        {
+            // Swallowed by design -- the dispatcher logs its own failures.
+        }
+
+        return new InviteExternalUserResultDto
+        {
+            InviteUrl = inviteUrl,
+            Email = invitation.Email,
+            RoleName = roleName,
+            TenantName = tenantName,
+            ExpiresAt = invitation.ExpiresAt,
+        };
+    }
+
+    /// <summary>
+    /// 2026-06-16 (A-B1) -- revokes (soft-deletes) a pending invitation so its
+    /// token stops validating immediately (the ISoftDelete filter excludes it
+    /// from FindByTokenHashAsync). Rejects an already-accepted invitation.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]
+    public virtual async Task RevokeInviteAsync(Guid id)
+    {
+        var invitation = await _invitationRepository.GetAsync(id);
+        if (invitation.AcceptedAt.HasValue)
+        {
+            throw new UserFriendlyException(L["Cannot revoke an invitation that has already been accepted."]);
+        }
+
+        await _invitationRepository.DeleteAsync(invitation, autoSave: true);
+    }
+
+    /// <summary>
+    /// Batched lookup of inviter display names for the invite list. Resolves in
+    /// the caller's tenant scope (internal staff issue invites from within their
+    /// tenant). Returns full name, falling back to username/email; an id that
+    /// cannot be resolved (e.g. a host user) is simply absent from the map.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> ResolveInviterNamesAsync(List<Guid> userIds)
+    {
+        var result = new Dictionary<Guid, string>();
+        if (userIds.Count == 0)
+        {
+            return result;
+        }
+
+        var query = await _identityUserRepository.GetQueryableAsync();
+        var users = await AsyncExecuter.ToListAsync(
+            query.Where(u => userIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.Surname, u.UserName, u.Email }));
+
+        foreach (var u in users)
+        {
+            var display = $"{u.Name} {u.Surname}".Trim();
+            if (string.IsNullOrWhiteSpace(display))
+            {
+                display = u.UserName ?? u.Email ?? string.Empty;
+            }
+            result[u.Id] = display;
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// 2026-05-15 -- anonymous validation endpoint for the JS overlay on
     /// <c>/Account/Register</c>. Throws <c>BusinessException</c> with one
     /// of <c>InviteInvalid</c> / <c>InviteExpired</c> /
@@ -1105,6 +1570,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             ExpiresAt = invitation.ExpiresAt,
             FirstName = invitation.FirstName,
             LastName = invitation.LastName,
+            FirmName = invitation.FirmName,
         };
     }
 

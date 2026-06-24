@@ -1,0 +1,159 @@
+/* ============================================================
+   Users & Access hub (Prompt 16). Owns the ux-* families; reuses
+   cf-rail / ia-* / ra-* / pp-portal / lw-active from the other
+   internal partials. Ported from design_handoff_appointment_portal/
+   styles/in-users.css.
+   ============================================================ */
+
+/* invite / create result card */
+.ux-result {
+  background: #fff;
+  border: 1px solid var(--green-100);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  margin-top: 18px;
+  overflow: hidden;
+}
+.ux-result__head {
+  background: var(--green-50);
+  color: var(--green-700);
+  padding: 13px 20px;
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--green-100);
+}
+.ux-result__head.warn {
+  background: #fdf3ea;
+  color: #9a5a18;
+  border-color: #f3d9be;
+}
+.ux-result__body {
+  padding: 18px 20px;
+}
+.ux-result__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.ux-result__grid .k {
+  font-size: 11.5px;
+  color: var(--n-500);
+  font-weight: 600;
+}
+.ux-result__grid .v {
+  font-size: 13.5px;
+  color: var(--n-900);
+  font-weight: 700;
+  margin-top: 2px;
+}
+.ux-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--n-25);
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 14px;
+}
+.ux-link code {
+  flex: 1;
+  font-size: 12px;
+  color: var(--n-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-num);
+}
+
+/* expiry countdown chip */
+.ux-exp {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-family: var(--font-num);
+}
+.ux-exp.ok {
+  background: var(--n-100);
+  color: var(--n-600);
+}
+.ux-exp.soon {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.ux-exp.gone {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+
+/* role chip */
+.ux-role {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--blue-50);
+  color: var(--blue-700);
+  white-space: nowrap;
+}
+.ux-role.sup {
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+}
+.ux-role.admin {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+/* edition chip */
+.ux-ed {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--st-teal-bg, var(--blue-50));
+  color: var(--st-teal-fg, var(--blue-700));
+}
+
+/* hub-local helpers: section header action bar, form footer, table avatar */
+.ux-hdrbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.ux-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.ux-ava {
+  width: 30px;
+  height: 30px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  flex: none;
+}
+.ux-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 760px) {
+  .ux-result__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

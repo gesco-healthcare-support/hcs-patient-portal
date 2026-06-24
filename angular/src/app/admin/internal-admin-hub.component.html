@@ -1,0 +1,464 @@
+<div class="ia-head">
+  <h1>Administration</h1>
+  <p class="ia-sub">Templates, parameters, roles, and audit for this tenant.</p>
+</div>
+
+<div class="cf">
+  <nav class="cf-rail">
+    @for (s of sections; track s.key) {
+      @if (canSee(s)) {
+        <a
+          class="cf-railitem"
+          [routerLink]="[s.route]"
+          [attr.data-on]="s.key === section() ? 'true' : null"
+        >
+          <span class="i"><app-icon [name]="s.icon" [size]="16" /></span>
+          {{ s.label }}
+        </a>
+      }
+    }
+  </nav>
+
+  <div class="cf-content">
+    @if (activeBlockedAtHost()) {
+      <div class="ia-empty">
+        <app-icon name="grid" [size]="30" />
+        <b>Switch into a clinic to manage this</b>
+        {{ meta().label }} is configured per clinic. Open the Tenants page, switch into a clinic,
+        then manage its settings there.
+      </div>
+    }
+    <!-- ============ Notification Templates ============ -->
+    @if (section() === 'templates' && !activeBlockedAtHost()) {
+      <div class="ia-toolbar">
+        <div class="ia-search" style="max-width: 280px">
+          <app-icon name="search" [size]="16" />
+          <input
+            placeholder="Search templates..."
+            [ngModel]="ntQuery()"
+            (ngModelChange)="setNtQuery($event)"
+          />
+        </div>
+        <select
+          class="ia-input"
+          [ngModel]="ntTypeFilter()"
+          (ngModelChange)="setNtTypeFilter($event)"
+        >
+          <option value="">All types</option>
+          @for (t of ntTypes(); track t.id) {
+            <option [value]="t.name">{{ t.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="nt">
+        <div class="nt-list">
+          @for (r of ntPaged(); track r.id) {
+            <button
+              class="nt-item"
+              [attr.data-on]="r.id === ntSelectedId()"
+              (click)="selectTemplate(r)"
+            >
+              <span class="dot" [class.on]="r.active" [class.off]="!r.active"></span>
+              <span class="tx">
+                <b>{{ r.code }}</b>
+                <span>{{ r.typeName }}</span>
+              </span>
+              @if (r.isCustomized) {
+                <span class="nt-ovr">Customized</span>
+              }
+            </button>
+          } @empty {
+            <div class="ia-empty">No templates match.</div>
+          }
+          @if (ntTotalPages() > 1) {
+            <div class="nt-pager">
+              <button
+                type="button"
+                [disabled]="ntPage() === 0"
+                (click)="goNtPage(-1)"
+                aria-label="Previous page"
+              >
+                <app-icon name="chevLeft" [size]="15" />
+              </button>
+              <span>Page {{ ntPage() + 1 }} of {{ ntTotalPages() }}</span>
+              <button
+                type="button"
+                [disabled]="ntPage() + 1 >= ntTotalPages()"
+                (click)="goNtPage(1)"
+                aria-label="Next page"
+              >
+                <app-icon name="chevRight" [size]="15" />
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (ntSelected(); as t) {
+          <div class="ra-card">
+            <div class="ra-card__head">
+              <span class="ic tint-blue"><app-icon name="doc" [size]="18" /></span>
+              <div>
+                <h3>{{ t.code }}</h3>
+                <p>
+                  {{ t.typeName }}
+                  {{ t.isCustomized ? '- customized for this tenant' : '- host default' }}
+                </p>
+              </div>
+              @if (ntDraft(); as d) {
+                <label class="ra-switch right">
+                  Active
+                  <input
+                    type="checkbox"
+                    [ngModel]="d.active"
+                    (ngModelChange)="patchDraft({ active: $event })"
+                  />
+                  <span class="track"></span>
+                </label>
+              }
+            </div>
+            @if (ntDraft(); as d) {
+              <div class="ra-card__body">
+                <div class="ra-grid">
+                  <div class="ra-field col-12">
+                    <label>Subject</label>
+                    <input
+                      class="ra-input"
+                      [ngModel]="d.subject"
+                      (ngModelChange)="patchDraft({ subject: $event })"
+                      maxlength="200"
+                    />
+                  </div>
+                  @if (ntVariables().length) {
+                    <div class="ra-field col-12">
+                      <label>Insert variable</label>
+                      <div class="nt-vars">
+                        @for (v of ntVariables(); track v.token) {
+                          <button
+                            class="nt-var"
+                            type="button"
+                            [title]="v.label"
+                            (click)="insertVar(v.token)"
+                          >
+                            ##{{ v.token }}##
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+                  <div class="ra-field col-12">
+                    <label>Email body</label>
+                    <quill-editor
+                      class="nt-editor"
+                      [ngModel]="d.bodyEmail"
+                      (ngModelChange)="patchDraft({ bodyEmail: $event })"
+                      [modules]="quillModules"
+                      (onEditorCreated)="onEditorCreated($event)"
+                      placeholder="Compose the email body..."
+                    ></quill-editor>
+                  </div>
+                  <div class="ra-field col-12">
+                    <label>
+                      SMS body
+                      <span class="opt">(optional)</span>
+                    </label>
+                    <textarea
+                      class="ra-input"
+                      rows="2"
+                      [ngModel]="d.bodySms"
+                      (ngModelChange)="patchDraft({ bodySms: $event })"
+                    ></textarea>
+                  </div>
+                  <div class="ra-field col-12">
+                    <label>
+                      Subject preview
+                      <span class="opt">(sample values)</span>
+                    </label>
+                    <div class="nt-preview">
+                      <div class="sub">
+                        @for (seg of ntPreviewSubject(); track $index) {
+                          @if (seg.isVar) {
+                            <b>{{ seg.text }}</b>
+                          } @else {
+                            {{ seg.text }}
+                          }
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mp-editfoot">
+                  <button
+                    class="af-btn af-btn--ghost"
+                    type="button"
+                    [disabled]="isBusy()"
+                    (click)="sendTest()"
+                  >
+                    <app-icon name="arrowUp" [size]="15" />
+                    Send test
+                  </button>
+                  <button
+                    class="af-btn af-btn--primary"
+                    type="button"
+                    [disabled]="isBusy()"
+                    (click)="saveTemplate()"
+                  >
+                    <app-icon name="check" [size]="15" />
+                    Save template
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ============ System Parameters ============ -->
+    @if (section() === 'parameters' && !activeBlockedAtHost()) {
+      @if (params(); as p) {
+        @for (g of spGroups; track g.title) {
+          <div class="sp-group">
+            <div class="sp-group__head">
+              <span class="ic" [ngClass]="g.tint"><app-icon [name]="g.icon" [size]="17" /></span>
+              <h3>{{ g.title }}</h3>
+            </div>
+            <div class="sp-group__body">
+              @for (f of g.fields; track f.key) {
+                <div class="sp-field">
+                  <label>{{ f.label }}</label>
+                  <div class="row">
+                    <input
+                      type="number"
+                      min="0"
+                      [disabled]="!canEditParams()"
+                      [ngModel]="paramValue(f.key)"
+                      (ngModelChange)="patchParam(f.key, $event)"
+                    />
+                    <span class="unit">{{ f.unit }}</span>
+                  </div>
+                  @if (f.hint) {
+                    <div class="hint">{{ f.hint }}</div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+        <div class="sp-group">
+          <div class="sp-group__head">
+            <span class="ic tint-teal"><app-icon name="bell" [size]="17" /></span>
+            <h3>Notifications</h3>
+          </div>
+          <div class="sp-group__body" style="grid-template-columns: 1fr">
+            <div class="sp-field">
+              <label>CC every appointment email to</label>
+              <input
+                type="text"
+                [disabled]="!canEditParams()"
+                [ngModel]="p.ccEmailIds"
+                (ngModelChange)="patchParam('ccEmailIds', $event)"
+                placeholder="comma-separated emails"
+              />
+              <div class="hint">Comma-separated. Leave blank for none.</div>
+            </div>
+            <label class="ra-switch" style="align-self: flex-start">
+              Enable custom fields on the booking form
+              <input
+                type="checkbox"
+                [disabled]="!canEditParams()"
+                [ngModel]="p.isCustomField"
+                (ngModelChange)="patchParam('isCustomField', $event)"
+              />
+              <span class="track"></span>
+            </label>
+          </div>
+        </div>
+        @if (canEditParams()) {
+          <div class="sp-foot">
+            <button class="af-btn af-btn--ghost" type="button" (click)="revertParameters()">
+              Revert
+            </button>
+            <button
+              class="af-btn af-btn--primary"
+              type="button"
+              [disabled]="isBusy()"
+              (click)="saveParameters()"
+            >
+              <app-icon name="check" [size]="15" />
+              Save parameters
+            </button>
+          </div>
+        } @else {
+          <p class="ia-sub">You have read-only access to system parameters.</p>
+        }
+      }
+    }
+
+    <!-- ============ Users & Roles (permission matrix) ============ -->
+    @if (section() === 'roles') {
+      <div class="pm">
+        <nav class="cf-rail pm-roles">
+          @for (kind of roleKinds; track kind) {
+            <div class="pm-kind">{{ kind }}</div>
+            @for (r of rolesOfKind(kind); track r.name) {
+              <button
+                class="cf-railitem"
+                [attr.data-on]="r.name === roleSelected() ? 'true' : null"
+                (click)="selectRole(r.name)"
+              >
+                <span class="i"><app-icon name="user" [size]="15" /></span>
+                {{ r.name }}
+              </button>
+            }
+          }
+        </nav>
+        <div>
+          <div class="ia-head pm-head">
+            <div>
+              <h1>{{ roleSelected() }} permissions</h1>
+              <p>
+                @if (roleLocked()) {
+                  System role - all permissions granted, not editable.
+                } @else {
+                  {{ grantedCount() }} of {{ permTotal() }} granted. Changes apply on next sign-in.
+                }
+              </p>
+            </div>
+            @if (!roleLocked() && roleSelected()) {
+              <button
+                class="af-btn af-btn--primary"
+                type="button"
+                [disabled]="isBusy()"
+                (click)="savePermissions()"
+              >
+                <app-icon name="check" [size]="15" />
+                Save
+              </button>
+            }
+          </div>
+          <div class="pm-matrix">
+            @for (g of permGroups(); track g.name) {
+              <div class="pm-group">
+                <h4>{{ g.displayName }}</h4>
+                <div class="pm-perms">
+                  @for (p of g.permissions; track p.name) {
+                    <label class="pm-perm">
+                      <input
+                        type="checkbox"
+                        [checked]="isGranted(p.name)"
+                        [disabled]="roleLocked()"
+                        (change)="togglePermission(p.name)"
+                      />
+                      <span>{{ p.displayName }}</span>
+                    </label>
+                  }
+                </div>
+              </div>
+            } @empty {
+              <div class="ia-empty">Select a role to view its permissions.</div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ============ Audit Logs ============ -->
+    @if (section() === 'audit') {
+      <div class="ia-toolbar">
+        <div class="ia-search">
+          <app-icon name="search" [size]="16" />
+          <input
+            placeholder="Search by user or URL..."
+            [ngModel]="auditQuery()"
+            (ngModelChange)="auditQuery.set($event)"
+          />
+        </div>
+        <select
+          class="ia-input"
+          [ngModel]="auditMethod()"
+          (ngModelChange)="applyAuditMethod($event)"
+        >
+          <option value="">All methods</option>
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+        <button class="af-btn af-btn--ghost" type="button" (click)="exportAudit()">
+          <app-icon name="arrowDown" [size]="15" />
+          Export
+        </button>
+      </div>
+      <div class="ia-wrap">
+        <table class="ia-table">
+          <thead>
+            <tr>
+              <th style="width: 34px"></th>
+              <th>Time</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of auditShown(); track l.id) {
+              <tr class="au-row" (click)="toggleAuditRow(l.id)">
+                <td>
+                  <span class="au-caret" [class.open]="isAuditOpen(l.id)">
+                    <app-icon name="chevRight" [size]="15" />
+                  </span>
+                </td>
+                <td class="ia-sub au-num">{{ l.executionTime | date: 'MMM d, y, h:mm a' }}</td>
+                <td>
+                  <b>{{ l.userName || 'anonymous' }}</b>
+                </td>
+                <td class="ia-sub au-num">{{ l.url }}</td>
+                <td>
+                  <span class="au-chip" [ngClass]="auditMethodClass(l.httpMethod)">
+                    {{ l.httpMethod }}
+                  </span>
+                </td>
+                <td>
+                  <span class="au-chip" [ngClass]="auditStatusClass(l.httpStatusCode)">
+                    {{ l.httpStatusCode }}
+                  </span>
+                </td>
+                <td class="ia-sub au-num">{{ l.executionDuration }} ms</td>
+              </tr>
+              @if (isAuditOpen(l.id)) {
+                <tr>
+                  <td colspan="7" style="padding: 0">
+                    <div class="au-detail">
+                      <div>
+                        <div class="k">IP address</div>
+                        <div class="v">{{ l.clientIpAddress || '--' }}</div>
+                      </div>
+                      <div>
+                        <div class="k">Client</div>
+                        <div class="v">{{ l.browserInfo || '--' }}</div>
+                      </div>
+                      <div>
+                        <div class="k">Tenant</div>
+                        <div class="v">{{ l.tenantName || '--' }}</div>
+                      </div>
+                      <div>
+                        <div class="k">Result</div>
+                        <div class="v">{{ auditResultLabel(l.httpStatusCode) }}</div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            } @empty {
+              <tr>
+                <td colspan="7" class="ia-empty">No audit entries.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

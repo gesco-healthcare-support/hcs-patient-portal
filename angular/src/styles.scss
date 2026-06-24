@@ -4,6 +4,50 @@
 // add LeptonX --lpx-* overrides that consume these.
 @use 'styles/brand';
 
+// Redesign foundation (2026-06-12): modernized design tokens ported from the
+// design handoff, plus the ap- global utility layer. Additive only -- tokens
+// are inert :root custom properties and ap- selectors are class-scoped, so
+// existing LeptonX pages are untouched. See
+// docs/plans/2026-06-12-redesign-foundation-design.md.
+@use 'styles/tokens';
+@use 'styles/ap-utilities';
+// Shared button system (af-btn) reused by the redesigned surfaces.
+@use 'styles/af-buttons';
+@use 'styles/ra-wizard';
+@use 'styles/ad-detail';
+@use 'styles/mp-profile';
+// Redesign (2026-06-14): public-page / message-screen shell, shared by the
+// State Screens message states (app-state-message) and the Public Pages rework.
+@use 'styles/pp-shell';
+// Redesign (2026-06-14): shimmer skeleton styles for loading states.
+@use 'styles/state-skeleton';
+// Redesign (2026-06-14): internal staff shell (navy sidebar + topbar).
+@use 'styles/in-shell';
+// Redesign (2026-06-14): internal dashboard (KPIs, charts, schedule, activity).
+@use 'styles/in-dash';
+// Redesign (2026-06-14): internal appointments list (chips, filters, table).
+@use 'styles/in-appts';
+// Redesign (Prompt 13, 2026-06-15): internal workflow surfaces.
+@use 'styles/cr-inbox';
+@use 'styles/clg-log';
+@use 'styles/rp-report';
+// Redesign (Prompt 14, 2026-06-15): internal scheduling (availabilities,
+// generate, locations, WCAB).
+@use 'styles/in-sched';
+// Redesign (Prompt 15, 2026-06-15): internal configuration hub (cf-rail shared
+// with People) + people hub (portal chip, patient detail header/grid).
+@use 'styles/in-config';
+@use 'styles/in-people';
+// Redesign (Prompt 16, 2026-06-16): Users & Access hub (invite, pending invites,
+// internal users, tenants) -- ux-* result/expiry/role/edition chips.
+@use 'styles/in-users';
+// Prompt 16 Part B (2026-06-16): Admin hub -- notification templates (nt-*),
+// system parameters (sp-*), permission matrix (pm-*), audit logs (au-*).
+@use 'styles/in-admin';
+// Prompt 16 Part B (2026-06-16): Language management (lg-*) + File management (fm-*).
+@use 'styles/in-lang';
+@use 'styles/in-files';
+
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it
  * never changed what crossed the wire and (b) it hid the value from
@@ -66,48 +110,10 @@
   }
 }
 
-/* Hide side nav/menu for patient users only */
-body.externaluser-role,
-html.externaluser-role {
-  .lpx-topbar-container,
-  .lpx-topbar {
-    display: none !important;
-  }
-
-  .lpx-sidebar-container,
-  .lpx-sidebar,
-  //.lpx-menu-container,
-  //.lpx-menu,
-
-  aside,
-  .externaluser-sidebar-hidden {
-    display: none !important;
-  }
-
-  .lpx-content-container,
-  main,
-  .externaluser-main-full {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-  }
-
-  /* Hide user text next to avatar for patient role */
-  lpx-avatar + .lpx-menu-item-text {
-    display: none !important;
-  }
-
-  /* OLD parity: external users see only the SoCal © footer, not the
-     Lepton "Theme by Volosoft" / About / Privacy / Contact, and no
-     cookie banner. */
-  .lpx-footer-container,
-  .lpx-footer,
-  .lpx-footbar,
-  .lpx-footbar-container,
-  .lpx-footbar-copyright,
-  abp-gdpr-cookie-consent {
-    display: none !important;
-  }
-}
+/* Redesign (2026-06-14): the LeptonX layout is no longer rendered (app.component
+   renders a bare <router-outlet>; each page owns its chrome). The former
+   `externaluser-role` / `redesign-shell` body-class hide rules are retired -
+   there is no LeptonX chrome left to hide. See feat/redesign-app-shell. */
 
 /*
  * abp-confirmation overlay fix: the wrapper element renders for both

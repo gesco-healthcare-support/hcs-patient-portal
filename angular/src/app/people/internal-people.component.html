@@ -1,0 +1,345 @@
+@if (detailRow(); as dr) {
+  <app-patient-detail
+    [patient]="dr"
+    [canInvite]="canInvite"
+    [canEdit]="canEdit()"
+    (back)="closeDetail()"
+    (edit)="openEdit($event)"
+    (invite)="invitePerson($event)"
+  />
+} @else {
+  <div class="ia-head">
+    <div>
+      <h1>People</h1>
+      <p>Patients and case parties for this practice.</p>
+    </div>
+    @if (canCreate()) {
+      <a class="af-btn af-btn--primary" (click)="openNew()">
+        <app-icon name="plus" [size]="16" />
+        New {{ meta().singular }}
+      </a>
+    }
+  </div>
+
+  <div class="cf">
+    <nav class="cf-rail">
+      @for (s of sections; track s.key) {
+        @if (canSee(s)) {
+          <a
+            class="cf-railitem"
+            [routerLink]="[s.route]"
+            [attr.data-on]="s.key === section() ? 'true' : null"
+          >
+            <span class="i"><app-icon [name]="s.icon" [size]="16" /></span>
+            {{ s.label }}
+          </a>
+        }
+      }
+    </nav>
+
+    <div>
+      <div class="ia-toolbar">
+        <div class="ia-search">
+          <app-icon name="search" [size]="16" />
+          <input
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+            [placeholder]="
+              'Search ' +
+              meta().label.toLowerCase() +
+              ' by name, email, phone' +
+              (meta().hasFirm ? ', firm' : '')
+            "
+          />
+        </div>
+        @if (meta().isPatient) {
+          <button
+            type="button"
+            class="ia-fbtn"
+            [attr.aria-expanded]="showFilters()"
+            (click)="showFilters.set(!showFilters())"
+          >
+            <app-icon name="filter" [size]="15" />
+            Filters
+          </button>
+          <div class="rp-cols">
+            <button
+              type="button"
+              class="ia-fbtn"
+              [attr.aria-expanded]="showCols()"
+              (click)="showCols.set(!showCols())"
+            >
+              <app-icon name="list" [size]="15" />
+              Columns
+            </button>
+            @if (showCols()) {
+              <div class="ia-clickaway" (click)="showCols.set(false)"></div>
+              <div class="rp-colmenu">
+                @for (c of optionalColumns; track c.key) {
+                  <label>
+                    <input type="checkbox" [checked]="colOn(c.key)" (change)="toggleCol(c.key)" />
+                    {{ c.label }}
+                  </label>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      @if (meta().isPatient && showFilters()) {
+        <div class="ia-filters">
+          <div class="ia-filters__grid">
+            <div class="ia-field">
+              <label>Gender</label>
+              <select
+                class="ia-input"
+                [ngModel]="filters().genderId"
+                (ngModelChange)="patchFilter({ genderId: $event })"
+              >
+                <option [ngValue]="null">All</option>
+                @for (g of genders; track g.value) {
+                  <option [ngValue]="g.value">{{ g.key }}</option>
+                }
+              </select>
+            </div>
+            <div class="ia-field">
+              <label>Min date of birth</label>
+              <input
+                class="ia-input"
+                type="date"
+                [ngModel]="filters().dobMin"
+                (ngModelChange)="patchFilter({ dobMin: $event })"
+              />
+            </div>
+            <div class="ia-field">
+              <label>Max date of birth</label>
+              <input
+                class="ia-input"
+                type="date"
+                [ngModel]="filters().dobMax"
+                (ngModelChange)="patchFilter({ dobMax: $event })"
+              />
+            </div>
+            <div class="ia-field">
+              <label>City</label>
+              <input
+                class="ia-input"
+                [ngModel]="filters().city"
+                (ngModelChange)="patchFilter({ city: $event })"
+              />
+            </div>
+            <div class="ia-field">
+              <label>State</label>
+              <select
+                class="ia-input"
+                [ngModel]="filters().stateId"
+                (ngModelChange)="patchFilter({ stateId: $event })"
+              >
+                <option [ngValue]="''">All</option>
+                @for (s of stateOptions(); track s.id) {
+                  <option [ngValue]="s.id">{{ s.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="ia-field">
+              <label>Appointment language</label>
+              <select
+                class="ia-input"
+                [ngModel]="filters().languageId"
+                (ngModelChange)="patchFilter({ languageId: $event })"
+              >
+                <option [ngValue]="''">All</option>
+                @for (l of languageOptions(); track l.id) {
+                  <option [ngValue]="l.id">{{ l.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="ia-field">
+              <label>Portal account</label>
+              <select
+                class="ia-input"
+                [ngModel]="filters().portal"
+                (ngModelChange)="patchFilter({ portal: $event })"
+              >
+                <option [ngValue]="''">All</option>
+                <option [ngValue]="'linked'">Linked</option>
+                <option [ngValue]="'invited'">Invited</option>
+                <option [ngValue]="'none'">No account</option>
+              </select>
+            </div>
+          </div>
+          <div class="ia-filters__foot">
+            <button type="button" class="af-btn af-btn--ghost" (click)="clearFilters()">
+              Clear
+            </button>
+            <button type="button" class="af-btn af-btn--primary" (click)="showFilters.set(false)">
+              <app-icon name="search" [size]="15" />
+              Apply
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="ia-wrap">
+        <div class="ia-scroll">
+          <table class="ia-table" [style.min-width.px]="meta().isPatient ? 860 : 640">
+            <thead>
+              <tr>
+                <th>{{ meta().isPatient ? 'Patient' : 'Name' }}</th>
+                @if (meta().hasFirm) {
+                  <th>Firm</th>
+                }
+                <th>Email</th>
+                @if (meta().isPatient) {
+                  <th>Date of birth</th>
+                }
+                <th>Phone</th>
+                @if (meta().isPatient) {
+                  <th>City / State</th>
+                  <th>Language</th>
+                  @if (colOn('gender')) {
+                    <th>Gender</th>
+                  }
+                  @if (colOn('street')) {
+                    <th>Street</th>
+                  }
+                  @if (colOn('zip')) {
+                    <th>Zip</th>
+                  }
+                  @if (colOn('interpreter')) {
+                    <th>Interpreter</th>
+                  }
+                  @if (colOn('apptNumber')) {
+                    <th>Appt #</th>
+                  }
+                }
+                <th>Portal</th>
+                <th style="text-align: right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of displayRows(); track row.id) {
+                <tr (click)="onRowClick(row)">
+                  <td>
+                    <span class="ia-pt">
+                      <span
+                        class="ava"
+                        [style.background]="avatarColor(row.firstName + row.lastName)"
+                      >
+                        {{ initials(row.firstName, row.lastName) }}
+                      </span>
+                      <b>{{ row.firstName }} {{ row.lastName }}</b>
+                    </span>
+                  </td>
+                  @if (meta().hasFirm) {
+                    <td>{{ row.firmName || '--' }}</td>
+                  }
+                  <td class="ia-sub">{{ row.email || '--' }}</td>
+                  @if (meta().isPatient) {
+                    <td class="ia-sub num">{{ (row.dateOfBirth | date: 'MMM d, y') || '--' }}</td>
+                  }
+                  <td class="ia-sub num">{{ row.phoneNumber || '--' }}</td>
+                  @if (meta().isPatient) {
+                    <td>{{ row.city || '--' }}{{ row.stateName ? ', ' + row.stateName : '' }}</td>
+                    <td>{{ row.languageName || '--' }}</td>
+                    @if (colOn('gender')) {
+                      <td>{{ genderLabel(row.genderId) }}</td>
+                    }
+                    @if (colOn('street')) {
+                      <td class="ia-sub">{{ row.street || '--' }}</td>
+                    }
+                    @if (colOn('zip')) {
+                      <td class="ia-sub num">{{ row.zipCode || '--' }}</td>
+                    }
+                    @if (colOn('interpreter')) {
+                      <td>{{ row.interpreterVendorName ? 'Yes' : 'No' }}</td>
+                    }
+                    @if (colOn('apptNumber')) {
+                      <td class="ia-sub num">{{ row.apptNumber || '--' }}</td>
+                    }
+                  }
+                  <td>
+                    <span class="pp-portal" [ngClass]="row.portal">
+                      <span class="d"></span>
+                      {{ portalLabel[row.portal] }}
+                    </span>
+                  </td>
+                  <td style="text-align: right" (click)="$event.stopPropagation()">
+                    <span style="display: inline-flex; gap: 6px; justify-content: flex-end">
+                      @if (row.portal === 'none' && canInvite) {
+                        <button
+                          type="button"
+                          class="ra-rowbtn"
+                          title="Invite to portal"
+                          (click)="invitePerson(row)"
+                        >
+                          <app-icon name="user" [size]="14" />
+                        </button>
+                      }
+                      @if (meta().isPatient) {
+                        <button
+                          type="button"
+                          class="ra-rowbtn"
+                          title="View"
+                          (click)="openDetail(row)"
+                        >
+                          <app-icon name="eye" [size]="14" />
+                        </button>
+                      }
+                      @if (canEdit()) {
+                        <button
+                          type="button"
+                          class="ra-rowbtn"
+                          title="Edit"
+                          (click)="openEdit(row)"
+                        >
+                          <app-icon name="doc" [size]="14" />
+                        </button>
+                      }
+                      @if (canDelete()) {
+                        <button
+                          type="button"
+                          class="ra-rowbtn danger"
+                          title="Delete"
+                          (click)="tryDelete(row)"
+                        >
+                          <app-icon name="x" [size]="14" />
+                        </button>
+                      }
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="12">
+                    <div class="ia-empty">
+                      <app-icon name="inbox" [size]="36" />
+                      @if (loading()) {
+                        <b>Loading...</b>
+                      } @else {
+                        <b>No {{ meta().label.toLowerCase() }} match</b>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (form(); as f) {
+  <app-people-edit-modal
+    [section]="meta()"
+    [form]="f"
+    [states]="states()"
+    [languages]="languages()"
+    [busy]="isBusy()"
+    (save)="saveForm($event)"
+    (cancelled)="closeModal()"
+  />
+}

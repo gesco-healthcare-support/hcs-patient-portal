@@ -1,0 +1,362 @@
+<div class="dh-head">
+  <div>
+    <h1>{{ isHost() ? 'Host dashboard' : 'Dashboard' }}</h1>
+    <p>
+      {{
+        isHost()
+          ? 'Activity across all tenants.'
+          : isIntake()
+            ? 'Today at ' + tenantName() + '.'
+            : 'Overview for ' + tenantName() + '.'
+      }}
+    </p>
+  </div>
+  @if (!isHost() && !isIntake()) {
+    <div class="dh-tf">
+      <button type="button" [attr.data-on]="range() === Range.Week" (click)="setRange(Range.Week)">
+        This week
+      </button>
+      <button
+        type="button"
+        [attr.data-on]="range() === Range.Month"
+        (click)="setRange(Range.Month)"
+      >
+        This month
+      </button>
+      <button
+        type="button"
+        [attr.data-on]="range() === Range.Quarter"
+        (click)="setRange(Range.Quarter)"
+      >
+        This quarter
+      </button>
+    </div>
+  }
+</div>
+
+@if (loading()) {
+  <div class="dh-hero">
+    @for (i of [1, 2, 3, 4]; track i) {
+      <div class="dh-kpi"><app-skeleton height="84px" radius="10px" /></div>
+    }
+  </div>
+} @else {
+  @if (data(); as d) {
+    @if (isHost()) {
+      <!-- ===================== Host (IT Admin) ===================== -->
+      <div class="dh-hero">
+        <div class="dh-kpi blue" (click)="openTenants()">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-blue"><app-icon name="users" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Total tenants</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.totalTenants ?? 0 }}</div>
+        </div>
+        <div class="dh-kpi green" (click)="openDoctors()">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-green"><app-icon name="stetho" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Total doctors</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.totalDoctors ?? 0 }}</div>
+        </div>
+        <div class="dh-kpi amber" (click)="openAppointments()">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-amber"><app-icon name="calendar" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Appointments</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.totalAppointments ?? 0 }}</div>
+        </div>
+        <div class="dh-kpi red" (click)="openByStatus(1)">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-red"><app-icon name="clock" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Pending across tenants</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.pendingAcrossTenants ?? 0 }}</div>
+        </div>
+      </div>
+
+      <div class="dh-card">
+        <div class="dh-card__head"><h3>Tenants</h3></div>
+        <div class="dh-card__body" style="padding: 0">
+          <table class="dh-ttable">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th class="r">Appointments</th>
+                <th class="r">Pending</th>
+                <th class="r">Approved</th>
+                <th class="r">This week</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of d.tenants; track t.tenantName) {
+                <tr>
+                  <td>
+                    <span class="tn">
+                      <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
+                      {{ t.tenantName }}
+                    </span>
+                  </td>
+                  <td class="r num">{{ t.appointments ?? 0 }}</td>
+                  <td class="r num">{{ t.pending ?? 0 }}</td>
+                  <td class="r num">{{ t.approved ?? 0 }}</td>
+                  <td class="r num">{{ t.thisWeek ?? 0 }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--n-400); padding: 28px">
+                    No tenants yet.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    } @else {
+      <!-- ===================== Tenant (Supervisor / Intake) ===================== -->
+      <div class="dh-hero" [class.dh-hero--intake]="isIntake()">
+        <div class="dh-kpi amber" (click)="openByStatus(1)">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-amber"><app-icon name="clock" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Pending Requests</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.pendingRequests?.value ?? 0 }}</div>
+          @if (hasDelta(d.pendingRequests)) {
+            <div class="dh-kpi__foot">
+              <span
+                class="dh-delta"
+                [class.up]="deltaDir(d.pendingRequests) === 'up'"
+                [class.down]="deltaDir(d.pendingRequests) === 'down'"
+              >
+                <app-icon
+                  [name]="deltaDir(d.pendingRequests) === 'down' ? 'arrowDown' : 'arrowUp'"
+                  [size]="11"
+                />
+                {{ deltaText(d.pendingRequests) }}
+              </span>
+              vs. last period
+            </div>
+          }
+        </div>
+
+        @if (isIntake()) {
+          <div class="dh-kpi blue" (click)="openAppointments()">
+            <div class="dh-kpi__top">
+              <span class="dh-kpi__ic tint-blue"><app-icon name="calendar" [size]="18" /></span>
+              <span class="dh-kpi__lbl">Today's Appointments</span>
+            </div>
+            <div class="dh-kpi__num">{{ (d.todaySchedule || []).length }}</div>
+          </div>
+        } @else {
+          <div class="dh-kpi blue" (click)="openChangeRequests()">
+            <div class="dh-kpi__top">
+              <span class="dh-kpi__ic tint-blue"><app-icon name="refresh" [size]="18" /></span>
+              <span class="dh-kpi__lbl">Pending Change Requests</span>
+            </div>
+            <div class="dh-kpi__num">{{ d.pendingChangeRequests?.value ?? 0 }}</div>
+          </div>
+          <div class="dh-kpi green" (click)="openByStatus(2)">
+            <div class="dh-kpi__top">
+              <span class="dh-kpi__ic tint-green"><app-icon name="check" [size]="18" /></span>
+              <span class="dh-kpi__lbl">Approved Requests</span>
+            </div>
+            <div class="dh-kpi__num">{{ d.approvedRequests?.value ?? 0 }}</div>
+            @if (hasDelta(d.approvedRequests)) {
+              <div class="dh-kpi__foot">
+                <span
+                  class="dh-delta"
+                  [class.up]="deltaDir(d.approvedRequests) === 'up'"
+                  [class.down]="deltaDir(d.approvedRequests) === 'down'"
+                >
+                  <app-icon
+                    [name]="deltaDir(d.approvedRequests) === 'down' ? 'arrowDown' : 'arrowUp'"
+                    [size]="11"
+                  />
+                  {{ deltaText(d.approvedRequests) }}
+                </span>
+                vs. last period
+              </div>
+            }
+          </div>
+          <div class="dh-kpi red" (click)="openByStatus(3)">
+            <div class="dh-kpi__top">
+              <span class="dh-kpi__ic tint-red"><app-icon name="x" [size]="18" /></span>
+              <span class="dh-kpi__lbl">Rejected Requests</span>
+            </div>
+            <div class="dh-kpi__num">{{ d.rejectedRequests?.value ?? 0 }}</div>
+            @if (hasDelta(d.rejectedRequests)) {
+              <div class="dh-kpi__foot">
+                <span
+                  class="dh-delta"
+                  [class.up]="deltaDir(d.rejectedRequests) === 'up'"
+                  [class.down]="deltaDir(d.rejectedRequests) === 'down'"
+                >
+                  <app-icon
+                    [name]="deltaDir(d.rejectedRequests) === 'down' ? 'arrowDown' : 'arrowUp'"
+                    [size]="11"
+                  />
+                  {{ deltaText(d.rejectedRequests) }}
+                </span>
+                vs. last period
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      @if (!isIntake() && (d.deadlineApproachingCount ?? 0) > 0) {
+        <div class="dh-alert">
+          <div class="dh-alert__head">
+            <span class="ic"><app-icon name="alert" [size]="19" /></span>
+            <div>
+              <b>
+                {{ d.deadlineApproachingCount }} pending requests approaching the decision deadline
+              </b>
+              <span>
+                Requests must be decided within 3 days of submission &mdash; the legal limit is 5.
+              </span>
+            </div>
+            <button class="more" type="button" (click)="openByStatus(1)">View all</button>
+          </div>
+          <div class="dh-alert__list">
+            @for (row of d.deadlines; track row.appointmentId) {
+              <div class="dh-alert__row" (click)="openDeadline(row.appointmentId)">
+                <span class="conf">{{ row.confirmationNumber }}</span>
+                <span class="pt">{{ row.patientName }}</span>
+                <span class="due">
+                  Requested {{ row.requestedAt | date: 'MMM d' }} &middot; decide by
+                  {{ row.dueDate | date: 'MMM d' }}
+                </span>
+                <span class="days" [class.warn]="daysWarn(row.daysRemaining)">
+                  {{ daysLabel(row.daysRemaining) }}
+                </span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (!isIntake()) {
+        <div class="dh-grid dh-grid--2-1">
+          <div class="dh-card">
+            <div class="dh-card__head">
+              <h3>Requests over time</h3>
+              <a (click)="openReports()">Reports</a>
+            </div>
+            <div class="dh-card__body">
+              <div class="dh-trendlegend">
+                <span>
+                  <i class="sw sw--bar"></i>
+                  Received
+                </span>
+                <span>
+                  <i class="sw sw--line"></i>
+                  Approved
+                </span>
+              </div>
+              <div class="dh-chart">
+                <div class="dh-yaxis">
+                  <span>{{ trendMax() }}</span>
+                  <span>{{ trendMid() }}</span>
+                  <span>0</span>
+                </div>
+                <div class="dh-bars">
+                  @for (pt of d.trend; track pt.weekStart) {
+                    <div class="dh-barcol">
+                      <div
+                        class="bar"
+                        [attr.data-v]="pt.count"
+                        [style.height]="barHeight(pt.count)"
+                      ></div>
+                      <span class="lb">{{ pt.weekStart | date: 'MMM d' }}</span>
+                    </div>
+                  }
+                  @if (trendLine().length) {
+                    <div class="dh-overlay">
+                      @if (trendLine().length > 1) {
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                          <polyline [attr.points]="trendLinePath()" />
+                        </svg>
+                      }
+                      @for (p of trendLine(); track $index) {
+                        <span
+                          class="dh-dot"
+                          [style.left.%]="p.x"
+                          [style.top.%]="p.y"
+                          [attr.title]="p.count + ' approved'"
+                        ></span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dh-card">
+            <div class="dh-card__head"><h3>Status breakdown</h3></div>
+            <div class="dh-card__body">
+              <div class="dh-donutwrap">
+                <div class="dh-donut" [style.background]="donutGradient()">
+                  <div class="dh-donut__c">
+                    <b>{{ donutTotal() }}</b>
+                    <span>total</span>
+                  </div>
+                </div>
+                <div class="dh-legend">
+                  @for (slice of donut(); track slice.pill) {
+                    <div class="dh-legrow">
+                      <span class="sw" [style.background]="slice.color"></span>
+                      <span class="nm">{{ slice.label }}</span>
+                      <span class="vl">{{ slice.count }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      <div class="dh-grid" [class.dh-grid--2-1]="isIntake()" [class.dh-grid--1-1]="!isIntake()">
+        <div class="dh-card">
+          <div class="dh-card__head">
+            <h3>Today's schedule</h3>
+            <a (click)="openAppointments()">View all</a>
+          </div>
+          <div class="dh-card__body">
+            @for (s of d.todaySchedule; track $index) {
+              <div class="dh-srow">
+                <span class="tm">{{ s.appointmentDate | date: 'shortTime' }}</span>
+                <span class="tx">
+                  <b>{{ s.appointmentType }}</b>
+                  <span>{{ s.location }}</span>
+                </span>
+              </div>
+            } @empty {
+              <div class="dh-srow">
+                <span class="tx"><span>No appointments scheduled today.</span></span>
+              </div>
+            }
+          </div>
+        </div>
+        <div class="dh-card">
+          <div class="dh-card__head"><h3>Recent activity</h3></div>
+          <div class="dh-card__body">
+            @for (a of d.recentActivity; track $index) {
+              <div class="dh-act">
+                <span class="ic {{ a.tint }}"><app-icon [name]="icon(a.icon)" [size]="15" /></span>
+                <span class="tx">
+                  {{ a.text }}
+                  <span class="tm">{{ timeAgo(a.when) }}</span>
+                </span>
+              </div>
+            } @empty {
+              <div class="dh-act"><span class="tx">No recent activity.</span></div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  }
+}

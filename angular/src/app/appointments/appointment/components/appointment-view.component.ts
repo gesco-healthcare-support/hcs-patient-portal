@@ -27,13 +27,20 @@ import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
-import { firstValueFrom } from 'rxjs';
-import { NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
+import { firstValueFrom, Observable, of } from 'rxjs';
+import {
+  NgbDatepickerModule,
+  NgbDateStruct,
+  NgbTypeaheadModule,
+  NgbTypeaheadSelectItemEvent,
+} from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
 import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import { RequestInfoModalComponent } from './request-info-modal.component';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
@@ -132,11 +139,13 @@ type ApplicantAttorneyLookupResult = {
     PermissionDirective,
     AppLookupSelectComponent,
     NgbDatepickerModule,
+    NgbTypeaheadModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
     CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
+    RequestInfoModalComponent,
     AppointmentDocumentsComponent,
     AppointmentPacketComponent,
     SsnInputComponent,
@@ -164,6 +173,8 @@ export class AppointmentViewComponent implements OnInit {
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
   cancelRequestVisible = false;
+  // Send Back (2026-06-14): staff "Request info" modal visibility (Pending only).
+  requestInfoModalVisible = false;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -827,6 +838,28 @@ export class AppointmentViewComponent implements OnInit {
     this.cancelRequestVisible = true;
   }
 
+  /** Send Back (2026-06-14): staff opens the "Request info" modal (Pending only). */
+  openRequestInfo(): void {
+    this.requestInfoModalVisible = true;
+  }
+
+  /** Reload after a successful send-back so the status flips to Info Requested. */
+  onInfoRequestSucceeded(): void {
+    const id = this.appointment?.appointment?.id;
+    if (id) {
+      this.appointmentService.getWithNavigationProperties(id).subscribe({
+        next: (data) => {
+          this.appointment = data;
+        },
+      });
+    }
+  }
+
+  /** True when staff may send this appointment back for more information (Pending only). */
+  get canRequestInfo(): boolean {
+    return this.isInternalUser && this.currentStatus === AppointmentStatusType.Pending;
+  }
+
   /**
    * External submissions stay Pending (no `.Approve` permission, so no
    * auto-approve chain). Toast confirmation + refresh so the status pill flips
@@ -1160,6 +1193,75 @@ export class AppointmentViewComponent implements OnInit {
     return display && opt.email && display !== opt.email ? `${display} (${opt.email})` : display;
   }
 
+  // 2026-06-22 (HIPAA-scoped lookup): type-to-search the external-user lookup
+  // for an Applicant / Defense Attorney, mirroring the patient lookup typeahead.
+  // The server scopes results -- internal staff search the tenant, an external
+  // caller sees only co-parties on shared appointments -- so no list of every
+  // attorney is ever exposed. Selecting a result loads the full record via the
+  // existing on*AttorneySelected by-id path.
+  readonly searchApplicantAttorney = (
+    text$: Observable<string>,
+  ): Observable<ExternalAuthorizedUserOption[]> =>
+    this.searchExternalAttorney(text$, 'applicant attorney');
+
+  readonly searchDefenseAttorney = (
+    text$: Observable<string>,
+  ): Observable<ExternalAuthorizedUserOption[]> =>
+    this.searchExternalAttorney(text$, 'defense attorney');
+
+  private searchExternalAttorney(
+    text$: Observable<string>,
+    role: string,
+  ): Observable<ExternalAuthorizedUserOption[]> {
+    return text$.pipe(
+      debounceTime(250),
+      distinctUntilChanged(),
+      switchMap((term) => {
+        const trimmed = (term ?? '').trim();
+        if (trimmed.length < 2) {
+          return of<ExternalAuthorizedUserOption[]>([]);
+        }
+        return this.restService
+          .request<any, ListResultDto<ExternalAuthorizedUserOption>>(
+            {
+              method: 'GET',
+              url: '/api/public/external-signup/external-user-lookup',
+              params: { filter: trimmed },
+            },
+            { apiName: 'Default' },
+          )
+          .pipe(
+            map((res) => (res?.items ?? []).filter((x) => x.userRole?.toLowerCase() === role)),
+            catchError(() => of<ExternalAuthorizedUserOption[]>([])),
+          );
+      }),
+    );
+  }
+
+  // Dropdown display label ("Name (email)" / firm fallback). Reuses the shared
+  // option label so the typeahead reads the same as the prior select did.
+  readonly formatAttorneyResult = (opt: ExternalAuthorizedUserOption): string =>
+    this.applicantAttorneyOptionLabel(opt);
+
+  // Keep the typed email in the search box after a pick (the input is bound to
+  // the *EmailSearch control); the full record loads via on*AttorneySelected.
+  readonly formatAttorneyInput = (opt: ExternalAuthorizedUserOption | string): string =>
+    typeof opt === 'string' ? opt : (opt?.email ?? '');
+
+  onApplicantAttorneyTypeaheadSelect(event: NgbTypeaheadSelectItemEvent): void {
+    event.preventDefault();
+    const opt = event.item as ExternalAuthorizedUserOption;
+    this.form.get('applicantAttorneyEmailSearch')?.setValue(opt.email ?? '');
+    this.onApplicantAttorneySelected(opt.identityUserId);
+  }
+
+  onDefenseAttorneyTypeaheadSelect(event: NgbTypeaheadSelectItemEvent): void {
+    event.preventDefault();
+    const opt = event.item as ExternalAuthorizedUserOption;
+    this.form.get('defenseAttorneyEmailSearch')?.setValue(opt.email ?? '');
+    this.onDefenseAttorneySelected(opt.identityUserId);
+  }
+
   private loadExternalAuthorizedUsers(): void {
     this.restService
       .request<any, ListResultDto<ExternalAuthorizedUserOption>>(
@@ -1451,6 +1553,7 @@ export class AppointmentViewComponent implements OnInit {
         next: (data) => {
           if (data) {
             this.applyApplicantAttorneyLookup(data);
+            this.overlayApplicantAttorneySnapshot();
           } else {
             onEmpty?.();
           }
@@ -1482,8 +1585,70 @@ export class AppointmentViewComponent implements OnInit {
           if (data) {
             this.applyDefenseAttorneyLookup(data);
           }
+          this.overlayDefenseAttorneySnapshot();
         },
       });
+  }
+
+  /**
+   * #9 (2026-06-19): display-only override. After the live attorney master loads,
+   * overlay the appointment's booking-time snapshot (when present) so the detail shows
+   * what was recorded at booking, not a later master self-edit. A null snapshot
+   * (pre-migration appointments) leaves the master values in place (fallback). Only the
+   * initial display load calls these -- the edit-lookup paths do not -- so picking a
+   * different attorney while editing is unaffected. Staff appointment-edit saves still
+   * re-capture the snapshot from the master (see AppointmentApplicantAttorneyManager).
+   */
+  private overlayApplicantAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('applicantAttorneyFirstName', a.applicantAttorneyFirstName);
+    set('applicantAttorneyLastName', a.applicantAttorneyLastName);
+    set('applicantAttorneyFirmName', a.applicantAttorneyFirmName);
+    set('applicantAttorneyWebAddress', a.applicantAttorneyWebAddress);
+    set('applicantAttorneyPhoneNumber', a.applicantAttorneyPhoneNumber);
+    set('applicantAttorneyFaxNumber', a.applicantAttorneyFaxNumber);
+    set('applicantAttorneyStreet', a.applicantAttorneyStreet);
+    set('applicantAttorneyCity', a.applicantAttorneyCity);
+    set('applicantAttorneyStateId', a.applicantAttorneyStateId);
+    set('applicantAttorneyZipCode', a.applicantAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
+  }
+
+  private overlayDefenseAttorneySnapshot(): void {
+    const a = this.appointment?.appointment;
+    if (!a) {
+      return;
+    }
+    const patch: Record<string, unknown> = {};
+    const set = (ctrl: string, val: unknown) => {
+      if (val !== null && val !== undefined) {
+        patch[ctrl] = val;
+      }
+    };
+    set('defenseAttorneyFirstName', a.defenseAttorneyFirstName);
+    set('defenseAttorneyLastName', a.defenseAttorneyLastName);
+    set('defenseAttorneyFirmName', a.defenseAttorneyFirmName);
+    set('defenseAttorneyWebAddress', a.defenseAttorneyWebAddress);
+    set('defenseAttorneyPhoneNumber', a.defenseAttorneyPhoneNumber);
+    set('defenseAttorneyFaxNumber', a.defenseAttorneyFaxNumber);
+    set('defenseAttorneyStreet', a.defenseAttorneyStreet);
+    set('defenseAttorneyCity', a.defenseAttorneyCity);
+    set('defenseAttorneyStateId', a.defenseAttorneyStateId);
+    set('defenseAttorneyZipCode', a.defenseAttorneyZipCode);
+    if (Object.keys(patch).length > 0) {
+      this.form.patchValue(patch, { emitEvent: false });
+    }
   }
 
   // S-5.4: load injury details (Claim Information rows) for the appointment.

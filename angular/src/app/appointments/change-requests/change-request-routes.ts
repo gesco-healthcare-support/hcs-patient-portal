@@ -1,31 +1,22 @@
 import { Routes } from '@angular/router';
 import { authGuard, permissionGuard } from '@abp/ng.core';
-import { ChangeRequestType } from '../../proxy/appointment-change-requests/change-request-type.enum';
-import { ChangeRequestListComponent } from './change-request-list.component';
+import { InternalChangeRequestInboxComponent } from './internal-change-request-inbox.component';
 
 /**
- * AP1 supervisor change-request approval pages. Gated by the
- * AppointmentChangeRequests (Default) read permission; the approve/reject
- * actions inside re-enforce `.Approve` / `.Reject` server-side. `data.changeRequestType`
- * selects which queue the shared list component renders.
+ * Supervisor change-request approval. Redesign (Prompt 13, 2026-06-15): the two
+ * legacy per-type Bootstrap tables (reschedules / cancellations) are unified into
+ * one tabbed inbox at the parent path; the old per-type paths redirect into it so
+ * existing deep links keep working. Gated by the AppointmentChangeRequests
+ * (Default) read permission; approve/reject re-enforce `.Approve` / `.Reject`
+ * server-side.
  */
 export const CHANGE_REQUEST_ROUTES: Routes = [
   {
-    path: 'reschedules',
-    component: ChangeRequestListComponent,
+    path: '',
+    component: InternalChangeRequestInboxComponent,
     canActivate: [authGuard, permissionGuard],
-    data: {
-      requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests',
-      changeRequestType: ChangeRequestType.Reschedule,
-    },
+    data: { requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests' },
   },
-  {
-    path: 'cancellations',
-    component: ChangeRequestListComponent,
-    canActivate: [authGuard, permissionGuard],
-    data: {
-      requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests',
-      changeRequestType: ChangeRequestType.Cancel,
-    },
-  },
+  { path: 'reschedules', redirectTo: '', pathMatch: 'full' },
+  { path: 'cancellations', redirectTo: '', pathMatch: 'full' },
 ];

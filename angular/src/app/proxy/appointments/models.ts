@@ -72,7 +72,32 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   applicantAttorneyEmail?: string | null;
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
+  applicantAttorneyFirstName?: string | null;
+  applicantAttorneyLastName?: string | null;
+  applicantAttorneyFirmName?: string | null;
+  applicantAttorneyWebAddress?: string | null;
+  applicantAttorneyPhoneNumber?: string | null;
+  applicantAttorneyFaxNumber?: string | null;
+  applicantAttorneyStreet?: string | null;
+  applicantAttorneyCity?: string | null;
+  applicantAttorneyStateId?: string | null;
+  applicantAttorneyZipCode?: string | null;
+  defenseAttorneyFirstName?: string | null;
+  defenseAttorneyLastName?: string | null;
+  defenseAttorneyFirmName?: string | null;
+  defenseAttorneyWebAddress?: string | null;
+  defenseAttorneyPhoneNumber?: string | null;
+  defenseAttorneyFaxNumber?: string | null;
+  defenseAttorneyStreet?: string | null;
+  defenseAttorneyCity?: string | null;
+  defenseAttorneyStateId?: string | null;
+  defenseAttorneyZipCode?: string | null;
   refferedBy?: string | null;
+}
+
+export interface AppointmentStatusCountDto {
+  status?: AppointmentStatusType;
+  count?: number;
 }
 
 export interface AppointmentUpdateDto {
@@ -98,6 +123,7 @@ export interface AppointmentWithNavigationPropertiesDto {
   appointment?: AppointmentDto;
   patient?: PatientDto | null;
   identityUser?: IdentityUserDto | null;
+  bookedByUser?: IdentityUserDto | null;
   appointmentType?: AppointmentTypeDto | null;
   location?: LocationDto | null;
   doctorAvailability?: DoctorAvailabilityDto | null;
@@ -146,7 +172,9 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   accessorIdentityUserId?: string | null;
   appointmentTypeId?: string | null;
   locationId?: string | null;
+  patientId?: string | null;
   appointmentStatus?: AppointmentStatusType | null;
+  appointmentStatuses?: AppointmentStatusType[] | null;
 }
 
 export interface RejectAppointmentInput {

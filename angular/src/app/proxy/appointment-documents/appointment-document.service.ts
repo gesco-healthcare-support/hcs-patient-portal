@@ -52,6 +52,14 @@ export class AppointmentDocumentService {
     { apiName: this.apiName,...config });
   
 
+  getDocumentTypeOptionsByAppointmentType = (appointmentTypeId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, LookupDto<string>>({
+      method: 'GET',
+      url: `/api/app/appointment-documents/options-by-type/${appointmentTypeId}`,
+    },
+    { apiName: this.apiName,...config });
+  
+
   getList = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentDocumentDto[]>({
       method: 'GET',

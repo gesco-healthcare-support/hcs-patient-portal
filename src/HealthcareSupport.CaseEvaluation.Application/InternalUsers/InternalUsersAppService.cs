@@ -284,6 +284,77 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         }
     }
 
+    /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B3) -- admin-triggered password reset. Resolves
+    /// the target user in the caller's current tenant scope (the internal-users
+    /// list + this action both run inside the managed tenant), generates an ABP
+    /// Identity reset token, builds the tenant-aware reset URL, and dispatches
+    /// the per-tenant ResetPassword template -- the same pipeline the
+    /// self-service forgot-password flow uses. Dispatch failures are NOT
+    /// swallowed (unlike the create welcome email): there is no committed
+    /// side-effect to protect, so a queue failure should surface to the admin
+    /// rather than show a false success.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
+    public virtual async Task SendPasswordResetEmailAsync(Guid userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
+        }
+        if (!user.TenantId.HasValue)
+        {
+            // Internal users are always tenant-scoped; a missing tenant is a data bug.
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserTenantRequired);
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
+            user.TenantId.Value, user.Id, token);
+
+        await _notificationDispatcher.DispatchAsync(
+            templateCode: NotificationTemplateConsts.Codes.ResetPassword,
+            recipients: new[]
+            {
+                new NotificationRecipient(
+                    email: user.Email!,
+                    role: RecipientRole.Patient,
+                    isRegistered: true),
+            },
+            variables: BuildPasswordResetVariables(user, resetUrl),
+            contextTag: $"PasswordReset/AdminTriggered/{user.Id}");
+    }
+
+    /// <summary>
+    /// Variable bag for the <c>ResetPassword</c> template (admin-triggered
+    /// path). Mirrors <c>ExternalAccountAppService.BuildPasswordTokenVariables</c>
+    /// so the seeded EmailBodies/ResetPassword.html renders identically whether
+    /// the reset was self-service or admin-initiated.
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?> BuildPasswordResetVariables(
+        IdentityUser user,
+        string resetUrl)
+    {
+        var fullName = JoinName(user.Name, user.Surname);
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["PatientFirstName"] = user.Name ?? string.Empty,
+            ["PatientLastName"] = user.Surname ?? string.Empty,
+            ["PatientFullName"] = fullName,
+            ["PatientEmail"] = user.Email ?? string.Empty,
+            ["URL"] = resetUrl,
+            ["CompanyLogo"] = string.Empty,
+            ["lblHeaderTitle"] = string.Empty,
+            ["lblFooterText"] = string.Empty,
+            ["Email"] = string.Empty,
+            ["Skype"] = string.Empty,
+            ["ph_US"] = string.Empty,
+            ["fax"] = string.Empty,
+            ["imageInByte"] = string.Empty,
+        };
+    }
+
     [AllowAnonymous]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(
         string? filter = null)

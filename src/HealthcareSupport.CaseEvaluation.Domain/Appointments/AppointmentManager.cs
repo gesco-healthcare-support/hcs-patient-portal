@@ -44,7 +44,7 @@ public class AppointmentManager : DomainService
         _appointmentDocumentRepository = appointmentDocumentRepository;
     }
 
-    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null)
+    public virtual async Task<Appointment> CreateAsync(Guid patientId, Guid? identityUserId, Guid appointmentTypeId, Guid locationId, Guid doctorAvailabilityId, DateTime appointmentDate, string requestConfirmationNumber, AppointmentStatusType appointmentStatus, string? panelNumber = null, DateTime? dueDate = null, Guid? bookedByUserId = null)
     {
         Check.NotNull(patientId, nameof(patientId));
         Check.NotNull(appointmentTypeId, nameof(appointmentTypeId));
@@ -58,6 +58,12 @@ public class AppointmentManager : DomainService
         EnsurePanelNumberMatchesType(appointmentTypeId, panelNumber);
         EnsureAppointmentDateNotInPast(appointmentDate);
         var appointment = new Appointment(GuidGenerator.Create(), patientId, identityUserId, appointmentTypeId, locationId, doctorAvailabilityId, appointmentDate, requestConfirmationNumber, appointmentStatus, panelNumber, dueDate);
+        if (bookedByUserId.HasValue)
+        {
+            // R2-2: stamp the logged-in booker so the appointment is always
+            // visible to whoever booked it, even when the audit CreatorId is null.
+            appointment.RecordBookedBy(bookedByUserId.Value);
+        }
         if (appointmentStatus == AppointmentStatusType.Approved)
         {
             // Companion-field stamp when an aggregate is created already
@@ -265,6 +271,23 @@ public class AppointmentManager : DomainService
         return TransitionAsync(id, trigger, reason, actingUserId);
     }
 
+    /// <summary>
+    /// Send Back (2026-06-14) -- Pending -> InfoRequested. Fired when staff
+    /// request more information; the AppointmentInfoRequest row (note + flagged
+    /// fields) is created by the Application layer alongside this transition.
+    /// Permitted from Pending only.
+    /// </summary>
+    public virtual Task<Appointment> SendBackAsync(Guid id, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.SendBack, reason: null, actingUserId);
+
+    /// <summary>
+    /// Resubmit (2026-06-14) -- InfoRequested -> Pending. Fired when the external
+    /// user resubmits their corrections; the open AppointmentInfoRequest row is
+    /// marked Resolved by the Application layer. Permitted from InfoRequested only.
+    /// </summary>
+    public virtual Task<Appointment> ResubmitInfoAsync(Guid id, Guid? actingUserId)
+        => TransitionAsync(id, AppointmentTransitionTrigger.SaveAndResubmit, reason: null, actingUserId);
+
     private async Task<Appointment> TransitionAsync(Guid id, AppointmentTransitionTrigger trigger, string? reason, Guid? actingUserId)
     {
         var appointment = await _appointmentRepository.GetAsync(id);
@@ -388,7 +411,15 @@ public class AppointmentManager : DomainService
 
         machine.Configure(AppointmentStatusType.Pending)
             .Permit(AppointmentTransitionTrigger.Approve, AppointmentStatusType.Approved)
-            .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected);
+            .Permit(AppointmentTransitionTrigger.Reject, AppointmentStatusType.Rejected)
+            // Send Back (2026-06-14): staff request more information.
+            .Permit(AppointmentTransitionTrigger.SendBack, AppointmentStatusType.InfoRequested);
+
+        // Info Requested is transient: the external user resubmits their fixes
+        // and the appointment returns to Pending for staff review. The slot
+        // stays Reserved throughout (InfoRequested is not a terminal status).
+        machine.Configure(AppointmentStatusType.InfoRequested)
+            .Permit(AppointmentTransitionTrigger.SaveAndResubmit, AppointmentStatusType.Pending);
 
         machine.Configure(AppointmentStatusType.Approved)
             .Permit(AppointmentTransitionTrigger.RequestCancellation, AppointmentStatusType.CancellationRequested)

@@ -1,0 +1,58 @@
+<!--
+  Send Back / request-info rounds for one appointment (newest-first). The host
+  page loads the rounds (GetHistoryAsync) and passes them in. Internal view shows
+  the per-round changed-field diffs; external view ([externalView]) shows only the
+  count summary + note, with the staff requester genericised to "HCS staff".
+-->
+@if (rounds.length > 0) {
+  <ul class="irh">
+    @for (round of rounds; track round.id) {
+      <li class="irh-round">
+        @if (round.isResolved) {
+          <div class="irh-line">
+            <span class="irh-ic irh-ic--ok"><app-icon name="check" [size]="16" /></span>
+            <span class="irh-tx">
+              <span class="irh-t1">
+                <b>Resubmitted by {{ resubmitterName(round) }}</b>
+              </span>
+              <span class="irh-t2">
+                {{ round.resolvedAt | date: 'MMM d, y · h:mm a' }} &middot;
+                {{ fixedSummary(round) }}
+              </span>
+            </span>
+          </div>
+          @if (!externalView) {
+            @let rows = diffRows(round);
+            @if (rows.length > 0) {
+              <div class="irh-diffs">
+                @for (row of rows; track row.label) {
+                  <div class="irh-diff">
+                    <span class="irh-f">{{ row.label }}</span>
+                    <span class="irh-old">{{ row.oldValue || '-' }}</span>
+                    <span class="irh-arr"><app-icon name="chevRight" [size]="13" /></span>
+                    <span class="irh-new">{{ row.newValue || '-' }}</span>
+                  </div>
+                }
+              </div>
+            }
+          }
+        }
+        <div class="irh-line">
+          <span class="irh-ic irh-ic--info"><app-icon name="help" [size]="16" /></span>
+          <span class="irh-tx">
+            <span class="irh-t1">
+              <b>Info requested by {{ requesterName(round) }}</b>
+            </span>
+            <span class="irh-t2">
+              {{ round.requestedAt | date: 'MMM d, y · h:mm a' }} &middot;
+              {{ flaggedSummary(round) }}
+              @if (round.note) {
+                &middot; "{{ notePreview(round.note) }}"
+              }
+            </span>
+          </span>
+        </div>
+      </li>
+    }
+  </ul>
+}

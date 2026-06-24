@@ -15,6 +15,7 @@ export interface NotificationTemplateDto extends FullAuditedEntityDto<string> {
   bodySms?: string;
   description?: string | null;
   isActive?: boolean;
+  isCustomized?: boolean;
   concurrencyStamp?: string;
 }
 
@@ -29,6 +30,11 @@ export interface NotificationTemplateUpdateDto {
   bodySms: string;
   isActive?: boolean;
   concurrencyStamp?: string;
+}
+
+export interface NotificationTemplateVariableDto {
+  token?: string;
+  label?: string;
 }
 
 export interface NotificationTemplateWithNavigationPropertiesDto {

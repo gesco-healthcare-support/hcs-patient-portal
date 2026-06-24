@@ -101,6 +101,9 @@
         @if (!isAvailableDatesLoading && form.get('appointmentDate')?.value) {
           <small class="text-muted">{{ minimumBookingRuleMessage }}</small>
         }
+        @if (noBookableDatesMessage) {
+          <small class="text-warning d-block mt-1">{{ noBookableDatesMessage }}</small>
+        }
       </div>
 
       <div class="col-md-3 mb-3" *ngIf="checkForAppointmentTypeSelected">

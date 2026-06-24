@@ -16,7 +16,7 @@ import { hasOnlyExternalRoles } from './external-user-roles';
 // the / route as a CanMatchFn -- evaluated BEFORE the lazy
 // loadComponent fetch fires. Returning a UrlTree cancels the
 // navigation and starts a new one without ever downloading the
-// HomeComponent chunk for users who shouldn't see it. This prevents
+// ExternalHomeComponent chunk for users who shouldn't see it. This prevents
 // the "flash of empty home shell" that the prior CanActivateFn caused
 // (the chunk had already loaded by the time the guard returned its
 // UrlTree).
@@ -25,7 +25,7 @@ import { hasOnlyExternalRoles } from './external-user-roles';
 //   - Anonymous     -> AuthService.navigateToLogin() (redirects out of SPA);
 //                      return false to cancel the in-SPA navigation
 //   - Internal user -> UrlTree(/dashboard)
-//   - External user -> true (HomeComponent loads at /)
+//   - External user -> true (ExternalHomeComponent loads at /)
 
 export const postLoginRedirectGuard: CanMatchFn = () => {
   const config = inject(ConfigStateService);
@@ -51,11 +51,11 @@ export const postLoginRedirectGuard: CanMatchFn = () => {
 
   const roles = currentUser.roles ?? [];
   if (hasOnlyExternalRoles(roles)) {
-    // External user -- keep them at /home (HomeComponent loads).
+    // External user -- keep them at /home (ExternalHomeComponent loads).
     return true;
   }
 
   // Internal user (or mixed-role user with at least one internal role)
-  // -- redirect to dashboard before HomeComponent chunk loads.
+  // -- redirect to dashboard before ExternalHomeComponent chunk loads.
   return router.parseUrl('/dashboard');
 };

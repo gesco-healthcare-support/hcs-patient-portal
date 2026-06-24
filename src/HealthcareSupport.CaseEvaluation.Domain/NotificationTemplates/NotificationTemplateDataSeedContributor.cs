@@ -97,8 +97,11 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
 
         foreach (var code in NotificationTemplateConsts.Codes.All)
         {
-            var (subject, body) = GetSubjectAndBody(code);
-            var hasResourceBackedBody = EmailBodyResources.TryLoadBody(code) != null;
+            // Shipped defaults are owned by NotificationTemplateSeedDefaults so
+            // the IsCustomized derivation (B-B2) compares against the exact same
+            // content this seeder writes.
+            var defaults = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
+            var hasResourceBackedBody = NotificationTemplateSeedDefaults.HasResourceBackedBody(code);
 
             if (existing.TryGetValue(code, out var current))
             {
@@ -106,12 +109,12 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
                 {
                     continue;
                 }
-                if (current.Subject == subject && current.BodyEmail == body)
+                if (current.Subject == defaults.Subject && current.BodyEmail == defaults.BodyEmail)
                 {
                     continue;
                 }
-                current.Subject = subject;
-                current.BodyEmail = body;
+                current.Subject = defaults.Subject;
+                current.BodyEmail = defaults.BodyEmail;
                 await _templateRepository.UpdateAsync(current, autoSave: false);
                 continue;
             }
@@ -121,33 +124,12 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
                 tenantId: tenantId,
                 templateCode: code,
                 templateTypeId: EmailTypeId,
-                subject: subject,
-                bodyEmail: body,
-                bodySms: $"Stub SMS for {code}.",
+                subject: defaults.Subject,
+                bodyEmail: defaults.BodyEmail,
+                bodySms: defaults.BodySms,
                 description: null,
                 isActive: true);
             await _templateRepository.InsertAsync(entity, autoSave: false);
         }
-    }
-
-    /// <summary>
-    /// Returns the OLD-verbatim subject + body for <paramref name="code"/>.
-    /// Looks up the subject in <see cref="EmailSubjects.ByCode"/> and the body
-    /// in <see cref="EmailBodyResources"/> (embedded
-    /// <c>NotificationTemplates\EmailBodies\*.html</c> files). Falls back to a
-    /// stub when either is missing -- this is the demo-critical-only adoption
-    /// pattern; per-feature phases add more subject entries + .html files
-    /// over time without changing the seeder structure.
-    /// </summary>
-    private static (string Subject, string Body) GetSubjectAndBody(string code)
-    {
-        var subject = EmailSubjects.ByCode.TryGetValue(code, out var s)
-            ? s
-            : $"[{code}] -- TODO: parity-correct subject";
-
-        var body = EmailBodyResources.TryLoadBody(code)
-            ?? $"<p>Stub body for {code}. Per-feature phases will replace with parity-correct content.</p>";
-
-        return (subject, body);
     }
 }

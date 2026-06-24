@@ -377,6 +377,7 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".InternalUsers";
         public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
     }
 
     /// <summary>

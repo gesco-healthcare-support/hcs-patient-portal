@@ -224,7 +224,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// entity will be invalid permission strings if it were in AllEntities,
     /// so it is yielded as a one-off Default below.
     /// </summary>
-    private static IEnumerable<string> ItAdminGrants()
+    internal static IEnumerable<string> ItAdminGrants()
     {
         yield return $"{Group}.Dashboard.Host";
 
@@ -288,6 +288,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // Staff still does NOT -- creating users stays a supervisor/admin power.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
 
         // 2026-05-19 -- IT Admin can create new tenants from the Volo
         // SaaS Tenants page (/saas/tenants). Host Admin (admin@abp.io)
@@ -297,6 +298,35 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // receive this grant -- tenant creation stays a host-side power.
         yield return "Saas.Tenants";
         yield return "Saas.Tenants.Create";
+
+        // Roles & access matrix (2026-06-16): IT Admin is the technical platform admin and
+        // holds the ABP framework powers the custom seed previously omitted -- this is what
+        // makes Roles / Audit / File / Language management + the clinic-switch reachable.
+        // (Framework permission strings verified against ABP 10.0.2 source, spike
+        // wf_3bdc4d2a-5e0.) All are Host- or Both-sided, so valid for this host-scoped role.
+        yield return "Saas.Tenants.Impersonation";
+        yield return "AbpIdentity.Roles";
+        yield return "AbpIdentity.Roles.ManagePermissions";
+        yield return "AuditLogging.AuditLogs";
+        // Full File + Language management (parents + action children) -- the File
+        // Management page lists DIRECTORIES first, so the DirectoryDescriptor grant is
+        // required or the explorer 403s; the Languages page needs the Languages action
+        // children for create/edit/delete/set-default.
+        yield return "FileManagement.DirectoryDescriptor";
+        yield return "FileManagement.DirectoryDescriptor.Create";
+        yield return "FileManagement.DirectoryDescriptor.Update";
+        yield return "FileManagement.DirectoryDescriptor.Delete";
+        yield return "FileManagement.FileDescriptor";
+        yield return "FileManagement.FileDescriptor.Create";
+        yield return "FileManagement.FileDescriptor.Update";
+        yield return "FileManagement.FileDescriptor.Delete";
+        yield return "LanguageManagement.Languages";
+        yield return "LanguageManagement.Languages.Create";
+        yield return "LanguageManagement.Languages.Edit";
+        yield return "LanguageManagement.Languages.Delete";
+        yield return "LanguageManagement.Languages.ChangeDefault";
+        yield return "LanguageManagement.LanguageTexts";
+        yield return "LanguageManagement.LanguageTexts.Edit";
     }
 
     /// <summary>
@@ -312,7 +342,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// to approve uploaded documents, regenerate the IME packet, view the
     /// audit log, and read the per-AppointmentType field configuration.
     /// </summary>
-    private static IEnumerable<string> StaffSupervisorGrants()
+    internal static IEnumerable<string> StaffSupervisorGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 
@@ -340,6 +370,13 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Create("WcabOffices");
         yield return Edit("WcabOffices");
         yield return Delete("WcabOffices");
+
+        // F3 (2026-06-16): the AppointmentStatus lookup is enum-driven reference
+        // data, so grant VIEW only (no Create/Edit/Delete) -- the Configuration >
+        // Statuses section then renders read-only via per-action gating, letting
+        // the supervisor see the canonical statuses without implying they are
+        // editable. (Runtime status uses the AppointmentStatusType enum.)
+        yield return Default("AppointmentStatuses");
 
         foreach (var entity in OperationalEntities)
         {
@@ -375,9 +412,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("Reports");
         yield return $"{Group}.Reports.Export";
 
-        // D.1 / W-I-2: read-only field-config access (the booker form fetches
-        // these to render per-AppointmentType field state). Edit stays admin-only.
+        // D.1 / W-I-2: field-config access. The booker form fetches these to
+        // render per-AppointmentType field state. Prompt 15 (2026-06-16, Adrian
+        // decision): the redesign places the Field Configuration panel in the
+        // Staff Supervisor's Configuration hub, so the supervisor now also gets
+        // Create + Edit to manage per-type field rules (was read-only before).
         yield return Default("CustomFields");
+        yield return Create("CustomFields");
+        yield return Edit("CustomFields");
 
         // Phase 2.5 (2026-05-01) -- supervisor approval surface for booking
         // approval + cancel / reschedule requests; tenant-side notification
@@ -390,6 +432,12 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("NotificationTemplates");
         yield return Edit("NotificationTemplates");
         yield return Default("SystemParameters");
+        // Roles & access matrix (2026-06-16): the business admin EDITS system parameters
+        // (booking rules) and VIEWS the audit log read-only for oversight within the clinic.
+        // SystemParameters is Both; AuditLogging.AuditLogs is Both (tenants view their own
+        // audit logs). Both valid at this role's tenant scope -- verified at reseed.
+        yield return Edit("SystemParameters");
+        yield return "AuditLogging.AuditLogs";
 
         // G-03-01 (2026-06-03) -- Staff Supervisor co-owns the document-category
         // master with IT Admin. Default/Create/Edit only: retiring a type is a
@@ -415,8 +463,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // InternalUsers is MultiTenancySides.Both so the tenant-side grant is
         // valid; InternalUsersAppService.CreatableRoleNames bounds creatable
         // roles to the two tenant tiers. IT Admin (host) stays seed-only.
+        // 2026-06-16 (A-B3): .Edit also gates the admin password-reset action.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
+        yield return $"{Group}.InternalUsers.Edit";
     }
 
     /// <summary>
@@ -431,7 +481,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// may upload (the upload happens via the Appointments.Edit path) and
     /// approve/reject; structural edits to a document row stay supervisor-tier.
     /// </summary>
-    private static IEnumerable<string> IntakeStaffGrants()
+    internal static IEnumerable<string> IntakeStaffGrants()
     {
         yield return $"{Group}.Dashboard.Tenant";
 

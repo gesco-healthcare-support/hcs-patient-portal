@@ -24,8 +24,10 @@ using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.UserQueries;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -66,6 +68,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<UserQuery> UserQueries { get; set; } = null!;
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests { get; set; } = null!;
     public DbSet<AppointmentChangeRequestDocument> AppointmentChangeRequestDocuments { get; set; } = null!;
+    public DbSet<AppointmentInfoRequest> AppointmentInfoRequests { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<DoctorAvailability> DoctorAvailabilities { get; set; } = null!;
     public DbSet<DoctorPreferredLocation> DoctorPreferredLocations { get; set; } = null!;
@@ -74,6 +77,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
+    public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
 
     public CaseEvaluationTenantDbContext(DbContextOptions<CaseEvaluationTenantDbContext> options) : base(options)
     {
@@ -105,18 +109,49 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
         });
         // G-03-01: tenant-scoped document-category master (verbatim duplicate of
-        // the host-context block, per the dual-DbContext convention). Loose
-        // AppointmentTypeId column -- no FK (AppointmentType is absent here).
+        // the host-context block, per the dual-DbContext convention). #4
+        // (2026-06-19): per-row AppointmentTypeId replaced by a M2M join +
+        // AppliesToAll flag.
         builder.Entity<AppointmentDocumentType>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TenantId).HasColumnName("TenantId");
             b.Property(x => x.Name).HasColumnName(nameof(AppointmentDocumentType.Name)).IsRequired().HasMaxLength(AppointmentDocumentTypeConsts.NameMaxLength);
-            b.Property(x => x.AppointmentTypeId).HasColumnName("AppointmentTypeId");
+            b.Property(x => x.AppliesToAll).HasColumnName("AppliesToAll");
             b.Property(x => x.IsSystem).HasColumnName("IsSystem");
             b.Property(x => x.IsActive).HasColumnName("IsActive");
-            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId });
+            b.HasIndex(x => new { x.TenantId, x.Name });
+        });
+        // #15 (2026-06-22): self-scoped booking-draft store (verbatim duplicate
+        // of the host-context block, per the dual-DbContext convention). Physical
+        // delete only (CreationAudited, no soft-delete) so purged PHI truly leaves.
+        builder.Entity<AppointmentDraft>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDrafts", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.PayloadJson).HasColumnName("PayloadJson").IsRequired();
+            b.Property(x => x.CurrentStep).HasColumnName("CurrentStep");
+            b.Property(x => x.Label).HasColumnName("Label").HasMaxLength(AppointmentDraftConsts.LabelMaxLength);
+            b.Property(x => x.LastSavedTime).HasColumnName("LastSavedTime");
+            b.HasIndex(x => new { x.TenantId, x.CreatorId });
+            b.HasIndex(x => x.LastSavedTime);
+        });
+        // #4 (2026-06-19): document-category <-> appointment-type M2M (loose
+        // AppointmentTypeId, no FK -- AppointmentType is absent here).
+        builder.Entity<AppointmentDocumentTypeAppointmentType>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentTypeAppointmentType", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.AppointmentDocumentTypeId, x.AppointmentTypeId });
+            b.HasOne(x => x.AppointmentDocumentType)
+                .WithMany(x => x.AppointmentTypes)
+                .HasForeignKey(x => x.AppointmentDocumentTypeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.AppointmentTypeId);
+            b.HasQueryFilter(x => !x.AppointmentDocumentType.IsDeleted);
         });
         builder.Entity<AppointmentLanguage>(b =>
         {
@@ -407,6 +442,21 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.HasIndex(x => x.AppointmentChangeRequestId);
             b.HasOne<AppointmentChangeRequest>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentChangeRequestId).OnDelete(DeleteBehavior.Cascade);
         });
+        builder.Entity<AppointmentInfoRequest>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentInfoRequests", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.AppointmentId).HasColumnName(nameof(AppointmentInfoRequest.AppointmentId)).IsRequired();
+            b.Property(x => x.Note).HasColumnName(nameof(AppointmentInfoRequest.Note)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.NoteMaxLength);
+            b.Property(x => x.RequestedFields).HasColumnName(nameof(AppointmentInfoRequest.RequestedFields)).IsRequired().HasMaxLength(AppointmentInfoRequestConsts.RequestedFieldsMaxLength);
+            b.Property(x => x.Status).HasColumnName(nameof(AppointmentInfoRequest.Status));
+            b.Property(x => x.RequestedByUserId).HasColumnName(nameof(AppointmentInfoRequest.RequestedByUserId));
+            b.Property(x => x.ResolvedAt).HasColumnName(nameof(AppointmentInfoRequest.ResolvedAt));
+            b.HasIndex(x => x.AppointmentId);
+            b.HasIndex(x => new { x.AppointmentId, x.Status });
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
         builder.Entity<NotificationTemplate>(b =>
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplates", CaseEvaluationConsts.DbSchema);
@@ -513,6 +563,9 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Email).HasColumnName(nameof(ApplicantAttorney.Email)).HasMaxLength(ApplicantAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<ClaimExaminer>(b =>
         {
@@ -529,6 +582,9 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.ZipCode).HasColumnName(nameof(ClaimExaminer.ZipCode)).HasMaxLength(ClaimExaminerConsts.ZipCodeMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<AppointmentApplicantAttorney>(b =>
         {
@@ -557,6 +613,9 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Email).HasColumnName(nameof(DefenseAttorney.Email)).HasMaxLength(DefenseAttorneyConsts.EmailMaxLength);
             b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
+            // R2-2 (2026-06-22): one party master per (tenant, email); filtered so
+            // null-email record-only masters are still allowed.
+            b.HasIndex(x => new { x.TenantId, x.Email }).IsUnique().HasFilter("[Email] IS NOT NULL");
         });
         builder.Entity<AppointmentDefenseAttorney>(b =>
         {
@@ -641,6 +700,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Email).IsRequired().HasMaxLength(InvitationConsts.EmailMaxLength);
             b.Property(x => x.FirstName).HasMaxLength(InvitationConsts.NameMaxLength);
             b.Property(x => x.LastName).HasMaxLength(InvitationConsts.NameMaxLength);
+            b.Property(x => x.FirmName).HasMaxLength(InvitationConsts.FirmNameMaxLength);
             b.Property(x => x.UserType).IsRequired();
             b.Property(x => x.TokenHash).IsRequired().HasMaxLength(InvitationConsts.TokenHashLength);
             b.Property(x => x.ExpiresAt).IsRequired();

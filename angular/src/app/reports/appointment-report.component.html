@@ -1,143 +1,244 @@
-<div class="container-fluid py-3">
-  <h2 class="mb-3">{{ '::Menu:Reports' | abpLocalization }}</h2>
+<!--
+  Internal Workflow (Prompt 13): Appointment Request Report. Re-skinned onto the
+  internal-shell tokens (ia-* toolbar/table). Status summary cards bucket the
+  server's raw per-status counts client-side (appointmentStatusToSegment); the
+  column picker (rp-cols) toggles grid columns; CSV + PDF export the full filtered
+  set server-side (PHI-masked). SSN is export-only -- never shown on screen.
+  Empty until the user searches, matching the legacy behavior.
+-->
+<div class="ia-head">
+  <div>
+    <h1>Reports</h1>
+    <p>
+      Appointment request report
+      @if (hasSearched) {
+        &middot; {{ totalCount }} result{{ totalCount === 1 ? '' : 's' }}
+      }
+    </p>
+  </div>
+  <div style="display: flex; gap: 8px">
+    <button class="af-btn af-btn--ghost" type="button" (click)="exportCsv()">
+      <app-icon name="arrowDown" [size]="15" />
+      CSV
+    </button>
+    <button class="af-btn af-btn--primary" type="button" (click)="exportPdf()">
+      <app-icon name="arrowDown" [size]="15" />
+      Export PDF
+    </button>
+  </div>
+</div>
 
-  <form class="row g-2 align-items-end mb-3" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
-    <div class="col-md-3">
-      <label class="form-label small mb-1">Search</label>
-      <input
-        class="form-control form-control-sm"
-        type="text"
-        placeholder="Confirmation #, panel #, or patient name"
-        formControlName="filterText"
-      />
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small mb-1">Appointment Type</label>
-      <select class="form-select form-select-sm" formControlName="appointmentTypeId">
-        <option value="">All</option>
-        @for (opt of typeOptions; track opt.id) {
-          <option [value]="opt.id">{{ opt.name }}</option>
-        }
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small mb-1">Location</label>
-      <select class="form-select form-select-sm" formControlName="locationId">
-        <option value="">All</option>
-        @for (opt of locationOptions; track opt.id) {
-          <option [value]="opt.id">{{ opt.name }}</option>
-        }
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small mb-1">Status</label>
-      <select class="form-select form-select-sm" formControlName="appointmentStatus">
-        <option value="">All</option>
-        @for (opt of statusOptions; track opt.value) {
-          <option [value]="opt.value">{{ opt.key }}</option>
-        }
-      </select>
-    </div>
-    <div class="col-md-1">
-      <label class="form-label small mb-1">From</label>
-      <input
-        class="form-control form-control-sm"
-        type="date"
-        formControlName="appointmentDateMin"
-      />
-    </div>
-    <div class="col-md-1">
-      <label class="form-label small mb-1">To</label>
-      <input
-        class="form-control form-control-sm"
-        type="date"
-        formControlName="appointmentDateMax"
-      />
-    </div>
-    <div class="col-12 d-flex gap-2">
-      <button type="submit" class="btn btn-primary btn-sm">Search</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
-        Clear
-      </button>
-      <button type="button" class="btn btn-outline-success btn-sm" (click)="exportPdf()">
-        Export to PDF
-      </button>
-    </div>
-  </form>
+@if (validationError) {
+  <div class="ra-note warn" style="margin-bottom: 14px">
+    <span class="i"><app-icon name="alert" [size]="16" /></span>
+    <span>{{ validationError }}</span>
+  </div>
+}
 
-  @if (validationError) {
-    <div class="alert alert-warning py-2">{{ validationError }}</div>
-  }
+<form class="ia-toolbar" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+  <div class="ia-search">
+    <app-icon name="search" [size]="16" />
+    <input
+      type="text"
+      placeholder="Confirmation #, panel #, or patient name…"
+      formControlName="filterText"
+    />
+  </div>
+  <select class="ia-input" formControlName="appointmentTypeId" style="width: 165px">
+    <option value="">All types</option>
+    @for (t of typeOptions; track t.id) {
+      <option [value]="t.id">{{ t.name }}</option>
+    }
+  </select>
+  <select class="ia-input" formControlName="locationId" style="width: 165px">
+    <option value="">All locations</option>
+    @for (l of locationOptions; track l.id) {
+      <option [value]="l.id">{{ l.name }}</option>
+    }
+  </select>
+  <select class="ia-input" formControlName="appointmentStatus" style="width: 160px">
+    <option value="">All statuses</option>
+    @for (s of statusOptions; track s.value) {
+      <option [value]="s.value">{{ s.key }}</option>
+    }
+  </select>
+  <span class="ia-datelbl">Start date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="appointmentDateMin"
+    aria-label="Start date"
+    title="Start date"
+    style="width: 150px"
+  />
+  <span class="ia-datelbl">End date</span>
+  <input
+    class="ia-input"
+    type="date"
+    formControlName="appointmentDateMax"
+    aria-label="End date"
+    title="End date"
+    style="width: 150px"
+  />
+  <div class="rp-cols">
+    <button
+      class="ia-fbtn"
+      type="button"
+      [attr.aria-expanded]="colsOpen"
+      (click)="colsOpen = !colsOpen"
+    >
+      <app-icon name="list" [size]="15" />
+      Columns
+    </button>
+    @if (colsOpen) {
+      <div class="ia-clickaway" (click)="colsOpen = false"></div>
+      <div class="rp-colmenu">
+        @for (c of colDefs; track c.key) {
+          <label>
+            <input type="checkbox" [checked]="cols[c.key]" (change)="toggleCol(c.key)" />
+            {{ c.label }}
+          </label>
+        }
+      </div>
+    }
+  </div>
+  <button class="af-btn af-btn--ghost" type="button" (click)="clearFilters()">Clear</button>
+  <button class="af-btn af-btn--primary" type="submit">
+    <app-icon name="search" [size]="15" />
+    Search
+  </button>
+</form>
 
-  @if (isLoading) {
-    <p class="text-muted">Loading report...</p>
-  } @else if (!hasSearched) {
-    <p class="text-muted">Enter a search value to run the report.</p>
-  } @else if (rows.length === 0) {
-    <p class="text-muted">No appointment requests match the current filters.</p>
-  } @else {
-    <table class="table table-sm table-striped">
-      <thead>
-        <tr>
-          <th>Confirmation No</th>
-          <th>Appointment Type</th>
-          <th>Location Name</th>
-          <th>Appointment Date Time</th>
-          <th>Status</th>
-          <th>Patient Name</th>
-          <th>Date Of Birth</th>
-          <th>Email</th>
-          <th>Phone Number</th>
-          <th>Social Security Number</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rows; track row.appointmentId) {
+@if (hasSearched && !isLoading) {
+  <div class="rp-stats">
+    @for (s of statSegments; track s.seg) {
+      <div class="rp-stat">
+        <span class="sw" [style.background]="s.sw"></span>
+        <span class="n">{{ statCount(s.seg) }}</span>
+        <span class="l">{{ s.label }}</span>
+      </div>
+    }
+  </div>
+}
+
+@if (!hasSearched) {
+  <div
+    class="ia-empty"
+    style="background: #fff; border: 1px solid var(--border); border-radius: var(--r-md)"
+  >
+    <app-icon name="search" [size]="36" />
+    <b>Search to run the report</b>
+    <span>Enter a confirmation #, name, type, location, status, or date range above.</span>
+  </div>
+} @else {
+  <div class="ia-wrap">
+    <div class="ia-scroll">
+      <table class="ia-table">
+        <thead>
           <tr>
-            <td>
-              <button
-                type="button"
-                class="btn btn-link btn-sm p-0"
-                (click)="openAppointment(row.appointmentId)"
-              >
-                {{ row.requestConfirmationNumber }}
-              </button>
-            </td>
-            <td>{{ row.appointmentTypeName }}</td>
-            <td>{{ row.locationName }}</td>
-            <td>{{ row.appointmentDate | date: 'short' }}</td>
-            <td>{{ statusLabel(row.appointmentStatus) }}</td>
-            <td class="text-uppercase">{{ row.patientName }}</td>
-            <td>{{ row.dateOfBirth }}</td>
-            <td class="text-break">{{ row.email }}</td>
-            <td>{{ row.phoneNumber }}</td>
-            <td>{{ row.socialSecurityNumber }}</td>
+            @if (cols.conf) {
+              <th>Confirmation #</th>
+            }
+            @if (cols.type) {
+              <th>Type</th>
+            }
+            @if (cols.location) {
+              <th>Location</th>
+            }
+            @if (cols.date) {
+              <th>Appointment</th>
+            }
+            @if (cols.status) {
+              <th>Status</th>
+            }
+            @if (cols.patient) {
+              <th>Patient</th>
+            }
+            @if (cols.dob) {
+              <th>Date of birth</th>
+            }
+            @if (cols.email) {
+              <th>Email</th>
+            }
+            @if (cols.phone) {
+              <th>Phone</th>
+            }
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @if (isLoading) {
+            @for (n of [1, 2, 3, 4, 5]; track n) {
+              <tr>
+                <td [attr.colspan]="shownColumnCount"><app-skeleton height="22px" /></td>
+              </tr>
+            }
+          } @else {
+            @for (a of rows; track a.appointmentId) {
+              <tr (click)="openAppointment(a.appointmentId)">
+                @if (cols.conf) {
+                  <td>
+                    <span class="ia-conf">{{ a.requestConfirmationNumber }}</span>
+                  </td>
+                }
+                @if (cols.type) {
+                  <td>{{ a.appointmentTypeName }}</td>
+                }
+                @if (cols.location) {
+                  <td>{{ a.locationName }}</td>
+                }
+                @if (cols.date) {
+                  <td>{{ a.appointmentDate | date: 'MMM d, y' }}</td>
+                }
+                @if (cols.status) {
+                  <td><app-status-pill [status]="pill(a.appointmentStatus)" /></td>
+                }
+                @if (cols.patient) {
+                  <td>
+                    <b style="color: var(--n-900)">{{ a.patientName }}</b>
+                  </td>
+                }
+                @if (cols.dob) {
+                  <td class="ia-sub" style="font-family: var(--font-num)">{{ a.dateOfBirth }}</td>
+                }
+                @if (cols.email) {
+                  <td class="ia-sub">{{ a.email }}</td>
+                }
+                @if (cols.phone) {
+                  <td class="ia-sub" style="font-family: var(--font-num)">{{ a.phoneNumber }}</td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="shownColumnCount">
+                  <div class="ia-empty">
+                    <app-icon name="inbox" [size]="36" />
+                    <b>No results</b>
+                    <span>No appointments match the current filters.</span>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
 
-    <div class="d-flex justify-content-between align-items-center">
-      <span class="text-muted small">{{ totalCount }} appointment request(s)</span>
-      <div class="d-flex gap-2 align-items-center">
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm"
-          (click)="prevPage()"
-          [disabled]="pageIndex === 0"
-        >
-          Prev
-        </button>
-        <span class="small">Page {{ pageIndex + 1 }} of {{ totalPages }}</span>
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm"
-          (click)="nextPage()"
-          [disabled]="pageIndex + 1 >= totalPages"
-        >
-          Next
-        </button>
+    <div class="ia-pager">
+      <div class="info">
+        Page {{ pageIndex + 1 }} of {{ totalPages }} &middot; {{ totalCount }} result{{
+          totalCount === 1 ? '' : 's'
+        }}
+      </div>
+      <div class="right">
+        <div class="ia-pp">
+          <button type="button" (click)="prevPage()" [disabled]="pageIndex <= 0">
+            <app-icon name="chevLeft" [size]="14" />
+          </button>
+          <button type="button" (click)="nextPage()" [disabled]="pageIndex + 1 >= totalPages">
+            <app-icon name="chevRight" [size]="14" />
+          </button>
+        </div>
       </div>
     </div>
-  }
-</div>
+  </div>
+}

@@ -31,6 +31,18 @@ public class AppointmentController : AbpController, IAppointmentsAppService
         return _appointmentsAppService.GetListAsync(input);
     }
 
+    /// <summary>
+    /// Prompt 10 (2026-06-14): per-status counts for the internal list's chips.
+    /// Same filters as the list query; status filter ignored so each chip shows
+    /// its total within the other active filters.
+    /// </summary>
+    [HttpGet]
+    [Route("status-counts")]
+    public virtual Task<List<AppointmentStatusCountDto>> GetStatusCountsAsync(GetAppointmentsInput input)
+    {
+        return _appointmentsAppService.GetStatusCountsAsync(input);
+    }
+
     [HttpGet]
     [Route("with-navigation-properties/{id}")]
     public virtual Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)

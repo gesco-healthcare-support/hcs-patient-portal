@@ -59,8 +59,11 @@ filter -- from host context they require `_currentTenant.Change(tenantId)`.
 3. Explicit `HasOne<Tenant>()` FK on host only. `CaseEvaluationDbContext` adds
    `HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(SetNull)`. The
    tenant `DbContext` omits this FK entirely.
-4. No uniqueness guard. Neither `DoctorManager` nor `DoctorsAppService` checks for
-   duplicate Email at create time.
+4. No APP-LAYER uniqueness guard (neither `DoctorManager` nor `DoctorsAppService`
+   checks duplicate Email at create), BUT one-doctor-per-tenant IS enforced at the DB
+   level by a filtered unique index on `TenantId` (`IX_AppEntity_Doctors_TenantId_Unique`,
+   migration 20260527234615). A second live doctor per tenant cannot be inserted, even
+   via raw SQL.
 5. Two AppServices, two proxies. `DoctorsAppService` (CRUD) and `DoctorTenantAppService`
    (tenant provisioning, extends `Volo.Saas.Host.TenantAppService`, no `[Authorize]` of
    its own). Keep them separate -- the tenant service is host-only infrastructure.

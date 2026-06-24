@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -228,6 +229,129 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         result.ShouldNotBeNull();
         result.TotalCount.ShouldBe(0);
         result.Items.ShouldBeEmpty();
+    }
+
+    // =====================================================================
+    // Prompt 10 (2026-06-14) -- GetStatusCountsAsync (chip counts) + the
+    // multi-status list filter that backs the pill chips. Each test isolates
+    // its scratch rows from the shared seed via a unique appointment date range.
+    // =====================================================================
+
+    [Fact]
+    public async Task GetStatusCountsAsync_ReturnsPerStatusTotals_HonoringDateFilter()
+    {
+        var date = DateTime.Today.AddDays(70);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-CNT-P1", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-CNT-P2", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(15), "A-CNT-A1", AppointmentStatusType.Approved);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(20), "A-CNT-C1", AppointmentStatusType.CancelledLate);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var counts = await _appointmentsAppService.GetStatusCountsAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+            });
+
+            CountOf(counts, AppointmentStatusType.Pending).ShouldBe(2);
+            CountOf(counts, AppointmentStatusType.Approved).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.CancelledLate).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.Rejected).ShouldBe(0);
+        }
+    }
+
+    [Fact]
+    public async Task GetStatusCountsAsync_IgnoresStatusFilter_SoChipsStayIndependent()
+    {
+        var date = DateTime.Today.AddDays(77);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-IND-P1", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-IND-A1", AppointmentStatusType.Approved);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // Selecting the Approved chip (status filter) must NOT zero the Pending count.
+            var counts = await _appointmentsAppService.GetStatusCountsAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+                AppointmentStatus = AppointmentStatusType.Approved,
+                AppointmentStatuses = new List<AppointmentStatusType> { AppointmentStatusType.Approved },
+            });
+
+            CountOf(counts, AppointmentStatusType.Pending).ShouldBe(1);
+            CountOf(counts, AppointmentStatusType.Approved).ShouldBe(1);
+        }
+    }
+
+    [Fact]
+    public async Task GetListAsync_WithAppointmentStatuses_ReturnsOnlyThoseStatuses()
+    {
+        var date = DateTime.Today.AddDays(84);
+        var slotId = await InsertScratchSlotForStatusCountsAsync(date);
+
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(5), "A-MS-P", AppointmentStatusType.Pending);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(10), "A-MS-C5", AppointmentStatusType.CancelledNoBill);
+        await InsertAppointmentWithStatusAsync(slotId, date.AddHours(9).AddMinutes(15), "A-MS-C6", AppointmentStatusType.CancelledLate);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            // The "Cancelled" pill spans several raw statuses -> sent as a set.
+            var result = await _appointmentsAppService.GetListAsync(new GetAppointmentsInput
+            {
+                AppointmentDateMin = date,
+                AppointmentDateMax = date.AddDays(1),
+                AppointmentStatuses = new List<AppointmentStatusType>
+                {
+                    AppointmentStatusType.CancelledNoBill,
+                    AppointmentStatusType.CancelledLate,
+                },
+            });
+
+            result.Items.ShouldContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-C5");
+            result.Items.ShouldContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-C6");
+            result.Items.ShouldNotContain(x => x.Appointment.RequestConfirmationNumber == "A-MS-P");
+        }
+    }
+
+    private static int CountOf(List<AppointmentStatusCountDto> counts, AppointmentStatusType status)
+    {
+        return counts.FirstOrDefault(c => c.Status == status)?.Count ?? 0;
+    }
+
+    private async Task<Guid> InsertScratchSlotForStatusCountsAsync(DateTime date)
+    {
+        var slot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: date,
+            scratchFromTime: new TimeOnly(9, 0),
+            scratchToTime: new TimeOnly(17, 0));
+        return slot.Id;
+    }
+
+    private async Task InsertAppointmentWithStatusAsync(
+        Guid doctorAvailabilityId,
+        DateTime appointmentDate,
+        string requestConfirmationNumber,
+        AppointmentStatusType status)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var appointment = new Appointment(
+                id: Guid.NewGuid(),
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: doctorAvailabilityId,
+                appointmentDate: appointmentDate,
+                requestConfirmationNumber: requestConfirmationNumber,
+                appointmentStatus: status);
+            await _appointmentRepository.InsertAsync(appointment, autoSave: true);
+        }
     }
 
     // =====================================================================

@@ -222,6 +222,35 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     }
 
     [Fact]
+    public async Task UpdateAsync_SanitizesScriptFromBodyEmail()
+    {
+        // #6 (2026-06-19): UpdateAsync sanitizes the HTML email body on write.
+        // Pure sanitizer behavior is covered by EmailBodySanitizerTests; this
+        // asserts the AppService actually invokes it (and leaves merge tokens
+        // intact). Runs only under a populated ABP Pro license.
+        await EnsureSeededAsync(TenantsTestData.TenantARef);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var current = await _appService.GetByCodeAsync(NotificationTemplateConsts.Codes.AppointmentApproved);
+            var input = new NotificationTemplateUpdateDto
+            {
+                Subject = current.NotificationTemplate.Subject,
+                BodyEmail = "<p>Hi ##PatientName##</p><script>steal()</script>",
+                BodySms = current.NotificationTemplate.BodySms,
+                IsActive = true,
+                ConcurrencyStamp = current.NotificationTemplate.ConcurrencyStamp,
+            };
+
+            var result = await _appService.UpdateAsync(current.NotificationTemplate.Id, input);
+
+            result.BodyEmail.ToLowerInvariant().ShouldNotContain("<script");
+            result.BodyEmail.ShouldNotContain("steal");
+            result.BodyEmail.ShouldContain("##PatientName##");
+        }
+    }
+
+    [Fact]
     public async Task UpdateAsync_NullBodyEmail_Throws()
     {
         await EnsureSeededAsync(TenantsTestData.TenantARef);

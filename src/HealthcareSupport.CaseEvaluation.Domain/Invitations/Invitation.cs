@@ -17,8 +17,8 @@ namespace HealthcareSupport.CaseEvaluation.Invitations;
 /// <c>Expired</c> (AcceptedAt == null AND ExpiresAt &lt;= now). Once
 /// accepted, the row is never reactivated -- the recipient must request
 /// a fresh invite if they need to register again. Soft-delete (ISoftDelete
-/// from FullAuditedAggregateRoot) is used for admin-side "revoke" in a
-/// future ticket.</para>
+/// from FullAuditedAggregateRoot) backs the admin-side "revoke" action
+/// (2026-06-16); the staff "resend" re-issues the same row in place.</para>
 ///
 /// <para>Token storage: the raw token is NEVER persisted. We hash it once
 /// on issue (SHA256 -&gt; hex) and store only the hash in
@@ -52,6 +52,13 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <see cref="FirstName"/>.
     /// </summary>
     public virtual string? LastName { get; protected set; }
+
+    /// <summary>
+    /// Firm name captured at invite time (optional, attorney invites only;
+    /// 2026-06-16 / #21). Pre-fills the attorney's firm on the register form;
+    /// null for non-attorney roles or when the inviter did not supply it.
+    /// </summary>
+    public virtual string? FirmName { get; protected set; }
 
     /// <summary>
     /// External role the invite grants. Constrained to the four external
@@ -112,7 +119,8 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
         DateTime expiresAt,
         Guid invitedByUserId,
         string? firstName = null,
-        string? lastName = null)
+        string? lastName = null,
+        string? firmName = null)
     {
         Id = id;
         TenantId = tenantId;
@@ -123,6 +131,7 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
         InvitedByUserId = invitedByUserId;
         FirstName = firstName;
         LastName = lastName;
+        FirmName = firmName;
     }
 
     /// <summary>
@@ -137,6 +146,20 @@ public class Invitation : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
         AcceptedAt = acceptedAtUtc;
         AcceptedByUserId = acceptedByUserId;
+    }
+
+    /// <summary>
+    /// Domain-service-only mutation: re-issues this invitation in place with a
+    /// fresh token hash and expiry. Backs the staff "resend" action so the
+    /// list keeps one row per recipient -- the prior token stops validating
+    /// immediately (its hash is overwritten) and the TTL clock restarts. Only
+    /// called on a still-pending row (the AppService rejects resend on an
+    /// accepted invitation), so AcceptedAt stays null.
+    /// </summary>
+    internal void Reissue(string tokenHash, DateTime expiresAt)
+    {
+        TokenHash = tokenHash;
+        ExpiresAt = expiresAt;
     }
 
     /// <summary>

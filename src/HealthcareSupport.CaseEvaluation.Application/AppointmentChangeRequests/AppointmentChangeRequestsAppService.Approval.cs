@@ -273,7 +273,10 @@ public class AppointmentChangeRequestsApprovalAppService :
                 newAppointmentId: newAppointmentId,
                 newTenantId: sourceAppointment.TenantId,
                 newDoctorAvailabilityId: newSlotId,
-                newAppointmentDate: newSlot.AvailableDate,
+                // F-017 fix (2026-06-23): AvailableDate is date-only (midnight); the slot's
+                // start time lives in TimeOnly FromTime. Combine them so the rescheduled
+                // appointment carries the picked time (was showing 12:00 AM everywhere).
+                newAppointmentDate: newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan(),
                 sameConfirmationNumber: false,
                 overrideConfirmationNumber: freshConfirmationNumber,
                 approveDate: DateTime.UtcNow,

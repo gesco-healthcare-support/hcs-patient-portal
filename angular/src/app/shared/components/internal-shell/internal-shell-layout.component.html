@@ -1,0 +1,135 @@
+<div class="in" [class.in--collapsed]="collapsed()">
+  <aside class="in-side">
+    <div class="in-side__brand">
+      <span class="mark">A</span>
+      <span class="tt">
+        <b>Appointment Portal</b>
+        <span>{{ brandSubtitle() }}</span>
+      </span>
+    </div>
+
+    <nav class="in-nav">
+      @for (group of groups(); track group.sect) {
+        <!-- Only Configuration + People collapse (they sit at the bottom): they
+             render as a real <button> accordion toggle, so Enter/Space activate
+             natively. The operational groups render a static, always-open header.
+             The icon-rail (collapsed) sidebar always shows every item since the
+             accordion makes no sense at 72px. -->
+        @if (group.collapsible) {
+          <button
+            class="in-sect"
+            type="button"
+            [class.open]="isSectionOpen(group.sect)"
+            [attr.aria-expanded]="isSectionOpen(group.sect)"
+            (click)="toggleSection(group.sect)"
+          >
+            <span>{{ group.sect }}</span>
+            <app-icon class="in-sect__chev" name="chevDown" [size]="13" />
+          </button>
+        } @else {
+          <div class="in-sect in-sect--static">
+            <span>{{ group.sect }}</span>
+          </div>
+        }
+        @if (!group.collapsible || collapsed() || isSectionOpen(group.sect)) {
+          @for (item of group.items; track item.id) {
+            <a
+              class="in-link"
+              [class.on]="item.id === activeId()"
+              [class.has-badge]="badgeCount(item.badge) > 0"
+              [routerLink]="item.route"
+              [attr.data-tip]="item.label"
+            >
+              <span class="i"><app-icon [name]="item.icon" [size]="18" /></span>
+              <span class="lbl">{{ item.label }}</span>
+              @if (badgeCount(item.badge) > 0) {
+                <span class="badge">{{ badgeCount(item.badge) }}</span>
+                <span class="pip"></span>
+              }
+            </a>
+          }
+        }
+      }
+    </nav>
+  </aside>
+
+  <div class="in-main">
+    <header class="in-top">
+      <button
+        class="in-collapse"
+        type="button"
+        (click)="toggleCollapse()"
+        aria-label="Toggle sidebar"
+      >
+        <app-icon name="list" [size]="18" />
+      </button>
+
+      <div class="in-crumb">
+        {{ platform() ? 'Platform' : 'Home' }}
+        <app-icon name="chevRight" [size]="13" />
+        <b>{{ crumb() }}</b>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div
+        class="in-tenant"
+        [class.host]="platform()"
+        [style.cursor]="canSwitch() ? 'pointer' : 'default'"
+      >
+        <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
+        {{ platform() ? 'All tenants' : tenantName() }}
+        @if (canSwitch()) {
+          <app-icon name="chevDown" [size]="14" />
+        }
+      </div>
+
+      <button class="in-iconbtn" type="button" aria-label="Notifications">
+        <app-icon name="bell" [size]="18" />
+      </button>
+
+      @if (!platform()) {
+        <a class="ap-btn ap-btn--primary" routerLink="/appointments/add">
+          <app-icon name="plus" [size]="15" />
+          New appointment
+        </a>
+      }
+
+      <div class="in-acctwrap">
+        @if (acctOpen()) {
+          <div class="in-clickaway" (click)="closeAcct()"></div>
+        }
+        <button
+          class="in-acct"
+          type="button"
+          [attr.aria-expanded]="acctOpen()"
+          (click)="toggleAcct()"
+        >
+          <span class="ava" [style.background]="avatar()">{{ initials() }}</span>
+          <span class="who">
+            <b>{{ userName() }}</b>
+            <span>{{ roleLabel() }}</span>
+          </span>
+          <span class="cv"><app-icon name="chevDown" [size]="14" /></span>
+        </button>
+        @if (acctOpen()) {
+          <div class="in-acct__pop">
+            <a [href]="manageAccountUrl" (click)="closeAcct()">
+              <span class="i"><app-icon name="user" [size]="16" /></span>
+              My account
+            </a>
+            <div class="in-acct__div"></div>
+            <button class="danger" type="button" (click)="signOut()">
+              <span class="i"><app-icon name="logout" [size]="16" /></span>
+              Sign out
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <div class="in-content">
+      <router-outlet />
+    </div>
+  </div>
+</div>

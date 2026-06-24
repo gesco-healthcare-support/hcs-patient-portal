@@ -77,6 +77,15 @@
               }
             }
           }
+          @if (canRequestInfo) {
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              (click)="openRequestInfo()"
+            >
+              Request info
+            </button>
+          }
           @if (canReRequest) {
             <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
               {{ '::Appointment:Action:ReRequest' | abpLocalization }}
@@ -165,6 +174,12 @@
         [(visible)]="cancelRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-cancellation-request-modal>
+
+      <app-request-info-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="requestInfoModalVisible"
+        (succeeded)="onInfoRequestSucceeded()"
+      ></app-request-info-modal>
 
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -576,13 +591,18 @@
           <div class="card-body">
             @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
               <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Applicant Attorney Email</label>
+                <div class="col-md-8">
+                  <label class="form-label fw-semibold">Applicant Attorney</label>
                   <input
-                    type="email"
+                    type="text"
                     class="form-control"
-                    placeholder="Enter email to load"
+                    placeholder="Search by name or email"
                     formControlName="applicantAttorneyEmailSearch"
+                    [ngbTypeahead]="searchApplicantAttorney"
+                    [resultFormatter]="formatAttorneyResult"
+                    [inputFormatter]="formatAttorneyInput"
+                    [editable]="true"
+                    (selectItem)="onApplicantAttorneyTypeaheadSelect($event)"
                   />
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
@@ -596,25 +616,6 @@
                   >
                     Load Applicant Attorney
                   </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select</label>
-                  <select
-                    class="form-select"
-                    formControlName="applicantAttorneyIdentityUserId"
-                    (change)="
-                      onApplicantAttorneySelected(
-                        form.get('applicantAttorneyIdentityUserId')?.value
-                      )
-                    "
-                  >
-                    <option [ngValue]="null">Select Applicant Attorney</option>
-                    @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                      <option [ngValue]="opt.identityUserId">
-                        {{ applicantAttorneyOptionLabel(opt) }}
-                      </option>
-                    }
-                  </select>
                 </div>
               </div>
             }
@@ -738,13 +739,18 @@
           <div class="card-body">
             @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
               <div class="row mb-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold">Defense Attorney Email</label>
+                <div class="col-md-8">
+                  <label class="form-label fw-semibold">Defense Attorney</label>
                   <input
-                    type="email"
+                    type="text"
                     class="form-control"
-                    placeholder="Enter email to load"
+                    placeholder="Search by name or email"
                     formControlName="defenseAttorneyEmailSearch"
+                    [ngbTypeahead]="searchDefenseAttorney"
+                    [resultFormatter]="formatAttorneyResult"
+                    [inputFormatter]="formatAttorneyInput"
+                    [editable]="true"
+                    (selectItem)="onDefenseAttorneyTypeaheadSelect($event)"
                   />
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
@@ -758,21 +764,6 @@
                   >
                     Load Defense Attorney
                   </button>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">Or select</label>
-                  <select
-                    class="form-select"
-                    formControlName="defenseAttorneyIdentityUserId"
-                    (change)="
-                      onDefenseAttorneySelected(form.get('defenseAttorneyIdentityUserId')?.value)
-                    "
-                  >
-                    <option [ngValue]="null">Select Defense Attorney</option>
-                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
-                      <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
-                    }
-                  </select>
                 </div>
               </div>
             }

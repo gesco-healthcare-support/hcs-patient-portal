@@ -66,4 +66,18 @@ public class NotificationTemplatesController : AbpController, INotificationTempl
     {
         return NotificationTemplatesAppService.UpdateAsync(id, input);
     }
+
+    [HttpPost]
+    [Route("{id}/send-test")]
+    public virtual Task SendTestAsync(Guid id)
+    {
+        return NotificationTemplatesAppService.SendTestAsync(id);
+    }
+
+    [HttpGet]
+    [Route("{templateCode}/variables")]
+    public virtual Task<ListResultDto<NotificationTemplateVariableDto>> GetVariablesAsync(string templateCode)
+    {
+        return NotificationTemplatesAppService.GetVariablesAsync(templateCode);
+    }
 }

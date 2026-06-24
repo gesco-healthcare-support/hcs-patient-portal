@@ -14,7 +14,7 @@ No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole
 |---|---|---|
 | `RegisterAsync(ExternalUserSignUpDto)` | `[AllowAnonymous]` | Create IdentityUser + role + Patient (if type=Patient) |
 | `GetTenantOptionsAsync(filter?)` | `[AllowAnonymous]` | List available tenants for registration form |
-| `GetExternalUserLookupAsync(filter?)` | No explicit attribute | List external users by role |
+| `GetExternalUserLookupAsync(filter)` | `[Authorize]` | Scoped SEARCH: staff = tenant-wide, external = co-parties only (filter required) |
 | `GetMyProfileAsync()` | `[Authorize]` | Return current user's profile (via ExternalUserController) |
 
 ### ExternalUserType -> Role Mapping
@@ -62,10 +62,11 @@ Applicant Attorney + Defense Attorney register as **firm accounts**, not individ
    DOB at booking; the booking prefill and read surfaces treat the sentinels as blank rather
    than surfacing a fabricated value.
 
-4. **`GetExternalUserLookupAsync` may be unprotected** -- No explicit `[Authorize]` or
-   `[AllowAnonymous]` attribute. If ABP does not apply a default policy, unauthenticated
-   callers could list all external users with names and emails. Do not call this endpoint
-   from new code without first adding authorization + rate-limiting.
+4. **`GetExternalUserLookupAsync` is `[Authorize]` + relationship-scoped (2026-06-22)** --
+   the prior "may be unprotected / lists all users" risk is CLOSED. It now requires a search
+   term, and an external caller sees only co-parties on appointments they can already see
+   (`AppointmentVisibilityService` + `ExternalCoPartyRules`); internal staff search the
+   tenant. Do not re-introduce a blank-filter "list everyone" path -- it is a HIPAA leak.
 
 5. **`RegisterAsync` / `GetTenantOptionsAsync` have no rate limiting and no CAPTCHA** --
    public `[AllowAnonymous]` endpoints collecting PII (name, email, password). Do not call

@@ -8,6 +8,7 @@ export interface DefenseAttorneyCreateDto {
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
   street?: string | null;
@@ -23,6 +24,7 @@ export interface DefenseAttorneyDto extends FullAuditedEntityDto<string> {
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
   street?: string | null;
@@ -39,6 +41,7 @@ export interface DefenseAttorneyUpdateDto {
   firmName?: string | null;
   firmAddress?: string | null;
   webAddress?: string | null;
+  email?: string | null;
   phoneNumber?: string | null;
   faxNumber?: string | null;
   street?: string | null;

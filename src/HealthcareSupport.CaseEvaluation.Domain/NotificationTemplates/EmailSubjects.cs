@@ -108,6 +108,10 @@ internal static class EmailSubjects
     public const string PatientAppointmentCancelledNoBill =
         "Appointment Portal - Appointment Cancelled - ##AppointmentRequestConfirmationNumber##";
 
+    /// <summary>Prompt 17 (2026-06-17) -- send-back / request-info notice to the requester.</summary>
+    public const string PatientAppointmentInfoRequested =
+        "Appointment Portal - More information needed - ##AppointmentRequestConfirmationNumber##";
+
     // ----------------------------------------------------------------------
     // Phase 6.C (Category 6, 2026-05-08): document-flow subjects.
     // OLD wording verified at AppointmentDocumentDomain.cs:258 / :275 / :291
@@ -311,6 +315,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.PatientAppointmentCheckedOut] = PatientAppointmentCheckedOut,
             [NotificationTemplateConsts.Codes.PatientAppointmentNoShow] = PatientAppointmentNoShow,
             [NotificationTemplateConsts.Codes.PatientAppointmentCancelledNoBill] = PatientAppointmentCancelledNoBill,
+            [NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested] = PatientAppointmentInfoRequested,
             [NotificationTemplateConsts.Codes.PatientDocumentAccepted] = PatientDocumentAccepted,
             [NotificationTemplateConsts.Codes.PatientDocumentRejected] = PatientDocumentRejected,
             [NotificationTemplateConsts.Codes.PatientDocumentUploaded] = PatientDocumentUploaded,
