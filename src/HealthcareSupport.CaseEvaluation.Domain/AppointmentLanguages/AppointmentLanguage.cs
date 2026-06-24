@@ -10,8 +10,12 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 
-public class AppointmentLanguage : FullAuditedEntity<Guid>
+public class AppointmentLanguage : FullAuditedEntity<Guid>, IMultiTenant
 {
+    // Reference list copied into each office DB (db-per-office). Seeded
+    // identically per office; not office-editable.
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
     public virtual string Name { get; set; } = null!;
 

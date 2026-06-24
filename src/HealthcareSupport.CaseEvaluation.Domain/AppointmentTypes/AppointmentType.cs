@@ -12,8 +12,12 @@ using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 
-public class AppointmentType : FullAuditedEntity<Guid>
+public class AppointmentType : FullAuditedEntity<Guid>, IMultiTenant
 {
+    // Office-owned list (db-per-office): each office has its own copy, seeded
+    // with the AME/IME/PQME defaults, and may add or disable types.
+    public virtual Guid? TenantId { get; protected set; }
+
     [NotNull]
     public virtual string Name { get; set; } = null!;
 
