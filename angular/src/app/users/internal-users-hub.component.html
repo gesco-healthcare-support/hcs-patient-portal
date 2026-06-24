@@ -34,24 +34,29 @@
         </div>
         <div class="ra-card__body">
           <div class="ra-grid">
-            <div class="ra-field col-6">
-              <label>First name</label>
-              <input
-                class="ra-input"
-                [ngModel]="invite().firstName"
-                (ngModelChange)="patchInvite({ firstName: $event })"
-                maxlength="128"
-              />
-            </div>
-            <div class="ra-field col-6">
-              <label>Last name</label>
-              <input
-                class="ra-input"
-                [ngModel]="invite().lastName"
-                (ngModelChange)="patchInvite({ lastName: $event })"
-                maxlength="128"
-              />
-            </div>
+            <!-- Attorneys register firm-only (no first/last), matching the
+                 self-register form; hide the name fields for those roles so the
+                 invite surface does not diverge (QA F-005). -->
+            @if (!showFirm()) {
+              <div class="ra-field col-6">
+                <label>First name</label>
+                <input
+                  class="ra-input"
+                  [ngModel]="invite().firstName"
+                  (ngModelChange)="patchInvite({ firstName: $event })"
+                  maxlength="128"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label>Last name</label>
+                <input
+                  class="ra-input"
+                  [ngModel]="invite().lastName"
+                  (ngModelChange)="patchInvite({ lastName: $event })"
+                  maxlength="128"
+                />
+              </div>
+            }
             <div class="ra-field col-6">
               <label>
                 Email

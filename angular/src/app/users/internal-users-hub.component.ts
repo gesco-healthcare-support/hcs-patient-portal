@@ -195,13 +195,15 @@ export class InternalUsersHubComponent {
       this.toaster.warn('A valid email is required.');
       return;
     }
-    const firmName = this.showFirm() && form.firmName.trim() ? form.firmName.trim() : undefined;
+    const isFirm = this.showFirm();
+    const firmName = isFirm && form.firmName.trim() ? form.firmName.trim() : undefined;
     this.isBusy.set(true);
     this.gateway
       .sendInvite({
         email: form.email.trim(),
-        firstName: form.firstName.trim() || undefined,
-        lastName: form.lastName.trim() || undefined,
+        // Attorneys are firm-only (name hidden); never send stale first/last.
+        firstName: isFirm ? undefined : form.firstName.trim() || undefined,
+        lastName: isFirm ? undefined : form.lastName.trim() || undefined,
         userType: form.userType,
         firmName,
       })

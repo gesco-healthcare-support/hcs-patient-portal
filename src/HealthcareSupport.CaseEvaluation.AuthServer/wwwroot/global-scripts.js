@@ -1485,6 +1485,10 @@
         // UM1 (2026-06-04): pre-fill the editable name fields from the invite.
         prefillEditableField(form, ['#external-first-name', 'input[name="FirstName"]'], body.firstName);
         prefillEditableField(form, ['#external-last-name', 'input[name="LastName"]'], body.lastName);
+        // QA F-005: an attorney invite carries the firm name; setEmailRoleLocked
+        // already revealed the firm field for attorney roles, so pre-fill it too
+        // (no-op for non-attorney invites where firmName is null).
+        prefillEditableField(form, ['#external-firm-name', 'input[name="FirmName"]'], body.firmName);
         renderInviteBanner(
           form,
           '<strong>You’ve been invited to register at ' + escapeHtml(body.tenantName) + '.</strong>'

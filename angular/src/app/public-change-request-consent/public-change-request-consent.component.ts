@@ -117,6 +117,11 @@ export class PublicChangeRequestConsentComponent {
     return this.isReschedule ? 'reschedule' : 'cancellation';
   }
 
+  // Verb form for "A request to {verb}" -- "cancel", not the noun "cancellation" (F-015).
+  get actionVerb(): string {
+    return this.isReschedule ? 'reschedule' : 'cancel';
+  }
+
   /** A decision (or expiry default) already recorded -> not still Pending. */
   get alreadyDecided(): boolean {
     return !!this.info && this.info.consentStatus !== 1;

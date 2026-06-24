@@ -76,11 +76,24 @@ export class ExternalNavbarComponent {
   }
 
   protected get initials(): string {
-    const parts = this.userName.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return '?';
-    const first = parts[0][0] ?? '';
-    const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
-    return (first + last).toUpperCase();
+    // Keep only word-bearing tokens so a firm name's connectors (e.g. the "&"
+    // in "Stone & Perez") never become an initial. \p{L}/\p{N} stay correct for
+    // non-Latin names; the leading-punctuation strip handles "(Stone".
+    const tokens = this.userName
+      .trim()
+      .split(/\s+/)
+      .map((t) => t.replace(/^[^\p{L}\p{N}]+/u, ''))
+      .filter((t) => /[\p{L}\p{N}]/u.test(t));
+    if (tokens.length === 0) return '?';
+    const first = tokens[0][0];
+    // A firm's last token is usually a suffix (LLP/Inc/Law), not a meaningful
+    // initial -- so for a firm-name avatar use the first two words ("Stone &
+    // Perez Defense LLP" -> "SP"). A person keeps first + last ("Marcus James
+    // Bennett" -> "MB"). The display name equals orgName only in the firm case.
+    const isFirm = !!this.orgName && this.userName.trim() === this.orgName.trim();
+    const secondIndex = isFirm ? 1 : tokens.length - 1;
+    const second = tokens.length > 1 ? tokens[secondIndex][0] : '';
+    return (first + second).toUpperCase();
   }
 
   /** Deterministic avatar color (ported from after-common.jsx avaColor). */

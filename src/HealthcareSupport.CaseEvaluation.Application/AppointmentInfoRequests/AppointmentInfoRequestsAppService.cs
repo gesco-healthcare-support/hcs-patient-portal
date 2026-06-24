@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -42,6 +43,7 @@ public class AppointmentInfoRequestsAppService
     private readonly IRepository<DefenseAttorney, Guid> _defenseRepository;
     private readonly IRepository<AppointmentLanguage, Guid> _languageRepository;
     private readonly IRepository<State, Guid> _stateRepository;
+    private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly IIdentityUserRepository _userRepository;
 
     public AppointmentInfoRequestsAppService(
@@ -55,6 +57,7 @@ public class AppointmentInfoRequestsAppService
         IRepository<DefenseAttorney, Guid> defenseRepository,
         IRepository<AppointmentLanguage, Guid> languageRepository,
         IRepository<State, Guid> stateRepository,
+        IRepository<AppointmentDocument, Guid> documentRepository,
         IIdentityUserRepository userRepository)
     {
         _infoRequestRepository = infoRequestRepository;
@@ -67,6 +70,7 @@ public class AppointmentInfoRequestsAppService
         _defenseRepository = defenseRepository;
         _languageRepository = languageRepository;
         _stateRepository = stateRepository;
+        _documentRepository = documentRepository;
         _userRepository = userRepository;
     }
 
@@ -121,9 +125,23 @@ public class AppointmentInfoRequestsAppService
         var open = await GetOpenEntityAsync(appointmentId);
         if (open != null)
         {
-            // Snapshot the corrected values so the staff diff has an "after".
             var appointment = await _appointmentRepository.GetAsync(appointmentId);
-            open.CaptureAfterValues(await BuildSnapshotJsonAsync(appointment, ReadFlaggedKeys(open)));
+            var flaggedKeys = ReadFlaggedKeys(open);
+
+            // F-018 fix (2026-06-23): the fix-it page disables Resubmit until every flagged field
+            // is addressed, but that gate is client-side only (it keys off in-session `touched`),
+            // so a direct API call could resubmit an un-fixed appointment. Re-check server-side
+            // that each flagged field now holds a value (and that a document exists when documents
+            // were flagged) before allowing the InfoRequested -> Pending transition.
+            var unresolved = await GetUnresolvedFlaggedKeysAsync(appointment, flaggedKeys);
+            if (unresolved.Count > 0)
+            {
+                throw new UserFriendlyException(
+                    "Please complete all the requested corrections before resubmitting to the clinic.");
+            }
+
+            // Snapshot the corrected values so the staff diff has an "after".
+            open.CaptureAfterValues(await BuildSnapshotJsonAsync(appointment, flaggedKeys));
             open.MarkResolved(Clock.Now);
             await _infoRequestRepository.UpdateAsync(open, autoSave: true);
         }
@@ -262,6 +280,68 @@ public class AppointmentInfoRequestsAppService
         };
 
         return InfoRequestSnapshot.Serialize(InfoRequestSnapshot.Capture(values, flaggedKeys));
+    }
+
+    /// <summary>
+    /// F-018 (2026-06-23): server-side check that the staff-flagged fields were actually
+    /// addressed before a resubmit. Returns the flagged keys that still hold NO value, mirroring
+    /// the value homes in <see cref="BuildSnapshotJsonAsync"/>. The "documents" key requires at
+    /// least one uploaded document. Unknown keys are treated as resolved (fail-open) so a future
+    /// field key cannot silently wedge every resubmit; the known set covers the correctable fields.
+    /// </summary>
+    private async Task<List<string>> GetUnresolvedFlaggedKeysAsync(Appointment appointment, ISet<string> flaggedKeys)
+    {
+        var unresolved = new List<string>();
+        if (flaggedKeys.Count == 0)
+        {
+            return unresolved;
+        }
+
+        Patient? patient = null;
+        if (flaggedKeys.Overlaps(PatientSnapshotKeys))
+        {
+            patient = await _patientRepository.FindAsync(appointment.PatientId);
+        }
+
+        foreach (var key in flaggedKeys)
+        {
+            bool resolved;
+            switch (key)
+            {
+                case "dateOfBirth": resolved = patient?.DateOfBirth != null; break;
+                case "socialSecurityNumber": resolved = !string.IsNullOrWhiteSpace(patient?.SocialSecurityNumber); break;
+                case "street": resolved = !string.IsNullOrWhiteSpace(patient?.Street); break;
+                case "city": resolved = !string.IsNullOrWhiteSpace(patient?.City); break;
+                case "zipCode": resolved = !string.IsNullOrWhiteSpace(patient?.ZipCode); break;
+                case "cellPhoneNumber": resolved = !string.IsNullOrWhiteSpace(patient?.CellPhoneNumber); break;
+                case "stateId": resolved = patient?.StateId != null; break;
+                case "appointmentLanguageId": resolved = patient?.AppointmentLanguageId != null; break;
+                case "applicantAttorneyEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ApplicantAttorneyEmail); break;
+                case "claimExaminerEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ClaimExaminerEmail); break;
+                case "appointmentInsuranceName":
+                    resolved = !string.IsNullOrWhiteSpace(
+                        (await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id))?.Name);
+                    break;
+                case "defenseAttorneyFirmName":
+                    var link = await _defenseLinkRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+                    var firm = link == null ? null : (await _defenseRepository.FindAsync(link.DefenseAttorneyId))?.FirmName;
+                    resolved = !string.IsNullOrWhiteSpace(firm);
+                    break;
+                case "documents":
+                    resolved = await _documentRepository.CountAsync(x => x.AppointmentId == appointment.Id) > 0;
+                    break;
+                default:
+                    resolved = true;
+                    break;
+            }
+
+            if (!resolved)
+            {
+                unresolved.Add(key);
+            }
+        }
+
+        return unresolved;
     }
 
     /// <summary>

@@ -229,7 +229,17 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
 
   // ---- staff panel ----
   protected get bookerEmail(): string {
-    return this.appointment?.identityUser?.email ?? this.appointment?.identityUser?.userName ?? '';
+    // QA F-011: prefer the actual booker (BookedByUserId, resolved server-side).
+    // Fall back to identityUser (patient/owner) only for legacy rows booked
+    // before BookedByUserId existed and with no audit CreatorId to resolve.
+    const booker = this.appointment?.bookedByUser;
+    return (
+      booker?.email ??
+      booker?.userName ??
+      this.appointment?.identityUser?.email ??
+      this.appointment?.identityUser?.userName ??
+      ''
+    );
   }
   protected get decideBy(): DecideBy | null {
     if (this.pill !== 'Pending') {

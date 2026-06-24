@@ -41,7 +41,7 @@ describe('cf-config.util', () => {
       ]);
     });
 
-    it('places all twelve fields across the groups exactly once', () => {
+    it('places all fifteen fields across the groups exactly once', () => {
       const catalog = buildFieldCatalog();
       const keys: string[] = [];
       for (const group of catalog) {
@@ -49,21 +49,21 @@ describe('cf-config.util', () => {
           keys.push(field.key);
         }
       }
-      expect(keys.length).toBe(12);
-      expect(new Set(keys).size).toBe(12);
+      expect(keys.length).toBe(15);
+      expect(new Set(keys).size).toBe(15);
     });
 
-    it('keeps the five Patient-group fields together', () => {
+    it('keeps the eight Patient-group fields together', () => {
       const patient = buildFieldCatalog().find((g) => g.group === 'Patient')!;
       expect(patient.fields.map((f) => f.key)).toContain('socialSecurityNumber');
-      expect(patient.fields.length).toBe(5);
+      expect(patient.fields.length).toBe(8);
     });
   });
 
   describe('emptyFieldState', () => {
     it('returns a default state for every catalog key', () => {
       const state = emptyFieldState();
-      expect(Object.keys(state).length).toBe(12);
+      expect(Object.keys(state).length).toBe(15);
       expect(state['panelNumber']).toEqual({
         hidden: false,
         readOnly: false,
@@ -93,14 +93,14 @@ describe('cf-config.util', () => {
     it('coerces a null defaultValue to an empty string', () => {
       const configs: AppointmentTypeFieldConfigDto[] = [
         {
-          fieldName: 'address',
+          fieldName: 'street',
           hidden: false,
           readOnly: true,
           required: false,
           defaultValue: null,
         },
       ];
-      expect(fieldStateFromConfigs(configs)['address'].defaultValue).toBe('');
+      expect(fieldStateFromConfigs(configs)['street'].defaultValue).toBe('');
     });
 
     it('ignores a stale FieldName that is not in the catalog', () => {
@@ -115,7 +115,7 @@ describe('cf-config.util', () => {
       ];
       const state = fieldStateFromConfigs(configs);
       expect(state['someRetiredField']).toBeUndefined();
-      expect(Object.keys(state).length).toBe(12);
+      expect(Object.keys(state).length).toBe(15);
     });
   });
 
@@ -157,7 +157,7 @@ describe('cf-config.util', () => {
     it('round-trips a deviating field through configs -> state -> batch', () => {
       const configs: AppointmentTypeFieldConfigDto[] = [
         {
-          fieldName: 'address',
+          fieldName: 'street',
           hidden: false,
           readOnly: true,
           required: false,
@@ -167,7 +167,7 @@ describe('cf-config.util', () => {
       const batch = fieldStateToBatch(fieldStateFromConfigs(configs));
       expect(batch.length).toBe(1);
       expect(batch[0]).toEqual({
-        fieldName: 'address',
+        fieldName: 'street',
         hidden: false,
         readOnly: true,
         required: false,
