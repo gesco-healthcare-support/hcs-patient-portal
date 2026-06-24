@@ -498,22 +498,22 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         switch (range)
         {
             case DashboardRange.Month:
-            {
-                var monthStart = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                return (monthStart, monthStart.AddMonths(-1));
-            }
+                {
+                    var monthStart = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                    return (monthStart, monthStart.AddMonths(-1));
+                }
             case DashboardRange.Quarter:
-            {
-                var quarterStartMonth = ((nowUtc.Month - 1) / 3 * 3) + 1;
-                var quarterStart = new DateTime(nowUtc.Year, quarterStartMonth, 1, 0, 0, 0, DateTimeKind.Utc);
-                return (quarterStart, quarterStart.AddMonths(-3));
-            }
+                {
+                    var quarterStartMonth = ((nowUtc.Month - 1) / 3 * 3) + 1;
+                    var quarterStart = new DateTime(nowUtc.Year, quarterStartMonth, 1, 0, 0, 0, DateTimeKind.Utc);
+                    return (quarterStart, quarterStart.AddMonths(-3));
+                }
             case DashboardRange.Week:
             default:
-            {
-                var weekStart = GetLastMondayUtc();
-                return (weekStart, weekStart.AddDays(-7));
-            }
+                {
+                    var weekStart = GetLastMondayUtc();
+                    return (weekStart, weekStart.AddDays(-7));
+                }
         }
     }
 
