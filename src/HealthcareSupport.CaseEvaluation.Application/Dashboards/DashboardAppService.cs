@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Authorization;
@@ -21,6 +22,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Doctor, Guid> _doctorRepository;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
+    private readonly ISystemParameterRepository _systemParameterRepository;
     private readonly IDataFilter _dataFilter;
     private readonly IAuthorizationService _authorizationService;
 
@@ -28,12 +30,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Doctor, Guid> doctorRepository,
         IRepository<Tenant, Guid> tenantRepository,
+        ISystemParameterRepository systemParameterRepository,
         IDataFilter dataFilter,
         IAuthorizationService authorizationService)
     {
         _appointmentRepository = appointmentRepository;
         _doctorRepository = doctorRepository;
         _tenantRepository = tenantRepository;
+        _systemParameterRepository = systemParameterRepository;
         _dataFilter = dataFilter;
         _authorizationService = authorizationService;
     }
@@ -93,9 +97,22 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                  && a.LastModificationTime >= lastMondayUtc);
 
         var requestsApproachingLegalDeadline = await _appointmentRepository.CountAsync(
-            a => (a.AppointmentStatus == AppointmentStatusType.Pending
-                  || a.AppointmentStatus == AppointmentStatusType.AwaitingMoreInfo)
+            a => a.AppointmentStatus == AppointmentStatusType.Pending
                  && a.CreationTime <= legalDeadlineThresholdUtc);
+
+        // 2026-06-11: Pending requests past the per-tenant decision deadline
+        // (default 3 days, below the legal 5-day limit). In host (cross-tenant)
+        // scope there is no single tenant setting, so GetCurrentTenantAsync
+        // returns null and we fall back to the default. The cutoff matches the
+        // daily-digest per-row predicate so the tile equals the digest's
+        // overdue count.
+        var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
+        var decisionDueDays = systemParameter?.PendingAppointmentOverDueNotificationDays
+            ?? SystemParameterConsts.DefaultPendingAppointmentOverDueNotificationDays;
+        var decisionOverdueCutoffUtc = DecisionSlaPolicy.OverdueCreationCutoff(DateTime.UtcNow, decisionDueDays);
+        var decisionOverdue = await _appointmentRepository.CountAsync(
+            a => a.AppointmentStatus == AppointmentStatusType.Pending
+                 && a.CreationTime < decisionOverdueCutoffUtc);
 
         var totalDoctors = scopedToTenant
             ? 0   // Doctor is per-tenant; host view shows the cross-tenant total.
@@ -113,6 +130,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             // W3-TODO: replace 0 once AppointmentChangeRequest entity ships.
             PendingChangeRequests = 0,
             RequestsApproachingLegalDeadline = requestsApproachingLegalDeadline,
+            DecisionOverdue = decisionOverdue,
             // 8 placeholders -- populated when day-of-exam states ship.
             BilledThisMonth = 0,
             NoShowThisMonth = 0,

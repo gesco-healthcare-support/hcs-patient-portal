@@ -1,5 +1,7 @@
 # Migration Guide
 
+> Purpose: Reference for adding and applying EF Core migrations in the dual-context (host/tenant) setup. Audience: Backend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Database](./) > Migration Guide
 
 ## Overview
@@ -116,7 +118,7 @@ See [Data Seeding](DATA-SEEDING.md) for details on what gets seeded.
 
 ## Migration History
 
-The project has evolved through the following host migrations (chronological order):
+The project has evolved through the following host migrations (chronological order). As of 2026-06-01 there are **46** host migrations; the latest is `20260528030331_Phase20_DoctorAvailabilityCapacityAndTypeSet`.
 
 | Timestamp | Migration Name | Description |
 |-----------|---------------|-------------|
@@ -144,8 +146,32 @@ The project has evolved through the following host migrations (chronological ord
 | 20260301195032 | `Added_ApplicantAttorney` | AppApplicantAttorneys table |
 | 20260301195703 | `Updated_ApplicantAttorney_*` | ApplicantAttorney schema update |
 | 20260302064409 | `Added_AppointmentApplicantAttorney` | AppAppointmentApplicantAttorneys table |
+| 20260428003045 | `Added_AppointmentSendBackInfo` | AppAppointmentSendBackInfo table |
+| 20260428053054 | `Added_AppointmentDocuments` | AppAppointmentDocuments table |
+| 20260429174102 | `Added_AppointmentTypeFieldConfigs` | AppAppointmentTypeFieldConfigs table |
+| 20260429194943 | `Added_DefenseAttorneys` | AppDefenseAttorneys table |
+| 20260429212126 | `Added_AppointmentInjuryWorkflow` | Appointment injury workflow fields |
+| 20260429223747 | `Added_DocumentReview_And_AppointmentPacket` | Document review + appointment packet tables |
+| 20260430222449 | `AddAppointmentPartyEmails` | Appointment party email columns |
+| 20260502000305 | `Drop_Doctor_IdentityUserId` | Remove IdentityUserId column from AppDoctors |
+| 20260502001639 | `Drop_AppointmentSendBackInfo` | Remove AppAppointmentSendBackInfo table |
+| 20260503004742 | `Phase1_Add_ParityEntities_And_AppointmentFields` | Parity entity additions and appointment field updates |
+| 20260503230345 | `Phase6_Add_CustomFields` | Custom field support tables |
+| 20260504010608 | `Phase7b_Add_DoctorPreferredLocations` | AppDoctorPreferredLocations table |
+| 20260504170956 | `Phase11f_AppointmentConfirmationNumberUniqueIndex` | Unique index on appointment confirmation number |
+| 20260505170252 | `G6_Drop_AppointmentDocument_Status_Default` | Remove default value from document status column |
+| 20260507193705 | `AllowNullIdentityUserOnAttorneys` | Make IdentityUserId nullable on attorney tables |
+| 20260508215314 | `Packet1A_Add_PacketKind_And_CompositeUnique` | Add PacketKind column and composite unique index |
+| 20260512214140 | `Rename_InsuranceNumber_And_ClaimExaminerNumber_To_Suite` | Rename insurance/claim examiner number columns |
+| 20260515183211 | `Added_Invitations` | AppInvitations table |
+| 20260524012608 | `Packet_FilteredUniqueIndex_SoftDelete` | Filtered unique index on packet (soft-delete aware) |
+| 20260527163118 | `Add_AttorneyName` | Attorney name column |
+| 20260527234615 | `DoctorOnePerTenantUniqueIndex` | Unique index enforcing one doctor record per tenant |
+| 20260528030331 | `Phase20_DoctorAvailabilityCapacityAndTypeSet` | Doctor availability capacity and type-set columns |
 
 ### Tenant Migration History
+
+As of 2026-06-01 there are **5** tenant migrations; the count is intentionally small -- see the note below.
 
 | Timestamp | Migration Name | Description |
 |-----------|---------------|-------------|
@@ -212,4 +238,4 @@ This usually means no schema changes were detected. Verify that:
 
 - [EF Core Design](EF-CORE-DESIGN.md) -- DbContext architecture and entity configuration
 - [Data Seeding](DATA-SEEDING.md) -- Seed contributors and default data
-- [Development Setup](../devops/DEVELOPMENT-SETUP.md) -- Local development environment setup
+- [Development Setup](../runbooks/DOCKER-DEV.md) -- Local development environment setup

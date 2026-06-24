@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.AspNetCore.Authentication.Twitter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Volo.Abp.PermissionManagement;
@@ -19,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.RateLimiting;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using HealthcareSupport.CaseEvaluation.HealthChecks;
@@ -28,11 +30,13 @@ using HealthcareSupport.CaseEvaluation.BackgroundJobs;
 using Volo.Abp.BackgroundJobs.Hangfire;
 using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.DistributedLocking;
+using Volo.Abp.TextTemplateManagement;
 using Volo.Abp;
 using Volo.Abp.Studio;
 using Volo.Abp.Account;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.MultiTenancy;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Auditing;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
 using Volo.Abp.AspNetCore.Security;
@@ -47,6 +51,9 @@ using Volo.Abp.UI.Navigation.Urls;
 using Volo.Abp.VirtualFileSystem;
 using Volo.Abp.Studio.Client.AspNetCore;
 using Volo.Abp.AspNetCore.Authentication.JwtBearer;
+using Localization.Resources.AbpUi;
+using Volo.Abp.Account.Localization;
+using Volo.Abp.Localization;
 
 namespace HealthcareSupport.CaseEvaluation;
 
@@ -90,10 +97,42 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureExternalProviders(context);
         ConfigureHealthChecks(context);
         ConfigureHangfire(context, configuration);
+        ConfigurePasswordResetRateLimiter(context);
+        ConfigureUploadLimits(context);
+        ConfigureMultiTenancy();
+
+        // OLD-parity label overrides: inject extra JSON into AbpUi +
+        // AbpAccount resources so the SPA's /api/abp/application-localization
+        // endpoint serves "Sign Up" / "Sign In" / "Already have an account?"
+        // (the same overrides registered in AuthServerModule for Razor pages).
+        Configure<AbpLocalizationOptions>(options =>
+        {
+            options.Resources
+                .Get<AbpUiResource>()
+                .AddVirtualJson("/Localization/AbpUiOverride");
+
+            options.Resources
+                .Get<AccountResource>()
+                .AddVirtualJson("/Localization/AccountOverride");
+        });
 
         Configure<PermissionManagementOptions>(options =>
         {
             options.IsDynamicPermissionStoreEnabled = true;
+        });
+
+        // 2026-06-09: do not re-save static text-template definitions to the
+        // DB from this runtime host. The DbMigrator (runs to completion before
+        // api/authserver start) already seeds AbpTextTemplateDefinitionRecords.
+        // Unlike the permission/setting/feature savers, the text-template saver
+        // is NOT guarded by the distributed lock, so api + authserver booting
+        // together both INSERT and collide on the unique name index -- a
+        // duplicate-key SqlException at startup (Abp.Account.EmailConfirmationCode).
+        // Templates still resolve from the in-memory definition providers at
+        // runtime, so disabling the host-side save is safe.
+        Configure<TextTemplateManagementOptions>(options =>
+        {
+            options.SaveStaticTemplatesToDatabase = false;
         });
 
         // W2-4: stamp the audit-row ApplicationName so /audit-logs distinguishes
@@ -108,6 +147,201 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         Configure<AbpSecurityHeadersOptions>(options =>
         {
             options.Headers["X-Frame-Options"] = "DENY";
+        });
+
+        // 2026-05-13 -- map domain error codes that ABP would otherwise
+        // route to its default HTTP status (403 for BusinessException) to
+        // the semantically-correct 4xx client-error status.
+        //
+        // 2026-05-15 -- also map the six InternalUser:* error codes from
+        // the IT-Admin internal-user-creation flow. Without these, the
+        // BusinessException default of 403 surfaces as "Forbidden" on
+        // every duplicate-email or invalid-role response, which is
+        // semantically wrong (the caller IS authorized to use the
+        // endpoint; the input is invalid). Same pattern that closes
+        // BUG-003 for RegistrationDuplicateEmail.
+        //
+        // 2026-05-19 -- closes BUG-023 (Registration confirm-password +
+        // firm-name validators were returning 403) and adds the new
+        // InternalUserTenantMismatch code from the tenant-admin
+        // internal-user creation flow to the same 400 mapping list.
+        Configure<Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions>(options =>
+        {
+            // BUG-012 Sub-bug 2 (2026-05-22): the 10 shared mappings
+            // moved into HealthcareSupport.CaseEvaluation.Exceptions.
+            // CaseEvaluationExceptionStatusCodeMappings; same set is
+            // invoked from CaseEvaluationAuthServerModule.
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapSharedRegistrationAndInternalUserCodes(options);
+
+            // Host-specific: InternalUserTenantMismatch + the 4
+            // appointment state-machine codes below are HttpApi.Host
+            // only -- their controllers don't load into AuthServer.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.InternalUserTenantMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // BUG-024 follow-up (2026-05-19) -- the appointment state-machine
+            // throws this on every illegal transition (Approve from Approved,
+            // Reject from Rejected, etc). Same family as BUG-003 / BUG-023:
+            // input violates a precondition; HTTP 400 fits the semantic, not
+            // 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentInvalidTransition,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // F-3 (2026-06-08) -- the two Pending->Approved gates in
+            // AppointmentManager.ApplyTransitionAsync (requires >=1 injury;
+            // requires >=1 active Claim Examiner). The request is well-formed
+            // and the caller IS authorized; it conflicts with the appointment's
+            // current state (missing a required related entity), so HTTP 409
+            // Conflict -- not ABP's default 403 (which the SPA treats as a
+            // permission failure and shows no message) and not 400 (the input
+            // itself is valid). Mirrors the AppointmentDocumentTypeInUse 409 below.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresInjuryDetail,
+                System.Net.HttpStatusCode.Conflict);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresClaimExaminer,
+                System.Net.HttpStatusCode.Conflict);
+            // 2026-06-09 -- PQME panel-strike-list approval gate. Was missing
+            // from this map (the I15/I16 gate added the throw + en.json text +
+            // translator entry but never the status map), so it surfaced as the
+            // default 403 + generic message. 409 Conflict like the sibling gates
+            // so the SPA shows the localized "panel strike list required" text.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList,
+                System.Net.HttpStatusCode.Conflict);
+
+            // 2026-05-15 -- one-doctor-per-tenant invariant guards in
+            // DoctorsAppService. Both are client-input / precondition
+            // violations; HTTP 400 fits, not ABP's default 403 (which the
+            // SPA would treat as a permission failure and retry).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DoctorOnePerTenantViolated,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.DoctorCannotDeleteWithDependents,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // IP4 (2026-06-05) -- Location master-data integrity guards in
+            // LocationManager. All four are client-input / precondition
+            // violations (duplicate name, negative fee, bad zip, in-use delete);
+            // HTTP 400 fits, not ABP's default 403 (which the SPA would treat as
+            // a permission failure).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationDuplicateName,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationParkingFeeNegative,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationZipCodeInvalid,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.LocationInUse,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // 2026-05-15 -- capacity-aware booking gate
+            // (AppointmentsAppService.ValidateDoctorAvailabilityForBooking).
+            // All three are client-input precondition violations; HTTP 400 fits.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotFull,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentBookingSlotTypeMismatch,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // AF3 + AF4 (2026-06-04) -- Panel Number / appointment-type
+            // coupling enforced in AppointmentManager. Both are client-input
+            // validation failures (required for PQME / not allowed for AME-IME);
+            // HTTP 400 fits, not ABP's default 403.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberRequiredForPqme,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentPanelNumberNotAllowedForType,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // BUG-025 (2026-05-21) -- AppointmentDocuments upload size
+            // rejections. Extracted to a named static helper so unit
+            // tests can verify the mappings without booting the full
+            // host (see CaseEvaluationHttpApiHostModuleTests).
+            MapAppointmentDocumentErrorCodes(options);
+
+            // G-03-01 (2026-06-03) -- document-category master guards
+            // (AppointmentDocumentTypeManager). Both are client-input /
+            // precondition violations: a duplicate name per appointment type,
+            // or an attempt to edit/delete a reserved system row. HTTP 400 so
+            // the SPA shows the localized message instead of ABP's default 403
+            // (which it would treat as a permission failure with no message).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeNameAlreadyExists,
+                System.Net.HttpStatusCode.BadRequest);
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeSystemReadOnly,
+                System.Net.HttpStatusCode.BadRequest);
+
+            // G-03-03 (PR2) -- deleting a document category still referenced by
+            // a document. The request is well-formed and authorized; it
+            // conflicts with current state, so HTTP 409 Conflict (not 400).
+            options.Map(
+                CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse,
+                System.Net.HttpStatusCode.Conflict);
+        });
+    }
+
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- HTTP-status mappings for the
+    /// AppointmentDocuments upload path. <c>FileTooLarge</c> -> 413
+    /// (RFC 7231 canonical "request entity too large"; distinct from
+    /// 400 so the SPA can branch the user-facing message without
+    /// parsing the body). <c>FileEmpty</c> -> 400 (client-input
+    /// validation failure, same shape as the other input-validator
+    /// codes mapped above).
+    /// </summary>
+    internal static void MapAppointmentDocumentErrorCodes(Volo.Abp.AspNetCore.ExceptionHandling.AbpExceptionHttpStatusCodeOptions options)
+    {
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentFileTooLarge,
+            System.Net.HttpStatusCode.RequestEntityTooLarge);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty,
+            System.Net.HttpStatusCode.BadRequest);
+        // F-3 (2026-06-08) -- disallowed file type / magic-byte mismatch
+        // (EnsureValidFileFormat). Client-input validation failure: HTTP 400,
+        // not ABP's default 403. The throws stay UserFriendlyException (so the
+        // "Only PDF and image formats..." message reaches the SPA) but now
+        // carry this code so the mapping applies.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDocumentInvalidFileFormat,
+            System.Net.HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// ADR-006 (2026-05-05) -- subdomain tenant routing.
+    /// ADR-007 (2026-05-11) -- replaced stock DomainTenantResolveContributor
+    /// with HostAwareDomainTenantResolveContributor so the reserved subdomain
+    /// "admin" maps to Host context instead of 404. See ADR-007 for the
+    /// empirical evidence that the stock contributor 404s on unknown slugs
+    /// rather than falling through to host.
+    ///
+    /// Mirrors AuthServer's resolver config so API requests resolve tenant from
+    /// the Host header (e.g. falkinstein.localhost:44327 -> Falkinstein tenant).
+    /// QueryString, Cookie, Route, and Header resolvers are dropped so
+    /// ?__tenant=GUID cannot override the URL.
+    /// </summary>
+    private void ConfigureMultiTenancy()
+    {
+        Configure<AbpTenantResolveOptions>(options =>
+        {
+            options.TenantResolvers.Clear();
+            options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            options.TenantResolvers.Add(
+                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
         });
     }
 
@@ -127,13 +361,51 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         context.Services.AddCaseEvaluationHealthChecks();
     }
 
+    /// <summary>
+    /// BUG-025 (2026-05-21) -- defense-in-depth size caps on
+    /// multipart/form-data uploads.
+    ///
+    /// <para>The AppointmentDocuments AppService enforces
+    /// <see cref="HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentsAppService.MaxFileSizeBytes"/>
+    /// (10 MB) at the application layer. That check fires only after
+    /// the request body is buffered, so this method configures the
+    /// framework-layer caps (Kestrel + FormOptions) at 12 MB -- a 2 MB
+    /// buffer above the 10 MB AppService cap so multipart boundary
+    /// headers plus small request overhead don't trip the framework's
+    /// raw 413 before the AppService's localized
+    /// <c>BusinessException</c> + <c>data.MaxBytes</c> /
+    /// <c>data.ActualBytes</c> can fire. Uploads above 12 MB get a
+    /// framework 413 with no localized message; uploads between 10 MB
+    /// and 12 MB get the friendly localized 413 with data so the SPA
+    /// can render "max 10 MB" + the actual size.</para>
+    /// </summary>
+    internal static void ConfigureUploadLimits(ServiceConfigurationContext context)
+    {
+        const long FrameworkCapBytes = 12L * 1024 * 1024;
+
+        context.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(options =>
+        {
+            options.Limits.MaxRequestBodySize = FrameworkCapBytes;
+        });
+
+        context.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = FrameworkCapBytes;
+        });
+    }
+
     private void ConfigureUrls(IConfiguration configuration)
     {
         Configure<AppUrlOptions>(options =>
         {
             options.Applications["Angular"].RootUrl = configuration["App:AngularUrl"];
-            options.Applications["Angular"].Urls[AccountUrlNames.PasswordReset] = "account/reset-password";
-            options.Applications["Angular"].Urls[AccountUrlNames.EmailConfirmation] = "account/email-confirmation";
+            // 2026-05-18 -- confirmation + reset URLs are hosted by the
+            // AuthServer Razor pages (custom overrides under Pages/Account/),
+            // not the SPA. Repointed from the deleted SPA routes. Mirrors
+            // the same config in CaseEvaluationAuthServerModule. See
+            // docs/plans/2026-05-18-fix-verification-email-url.md.
+            options.Applications["MVC"].Urls[AccountUrlNames.PasswordReset] = "Account/ResetPassword";
+            options.Applications["MVC"].Urls[AccountUrlNames.EmailConfirmation] = "Account/EmailConfirmation";
         });
     }
 
@@ -151,13 +423,45 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
 
         if (hostingEnvironment.IsDevelopment())
         {
+            // See AuthServer module for the rationale: Directory.Exists guard
+            // protects the embedded fileset in Docker (where the host source
+            // tree isn't mounted). Without the guard, all CaseEvaluation
+            // localization JSON gets replaced by an empty directory and
+            // every L("Menu:Home"), L("Enum:..."), L("Appointment:Action:...")
+            // call returns the literal key.
+            var basePath = hostingEnvironment.ContentRootPath;
+            string Resolve(string projectName) => Path.Combine(
+                basePath,
+                string.Format("..{0}..{0}src{0}{1}", Path.DirectorySeparatorChar, projectName));
+
+            var sharedPath = Resolve("HealthcareSupport.CaseEvaluation.Domain.Shared");
+            var domainPath = Resolve("HealthcareSupport.CaseEvaluation.Domain");
+            var appContractsPath = Resolve("HealthcareSupport.CaseEvaluation.Application.Contracts");
+            var appPath = Resolve("HealthcareSupport.CaseEvaluation.Application");
+            var httpApiPath = Resolve("HealthcareSupport.CaseEvaluation.HttpApi");
+
             Configure<AbpVirtualFileSystemOptions>(options =>
             {
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Domain.Shared", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Domain", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationContractsModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Application.Contracts", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.Application", Path.DirectorySeparatorChar)));
-                options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationHttpApiModule>(Path.Combine(hostingEnvironment.ContentRootPath, string.Format("..{0}..{0}src{0}HealthcareSupport.CaseEvaluation.HttpApi", Path.DirectorySeparatorChar)));
+                if (Directory.Exists(sharedPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainSharedModule>(sharedPath);
+                }
+                if (Directory.Exists(domainPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationDomainModule>(domainPath);
+                }
+                if (Directory.Exists(appContractsPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationContractsModule>(appContractsPath);
+                }
+                if (Directory.Exists(appPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationApplicationModule>(appPath);
+                }
+                if (Directory.Exists(httpApiPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<CaseEvaluationHttpApiModule>(httpApiPath);
+                }
             });
         }
     }
@@ -168,6 +472,339 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         {
             options.ConventionalControllers.Create(typeof(CaseEvaluationApplicationModule).Assembly);
         });
+    }
+
+    /// <summary>
+    /// Phase 10 (2026-05-03) + BUG-035 fix (2026-05-22) -- ASP.NET Core
+    /// rate limiter scoped to anonymous endpoints under
+    /// <c>/api/public/external-account</c> +
+    /// <c>/api/public/appointment-documents</c> +
+    /// <c>/api/public/external-signup/register</c>.
+    ///
+    /// <para><b>Password-reset (dual-partition):</b> two chained
+    /// FixedWindow limiters per OWASP Forgot Password Cheat Sheet:
+    /// <list type="bullet">
+    /// <item><description>Primary: per-account 5/hour partitioned by the
+    /// <c>email</c> field of the JSON body (read by
+    /// <see cref="RateLimiting.PasswordResetEmailPeekMiddleware"/> and
+    /// stashed in <c>HttpContext.Items</c>). Fallback chain when the
+    /// stash is empty: <c>?email=</c> query -> JWT sub -> client IP.
+    /// </description></item>
+    /// <item><description>Secondary: per-IP 50/hour. Catches truly
+    /// abusive IPs without punishing NAT/CGNAT-shared users for one
+    /// neighbor's behavior (the BUG-035 footgun).</description></item>
+    /// </list>
+    /// Requests must pass BOTH partitions; either alone returns 429.
+    /// </para>
+    ///
+    /// <para><b>Other prefixes</b> (document-upload-by-code,
+    /// external-signup register) keep their existing single-layer
+    /// IP-based 5/hour buckets. Those weren't part of BUG-035.</para>
+    ///
+    /// <para>The middleware reads the body up to a 4 KB cap and
+    /// rewinds the stream so MVC's model binding still sees the
+    /// body. The original Phase 10 doc-comment claimed body
+    /// partitioning was "not worth the per-request cost" -- BUG-035
+    /// showed that calculation missed the shared-IP DoS vector. The
+    /// 4 KB read is negligible cost compared to the security gap it
+    /// closes.</para>
+    ///
+    /// <para>OnRejected emits <c>Retry-After</c> (OWASP API4
+    /// recommendation) so callers can compute wait time without
+    /// out-of-band knowledge of the window.</para>
+    ///
+    /// <para>Refs:
+    /// https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html ,
+    /// https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit
+    /// </para>
+    /// </summary>
+    private static void ConfigurePasswordResetRateLimiter(ServiceConfigurationContext context)
+    {
+        context.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = (int)System.Net.HttpStatusCode.TooManyRequests;
+
+            options.OnRejected = (rejectionContext, _) =>
+            {
+                // Emit Retry-After when the rejecting lease exposes it.
+                // FixedWindowRateLimiter does, so callers can wait the
+                // window without polling.
+                if (rejectionContext.Lease.TryGetMetadata(
+                        System.Threading.RateLimiting.MetadataName.RetryAfter,
+                        out var retryAfter))
+                {
+                    rejectionContext.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+                return System.Threading.Tasks.ValueTask.CompletedTask;
+            };
+
+            // BUG-035: per-account (per-email) primary limiter.
+            // 5/hour bucket per unique email keeps brute-force /
+            // mailbox-flooding capped at the OWASP-recommended level
+            // for password reset.
+            var perEmailLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
+                httpContext =>
+                {
+                    if (IsPasswordResetPath(httpContext))
+                    {
+                        var key = ResolvePasswordResetEmailPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"pwd-reset-email:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    if (IsDocumentUploadByCodePath(httpContext))
+                    {
+                        // Phase 14b (2026-05-04) -- per-verification-code
+                        // rate limit on the anonymous document-upload
+                        // endpoint at /api/public/appointment-documents/{id}/upload-by-code/{code}.
+                        // Partition by the code segment so brute-force
+                        // attempts against ANY document share the same
+                        // bucket per IP / per code.
+                        var key = ResolveDocumentUploadPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"doc-upload:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    if (IsExternalSignupRegisterPath(httpContext))
+                    {
+                        // 2026-05-13 -- rate-limit the anonymous register
+                        // endpoint so the BUG-001 fix (generic error
+                        // message that no longer echoes the input email)
+                        // is not still brute-forceable as an enumeration
+                        // oracle via timing or response-byte differentials.
+                        // Partition by client IP since this endpoint is
+                        // anonymous (no JWT sub).
+                        var key = ResolveExternalSignupPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"signup:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 5,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited");
+                });
+
+            // BUG-035: per-IP secondary limiter, generous threshold so
+            // NAT/CGNAT-shared users don't block each other under
+            // normal usage but a single IP can't fan out across 1000
+            // emails. Only applied to the password-reset prefix --
+            // other prefixes already have their own IP-based partitions.
+            var perIpSecondaryLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
+                httpContext =>
+                {
+                    if (IsPasswordResetPath(httpContext))
+                    {
+                        var key = ResolvePasswordResetIpPartitionKey(httpContext);
+                        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                            partitionKey: $"pwd-reset-ip:{key}",
+                            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 50,
+                                Window = TimeSpan.FromHours(1),
+                                QueueLimit = 0,
+                                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                                AutoReplenishment = true,
+                            });
+                    }
+                    return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("non-rate-limited-secondary");
+                });
+
+            options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.CreateChained(
+                perEmailLimiter,
+                perIpSecondaryLimiter);
+        });
+    }
+
+    /// <summary>Policy name used by the password-reset endpoints.</summary>
+    public const string PasswordResetRateLimitPolicy = "password-reset-by-email";
+
+    /// <summary>Path prefix matched by the password-reset rate limiter.</summary>
+    public const string PasswordResetPathPrefix = "/api/public/external-account";
+
+    /// <summary>Phase 14b: path prefix matched by the document-upload-by-code limiter.</summary>
+    public const string DocumentUploadByCodePathPrefix = "/api/public/appointment-documents";
+
+    /// <summary>2026-05-13: full path matched by the register rate limiter.</summary>
+    public const string ExternalSignupRegisterPath = "/api/public/external-signup/register";
+
+    /// <summary>
+    /// True when the request targets one of the password-reset endpoints
+    /// (<c>send-password-reset-code</c> or <c>reset-password</c>) under
+    /// <see cref="PasswordResetPathPrefix"/>. Internal-static so unit
+    /// tests can pin path-matching edge cases.
+    /// </summary>
+    internal static bool IsPasswordResetPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        return httpContext.Request.Path.StartsWithSegments(PasswordResetPathPrefix);
+    }
+
+    /// <summary>
+    /// Phase 14b -- true when the request targets the anonymous
+    /// document-upload-by-code endpoint under
+    /// <see cref="DocumentUploadByCodePathPrefix"/>. Internal-static so
+    /// unit tests can pin path-matching edge cases.
+    /// </summary>
+    internal static bool IsDocumentUploadByCodePath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (!httpContext.Request.Path.StartsWithSegments(DocumentUploadByCodePathPrefix))
+        {
+            return false;
+        }
+        // Only POSTs to .../{id}/upload-by-code/{code} are rate limited;
+        // a future GET on the same prefix should not be throttled.
+        if (!HttpMethods.IsPost(httpContext.Request.Method))
+        {
+            return false;
+        }
+        return httpContext.Request.Path.Value?.Contains("/upload-by-code/", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- true when the request targets the anonymous
+    /// external-signup register endpoint
+    /// (<see cref="ExternalSignupRegisterPath"/>). Only POST is matched
+    /// (a future GET on the same path -- e.g. for client-side checks --
+    /// would not be brute-forceable in the same way).
+    /// </summary>
+    internal static bool IsExternalSignupRegisterPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (!HttpMethods.IsPost(httpContext.Request.Method))
+        {
+            return false;
+        }
+        return httpContext.Request.Path.Equals(
+            ExternalSignupRegisterPath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 2026-05-13 -- partition key for the external-signup register
+    /// limiter. Anonymous endpoint -- partition by client IP (and a
+    /// "global" fallback if the connection has no remote IP, e.g.
+    /// in some test harnesses).
+    /// </summary>
+    internal static string ResolveExternalSignupPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
+    }
+
+    /// <summary>
+    /// Phase 14b -- partition key for the document-upload-by-code
+    /// limiter. Precedence: verification-code path segment (so brute
+    /// force against ONE code is throttled) -> client IP (so brute
+    /// force across many codes is also throttled). Internal-static for
+    /// unit-test reach.
+    /// </summary>
+    internal static string ResolveDocumentUploadPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        const string Marker = "/upload-by-code/";
+        var idx = path.IndexOf(Marker, StringComparison.Ordinal);
+        if (idx >= 0)
+        {
+            var afterMarker = path.Substring(idx + Marker.Length);
+            // Trim any trailing slash / query.
+            var slash = afterMarker.IndexOf('/');
+            var code = slash >= 0 ? afterMarker.Substring(0, slash) : afterMarker;
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                return $"code:{code}";
+            }
+        }
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
+    }
+
+    /// <summary>
+    /// BUG-035 fix (2026-05-22) -- resolves the per-account
+    /// partition key for the password-reset primary limiter.
+    /// Precedence:
+    /// <list type="number">
+    /// <item><description>Email peeked from the JSON body by
+    /// <see cref="RateLimiting.PasswordResetEmailPeekMiddleware"/>
+    /// and stashed in <c>HttpContext.Items</c> -- the canonical
+    /// per-account control per OWASP Forgot Password Cheat Sheet.</description></item>
+    /// <item><description><c>?email=</c> query-string (kept for
+    /// backward-compatible test access).</description></item>
+    /// <item><description>JWT <c>sub</c> claim (only relevant when
+    /// the password-reset endpoint is called from an authenticated
+    /// context, e.g. self-service profile flows).</description></item>
+    /// <item><description>Client IP -- last-resort fallback for
+    /// requests where the body peek failed (malformed JSON, body
+    /// too large, etc).</description></item>
+    /// </list>
+    /// Internal-static so unit tests can verify edge cases without
+    /// standing up the middleware pipeline.
+    /// </summary>
+    internal static string ResolvePasswordResetEmailPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        if (httpContext.Items.TryGetValue(RateLimiting.PasswordResetEmailPeekMiddleware.ContextItemKey, out var stashed)
+            && stashed is string stashedEmail
+            && !string.IsNullOrWhiteSpace(stashedEmail))
+        {
+            return $"email:{stashedEmail}";
+        }
+        var fromQuery = httpContext.Request.Query["email"].ToString();
+        if (!string.IsNullOrWhiteSpace(fromQuery))
+        {
+            return $"email:{fromQuery.Trim().ToLowerInvariant()}";
+        }
+        var sub = httpContext.User?.FindFirst("sub")?.Value;
+        if (!string.IsNullOrWhiteSpace(sub))
+        {
+            return $"sub:{sub}";
+        }
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
+    }
+
+    /// <summary>
+    /// BUG-035 fix (2026-05-22) -- resolves the per-IP secondary
+    /// partition key for the password-reset rate limiter. Pure
+    /// IP-based; falls back to <c>"global"</c> when the IP isn't
+    /// resolvable.
+    /// </summary>
+    internal static string ResolvePasswordResetIpPartitionKey(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"ip:{ip}";
+        }
+        return "global";
     }
 
     private static void ConfigureAuthentication(ServiceConfigurationContext context, IConfiguration configuration)
@@ -192,6 +829,68 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
                     options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
                 }
+
+                // ADR-006 (2026-05-05) -- subdomain tenant routing.
+                //
+                // With each tenant served on its own subdomain
+                // (e.g. http://falkinstein.localhost:44368), tokens are issued with
+                // `iss: http://falkinstein.localhost:44368/` -- one issuer per tenant.
+                // The default ValidIssuer set above is the bare-host URL
+                // (http://localhost:44368/) and would reject the per-tenant variants.
+                //
+                // The IssuerValidator callback accepts any issuer whose host pattern
+                // is `<slug>.<authority-host>` on the same scheme + port. This turns
+                // a single registered ValidIssuer into a wildcard that mirrors the
+                // resolver's `{0}.localhost` format. Compromises nothing: the
+                // signing key still has to come from the AuthServer's discovery
+                // doc, which the API fetches from the internal MetaAddress.
+                //
+                // Cross-reference: ADR-006 + Volosoft Medium article on Angular +
+                // OpenIddict subdomain resolution.
+                var authority = configuration["AuthServer:Authority"]!;
+                var authorityUri = new Uri(authority);
+                var authorityHost = authorityUri.Host;
+                var authorityPort = authorityUri.Port;
+                var authorityScheme = authorityUri.Scheme;
+
+                options.TokenValidationParameters.IssuerValidator = (issuer, _, _) =>
+                {
+                    if (string.IsNullOrEmpty(issuer))
+                    {
+                        throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException("Empty issuer");
+                    }
+
+                    var issuerUri = new Uri(issuer);
+                    if (issuerUri.Scheme != authorityScheme || issuerUri.Port != authorityPort)
+                    {
+                        throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException(
+                            $"Issuer scheme/port {issuerUri.Scheme}://...:{issuerUri.Port} does not match authority {authorityScheme}://...:{authorityPort}");
+                    }
+
+                    // Accept exact-host match (host context, e.g. admin.localhost
+                    // resolves to no tenant) OR any single-label subdomain of the
+                    // authority host (e.g. falkinstein.localhost when authority
+                    // host is localhost). Reject deeper paths, IPs, and unrelated
+                    // hosts.
+                    var issuerHost = issuerUri.Host;
+                    if (string.Equals(issuerHost, authorityHost, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return issuer;
+                    }
+                    if (issuerHost.EndsWith("." + authorityHost, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var slugPart = issuerHost.Substring(0, issuerHost.Length - authorityHost.Length - 1);
+                        if (slugPart.Length > 0 && !slugPart.Contains('.', StringComparison.Ordinal))
+                        {
+                            return issuer;
+                        }
+                    }
+                    throw new Microsoft.IdentityModel.Tokens.SecurityTokenInvalidIssuerException(
+                        $"Issuer host {issuerHost} is not the authority host or a single-label subdomain of it ({authorityHost}).");
+                };
+                // Clear ValidIssuer so the framework defers to the callback above.
+                options.TokenValidationParameters.ValidIssuer = null;
+                options.TokenValidationParameters.ValidateIssuer = true;
             });
 
         context.Services.Configure<AbpClaimsPrincipalFactoryOptions>(options =>
@@ -226,9 +925,21 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         }
 
         var dataProtectionBuilder = context.Services.AddDataProtection().SetApplicationName("CaseEvaluation");
-        if (!hostingEnvironment.IsDevelopment())
+
+        // Persist DataProtection keys to Redis whenever a Redis connection is
+        // configured, in BOTH dev and prod. Reason: AuthServer + HttpApi.Host
+        // run as separate Docker containers (separate filesystems), so the
+        // default key store at /root/.aspnet/DataProtection-Keys is per-
+        // container. ABP-Identity tokens (e.g. EmailConfirmation) generated
+        // by the API host fail validation when the AuthServer's confirm-email
+        // endpoint tries to decrypt them with a different key ring -- the
+        // request returns 403 with "Volo.Abp.Identity:InvalidToken".
+        // Redis-backed shared keys + matching SetApplicationName above make
+        // both processes interchangeable validators.
+        var redisConfig = configuration["Redis:Configuration"];
+        if (!string.IsNullOrWhiteSpace(redisConfig))
         {
-            var redis = ConnectionMultiplexer.Connect(configuration["Redis:Configuration"]!);
+            var redis = ConnectionMultiplexer.Connect(redisConfig);
             dataProtectionBuilder.PersistKeysToStackExchangeRedis(redis, "CaseEvaluation-Protection-Keys");
         }
     }
@@ -276,6 +987,26 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                     UseRecommendedIsolationLevel = true,
                     DisableGlobalLocks = true,
                 });
+        });
+
+        // G-04-10 (2026-06-02): replace Hangfire's default 10-attempt retry
+        // with an explicit 5-attempt policy that KEEPS an exhausted job in the
+        // Failed state (a dead-letter) for manual retry from /hangfire, instead
+        // of discarding it. AutomaticRetry is a global job filter, so this also
+        // covers jobs enqueued through ABP's IBackgroundJobManager adapter
+        // (e.g. SendAppointmentEmailJob). Applies to all background jobs;
+        // tightening 10 -> 5 is a deliberate SLA choice for transactional work.
+        // Docs: https://docs.hangfire.io/en/latest/background-processing/dealing-with-exceptions.html
+        foreach (var existing in GlobalJobFilters.Filters
+                     .Where(f => f.Instance is AutomaticRetryAttribute)
+                     .ToList())
+        {
+            GlobalJobFilters.Filters.Remove(existing.Instance);
+        }
+        GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
+        {
+            Attempts = 5,
+            OnAttemptsExceeded = AttemptsExceededAction.Fail,
         });
     }
 
@@ -358,6 +1089,19 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         app.UseDynamicClaims();
         app.UseAuthorization();
 
+        // BUG-035 fix (2026-05-22) -- peek the JSON body's `email` field
+        // for anonymous password-reset POSTs and stash it in
+        // HttpContext.Items so the rate-limiter partitioner can use it
+        // as the partition key. Must run before UseRateLimiter so the
+        // stash is available when the partitioner executes.
+        app.UseMiddleware<RateLimiting.PasswordResetEmailPeekMiddleware>();
+
+        // Phase 10 (2026-05-03) -- enable rate limiter middleware so the
+        // [EnableRateLimiting] attribute on the password-reset endpoints
+        // takes effect. Placed AFTER UseAuthorization so authenticated
+        // callers' JWT sub claim is available to the partitioner.
+        app.UseRateLimiter();
+
         app.UseSwagger();
         app.UseAbpSwaggerUI(options =>
         {
@@ -417,6 +1161,49 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.RecurringJobId,
             j => j.ExecuteAsync(),
             HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs.AppointmentDayReminderJob.CronExpression,
+            options);
+
+        // Phase 14 (2026-05-04) -- JDF auto-cancel daily 06:00 PT.
+        // Earlier than the AppointmentDayReminderJob (07:00) so an
+        // auto-cancelled appointment does not also trigger a T-1
+        // appointment-day reminder for a visit that won't happen.
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.JointDeclarationAutoCancelJob.CronExpression,
+            options);
+
+        // Group F (2026-06-09) -- ONE consolidated appointment-reminder job at
+        // 08:15 PT replaces the three former reminder jobs (DueDateApproaching,
+        // DueDateDocumentIncomplete, PackageDocumentReminder). It fires once per
+        // active appointment on the configured anchors and emits a single
+        // due-date + outstanding-documents email per appointment. RecurringJobId
+        // is kept at "appt-duedate-approaching", so this updates that existing
+        // entry in place; the two retired jobs' recurring entries are purged
+        // below so they stop invoking their now-deleted job types.
+        //   09:00 -- PendingDailyDigestJob       (digest to intake-staff inbox)
+        //   09:15 -- InternalStaffQueueDigestJob (per-staff queue counts)
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.CronExpression,
+            options);
+
+        // Retired Group F job IDs -- remove their leftover Hangfire recurring
+        // entries (the job types no longer exist).
+        global::Hangfire.RecurringJob.RemoveIfExists("appt-duedate-document-incomplete");
+        global::Hangfire.RecurringJob.RemoveIfExists("appt-package-doc-reminder");
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.CronExpression,
+            options);
+
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.RecurringJobId,
+            j => j.ExecuteAsync(),
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.CronExpression,
             options);
     }
 

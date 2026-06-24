@@ -1,5 +1,11 @@
 <div class="top-header-navbar" style="margin-right: 73px">
-  <div class="top-header-navbar__tenant">{{ tenantName }}</div>
+  <a class="top-header-navbar__brand" href="/" aria-label="Home">
+    <img
+      src="assets/images/header-logo.png"
+      [alt]="tenantName + ' logo'"
+      class="top-header-navbar__logo"
+    />
+  </a>
 
   <div class="top-header-navbar__user-meta">
     <span>
@@ -13,6 +19,11 @@
     @if (showProfile) {
       <span class="top-header-navbar__divider">|</span>
       <a href="javascript:void(0)" (click)="onProfileClick()">My profile</a>
+    }
+
+    @if (showHelp) {
+      <span class="top-header-navbar__divider">|</span>
+      <a href="javascript:void(0)" (click)="onHelpClick()">Help</a>
     }
   </div>
 </div>

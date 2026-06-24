@@ -14,6 +14,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Data;
@@ -59,6 +60,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
+    private readonly SystemParameterDataSeedContributor _systemParameterSeeder;
     private readonly ICurrentTenant _currentTenant;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
 
@@ -80,6 +82,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
+        SystemParameterDataSeedContributor systemParameterSeeder,
         ICurrentTenant currentTenant,
         IUnitOfWorkManager unitOfWorkManager)
     {
@@ -100,6 +103,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
+        _systemParameterSeeder = systemParameterSeeder;
         _currentTenant = currentTenant;
         _unitOfWorkManager = unitOfWorkManager;
     }
@@ -112,6 +116,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         }
 
         await SeedTenantsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedSystemParametersAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await _identityUsersSeeder.SeedAsync(context);
@@ -165,6 +172,19 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         }
     }
 
+    private async Task SeedSystemParametersAsync()
+    {
+        // Per-tenant singleton. In production the row is seeded when ABP fires
+        // TenantCreatedEto, which routes to SystemParameterDataSeedContributor.
+        // The in-memory SQLite test rig has no event bus, so we invoke the
+        // production contributor directly per tenant. Using the production
+        // contributor (rather than re-implementing the entity insert) keeps
+        // OLD-parity defaults from SystemParameterConsts in lock-step with
+        // production seeding.
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantARef));
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantBRef));
+    }
+
     private async Task SeedLocationsAsync()
     {
         // Host-scoped seeds: Location, State, AppointmentType are all !IMultiTenant.
@@ -180,21 +200,25 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         {
             // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
             // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
-            await _locationRepository.InsertAsync(new Location(
+            // I3 (2026-06-08): Location now offers appointment types via the
+            // LocationAppointmentType M2M (the ctor no longer takes a single
+            // AppointmentTypeId). Location1 gets AppointmentType1 so nav-prop
+            // join tests still assert a populated relation; Location2/3 keep none.
+            var location1 = new Location(
                 id: LocationsTestData.Location1Id,
                 stateId: LocationsTestData.State1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 name: LocationsTestData.Location1Name,
                 parkingFee: LocationsTestData.Location1ParkingFee,
                 isActive: LocationsTestData.Location1IsActive,
                 address: LocationsTestData.Location1Address,
                 city: LocationsTestData.Location1City,
-                zipCode: LocationsTestData.Location1ZipCode));
+                zipCode: LocationsTestData.Location1ZipCode);
+            location1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _locationRepository.InsertAsync(location1);
 
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location2Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location2Name,
                 parkingFee: LocationsTestData.Location2ParkingFee,
                 isActive: LocationsTestData.Location2IsActive,
@@ -205,7 +229,6 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location3Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location3Name,
                 parkingFee: LocationsTestData.Location3ParkingFee,
                 isActive: LocationsTestData.Location3IsActive,
@@ -217,12 +240,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedDoctorsAsync()
     {
-        // Both doctors scoped to TenantA -- reflects the realistic case of a
-        // practice with multiple practitioners. Doctor2 was previously planned
-        // for TenantB but this complicates host-context tests unnecessarily:
-        // Patient tests don't depend on Doctor tenancy, and keeping the tenant
-        // model "two-tenant for Patients, one-tenant for Doctors" keeps existing
-        // Doctor tests workable with a single tenant-context wrap.
+        // One doctor per tenant -- the one-doctor-per-tenant invariant
+        // (PARITY-FLAG-NEW-006, enforced by DoctorsAppService guards + a
+        // filtered unique index on Doctors(TenantId)). The tenant IS the
+        // doctor, so seeding two doctors in TenantA would violate the index
+        // at schema-creation time in the SQLite test rig. Doctor1 -> TenantA,
+        // Doctor2 -> TenantB. This also lines TenantB's doctor up with its
+        // own DoctorAvailability (Slot3) and Appointment2 seeds below.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _doctorRepository.InsertAsync(new Doctor(
@@ -230,16 +254,17 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 firstName: DoctorsTestData.Doctor1FirstName,
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor1UserId));
+                gender: default));
+        }
 
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,
                 lastName: DoctorsTestData.Doctor2LastName,
                 email: DoctorsTestData.Doctor2Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor2UserId));
+                gender: default));
         }
     }
 
@@ -339,21 +364,26 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs AFTER SeedLocationsAsync (LocationId + AppointmentTypeId FKs
         // satisfied) and BEFORE SeedAppointmentsAsync (Appointment's
         // DoctorAvailabilityId FK depends on these slots).
+        // 2026-05-15 slot rework: ctor no longer takes appointmentTypeId.
+        // The single-type-per-slot fixture is preserved via the new M2M:
+        // Slot1 + Slot3 accept AppointmentType1 (strict); Slot2 accepts any
+        // type (loose, empty set).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot1 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot1Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot1FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot1ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus);
+            slot1.TenantId = TenantsTestData.TenantARef;
+            slot1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot1);
 
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot2Id,
                 locationId: LocationsTestData.Location2Id,
-                appointmentTypeId: null,
                 availableDate: DoctorAvailabilitiesTestData.Slot2AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot2FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot2ToTime,
@@ -362,14 +392,16 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         using (_currentTenant.Change(TenantsTestData.TenantBRef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot3 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot3Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus);
+            slot3.TenantId = TenantsTestData.TenantBRef;
+            slot3.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot3);
         }
     }
 
@@ -535,6 +567,12 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+
+            // AF3 + AF4 (2026-06-04): the PQME-typed row is NOT seeded here --
+            // the production AppointmentTypeDataSeedContributor already seeds
+            // AME/IME/PQME (canonical GUIDs) and runs in the test app, so the
+            // FK-enforced test DB can already persist a PQME appointment.
+            // Adding it here would be a duplicate-PK identity conflict.
         }
     }
 

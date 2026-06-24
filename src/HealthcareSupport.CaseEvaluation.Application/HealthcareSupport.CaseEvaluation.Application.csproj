@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="MiniExcel" Version="1.41.4" />
+    <!-- G-08-03 (2026-06-06): QuestPDF renders the report + demographics PDFs in
+         process (first real QuestPDF render). Version pinned to match the Domain
+         reference + the Community license set in CaseEvaluationDomainModule. -->
+    <PackageReference Include="QuestPDF" Version="2026.2.4" />
     <PackageReference Include="Volo.Abp.PermissionManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.FeatureManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.SettingManagement.Application" Version="10.0.2" />
@@ -26,6 +30,10 @@
     <PackageReference Include="Volo.FileManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.TextTemplateManagement.Application" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.Gdpr.Application" Version="10.0.2" />
+    <!-- Issue 2.8 (2026-05-12) — FluentValidation backend integration.
+         Volo.Abp.FluentValidation auto-discovers AbstractValidator<T>
+         instances and invokes them at the AppService boundary. -->
+    <PackageReference Include="Volo.Abp.FluentValidation" Version="10.0.2" />
   </ItemGroup>
 
 </Project>

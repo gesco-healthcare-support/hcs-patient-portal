@@ -17,15 +17,18 @@ public class LocationUpdateDto : IHasConcurrencyStamp
     public string? City { get; set; }
 
     [StringLength(LocationConsts.ZipCodeMaxLength)]
+    [RegularExpression(@"^(\d{5}(-\d{4})?)?$")]
     public string? ZipCode { get; set; }
 
+    [Range(0, double.MaxValue)]
     public decimal ParkingFee { get; set; }
 
     public bool IsActive { get; set; }
 
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers multiple appointment types (M2M).
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
     public string ConcurrencyStamp { get; set; } = null!;
 }

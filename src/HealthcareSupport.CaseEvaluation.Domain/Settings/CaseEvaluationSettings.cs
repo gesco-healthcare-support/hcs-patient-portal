@@ -27,8 +27,8 @@ public static class CaseEvaluationSettings
 
         // Maximum minutes from now an appointment of a given type may be scheduled.
         // Defaults: 90 days (129,600 minutes) for QME / AME / Other.
-        public const string MaxHorizonQmeMinutes   = Booking + ".MaxHorizonQmeMinutes";
-        public const string MaxHorizonAmeMinutes   = Booking + ".MaxHorizonAmeMinutes";
+        public const string MaxHorizonQmeMinutes = Booking + ".MaxHorizonQmeMinutes";
+        public const string MaxHorizonAmeMinutes = Booking + ".MaxHorizonAmeMinutes";
         public const string MaxHorizonOtherMinutes = Booking + ".MaxHorizonOtherMinutes";
 
         // Default appointment duration. Default 60 minutes.
@@ -60,6 +60,11 @@ public static class CaseEvaluationSettings
         // Days before the appointment by which joint declarations must be uploaded.
         // Default 7 days.
         public const string JointDeclarationUploadCutoffDays = Documents + ".JointDeclarationUploadCutoffDays";
+
+        // Phase 14b (2026-05-04) -- days before the appointment due-date at
+        // which the PackageDocumentReminderJob fires for any document still
+        // in (Pending, Rejected) status. Default 7 days.
+        public const string PackageDocumentReminderDays = Documents + ".PackageDocumentReminderDays";
     }
 
     public static class NotificationsPolicy
@@ -84,7 +89,9 @@ public static class CaseEvaluationSettings
         // /Account/Register?__tenant=&lt;TenantName&gt;&email=&lt;email&gt; links in
         // the "register as [role]" emails sent to non-registered parties whose
         // emails were captured at booking time on the appointment row (S-5.1).
-        // Default https://localhost:44368 for dev; admins override per-tenant.
+        // Default http://falkinstein.localhost:44368 for Phase 1A dev (matches
+        // the Docker-exposed AuthServer plain-HTTP port + tenant subdomain);
+        // admins override per-tenant once HTTPS dev wiring ships.
         public const string AuthServerBaseUrl = Notifications + ".AuthServerBaseUrl";
     }
 
@@ -99,6 +106,13 @@ public static class CaseEvaluationSettings
         public const string Sec31_5ElapsedDayAnchors = Notifications + ".Reminders.Sec31_5ElapsedDayAnchors";
         public const string Sec34eElapsedDayAnchors = Notifications + ".Reminders.Sec34eElapsedDayAnchors";
         public const string AppointmentDayTMinusAnchors = Notifications + ".Reminders.AppointmentDayTMinusAnchors";
+
+        // Group L (2026-06-05) -- T-minus day anchors for the two document
+        // reminder jobs that previously hardcoded their windows. Defaults match
+        // the prior hardcoded values, so the cadence does not change until an
+        // admin edits them.
+        public const string DueDateApproachingAnchors = Notifications + ".Reminders.DueDateApproachingAnchors";
+        public const string DueDateDocumentIncompleteAnchors = Notifications + ".Reminders.DueDateDocumentIncompleteAnchors";
         public const string Sec31_5Cron = Notifications + ".Reminders.Sec31_5Cron";
         public const string Sec34eCron = Notifications + ".Reminders.Sec34eCron";
         public const string AppointmentDayCron = Notifications + ".Reminders.AppointmentDayCron";

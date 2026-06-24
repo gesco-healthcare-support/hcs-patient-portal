@@ -27,6 +27,7 @@ import {
   NgbTimeAdapter,
   NgbNavModule,
 } from '@ng-bootstrap/ng-bootstrap';
+import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 
 @Component({
   selector: 'app-patient-profile',
@@ -43,6 +44,7 @@ import {
     AutofocusDirective,
     NgbDatepickerModule,
     NgbNavModule,
+    SsnInputComponent,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },
@@ -82,7 +84,6 @@ export class PatientProfileComponent implements OnInit {
     address: [null as string | null, [Validators.maxLength(100)]],
     city: [null as string | null, [Validators.maxLength(50)]],
     zipCode: [null as string | null, [Validators.maxLength(15)]],
-    refferedBy: [null as string | null, [Validators.maxLength(50)]],
     cellPhoneNumber: [null as string | null, [Validators.maxLength(12)]],
     phoneNumberTypeId: [null as number | null, [Validators.required]],
     street: [null as string | null, [Validators.maxLength(255)]],
@@ -172,7 +173,7 @@ export class PatientProfileComponent implements OnInit {
   }
 
   openMyProfile(): void {
-    this.router.navigateByUrl('/doctor-management/patients/my-profile');
+    this.router.navigateByUrl('/user-management/patients/my-profile');
   }
 
   logout(): void {
@@ -233,6 +234,14 @@ export class PatientProfileComponent implements OnInit {
           this.selected = response;
           this.form.patchValue({
             ...response.patient,
+            dateOfBirth: this.normalizePatientDateOfBirth(
+              response.patient.dateOfBirth as unknown as string | null,
+            ),
+            // F1 / Design B (2026-05-29): SSN is never pre-filled. The spread
+            // above carries only the masked last-4 now, but we still blank the
+            // field so nothing is pre-populated; the stored value is viewed via
+            // the reveal endpoint and an empty submit leaves it unchanged.
+            socialSecurityNumber: null,
           });
         });
     }
@@ -265,5 +274,20 @@ export class PatientProfileComponent implements OnInit {
       return d.toISOString().split('T')[0];
     }
     return null;
+  }
+
+  private normalizePatientDateOfBirth(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1900) return null;
+    const today = new Date();
+    if (year === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate()) {
+      return null;
+    }
+    return value;
   }
 }

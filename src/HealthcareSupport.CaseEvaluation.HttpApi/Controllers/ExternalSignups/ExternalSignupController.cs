@@ -4,6 +4,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -65,4 +66,57 @@ public class ExternalSignupController : AbpController
         }
         return Ok(result);
     }
+
+    /// <summary>
+    /// 2026-05-15 -- anonymous validator for the AuthServer JS overlay on
+    /// <c>/Account/Register?inviteToken=...</c>. Hashes the raw token,
+    /// looks up the Invitation row, returns the resolved email + role +
+    /// tenant for prefill. On 4xx, the overlay renders one of three
+    /// friendly banners based on the BusinessException error code
+    /// (InviteInvalid / InviteExpired / InviteAlreadyAccepted).
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet]
+    [Route("validate-invite")]
+    public virtual Task<InvitationValidationDto> ValidateInviteAsync([FromQuery] string token)
+    {
+        return _externalSignupAppService.ValidateInviteAsync(token);
+    }
+
+    /// <summary>
+    /// Dev-only test helper. The AppService gates on hostEnvironment.IsDevelopment;
+    /// the controller is otherwise public so a developer can hit the endpoint
+    /// from Postman / curl without authenticating. Intentionally NOT exposed in
+    /// production -- the AppService throws.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost]
+    [Route("dev/mark-email-confirmed")]
+    public virtual Task MarkEmailConfirmedAsync([FromBody] MarkEmailConfirmedDto input)
+    {
+        return _externalSignupAppService.MarkEmailConfirmedAsync(input.Email);
+    }
+
+    /// <summary>
+    /// Dev-only test helper for the demo flow: delete IdentityUser rows
+    /// matching the given emails so the same emails can be re-registered.
+    /// AppService gates on Development environment.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost]
+    [Route("dev/delete-test-users")]
+    public virtual Task<DeleteTestUsersResultDto> DeleteTestUsersAsync([FromBody] DeleteTestUsersDto input)
+    {
+        return _externalSignupAppService.DeleteTestUsersAsync(input.Emails);
+    }
+}
+
+public class MarkEmailConfirmedDto
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class DeleteTestUsersDto
+{
+    public IList<string> Emails { get; set; } = new List<string>();
 }

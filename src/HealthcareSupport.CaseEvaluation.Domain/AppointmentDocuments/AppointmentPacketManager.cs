@@ -25,20 +25,20 @@ public class AppointmentPacketManager : DomainService
     }
 
     /// <summary>
-    /// Ensures a Generating row exists for the appointment. If a Generated
-    /// or Failed row already exists, flips it back to Generating (the
-    /// caller is about to re-run the merge).
+    /// Ensures a Generating row exists for the (appointment, kind) tuple.
+    /// If a Generated or Failed row already exists for that tuple, flips
+    /// it back to Generating (the caller is about to re-run the merge).
     /// </summary>
-    public virtual async Task<AppointmentPacket> EnsureGeneratingAsync(Guid? tenantId, Guid appointmentId, string blobName)
+    public virtual async Task<AppointmentPacket> EnsureGeneratingAsync(Guid? tenantId, Guid appointmentId, PacketKind kind, string blobName)
     {
         Check.NotNull(appointmentId, nameof(appointmentId));
         Check.NotNullOrWhiteSpace(blobName, nameof(blobName));
 
         var queryable = await _packetRepository.GetQueryableAsync();
-        var existing = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId);
+        var existing = queryable.FirstOrDefault(x => x.AppointmentId == appointmentId && x.Kind == kind);
         if (existing == null)
         {
-            existing = new AppointmentPacket(GuidGenerator.Create(), tenantId, appointmentId, blobName, PacketGenerationStatus.Generating);
+            existing = new AppointmentPacket(GuidGenerator.Create(), tenantId, appointmentId, kind, blobName, PacketGenerationStatus.Generating);
             return await _packetRepository.InsertAsync(existing, autoSave: true);
         }
 

@@ -50,9 +50,11 @@ API=$((44327 + offset * 10))
 NG=$((4200 + offset * 10))
 SQL_HOST=$((1434 + offset))
 REDIS_HOST=$((6379 + offset))
+MINIO_API=$((9000 + offset * 10))
+MINIO_CONSOLE=$((9001 + offset * 10))
 DB="CaseEvaluation"
 
-echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST)"
+echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE)"
 
 cd "$MAIN"
 git fetch origin
@@ -87,6 +89,8 @@ API_PORT=$API
 NG_PORT=$NG
 SQL_HOST_PORT=$SQL_HOST
 REDIS_HOST_PORT=$REDIS_HOST
+MINIO_API_PORT=$MINIO_API
+MINIO_CONSOLE_PORT=$MINIO_CONSOLE
 NG_CONFIG=local
 ENV
 
@@ -103,6 +107,8 @@ Worktree $SLUG ready at $TARGET.
   Angular:      http://localhost:$NG
   SQL:          localhost:$SQL_HOST
   Redis:        localhost:$REDIS_HOST
+  MinIO API:    http://localhost:$MINIO_API
+  MinIO Cons:   http://localhost:$MINIO_CONSOLE
 
 To start the stack:
   cd $TARGET && docker compose up -d

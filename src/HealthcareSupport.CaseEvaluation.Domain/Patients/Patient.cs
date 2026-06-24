@@ -15,7 +15,15 @@ using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
-public class Patient : FullAuditedAggregateRoot<Guid>
+// FEAT-09 (ADR-006 T4, 2026-05-05): Patient implements IMultiTenant so
+// ABP's automatic tenant filter scopes queries by CurrentTenant.Id. Was
+// previously host-only with a manual TenantId column but no auto-filter,
+// which let any caller with the Patients permission read every tenant's
+// patients. Skipped test
+// PatientsAppServiceTests.GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients
+// flips green once the interface is added; the framework filter does the
+// rest -- no AppService change needed.
+public class Patient : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     [NotNull]
     public virtual string FirstName { get; set; } = null!;
@@ -49,9 +57,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>
     public virtual string? ZipCode { get; set; }
 
     [CanBeNull]
-    public virtual string? RefferedBy { get; set; }
-
-    [CanBeNull]
     public virtual string? CellPhoneNumber { get; set; }
 
     public virtual PhoneNumberType PhoneNumberTypeId { get; set; }
@@ -72,7 +77,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>
 
     public Guid? AppointmentLanguageId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    public Guid? IdentityUserId { get; set; }
 
     public Guid? TenantId { get; set; }
 
@@ -80,7 +85,7 @@ public class Patient : FullAuditedAggregateRoot<Guid>
     {
     }
 
-    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
+    public Patient(Guid id, Guid? stateId, Guid? appointmentLanguageId, Guid? identityUserId, Guid? tenantId, string firstName, string lastName, string email, Gender genderId, DateTime dateOfBirth, PhoneNumberType phoneNumberTypeId, string? middleName = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? othersLanguageName = null)
     {
         Id = id;
         Check.NotNull(firstName, nameof(firstName));
@@ -95,7 +100,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>
         Check.Length(address, nameof(address), PatientConsts.AddressMaxLength, 0);
         Check.Length(city, nameof(city), PatientConsts.CityMaxLength, 0);
         Check.Length(zipCode, nameof(zipCode), PatientConsts.ZipCodeMaxLength, 0);
-        Check.Length(refferedBy, nameof(refferedBy), PatientConsts.RefferedByMaxLength, 0);
         Check.Length(cellPhoneNumber, nameof(cellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength, 0);
         Check.Length(street, nameof(street), PatientConsts.StreetMaxLength, 0);
         Check.Length(interpreterVendorName, nameof(interpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength, 0);
@@ -113,7 +117,6 @@ public class Patient : FullAuditedAggregateRoot<Guid>
         Address = address;
         City = city;
         ZipCode = zipCode;
-        RefferedBy = refferedBy;
         CellPhoneNumber = cellPhoneNumber;
         Street = street;
         InterpreterVendorName = interpreterVendorName;

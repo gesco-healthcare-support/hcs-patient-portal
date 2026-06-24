@@ -1,0 +1,43 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+ARG ABP_NUGET_API_KEY
+WORKDIR /app
+
+COPY NuGet.Config.template .
+RUN sed "s/\${ABP_NUGET_API_KEY}/$ABP_NUGET_API_KEY/" NuGet.Config.template > NuGet.Config
+
+COPY Directory.Build.props .
+COPY BannedSymbols.txt .
+COPY HealthcareSupport.CaseEvaluation.slnx .
+COPY src/ src/
+COPY test/ test/
+
+RUN echo '{}' > src/HealthcareSupport.CaseEvaluation.AuthServer/appsettings.secrets.json \
+ && echo '{}' > src/HealthcareSupport.CaseEvaluation.HttpApi.Host/appsettings.secrets.json \
+ && echo '{}' > src/HealthcareSupport.CaseEvaluation.DbMigrator/appsettings.secrets.json \
+ && echo '{}' > test/HealthcareSupport.CaseEvaluation.TestBase/appsettings.secrets.json \
+ && echo '{}' > test/HealthcareSupport.CaseEvaluation.HttpApi.Client.ConsoleTestApp/appsettings.secrets.json
+
+RUN dotnet restore HealthcareSupport.CaseEvaluation.slnx
+
+RUN dotnet build src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj \
+    -c Debug --no-restore
+
+ENV ASPNETCORE_URLS=http://+:8080
+
+EXPOSE 8080
+
+# OBS-22 (2026-05-22): dropped `dotnet watch` after repeated bind-mount /
+# inotify drift on Windows hosts (Docker Desktop GH #8694, #15171). Container
+# start now does a fresh restore + run once. Iterating on source means
+# `docker compose restart api`; restart picks up the latest bind-mounted
+# source via the entrypoint's restore step.
+#
+# See AuthServer Dockerfile.dev for the bin/obj wipe rationale: clear stale
+# Windows obj/ on container start so the bind-mounted host source doesn't
+# poison NuGet restore.
+ENTRYPOINT ["sh", "-c", "\
+  find src -name 'project.assets.json' -delete 2>/dev/null; \
+  find src -name '*.nuget.g.props' -delete 2>/dev/null; \
+  find src -name '*.nuget.g.targets' -delete 2>/dev/null; \
+  dotnet restore HealthcareSupport.CaseEvaluation.slnx >/tmp/restore.log 2>&1 || (cat /tmp/restore.log; exit 1); \
+  exec dotnet run --no-launch-profile --no-restore --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host/HealthcareSupport.CaseEvaluation.HttpApi.Host.csproj --urls http://+:8080"]

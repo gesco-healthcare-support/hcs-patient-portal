@@ -62,6 +62,65 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>W2-11: user who rejected the document (null until rejected).</summary>
     public virtual Guid? RejectedByUserId { get; set; }
 
+    /// <summary>
+    /// True when this row was uploaded as an ad-hoc / general document
+    /// (no status gate, no due-date gate, not part of a package). Mirrors
+    /// OLD's <c>AppointmentNewDocument</c> sibling table; NEW unifies via
+    /// this flag (Phase 1.6, 2026-05-01).
+    /// </summary>
+    public virtual bool IsAdHoc { get; set; }
+
+    /// <summary>
+    /// True when this row is the AME Joint Declaration Form. Mirrors OLD's
+    /// <c>AppointmentJointDeclaration</c> sibling table; NEW unifies via
+    /// this flag (Phase 1.6, 2026-05-01).
+    /// </summary>
+    public virtual bool IsJointDeclaration { get; set; }
+
+    /// <summary>
+    /// AF5 (2026-06-04) -- true when this row is the PQME panel strike list,
+    /// the document internal staff use to manually verify the appointment was
+    /// booked at the correct doctor office on the panel. Third instance of the
+    /// one-boolean-per-document-kind pattern (<see cref="IsAdHoc"/> /
+    /// <see cref="IsJointDeclaration"/>); kept instead of reviving the deferred
+    /// AppointmentDocumentType master (parity-v2/03 G-03-01). Set post-construct
+    /// on the upload path that tags the strike-list file (AF6); defaults false
+    /// for every other document.
+    /// </summary>
+    public virtual bool IsPanelStrikeList { get; set; }
+
+    /// <summary>
+    /// Per-document GUID emailed to the patient as part of the package-doc
+    /// upload link, allowing unauthenticated upload of THIS document only.
+    /// Null for internal-user uploads and ad-hoc rows where no email link
+    /// is sent.
+    /// </summary>
+    public virtual Guid? VerificationCode { get; set; }
+
+    /// <summary>
+    /// G-03-03 (PR2): the document category chosen by the uploader. FK-less
+    /// reference to <c>AppointmentDocumentType</c> (the type list is
+    /// tenant-scoped and curated separately; no DB FK so a retired type does
+    /// not cascade). Null when the uploader picked "Other" (see
+    /// <see cref="OtherDocumentTypeName"/>) or left it unset.
+    /// </summary>
+    public virtual Guid? AppointmentDocumentTypeId { get; set; }
+
+    /// <summary>
+    /// G-03-03 (PR2): free-text label captured when the uploader picks the
+    /// "Other" option; the document is shown under this label, never the word
+    /// "Other". Mutually exclusive with <see cref="AppointmentDocumentTypeId"/>.
+    /// Max <see cref="AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength"/>.
+    /// </summary>
+    public virtual string? OtherDocumentTypeName { get; set; }
+
+    /// <summary>
+    /// G-03-05 (PR2): for queued package rows, the master <c>Document</c> this
+    /// row was generated from. Null for ad-hoc uploads. Internal bookkeeping --
+    /// never surfaced in the UI.
+    /// </summary>
+    public virtual Guid? SourceDocumentId { get; set; }
+
     protected AppointmentDocument()
     {
     }
@@ -75,7 +134,9 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string blobName,
         string? contentType,
         long fileSize,
-        Guid uploadedByUserId)
+        Guid uploadedByUserId,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null)
     {
         Id = id;
         TenantId = tenantId;
@@ -86,6 +147,8 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         ContentType = contentType;
         FileSize = fileSize;
         UploadedByUserId = uploadedByUserId;
+        AppointmentDocumentTypeId = appointmentDocumentTypeId;
+        OtherDocumentTypeName = otherDocumentTypeName;
 
         Check.NotNullOrWhiteSpace(DocumentName, nameof(documentName));
         Check.Length(DocumentName, nameof(documentName), AppointmentDocumentConsts.DocumentNameMaxLength);
@@ -94,5 +157,65 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Check.NotNullOrWhiteSpace(BlobName, nameof(blobName));
         Check.Length(BlobName, nameof(blobName), AppointmentDocumentConsts.BlobNameMaxLength);
         Check.Length(ContentType, nameof(contentType), AppointmentDocumentConsts.ContentTypeMaxLength);
+        Check.Length(OtherDocumentTypeName, nameof(otherDocumentTypeName), AppointmentDocumentConsts.OtherDocumentTypeNameMaxLength);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- queued-state factory for the package-doc
+    /// auto-queue path
+    /// (<c>PackageDocumentQueueHandler</c> on
+    /// <c>AppointmentApprovedEto</c>). Creates a row in
+    /// <see cref="DocumentStatus.Pending"/> with no file metadata yet
+    /// (placeholders satisfy the constructor's
+    /// <c>Check.NotNullOrWhiteSpace</c> guards). The
+    /// <see cref="VerificationCode"/> lets the patient upload via the
+    /// emailed link without an authenticated session. When the user
+    /// uploads, <c>UploadPackageDocumentAsync</c> overwrites
+    /// <see cref="BlobName"/>, <see cref="FileName"/>,
+    /// <see cref="FileSize"/>, <see cref="ContentType"/>,
+    /// <see cref="UploadedByUserId"/> and flips
+    /// <see cref="Status"/> to <see cref="DocumentStatus.Uploaded"/>.
+    ///
+    /// <para>Mirrors OLD's <c>AppointmentDocumentDomain</c> queue path
+    /// at <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:1102-1123
+    /// where the row is inserted with <c>DocumentStatusId = Pending</c>
+    /// + <c>VerificationCode = guid</c> and the file metadata
+    /// (<c>DocumentFilePath</c>, <c>FileType</c>) is populated only on
+    /// upload. NEW collapses OLD's separate <c>FileType</c> +
+    /// <c>DocumentFilePath</c> into <see cref="ContentType"/> +
+    /// <see cref="BlobName"/>.</para>
+    /// </summary>
+    public static AppointmentDocument CreateQueued(
+        Guid id,
+        Guid? tenantId,
+        Guid appointmentId,
+        string documentName,
+        Guid verificationCode,
+        Guid? sourceDocumentId = null,
+        Guid? appointmentDocumentTypeId = null)
+    {
+        Check.NotNullOrWhiteSpace(documentName, nameof(documentName));
+        Check.Length(documentName, nameof(documentName), AppointmentDocumentConsts.DocumentNameMaxLength);
+
+        // Placeholder file metadata satisfies the public constructor's
+        // non-null guards; real values are written by the upload path.
+        const string PendingPlaceholder = "(pending-upload)";
+        var entity = new AppointmentDocument(
+            id: id,
+            tenantId: tenantId,
+            appointmentId: appointmentId,
+            documentName: documentName,
+            fileName: PendingPlaceholder,
+            blobName: PendingPlaceholder,
+            contentType: null,
+            fileSize: 0,
+            uploadedByUserId: Guid.Empty,
+            // G-03-05 (PR2): generated/queued package docs are auto-tagged with
+            // the reserved system category and carry the source master document.
+            appointmentDocumentTypeId: appointmentDocumentTypeId);
+        entity.Status = DocumentStatus.Pending;
+        entity.VerificationCode = verificationCode;
+        entity.SourceDocumentId = sourceDocumentId;
+        return entity;
     }
 }

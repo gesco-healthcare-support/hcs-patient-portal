@@ -97,15 +97,29 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         created.LastName.ShouldBe("Tester");
         created.Email.ShouldBe("alice.tester@test.local");
 
-        var persisted = await _patientRepository.FindAsync(created.Id);
-        persisted.ShouldNotBeNull();
-        persisted!.FirstName.ShouldBe("Alice");
+        // FEAT-09: Patient is IMultiTenant; raw repository reads from
+        // the host context apply WHERE TenantId IS NULL, which excludes
+        // the just-created TenantA row. Enter the tenant context for
+        // the verification read.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var persisted = await _patientRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.FirstName.ShouldBe("Alice");
+        }
     }
 
     [Fact]
     public async Task UpdateAsync_ChangesMutableFields_DoesNotChangeIdentityUserId()
     {
-        var patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        // FEAT-09: Patient is IMultiTenant; raw repository reads need
+        // to run inside the patient's tenant scope so the auto-filter
+        // does not exclude the row.
+        Patient patient1;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            patient1 = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+        }
         var originalIdentityUserId = patient1.IdentityUserId;
 
         var update = new PatientUpdateDto
@@ -124,8 +138,65 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         var result = await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update);
 
         result.FirstName.ShouldBe("Renamed");
-        var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
-        refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var refetched = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+            refetched.IdentityUserId.ShouldBe(originalIdentityUserId);
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // F1 / Design B (2026-05-29) -- SSN is never pre-filled into any form, so
+    // an update carrying a null/empty SSN must NOT wipe the stored value. The
+    // rule lives in PatientManager.UpdateAsync (so all three update callers --
+    // admin UpdateAsync, UpdateMyProfileAsync, UpdatePatientForAppointment
+    // BookingAsync -- inherit it). A typed SSN still overwrites.
+    // Synthetic SSN values are hex-shaped per .claude/rules/test-data.md.
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task PatientManager_UpdateAsync_WhenSsnNullOrEmpty_KeepsExistingSsn()
+    {
+        const string syntheticSsn = "abc123def";
+
+        // Tenant scope so the IMultiTenant filter resolves the seeded patient
+        // (PatientManager.UpdateAsync does not disable the filter; the
+        // AppService does, but here we exercise the manager rule directly).
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var seeded = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+
+            // Arrange: set a known SSN.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, syntheticSsn));
+
+            // Act: a null SSN (the never-pre-filled empty field) must not wipe it.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, null));
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(syntheticSsn);
+
+            // Act: an empty-string SSN must also leave the stored value intact.
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, string.Empty));
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(syntheticSsn);
+        }
+    }
+
+    [Fact]
+    public async Task PatientManager_UpdateAsync_WhenSsnProvided_OverwritesExistingSsn()
+    {
+        const string firstSsn = "aaa111bbb";
+        const string secondSsn = "ccc222ddd";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var seeded = await _patientRepository.GetAsync(PatientsTestData.Patient1Id);
+
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, firstSsn));
+            await InvokeManagerUpdateAsync(PatientsTestData.Patient1Id, CreateDtoFrom(seeded, secondSsn));
+
+            (await _patientRepository.GetAsync(PatientsTestData.Patient1Id))
+                .SocialSecurityNumber.ShouldBe(secondSsn);
+        }
     }
 
     [Fact]
@@ -147,36 +218,51 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     // ------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task CreateAsync_WithoutIdentityUser_CreatesRecordOnlyPatient()
     {
+        // IP6: booking no longer mints a login; patients are record-only with a
+        // nullable IdentityUserId. The old required-identity gate was removed.
         var input = BuildValidCreateDto();
-        input.IdentityUserId = Guid.Empty;
+        input.IdentityUserId = null;
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.CreateAsync(input));
+        var created = await _patientsAppService.CreateAsync(input);
+
+        created.ShouldNotBeNull();
+        created.Id.ShouldNotBe(Guid.Empty);
+        created.IdentityUserId.ShouldBeNull();
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task UpdateAsync_WithoutIdentityUser_Succeeds()
     {
+        // IP6: a record-only patient can be updated while staying loginless.
+        // Use a fresh record-only patient so seeded Patient1 is untouched.
+        var createInput = BuildValidCreateDto();
+        createInput.IdentityUserId = null;
+        var created = await _patientsAppService.CreateAsync(createInput);
+
         var update = new PatientUpdateDto
         {
-            FirstName = "X",
-            LastName = "Y",
-            Email = "xy@test.local",
+            FirstName = "Renamed-RecordOnly",
+            LastName = "Patient",
+            Email = created.Email,
             GenderId = Gender.Male,
             DateOfBirth = PatientsTestData.FixedDateOfBirth,
             PhoneNumberTypeId = PhoneNumberType.Work,
-            IdentityUserId = Guid.Empty,
+            IdentityUserId = null,
+            TenantId = TenantsTestData.TenantARef,
+            ConcurrencyStamp = created.ConcurrencyStamp,
         };
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _patientsAppService.UpdateAsync(PatientsTestData.Patient1Id, update));
+        var result = await _patientsAppService.UpdateAsync(created.Id, update);
+
+        result.FirstName.ShouldBe("Renamed-RecordOnly");
+        result.IdentityUserId.ShouldBeNull();
     }
 
     // ------------------------------------------------------------------------
     // Max-length validation (PatientManager.CreateAsync / .UpdateAsync)
-    // Theory covers all 15 length-bounded string fields.
+    // Theory covers all 14 length-bounded string fields.
     // ------------------------------------------------------------------------
 
     [Theory]
@@ -189,7 +275,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     [InlineData(nameof(PatientCreateDto.Address), PatientConsts.AddressMaxLength)]
     [InlineData(nameof(PatientCreateDto.City), PatientConsts.CityMaxLength)]
     [InlineData(nameof(PatientCreateDto.ZipCode), PatientConsts.ZipCodeMaxLength)]
-    [InlineData(nameof(PatientCreateDto.RefferedBy), PatientConsts.RefferedByMaxLength)]
     [InlineData(nameof(PatientCreateDto.CellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength)]
     [InlineData(nameof(PatientCreateDto.Street), PatientConsts.StreetMaxLength)]
     [InlineData(nameof(PatientCreateDto.InterpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength)]
@@ -213,7 +298,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
     [InlineData(nameof(PatientCreateDto.Address), PatientConsts.AddressMaxLength)]
     [InlineData(nameof(PatientCreateDto.City), PatientConsts.CityMaxLength)]
     [InlineData(nameof(PatientCreateDto.ZipCode), PatientConsts.ZipCodeMaxLength)]
-    [InlineData(nameof(PatientCreateDto.RefferedBy), PatientConsts.RefferedByMaxLength)]
     [InlineData(nameof(PatientCreateDto.CellPhoneNumber), PatientConsts.CellPhoneNumberMaxLength)]
     [InlineData(nameof(PatientCreateDto.Street), PatientConsts.StreetMaxLength)]
     [InlineData(nameof(PatientCreateDto.InterpreterVendorName), PatientConsts.InterpreterVendorNameMaxLength)]
@@ -255,11 +339,10 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         patient2!.Patient.TenantId.ShouldBe(TenantsTestData.TenantBRef);
     }
 
-    [Fact(Skip = "KNOWN BUG: PatientsAppService.GetListAsync has no tenant filter, so "
-              + "tenant-scoped callers (TenantAdmin, Doctor, attorney, patient, etc.) "
-              + "currently see all tenants' patients. When Patient becomes IMultiTenant "
-              + "(or AppService adds a manual CurrentTenant.Id filter), this test flips green. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#patient-imultitenant")]
+    // FEAT-09 (ADR-006 T4, 2026-05-05): now passes -- Patient implements
+    // IMultiTenant, so ABP's automatic filter scopes the query when
+    // CurrentTenant.Id is set. No AppService change was needed.
+    [Fact]
     public async Task GetListAsync_WhenCallerIsTenantScoped_ReturnsOnlyTheirTenantPatients()
     {
         using (_currentTenant.Change(TenantsTestData.TenantARef))
@@ -376,15 +459,34 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         result.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
     }
 
-    [Fact(Skip = "KNOWN GAP: GetOrCreatePatientForAppointmentBookingAsync uses CaseEvaluationConsts.AdminPasswordDefaultValue for runtime-created IdentityUser. Tracked: src/.../Domain/Patients/CLAUDE.md Known Gotchas (hardcoded admin password) AND docs/gap-analysis NEW-SEC-04. When an invite-token / temp-password flow replaces the hardcoded password, this Fact flips live.")]
-    public Task GetOrCreatePatient_DoesNotUseHardcodedAdminPassword()
+    // R2 (Phase 9, 2026-05-04): IsExisting=true on the email-fast-path branch.
+    // Mirrors OLD AppointmentDomain.cs:210 -- when booking resolves to an
+    // already-existing Patient, the Appointment must record IsPatientAlreadyExist=true.
+    // Coverage for the dedup-match branch + FindOrCreate.wasFound branches needs
+    // the runtime-creation harness work flagged in the existing skipped tests
+    // (NEW-SEC-04 in docs/gap-analysis); deferred to the same Wave-2 follow-up.
+    [Fact]
+    public async Task GetOrCreatePatient_WhenEmailMatchesPatient1_SetsIsExistingTrue()
     {
-        // Expected behaviour (not yet implemented):
-        // Newly-created IdentityUser should have a password that requires
-        // a flow-controlled set/reset (invite token, temp password, or
-        // SSO claim) rather than the hardcoded default. Today's behaviour
-        // grants every auto-created Patient the same admin-default password
-        // until they reset it -- a HIPAA-relevant credential exposure.
+        var input = new CreatePatientForAppointmentBookingInput
+        {
+            FirstName = PatientsTestData.Patient1FirstName,
+            LastName = PatientsTestData.Patient1LastName,
+            Email = PatientsTestData.Patient1Email,
+            GenderId = (Gender)PatientsTestData.PatientGenderIdValue,
+            DateOfBirth = PatientsTestData.FixedDateOfBirth,
+            PhoneNumberTypeId = (PhoneNumberType)PatientsTestData.PatientPhoneNumberTypeIdValue,
+        };
+
+        var result = await _patientsAppService.GetOrCreatePatientForAppointmentBookingAsync(input);
+
+        result.ShouldNotBeNull();
+        result.IsExisting.ShouldBeTrue();
+    }
+
+    [Fact(Skip = "HARNESS GAP: the runtime-create arm (new-email booking) still lacks a test harness (same blocker noted on GetOrCreatePatient_WhenEmailMatchesPatient1). IP6 record-only (2026-06-05): booking mints NO IdentityUser and sets no password -- the SEC-05 / Q-12 / NEW-SEC-04 shared-password defect is closed by removal, not patched. When the harness supports runtime create, assert: a new-email booking creates a Patient with a null IdentityUserId, mints no IdentityUser, and grants no Patient role (the claim + role happen later in RegisterAsync).")]
+    public Task GetOrCreatePatient_RecordOnly_MintsNoLogin()
+    {
         return Task.CompletedTask;
     }
 
@@ -420,6 +522,28 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         };
     }
 
+    // Mirrors an existing patient's required fields into a create-shaped DTO,
+    // varying only the SSN. Fed to InvokeManagerUpdateAsync, which calls
+    // PatientManager.UpdateAsync with no concurrency stamp -- letting the SSN
+    // tests issue back-to-back manager updates without a concurrency conflict.
+    private static PatientCreateDto CreateDtoFrom(Patient p, string? ssn)
+    {
+        return new PatientCreateDto
+        {
+            FirstName = p.FirstName,
+            LastName = p.LastName,
+            Email = p.Email,
+            GenderId = p.GenderId,
+            DateOfBirth = p.DateOfBirth,
+            PhoneNumberTypeId = p.PhoneNumberTypeId,
+            IdentityUserId = p.IdentityUserId,
+            TenantId = p.TenantId,
+            StateId = p.StateId,
+            AppointmentLanguageId = p.AppointmentLanguageId,
+            SocialSecurityNumber = ssn,
+        };
+    }
+
     private static void SetStringProperty(object target, string propertyName, string value)
     {
         var prop = target.GetType().GetProperty(propertyName,
@@ -451,7 +575,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             input.Address,
             input.City,
             input.ZipCode,
-            input.RefferedBy,
             input.CellPhoneNumber,
             input.Street,
             input.InterpreterVendorName,
@@ -479,7 +602,6 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
             input.Address,
             input.City,
             input.ZipCode,
-            input.RefferedBy,
             input.CellPhoneNumber,
             input.Street,
             input.InterpreterVendorName,

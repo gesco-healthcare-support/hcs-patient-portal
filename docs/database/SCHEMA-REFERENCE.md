@@ -1,10 +1,12 @@
 # Schema Reference
 
+> Purpose: Database-level reference for table naming, SQL type conventions, ABP system tables, and the dual-DbContext strategy. Audience: backend developers. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Database](./) > Schema Reference
 
 ---
 
-For per-entity column details, see the feature CLAUDE.md files linked in [Domain Model](../backend/DOMAIN-MODEL.md). This page covers database-level concerns not found in the entity documentation.
+For per-entity column details, see the feature CLAUDE.md files linked in [Domain Model](EF-CORE-DESIGN.md). This page covers database-level concerns not found in the entity documentation.
 
 ## Table Naming
 
@@ -68,7 +70,7 @@ See [EF Core Design](EF-CORE-DESIGN.md) for full details on the dual DbContext s
 ---
 
 **Related:**
-- [Domain Model](../backend/DOMAIN-MODEL.md) -- entity index with links to per-entity details
+- [Domain Model](EF-CORE-DESIGN.md) -- entity index with links to per-entity details
 - [EF Core Design](EF-CORE-DESIGN.md) -- dual DbContext strategy
 - [Migration Guide](MIGRATION-GUIDE.md) -- creating and applying migrations
-- [Entity Relationships](../backend/ENTITY-RELATIONSHIPS.md) -- FK diagram
+- [Entity Relationships](EF-CORE-DESIGN.md) -- FK diagram

@@ -108,5 +108,13 @@ export const environment = {
     AbpAccountPublic: { url: 'https://localhost:$AUTH', rootNamespace: 'AbpAccountPublic' },
   },
 } as Environment;
+
+// Address validation (Smarty). Empty smartyKey keeps the mock provider;
+// set the embedded key + allow-list the host to enable live autocomplete.
+export const addressValidation = {
+  smartyKey: '',
+  autocompleteUrl: 'https://us-autocomplete-pro.api.smarty.com/lookup',
+  verifyUrl: 'https://us-street.api.smarty.com/street-address',
+};
 EOF
 echo "wrote $WT/angular/src/environments/environment.local.ts"

@@ -11,7 +11,8 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 /// Seeds 2 SYNTHETIC demo locations so a fresh dev DB is walkable. Real HCS clinic
 /// addresses are deployment data (per-tenant operational), not host seed -- per the
 /// Wave 0 plan, that import path is post-MVP. Both demo rows reference California
-/// and the QME appointment type. Host-scoped; idempotent via simple count-guard
+/// and the AME appointment type (AF1: QME is no longer seeded). Host-scoped; idempotent
+/// via simple count-guard
 /// (this seed is finite and replaced by deployment data).
 /// </summary>
 public class LocationDataSeedContributor : IDataSeedContributor, ITransientDependency
@@ -35,30 +36,30 @@ public class LocationDataSeedContributor : IDataSeedContributor, ITransientDepen
             return;
         }
 
-        await _repository.InsertAsync(
-            new Location(
-                id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
-                stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Qme,
-                name: "Demo Clinic North",
-                parkingFee: 0m,
-                isActive: true,
-                address: "100 Demo Plaza",
-                city: "Los Angeles",
-                zipCode: "90001"),
-            autoSave: false);
+        // I3 (2026-06-08): seed demo locations with the AME type via the M2M
+        // (replaces the single appointmentTypeId ctor arg). Only runs on a fresh DB.
+        var north = new Location(
+            id: CaseEvaluationSeedIds.Locations.DemoClinicNorth,
+            stateId: CaseEvaluationSeedIds.States.California,
+            name: "Demo Clinic North",
+            parkingFee: 0m,
+            isActive: true,
+            address: "100 Demo Plaza",
+            city: "Los Angeles",
+            zipCode: "90001");
+        north.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
+        await _repository.InsertAsync(north, autoSave: false);
 
-        await _repository.InsertAsync(
-            new Location(
-                id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
-                stateId: CaseEvaluationSeedIds.States.California,
-                appointmentTypeId: CaseEvaluationSeedIds.AppointmentTypes.Qme,
-                name: "Demo Clinic South",
-                parkingFee: 0m,
-                isActive: true,
-                address: "200 Demo Way",
-                city: "San Diego",
-                zipCode: "92101"),
-            autoSave: false);
+        var south = new Location(
+            id: CaseEvaluationSeedIds.Locations.DemoClinicSouth,
+            stateId: CaseEvaluationSeedIds.States.California,
+            name: "Demo Clinic South",
+            parkingFee: 0m,
+            isActive: true,
+            address: "200 Demo Way",
+            city: "San Diego",
+            zipCode: "92101");
+        south.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
+        await _repository.InsertAsync(south, autoSave: false);
     }
 }

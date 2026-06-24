@@ -15,7 +15,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 namespace HealthcareSupport.CaseEvaluation.AppointmentTypes;
 
 [RemoteService(IsEnabled = false)]
-[Authorize]
+[Authorize(CaseEvaluationPermissions.AppointmentTypes.Default)]
 public class AppointmentTypesAppService : CaseEvaluationAppService, IAppointmentTypesAppService
 {
     protected IAppointmentTypeRepository _appointmentTypeRepository;

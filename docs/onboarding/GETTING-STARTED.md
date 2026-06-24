@@ -1,12 +1,14 @@
 # Getting Started
 
+> Purpose: Walk a new developer from fresh clone to a running application. Audience: engineers joining the project. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Onboarding](./) > Getting Started
 
 ---
 
-This guide takes you from a fresh clone to a running application. The Patient Portal is a workers' compensation IME scheduling system built with .NET 10, Angular 20, and ABP Commercial. It runs three services locally: an OAuth authentication server, a REST API, and an Angular single-page application.
+This guide takes you from a fresh clone to a running application. The Appointment Portal is a workers' compensation IME scheduling system built with .NET 10, Angular 20, and ABP Commercial. It runs three services locally: an OAuth authentication server, a REST API, and an Angular single-page application.
 
-For detailed configuration (connection strings, HTTPS certificates, Redis, ABP Studio profiles), see [Development Setup](../devops/DEVELOPMENT-SETUP.md).
+For detailed configuration (connection strings, HTTPS certificates, Redis, ABP Studio profiles), see [Development Setup](../runbooks/DOCKER-DEV.md).
 
 ## ABP Commercial License (Required Before Anything Else)
 
@@ -70,6 +72,8 @@ docker compose down -v
 
 ## Local Setup (Without Docker)
 
+> **Note:** Docker Compose (see Quick Start above) is the supported dev path. Use local setup only when you need full IDE debugging or hot-reload and cannot run Docker. All `dotnet run` commands below require `DOTNET_ENVIRONMENT=Development` and `ASPNETCORE_ENVIRONMENT=Development` so that `appsettings.Development.json` is loaded (see `.claude/rules/dotnet-env.md`).
+
 Use this method when you need full debugging, hot-reload, or IDE integration. Requires installing all tools locally.
 
 ### Prerequisites
@@ -130,7 +134,8 @@ Point the connection strings in `src/*/appsettings.json` to your SQL Server inst
 
 ### Run Migrations
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 ```
 
 This creates the database, applies all migrations, and seeds initial data (admin user, OAuth clients, permissions).
@@ -157,13 +162,15 @@ flowchart LR
 
 **Terminal 1 -- AuthServer** (start first):
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 ```
 Wait for `Now listening on: https://localhost:44368`.
 
 **Terminal 2 -- API Host** (start after AuthServer is ready):
 ```bash
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
 Wait for `Now listening on: https://localhost:44327`.
 
@@ -273,28 +280,34 @@ docker exec patient-portal-api env | sort
 
 For local development with full .NET hot-reload and debugging:
 
-**AuthServer** (Terminal 1 — start first):
+**AuthServer** (Terminal 1 -- start first):
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 
 # Verbose logging (shows SQL queries, ABP internals)
-dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer --verbosity detailed
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.AuthServer --verbosity detailed
 
 # Watch mode (auto-restart on code changes)
-dotnet watch run --project src/HealthcareSupport.CaseEvaluation.AuthServer
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet watch run --project src/HealthcareSupport.CaseEvaluation.AuthServer
 ```
 
-**API Host** (Terminal 2 — start after AuthServer):
+**API Host** (Terminal 2 -- start after AuthServer):
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # Verbose logging
-dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host --verbosity detailed
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host --verbosity detailed
 
 # Watch mode
-dotnet watch run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet watch run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
 
 **Angular** (Terminal 3 — start last):
@@ -313,10 +326,12 @@ npx ng build --configuration production && npx serve -s dist/CaseEvaluation/brow
 **DbMigrator** (one-time, run before services):
 ```bash
 # Standard
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator
 
 # Skip Redis connection (useful when Redis isn't running)
-dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disable-redis
 ```
 
 ### Logging Configuration
@@ -324,8 +339,9 @@ dotnet run --project src/HealthcareSupport.CaseEvaluation.DbMigrator -- --disabl
 Logging is configured via Serilog in each service's `Program.cs`. Override at runtime using environment variables:
 
 ```bash
-# .NET services — set minimum log level
-Serilog__MinimumLevel__Default=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+# .NET services -- set minimum log level
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Default=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # Docker — override via environment
 docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && dotnet HealthcareSupport.CaseEvaluation.HttpApi.Host.dll'
@@ -341,10 +357,14 @@ docker compose exec api sh -c 'export Serilog__MinimumLevel__Default=Debug && do
 Override specific namespaces for targeted debugging:
 ```bash
 # See all SQL queries
-Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Debug \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 
 # See ABP internals
-Serilog__MinimumLevel__Override__Volo.Abp=Debug dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
+DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
+  Serilog__MinimumLevel__Override__Volo.Abp=Debug \
+  dotnet run --project src/HealthcareSupport.CaseEvaluation.HttpApi.Host
 ```
 
 ### Health Check Endpoints

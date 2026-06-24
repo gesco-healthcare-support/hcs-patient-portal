@@ -41,7 +41,7 @@ public class EfCoreAppointmentApplicantAttorneyRepository : EfCoreRepository<Cas
                from appointment in appointments.DefaultIfEmpty()
                join applicantAttorney in (await GetDbContextAsync()).Set<ApplicantAttorney>() on appointmentApplicantAttorney.ApplicantAttorneyId equals applicantAttorney.Id into applicantAttorneys
                from applicantAttorney in applicantAttorneys.DefaultIfEmpty()
-               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on appointmentApplicantAttorney.IdentityUserId equals identityUser.Id into identityUsers
+               join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on appointmentApplicantAttorney.IdentityUserId equals (Guid?)identityUser.Id into identityUsers
                from identityUser in identityUsers.DefaultIfEmpty()
                select new AppointmentApplicantAttorneyWithNavigationProperties
                {

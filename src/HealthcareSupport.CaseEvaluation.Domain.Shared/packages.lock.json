@@ -2,6 +2,23 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "MessagePack": {
+        "type": "Direct",
+        "requested": "[3.1.7, )",
+        "resolved": "3.1.7",
+        "contentHash": "gXpifaxbhfBqh8bVToQn9j+OgCnhXWMbRCV7RQIbCVa9CNJG1fY6oHAYYl+ER3Tb9uUIHiQ5QbGiGwwFhoagbA==",
+        "dependencies": {
+          "MessagePack.Annotations": "3.1.7",
+          "MessagePackAnalyzer": "3.1.7",
+          "Microsoft.NET.StringTools": "17.11.4"
+        }
+      },
+      "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
+        "type": "Direct",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "0k2Jwpc8eq0hjOtX6TxRkHm9clkJ2PAQ3heEHgqIJZcsfdFosC/iyz18nsgTVDDWpID80rC7aiYK7ripx+Qndg=="
+      },
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "Direct",
         "requested": "[10.0.0, )",
@@ -13,9 +30,9 @@
       },
       "Scriban": {
         "type": "Direct",
-        "requested": "[7.1.0, )",
-        "resolved": "7.1.0",
-        "contentHash": "8paijHmWYO7zxSRNLlbDzzaFT7By827wIgdOrAg9q64+XasUYK8RCT3Y4mbISxeQ3iNdaK7wGeDmT2GWRtqRBQ=="
+        "requested": "[7.2.0, )",
+        "resolved": "7.2.0",
+        "contentHash": "GiAuu6bCPVWJeMMK8AkJMCNX+wyqt2qgiKjVAPLvRWxzBwpDJjLhJltVP034tsZUHOkBtdfA/Otrny+n3NelBw=="
       },
       "System.Security.Cryptography.Xml": {
         "type": "Direct",
@@ -181,6 +198,16 @@
         "type": "Transitive",
         "resolved": "2025.2.2",
         "contentHash": "0X56ZRizuHdrnPpgXjWV7f2tQO1FlQg5O1967OGKnI/4ZRNOK642J8L7brM1nYvrxTTU5TP1yRyXLRLaXLPQ8A=="
+      },
+      "MessagePack.Annotations": {
+        "type": "Transitive",
+        "resolved": "3.1.7",
+        "contentHash": "IW1yX9viarFl/Dsio5G+pM90JkOSW4xhAiJcKxPPF5rzyp2/yCpieWju8G99QLEmaQeze2uQMEskUBA59YZmkw=="
+      },
+      "MessagePackAnalyzer": {
+        "type": "Transitive",
+        "resolved": "3.1.7",
+        "contentHash": "ZF+OOJTRS7Ogzb4gG36hPKVQk3kEbp6kkUcdRjhddDq/uSGcV4BKIdYiyJipExXyE/zsqYb0ic215O9kI+fjPA=="
       },
       "Microsoft.AspNetCore.Authorization": {
         "type": "Transitive",
@@ -469,6 +496,11 @@
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Microsoft.IdentityModel.Logging": "8.14.0"
         }
+      },
+      "Microsoft.NET.StringTools": {
+        "type": "Transitive",
+        "resolved": "17.11.4",
+        "contentHash": "mudqUHhNpeqIdJoUx2YDWZO/I9uEDYVowan89R6wsomfnUJQk6HteoQTlNjZDixhT2B4IXMkMtgZtoceIjLRmA=="
       },
       "Nito.AsyncEx.Context": {
         "type": "Transitive",

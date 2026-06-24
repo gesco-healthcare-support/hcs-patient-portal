@@ -7,6 +7,13 @@ namespace HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 
 public class DefenseAttorneyUpdateDto : IHasConcurrencyStamp
 {
+    // BUG-042 / UM4 (2026-06-05): First/Last name are first-class persisted fields.
+    [StringLength(DefenseAttorneyConsts.FirstNameMaxLength)]
+    public string? FirstName { get; set; }
+
+    [StringLength(DefenseAttorneyConsts.LastNameMaxLength)]
+    public string? LastName { get; set; }
+
     [StringLength(DefenseAttorneyConsts.FirmNameMaxLength)]
     public string? FirmName { get; set; }
 
@@ -33,7 +40,8 @@ public class DefenseAttorneyUpdateDto : IHasConcurrencyStamp
 
     public Guid? StateId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // UM4 (2026-06-05): optional -- record-based; identity linked later by email.
+    public Guid? IdentityUserId { get; set; }
 
     public string ConcurrencyStamp { get; set; } = null!;
 }

@@ -60,7 +60,6 @@ export abstract class AbstractPatientDetailViewService {
       address,
       city,
       zipCode,
-      refferedBy,
       cellPhoneNumber,
       phoneNumberTypeId,
       street,
@@ -85,7 +84,6 @@ export abstract class AbstractPatientDetailViewService {
       address: [address ?? null, [Validators.maxLength(100)]],
       city: [city ?? null, [Validators.maxLength(50)]],
       zipCode: [zipCode ?? null, [Validators.maxLength(15)]],
-      refferedBy: [refferedBy ?? null, [Validators.maxLength(50)]],
       cellPhoneNumber: [cellPhoneNumber ?? null, [Validators.maxLength(12)]],
       phoneNumberTypeId: [phoneNumberTypeId ?? null, [Validators.required]],
       street: [street ?? null, [Validators.maxLength(255)]],
@@ -94,7 +92,8 @@ export abstract class AbstractPatientDetailViewService {
       othersLanguageName: [othersLanguageName ?? null, [Validators.maxLength(100)]],
       stateId: [stateId ?? null, []],
       appointmentLanguageId: [appointmentLanguageId ?? null, []],
-      identityUserId: [identityUserId ?? null, [Validators.required]],
+      // IP6 (2026-06-05): optional -- a record-only patient may have no login.
+      identityUserId: [identityUserId ?? null, []],
       tenantId: [tenantId ?? null, []],
     });
   }

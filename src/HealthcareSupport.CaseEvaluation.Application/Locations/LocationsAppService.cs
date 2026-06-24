@@ -52,12 +52,26 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
 
     public virtual async Task<LocationDto> GetAsync(Guid id)
     {
-        return ObjectMapper.Map<Location, LocationDto>(await _locationRepository.GetAsync(id));
+        // I3: load the AppointmentTypes M2M so ToLocationDto can fill AppointmentTypeIds.
+        var queryable = await _locationRepository.WithDetailsAsync(x => x.AppointmentTypes);
+        var location = await AsyncExecuter.FirstOrDefaultAsync(queryable.Where(x => x.Id == id))
+            ?? throw new Volo.Abp.Domain.Entities.EntityNotFoundException(typeof(Location), id);
+        return ToLocationDto(location);
+    }
+
+    // I3 (2026-06-08): LocationDto.AppointmentTypeIds is filled from the M2M here
+    // (the Mapperly mapper ignores it). Callers must pass a Location with its
+    // AppointmentTypes collection loaded.
+    private LocationDto ToLocationDto(Location location)
+    {
+        var dto = ObjectMapper.Map<Location, LocationDto>(location);
+        dto.AppointmentTypeIds = location.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList();
+        return dto;
     }
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input)
     {
-        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        var query = (await _stateRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.States.State>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -69,7 +83,7 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentTypeLookupAsync(LookupRequestDto input)
     {
-        var query = (await _appointmentTypeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!));
+        var query = (await _appointmentTypeRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
@@ -82,32 +96,49 @@ public class LocationsAppService : CaseEvaluationAppService, ILocationsAppServic
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // IP4: friendly pre-delete guard (soft-delete stays soft). The manager
+        // throws LocationInUse when an Appointment or DoctorAvailability still
+        // references the location, so the SPA gets a localized 400 instead of a
+        // raw DB FK error.
+        await _locationManager.EnsureCanDeleteAsync(id);
         await _locationRepository.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Create)]
     public virtual async Task<LocationDto> CreateAsync(LocationCreateDto input)
     {
-        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeId, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode);
-        return ObjectMapper.Map<Location, LocationDto>(location);
+        var location = await _locationManager.CreateAsync(input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode);
+        return ToLocationDto(location);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Edit)]
     public virtual async Task<LocationDto> UpdateAsync(Guid id, LocationUpdateDto input)
     {
-        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeId, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp);
-        return ObjectMapper.Map<Location, LocationDto>(location);
+        var location = await _locationManager.UpdateAsync(id, input.StateId, input.AppointmentTypeIds, input.Name, input.ParkingFee, input.IsActive, input.Address, input.City, input.ZipCode, input.ConcurrencyStamp);
+        return ToLocationDto(location);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteByIdsAsync(List<Guid> locationIds)
     {
+        // IP4: bulk delete honors the same friendly pre-delete guard per id.
+        foreach (var id in locationIds)
+        {
+            await _locationManager.EnsureCanDeleteAsync(id);
+        }
         await _locationRepository.DeleteManyAsync(locationIds);
     }
 
     [Authorize(CaseEvaluationPermissions.Locations.Delete)]
     public virtual async Task DeleteAllAsync(GetLocationsInput input)
     {
+        // IP4: resolve the rows the filter would delete and pre-check each, so a
+        // filtered bulk delete cannot orphan a referenced location.
+        var matches = await _locationRepository.GetListWithNavigationPropertiesAsync(input.FilterText, input.Name, input.City, input.ZipCode, input.ParkingFeeMin, input.ParkingFeeMax, input.IsActive, input.StateId, input.AppointmentTypeId);
+        foreach (var match in matches)
+        {
+            await _locationManager.EnsureCanDeleteAsync(match.Location.Id);
+        }
         await _locationRepository.DeleteAllAsync(input.FilterText, input.Name, input.City, input.ZipCode, input.ParkingFeeMin, input.ParkingFeeMax, input.IsActive, input.StateId, input.AppointmentTypeId);
     }
 }

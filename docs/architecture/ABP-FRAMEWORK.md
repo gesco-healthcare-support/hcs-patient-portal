@@ -2,6 +2,8 @@
 
 # ABP Framework Conventions
 
+> Purpose: Reference for ABP 10.0.2 conventions used across the HCS Case Evaluation Portal. Audience: backend developers. Last verified: 2026-06-01 vs main.
+
 ABP Framework (Volo.Abp) is a complete application framework built on top of ASP.NET Core. Note: ABP Framework is the successor to the older ASP.NET Boilerplate — they are different products. It provides a module system, multi-tenancy, permission management, audit logging, localization, identity management, and more. The HCS Case Evaluation Portal uses **ABP 10.0.2** with a **Commercial license**.
 
 This document describes ABP conventions and patterns used throughout the codebase.
@@ -380,8 +382,8 @@ Seed contributors are idempotent -- they check whether data already exists befor
 
 ## Related Documentation
 
-- [DDD Layers](DDD-LAYERS.md)
+- [DDD Layers](OVERVIEW.md)
 - [Multi-Tenancy](MULTI-TENANCY.md)
-- [Domain Model](../backend/DOMAIN-MODEL.md)
+- [Domain Model](../database/EF-CORE-DESIGN.md)
 - [Application Services](../backend/APPLICATION-SERVICES.md)
 - [Component Patterns](../frontend/COMPONENT-PATTERNS.md)

@@ -17,6 +17,23 @@
           "Bogus": "35.6.5"
         }
       },
+      "MessagePack": {
+        "type": "Direct",
+        "requested": "[3.1.7, )",
+        "resolved": "3.1.7",
+        "contentHash": "gXpifaxbhfBqh8bVToQn9j+OgCnhXWMbRCV7RQIbCVa9CNJG1fY6oHAYYl+ER3Tb9uUIHiQ5QbGiGwwFhoagbA==",
+        "dependencies": {
+          "MessagePack.Annotations": "3.1.7",
+          "MessagePackAnalyzer": "3.1.7",
+          "Microsoft.NET.StringTools": "17.11.4"
+        }
+      },
+      "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
+        "type": "Direct",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "0k2Jwpc8eq0hjOtX6TxRkHm9clkJ2PAQ3heEHgqIJZcsfdFosC/iyz18nsgTVDDWpID80rC7aiYK7ripx+Qndg=="
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.14.1, )",
@@ -44,9 +61,9 @@
       },
       "Scriban": {
         "type": "Direct",
-        "requested": "[7.1.0, )",
-        "resolved": "7.1.0",
-        "contentHash": "8paijHmWYO7zxSRNLlbDzzaFT7By827wIgdOrAg9q64+XasUYK8RCT3Y4mbISxeQ3iNdaK7wGeDmT2GWRtqRBQ=="
+        "requested": "[7.2.0, )",
+        "resolved": "7.2.0",
+        "contentHash": "GiAuu6bCPVWJeMMK8AkJMCNX+wyqt2qgiKjVAPLvRWxzBwpDJjLhJltVP034tsZUHOkBtdfA/Otrny+n3NelBw=="
       },
       "Shouldly": {
         "type": "Direct",
@@ -182,6 +199,11 @@
           "Castle.Core": "4.4.0"
         }
       },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.0",
+        "contentHash": "flxspiBs0G/0GMp7IK2J2ijV9bTG6hEwFc/z6ekHqB6nwRJ4Ry2yLdx+TkbCUYFCl4XhABkAwomeKbT6zM2Zlg=="
+      },
       "DiffEngine": {
         "type": "Transitive",
         "resolved": "11.3.0",
@@ -210,6 +232,24 @@
         "type": "Transitive",
         "resolved": "2.7.15",
         "contentHash": "7Ill/5hdR/JiK7Dv6LpWF7rcbT8eygzrW1lSfunju915i+yE8lF/c4bBVTnl08g/9SLevcbkv5M6VoSjnXRKSw=="
+      },
+      "MailKit": {
+        "type": "Transitive",
+        "resolved": "4.16.0",
+        "contentHash": "trJ82DOpAmo8i1jO1vNE+dGn4mPRyeYfy4swRcAGgMJhPoI1Kohf4OFJJf0+YIj4iUxgxPn8W+ht7e7KiYzSjg==",
+        "dependencies": {
+          "MimeKit": "4.16.0"
+        }
+      },
+      "MessagePack.Annotations": {
+        "type": "Transitive",
+        "resolved": "3.1.7",
+        "contentHash": "IW1yX9viarFl/Dsio5G+pM90JkOSW4xhAiJcKxPPF5rzyp2/yCpieWju8G99QLEmaQeze2uQMEskUBA59YZmkw=="
+      },
+      "MessagePackAnalyzer": {
+        "type": "Transitive",
+        "resolved": "3.1.7",
+        "contentHash": "ZF+OOJTRS7Ogzb4gG36hPKVQk3kEbp6kkUcdRjhddDq/uSGcV4BKIdYiyJipExXyE/zsqYb0ic215O9kI+fjPA=="
       },
       "Microsoft.AspNetCore.Authorization": {
         "type": "Transitive",
@@ -548,6 +588,11 @@
           "Microsoft.IdentityModel.Logging": "8.14.0"
         }
       },
+      "Microsoft.NET.StringTools": {
+        "type": "Transitive",
+        "resolved": "17.11.4",
+        "contentHash": "mudqUHhNpeqIdJoUx2YDWZO/I9uEDYVowan89R6wsomfnUJQk6HteoQTlNjZDixhT2B4IXMkMtgZtoceIjLRmA=="
+      },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
         "resolved": "17.14.1",
@@ -560,6 +605,27 @@
         "dependencies": {
           "Microsoft.TestPlatform.ObjectModel": "17.14.1",
           "Newtonsoft.Json": "13.0.3"
+        }
+      },
+      "MimeKit": {
+        "type": "Transitive",
+        "resolved": "4.16.0",
+        "contentHash": "X0LFxeM4gPRIhODyY/HYS9b+zRZ7y//v59rFzgS6wLxcPuZThnMtNZHtrr0fjLyRRkg3gqJBtvW36XfUzZ7Djw==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.6.2",
+          "System.Security.Cryptography.Pkcs": "10.0.0"
+        }
+      },
+      "Minio": {
+        "type": "Transitive",
+        "resolved": "6.0.5",
+        "contentHash": "AK3JIDZnFZg2Hpkqo6vlzyiEC4OifG+jQbuqpAtXePnIo49G4pNn27THh3DI8s4o84b/MMBQF+n1DEwBNenxsg==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.4",
+          "Microsoft.Extensions.Logging": "9.0.4",
+          "System.IO.Hashing": "9.0.4",
+          "System.Reactive": "6.0.1"
         }
       },
       "Newtonsoft.Json": {
@@ -609,25 +675,6 @@
           "OpenIddict.Abstractions": "7.2.0"
         }
       },
-      "PDFsharp": {
-        "type": "Transitive",
-        "resolved": "6.2.4",
-        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "System.Security.Cryptography.Pkcs": "8.0.1"
-        }
-      },
-      "PDFsharp-MigraDoc": {
-        "type": "Transitive",
-        "resolved": "6.2.4",
-        "contentHash": "ZlRUJaAAo4K2oMt1v02GTeGOHIOoOvcH1e1WYMpunCG1MK8jd4EBrbzSHoYSN7yOfKWFtOIUfzvmKhRGPsyWQQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "PDFsharp": "6.2.4",
-          "System.Security.Cryptography.Pkcs": "8.0.1"
-        }
-      },
       "Polly": {
         "type": "Transitive",
         "resolved": "8.6.3",
@@ -640,6 +687,11 @@
         "type": "Transitive",
         "resolved": "8.6.3",
         "contentHash": "xRlcE+1FidqIfZ7zxBT6klSblJ/7MAJq1x5yvYoLnwNhs8Xc2gp3Srf8wHG2NpFxVBqrldc3svhkMPJjSzTmzw=="
+      },
+      "QuestPDF": {
+        "type": "Transitive",
+        "resolved": "2026.2.4",
+        "contentHash": "fajBdRJFr3hu2Mr6mEVsXjvVKD9Q/Q6hfPEUMpV/xlwxWdFebmpGdi0FLQTApMvpapy72v9dvcGuk7e7NQmQyQ=="
       },
       "Riok.Mapperly": {
         "type": "Transitive",
@@ -666,6 +718,11 @@
         "resolved": "6.0.0",
         "contentHash": "lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.4",
+        "contentHash": "WogPvgAFqQORFD8Iyha6RZ+/1QB3dsWRWxbwi8/HHVgiGQ8z0oMWpwe8Kk3Ti+Roe+P6a3sBg+WwBfEsyziZKg=="
+      },
       "System.Linq.Dynamic.Core": {
         "type": "Transitive",
         "resolved": "1.6.7",
@@ -678,6 +735,11 @@
         "dependencies": {
           "System.CodeDom": "10.0.0"
         }
+      },
+      "System.Reactive": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "rHaWtKDwCi9qJ3ObKo8LHPMuuwv33YbmQi7TcUK1C264V3MFnOr5Im7QgCTdLniztP3GJyeiSg5x8NqYJFqRmg=="
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
@@ -815,6 +877,15 @@
         "contentHash": "uTXdYYZ7QmHckNH04N83EeX9qxYp9BwUnzBknk90SKhWXBuFiDB0kY5J4VlaLJw8jcJ06n1vmVQr9Yty4Jzn/g==",
         "dependencies": {
           "Volo.Abp.Validation": "10.0.2"
+        }
+      },
+      "Volo.Abp.BlobStoring.Minio": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "MxKJyJc00DBCT9r0hnqfUGuxD+H2iKlMIFavHtDfOWTRH7JFGLU2lvJdN4VtJVfoiypQ8G62SDBRmfExJKRzsQ==",
+        "dependencies": {
+          "Minio": "6.0.5",
+          "Volo.Abp.BlobStoring": "10.0.2"
         }
       },
       "Volo.Abp.Caching": {
@@ -1183,6 +1254,15 @@
         "contentHash": "Jm1D3A1u2ia9hBgyLNdO8J86vHdmMd24k2/pseKyxUOpnixg6yf7xCkp2RwNyVjHtDmEVieFKixYSAB0DDAnEQ==",
         "dependencies": {
           "Volo.Abp.Core": "10.0.2"
+        }
+      },
+      "Volo.Abp.MailKit": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "6vDb6dene0dUslI3ztTEdREqkcfKE3fjDYP5b0xKJDEBUm66g+f0goRpSmvPijKyNC2nDy6EqcmGmcvUFRYRgg==",
+        "dependencies": {
+          "MailKit": "4.13.0",
+          "Volo.Abp.Emailing": "10.0.2"
         }
       },
       "Volo.Abp.Mapperly": {
@@ -1600,14 +1680,17 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
-          "PDFsharp-MigraDoc": "[6.2.4, )",
-          "PdfSharp": "[6.2.4, )",
-          "Scriban": "[7.1.0, )",
+          "MailKit": "[4.16.0, )",
+          "MessagePack": "[3.1.7, )",
+          "MimeKit": "[4.16.0, )",
+          "QuestPDF": "[2026.2.4, )",
+          "Scriban": "[7.2.0, )",
           "Stateless": "[5.20.1, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
+          "Volo.Abp.BlobStoring.Minio": "[10.0.2, )",
           "Volo.Abp.Caching": "[10.0.2, )",
           "Volo.Abp.Commercial.SuiteTemplates": "[10.0.2, )",
           "Volo.Abp.Emailing": "[10.0.2, )",
@@ -1615,6 +1698,7 @@
           "Volo.Abp.Gdpr.Domain": "[10.0.2, )",
           "Volo.Abp.Identity.Pro.Domain": "[10.0.2, )",
           "Volo.Abp.LanguageManagement.Domain": "[10.0.2, )",
+          "Volo.Abp.MailKit": "[10.0.2, )",
           "Volo.Abp.OpenIddict.Pro.Domain": "[10.0.2, )",
           "Volo.Abp.PermissionManagement.Domain.Identity": "[10.0.2, )",
           "Volo.Abp.PermissionManagement.Domain.OpenIddict": "[10.0.2, )",
@@ -1627,8 +1711,9 @@
       "healthcaresupport.caseevaluation.domain.shared": {
         "type": "Project",
         "dependencies": {
+          "MessagePack": "[3.1.7, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
-          "Scriban": "[7.1.0, )",
+          "Scriban": "[7.2.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",

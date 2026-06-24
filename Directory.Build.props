@@ -34,14 +34,80 @@
     <RestoreLockedMode>false</RestoreLockedMode>
   </PropertyGroup>
 
-  <!-- Scriban 6.6.0 override: resolves NU1902 CVE warnings from transitive
-       Scriban 6.3.0 dependency (ABP uses Scriban for text templating).
-       7.x has breaking API changes that ABP hasn't validated. -->
+  <!-- Scriban 7.2.0: clears NuGetAudit NU1903 alerts on the 7.x line.
+       History:
+         - ABP 10.0.2 ships against Scriban 6.3.0. The 6.x line accumulated
+           several high/critical CVE advisories in 2026, prompting an
+           initial pin to 7.1.0 (2026-04-20, Phase B-6).
+         - 2026-05-19: GHSA-24c8-4792-22hx was published against Scriban
+           <= 7.1.0 and the audit feed re-raised NU1903. 7.2.0 is the
+           patched version per the advisory; bumping the pin here.
+       The 7.x line changed Scriban.Parsing.ParserOptions to a different
+       value-type layout vs 6.3.0, so any code path that hits
+       Volo.Abp.TextTemplating.Scriban throws System.TypeLoadException at
+       runtime. The app avoids that by routing every email surface
+       through non-Scriban paths:
+         - Registration verification email: our own
+           UserRegisteredEmailHandler via INotificationDispatcher ->
+           TemplateVariableSubstitutor (##Var## placeholders, no Scriban).
+         - The /Account/ConfirmUser "Verify" button is hijacked by
+           wwwroot/global-scripts.js to call
+           /api/public/external-signup/resend-verification, which fires
+           the same handler -bypassing ABP's send-email-confirmation-token.
+         - ABP's IAccountEmailer (Forgot Password, Reset Password,
+           Change Email, 2FA email codes) is replaced wholesale by
+           CaseEvaluationAccountEmailer (added 2026-05-06) via
+           [Dependency(ReplaceServices = true)] +
+           [ExposeServices(typeof(IAccountEmailer))], so those flows
+           dispatch through SendAppointmentEmailArgs + Hangfire instead
+           of the Scriban renderer. Verified live on 2026-05-19 with
+           Scriban 7.2.0: Forgot Password renders + delivers, no
+           TypeLoadException, no Scriban errors in either container's
+           logs.
+       2026-05-22 OBS-14 guard: the BannedApiAnalyzers package + repo-root
+       BannedSymbols.txt make any new source-level use of Scriban / ABP's
+       Scriban-backed renderer a build error, so the contract above is
+       enforced at compile time rather than depending on review discipline.
+       Companion runtime test in
+       test/HealthcareSupport.CaseEvaluation.Application.Tests/Notifications/
+       ScribanAvoidanceTests.cs asserts the
+       [Dependency(ReplaceServices = true)] attribute stays on the override.
+       If a future flow needs ABP's Scriban-backed template engine
+       directly (ITemplateRenderer), expect TypeLoadException to return
+       and plan to either upgrade ABP past 10.x (no current 10.x release
+       upgrades the Scriban dep; 10.1.1 still pins Scriban &gt;= 6.3.0)
+       or render through the same TemplateVariableSubstitutor pipeline. -->
   <ItemGroup>
-    <PackageReference Include="Scriban" Version="7.1.0" />
+    <PackageReference Include="Scriban" Version="7.2.0" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
          matches our net10.0 TFM and resolves GHSA-37gx / GHSA-w3x6 CVEs. -->
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
+    <!-- MessagePack 3.1.7 (2026-06-11): override the transitive 3.1.1 pulled by
+         MagicOnion 7.0.6 (Cysharp, via ABP's distributed/SignalR stack) into
+         HttpApi.Host + AuthServer (and their test projects). 3.1.1 is flagged by
+         NuGetAudit NU1903 / CVE-2026-48109 (GHSA-hv8m-jj95-wg3x): an
+         LZ4-decompression out-of-bounds read (DoS / limited memory disclosure),
+         affected >= 3.0.214-rc.1 and < 3.1.7. 3.1.7 is the patched release on the
+         same 3.1.x line, so it satisfies MagicOnion 7.0.6's `MessagePack >= 3.1.1`
+         without an API break. Without this pin, TreatWarningsAsErrors elevates
+         NU1903 to a restore error and every backend image (db-migrator / api /
+         authserver) fails `dotnet restore`. Same pin-the-patched-version approach
+         as the Scriban 7.2.0 entry above. -->
+    <PackageReference Include="MessagePack" Version="3.1.7" />
+  </ItemGroup>
+
+  <!-- OBS-14 guard (2026-05-22): bans direct Scriban references at compile
+       time. The BannedSymbols.txt file at the repo root lists the specific
+       types and namespaces that throw System.TypeLoadException at runtime
+       under our Scriban 7.x pin. The analyzer is solution-wide (every csproj
+       inherits this Directory.Build.props), so accidental copy-paste from an
+       ABP sample that uses Scriban templates is caught before merge. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
   </ItemGroup>
 
   <!-- Suppress Razor view imported type conflict warnings (CS0436) -->

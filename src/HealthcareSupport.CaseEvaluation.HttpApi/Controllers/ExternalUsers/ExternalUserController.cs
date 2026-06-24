@@ -31,9 +31,12 @@ public class ExternalUserController : AbpController
 
     /// <summary>
     /// D.2 (2026-04-30): admin-side invite endpoint. Authorization is enforced
-    /// at the AppService method ([Authorize(Roles = "admin,Staff Supervisor,IT Admin")]),
-    /// not here -- the role-based gate is what makes this surface internal-only.
-    /// External users would receive 403 even if they discovered the route.
+    /// at the AppService method via
+    /// <c>[Authorize(CaseEvaluationPermissions.UserManagement.InviteExternalUser)]</c>
+    /// (permission-based, not role-based -- the permission is granted to
+    /// IT Admin / Staff Supervisor / Intake Staff via
+    /// <c>CaseEvaluationPermissionDefinitionProvider</c>). External users
+    /// would receive 403 even if they discovered the route.
     /// </summary>
     [Authorize]
     [HttpPost]

@@ -4,67 +4,96 @@
   } @else if (errorMessage) {
     <div class="alert alert-danger mb-0">{{ errorMessage }}</div>
   } @else if (appointment) {
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-      <h2 class="mb-0 fw-bold">
-        <!--
-          S-7.3 (W-A-8): replace the static "PQME" prefix with the actual
-          AppointmentType.Name. Falls back to "Appointment" alone when
-          the navigation property is not yet loaded.
-        -->
-        {{ appointment.appointmentType?.name || 'Appointment' }}
-        @if (appointment.appointmentType?.name) {
-          Appointment
-        }
-        <span class="fw-normal">
-          >
-          {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
-        </span>
-      </h2>
-      <div class="d-flex gap-2 align-items-center flex-wrap">
-        @if (canTakeOfficeAction) {
-          <select
-            class="form-select form-select-sm"
-            style="min-width: 220px"
-            [(ngModel)]="selectedAction"
-            [name]="'appointment-action-dropdown'"
-          >
-            <option value="">{{ '::Appointment:Action:ChooseAction' | abpLocalization }}</option>
+    <!--
+      #122 (2026-05-14): single root <form [formGroup]="form"> wraps every
+      patient/employer/attorney input. isReadOnly is enforced by
+      form.disable() in ngOnInit, so the per-input [disabled]="isReadOnly"
+      decorations are gone. Submit is wired off the toolbar save button via
+      (click)="save()"; the form's own submit is a no-op.
+    -->
+    <form [formGroup]="form" (ngSubmit)="$event.preventDefault()">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="mb-0 fw-bold">
+          <!--
+            S-7.3 (W-A-8): replace the static "PQME" prefix with the actual
+            AppointmentType.Name. Falls back to "Appointment" alone when
+            the navigation property is not yet loaded.
+          -->
+          {{ appointment.appointmentType?.name || 'Appointment' }}
+          @if (appointment.appointmentType?.name) {
+            Appointment
+          }
+          <span class="fw-normal">
+            >
+            {{ appointment.patient?.firstName }} {{ appointment.patient?.lastName }}
+          </span>
+          @if (appointment.appointment?.isPatientAlreadyExist) {
+            <!--
+              G-02-08 (OLD parity): OLD's approve screen showed a read-only
+              "merged with existing patient" card. NEW surfaces the same
+              dedup-match result (now populated by G-01-03) as a read-only
+              badge -- there is no un-merge action (OLD never had one).
+            -->
+            <span class="badge bg-info text-dark align-middle ms-2 fs-6 fw-normal">
+              {{ '::Appointment:ReturningPatientBadge' | abpLocalization }}
+            </span>
+          }
+        </h2>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          @if (canTakeOfficeAction) {
+            <!--
+              B14 (2026-05-06): the previous select + Submit toolbar combo had
+              near-zero contrast against adjacent buttons and no visible label,
+              so users could not see the action control. Replaced with two
+              inline buttons that map 1:1 to the existing approve/reject
+              modals via dispatchAction(action). Visibility is still gated by
+              `canTakeOfficeAction`, which only returns true on Pending.
+            -->
             @for (action of availableActions; track action) {
-              <option [value]="action">
-                @switch (action) {
-                  @case ('approve') {
-                    {{ '::Appointment:Action:Approve' | abpLocalization }}
-                  }
-                  @case ('reject') {
-                    {{ '::Appointment:Action:Reject' | abpLocalization }}
-                  }
-                  @case ('sendBack') {
-                    {{ '::Appointment:Action:SendBack' | abpLocalization }}
-                  }
-                }
-              </option>
+              @if (action === 'approve') {
+                <button
+                  type="button"
+                  class="btn btn-success btn-sm"
+                  (click)="dispatchAction('approve')"
+                >
+                  {{ '::Appointment:Action:Approve' | abpLocalization }}
+                </button>
+              } @else if (action === 'reject') {
+                <button
+                  type="button"
+                  class="btn btn-danger btn-sm"
+                  (click)="dispatchAction('reject')"
+                >
+                  {{ '::Appointment:Action:Reject' | abpLocalization }}
+                </button>
+              } @else if (action === 'cancel') {
+                <button
+                  type="button"
+                  class="btn btn-warning btn-sm"
+                  (click)="dispatchAction('cancel')"
+                >
+                  {{ '::Appointment:Action:CancelAppointment' | abpLocalization }}
+                </button>
+              }
             }
-          </select>
-          <button
-            type="button"
-            class="btn btn-success btn-sm"
-            [disabled]="!selectedAction"
-            (click)="dispatchAction()"
-          >
-            {{ '::Appointment:Action:Submit' | abpLocalization }}
-          </button>
-        }
-        @if (isResubmitMode) {
-          <button
-            type="button"
-            class="btn btn-warning btn-sm fw-semibold"
-            (click)="saveAndResubmit()"
-            [disabled]="isSaving"
-          >
-            <i class="fa fa-paper-plane me-1"></i>
-            {{ '::Appointment:Action:SaveAndResubmit' | abpLocalization }}
-          </button>
-        } @else {
+          }
+          @if (canReRequest) {
+            <button type="button" class="btn btn-primary btn-sm" (click)="reRequest()">
+              {{ '::Appointment:Action:ReRequest' | abpLocalization }}
+            </button>
+          }
+          @if (canRequestChange) {
+            <button type="button" class="btn btn-warning btn-sm" (click)="openRescheduleRequest()">
+              {{ '::Appointment:Action:Reschedule' | abpLocalization }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm"
+              (click)="openCancelRequest()"
+            >
+              {{ '::Appointment:Action:Cancel' | abpLocalization }}
+            </button>
+          }
           <button
             type="button"
             class="btn btn-primary btn-sm"
@@ -73,892 +102,1097 @@
           >
             {{ isSaving ? 'Saving...' : 'Save' }}
           </button>
-        }
-        <button
-          type="button"
-          class="btn btn-info text-white btn-sm"
-          (click)="openUploadDocuments()"
-        >
-          Upload Documents
-        </button>
-        <a
-          *abpPermission="'CaseEvaluation.AppointmentChangeLogs'"
-          class="btn btn-outline-secondary btn-sm"
-          [routerLink]="['/appointments/view', appointment.appointment?.id, 'change-log']"
-        >
-          {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
-        </a>
-        <button type="button" class="btn btn-primary btn-sm" (click)="openHelp()">Help</button>
-        <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
-          {{ 'AbpUi::Back' | abpLocalization }}
-        </button>
-      </div>
-    </div>
-
-    @if (isResubmitMode && latestSendBackInfo) {
-      <div class="alert alert-warning border-warning border-2 p-3 mb-3" role="alert">
-        <div class="d-flex align-items-start gap-3">
-          <i class="fa fa-exclamation-triangle fa-2x text-warning"></i>
-          <div class="flex-grow-1">
-            <h4 class="alert-heading mb-2">
-              {{ '::Appointment:Banner:Title' | abpLocalization }}
-            </h4>
-            @if (latestSendBackInfo.note) {
-              <div class="mb-3">
-                <div class="fw-semibold small text-muted">
-                  {{ '::Appointment:Banner:NoteHeader' | abpLocalization }}
-                </div>
-                <blockquote class="mb-0 ps-3 border-start border-warning border-3 fst-italic">
-                  {{ latestSendBackInfo.note }}
-                </blockquote>
-              </div>
-            }
-            @if (flaggedSections.length > 0) {
-              <div class="mb-2">
-                <div class="fw-semibold small text-muted mb-1">
-                  {{ '::Appointment:Banner:SectionsHeader' | abpLocalization }}
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  @for (s of flaggedSections; track s.sectionId) {
-                    <span class="badge bg-warning text-dark border border-warning">
-                      {{ s.sectionLabel }}
-                      <span class="ms-1 fw-bold">
-                        {{ '::Appointment:Banner:NeedsReviewPill' | abpLocalization }}
-                      </span>
-                    </span>
-                  }
-                </div>
-              </div>
-            }
-            @if (flaggedFieldLabels.length > 0) {
-              <details class="mt-2">
-                <summary class="small fw-semibold">
-                  {{ '::Appointment:Banner:FieldsHeader' | abpLocalization }}
-                  ({{ flaggedFieldLabels.length }})
-                </summary>
-                <ul class="mt-2 mb-0 small">
-                  @for (label of flaggedFieldLabels; track label) {
-                    <li>{{ label }}</li>
-                  }
-                </ul>
-              </details>
-            }
-          </div>
+          <button
+            type="button"
+            class="btn btn-info text-white btn-sm"
+            (click)="openUploadDocuments()"
+          >
+            Upload Documents
+          </button>
+          <a
+            *abpPermission="'CaseEvaluation.AppointmentChangeLogs'"
+            class="btn btn-outline-secondary btn-sm"
+            [routerLink]="['/appointments/view', appointment.appointment?.id, 'change-log']"
+          >
+            {{ '::Appointment:Action:ViewChangeLog' | abpLocalization }}
+          </a>
+          <button
+            *abpPermission="'CaseEvaluation.Reports'"
+            type="button"
+            class="btn btn-outline-success btn-sm"
+            (click)="downloadDemographics()"
+          >
+            Download Demographics
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" (click)="goBack()">
+            {{ 'AbpUi::Back' | abpLocalization }}
+          </button>
         </div>
       </div>
-    }
 
-    @if (successMessage) {
-      <div class="alert alert-success py-2">{{ successMessage }}</div>
-    }
+      @if (successMessage) {
+        <div class="alert alert-success py-2">{{ successMessage }}</div>
+      }
 
-    <app-approve-confirmation-modal
-      [appointmentId]="appointment.appointment?.id ?? null"
-      [(visible)]="approveModalVisible"
-      (succeeded)="onActionSucceeded($event)"
-    ></app-approve-confirmation-modal>
+      <app-approve-confirmation-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="approveModalVisible"
+        (succeeded)="onActionSucceeded($event)"
+      ></app-approve-confirmation-modal>
 
-    <app-reject-appointment-modal
-      [appointmentId]="appointment.appointment?.id ?? null"
-      [(visible)]="rejectModalVisible"
-      (succeeded)="onActionSucceeded($event)"
-    ></app-reject-appointment-modal>
+      <app-reject-appointment-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="rejectModalVisible"
+        (succeeded)="onActionSucceeded($event)"
+      ></app-reject-appointment-modal>
 
-    <app-send-back-appointment-modal
-      [appointmentId]="appointment.appointment?.id ?? null"
-      [(visible)]="sendBackModalVisible"
-      (succeeded)="onActionSucceeded($event)"
-    ></app-send-back-appointment-modal>
+      <app-cancel-appointment-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="cancelModalVisible"
+        (succeeded)="onActionSucceeded($event)"
+      ></app-cancel-appointment-modal>
 
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 text-primary fw-bold">Appointment Details</h4>
-        <span class="badge bg-warning text-dark fs-6">
-          {{
-            appointment.appointment?.appointmentStatus !== null
-              ? ('::Enum:AppointmentStatusType.' + appointment.appointment?.appointmentStatus
-                | abpLocalization)
-              : ''
-          }}
-        </span>
-      </div>
+      <app-reschedule-request-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [locationId]="appointment.appointment?.locationId ?? null"
+        [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+        [(visible)]="rescheduleRequestVisible"
+        (succeeded)="onChangeRequestSucceeded($event)"
+      ></app-reschedule-request-modal>
 
-      <div class="card-body">
-        <div class="mb-4">
-          <div class="text-muted fw-semibold">Current Date &amp; Time</div>
-          <div class="fw-semibold">
-            {{ appointment.appointment?.appointmentDate | date: 'MM/dd/yyyy hh:mm a' }}
-          </div>
+      <app-cancellation-request-modal
+        [appointmentId]="appointment.appointment?.id ?? null"
+        [(visible)]="cancelRequestVisible"
+        (succeeded)="onChangeRequestSucceeded($event)"
+      ></app-cancellation-request-modal>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0 text-primary fw-bold">Appointment Details</h4>
+          <span class="badge bg-warning text-dark fs-6">
+            {{
+              appointment.appointment?.appointmentStatus !== null
+                ? ('::Enum:AppointmentStatusType.' + appointment.appointment?.appointmentStatus
+                  | abpLocalization)
+                : ''
+            }}
+          </span>
         </div>
 
-        <div class="row g-3">
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">{{ '::AppointmentType' | abpLocalization }}</div>
-            <div class="fw-semibold">{{ appointment.appointmentType?.name }}</div>
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">
-              {{ '::RequestConfirmationNumber' | abpLocalization }}
-            </div>
-            <div class="fw-semibold">{{ appointment.appointment?.requestConfirmationNumber }}</div>
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">{{ '::PanelNumber' | abpLocalization }}</div>
-            <input
-              type="text"
-              class="form-control form-control-sm"
-              [(ngModel)]="panelNumber"
-              maxlength="50"
-              [disabled]="!canEdit('panelNumber')"
-            />
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">{{ '::Location' | abpLocalization }}</div>
-            <div class="fw-semibold">{{ appointment.location?.name }}</div>
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">{{ '::AppointmentDate' | abpLocalization }}</div>
+        <div class="card-body">
+          <div class="mb-4">
+            <div class="text-muted fw-semibold">Appointment Request Date &amp; Time</div>
             <div class="fw-semibold">
-              {{ appointment.appointment?.appointmentDate | date: 'M/d/yyyy' }}
+              {{ appointment.appointment?.creationTime | date: 'MM/dd/yyyy hh:mm a' }}
             </div>
           </div>
-          <div class="col-md-2 col-sm-6">
-            <div class="text-muted small">Appointment Time</div>
-            <div class="fw-semibold">
-              {{ appointment.appointment?.appointmentDate | date: 'hh:mm a' }}
+
+          <div class="row g-3">
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">{{ '::AppointmentType' | abpLocalization }}</div>
+              <div class="fw-semibold">{{ appointment.appointmentType?.name }}</div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">
+                {{ '::RequestConfirmationNumber' | abpLocalization }}
+              </div>
+              <div class="fw-semibold">
+                {{ appointment.appointment?.requestConfirmationNumber }}
+              </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">{{ '::PanelNumber' | abpLocalization }}</div>
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                formControlName="panelNumber"
+                [class.is-invalid]="isFieldInvalid('panelNumber')"
+                maxlength="50"
+              />
+            </div>
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">{{ '::Location' | abpLocalization }}</div>
+              <div class="fw-semibold">{{ appointment.location?.name }}</div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">{{ '::AppointmentDate' | abpLocalization }}</div>
+              <div class="fw-semibold">
+                {{ appointment.appointment?.appointmentDate | date: 'M/d/yyyy' }}
+              </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+              <div class="text-muted small">Appointment Time</div>
+              <div class="fw-semibold">
+                {{ appointment.appointment?.appointmentDate | date: 'hh:mm a' }}
+              </div>
             </div>
           </div>
+
+          <!--
+            F4-02 (2026-05-26) -- surface the staff outcome captured during
+            Approve / Reject. Status enum: 2=Approved, 3=Rejected. RejectionNotes
+            shows on Rejected; InternalUserComments shows on Approved. The
+            server-side ExternalUserDtoFilter nulls InternalUserComments for
+            external roles, so the *ngIf on truthy value hides the row for them.
+          -->
+          @if (
+            appointment.appointment?.appointmentStatus === 3 &&
+            appointment.appointment?.rejectionNotes
+          ) {
+            <div class="alert alert-danger mt-3 mb-0" role="alert">
+              <div class="fw-bold mb-1">Rejection Reason</div>
+              <div>{{ appointment.appointment?.rejectionNotes }}</div>
+            </div>
+          }
+          @if (
+            appointment.appointment?.appointmentStatus === 2 &&
+            appointment.appointment?.internalUserComments
+          ) {
+            <div class="alert alert-info mt-3 mb-0" role="alert">
+              <div class="fw-bold mb-1">Approval Comments</div>
+              <div>{{ appointment.appointment?.internalUserComments }}</div>
+            </div>
+          }
         </div>
       </div>
-    </div>
 
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white">
-        <h4 class="mb-0 text-primary fw-bold">Patient Demographics</h4>
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.lastName"
-              [disabled]="!canEdit('lastName')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.firstName"
-              [disabled]="!canEdit('firstName')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.middleName"
-              [disabled]="!canEdit('middleName')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
-            <div class="d-flex gap-3 pt-2">
-              @for (option of genderOptions; track option.key) {
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Patient Demographics</h4>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientLastName"
+                [class.is-invalid]="isFieldInvalid('patientLastName')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientFirstName"
+                [class.is-invalid]="isFieldInvalid('patientFirstName')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientMiddleName"
+                [class.is-invalid]="isFieldInvalid('patientMiddleName')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::GenderId' | abpLocalization }}</label>
+              <div class="d-flex gap-3 pt-2">
+                @for (option of genderOptions; track option.key) {
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      [id]="'view-gender-' + option.key"
+                      formControlName="patientGenderId"
+                      [value]="option.value"
+                    />
+                    <label class="form-check-label" [for]="'view-gender-' + option.key">
+                      {{ '::Enum:Gender.' + option.value | abpLocalization }}
+                    </label>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }}</label>
+              <div class="input-group" validationTarget>
+                <input
+                  readonly
+                  id="appointment-patient-date-of-birth"
+                  formControlName="patientDateOfBirth"
+                  [class.is-invalid]="isFieldInvalid('patientDateOfBirth')"
+                  class="form-control"
+                  ngbDatepicker
+                  #dateOfBirthInput
+                  #dateOfBirthDatepicker="ngbDatepicker"
+                  [minDate]="dobMinDate"
+                  [maxDate]="dobMaxDate"
+                  navigation="select"
+                  (click)="dateOfBirthDatepicker.open()"
+                  (keyup.space)="dateOfBirthDatepicker.open()"
+                />
+                @if (dateOfBirthInput.value) {
+                  <div class="input-group-append">
+                    <button
+                      class="btn btn-link px-2"
+                      type="button"
+                      [title]="'AbpUi::Clear' | abpLocalization"
+                      (click)="
+                        dateOfBirthDatepicker.writeValue(null);
+                        dateOfBirthDatepicker.manualDateChange(null, true)
+                      "
+                    >
+                      <i class="fa fa-times" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }}</label>
+              <!-- Email is server-immutable post-creation; keep native readonly so
+                   the input stays visually locked even for internal admins. -->
+              <input
+                class="form-control"
+                formControlName="patientEmail"
+                readonly
+                [class.is-invalid]="isFieldInvalid('patientEmail')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">
+                {{ '::CellPhoneNumber' | abpLocalization }}
+              </label>
+              <input
+                class="form-control"
+                formControlName="patientCellPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('patientCellPhoneNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
+              <input
+                class="form-control mb-2"
+                formControlName="patientPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('patientPhoneNumber')"
+              />
+              <div class="d-flex gap-3">
+                @for (option of phoneNumberTypeOptions; track option.key) {
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      [id]="'view-phone-type-' + option.key"
+                      formControlName="patientPhoneNumberTypeId"
+                      [value]="option.value"
+                    />
+                    <label class="form-check-label" [for]="'view-phone-type-' + option.key">
+                      {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
+                    </label>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">
+                {{ '::SocialSecurityNumber' | abpLocalization }}
+              </label>
+              <app-ssn-input
+                formControlName="patientSocialSecurityNumber"
+                [invalid]="isFieldInvalid('patientSocialSecurityNumber')"
+                [patientId]="appointment?.patient?.id"
+                [patientIdentityUserId]="appointment?.patient?.identityUserId"
+                [currentMaskedSsn]="appointment?.patient?.socialSecurityNumber"
+              ></app-ssn-input>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientStreet"
+                [class.is-invalid]="isFieldInvalid('patientStreet')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Unit #</label>
+              <input
+                class="form-control"
+                formControlName="patientApptNumber"
+                [class.is-invalid]="isFieldInvalid('patientApptNumber')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientCity"
+                [class.is-invalid]="isFieldInvalid('patientCity')"
+              />
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+              <app-lookup-select
+                cid="appointment-view-state-id"
+                formControlName="patientStateId"
+                [getFn]="getStateLookup"
+              ></app-lookup-select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="patientZipCode"
+                [class.is-invalid]="isFieldInvalid('patientZipCode')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">
+                {{ '::AppointmentLanguage' | abpLocalization }}
+              </label>
+              <app-lookup-select
+                cid="appointment-view-language-id"
+                formControlName="patientAppointmentLanguageId"
+                [getFn]="getAppointmentLanguageLookup"
+              ></app-lookup-select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">Do you need an interpreter?</label>
+              <div class="d-flex gap-3 pt-2">
                 <div class="form-check">
                   <input
                     class="form-check-input"
                     type="radio"
-                    [id]="'view-gender-' + option.key"
-                    [name]="'view-gender'"
-                    [(ngModel)]="patientForm.genderId"
-                    [value]="option.value"
-                    [disabled]="!canEdit('genderId')"
+                    id="view-need-interpreter-yes"
+                    formControlName="patientNeedsInterpreter"
+                    [value]="true"
                   />
-                  <label class="form-check-label" [for]="'view-gender-' + option.key">
-                    {{ '::Enum:Gender.' + option.value | abpLocalization }}
-                  </label>
+                  <label class="form-check-label" for="view-need-interpreter-yes">Yes</label>
                 </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    id="view-need-interpreter-no"
+                    formControlName="patientNeedsInterpreter"
+                    [value]="false"
+                  />
+                  <label class="form-check-label" for="view-need-interpreter-no">No</label>
+                </div>
+              </div>
+              @if (form.get('patientNeedsInterpreter')?.value) {
+                <input
+                  class="form-control mt-2"
+                  formControlName="patientInterpreterVendorName"
+                  [class.is-invalid]="isFieldInvalid('patientInterpreterVendorName')"
+                />
               }
             </div>
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }}</label>
-            <div class="input-group" validationTarget>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
               <input
-                readonly
-                id="appointment-patient-date-of-birth"
-                [(ngModel)]="patientForm.dateOfBirth"
                 class="form-control"
-                ngbDatepicker
-                #dateOfBirthInput
-                #dateOfBirthDatepicker="ngbDatepicker"
-                (click)="dateOfBirthDatepicker.open()"
-                (keyup.space)="dateOfBirthDatepicker.open()"
-                [disabled]="!canEdit('dateOfBirth')"
+                formControlName="patientRefferedBy"
+                [class.is-invalid]="isFieldInvalid('patientRefferedBy')"
               />
-              @if (dateOfBirthInput.value) {
-                <div class="input-group-append">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Employer Details</h4>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4 mb-3">
+              <label class="form-label fw-semibold">Employer Name</label>
+              <input
+                class="form-control"
+                formControlName="employerName"
+                [class.is-invalid]="isFieldInvalid('employerName')"
+                placeholder="EMPLOYER NAME"
+              />
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label fw-semibold">Occupation</label>
+              <input
+                class="form-control"
+                formControlName="employerOccupation"
+                [class.is-invalid]="isFieldInvalid('employerOccupation')"
+                placeholder="OCCUPATION"
+              />
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="employerPhoneNumber"
+                [class.is-invalid]="isFieldInvalid('employerPhoneNumber')"
+                placeholder="PHONE NUMBER"
+              />
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="employerStreet"
+                placeholder="STREET"
+                [class.is-invalid]="isFieldInvalid('employerStreet')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="employerCity"
+                placeholder="CITY"
+                [class.is-invalid]="isFieldInvalid('employerCity')"
+              />
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+              <app-lookup-select
+                cid="appointment-view-employer-state-id"
+                formControlName="employerStateId"
+                [getFn]="getStateLookup"
+              ></app-lookup-select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+              <input
+                class="form-control"
+                formControlName="employerZipCode"
+                placeholder="ZIP"
+                [class.is-invalid]="isFieldInvalid('employerZipCode')"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0 text-primary fw-bold">Applicant Attorney Details</h4>
+          <!-- BUG-044: applicant attorney is mandatory; no Include toggle. -->
+        </div>
+        @if (form.get('applicantAttorneyEnabled')?.value) {
+          <div class="card-body">
+            @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
+              <div class="row mb-3">
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold">Applicant Attorney Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    placeholder="Enter email to load"
+                    formControlName="applicantAttorneyEmailSearch"
+                  />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
                   <button
-                    class="btn btn-link px-2"
                     type="button"
-                    [title]="'AbpUi::Clear' | abpLocalization"
-                    (click)="
-                      dateOfBirthDatepicker.writeValue(null);
-                      dateOfBirthDatepicker.manualDateChange(null, true)
+                    class="btn btn-outline-primary"
+                    [disabled]="
+                      !form.get('applicantAttorneyEmailSearch')?.value || isApplicantAttorneyLoading
                     "
+                    (click)="loadApplicantAttorneyByEmail()"
                   >
-                    <i class="fa fa-times" aria-hidden="true"></i>
+                    Load Applicant Attorney
                   </button>
                 </div>
-              }
-            </div>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Email' | abpLocalization }}</label>
-            <input class="form-control" [(ngModel)]="patientForm.email" disabled />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::CellPhoneNumber' | abpLocalization }}
-            </label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.cellPhoneNumber"
-              [disabled]="!canEdit('cellPhoneNumber')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input
-              class="form-control mb-2"
-              [(ngModel)]="patientForm.phoneNumber"
-              [disabled]="!canEdit('phoneNumber')"
-            />
-            <div class="d-flex gap-3">
-              @for (option of phoneNumberTypeOptions; track option.key) {
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="radio"
-                    [id]="'view-phone-type-' + option.key"
-                    [name]="'view-phone-type'"
-                    [(ngModel)]="patientForm.phoneNumberTypeId"
-                    [value]="option.value"
-                    [disabled]="!canEdit('phoneNumberType')"
-                  />
-                  <label class="form-check-label" [for]="'view-phone-type-' + option.key">
-                    {{ '::Enum:PhoneNumberType.' + option.value | abpLocalization }}
-                  </label>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Or select</label>
+                  <select
+                    class="form-select"
+                    formControlName="applicantAttorneyIdentityUserId"
+                    (change)="
+                      onApplicantAttorneySelected(
+                        form.get('applicantAttorneyIdentityUserId')?.value
+                      )
+                    "
+                  >
+                    <option [ngValue]="null">Select Applicant Attorney</option>
+                    @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
+                      <option [ngValue]="opt.identityUserId">
+                        {{ applicantAttorneyOptionLabel(opt) }}
+                      </option>
+                    }
+                  </select>
                 </div>
-              }
-            </div>
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::SocialSecurityNumber' | abpLocalization }}
-            </label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.socialSecurityNumber"
-              [disabled]="!canEdit('socialSecurityNumber')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.street"
-              [disabled]="!canEdit('street')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">Unit #</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.apptNumber"
-              [disabled]="!canEdit('apptNumber')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.city"
-              [disabled]="!canEdit('city')"
-            />
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-            <abp-lookup-select
-              cid="appointment-view-state-id"
-              [(ngModel)]="patientForm.stateId"
-              [ngModelOptions]="{ standalone: true }"
-              [getFn]="getStateLookup"
-              [disabled]="!canEdit('stateId')"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.zipCode"
-              [disabled]="!canEdit('zipCode')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">
-              {{ '::AppointmentLanguage' | abpLocalization }}
-            </label>
-            <abp-lookup-select
-              cid="appointment-view-language-id"
-              [(ngModel)]="patientForm.appointmentLanguageId"
-              [ngModelOptions]="{ standalone: true }"
-              [getFn]="getAppointmentLanguageLookup"
-              [disabled]="!canEdit('languageId')"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">Do you need an interpreter?</label>
-            <div class="d-flex gap-3 pt-2">
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="radio"
-                  id="view-need-interpreter-yes"
-                  name="view-need-interpreter"
-                  [(ngModel)]="patientForm.needsInterpreter"
-                  [value]="true"
-                  [disabled]="!canEdit('isInterpreter')"
-                />
-                <label class="form-check-label" for="view-need-interpreter-yes">Yes</label>
               </div>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="radio"
-                  id="view-need-interpreter-no"
-                  name="view-need-interpreter"
-                  [(ngModel)]="patientForm.needsInterpreter"
-                  [value]="false"
-                  [disabled]="!canEdit('isInterpreter')"
-                />
-                <label class="form-check-label" for="view-need-interpreter-no">No</label>
-              </div>
-            </div>
-            @if (patientForm.needsInterpreter) {
-              <input
-                class="form-control mt-2"
-                [(ngModel)]="patientForm.interpreterVendorName"
-                [disabled]="!canEdit('interpreterVendorName')"
-              />
             }
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::RefferedBy' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="patientForm.refferedBy"
-              [disabled]="!canEdit('referredBy')"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white">
-        <h4 class="mb-0 text-primary fw-bold">Employer Details</h4>
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Employer Name</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.employerName"
-              placeholder="EMPLOYER NAME"
-              [disabled]="!canEdit('employerName')"
-            />
-          </div>
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">Occupation</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.occupation"
-              placeholder="OCCUPATION"
-              [disabled]="!canEdit('occupation')"
-            />
-          </div>
-          <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">{{ '::PhoneNumber' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.phoneNumber"
-              placeholder="PHONE NUMBER"
-              [disabled]="!canEdit('employerPhoneNumber')"
-            />
-          </div>
-
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.street"
-              placeholder="STREET"
-              [disabled]="!canEdit('employerStreet')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.city"
-              placeholder="CITY"
-              [disabled]="!canEdit('employerCity')"
-            />
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
-            <abp-lookup-select
-              cid="appointment-view-employer-state-id"
-              [formControl]="employerStateIdControl"
-              [getFn]="getStateLookup"
-              [disabled]="!canEdit('employerStateId')"
-            ></abp-lookup-select>
-          </div>
-          <div class="col-md-3 mb-3">
-            <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
-            <input
-              class="form-control"
-              [(ngModel)]="employerForm.zipCode"
-              placeholder="ZIP"
-              [disabled]="!canEdit('employerZip')"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 text-primary fw-bold">Applicant Attorney Details</h4>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="view-applicant-attorney-enabled"
-            [(ngModel)]="applicantAttorneyEnabled"
-            [disabled]="!canEdit('applicantAttorneyIsActive')"
-          />
-          <label class="form-check-label" for="view-applicant-attorney-enabled">Include</label>
-        </div>
-      </div>
-      @if (applicantAttorneyEnabled) {
-        <div class="card-body">
-          @if (!isApplicantAttorney && !applicantAttorneyForm.identityUserId) {
-            <div class="row mb-3">
-              <div class="col-md-5">
-                <label class="form-label fw-semibold">Applicant Attorney Email</label>
+            <div class="row g-3">
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">First Name</label>
                 <input
-                  type="email"
                   class="form-control"
-                  placeholder="Enter email to load"
-                  [(ngModel)]="applicantAttorneyEmailSearch"
+                  formControlName="applicantAttorneyFirstName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFirstName')"
                 />
               </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <button
-                  type="button"
-                  class="btn btn-outline-primary"
-                  [disabled]="!applicantAttorneyEmailSearch || isApplicantAttorneyLoading"
-                  (click)="loadApplicantAttorneyByEmail()"
-                >
-                  Load Applicant Attorney
-                </button>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Or select</label>
-                <select
-                  class="form-select"
-                  [(ngModel)]="applicantAttorneyForm.identityUserId"
-                  (change)="onApplicantAttorneySelected(applicantAttorneyForm.identityUserId)"
-                  [disabled]="!canEdit('applicantAttorneyName')"
-                >
-                  <option [ngValue]="null">Select Applicant Attorney</option>
-                  @for (opt of applicantAttorneyOptions; track opt.identityUserId) {
-                    <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-          }
-          <div class="row g-3">
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">First Name</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.firstName" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Last Name</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.lastName" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Email</label>
-              <input class="form-control" [(ngModel)]="applicantAttorneyForm.email" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Firm Name</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.firmName"
-                placeholder="FIRM NAME"
-                [disabled]="!canEdit('applicantAttorneyFirmName')"
-              />
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Web Address</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.webAddress"
-                placeholder="WEB ADDRESS"
-                [disabled]="!canEdit('applicantAttorneyWebAddress')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Phone Number</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.phoneNumber"
-                placeholder="PHONE NUMBER"
-                [disabled]="!canEdit('applicantAttorneyPhoneNumber')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Fax</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.faxNumber"
-                placeholder="FAX"
-                [disabled]="!canEdit('applicantAttorneyFaxNumber')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Street</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.street"
-                placeholder="STREET"
-                [disabled]="!canEdit('applicantAttorneyStreet')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">City</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.city"
-                placeholder="CITY"
-                [disabled]="!canEdit('applicantAttorneyCity')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">State</label>
-              <abp-lookup-select
-                cid="appointment-view-applicant-attorney-state-id"
-                [formControl]="applicantAttorneyStateIdControl"
-                [getFn]="getStateLookup"
-                [disabled]="!canEdit('applicantAttorneyStateId')"
-              ></abp-lookup-select>
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Zip Code</label>
-              <input
-                class="form-control"
-                [(ngModel)]="applicantAttorneyForm.zipCode"
-                placeholder="ZIP"
-                [disabled]="!canEdit('applicantAttorneyZip')"
-              />
-            </div>
-          </div>
-        </div>
-      }
-    </div>
-
-    <!--
-      S-5.4 (W-A-7): Defense Attorney Details card on the view page.
-      Mirrors the Applicant Attorney card above 1:1 -- same structure, same
-      11 fields, same email-search + select-from-list flow, same readonly
-      pre-fill behavior. Only the labels and the form bindings differ. Per
-      Adrian: AA and DA must look identical with only the labels swapped.
-    -->
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 text-primary fw-bold">Defense Attorney Details</h4>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="view-defense-attorney-enabled"
-            [(ngModel)]="defenseAttorneyEnabled"
-            [disabled]="!canEdit('defenseAttorneyIsActive')"
-          />
-          <label class="form-check-label" for="view-defense-attorney-enabled">Include</label>
-        </div>
-      </div>
-      @if (defenseAttorneyEnabled) {
-        <div class="card-body">
-          @if (!isDefenseAttorney && !defenseAttorneyForm.identityUserId) {
-            <div class="row mb-3">
-              <div class="col-md-5">
-                <label class="form-label fw-semibold">Defense Attorney Email</label>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Last Name</label>
                 <input
-                  type="email"
                   class="form-control"
-                  placeholder="Enter email to load"
-                  [(ngModel)]="defenseAttorneyEmailSearch"
+                  formControlName="applicantAttorneyLastName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyLastName')"
                 />
               </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <button
-                  type="button"
-                  class="btn btn-outline-primary"
-                  [disabled]="!defenseAttorneyEmailSearch || isDefenseAttorneyLoading"
-                  (click)="loadDefenseAttorneyByEmail()"
-                >
-                  Load Defense Attorney
-                </button>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Email</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyEmail"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyEmail')"
+                />
               </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Or select</label>
-                <select
-                  class="form-select"
-                  [(ngModel)]="defenseAttorneyForm.identityUserId"
-                  (change)="onDefenseAttorneySelected(defenseAttorneyForm.identityUserId)"
-                  [disabled]="!canEdit('defenseAttorneyName')"
-                >
-                  <option [ngValue]="null">Select Defense Attorney</option>
-                  @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
-                    <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
-                  }
-                </select>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Firm Name</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyFirmName"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFirmName')"
+                  placeholder="FIRM NAME"
+                />
               </div>
-            </div>
-          }
-          <div class="row g-3">
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">First Name</label>
-              <input class="form-control" [(ngModel)]="defenseAttorneyForm.firstName" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Last Name</label>
-              <input class="form-control" [(ngModel)]="defenseAttorneyForm.lastName" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Email</label>
-              <input class="form-control" [(ngModel)]="defenseAttorneyForm.email" readonly />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Firm Name</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.firmName"
-                placeholder="FIRM NAME"
-                [disabled]="!canEdit('defenseAttorneyFirmName')"
-              />
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Web Address</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.webAddress"
-                placeholder="WEB ADDRESS"
-                [disabled]="!canEdit('defenseAttorneyWebAddress')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Phone Number</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.phoneNumber"
-                placeholder="PHONE NUMBER"
-                [disabled]="!canEdit('defenseAttorneyPhoneNumber')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Fax</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.faxNumber"
-                placeholder="FAX"
-                [disabled]="!canEdit('defenseAttorneyFaxNumber')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Street</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.street"
-                placeholder="STREET"
-                [disabled]="!canEdit('defenseAttorneyStreet')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">City</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.city"
-                placeholder="CITY"
-                [disabled]="!canEdit('defenseAttorneyCity')"
-              />
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">State</label>
-              <abp-lookup-select
-                cid="appointment-view-defense-attorney-state-id"
-                [formControl]="defenseAttorneyStateIdControl"
-                [getFn]="getStateLookup"
-                [disabled]="!canEdit('defenseAttorneyStateId')"
-              ></abp-lookup-select>
-            </div>
-            <div class="col-md-3 mb-3">
-              <label class="form-label fw-semibold">Zip Code</label>
-              <input
-                class="form-control"
-                [(ngModel)]="defenseAttorneyForm.zipCode"
-                placeholder="ZIP"
-                [disabled]="!canEdit('defenseAttorneyZip')"
-              />
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Web Address</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyWebAddress"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyWebAddress')"
+                  placeholder="WEB ADDRESS"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Phone Number</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyPhoneNumber"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyPhoneNumber')"
+                  placeholder="PHONE NUMBER"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyFaxNumber"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyFaxNumber')"
+                  placeholder="FAX"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Street</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyStreet"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyStreet')"
+                  placeholder="STREET"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">City</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyCity"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyCity')"
+                  placeholder="CITY"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">State</label>
+                <app-lookup-select
+                  cid="appointment-view-applicant-attorney-state-id"
+                  formControlName="applicantAttorneyStateId"
+                  [getFn]="getStateLookup"
+                ></app-lookup-select>
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Zip Code</label>
+                <input
+                  class="form-control"
+                  formControlName="applicantAttorneyZipCode"
+                  [class.is-invalid]="isFieldInvalid('applicantAttorneyZipCode')"
+                  placeholder="ZIP"
+                />
+              </div>
             </div>
           </div>
-        </div>
-      }
-    </div>
-
-    <!--
-      S-5.4 (W-A-7): Claim Information card on the view page. Read-only at MVP
-      -- the booking form (appointment-add) remains the canonical create/edit
-      surface for injury rows. Sourced from
-      GET /api/app/appointment-injury-details/by-appointment/<id>.
-    -->
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
+        }
       </div>
-      <div class="card-body">
-        @if (injuryDetails.length === 0) {
-          <div class="text-secondary">No claim information added yet.</div>
-        } @else {
+
+      <!--
+        S-5.4 (W-A-7): Defense Attorney Details card on the view page.
+        Mirrors the Applicant Attorney card above 1:1 -- same structure, same
+        11 fields, same email-search + select-from-list flow, same readonly
+        pre-fill behavior. Only the labels and the form bindings differ. Per
+        Adrian: AA and DA must look identical with only the labels swapped.
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0 text-primary fw-bold">Defense Attorney Details</h4>
+          <!-- BUG-044: defense attorney is mandatory; no Include toggle. -->
+        </div>
+        @if (form.get('defenseAttorneyEnabled')?.value) {
+          <div class="card-body">
+            @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
+              <div class="row mb-3">
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold">Defense Attorney Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    placeholder="Enter email to load"
+                    formControlName="defenseAttorneyEmailSearch"
+                  />
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary"
+                    [disabled]="
+                      !form.get('defenseAttorneyEmailSearch')?.value || isDefenseAttorneyLoading
+                    "
+                    (click)="loadDefenseAttorneyByEmail()"
+                  >
+                    Load Defense Attorney
+                  </button>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Or select</label>
+                  <select
+                    class="form-select"
+                    formControlName="defenseAttorneyIdentityUserId"
+                    (change)="
+                      onDefenseAttorneySelected(form.get('defenseAttorneyIdentityUserId')?.value)
+                    "
+                  >
+                    <option [ngValue]="null">Select Defense Attorney</option>
+                    @for (opt of defenseAttorneyOptions; track opt.identityUserId) {
+                      <option [ngValue]="opt.identityUserId">{{ opt.email }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+            <div class="row g-3">
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">First Name</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyFirstName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFirstName')"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Last Name</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyLastName"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyLastName')"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Email</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyEmail"
+                  readonly
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyEmail')"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Firm Name</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyFirmName"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFirmName')"
+                  placeholder="FIRM NAME"
+                />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Web Address</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyWebAddress"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyWebAddress')"
+                  placeholder="WEB ADDRESS"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Phone Number</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyPhoneNumber"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyPhoneNumber')"
+                  placeholder="PHONE NUMBER"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyFaxNumber"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyFaxNumber')"
+                  placeholder="FAX"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Street</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyStreet"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyStreet')"
+                  placeholder="STREET"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">City</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyCity"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyCity')"
+                  placeholder="CITY"
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">State</label>
+                <app-lookup-select
+                  cid="appointment-view-defense-attorney-state-id"
+                  formControlName="defenseAttorneyStateId"
+                  [getFn]="getStateLookup"
+                ></app-lookup-select>
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Zip Code</label>
+                <input
+                  class="form-control"
+                  formControlName="defenseAttorneyZipCode"
+                  [class.is-invalid]="isFieldInvalid('defenseAttorneyZipCode')"
+                  placeholder="ZIP"
+                />
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!--
+        CE-VIEW (2026-06-09): full read-only Claim Examiner section. Sourced
+        from the appointment nav-prop (appointment.claimExaminer); the booking
+        form remains the canonical edit surface. Visible to every role that can
+        open this page (internal staff + party externals).
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Claim Examiner</h4>
+        </div>
+        <div class="card-body">
+          @if (appointment?.claimExaminer) {
+            <div class="row g-3">
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Name</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.name || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Email</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.email || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.phoneNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Suite</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.suite || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.fax || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.street || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.city || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="stateName(appointment?.claimExaminer?.stateId)"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.claimExaminer?.zip || ''"
+                  readonly
+                />
+              </div>
+            </div>
+          } @else {
+            <div class="text-secondary">No claim examiner information added.</div>
+          }
+        </div>
+      </div>
+
+      <!--
+        INS-VIEW (2026-06-09): full read-only Insurance section. Sourced from
+        the appointment nav-prop (appointment.primaryInsurance).
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0 text-primary fw-bold">Insurance</h4>
+        </div>
+        <div class="card-body">
+          @if (appointment?.primaryInsurance) {
+            <div class="row g-3">
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Insurance Company</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.name || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Suite</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.suite || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">
+                  {{ '::PhoneNumber' | abpLocalization }}
+                </label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.phoneNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Fax</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.faxNumber || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::Street' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.street || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::City' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.city || ''"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::State' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="stateName(appointment?.primaryInsurance?.stateId)"
+                  readonly
+                />
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">{{ '::ZipCode' | abpLocalization }}</label>
+                <input
+                  class="form-control"
+                  [value]="appointment?.primaryInsurance?.zip || ''"
+                  readonly
+                />
+              </div>
+            </div>
+          } @else {
+            <div class="text-secondary">No insurance information added.</div>
+          }
+        </div>
+      </div>
+
+      <!--
+        S-5.4 (W-A-7): Claim Information card on the view page. Read-only at MVP
+        -- the booking form (appointment-add) remains the canonical create/edit
+        surface for injury rows. Sourced from
+        GET /api/app/appointment-injury-details/by-appointment/<id>.
+      -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0 text-primary fw-bold">Claim Information</h4>
+        </div>
+        <div class="card-body">
+          <!-- CI1 (2026-06-05): Claim Examiner + Insurance now render as their
+               own dedicated sections above (CE-VIEW / INS-VIEW, 2026-06-09);
+               this card keeps the per-claim injury rows only. -->
+          @if (injuryDetails.length === 0) {
+            <div class="text-secondary">No claim information added yet.</div>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date Of Injury</th>
+                    <th>Claim Number</th>
+                    <th>WCAB</th>
+                    <th>ADJ #</th>
+                    <th>Body Parts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (injury of injuryDetails; track injury.id) {
+                    <tr>
+                      <td>
+                        @if (injury.isCumulativeInjury) {
+                          From: {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
+                          <br />
+                          To: {{ injury.toDateOfInjury | date: 'MM/dd/yyyy' }}
+                        } @else {
+                          {{ injury.dateOfInjury | date: 'MM/dd/yyyy' }}
+                        }
+                      </td>
+                      <td>{{ injury.claimNumber }}</td>
+                      <td>{{ injury.wcabOfficeName }}</td>
+                      <td>{{ injury.wcabAdj }}</td>
+                      <td>
+                        @if (injury.bodyParts.length > 0) {
+                          {{ injury.bodyParts.join(', ') }}
+                        } @else {
+                          {{ injury.bodyPartsSummary }}
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0 text-primary fw-bold">Additional Authorized User</h4>
+          @if (canManageAccessors()) {
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              (click)="openAddAuthorizedUserModal()"
+            >
+              Add
+              <i class="fa fa-plus ms-1"></i>
+            </button>
+          }
+        </div>
+        <div class="card-body">
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">
                 <tr>
-                  <th>Date Of Injury</th>
-                  <th>Claim Number</th>
-                  <th>WCAB</th>
-                  <th>ADJ #</th>
-                  <th>Body Parts</th>
-                  <th>Insurance Company</th>
-                  <th>Claim Examiner</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>User Role</th>
+                  <th>Rights</th>
+                  <th style="width: 110px">Action</th>
                 </tr>
               </thead>
               <tbody>
-                @for (injury of injuryDetails; track injury.id) {
+                @if (appointmentAuthorizedUsers.length === 0) {
                   <tr>
-                    <td>
-                      @if (injury.isCumulativeInjury) {
-                        From: {{ injury.dateOfInjury }}
-                        <br />
-                        To: {{ injury.toDateOfInjury }}
-                      } @else {
-                        {{ injury.dateOfInjury }}
-                      }
+                    <td colspan="5" class="text-muted text-center py-3">
+                      No additional authorized users.
                     </td>
-                    <td>{{ injury.claimNumber }}</td>
-                    <td>{{ injury.wcabOfficeName }}</td>
-                    <td>{{ injury.wcabAdj }}</td>
-                    <td>{{ injury.bodyPartsSummary }}</td>
-                    <td>{{ injury.insuranceCompanyName }}</td>
-                    <td>{{ injury.claimExaminerName }}</td>
                   </tr>
+                } @else {
+                  @for (row of appointmentAuthorizedUsers; track row.accessorId) {
+                    <tr>
+                      <td>{{ row.firstName }} {{ row.lastName }}</td>
+                      <td>{{ row.email }}</td>
+                      <td>{{ row.userRole }}</td>
+                      <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
+                      <td>
+                        <button
+                          type="button"
+                          class="btn btn-link p-0 me-2"
+                          (click)="openEditAuthorizedUserModal(row)"
+                        >
+                          <i class="fa fa-pencil"></i>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-link text-danger p-0"
+                          (click)="removeAuthorizedUser(row)"
+                        >
+                          <i class="fa fa-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>
           </div>
-        }
-      </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0 text-primary fw-bold">Additional Authorized User</h4>
-        <button type="button" class="btn btn-primary btn-sm" (click)="openAddAuthorizedUserModal()">
-          Add
-          <i class="fa fa-plus ms-1"></i>
-        </button>
-      </div>
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>User Role</th>
-                <th>Rights</th>
-                <th style="width: 110px">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (appointmentAuthorizedUsers.length === 0) {
-                <tr>
-                  <td colspan="5" class="text-muted text-center py-3">
-                    No additional authorized users.
-                  </td>
-                </tr>
-              } @else {
-                @for (row of appointmentAuthorizedUsers; track row.accessorId) {
-                  <tr>
-                    <td>{{ row.firstName }} {{ row.lastName }}</td>
-                    <td>{{ row.email }}</td>
-                    <td>{{ row.userRole }}</td>
-                    <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
-                    <td>
-                      <button
-                        type="button"
-                        class="btn btn-link p-0 me-2"
-                        (click)="openEditAuthorizedUserModal(row)"
-                      >
-                        <i class="fa fa-pencil"></i>
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-link text-danger p-0"
-                        (click)="removeAuthorizedUser(row)"
-                      >
-                        <i class="fa fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              }
-            </tbody>
-          </table>
         </div>
       </div>
-    </div>
 
-    <app-appointment-documents
-      [appointmentId]="appointment.appointment?.id ?? null"
-      (documentsChanged)="packetPanel.refresh()"
-    ></app-appointment-documents>
+      <app-appointment-documents
+        id="appointment-documents-anchor"
+        [appointmentId]="appointment.appointment?.id ?? null"
+        (documentsChanged)="packetPanel.refresh()"
+      ></app-appointment-documents>
 
-    <app-appointment-packet
-      #packetPanel
-      [appointmentId]="appointment.appointment?.id ?? null"
-    ></app-appointment-packet>
+      <app-appointment-packet
+        #packetPanel
+        [appointmentId]="appointment.appointment?.id ?? null"
+      ></app-appointment-packet>
+    </form>
   }
 
   @if (isAuthorizedUserModalOpen) {
@@ -978,38 +1212,63 @@
               (click)="closeAuthorizedUserModal()"
             ></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body" [formGroup]="authorizedUserForm">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Email</label>
-                <select
-                  class="form-select"
-                  [ngModel]="authorizedUserDraft.identityUserId"
-                  (ngModelChange)="onAuthorizedUserIdentityChange($event)"
-                >
-                  <option [ngValue]="null">Select email</option>
-                  @for (option of externalAuthorizedUserOptions; track option.identityUserId) {
-                    <option [value]="option.identityUserId">{{ option.email }}</option>
-                  }
-                </select>
-              </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">First Name</label>
-                <input class="form-control" [value]="authorizedUserDraft.firstName" readonly />
+                <input
+                  class="form-control"
+                  type="text"
+                  formControlName="firstName"
+                  maxlength="64"
+                />
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">Last Name</label>
-                <input class="form-control" [value]="authorizedUserDraft.lastName" readonly />
+                <input class="form-control" type="text" formControlName="lastName" maxlength="64" />
               </div>
               <div class="col-md-6">
-                <label class="form-label fw-semibold">User Role</label>
-                <input class="form-control" [value]="authorizedUserDraft.userRole" readonly />
+                <label class="form-label fw-semibold">
+                  Email
+                  <span class="text-danger">*</span>
+                </label>
+                <input
+                  class="form-control"
+                  type="email"
+                  formControlName="email"
+                  maxlength="256"
+                  placeholder="name@example.com"
+                />
+                @if (
+                  authorizedUserForm.get('email')?.touched &&
+                  authorizedUserForm.get('email')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Enter a valid email address.</div>
+                }
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                  User Role
+                  <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" formControlName="userRole">
+                  <option value="">Select role</option>
+                  @for (role of roleOptions; track role) {
+                    <option [value]="role">{{ role }}</option>
+                  }
+                </select>
+                @if (
+                  authorizedUserForm.get('userRole')?.touched &&
+                  authorizedUserForm.get('userRole')?.invalid
+                ) {
+                  <div class="text-danger small mt-1">Role is required.</div>
+                }
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Rights</label>
-                <select class="form-select" [(ngModel)]="authorizedUserDraft.accessTypeId">
+                <select class="form-select" formControlName="accessTypeId">
                   @for (option of accessTypeOptions; track option.value) {
-                    <option [value]="option.value">{{ option.label }}</option>
+                    <option [ngValue]="option.value">{{ option.label }}</option>
                   }
                 </select>
               </div>

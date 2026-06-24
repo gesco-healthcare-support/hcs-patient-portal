@@ -46,11 +46,16 @@
           </div>
         </div>
         <div class="col-md-3 col-sm-6">
-          <div class="card h-100 dashboard-card">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            tabindex="0"
+            (click)="openChangeRequests()"
+            (keyup.enter)="openChangeRequests()"
+          >
             <div class="card-body">
               <div class="text-muted small">Pending Change Requests</div>
               <div class="display-6 fw-bold">{{ c.pendingChangeRequests }}</div>
-              <div class="text-muted small">(populated when W3 ships)</div>
             </div>
           </div>
         </div>
@@ -60,6 +65,23 @@
               <div class="text-muted small">Approaching Legal Deadline</div>
               <div class="display-6 fw-bold">{{ c.requestsApproachingLegalDeadline }}</div>
               <div class="text-muted small">CCR Sec. 31.5 / 60 days</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div
+            class="card h-100 dashboard-card text-decoration-none"
+            role="button"
+            tabindex="0"
+            (click)="openByStatus(1)"
+            (keyup.enter)="openByStatus(1)"
+          >
+            <div class="card-body">
+              <div class="text-muted small">Decision Overdue</div>
+              <div class="display-6 fw-bold" [class.text-danger]="c.decisionOverdue > 0">
+                {{ c.decisionOverdue }}
+              </div>
+              <div class="text-muted small">Past the 3-day decision deadline</div>
             </div>
           </div>
         </div>

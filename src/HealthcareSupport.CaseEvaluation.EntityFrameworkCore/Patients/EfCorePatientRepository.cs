@@ -28,10 +28,10 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(patient => new PatientWithNavigationProperties { Patient = patient, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == patient.StateId), AppointmentLanguage = dbContext.Set<AppointmentLanguage>().FirstOrDefault(c => c.Id == patient.AppointmentLanguageId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == patient.IdentityUserId), Tenant = dbContext.Set<Tenant>().FirstOrDefault(c => c.Id == patient.TenantId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
-    public virtual async Task<List<PatientWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<PatientWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, stateId, appointmentLanguageId, identityUserId);
+        query = ApplyFilter(query, filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, stateId, appointmentLanguageId, identityUserId);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? PatientConsts.GetDefaultSorting(true) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
@@ -57,27 +57,27 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                };
     }
 
-    protected virtual IQueryable<PatientWithNavigationProperties> ApplyFilter(IQueryable<PatientWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null)
+    protected virtual IQueryable<PatientWithNavigationProperties> ApplyFilter(IQueryable<PatientWithNavigationProperties> query, string? filterText, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Patient.FirstName!.Contains(filterText!) || e.Patient.LastName!.Contains(filterText!) || e.Patient.MiddleName!.Contains(filterText!) || e.Patient.Email!.Contains(filterText!) || e.Patient.PhoneNumber!.Contains(filterText!) || e.Patient.SocialSecurityNumber!.Contains(filterText!) || e.Patient.Address!.Contains(filterText!) || e.Patient.City!.Contains(filterText!) || e.Patient.ZipCode!.Contains(filterText!) || e.Patient.RefferedBy!.Contains(filterText!) || e.Patient.CellPhoneNumber!.Contains(filterText!) || e.Patient.Street!.Contains(filterText!) || e.Patient.InterpreterVendorName!.Contains(filterText!) || e.Patient.ApptNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Patient.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Patient.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(middleName), e => e.Patient.MiddleName!.Contains(middleName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Patient.Email!.Contains(email!)).WhereIf(genderId.HasValue, e => e.Patient.GenderId == genderId).WhereIf(dateOfBirthMin.HasValue, e => e.Patient.DateOfBirth >= dateOfBirthMin!.Value).WhereIf(dateOfBirthMax.HasValue, e => e.Patient.DateOfBirth <= dateOfBirthMax!.Value).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.Patient.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(socialSecurityNumber), e => e.Patient.SocialSecurityNumber!.Contains(socialSecurityNumber!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Patient.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.Patient.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.Patient.ZipCode!.Contains(zipCode!)).WhereIf(!string.IsNullOrWhiteSpace(refferedBy), e => e.Patient.RefferedBy!.Contains(refferedBy!)).WhereIf(!string.IsNullOrWhiteSpace(cellPhoneNumber), e => e.Patient.CellPhoneNumber!.Contains(cellPhoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.Patient.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(interpreterVendorName), e => e.Patient.InterpreterVendorName!.Contains(interpreterVendorName!)).WhereIf(!string.IsNullOrWhiteSpace(apptNumber), e => e.Patient.ApptNumber!.Contains(apptNumber!)).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId).WhereIf(appointmentLanguageId != null && appointmentLanguageId != Guid.Empty, e => e.AppointmentLanguage != null && e.AppointmentLanguage.Id == appointmentLanguageId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId);
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Patient.FirstName!.Contains(filterText!) || e.Patient.LastName!.Contains(filterText!) || e.Patient.MiddleName!.Contains(filterText!) || e.Patient.Email!.Contains(filterText!) || e.Patient.PhoneNumber!.Contains(filterText!) || e.Patient.SocialSecurityNumber!.Contains(filterText!) || e.Patient.Address!.Contains(filterText!) || e.Patient.City!.Contains(filterText!) || e.Patient.ZipCode!.Contains(filterText!) || e.Patient.CellPhoneNumber!.Contains(filterText!) || e.Patient.Street!.Contains(filterText!) || e.Patient.InterpreterVendorName!.Contains(filterText!) || e.Patient.ApptNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.Patient.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.Patient.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(middleName), e => e.Patient.MiddleName!.Contains(middleName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Patient.Email!.Contains(email!)).WhereIf(genderId.HasValue, e => e.Patient.GenderId == genderId).WhereIf(dateOfBirthMin.HasValue, e => e.Patient.DateOfBirth >= dateOfBirthMin!.Value).WhereIf(dateOfBirthMax.HasValue, e => e.Patient.DateOfBirth <= dateOfBirthMax!.Value).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.Patient.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(socialSecurityNumber), e => e.Patient.SocialSecurityNumber!.Contains(socialSecurityNumber!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Patient.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.Patient.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.Patient.ZipCode!.Contains(zipCode!)).WhereIf(!string.IsNullOrWhiteSpace(cellPhoneNumber), e => e.Patient.CellPhoneNumber!.Contains(cellPhoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.Patient.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(interpreterVendorName), e => e.Patient.InterpreterVendorName!.Contains(interpreterVendorName!)).WhereIf(!string.IsNullOrWhiteSpace(apptNumber), e => e.Patient.ApptNumber!.Contains(apptNumber!)).WhereIf(stateId != null && stateId != Guid.Empty, e => e.State != null && e.State.Id == stateId).WhereIf(appointmentLanguageId != null && appointmentLanguageId != Guid.Empty, e => e.AppointmentLanguage != null && e.AppointmentLanguage.Id == appointmentLanguageId).WhereIf(identityUserId != null && identityUserId != Guid.Empty, e => e.IdentityUser != null && e.IdentityUser.Id == identityUserId);
     }
 
-    protected virtual IQueryable<Patient> ApplyFilter(IQueryable<Patient> query, string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null)
+    protected virtual IQueryable<Patient> ApplyFilter(IQueryable<Patient> query, string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName!.Contains(filterText!) || e.LastName!.Contains(filterText!) || e.MiddleName!.Contains(filterText!) || e.Email!.Contains(filterText!) || e.PhoneNumber!.Contains(filterText!) || e.SocialSecurityNumber!.Contains(filterText!) || e.Address!.Contains(filterText!) || e.City!.Contains(filterText!) || e.ZipCode!.Contains(filterText!) || e.RefferedBy!.Contains(filterText!) || e.CellPhoneNumber!.Contains(filterText!) || e.Street!.Contains(filterText!) || e.InterpreterVendorName!.Contains(filterText!) || e.ApptNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(middleName), e => e.MiddleName!.Contains(middleName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email!.Contains(email!)).WhereIf(genderId.HasValue, e => e.GenderId == genderId).WhereIf(dateOfBirthMin.HasValue, e => e.DateOfBirth >= dateOfBirthMin!.Value).WhereIf(dateOfBirthMax.HasValue, e => e.DateOfBirth <= dateOfBirthMax!.Value).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(socialSecurityNumber), e => e.SocialSecurityNumber!.Contains(socialSecurityNumber!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.ZipCode!.Contains(zipCode!)).WhereIf(!string.IsNullOrWhiteSpace(refferedBy), e => e.RefferedBy!.Contains(refferedBy!)).WhereIf(!string.IsNullOrWhiteSpace(cellPhoneNumber), e => e.CellPhoneNumber!.Contains(cellPhoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(interpreterVendorName), e => e.InterpreterVendorName!.Contains(interpreterVendorName!)).WhereIf(!string.IsNullOrWhiteSpace(apptNumber), e => e.ApptNumber!.Contains(apptNumber!));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.FirstName!.Contains(filterText!) || e.LastName!.Contains(filterText!) || e.MiddleName!.Contains(filterText!) || e.Email!.Contains(filterText!) || e.PhoneNumber!.Contains(filterText!) || e.SocialSecurityNumber!.Contains(filterText!) || e.Address!.Contains(filterText!) || e.City!.Contains(filterText!) || e.ZipCode!.Contains(filterText!) || e.CellPhoneNumber!.Contains(filterText!) || e.Street!.Contains(filterText!) || e.InterpreterVendorName!.Contains(filterText!) || e.ApptNumber!.Contains(filterText!)).WhereIf(!string.IsNullOrWhiteSpace(firstName), e => e.FirstName!.Contains(firstName!)).WhereIf(!string.IsNullOrWhiteSpace(lastName), e => e.LastName!.Contains(lastName!)).WhereIf(!string.IsNullOrWhiteSpace(middleName), e => e.MiddleName!.Contains(middleName!)).WhereIf(!string.IsNullOrWhiteSpace(email), e => e.Email!.Contains(email!)).WhereIf(genderId.HasValue, e => e.GenderId == genderId).WhereIf(dateOfBirthMin.HasValue, e => e.DateOfBirth >= dateOfBirthMin!.Value).WhereIf(dateOfBirthMax.HasValue, e => e.DateOfBirth <= dateOfBirthMax!.Value).WhereIf(!string.IsNullOrWhiteSpace(phoneNumber), e => e.PhoneNumber!.Contains(phoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(socialSecurityNumber), e => e.SocialSecurityNumber!.Contains(socialSecurityNumber!)).WhereIf(!string.IsNullOrWhiteSpace(address), e => e.Address!.Contains(address!)).WhereIf(!string.IsNullOrWhiteSpace(city), e => e.City!.Contains(city!)).WhereIf(!string.IsNullOrWhiteSpace(zipCode), e => e.ZipCode!.Contains(zipCode!)).WhereIf(!string.IsNullOrWhiteSpace(cellPhoneNumber), e => e.CellPhoneNumber!.Contains(cellPhoneNumber!)).WhereIf(!string.IsNullOrWhiteSpace(street), e => e.Street!.Contains(street!)).WhereIf(!string.IsNullOrWhiteSpace(interpreterVendorName), e => e.InterpreterVendorName!.Contains(interpreterVendorName!)).WhereIf(!string.IsNullOrWhiteSpace(apptNumber), e => e.ApptNumber!.Contains(apptNumber!));
     }
 
-    public virtual async Task<List<Patient>> GetListAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<Patient>> GetListAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
     {
-        var query = ApplyFilter((await GetQueryableAsync()), filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber);
+        var query = ApplyFilter((await GetQueryableAsync()), filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? PatientConsts.GetDefaultSorting(false) : sorting);
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? refferedBy = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, CancellationToken cancellationToken = default)
     {
         var query = await GetQueryForNavigationPropertiesAsync();
-        query = ApplyFilter(query, filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, refferedBy, cellPhoneNumber, street, interpreterVendorName, apptNumber, stateId, appointmentLanguageId, identityUserId);
+        query = ApplyFilter(query, filterText, firstName, lastName, middleName, email, genderId, dateOfBirthMin, dateOfBirthMax, phoneNumber, socialSecurityNumber, address, city, zipCode, cellPhoneNumber, street, interpreterVendorName, apptNumber, stateId, appointmentLanguageId, identityUserId);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 
@@ -106,11 +106,11 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                 x.CreationTime,
                 MatchCount =
                     (x.FirstName.ToLower() == fn ? 1 : 0) +
-                    (x.LastName.ToLower()  == ln ? 1 : 0) +
-                    (x.DateOfBirth == dob               ? 1 : 0) +
-                    (ssn   != null && x.SocialSecurityNumber == ssn   ? 1 : 0) +
-                    (phone != null && x.PhoneNumber          == phone ? 1 : 0) +
-                    (zip   != null && x.ZipCode              == zip   ? 1 : 0)
+                    (x.LastName.ToLower() == ln ? 1 : 0) +
+                    (x.DateOfBirth == dob ? 1 : 0) +
+                    (ssn != null && x.SocialSecurityNumber == ssn ? 1 : 0) +
+                    (phone != null && x.PhoneNumber == phone ? 1 : 0) +
+                    (zip != null && x.ZipCode == zip ? 1 : 0)
             });
 
         var best = await query
@@ -122,5 +122,64 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         return best is null
             ? null
             : new PatientMatchCandidate(best.Id, best.MatchCount, best.CreationTime);
+    }
+
+    public virtual async Task<List<Patient>> GetDeduplicationCandidatesAsync(
+        Guid? tenantId,
+        string? lastName,
+        DateTime? dateOfBirth,
+        string? phone,
+        string? email,
+        string? ssn,
+        IReadOnlyCollection<string?>? claimNumbers,
+        CancellationToken cancellationToken = default)
+    {
+        // Phase 11k (2026-05-04) -- OLD-parity SQL prefilter from
+        // AppointmentDomain.cs:736-738 (IsPatientRegistered):
+        //   WHERE LastName = @ln
+        //      OR PhoneNumber = @phone
+        //      OR SocialSecurityNumber = @ssn
+        //      OR DateOfBirth = @dob
+        //      OR Email = @email
+        //      OR ClaimNumber IN @claimNumbers
+        // Plus the manual TenantId filter (Patient is NOT IMultiTenant).
+        //
+        // Note we deliberately do NOT push the 3-of-6 threshold check
+        // into SQL: the OR-prefilter set is small in practice (each
+        // field is selective) and the per-field counter is a few
+        // microseconds in .NET. Keeping the threshold logic in C#
+        // matches OLD's structure and lets the caller share the same
+        // tested predicate (AppointmentBookingValidators.IsPatientDuplicate).
+        var ln = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim().ToLower();
+        var ph = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        var em = string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLower();
+        var sn = string.IsNullOrWhiteSpace(ssn) ? null : ssn.Trim();
+        var dob = dateOfBirth?.Date;
+
+        // ClaimNumber match: OLD asks "is the existing patient row's
+        // ClaimNumber in the incoming intake's claim list". The
+        // ClaimNumber lives on Patient in OLD's vPatientDetail view; in
+        // NEW we don't have a ClaimNumber column on Patient (claim
+        // numbers live on AppointmentInjuryDetail). For now we drop the
+        // ClaimNumber prefilter at the SQL level -- the caller's
+        // predicate (IsPatientDuplicate) will simply count fewer
+        // potential matches when no ClaimNumber is shared. Phase 11h
+        // wires injury rows through the Manager and revisits this gap.
+        // We keep the parameter on the interface so the OLD-parity
+        // method signature is preserved for the day NEW grows the
+        // matching column or denormalises it.
+        _ = claimNumbers;
+
+        var query = (await GetQueryableAsync())
+            .Where(p => p.TenantId == tenantId);
+
+        var preFilter = query.Where(p =>
+            (ln != null && p.LastName != null && p.LastName.ToLower() == ln) ||
+            (dob.HasValue && p.DateOfBirth == dob.Value) ||
+            (ph != null && p.PhoneNumber != null && p.PhoneNumber == ph) ||
+            (em != null && p.Email != null && p.Email.ToLower() == em) ||
+            (sn != null && p.SocialSecurityNumber != null && p.SocialSecurityNumber == sn));
+
+        return await preFilter.ToListAsync(GetCancellationToken(cancellationToken));
     }
 }

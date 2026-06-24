@@ -9,11 +9,21 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
-import { PermissionService } from '@abp/ng.core';
+import { PermissionService, RestService } from '@abp/ng.core';
 import { AppointmentDocumentService } from '../proxy/appointment-documents/appointment-document.service';
-import { AppointmentDocumentDto, DocumentStatus } from '../proxy/appointment-documents/models';
+import {
+  AppointmentDocumentDto,
+  MissingRequiredDocumentDto,
+  MissingRequiredDocumentsResultDto,
+} from '../proxy/appointment-documents/models';
+import { RequiredDocumentState } from '../proxy/appointment-documents/required-document-state.enum';
+import { LookupDto } from '../proxy/shared/models';
+import { DocumentStatus } from '../proxy/appointment-documents/document-status.enum';
+import { AppointmentDocumentUrls } from './appointment-document-urls';
+import { MAX_DOCUMENT_UPLOAD_BYTES } from './document-upload.constants';
 
 /**
  * W1-3 + W2-11 appointment-documents UI. Embedded inside appointment-view
@@ -88,6 +98,15 @@ export class AppointmentDocumentsComponent implements OnChanges {
   private service = inject(AppointmentDocumentService);
   private toaster = inject(ToasterService);
   private permission = inject(PermissionService);
+  // Direct REST + URL helper bypass the auto-generated upload() / download
+  // helpers on AppointmentDocumentService. The proxy generator emits a
+  // typed multipart wrapper (UploadAppointmentDocumentForm with IFormFile)
+  // that does not produce a valid browser FormData request, and the
+  // hand-edited buildDownloadUrl helper does not survive regeneration.
+  // See docs/research/proxy-regen-doc-flow-fix.md (Q2).
+  private restService = inject(RestService);
+  private urls = inject(AppointmentDocumentUrls);
+  private http = inject(HttpClient);
 
   documents: AppointmentDocumentDto[] = [];
   isLoading = false;
@@ -95,21 +114,126 @@ export class AppointmentDocumentsComponent implements OnChanges {
   documentName = '';
   selectedFile: File | null = null;
 
+  // G-03-03 (PR2): document-type picker. Options are the active, non-system
+  // categories the admin created for this appointment's type; '' = no type,
+  // OTHER_TYPE_VALUE = the "Other" free-text option.
+  documentTypes: LookupDto<string>[] = [];
+  selectedDocumentTypeId = '';
+  otherDocumentTypeName = '';
+  readonly OTHER_TYPE_VALUE = '__other__';
+
+  // PR3 type filter (client-side over the loaded list). '' = all types;
+  // OTHER_FILTER = the "Other / Uncategorized" bucket (free-text-labelled and
+  // untyped documents, i.e. those with no admin category id).
+  readonly ALL_FILTER = '';
+  readonly OTHER_FILTER = '__other_uncat__';
+  selectedFilterTypeId: string = this.ALL_FILTER;
+
+  // PR3 missing-required indicator. Null until loaded / on error (then hidden).
+  requiredStatus: MissingRequiredDocumentsResultDto | null = null;
+
   rejectingDoc: AppointmentDocumentDto | null = null;
   rejectionReason = '';
   isSubmittingReject = false;
 
-  readonly maxBytes = 25 * 1024 * 1024;
+  // AF7 / BUG-025: align the client cap to the authoritative 10 MB server cap.
+  readonly maxBytes = MAX_DOCUMENT_UPLOAD_BYTES;
   readonly DocumentStatus = DocumentStatus;
 
   get canApprove(): boolean {
     return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Approve');
   }
 
+  // Distinct admin categories present in the loaded documents (only those whose
+  // label resolves), for the filter dropdown.
+  get filterTypeOptions(): { id: string; label: string }[] {
+    const byId = new Map<string, string>();
+    for (const doc of this.documents) {
+      const id = doc.appointmentDocumentTypeId;
+      if (!id || byId.has(id)) {
+        continue;
+      }
+      const label = this.documentTypes.find((t) => t.id === id)?.displayName;
+      if (label) {
+        byId.set(id, label);
+      }
+    }
+    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+  }
+
+  // True when any loaded document has no admin category (free-text "Other" or untyped).
+  get hasUncategorized(): boolean {
+    return this.documents.some((doc) => !doc.appointmentDocumentTypeId);
+  }
+
+  get filteredDocuments(): AppointmentDocumentDto[] {
+    if (this.selectedFilterTypeId === this.ALL_FILTER) {
+      return this.documents;
+    }
+    if (this.selectedFilterTypeId === this.OTHER_FILTER) {
+      return this.documents.filter((doc) => !doc.appointmentDocumentTypeId);
+    }
+    return this.documents.filter(
+      (doc) => doc.appointmentDocumentTypeId === this.selectedFilterTypeId,
+    );
+  }
+
+  get requiredCount(): number {
+    return this.requiredStatus?.requiredCount ?? 0;
+  }
+
+  get missingRequired(): MissingRequiredDocumentDto[] {
+    return this.requiredStatus?.missing ?? [];
+  }
+
+  // True only when the appointment type has required documents and all are Accepted.
+  get allRequiredReceived(): boolean {
+    return this.requiredCount > 0 && this.missingRequired.length === 0;
+  }
+
+  requiredStateLabel(state: RequiredDocumentState | undefined): string {
+    switch (state) {
+      case RequiredDocumentState.AwaitingReview:
+        return 'Awaiting review';
+      case RequiredDocumentState.Rejected:
+        return 'Rejected';
+      default:
+        return 'Not uploaded';
+    }
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['appointmentId'] && this.appointmentId) {
       this.refresh();
+      this.loadDocumentTypeOptions();
     }
+  }
+
+  loadDocumentTypeOptions(): void {
+    if (!this.appointmentId) {
+      return;
+    }
+    // RestService (not the generated proxy method): ABP mis-types the
+    // List<LookupDto<Guid>> return as a single object, so call it directly
+    // with the correct array type -- same RestService pattern this component
+    // uses for the multipart upload below.
+    this.restService
+      .request<null, LookupDto<string>[]>(
+        {
+          method: 'GET',
+          url: `/api/app/appointments/${this.appointmentId}/documents/document-type-options`,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: (rows) => {
+          this.documentTypes = rows ?? [];
+        },
+        error: () => {
+          // Non-fatal: the picker simply offers no admin-defined types.
+          this.documentTypes = [];
+        },
+      });
   }
 
   refresh(): void {
@@ -124,6 +248,25 @@ export class AppointmentDocumentsComponent implements OnChanges {
       },
       error: () => {
         this.isLoading = false;
+      },
+    });
+    this.loadMissingRequired();
+  }
+
+  // Outstanding required documents for the indicator. Reloaded with the list so
+  // it reflects each approve / reject / upload / delete. Proxy types the return
+  // correctly here (unlike document-type-options), so the generated method is used.
+  loadMissingRequired(): void {
+    if (!this.appointmentId) {
+      return;
+    }
+    this.service.getMissingRequiredDocuments(this.appointmentId).subscribe({
+      next: (result) => {
+        this.requiredStatus = result;
+      },
+      error: () => {
+        // Non-fatal: hide the indicator rather than block the panel.
+        this.requiredStatus = null;
       },
     });
   }
@@ -144,36 +287,80 @@ export class AppointmentDocumentsComponent implements OnChanges {
       this.toaster.error(`File exceeds the ${this.maxBytes / (1024 * 1024)} MB upload cap.`);
       return;
     }
+    if (
+      this.selectedDocumentTypeId === this.OTHER_TYPE_VALUE &&
+      !this.otherDocumentTypeName.trim()
+    ) {
+      this.toaster.error('Enter a label for the "Other" document type.');
+      return;
+    }
+
     const form = new FormData();
     form.append('file', this.selectedFile, this.selectedFile.name);
     form.append('documentName', this.documentName.trim() || this.selectedFile.name);
+    if (this.selectedDocumentTypeId === this.OTHER_TYPE_VALUE) {
+      form.append('otherDocumentTypeName', this.otherDocumentTypeName.trim());
+    } else if (this.selectedDocumentTypeId) {
+      form.append('appointmentDocumentTypeId', this.selectedDocumentTypeId);
+    }
 
     this.isUploading = true;
-    this.service.upload(this.appointmentId, form).subscribe({
-      next: () => {
-        this.toaster.success('Document uploaded.');
-        this.documentName = '';
-        this.selectedFile = null;
-        const input = document.getElementById('document-file-input') as HTMLInputElement | null;
-        if (input) {
-          input.value = '';
-        }
-        this.refresh();
-        this.documentsChanged.emit();
-        this.isUploading = false;
-      },
-      error: () => {
-        this.isUploading = false;
-      },
-    });
+    this.restService
+      .request<FormData, AppointmentDocumentDto>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${this.appointmentId}/documents`,
+          body: form,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: () => {
+          this.toaster.success('Document uploaded.');
+          this.documentName = '';
+          this.selectedFile = null;
+          this.selectedDocumentTypeId = '';
+          this.otherDocumentTypeName = '';
+          const input = document.getElementById('document-file-input') as HTMLInputElement | null;
+          if (input) {
+            input.value = '';
+          }
+          this.refresh();
+          this.documentsChanged.emit();
+          this.isUploading = false;
+        },
+        error: () => {
+          this.isUploading = false;
+        },
+      });
   }
 
   download(doc: AppointmentDocumentDto): void {
-    if (!this.appointmentId) {
+    if (!this.appointmentId || !doc.id) {
       return;
     }
-    const url = this.service.buildDownloadUrl(this.appointmentId, doc.id);
-    window.open(url, '_blank');
+    const url = this.urls.build(this.appointmentId, doc.id);
+    // window.open(url, '_blank') is broken under JWT auth -- the new tab
+    // does not carry the Authorization header. Fetch as Blob via HttpClient
+    // (the ABP auth interceptor adds Bearer) and trigger the download via a
+    // synthesised anchor click.
+    this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
+      next: (resp) => {
+        const blob = resp.body!;
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = doc.fileName ?? 'document';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Revoke after the click is dispatched.
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      },
+      error: () => {
+        this.toaster.error('Could not download document.');
+      },
+    });
   }
 
   delete(doc: AppointmentDocumentDto): void {
@@ -181,6 +368,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
       return;
     }
     if (!confirm(`Delete "${doc.documentName}"?`)) {
+      return;
+    }
+    if (!doc.id) {
       return;
     }
     this.service.delete(this.appointmentId, doc.id).subscribe({
@@ -194,6 +384,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   approve(doc: AppointmentDocumentDto): void {
     if (!this.appointmentId || !this.canApprove) {
+      return;
+    }
+    if (!doc.id) {
       return;
     }
     this.service.approve(this.appointmentId, doc.id).subscribe({
@@ -232,6 +425,9 @@ export class AppointmentDocumentsComponent implements OnChanges {
       this.toaster.error('Rejection reason exceeds 500 characters.');
       return;
     }
+    if (!this.rejectingDoc.id) {
+      return;
+    }
     this.isSubmittingReject = true;
     this.service.reject(this.appointmentId, this.rejectingDoc.id, { reason }).subscribe({
       next: () => {
@@ -248,7 +444,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   statusLabel(status: DocumentStatus): string {
     switch (status) {
-      case DocumentStatus.Approved:
+      case DocumentStatus.Accepted:
         return 'Approved';
       case DocumentStatus.Rejected:
         return 'Rejected';
@@ -259,7 +455,7 @@ export class AppointmentDocumentsComponent implements OnChanges {
 
   statusBadgeClass(status: DocumentStatus): string {
     switch (status) {
-      case DocumentStatus.Approved:
+      case DocumentStatus.Accepted:
         return 'bg-success';
       case DocumentStatus.Rejected:
         return 'bg-danger';
@@ -272,5 +468,16 @@ export class AppointmentDocumentsComponent implements OnChanges {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  documentTypeLabel(doc: AppointmentDocumentDto): string | null {
+    if (doc.otherDocumentTypeName) {
+      return doc.otherDocumentTypeName;
+    }
+    if (doc.appointmentDocumentTypeId) {
+      const match = this.documentTypes.find((t) => t.id === doc.appointmentDocumentTypeId);
+      return match?.displayName ?? null;
+    }
+    return null;
   }
 }

@@ -1,0 +1,139 @@
+<abp-page [title]="title | abpLocalization">
+  <abp-page-toolbar-container class="col">
+    <div class="text-lg-end pt-2">
+      <button
+        *abpPermission="'CaseEvaluation.AppointmentDocumentTypes.Create'"
+        class="btn btn-primary btn-sm"
+        type="button"
+        (click)="create()"
+      >
+        <i class="fa fa-plus me-1" aria-hidden="true"></i>
+        {{ '::NewAppointmentDocumentType' | abpLocalization }}
+      </button>
+    </div>
+  </abp-page-toolbar-container>
+
+  <abp-advanced-entity-filters
+    localizationSourceName=""
+    [list]="list"
+  ></abp-advanced-entity-filters>
+
+  <div class="card mb-2">
+    <div class="card-body py-2">
+      <div class="row align-items-center">
+        <label class="col-auto col-form-label" for="document-type-type-filter">
+          {{ '::AppointmentType' | abpLocalization }}
+        </label>
+        <div class="col-auto">
+          <select
+            id="document-type-type-filter"
+            class="form-select form-select-sm"
+            [(ngModel)]="service.filters.appointmentTypeId"
+            (ngModelChange)="service.applyTypeFilter()"
+          >
+            <option [ngValue]="undefined">{{ '::AllAppointmentTypes' | abpLocalization }}</option>
+            @for (type of service.appointmentTypes; track type.id) {
+              <option [ngValue]="type.id">{{ type.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <ngx-datatable
+        default
+        [rows]="service.data.items"
+        [count]="service.data.totalCount"
+        [list]="list"
+      >
+        @if (isActionButtonVisible) {
+          <ngx-datatable-column
+            [name]="'AbpUi::Actions' | abpLocalization"
+            [maxWidth]="150"
+            [width]="150"
+            [sortable]="false"
+          >
+            <ng-template let-row="row" let-i="rowIndex" ngx-datatable-cell-template>
+              @if (!row.isSystem) {
+                <div ngbDropdown container="body" class="d-inline-block">
+                  <button
+                    class="btn btn-primary btn-sm dropdown-toggle"
+                    data-toggle="dropdown"
+                    aria-haspopup="true"
+                    ngbDropdownToggle
+                  >
+                    <i class="fa fa-cog me-1" aria-hidden="true"></i>
+                    {{ 'AbpUi::Actions' | abpLocalization }}
+                  </button>
+
+                  <div ngbDropdownMenu>
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.AppointmentDocumentTypes.Edit'"
+                      (click)="update(row)"
+                    >
+                      {{ 'AbpUi::Edit' | abpLocalization }}
+                    </button>
+
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.AppointmentDocumentTypes.Delete'"
+                      (click)="delete(row)"
+                    >
+                      {{ 'AbpUi::Delete' | abpLocalization }}
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <span class="text-muted small">
+                  <i class="fa fa-lock me-1" aria-hidden="true"></i>
+                  {{ '::BuiltIn' | abpLocalization }}
+                </span>
+              }
+            </ng-template>
+          </ngx-datatable-column>
+        }
+        <ngx-datatable-column name="{{ '::Name' | abpLocalization }}" prop="name">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{ row.name }}
+            @if (row.isSystem) {
+              <span class="badge bg-secondary ms-1">{{ '::BuiltIn' | abpLocalization }}</span>
+            }
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column name="{{ '::AppointmentType' | abpLocalization }}" [sortable]="false">
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            {{
+              row.appointmentTypeId
+                ? service.appointmentTypeName(row.appointmentTypeId)
+                : ('::AllAppointmentTypes' | abpLocalization)
+            }}
+          </ng-template>
+        </ngx-datatable-column>
+        <ngx-datatable-column
+          name="{{ '::IsActive' | abpLocalization }}"
+          prop="isActive"
+          [maxWidth]="120"
+          [sortable]="false"
+        >
+          <ng-template let-row="row" ngx-datatable-cell-template>
+            @if (row.isActive) {
+              <i class="fa fa-check text-success" aria-hidden="true"></i>
+            } @else {
+              <i class="fa fa-minus text-muted" aria-hidden="true"></i>
+            }
+          </ng-template>
+        </ngx-datatable-column>
+      </ngx-datatable>
+    </div>
+  </div>
+</abp-page>
+
+@defer (when serviceDetail.isVisible) {
+  @if (serviceDetail.isVisible) {
+    <app-appointment-document-type-detail-modal />
+  }
+}

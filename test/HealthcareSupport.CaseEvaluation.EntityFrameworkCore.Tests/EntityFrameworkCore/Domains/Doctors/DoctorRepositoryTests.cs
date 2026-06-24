@@ -23,9 +23,9 @@ public class DoctorRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
     [Fact]
     public async Task GetListAsync()
     {
-        // Doctors are tenant-scoped (IMultiTenant). Both seeded doctors live in
-        // TenantA; a repository-level query must run inside that tenant's scope
-        // for the IMultiTenant filter to see them.
+        // Doctors are tenant-scoped (IMultiTenant), one per tenant. Doctor1
+        // lives in TenantA; a repository-level query must run inside that
+        // tenant's scope for the IMultiTenant filter to see it.
         await WithUnitOfWorkAsync(async () =>
         {
             using (_currentTenant.Change(TenantsTestData.TenantARef))
@@ -45,9 +45,11 @@ public class DoctorRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
     [Fact]
     public async Task GetCountAsync()
     {
+        // Doctor2 now lives in TenantB (one doctor per tenant). Query inside
+        // TenantB's scope so the IMultiTenant filter can see it.
         await WithUnitOfWorkAsync(async () =>
         {
-            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
             {
                 var result = await _doctorRepository.GetCountAsync(
                     firstName: DoctorsTestData.Doctor2FirstName,

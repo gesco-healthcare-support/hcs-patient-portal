@@ -1,10 +1,12 @@
 # Common Development Tasks
 
+> Purpose: Step-by-step recipes for the most frequent development tasks. Audience: engineers adding features or running migrations. Last verified: 2026-06-01 vs main.
+
 [Home](../INDEX.md) > [Onboarding](./) > Common Tasks
 
 ---
 
-This guide walks through the most common development tasks in the Patient Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation documented in `.claude/discovery/reference-pattern.md`.
+This guide walks through the most common development tasks in the Appointment Portal. Every example uses real file paths and code patterns from this codebase. When in doubt, trace the Appointments feature end-to-end -- it's the reference implementation (see `angular/src/app/appointment/` for Angular and `src/HealthcareSupport.CaseEvaluation.Application/Appointments/` for the AppService).
 
 ## How to Add a New Entity
 
@@ -205,7 +207,7 @@ dotnet test --filter "FullyQualifiedName~DoctorsAppServiceTests.GetListAsync"
 cd angular && npm test
 ```
 
-To add tests for a new feature, see [Testing Strategy](../devops/TESTING-STRATEGY.md) and `.claude/discovery/test-patterns.md` for the base class chain and seed contributor pattern.
+To add tests for a new feature, see [Testing Strategy](../devops/TESTING-STRATEGY.md) for the base class chain and seed contributor pattern.
 
 ## How to Regenerate Angular Proxies
 
@@ -253,7 +255,7 @@ Use in Angular: `{{ '::Menu:YourFeature' | abpLocalization }}`
 
 **Related:**
 - [Getting Started](GETTING-STARTED.md) -- first-time setup
-- [Development Setup](../devops/DEVELOPMENT-SETUP.md) -- detailed environment configuration
-- [DDD Layers](../architecture/DDD-LAYERS.md) -- understanding the layer structure
+- [Development Setup](../runbooks/DOCKER-DEV.md) -- detailed environment configuration
+- [DDD Layers](../architecture/OVERVIEW.md) -- understanding the layer structure
 - [ABP Framework](../architecture/ABP-FRAMEWORK.md) -- ABP-specific patterns and conventions
-- [Reference Pattern](../../.claude/discovery/reference-pattern.md) -- Appointments traced end-to-end
+- [Appointments AppService](../../src/HealthcareSupport.CaseEvaluation.Application/Appointments/) -- Appointments traced end-to-end (reference implementation)

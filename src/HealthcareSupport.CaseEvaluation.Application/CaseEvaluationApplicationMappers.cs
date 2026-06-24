@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -18,6 +19,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -27,6 +29,7 @@ using System.Collections.Generic;
 using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using HealthcareSupport.CaseEvaluation.Books;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 
 [assembly: MapperDefaults(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 
@@ -86,6 +89,13 @@ public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase
 }
 
 [Mapper]
+public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
+{
+    public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
+    public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
+}
+
+[Mapper]
 public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : MapperBase<AppointmentLanguage, AppointmentLanguageDto>
 {
     public override partial AppointmentLanguageDto Map(AppointmentLanguage source);
@@ -95,7 +105,12 @@ public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : Mapper
 [Mapper]
 public partial class LocationToLocationDtoMappers : MapperBase<Location, LocationDto>
 {
+    // I3 (2026-06-08): AppointmentTypeIds is filled from the AppointmentTypes M2M
+    // in LocationsAppService.ToLocationDto, not auto-mapped here.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial LocationDto Map(Location source);
+
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial void Map(Location source, LocationDto destination);
 }
 
@@ -104,6 +119,12 @@ public partial class LocationWithNavigationPropertiesToLocationWithNavigationPro
 {
     public override partial LocationWithNavigationPropertiesDto Map(LocationWithNavigationProperties source);
     public override partial void Map(LocationWithNavigationProperties source, LocationWithNavigationPropertiesDto destination);
+
+    // I3 (2026-06-08): nested Location -> LocationDto used by the maps above.
+    // AppointmentTypeIds is filled in the AppService, so ignore it here too,
+    // otherwise Mapperly RMG012 fails on the unmapped target.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
+    private partial LocationDto MapLocation(Location source);
 }
 
 [Mapper]
@@ -228,15 +249,49 @@ public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, Lookup
 [Mapper]
 public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBase<DoctorAvailability, DoctorAvailabilityDto>
 {
+    // 2026-05-15 -- the entity carries ICollection<DoctorAvailabilityAppointmentType>;
+    // the DTO surfaces List<Guid> AppointmentTypeIds. Use the project's
+    // idiomatic [MapperIgnoreTarget] + AfterMap pattern (see
+    // AppointmentTypeToLookupDtoGuidMapper) so the shape change is explicit.
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
+
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
+
+    public override void AfterMap(DoctorAvailability source, DoctorAvailabilityDto destination)
+    {
+        destination.AppointmentTypeIds = source.AppointmentTypes
+            .Select(x => x.AppointmentTypeId)
+            .ToList();
+    }
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper : MapperBase<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>
 {
+    // Source and target AppointmentTypes share the same name; Mapperly reuses
+    // the existing AppointmentType -> AppointmentTypeDto mapper. The nested
+    // DoctorAvailability mapping is generated internally and does NOT run
+    // DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap, so the inner
+    // DTO's AppointmentTypeIds would otherwise stay empty. AfterMap below
+    // populates it from the outer materialized AppointmentTypes list (the
+    // EF repository builds that list via an explicit subquery join, so it
+    // is the authoritative source for IDs in this projection path).
     public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
     public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
+
+    public override void AfterMap(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination)
+    {
+        if (destination.DoctorAvailability != null && source.AppointmentTypes != null)
+        {
+            destination.DoctorAvailability.AppointmentTypeIds = source.AppointmentTypes
+                .Select(x => x.Id)
+                .ToList();
+        }
+    }
 }
 
 [Mapper]
@@ -286,20 +341,6 @@ public partial class AppointmentPacketToDtoMapper : MapperBase<HealthcareSupport
 {
     public override partial HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source);
     public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto destination);
-}
-
-[Mapper]
-public partial class AppointmentSendBackInfoToDtoMapper : MapperBase<AppointmentSendBackInfo, AppointmentSendBackInfoDto>
-{
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial AppointmentSendBackInfoDto Map(AppointmentSendBackInfo source);
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial void Map(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination);
-
-    public override void AfterMap(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination)
-    {
-        destination.FlaggedFields = source.GetFlaggedFields().ToList();
-    }
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -435,6 +476,36 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
     }
 }
 
+// UM3/UM4 (2026-06-05): Claim Examiner master mappers (firm-less attorney shape).
+[Mapper]
+public partial class ClaimExaminerToClaimExaminerDtoMappers : MapperBase<ClaimExaminer, ClaimExaminerDto>
+{
+    public override partial ClaimExaminerDto Map(ClaimExaminer source);
+    public override partial void Map(ClaimExaminer source, ClaimExaminerDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class ClaimExaminerWithNavigationPropertiesToClaimExaminerWithNavigationPropertiesDtoMapper : MapperBase<ClaimExaminerWithNavigationProperties, ClaimExaminerWithNavigationPropertiesDto>
+{
+    public override partial ClaimExaminerWithNavigationPropertiesDto Map(ClaimExaminerWithNavigationProperties source);
+    public override partial void Map(ClaimExaminerWithNavigationProperties source, ClaimExaminerWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class ClaimExaminerToLookupDtoGuidMapper : MapperBase<ClaimExaminer, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(ClaimExaminer source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(ClaimExaminer source, LookupDto<Guid> destination);
+
+    public override void AfterMap(ClaimExaminer source, LookupDto<Guid> destination)
+    {
+        var name = $"{source.FirstName} {source.LastName}".Trim();
+        destination.DisplayName = string.IsNullOrWhiteSpace(name) ? (source.Email ?? string.Empty) : name;
+    }
+}
+
 [Mapper]
 public partial class DefenseAttorneyToDefenseAttorneyDtoMappers : MapperBase<DefenseAttorney, DefenseAttorneyDto>
 {
@@ -518,3 +589,16 @@ public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDto
     public override partial AppointmentPrimaryInsuranceDto Map(AppointmentPrimaryInsurance source);
     public override partial void Map(AppointmentPrimaryInsurance source, AppointmentPrimaryInsuranceDto destination);
 }
+
+// Phase 3 (2026-05-02) -- IT Admin SystemParameters AppService.
+// One read mapper (entity -> DTO) and one write mapper
+// (UpdateDto -> entity, audit / id / tenant / concurrency stamp ignored on
+// the destination so the existing aggregate-root invariants are preserved).
+[Mapper]
+public partial class SystemParameterToSystemParameterDtoMapper
+    : MapperBase<SystemParameter, SystemParameterDto>
+{
+    public override partial SystemParameterDto Map(SystemParameter source);
+    public override partial void Map(SystemParameter source, SystemParameterDto destination);
+}
+

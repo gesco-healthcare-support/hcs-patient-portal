@@ -14,8 +14,6 @@ public class GetDoctorsInput : PagedAndSortedResultRequestDto
 
     public string? Email { get; set; }
 
-    public Guid? IdentityUserId { get; set; }
-
     public Guid? AppointmentTypeId { get; set; }
 
     public Guid? LocationId { get; set; }

@@ -162,12 +162,12 @@
                       <label class="form-label" for="patient-social-security-number">
                         {{ '::SocialSecurityNumber' | abpLocalization }}
                       </label>
-                      <input
-                        id="patient-social-security-number"
+                      <app-ssn-input
                         formControlName="socialSecurityNumber"
-                        class="form-control"
-                        maxlength="20"
-                      />
+                        [patientId]="selected?.patient?.id"
+                        [patientIdentityUserId]="selected?.patient?.identityUserId"
+                        [currentMaskedSsn]="selected?.patient?.socialSecurityNumber"
+                      ></app-ssn-input>
                     </div>
 
                     <div class="mb-3">
@@ -203,18 +203,6 @@
                         formControlName="zipCode"
                         class="form-control"
                         maxlength="15"
-                      />
-                    </div>
-
-                    <div class="mb-3">
-                      <label class="form-label" for="patient-reffered-by">
-                        {{ '::RefferedBy' | abpLocalization }}
-                      </label>
-                      <input
-                        id="patient-reffered-by"
-                        formControlName="refferedBy"
-                        class="form-control"
-                        maxlength="50"
                       />
                     </div>
 

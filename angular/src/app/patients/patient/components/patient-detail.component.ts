@@ -21,6 +21,7 @@ import {
   NgbTimeAdapter,
 } from '@ng-bootstrap/ng-bootstrap';
 import { PatientDetailViewService } from '../services/patient-detail.service';
+import { SsnInputComponent } from '../../../shared/components/ssn-input.component';
 
 @Component({
   selector: 'app-patient-detail-modal',
@@ -38,6 +39,7 @@ import { PatientDetailViewService } from '../services/patient-detail.service';
     ModalComponent,
     ButtonComponent,
     LookupSelectComponent,
+    SsnInputComponent,
   ],
   providers: [
     { provide: NgbDateAdapter, useClass: DateAdapter },

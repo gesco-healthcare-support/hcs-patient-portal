@@ -1,31 +1,20 @@
 # ExternalSignups
 
-Cross-cutting self-registration module for external users (patients, applicant/defense attorneys, claim examiners). Creates IdentityUser accounts with role assignment and optionally creates a Patient record. NOT a standard entity CRUD feature — operates on ABP's IdentityUser and the existing Patient entity via PatientManager.
-
-## File Map
-
-| Layer | File | Purpose |
-|---|---|---|
-| Contracts | `src/.../Application.Contracts/ExternalSignups/ExternalUserType.cs` | Enum: Patient(1), ClaimExaminer(2), ApplicantAttorney(3), DefenseAttorney(4) |
-| Contracts | `src/.../Application.Contracts/ExternalSignups/ExternalUserSignUpDto.cs` | Registration input — email, password, name, userType, tenantId |
-| Contracts | `src/.../Application.Contracts/ExternalSignups/ExternalUserProfileDto.cs` | Profile output — identityUserId, name, email, userRole |
-| Contracts | `src/.../Application.Contracts/ExternalSignups/ExternalUserLookupDto.cs` | Lookup output — identityUserId, name, email, userRole |
-| Contracts | `src/.../Application.Contracts/ExternalSignups/IExternalSignupAppService.cs` | Service interface — 4 methods |
-| Application | `src/.../Application/ExternalSignups/ExternalSignupAppService.cs` | Registration logic, role management, Patient creation, user lookup |
-| HttpApi | `src/.../HttpApi/Controllers/ExternalSignups/ExternalSignupController.cs` | Public-facing signup at `api/public/external-signup` — `[IgnoreAntiforgeryToken]` |
-| HttpApi | `src/.../HttpApi/Controllers/ExternalUsers/ExternalUserController.cs` | Profile endpoint at `api/app/external-users/me` — `[Authorize]` |
+Cross-cutting self-registration module for external users (patients, applicant/defense
+attorneys, claim examiners). Creates IdentityUser accounts with role assignment and
+optionally creates a Patient record. NOT a standard entity CRUD feature -- operates on
+ABP's IdentityUser and the existing Patient entity via PatientManager.
 
 ## Service Shape
 
-No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole`, and `Tenant` entities, plus the project's `PatientManager`.
-
-### Methods
+No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole`, and
+`Tenant` entities, plus the project's `PatientManager`.
 
 | Method | Auth | Purpose |
 |---|---|---|
 | `RegisterAsync(ExternalUserSignUpDto)` | `[AllowAnonymous]` | Create IdentityUser + role + Patient (if type=Patient) |
 | `GetTenantOptionsAsync(filter?)` | `[AllowAnonymous]` | List available tenants for registration form |
-| `GetExternalUserLookupAsync(filter?)` | No explicit attribute | List external users by role (Patient, Applicant/Defense Attorney) |
+| `GetExternalUserLookupAsync(filter?)` | No explicit attribute | List external users by role |
 | `GetMyProfileAsync()` | `[Authorize]` | Return current user's profile (via ExternalUserController) |
 
 ### ExternalUserType -> Role Mapping
@@ -37,86 +26,59 @@ No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole
 | ApplicantAttorney (3) | "Applicant Attorney" |
 | DefenseAttorney (4) | "Defense Attorney" |
 
-## Relationships
+## Firm-based AA/DA registration (2026-06-12)
 
-This module creates and reads the following entities (no FKs of its own):
+Applicant Attorney + Defense Attorney register as **firm accounts**, not individuals:
 
-| Entity | Interaction | Notes |
-|---|---|---|
-| `IdentityUser` | Creates (RegisterAsync) / Reads (profile, lookup) | ABP built-in |
-| `IdentityRole` | Creates if missing (EnsureRoleAsync) / Reads | ABP built-in |
-| `Tenant` | Reads (GetTenantOptionsAsync) / Context-switches | ABP SaaS |
-| `Patient` | Creates via `PatientManager.CreateAsync` (only type=Patient) | Project entity |
-
-## Multi-tenancy
-
-**Not an IMultiTenant entity** — this module orchestrates across tenant contexts.
-
-- `GetTenantOptionsAsync`: returns empty list if already in tenant context (host-only operation)
-- `RegisterAsync`: resolves tenant from `CurrentTenant.Id` or `input.TenantId`, then switches via `CurrentTenant.Change(tenantId)`
-- `GetExternalUserLookupAsync` and `GetMyProfileAsync`: run in current tenant context
-
-## Mapper Configuration
-
-No Riok.Mapperly mappers. All DTOs are constructed manually in the AppService methods.
-
-## Permissions
-
-**No dedicated permissions** in `CaseEvaluationPermissions.cs`.
-
-Auth is handled per-method:
-- `RegisterAsync`: `[AllowAnonymous]` — public registration
-- `GetTenantOptionsAsync`: `[AllowAnonymous]` — public tenant list
-- `GetMyProfileAsync`: `[Authorize]` — any authenticated user
-- `GetExternalUserLookupAsync`: **No explicit attribute** — may be unprotected (see Gotcha #6)
-
-## Business Rules
-
-1. **Registration creates IdentityUser + role** — `RegisterAsync` creates a new IdentityUser (username = email), assigns the role matching `ExternalUserType`, and creates the role if it doesn't exist via `EnsureRoleAsync`.
-
-2. **Patient auto-creation with hardcoded defaults** — ONLY when `ExternalUserType.Patient`: creates a Patient via `PatientManager.CreateAsync` with:
-   - `stateId: null`, `appointmentLanguageId: null`
-   - `genderId: Gender.Male` (hardcoded, not from input)
-   - `dateOfBirth: DateTime.UtcNow.Date` (hardcoded, not from input)
-   - `phoneNumberTypeId: PhoneNumberType.Home` (hardcoded, not from input)
-
-3. **Duplicate email check** — `FindByEmailAsync` before creation; throws `UserFriendlyException` if exists.
-
-4. **Tenant resolution** — uses `CurrentTenant.Id` if available, otherwise requires `input.TenantId`. Throws if neither provided.
-
-5. **Role auto-creation** — `EnsureRoleAsync` creates the role in the tenant if it doesn't exist.
-
-6. **External user lookup filtering** — returns only users with "Patient", "Applicant Attorney", or "Defense Attorney" roles. Excludes the current user.
-
-## Angular Integration
-
-Not a standalone Angular module. Called via REST from other features:
-- `angular/src/app/appointments/appointment-add.component.ts` — external user lookup during booking
-- `angular/src/app/appointments/appointment/components/appointment-view.component.ts` — external user lookup
-- `angular/src/app/patients/patient/components/patient-profile.component.ts` — GetMyProfileAsync
-- `angular/src/app/app.component.ts` — profile check on app init
-
-No generated proxy service — Angular components call the API directly via `RestService`.
+- The AuthServer sign-up overlay (`AuthServer/wwwroot/global-scripts.js`) HIDES First/Last for roles
+  3/4 and shows **Firm Name**; the submit payload nulls First/Last so `IdentityUser.Name`/`Surname`
+  stay blank. `FirmName` persists as an IdentityUser extension property
+  (`CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName`) -- no DB column, no migration.
+- Because Name/Surname are blank, every read surface falls back via `ExternalUserDisplayName.Resolve`
+  (First+Last -> FirmName -> email). `GetMyProfileAsync` + `GetExternalUserLookupAsync` carry
+  `FirmName`; the Angular home banner + attorney picker mirror it with `resolveExternalUserDisplayName`,
+  so a firm account shows its firm name everywhere, never a blank or the raw email.
+- `RegisterAsync` still eagerly creates an empty `ApplicantAttorney` master row for an AA registrant
+  (D-2); DA stays lazy. `AutoLinkAppointmentsForUserAsync` remains ROLE-SPECIFIC (links only the
+  registrant's own role's appointments). Per-row visibility is enforced separately by the email+role
+  rule (`AppointmentAccessRules.IsAppointmentEmailRoleVisible`; see docs/security/AUTHORIZATION.md),
+  so cross-role join rows are intentionally never created.
+- Patient / Claim Examiner registration is unchanged (First/Last shown).
 
 ## Known Gotchas
 
-1. **Two controllers, one AppService** — `ExternalSignupController` (at `api/public/external-signup`) handles registration. `ExternalUserController` (at `api/app/external-users`) handles profile. Both delegate to `ExternalSignupAppService`. Controllers are in DIFFERENT directories.
+1. **Missing `[RemoteService(IsEnabled = false)]`** -- Deviation from project convention
+   (stated at parent Application/CLAUDE.md). Could cause ABP to register duplicate routes
+   alongside the controllers, producing 500s on ambiguous route resolution.
 
-2. **Missing `[RemoteService(IsEnabled = false)]`** — Deviation from project convention. Could cause ABP to register duplicate routes alongside the controllers.
+2. **Two controllers, one AppService** -- `ExternalSignupController` (at
+   `api/public/external-signup`) handles registration. `ExternalUserController` (at
+   `api/app/external-users`) handles profile. Both delegate to `ExternalSignupAppService`.
+   Controllers are in DIFFERENT directories (`ExternalSignups/` vs `ExternalUsers/`).
 
-3. **`[IgnoreAntiforgeryToken]`** on `ExternalSignupController` — CSRF protection disabled for public registration. Intentional for public APIs but a security surface.
+3. **Registration Patient stub (G-06-08)** -- `Gender.Unspecified` (the "not provided"
+   sentinel), `DOB = DateTime.MinValue`, and `PhoneNumberType.Home` are placeholders set at
+   registration before demographics are collected. The booking form requires a real Gender +
+   DOB at booking; the booking prefill and read surfaces treat the sentinels as blank rather
+   than surfacing a fabricated value.
 
-4. **Hardcoded Patient defaults** — `Gender.Male`, `DOB = DateTime.UtcNow.Date`, `PhoneNumberType.Home` are placeholder values. Patient profile needs updating after registration.
+4. **`GetExternalUserLookupAsync` may be unprotected** -- No explicit `[Authorize]` or
+   `[AllowAnonymous]` attribute. If ABP does not apply a default policy, unauthenticated
+   callers could list all external users with names and emails. Do not call this endpoint
+   from new code without first adding authorization + rate-limiting.
 
-5. **HIPAA concern** — Patient PII (name, email, password) collected via public `[AllowAnonymous]` endpoint with no additional safeguards beyond duplicate email check. No rate limiting, no CAPTCHA.
+5. **`RegisterAsync` / `GetTenantOptionsAsync` have no rate limiting and no CAPTCHA** --
+   public `[AllowAnonymous]` endpoints collecting PII (name, email, password). Do not call
+   these endpoints from new code without first adding authorization + rate-limiting.
 
-6. **GetExternalUserLookupAsync may be unprotected** — No explicit `[Authorize]` or `[AllowAnonymous]` on the controller endpoint. If ABP doesn't apply a default policy, unauthenticated callers could list all external users with names and emails.
+6. **`[IgnoreAntiforgeryToken]`** on `ExternalSignupController` -- CSRF protection disabled
+   for public registration. Intentional for public APIs but a known security surface.
 
 ## Links
 
 - Root architecture: [CLAUDE.md](/CLAUDE.md)
-- Related: [Patients CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) — Patient records created by RegisterAsync
-- Related: [Appointments CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md) — booking form uses external user lookup
+- Related: [Patients CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Patients/CLAUDE.md) -- Patient records created by RegisterAsync
+- Related: [Appointments CLAUDE.md](../../HealthcareSupport.CaseEvaluation.Domain/Appointments/CLAUDE.md) -- booking form uses external user lookup
 
 <!-- MANUAL:START -->
 <!-- MANUAL:END -->

@@ -1,10 +1,19 @@
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.Patients;
 using System;
@@ -39,7 +48,11 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
             if (appApplicantAttorney != null)
             {
                 var applicantAttorney = await dbContext.Set<ApplicantAttorney>().FindAsync(new object[] { appApplicantAttorney.ApplicantAttorneyId }, cancellationToken);
-                var applicantIdentityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { appApplicantAttorney.IdentityUserId }, cancellationToken);
+                IdentityUser? applicantIdentityUser = null;
+                if (appApplicantAttorney.IdentityUserId is Guid aaUserId)
+                {
+                    applicantIdentityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { aaUserId }, cancellationToken);
+                }
                 if (applicantAttorney != null && applicantIdentityUser != null)
                 {
                     result.AppointmentApplicantAttorney = new AppointmentApplicantAttorneyWithNavigationProperties
@@ -51,9 +64,145 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
                     };
                 }
             }
+
+            // Phase 13b (2026-05-04) -- expand the eager-load to OLD's
+            // full graph (AppointmentDomain.cs:66-95): defense attorney
+            // link, employer detail (1:1), injury details with sub-fetch
+            // (BodyParts / ClaimExaminer / PrimaryInsurance / WcabOffice),
+            // accessor grants. Each block is best-effort: if a child
+            // row is missing the parent still loads with that slot null.
+            await LoadDefenseAttorneyAsync(dbContext, result, id, cancellationToken);
+            await LoadEmployerDetailAsync(dbContext, result, id, cancellationToken);
+            await LoadInjuryDetailsAsync(dbContext, result, id, cancellationToken);
+            await LoadAccessorsAsync(dbContext, result, id, cancellationToken);
+            await LoadClaimPartiesAsync(dbContext, result, id, cancellationToken);
         }
 
         return result!;
+    }
+
+    private static async Task LoadDefenseAttorneyAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        var link = await dbContext.Set<AppointmentDefenseAttorney>()
+            .Where(da => da.AppointmentId == id)
+            .FirstOrDefaultAsync(ct);
+        if (link == null) return;
+
+        var defenseAttorney = await dbContext.Set<DefenseAttorney>().FindAsync(new object[] { link.DefenseAttorneyId }, ct);
+        IdentityUser? identityUser = null;
+        if (link.IdentityUserId is Guid daUserId)
+        {
+            identityUser = await dbContext.Set<IdentityUser>().FindAsync(new object[] { daUserId }, ct);
+        }
+        if (defenseAttorney == null || identityUser == null) return;
+
+        result.AppointmentDefenseAttorney = new AppointmentDefenseAttorneyWithNavigationProperties
+        {
+            AppointmentDefenseAttorney = link,
+            Appointment = result.Appointment,
+            DefenseAttorney = defenseAttorney,
+            IdentityUser = identityUser,
+        };
+    }
+
+    private static async Task LoadEmployerDetailAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        var employer = await dbContext.Set<AppointmentEmployerDetail>()
+            .Where(e => e.AppointmentId == id)
+            .FirstOrDefaultAsync(ct);
+        if (employer == null) return;
+
+        State? state = null;
+        if (employer.StateId.HasValue)
+        {
+            state = await dbContext.Set<State>().FindAsync(new object[] { employer.StateId.Value }, ct);
+        }
+
+        result.AppointmentEmployerDetail = new AppointmentEmployerDetailWithNavigationProperties
+        {
+            AppointmentEmployerDetail = employer,
+            Appointment = result.Appointment,
+            State = state,
+        };
+    }
+
+    private static async Task LoadInjuryDetailsAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        var injuries = await dbContext.Set<AppointmentInjuryDetail>()
+            .Where(i => i.AppointmentId == id)
+            .ToListAsync(ct);
+        if (injuries.Count == 0) return;
+
+        var injuryIds = injuries.Select(i => i.Id).ToList();
+
+        // Fetch sub-collections in single round trips, then group.
+        var bodyParts = await dbContext.Set<AppointmentBodyPart>()
+            .Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId))
+            .ToListAsync(ct);
+        var wcabOfficeIds = injuries
+            .Where(i => i.WcabOfficeId.HasValue)
+            .Select(i => i.WcabOfficeId!.Value)
+            .Distinct()
+            .ToList();
+        var wcabOffices = wcabOfficeIds.Count == 0
+            ? new List<WcabOffice>()
+            : await dbContext.Set<WcabOffice>()
+                .Where(w => wcabOfficeIds.Contains(w.Id))
+                .ToListAsync(ct);
+
+        result.AppointmentInjuryDetails = injuries
+            .Select(injury => new AppointmentInjuryDetailWithNavigationProperties
+            {
+                AppointmentInjuryDetail = injury,
+                Appointment = result.Appointment,
+                WcabOffice = injury.WcabOfficeId.HasValue
+                    ? wcabOffices.FirstOrDefault(w => w.Id == injury.WcabOfficeId.Value)
+                    : null,
+                BodyParts = bodyParts.Where(b => b.AppointmentInjuryDetailId == injury.Id).ToList(),
+            })
+            .ToList();
+    }
+
+    private static async Task LoadAccessorsAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        result.AppointmentAccessors = await dbContext.Set<AppointmentAccessor>()
+            .Where(a => a.AppointmentId == id)
+            .ToListAsync(ct);
+    }
+
+    // CI1 (2026-06-05): single appointment-level Claim Examiner + Primary
+    // Insurance (one each per appointment). Prefer the active row; the booking
+    // form posts at most one of each.
+    private static async Task LoadClaimPartiesAsync(
+        CaseEvaluationDbContext dbContext,
+        AppointmentWithNavigationProperties result,
+        Guid id,
+        CancellationToken ct)
+    {
+        result.ClaimExaminer = await dbContext.Set<AppointmentClaimExaminer>()
+            .Where(c => c.AppointmentId == id)
+            .OrderByDescending(c => c.IsActive)
+            .FirstOrDefaultAsync(ct);
+        result.PrimaryInsurance = await dbContext.Set<AppointmentPrimaryInsurance>()
+            .Where(p => p.AppointmentId == id)
+            .OrderByDescending(p => p.IsActive)
+            .FirstOrDefaultAsync(ct);
     }
 
     public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? panelNumber = null, DateTime? appointmentDateMin = null, DateTime? appointmentDateMax = null, Guid? identityUserId = null, Guid? accessorIdentityUserId = null, Guid? appointmentTypeId = null, Guid? locationId = null, AppointmentStatusType? appointmentStatus = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, IReadOnlyCollection<Guid>? visibleAppointmentIds = null, CancellationToken cancellationToken = default)
@@ -62,7 +211,78 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentConsts.GetDefaultSorting(true) : sorting);
-        return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
+        var page = await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
+
+        // Issue 6 / T6 (2026-05-27 userflow-fixes-batch2): the single-item
+        // GetWithNavigationPropertiesAsync path loads AppointmentInjuryDetails
+        // via LoadInjuryDetailsAsync, but the list path historically returned
+        // only the base 5-way join -- leaving external "My Appointments
+        // Requests" Claim # + Date Of Injury columns empty even when the data
+        // exists. Mirror the same sub-fetch pattern but BATCHED across the
+        // page (one query per sub-table for all rows, then in-memory group),
+        // avoiding N+1.
+        if (page.Count > 0)
+        {
+            await LoadInjuryDetailsForPageAsync(dbContext, page, cancellationToken);
+        }
+
+        return page;
+    }
+
+    /// <summary>
+    /// Batched mirror of <see cref="LoadInjuryDetailsAsync"/> for the list
+    /// path: loads injuries + sub-entities for ALL appointments in the page
+    /// in a fixed number of round trips (1 for injuries, 1 each for body
+    /// parts / claim examiners / primary insurances, 1 for wcab offices),
+    /// then assembles each row's <c>AppointmentInjuryDetails</c> list in
+    /// memory.
+    /// </summary>
+    private static async Task LoadInjuryDetailsForPageAsync(
+        CaseEvaluationDbContext dbContext,
+        List<AppointmentWithNavigationProperties> page,
+        CancellationToken ct)
+    {
+        var appointmentIds = page.Select(p => p.Appointment.Id).ToList();
+
+        var injuries = await dbContext.Set<AppointmentInjuryDetail>()
+            .Where(i => appointmentIds.Contains(i.AppointmentId))
+            .ToListAsync(ct);
+        if (injuries.Count == 0)
+        {
+            return;
+        }
+
+        var injuryIds = injuries.Select(i => i.Id).ToList();
+
+        var bodyParts = await dbContext.Set<AppointmentBodyPart>()
+            .Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId))
+            .ToListAsync(ct);
+        var wcabOfficeIds = injuries
+            .Where(i => i.WcabOfficeId.HasValue)
+            .Select(i => i.WcabOfficeId!.Value)
+            .Distinct()
+            .ToList();
+        var wcabOffices = wcabOfficeIds.Count == 0
+            ? new List<WcabOffice>()
+            : await dbContext.Set<WcabOffice>()
+                .Where(w => wcabOfficeIds.Contains(w.Id))
+                .ToListAsync(ct);
+
+        var injuriesByAppointment = injuries.ToLookup(i => i.AppointmentId);
+        foreach (var row in page)
+        {
+            row.AppointmentInjuryDetails = injuriesByAppointment[row.Appointment.Id]
+                .Select(injury => new AppointmentInjuryDetailWithNavigationProperties
+                {
+                    AppointmentInjuryDetail = injury,
+                    Appointment = row.Appointment,
+                    WcabOffice = injury.WcabOfficeId.HasValue
+                        ? wcabOffices.FirstOrDefault(w => w.Id == injury.WcabOfficeId.Value)
+                        : null,
+                    BodyParts = bodyParts.Where(b => b.AppointmentInjuryDetailId == injury.Id).ToList(),
+                })
+                .ToList();
+        }
     }
 
     protected virtual async Task<IQueryable<AppointmentWithNavigationProperties>> GetQueryForNavigationPropertiesAsync()
@@ -146,5 +366,71 @@ public class EfCoreAppointmentRepository : EfCoreRepository<CaseEvaluationDbCont
         var query = await GetQueryForNavigationPropertiesAsync();
         query = ApplyFilter(dbContext, query, filterText, panelNumber, appointmentDateMin, appointmentDateMax, identityUserId, accessorIdentityUserId, appointmentTypeId, locationId, appointmentStatus, visibleAppointmentIds);
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
+    }
+
+    public virtual async Task<Appointment?> FindByConfirmationNumberAsync(
+        string requestConfirmationNumber,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestConfirmationNumber))
+        {
+            return null;
+        }
+
+        var dbSet = await GetDbSetAsync();
+        // ABP's IMultiTenant data filter scopes this to the calling
+        // tenant automatically. Order by CreationTime descending so a
+        // future ReSubmit-of-a-ReSubmit chain returns the most recent
+        // entry rather than the original.
+        return await dbSet
+            .Where(a => a.RequestConfirmationNumber == requestConfirmationNumber)
+            .OrderByDescending(a => a.CreationTime)
+            .FirstOrDefaultAsync(GetCancellationToken(cancellationToken));
+    }
+
+    public virtual async Task<long> GetActiveCountForSlotAsync(
+        Guid doctorAvailabilityId,
+        CancellationToken cancellationToken = default)
+    {
+        // 2026-05-15 -- capacity gate uses this against slot.Capacity to
+        // decide bookability. Exclude the five slot-freed terminal
+        // statuses (the patient no longer holds the slot in those cases).
+        var dbSet = await GetDbSetAsync();
+        var query = dbSet
+            .Where(x => x.DoctorAvailabilityId == doctorAvailabilityId)
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate);
+
+        return await query.LongCountAsync(GetCancellationToken(cancellationToken));
+    }
+
+    public virtual async Task<Dictionary<Guid, long>> GetActiveCountsForSlotsAsync(
+        List<Guid> doctorAvailabilityIds,
+        CancellationToken cancellationToken = default)
+    {
+        // 2026-05-15 -- bulk variant for the booking-form lookup so the
+        // remaining-capacity computation runs in one round-trip rather
+        // than N+1. Predicate mirrors GetActiveCountForSlotAsync.
+        if (doctorAvailabilityIds == null || doctorAvailabilityIds.Count == 0)
+        {
+            return new Dictionary<Guid, long>();
+        }
+
+        var dbSet = await GetDbSetAsync();
+        return await dbSet
+            .Where(x => doctorAvailabilityIds.Contains(x.DoctorAvailabilityId))
+            .Where(x =>
+                x.AppointmentStatus != AppointmentStatusType.Rejected &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.CancelledLate &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledNoBill &&
+                x.AppointmentStatus != AppointmentStatusType.RescheduledLate)
+            .GroupBy(x => x.DoctorAvailabilityId)
+            .Select(g => new { SlotId = g.Key, Count = (long)g.Count() })
+            .ToDictionaryAsync(x => x.SlotId, x => x.Count, GetCancellationToken(cancellationToken));
     }
 }

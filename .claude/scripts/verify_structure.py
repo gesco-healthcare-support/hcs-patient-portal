@@ -31,8 +31,6 @@ CLAUDE_MD = "CLAUDE.md"
 REQUIRED_FILES = [
     CLAUDE_MD,
     "docs/INDEX.md",
-    "docs/executive-summary.md",
-    "docs/verification/BASELINE.md",
     "docs/repo-map/index.json",
     "docs/repo-map/map.md",
     "docs/repo-map/README.md",
@@ -44,17 +42,48 @@ REQUIRED_FILES = [
     "docs/decisions/README.md",
     "docs/runbooks/LOCAL-DEV.md",
     "docs/runbooks/DOCKER-DEV.md",
-    "docs/runbooks/INCIDENT-RESPONSE.md",
-    ".claude/SYSTEM-STATUS.md",
-    ".claude/discovery/module-map.md",
 ]
+# Five entries were dropped in the 2026-05-11 doc purge (PR #177) and the
+# earlier 83f75e8 "drop stale discovery + skills + product scratch" cleanup:
+#   - docs/executive-summary.md, .claude/SYSTEM-STATUS.md (removed in #177)
+#   - docs/verification/BASELINE.md, docs/runbooks/INCIDENT-RESPONSE.md,
+#     .claude/discovery/module-map.md (removed in 83f75e8)
+# Each was a drifted scaffold doc replaced by current sources (root CLAUDE.md
+# for system status, docs/repo-map/ for module discovery, etc.). The verify
+# script was not updated at the time; this brings the contract back in sync.
 
 # Directories where every immediate child subdirectory must have a CLAUDE.md.
+# A "feature" here means a user-facing domain area with its own AppService and
+# UI surface. Sub-entity folders (M2M joins, lifecycle sub-aggregates) and
+# cross-cutting system folders (notification pipeline, blob storage, lookup
+# tables) do not warrant their own CLAUDE.md -- the parent feature CLAUDE.md
+# covers them when relevant.
 DOMAIN_ROOT = REPO_ROOT / "src" / "HealthcareSupport.CaseEvaluation.Domain"
 DOMAIN_EXCLUDE = {
     "bin", "obj", "Data", "Identity", "OpenIddict", "Saas", "Settings",
     "Shared",  # non-feature utility folder
     "Properties",
+    # M2M / sub-entity folders of the Appointments feature
+    "AppointmentBodyParts",
+    "AppointmentChangeRequests",
+    "AppointmentClaimExaminers",
+    "AppointmentDefenseAttorneys",
+    "AppointmentDocuments",
+    "AppointmentInjuryDetails",
+    "AppointmentPrimaryInsurances",
+    "AppointmentTypeFieldConfigs",
+    # Cross-cutting system / infrastructure folders
+    "BlobContainers",
+    "CustomFields",
+    "Documents",
+    "Emailing",
+    "Notifications",
+    "NotificationTemplates",
+    "PackageDetails",
+    "SystemParameters",
+    # Secondary entities documented under their parent feature
+    "DefenseAttorneys",
+    "DoctorPreferredLocations",
 }
 
 # Layer-level CLAUDE.md files that should exist (see Phase 2 of the plan).

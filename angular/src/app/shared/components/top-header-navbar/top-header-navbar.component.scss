@@ -23,6 +23,24 @@
   color: #34536f;
 }
 
+.top-header-navbar__brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.top-header-navbar__logo {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+
+@media (max-width: 991.98px) {
+  .top-header-navbar__logo {
+    height: 28px;
+  }
+}
+
 .top-header-navbar__user-meta {
   display: flex;
   align-items: center;

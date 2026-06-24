@@ -1,0 +1,46 @@
+<div class="consent-page">
+  <div class="card">
+    <h1>Appointment change request</h1>
+
+    <p *ngIf="state === 'loading'" class="hint">Loading...</p>
+
+    <div *ngIf="state === 'error'" class="msg error">{{ errorMessage }}</div>
+
+    <ng-container *ngIf="(state === 'ready' || state === 'submitting') && info">
+      <p>
+        A request to
+        <strong>{{ actionWord }}</strong>
+        appointment
+        <strong>{{ info.confirmationNumber }}</strong>
+        has been submitted by the other party. Your agreement is needed before our clinic staff can
+        finalize it.
+      </p>
+      <p *ngIf="isReschedule && info.requestedNewDateTime">
+        <strong>Requested new date &amp; time:</strong>
+        {{ info.requestedNewDateTime }}
+      </p>
+      <p>
+        <strong>Reason:</strong>
+        {{ info.reason || '(not provided)' }}
+      </p>
+      <p class="hint">Do you agree to this {{ actionWord }}?</p>
+      <div class="actions">
+        <button class="yes" [disabled]="state === 'submitting'" (click)="respond(true)">
+          Yes, I agree
+        </button>
+        <button class="no" [disabled]="state === 'submitting'" (click)="respond(false)">
+          No, I do not agree
+        </button>
+      </div>
+    </ng-container>
+
+    <div
+      *ngIf="state === 'done' && info"
+      class="msg"
+      [class.success]="info.consentStatus === 2"
+      [class.error]="info.consentStatus === 3 || info.consentStatus === 4"
+    >
+      {{ decisionMessage }}
+    </div>
+  </div>
+</div>

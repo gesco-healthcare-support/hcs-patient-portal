@@ -43,6 +43,21 @@ public static class CaseEvaluationPermissions
         public const string Delete = Default + ".Delete";
     }
 
+    /// <summary>
+    /// G-03-01 (2026-06-03) -- tenant-scoped, per-appointment-type document
+    /// category master. Granted to IT Admin + Staff Supervisor only (the two
+    /// roles Adrian designated as list owners); Intake Staff and all external
+    /// roles never receive it. Reserved IsSystem rows ("Generated Packet")
+    /// stay read-only regardless of the grant -- enforced in the domain manager.
+    /// </summary>
+    public static class AppointmentDocumentTypes
+    {
+        public const string Default = GroupName + ".AppointmentDocumentTypes";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
     public static class AppointmentLanguages
     {
         public const string Default = GroupName + ".AppointmentLanguages";
@@ -89,6 +104,13 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
+
+        // F1 / Design B (2026-05-29) -- gates the dedicated SSN reveal endpoint
+        // (GetFullSsnAsync). Standard payloads carry only the masked last-4;
+        // this permission, plus the internal-or-owner check in SsnRevealAccess,
+        // is required to retrieve the full value. Granted to the internal roles
+        // and (for own-record reveal) the Patient role; never to AA/DA/CE.
+        public const string RevealSsn = Default + ".RevealSsn";
     }
 
     public static class Appointments
@@ -97,6 +119,13 @@ public static class CaseEvaluationPermissions
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
+        // Phase 2.5 (2026-05-01) -- per-action gates for intake-staff approval
+        // and external-user change-request submission. The booking + view
+        // flows live under Default / Create / Edit / Delete.
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+        public const string RequestCancellation = Default + ".RequestCancellation";
+        public const string RequestReschedule = Default + ".RequestReschedule";
     }
 
     public static class AppointmentDocuments
@@ -133,6 +162,15 @@ public static class CaseEvaluationPermissions
     public static class ApplicantAttorneys
     {
         public const string Default = GroupName + ".ApplicantAttorneys";
+        public const string Edit = Default + ".Edit";
+        public const string Create = Default + ".Create";
+        public const string Delete = Default + ".Delete";
+    }
+
+    // UM3/UM4 (2026-06-05): standalone, reusable Claim Examiner master directory.
+    public static class ClaimExaminers
+    {
+        public const string Default = GroupName + ".ClaimExaminers";
         public const string Edit = Default + ".Edit";
         public const string Create = Default + ".Create";
         public const string Delete = Default + ".Delete";
@@ -204,6 +242,20 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
+    /// G-08-01 (2026-06-06) -- the Appointment Request Report: a cross-appointment,
+    /// PHI-masked operational worklist for internal staff (Intake Staff, Staff
+    /// Supervisor, IT Admin). External roles never receive it. <c>Default</c> gates
+    /// the read-only grid; <c>Export</c> (G-08-03, 2026-06-06) gates the PDF export
+    /// of the same filtered set. Full SSN is never emitted here -- only the masked
+    /// last-4; a full reveal still routes through <see cref="Patients.RevealSsn"/>.
+    /// </summary>
+    public static class Reports
+    {
+        public const string Default = GroupName + ".Reports";
+        public const string Export = Default + ".Export";
+    }
+
+    /// <summary>
     /// W2-5: per-AppointmentType field-config admin (Hidden / ReadOnly / DefaultValue).
     /// Default visibility is read-only for non-admin callers (booker form needs Default
     /// to fetch the apply-on-change config); Create/Edit/Delete gate admin actions.
@@ -220,5 +272,132 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".SystemParameters";
         public const string Edit = Default + ".Edit";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
+    /// user-submitted cancel / reschedule lifecycle. External roles never
+    /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
+    /// Intake Staff gets Default (read-only inbox view).
+    /// </summary>
+    public static class AppointmentChangeRequests
+    {
+        public const string Default = GroupName + ".AppointmentChangeRequests";
+        public const string Approve = Default + ".Approve";
+        public const string Reject = Default + ".Reject";
+    }
+
+    /// <summary>
+    /// Phase 2.5 (2026-05-01) -- IT Admin manages tenant-scoped notification
+    /// templates. Read access is gated to Default; the editor button gates on
+    /// Edit. No Create / Delete -- templates are seeded.
+    /// </summary>
+    public static class NotificationTemplates
+    {
+        public const string Default = GroupName + ".NotificationTemplates";
+        public const string Edit = Default + ".Edit";
+    }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin maintains the master template catalog.
+    /// Each Document is a blank PDF/DOCX form that is later linked to one or
+    /// more PackageDetails for use in appointment-specific document packets.
+    /// Mirrors OLD's <c>spm.Documents</c> CRUD surface.
+    /// </summary>
+    public static class Documents
+    {
+        public const string Default = GroupName + ".Documents";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+    }
+
+    /// <summary>
+    /// Phase 5 (2026-05-03) -- IT Admin manages per-AppointmentType package
+    /// templates and the Documents linked into each. Mirrors OLD's
+    /// <c>spm.PackageDetails</c> + <c>spm.DocumentPackages</c> CRUD. The
+    /// "one active package per AppointmentType" rule lives in the AppService;
+    /// see <c>P:\PatientPortalOld\PatientAppointment.Domain\DocumentManagementModule\PackageDetailDomain.cs</c>:48-53.
+    /// <c>ManageDocuments</c> gates Link / Unlink endpoints because those are
+    /// distinct user actions (separate from Create/Edit on the package itself).
+    /// </summary>
+    public static class PackageDetails
+    {
+        public const string Default = GroupName + ".PackageDetails";
+        public const string Create = Default + ".Create";
+        public const string Edit = Default + ".Edit";
+        public const string Delete = Default + ".Delete";
+        public const string ManageDocuments = Default + ".ManageDocuments";
+    }
+
+    /// <summary>
+    /// Phase 7b (2026-05-03) -- IT Admin / Staff Supervisor toggles which
+    /// Locations a Doctor accepts appointments at. Mirrors OLD
+    /// <c>DoctorPreferredLocationDomain</c>. <c>Default</c> gates the read
+    /// path (consumed by the booking-form Location dropdown);
+    /// <c>Toggle</c> gates the upsert / on-off flip.
+    /// </summary>
+    public static class DoctorPreferredLocations
+    {
+        public const string Default = GroupName + ".DoctorPreferredLocations";
+        public const string Toggle = Default + ".Toggle";
+    }
+
+    /// <summary>
+    /// 2026-05-15 -- internal staff issue invitations for new external
+    /// users to register on the tenant portal. Single nested perm
+    /// (<c>InviteExternalUser</c>) under the <c>UserManagement</c>
+    /// parent so future invite-management actions (revoke, resend,
+    /// invitation-history view) can grow as siblings without
+    /// renumbering. Granted to IT Admin, Staff Supervisor, and Clinic
+    /// Staff per the role-seeder; external roles intentionally never
+    /// receive this permission.
+    /// </summary>
+    public static class UserManagement
+    {
+        public const string Default = GroupName + ".UserManagement";
+        public const string InviteExternalUser = Default + ".InviteExternalUser";
+    }
+
+    /// <summary>
+    /// Internal-user creation (Intake Staff, Staff Supervisor).
+    /// Registered <c>MultiTenancySides.Both</c> (see
+    /// CaseEvaluationPermissionDefinitionProvider) -- IT Admin holds it
+    /// host-side, tenant roles hold it within their own tenant; the new
+    /// user is placed inside the tenant carried on the input DTO.
+    /// Holders (IR1, 2026-06-03): IT Admin (host) and Staff Supervisor
+    /// (top tenant role) -- a Supervisor may create Intake Staff and
+    /// Staff Supervisors in its tenant. Intake Staff does NOT receive it.
+    /// External role creation (Patient / Applicant Attorney / Defense
+    /// Attorney / Claim Examiner) is a different surface
+    /// (<see cref="UserManagement.InviteExternalUser"/>); IT Admin
+    /// self-creation is rejected (IT Admin accounts are seeded only).
+    /// </summary>
+    public static class InternalUsers
+    {
+        public const string Default = GroupName + ".InternalUsers";
+        public const string Create = Default + ".Create";
+    }
+
+    /// <summary>
+    /// Phase A (2026-05-05) -- per-user signature image upload, replicating
+    /// OLD's <c>User.SignatureAWSFilePath</c> profile feature. Internal
+    /// staff (Intake Staff / Staff Supervisor / IT Admin) only;
+    /// external roles do not have signatures (OLD parity). Used by the
+    /// packet-generation flow to stamp the responsible user's signature
+    /// on the Patient Packet at <c>##Appointments.Signature##</c>.
+    ///
+    /// <para><c>ManageOwn</c> gates the upload / download / delete of the
+    /// caller's OWN signature -- a permission a user can self-grant via
+    /// role membership. There is no separate per-user-target gate because
+    /// the AppService scopes every operation to <c>CurrentUser.Id</c>;
+    /// internal-only <c>GetByUserIdAsync</c> is hidden via
+    /// <c>[RemoteService(IsEnabled = false)]</c> and called by the packet
+    /// resolver in-process, so no permission is wired to it.</para>
+    /// </summary>
+    public static class UserSignatures
+    {
+        public const string Default = GroupName + ".UserSignatures";
+        public const string ManageOwn = Default + ".ManageOwn";
     }
 }

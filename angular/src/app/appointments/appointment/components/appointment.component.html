@@ -1,15 +1,23 @@
 <abp-page [title]="title | abpLocalization">
   <abp-page-toolbar-container class="col">
     <div class="text-lg-end pt-2">
-      <button
+      <!-- 2026-05-27 userflow-fixes-batch2 T1: internal users (the only ones
+           who reach this staff list) should land on the full booking form
+           when creating a new appointment, not the generic ABP CRUD modal
+           that previously opened via (click)="create()". The /appointments/add
+           route is authGuard-only and already supports internal on-behalf
+           booking (isExternalUserNonPatient -> patient-picker + on-behalf
+           create-or-find patient). type=1 matches the home patient/external
+           "Book Appointment" entry point. -->
+      <a
         *abpPermission="'CaseEvaluation.Appointments.Create'"
         class="btn btn-primary btn-sm"
-        type="button"
-        (click)="create()"
+        [routerLink]="['/appointments/add']"
+        [queryParams]="{ type: 1 }"
       >
         <i class="fa fa-plus me-1" aria-hidden="true"></i>
         {{ '::NewAppointment' | abpLocalization }}
-      </button>
+      </a>
     </div>
   </abp-page-toolbar-container>
 
@@ -240,13 +248,23 @@
                     {{ '::Appointment:Action:Review' | abpLocalization }}
                   </a>
 
-                  <button
-                    ngbDropdownItem
-                    *abpPermission="'CaseEvaluation.Appointments.Edit'"
-                    (click)="update(row)"
-                  >
-                    {{ 'AbpUi::Edit' | abpLocalization }}
-                  </button>
+                  @if (row.appointment.appointmentStatus === approvedStatus) {
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.Appointments'"
+                      (click)="openReschedule(row)"
+                    >
+                      {{ '::Appointment:Action:Reschedule' | abpLocalization }}
+                    </button>
+
+                    <button
+                      ngbDropdownItem
+                      *abpPermission="'CaseEvaluation.Appointments'"
+                      (click)="openCancel(row)"
+                    >
+                      {{ '::Appointment:Action:Cancel' | abpLocalization }}
+                    </button>
+                  }
 
                   <button
                     ngbDropdownItem
@@ -300,6 +318,16 @@
                   | abpLocalization)
                 : ''
             }}
+            @if (decisionBadge(row); as badge) {
+              <span
+                class="badge ms-1"
+                [class.bg-danger]="badge.overdue"
+                [class.bg-warning]="!badge.overdue"
+                [class.text-dark]="!badge.overdue"
+              >
+                {{ badge.text }}
+              </span>
+            }
           </ng-template>
         </ngx-datatable-column>
         <ngx-datatable-column name="{{ '::Patient' | abpLocalization }}" prop="patient.lastName">
@@ -349,4 +377,20 @@
   @if (serviceDetail.isVisible) {
     <app-appointment-detail-modal />
   }
+}
+
+@if (selectedRow) {
+  <app-reschedule-request-modal
+    [appointmentId]="selectedRow.appointment?.id ?? null"
+    [locationId]="selectedRow.appointment?.locationId ?? null"
+    [appointmentTypeId]="selectedRow.appointment?.appointmentTypeId ?? null"
+    [(visible)]="rescheduleVisible"
+    (succeeded)="onChangeRequestSucceeded($event)"
+  ></app-reschedule-request-modal>
+
+  <app-cancellation-request-modal
+    [appointmentId]="selectedRow.appointment?.id ?? null"
+    [(visible)]="cancelVisible"
+    (succeeded)="onChangeRequestSucceeded($event)"
+  ></app-cancellation-request-modal>
 }

@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -10,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using System;
@@ -53,6 +55,7 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<State, States.EfCoreStateRepository>();
             options.AddRepository<AppointmentType, AppointmentTypes.EfCoreAppointmentTypeRepository>();
             options.AddRepository<AppointmentStatus, AppointmentStatuses.EfCoreAppointmentStatusRepository>();
+            options.AddRepository<AppointmentDocumentType, AppointmentDocumentTypes.EfCoreAppointmentDocumentTypeRepository>();
             options.AddRepository<AppointmentLanguage, AppointmentLanguages.EfCoreAppointmentLanguageRepository>();
             options.AddRepository<Location, Locations.EfCoreLocationRepository>();
             options.AddRepository<WcabOffice, WcabOffices.EfCoreWcabOfficeRepository>();
@@ -63,6 +66,7 @@ public class CaseEvaluationEntityFrameworkCoreModule : AbpModule
             options.AddRepository<AppointmentEmployerDetail, AppointmentEmployerDetails.EfCoreAppointmentEmployerDetailRepository>();
             options.AddRepository<AppointmentAccessor, AppointmentAccessors.EfCoreAppointmentAccessorRepository>();
             options.AddRepository<ApplicantAttorney, ApplicantAttorneys.EfCoreApplicantAttorneyRepository>();
+            options.AddRepository<ClaimExaminer, ClaimExaminers.EfCoreClaimExaminerRepository>();
             options.AddRepository<AppointmentApplicantAttorney, AppointmentApplicantAttorneys.EfCoreAppointmentApplicantAttorneyRepository>();
         });
         context.Services.AddAbpDbContext<CaseEvaluationTenantDbContext>(options =>

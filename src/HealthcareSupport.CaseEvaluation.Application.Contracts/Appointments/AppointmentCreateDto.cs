@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
@@ -18,7 +19,9 @@ public class AppointmentCreateDto
     public AppointmentStatusType AppointmentStatus { get; set; } = Enum.GetValues<AppointmentStatusType>()[0];
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- booking persists the appointment with no
+    // patient login (the record-only model).
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 
@@ -37,4 +40,33 @@ public class AppointmentCreateDto
 
     [StringLength(AppointmentConsts.PartyEmailMaxLength)]
     public string? ClaimExaminerEmail { get; set; }
+
+    /// <summary>
+    /// 2026-06-09: optional per-appointment "Referred By". Not prefilled and
+    /// not derived from the patient -- blank unless the booker types it.
+    /// </summary>
+    [StringLength(AppointmentConsts.RefferedByMaxLength)]
+    public string? RefferedBy { get; set; }
+
+    /// <summary>
+    /// R2 (Phase 9, 2026-05-04) -- mirrors OLD's
+    /// <c>P:\PatientPortalOld\PatientAppointment.Domain\Core\AppointmentDomain.cs:210, 217</c>
+    /// where <c>Appointment.IsPatientAlreadyExist</c> is set on initial booking
+    /// from the dedup outcome. The Angular booking form must populate this
+    /// from the <see cref="HealthcareSupport.CaseEvaluation.Patients.PatientWithNavigationPropertiesDto.IsExisting"/>
+    /// flag returned by <c>GetOrCreatePatientForAppointmentBookingAsync</c>.
+    /// Defaults to <c>false</c> for backward compat with callers that haven't
+    /// been updated yet.
+    /// </summary>
+    public bool IsPatientAlreadyExist { get; set; }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- IT-Admin-defined per-AppointmentType custom fields
+    /// answered by the booker. Each entry is (CustomFieldId, Value); the
+    /// AppService persists one <c>CustomFieldValue</c> row per non-empty entry.
+    /// Mirrors OLD's <c>spm.CustomFieldsValues</c> write that happens alongside
+    /// the appointment insert in
+    /// <c>PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>.
+    /// </summary>
+    public List<CustomFieldValueInputDto> CustomFieldValues { get; set; } = new();
 }

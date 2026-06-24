@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -47,7 +48,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         result.ParkingFee.ShouldBe(LocationsTestData.Location1ParkingFee);
         result.IsActive.ShouldBe(LocationsTestData.Location1IsActive);
         result.StateId.ShouldBe(LocationsTestData.State1Id);
-        result.AppointmentTypeId.ShouldBe(LocationsTestData.AppointmentType1Id);
+        result.AppointmentTypeIds.ShouldContain(LocationsTestData.AppointmentType1Id);
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             City = existing.City,
             ZipCode = existing.ZipCode,
             StateId = existing.StateId,
-            AppointmentTypeId = existing.AppointmentTypeId,
+            AppointmentTypeIds = existing.AppointmentTypes.Select(x => x.AppointmentTypeId).ToList(),
             ConcurrencyStamp = existing.ConcurrencyStamp
         };
 
@@ -190,9 +191,10 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         result.State.ShouldNotBeNull();
         result.State!.Id.ShouldBe(LocationsTestData.State1Id);
         result.State.Name.ShouldBe(LocationsTestData.State1Name);
-        result.AppointmentType.ShouldNotBeNull();
-        result.AppointmentType!.Id.ShouldBe(LocationsTestData.AppointmentType1Id);
-        result.AppointmentType.Name.ShouldBe(LocationsTestData.AppointmentType1Name);
+        result.AppointmentTypes.ShouldNotBeEmpty();
+        result.AppointmentTypes.ShouldContain(x =>
+            x.Id == LocationsTestData.AppointmentType1Id &&
+            x.Name == LocationsTestData.AppointmentType1Name);
     }
 
     // ------------------------------------------------------------------------
@@ -251,21 +253,16 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
     }
 
     // ------------------------------------------------------------------------
-    // Delete-constraint edges (inbound NoAction FKs on Location from
-    // DoctorAvailability and Appointment). Currently skipped -- the shared
-    // SQLite in-memory test connection ignores FK enforcement even after
-    // "Foreign Keys=True" in the connection string AND an explicit
-    // `PRAGMA foreign_keys = ON` on Open(); suspected cause is that ABP / EF
-    // pool a wrapper around the manually-opened connection that bypasses the
-    // opt-in. Test bodies below encode target behaviour and flip live when
-    // FEAT-14 is closed.
+    // Delete-constraint edges (Location referenced by DoctorAvailability /
+    // Appointment). IP4 (2026-06-05) moved the guard from DB-level FK
+    // enforcement (which the shared SQLite in-memory connection ignores) to a
+    // manager-level COUNT pre-check (LocationManager.EnsureCanDeleteAsync,
+    // invoked by LocationsAppService.DeleteAsync). A COUNT query works on
+    // SQLite, so these tests now run live and assert the localized
+    // LocationInUse BusinessException.
     // ------------------------------------------------------------------------
 
-    [Fact(Skip = "KNOWN GAP: SQLite in-memory test DB does not enforce foreign-key constraints "
-              + "against the shared manually-opened connection, despite \"Foreign Keys=True\" + "
-              + "explicit PRAGMA in CaseEvaluationEntityFrameworkCoreTestModule. Test body encodes "
-              + "target behaviour and will flip live once test-infra FK enforcement is fixed. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-fk-enforcement")]
+    [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByDoctorAvailability_Throws()
     {
         var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
@@ -284,22 +281,18 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: disposable.Id,
-                appointmentTypeId: null,
                 availableDate: new DateTime(2026, 5, 1),
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(10, 0),
                 bookingStatusId: BookingStatus.Available), autoSave: true);
         }
 
-        await Should.ThrowAsync<Exception>(async () =>
+        var ex = await Should.ThrowAsync<BusinessException>(async () =>
             await _locationsAppService.DeleteAsync(disposable.Id));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 
-    [Fact(Skip = "KNOWN GAP: SQLite in-memory test DB does not enforce foreign-key constraints "
-              + "against the shared manually-opened connection, despite \"Foreign Keys=True\" + "
-              + "explicit PRAGMA in CaseEvaluationEntityFrameworkCoreTestModule. Test body encodes "
-              + "target behaviour and will flip live once test-infra FK enforcement is fixed. "
-              + "Tracked: docs/issues/INCOMPLETE-FEATURES.md#test-fk-enforcement")]
+    [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByAppointment_Throws()
     {
         var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
@@ -315,14 +308,15 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
             // autoSave persists each child row immediately so the subsequent
             // DeleteAsync on `disposable` raises the NoAction FK violation we
             // are asserting.
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot = new DoctorAvailability(
                 id: availabilityId,
                 locationId: disposable.Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: new DateTime(2026, 5, 2),
                 fromTime: new TimeOnly(11, 0),
                 toTime: new TimeOnly(12, 0),
-                bookingStatusId: BookingStatus.Booked), autoSave: true);
+                bookingStatusId: BookingStatus.Booked);
+            slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot, autoSave: true);
 
             await _appointmentRepository.InsertAsync(new Appointment(
                 id: Guid.NewGuid(),
@@ -336,8 +330,9 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
                 appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
         }
 
-        await Should.ThrowAsync<Exception>(async () =>
+        var ex = await Should.ThrowAsync<BusinessException>(async () =>
             await _locationsAppService.DeleteAsync(disposable.Id));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
     }
 
     // ------------------------------------------------------------------------

@@ -17,34 +17,27 @@
       <thead>
         <tr>
           <th>When</th>
-          <th>Who</th>
+          <th>Section</th>
           <th>Type</th>
-          <th>Property</th>
+          <th>Field</th>
           <th>Old value</th>
           <th>New value</th>
         </tr>
       </thead>
       <tbody>
-        @for (entry of entries; track entry.entityChange?.changeTime) {
-          @if (entry.entityChange?.propertyChanges?.length) {
-            @for (prop of entry.entityChange?.propertyChanges; track prop.id) {
-              <tr>
-                <td>{{ entry.entityChange?.changeTime | date: 'short' }}</td>
-                <td>{{ entry.userName || '-' }}</td>
-                <td>{{ changeTypeLabel(entry.entityChange?.changeType ?? 0) }}</td>
-                <td>{{ prop.propertyName }}</td>
-                <td class="text-break">{{ prop.originalValue || '-' }}</td>
-                <td class="text-break">{{ prop.newValue || '-' }}</td>
-              </tr>
+        @for (entry of entries; track $index) {
+          <tr>
+            <td>{{ entry.changeTime | date: 'short' }}</td>
+            <td>{{ entry.entityType }}</td>
+            <td>{{ entry.changeType }}</td>
+            <td>{{ entry.propertyName }}</td>
+            @if (entry.valueRedacted) {
+              <td colspan="2" class="text-muted fst-italic">updated (value hidden)</td>
+            } @else {
+              <td class="text-break">{{ entry.oldValue || '-' }}</td>
+              <td class="text-break">{{ entry.newValue || '-' }}</td>
             }
-          } @else {
-            <tr>
-              <td>{{ entry.entityChange?.changeTime | date: 'short' }}</td>
-              <td>{{ entry.userName || '-' }}</td>
-              <td>{{ changeTypeLabel(entry.entityChange?.changeType ?? 0) }}</td>
-              <td colspan="3" class="text-muted">No property-level diffs.</td>
-            </tr>
-          }
+          </tr>
         }
       </tbody>
     </table>

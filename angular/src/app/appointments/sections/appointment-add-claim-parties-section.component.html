@@ -1,0 +1,192 @@
+<!-- CI1 (2026-06-05): appointment-level Insurance + Claim Examiner. One each
+     per appointment, rendered below the attorney sections. The 18 FormControls
+     live on the parent `form`; child binds [formGroup]="form" so
+     formControlName resolves at parent scope. -->
+<div [formGroup]="form">
+  <!-- Primary Insurance (optional) -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0 fw-bold">Insurance</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Insurance Company *</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsuranceName"
+            placeholder="INSURANCE COMPANY"
+            maxlength="50"
+            [class.is-invalid]="isFieldInvalid('appointmentInsuranceName')"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Suite</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsuranceSuite"
+            placeholder="STE"
+            maxlength="255"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Phone Number</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsurancePhoneNumber"
+            placeholder="PHONE NUMBER"
+            maxlength="12"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Fax</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsuranceFaxNumber"
+            placeholder="FAX"
+            maxlength="20"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Street</label>
+          <app-address-autocomplete
+            [group]="form"
+            [fields]="insuranceAddressFields"
+            placeholder="STREET"
+          ></app-address-autocomplete>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">City</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsuranceCity"
+            placeholder="CITY"
+            maxlength="50"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">State</label>
+          <app-lookup-select
+            cid="appointment-insurance-state-id"
+            formControlName="appointmentInsuranceStateId"
+            [getFn]="getStateLookup"
+          ></app-lookup-select>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Zip</label>
+          <input
+            class="form-control"
+            formControlName="appointmentInsuranceZip"
+            placeholder="ZIP"
+            maxlength="10"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Claim Examiner (required) -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0 fw-bold">Claim Examiner</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Name *</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerName"
+            placeholder="CLAIM EXAMINER NAME"
+            maxlength="50"
+            [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerName')"
+          />
+          @if (
+            form.get('appointmentClaimExaminerName')?.hasError('required') &&
+            form.get('appointmentClaimExaminerName')?.touched
+          ) {
+            <div class="invalid-feedback d-block">Claim Examiner name is required.</div>
+          }
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-semibold">Email *</label>
+          <input
+            type="email"
+            class="form-control"
+            formControlName="appointmentClaimExaminerEmail"
+            placeholder="CLAIM EXAMINER EMAIL"
+            maxlength="50"
+            [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerEmail')"
+          />
+          @if (
+            form.get('appointmentClaimExaminerEmail')?.hasError('required') &&
+            form.get('appointmentClaimExaminerEmail')?.touched
+          ) {
+            <div class="invalid-feedback d-block">Claim Examiner email is required.</div>
+          }
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Suite</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerSuite"
+            placeholder="STE"
+            maxlength="255"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Phone Number *</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerPhoneNumber"
+            placeholder="PHONE NUMBER"
+            maxlength="12"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Fax</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerFax"
+            placeholder="FAX"
+            maxlength="20"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Street *</label>
+          <app-address-autocomplete
+            [group]="form"
+            [fields]="claimExaminerAddressFields"
+            placeholder="STREET"
+          ></app-address-autocomplete>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">City *</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerCity"
+            placeholder="CITY"
+            maxlength="50"
+          />
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">State *</label>
+          <app-lookup-select
+            cid="appointment-claim-examiner-state-id"
+            formControlName="appointmentClaimExaminerStateId"
+            [getFn]="getStateLookup"
+          ></app-lookup-select>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label fw-semibold">Zip *</label>
+          <input
+            class="form-control"
+            formControlName="appointmentClaimExaminerZip"
+            placeholder="ZIP"
+            maxlength="10"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

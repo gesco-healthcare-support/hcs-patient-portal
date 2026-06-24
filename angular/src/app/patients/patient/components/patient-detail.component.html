@@ -144,12 +144,12 @@
                   {{ '::SocialSecurityNumber' | abpLocalization }}
                 </label>
 
-                <input
-                  id="patient-social-security-number"
+                <app-ssn-input
                   formControlName="socialSecurityNumber"
-                  class="form-control"
-                  maxlength="20"
-                />
+                  [patientId]="service.selected?.patient?.id"
+                  [patientIdentityUserId]="service.selected?.patient?.identityUserId"
+                  [currentMaskedSsn]="service.selected?.patient?.socialSecurityNumber"
+                ></app-ssn-input>
               </div>
 
               <div class="mb-3">
@@ -188,19 +188,6 @@
                   formControlName="zipCode"
                   class="form-control"
                   maxlength="15"
-                />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label" for="patient-reffered-by">
-                  {{ '::RefferedBy' | abpLocalization }}
-                </label>
-
-                <input
-                  id="patient-reffered-by"
-                  formControlName="refferedBy"
-                  class="form-control"
-                  maxlength="50"
                 />
               </div>
 
@@ -310,7 +297,7 @@
               </div>
               <div class="mb-3">
                 <label class="form-label" for="patient-identity-user-id">
-                  {{ '::IdentityUser' | abpLocalization }} *
+                  {{ '::IdentityUser' | abpLocalization }}
                 </label>
                 <abp-lookup-select
                   cid="patient-identity-user-id"

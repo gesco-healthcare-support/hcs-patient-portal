@@ -1,24 +1,14 @@
-import type { EntityDto, PagedResultRequestDto } from '@abp/ng.core';
-
-export interface AppFileDescriptorDto extends EntityDto<string> {
-  name?: string;
-  mimeType?: string;
-}
+import type { PagedResultRequestDto } from '@abp/ng.core';
 
 export interface DownloadTokenResultDto {
   token?: string;
 }
 
-export interface GetFileInput {
-  downloadToken?: string;
-  fileId?: string;
-}
-
 export interface LookupDto<TKey> {
-  id?: TKey;
+  id?: TKey | null;
   displayName?: string;
 }
 
 export interface LookupRequestDto extends PagedResultRequestDto {
-  filter?: string;
+  filter?: string | null;
 }

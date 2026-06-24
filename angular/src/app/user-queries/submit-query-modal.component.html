@@ -1,0 +1,53 @@
+<abp-modal [busy]="isBusy" [visible]="visible" (visibleChange)="setVisible($event)">
+  <ng-template #abpHeader>
+    <h3>{{ '::UserQuery:Modal:Title' | abpLocalization }}</h3>
+  </ng-template>
+
+  <ng-template #abpBody>
+    <p>{{ '::UserQuery:Modal:Intro' | abpLocalization }}</p>
+
+    <div class="mb-3">
+      <label class="form-label" for="user-query-message">
+        {{ '::UserQuery:Modal:MessageLabel' | abpLocalization }} *
+      </label>
+      <textarea
+        id="user-query-message"
+        class="form-control"
+        rows="4"
+        [maxlength]="maxMessageLength"
+        [(ngModel)]="message"
+        [placeholder]="'::UserQuery:Modal:MessagePlaceholder' | abpLocalization"
+        required
+      ></textarea>
+      <small class="text-muted">{{ message.length }} / {{ maxMessageLength }}</small>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="user-query-confirmation">
+        {{ '::UserQuery:Modal:ConfirmationNumberLabel' | abpLocalization }}
+      </label>
+      <input
+        id="user-query-confirmation"
+        type="text"
+        class="form-control"
+        [maxlength]="maxConfirmationNumberLength"
+        [(ngModel)]="requestConfirmationNumber"
+      />
+    </div>
+  </ng-template>
+
+  <ng-template #abpFooter>
+    <button type="button" class="btn btn-secondary" abpClose>
+      {{ '::UserQuery:Action:Close' | abpLocalization }}
+    </button>
+
+    <abp-button
+      iconClass="fa fa-paper-plane"
+      buttonType="button"
+      [disabled]="!canSubmit"
+      (click)="submit()"
+    >
+      {{ '::UserQuery:Action:Send' | abpLocalization }}
+    </abp-button>
+  </ng-template>
+</abp-modal>

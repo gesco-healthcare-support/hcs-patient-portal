@@ -28,7 +28,9 @@ public class AppointmentDocumentManager : DomainService
         string blobName,
         string? contentType,
         long fileSize,
-        Guid uploadedByUserId)
+        Guid uploadedByUserId,
+        Guid? appointmentDocumentTypeId = null,
+        string? otherDocumentTypeName = null)
     {
         Check.NotNull(appointmentId, nameof(appointmentId));
         if (appointmentId == Guid.Empty)
@@ -53,7 +55,51 @@ public class AppointmentDocumentManager : DomainService
             blobName,
             contentType,
             fileSize,
-            uploadedByUserId);
+            uploadedByUserId,
+            appointmentDocumentTypeId,
+            otherDocumentTypeName);
+
+        return await _appointmentDocumentRepository.InsertAsync(entity);
+    }
+
+    /// <summary>
+    /// Phase 14 (2026-05-04) -- queued-state factory for the package-doc
+    /// auto-queue path. Creates a row in
+    /// <see cref="DocumentStatus.Pending"/> with placeholder file
+    /// metadata + a fresh <see cref="AppointmentDocument.VerificationCode"/>.
+    /// The patient uploads via the emailed link
+    /// (<c>UploadByVerificationCodeAsync</c>) which overwrites the
+    /// placeholders with real values and flips status to
+    /// <see cref="DocumentStatus.Uploaded"/>.
+    ///
+    /// <para>Mirrors OLD <c>AppointmentDocumentDomain.cs</c>:1102-1123
+    /// where the row is inserted on staff approval ahead of upload.
+    /// Closes the Phase 12 deferred row insert.</para>
+    /// </summary>
+    public virtual async Task<AppointmentDocument> CreateQueuedAsync(
+        Guid? tenantId,
+        Guid appointmentId,
+        string documentName,
+        Guid? sourceDocumentId = null,
+        Guid? appointmentDocumentTypeId = null)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException("AppointmentId is required.");
+        }
+        if (string.IsNullOrWhiteSpace(documentName))
+        {
+            throw new UserFriendlyException("Document name is required.");
+        }
+
+        var entity = AppointmentDocument.CreateQueued(
+            id: GuidGenerator.Create(),
+            tenantId: tenantId,
+            appointmentId: appointmentId,
+            documentName: documentName,
+            verificationCode: Guid.NewGuid(),
+            sourceDocumentId: sourceDocumentId,
+            appointmentDocumentTypeId: appointmentDocumentTypeId);
 
         return await _appointmentDocumentRepository.InsertAsync(entity);
     }

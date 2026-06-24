@@ -14,15 +14,10 @@
       return fromMeta;
     }
 
-    const fromStorage =
-      window.localStorage && typeof window.localStorage.getItem === 'function'
-        ? (window.localStorage.getItem('externalSignupApiBaseUrl') || '').trim()
-        : '';
-    if (fromStorage) {
-      return fromStorage;
-    }
-
-    if (window.location.hostname === 'localhost' && window.location.port === '44368') {
+    // AuthServer is on :44368; the external-signup API lives on the API host
+    // (:44327). Preserve the subdomain so tenant resolution stays correct on
+    // subdomain URLs like falkinstein.localhost:44368.
+    if (window.location.port === '44368') {
       return window.location.protocol + '//' + window.location.hostname + ':44327';
     }
 
@@ -54,6 +49,36 @@
     console.log.apply(console, args);
   }
 
+  // 2026-05-15 -- ABP-localization lookup helper for client-side strings.
+  // The AuthServer bundle exposes `window.abp.localization` on every Razor
+  // page (loaded via /libs/abp/core/abp.js). When the resource is missing
+  // or ABP hasn't bootstrapped yet, returns the English fallback so the
+  // page still renders sensibly. ABP 10.x exposes BOTH a callable
+  // `getResource('Name')(key)` API and a `values['Name'][key]` object
+  // map; we try the callable first since it is the supported public path
+  // and falls back to the object map for older bundles.
+  function L(key, fallback) {
+    try {
+      if (typeof window.abp !== 'undefined' && window.abp.localization) {
+        if (typeof window.abp.localization.getResource === 'function') {
+          var res = window.abp.localization.getResource('CaseEvaluation');
+          if (typeof res === 'function') {
+            var resolved = res(key);
+            if (resolved && resolved !== key) return resolved;
+          }
+        }
+        var values = window.abp.localization.values
+          && window.abp.localization.values['CaseEvaluation'];
+        if (values && values[key]) {
+          return values[key];
+        }
+      }
+    } catch (_e) {
+      // Fall through to the English default.
+    }
+    return fallback;
+  }
+
   // W-B-1 (2026-04-30): inline error surface so the user sees registration
   // failures even when the browser auto-dismisses alert() (Playwright
   // headless, some browser hardening modes). Always render alongside alert.
@@ -81,8 +106,13 @@
   }
 
   function notifyRegisterFailure(form, message) {
+    // 2026-05-13 (BUG-002): drop the native window.alert() that
+    // previously stacked on top of the styled inline banner. The
+    // alert() blocks the UI thread, is not stylable / localizable,
+    // and duplicates the message already shown by
+    // showInlineRegisterError. Inline banner is the single source of
+    // truth for register errors.
     showInlineRegisterError(form, message);
-    try { alert(message); } catch (_e) { /* alert may be suppressed; inline error already shown */ }
   }
 
   function isRegisterPage() {
@@ -129,6 +159,21 @@
     select.id = 'external-user-type';
     select.name = 'ExternalUserType';
     select.className = 'form-control';
+    select.required = true;
+
+    // 2026-05-13 (BUG-004) -- leading disabled placeholder forces a
+    // conscious role selection. Without it the browser auto-selects
+    // the first option (Patient), so a Defense Attorney clicking
+    // Sign Up without touching the dropdown would silently register
+    // as a Patient. OLD parity:
+    // P:\PatientPortalOld\.../user-add.component.html:14 also uses a
+    // disabled "Select" leading option.
+    const placeholderOption = document.createElement('option');
+    placeholderOption.value = '';
+    placeholderOption.textContent = 'Select your role';
+    placeholderOption.disabled = true;
+    placeholderOption.selected = true;
+    select.appendChild(placeholderOption);
 
     externalUserRoles.forEach(function (role) {
       const option = document.createElement('option');
@@ -139,7 +184,9 @@
 
     const label = document.createElement('label');
     label.htmlFor = 'external-user-type';
-    label.textContent = 'External User Role';
+    // OLD parity (P:\PatientPortalOld\.../user-add.component.html:14): "User Type",
+    // sentence-cased per 2026-05-18 copy rules (proposed-copy.md 2.2).
+    label.textContent = 'User type';
 
     container.appendChild(select);
     container.appendChild(label);
@@ -154,6 +201,350 @@
     return select;
   }
 
+  // OLD parity (P:\PatientPortalOld\.../user-add.component.html:23-32 +
+  // 41-48): the register form has First Name + Last Name (two columns) and
+  // Confirm Password fields that ABP's stock cshtml does not render. Inject
+  // them client-side so the form layout, validation, and payload all line
+  // up with OLD without forking the entire .cshtml page.
+  //
+  // ensureTextInput inserts a labeled text input AFTER the given anchor
+  // node's parent (so e.g. an input next to the user-type select).
+  // ensurePasswordInput is the same shape but type="password".
+  function ensureTextInput(form, opts) {
+    var existing = form.querySelector('#' + opts.id);
+    if (existing) return existing;
+    var container = document.createElement('div');
+    container.className = 'form-floating mb-2';
+    var input = document.createElement('input');
+    input.type = opts.type || 'text';
+    input.id = opts.id;
+    input.name = opts.name;
+    input.className = 'form-control';
+    input.placeholder = opts.label;
+    if (opts.autocomplete) input.setAttribute('autocomplete', opts.autocomplete);
+    if (opts.maxLength) input.setAttribute('maxlength', String(opts.maxLength));
+    if (opts.required) input.setAttribute('required', 'required');
+    var lab = document.createElement('label');
+    lab.htmlFor = opts.id;
+    lab.textContent = opts.label;
+    container.appendChild(input);
+    container.appendChild(lab);
+    if (opts.afterContainer && opts.afterContainer.parentNode) {
+      opts.afterContainer.parentNode.insertBefore(container, opts.afterContainer.nextSibling);
+    } else {
+      form.appendChild(container);
+    }
+    return input;
+  }
+
+  function ensureExtraRegisterFields(form) {
+    // Anchor: the user-type select's container (always first after our
+    // ensureUserTypeSelect inserts it). FirstName + LastName go right after
+    // it so the visual order matches OLD: User Type \xb7 First Name \xb7 Last Name \xb7
+    // [user name \xb7 email \xb7 password \xb7 confirm password].
+    var selectContainer = form.querySelector('#external-user-type');
+    selectContainer = selectContainer ? selectContainer.closest('.form-floating, .mb-2, .mb-3') : null;
+
+    var lastNameInput = ensureTextInput(form, {
+      id: 'external-last-name',
+      name: 'LastName',
+      label: 'Last name',
+      autocomplete: 'family-name',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    var firstNameInput = ensureTextInput(form, {
+      id: 'external-first-name',
+      name: 'FirstName',
+      label: 'First name',
+      autocomplete: 'given-name',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    // OLD parity: Firm Name input shown for the two attorney roles
+    // (Applicant Attorney = 3, Defense Attorney = 4). Hidden for the
+    // other roles. Backend ValidateRegistrationInput requires FirmName
+    // non-empty for attorney roles; submitting an attorney without a
+    // Firm Name would throw BusinessException.
+    var firmNameInput = ensureTextInput(form, {
+      id: 'external-firm-name',
+      name: 'FirmName',
+      label: 'Firm name',
+      autocomplete: 'organization',
+      maxLength: 50,
+      afterContainer: selectContainer,
+    });
+
+    function applyRoleVisibility() {
+      // C1/D1 (firm-based AA/DA registration, 2026-06-11): hide First/Last for
+      // the two attorney roles so a firm account registers with only Firm Name
+      // + Email (IdentityUser.Name/Surname stay blank by design). Patient /
+      // Claim Examiner keep First/Last.
+      //
+      // History (Chesterton's Fence): a prior attempt to hide First/Last was
+      // REVERTED because blank Name/Surname broke the welcome banner, the
+      // booking-form pre-fill, and attorney lookup labels (all read those two
+      // fields). That is now safe: Phase 1 (C2/D4) added a display-name fallback
+      // (First+Last -> FirmName -> email) at the banner + lookup read sites, and
+      // the booking attorney section becomes free-entry under C4/Phase 3. OLD
+      // collected First/Last for every role (User.cs:64-85); the firm model
+      // deliberately deviates.
+      var select = form.querySelector('#external-user-type');
+      var role = select ? Number(select.value || 1) : 1;
+      var isAttorney = role === 3 || role === 4;
+      var firstWrap = firstNameInput.closest('.form-floating, .mb-2, .mb-3');
+      var lastWrap = lastNameInput.closest('.form-floating, .mb-2, .mb-3');
+      var firmWrap = firmNameInput.closest('.form-floating, .mb-2, .mb-3');
+      if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
+      if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
+      if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+      // BUG-012 (2026-05-22): toggle the required attribute alongside
+      // visibility so ensureButtonDisabledBinding (which gates on
+      // input[required]) includes Firm Name in its check for attorney
+      // roles and ignores it for non-attorney roles where the field is
+      // hidden. Without this, an attorney role could submit with an
+      // empty Firm Name and would only learn it was required via the
+      // server's localized 400 banner.
+      if (firmNameInput) firmNameInput.required = isAttorney;
+    }
+
+    var roleSelect = form.querySelector('#external-user-type');
+    if (roleSelect && !roleSelect.dataset.roleVisibilityHook) {
+      roleSelect.dataset.roleVisibilityHook = 'true';
+      roleSelect.addEventListener('change', applyRoleVisibility);
+    }
+    applyRoleVisibility();
+
+    // Confirm Password input after the existing password field. ABP renders
+    // password as #password (LeptonX) or input[type="password"]. Anchor on
+    // whichever is present.
+    var passwordInput = form.querySelector('#password, input[name="Input.Password"], input[type="password"]');
+    var passwordContainer = passwordInput
+      ? passwordInput.closest('.form-floating, .mb-2, .mb-3, .input-group')
+      : null;
+    if (passwordContainer && !form.querySelector('#external-confirm-password')) {
+      ensureTextInput(form, {
+        id: 'external-confirm-password',
+        name: 'ConfirmPassword',
+        label: 'Confirm password',
+        type: 'password',
+        autocomplete: 'new-password',
+        required: true,
+        afterContainer: passwordContainer,
+      });
+    }
+
+    log('First/Last/Confirm Password injected.');
+    return { firstNameInput: firstNameInput, lastNameInput: lastNameInput };
+  }
+
+  // 2026-05-15 -- OLD parity for the T&C acceptance gate. OLD registration
+  // (P:\PatientPortalOld\patientappointment-portal\src\app\components\user\users\add\user-add.component.html:50-53
+  // + term-and-condition.component.{ts,html}) required the user to tick a
+  // checkbox and view a modal before the Sign Up button became enabled.
+  // The prior passive disclaimer + dead `href="#"` link was replaced with a
+  // real checkbox row + Bootstrap modal. Submit gating is handled by the
+  // existing `ensureButtonDisabledBinding` (the checkbox is `required` so
+  // it joins the `input[required]` set automatically).
+  //
+  // OLD persisted nothing about acceptance; we match that. The checkbox is
+  // a transient client-side gate; the server has no AcceptTerms requirement.
+  // A defensive double-check in submitExternalSignup catches DevTools
+  // tampering (`required` removed in console -> still rejected client-side).
+  //
+  // The T&C body is sourced from the `Account:Terms:Body` localization key
+  // so legal copy can be updated without a code redeploy. The body is HTML
+  // by design; it is set via innerHTML on the modal body. The string never
+  // carries user input -- the value comes only from the resource file.
+  function ensureTermsBlock(form) {
+    if (form.querySelector('#external-signup-terms')) return;
+
+    var btn = form.querySelector('button[type="submit"], #register, .register-btn');
+    var anchor = btn ? (btn.closest('.form-floating, .mb-3, .mb-2') || btn) : null;
+
+    var titleText = L('Account:Terms:Title', 'Terms and Conditions');
+    var checkboxLabelText = L('Account:Terms:CheckboxLabel', 'I have read and accept the');
+    var linkText = L('Account:Terms:LinkLabel', 'Terms and Conditions');
+    var closeText = L('Account:Terms:Close', 'Close');
+    var bodyHtml = L(
+      'Account:Terms:Body',
+      '<p>By creating an account, you agree to the Appointment Portal Terms of Use and Privacy Policy.</p>',
+    );
+
+    // Build the checkbox row programmatically so the link's click handler
+    // is bound via addEventListener (cleaner than an inline `onclick` and
+    // avoids CSP issues with inline handlers).
+    var wrapper = document.createElement('div');
+    wrapper.id = 'external-signup-terms';
+    wrapper.className = 'form-check mt-3 mb-2';
+
+    var checkbox = document.createElement('input');
+    checkbox.id = 'external-signup-terms-checkbox';
+    checkbox.name = 'AcceptTerms';
+    checkbox.type = 'checkbox';
+    checkbox.required = true;
+    checkbox.className = 'form-check-input';
+
+    var label = document.createElement('label');
+    label.htmlFor = checkbox.id;
+    label.className = 'form-check-label';
+    // Plain text + a single anchor for the modal trigger. Build child
+    // nodes by hand so no string gets injected as HTML.
+    label.appendChild(document.createTextNode(checkboxLabelText + ' '));
+
+    var link = document.createElement('a');
+    link.id = 'external-signup-terms-link';
+    link.href = '#';
+    link.textContent = linkText;
+    link.setAttribute('role', 'button');
+    link.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      showTermsModal();
+    });
+    label.appendChild(link);
+
+    label.appendChild(document.createTextNode('.'));
+
+    wrapper.appendChild(checkbox);
+    wrapper.appendChild(label);
+
+    // Place the row ABOVE the Sign Up button so the reading order is:
+    // form fields -> T&C row -> Sign Up button. This matches OLD layout.
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(wrapper, anchor);
+    } else {
+      form.appendChild(wrapper);
+    }
+
+    // Lazy-build the modal; idempotent so re-invocations are safe.
+    ensureTermsModal(titleText, bodyHtml, closeText);
+
+    log('T&C checkbox + modal injected.');
+  }
+
+  // Builds (once) the Bootstrap 5 modal that the T&C link opens. The modal
+  // chrome is created via createElement; the body's innerHTML is the
+  // `Account:Terms:Body` localization-resource value (trusted by source).
+  // Four close paths are wired up: the ✕ icon, the Close button, the
+  // Escape key, and a backdrop click. Bootstrap's own modal API handles
+  // these by default when `data-bs-dismiss` is on the buttons, but we set
+  // them explicitly so the manual fallback (when Bootstrap JS is missing)
+  // still works.
+  function ensureTermsModal(titleText, bodyHtml, closeText) {
+    if (document.getElementById('external-signup-terms-modal')) return;
+
+    var modal = document.createElement('div');
+    modal.id = 'external-signup-terms-modal';
+    modal.className = 'modal fade';
+    modal.tabIndex = -1;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'external-signup-terms-modal-title');
+
+    modal.innerHTML = ''
+      + '<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">'
+      +   '<div class="modal-content">'
+      +     '<div class="modal-header">'
+      +       '<h5 class="modal-title" id="external-signup-terms-modal-title"></h5>'
+      +       '<button type="button" id="external-signup-terms-modal-x" class="btn-close" aria-label="Close" data-bs-dismiss="modal"></button>'
+      +     '</div>'
+      +     '<div class="modal-body" id="external-signup-terms-modal-body"></div>'
+      +     '<div class="modal-footer">'
+      +       '<button type="button" id="external-signup-terms-modal-close" class="btn btn-secondary" data-bs-dismiss="modal"></button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
+
+    document.body.appendChild(modal);
+
+    // Substitute content programmatically. Title + close-label as text
+    // (cannot carry markup); body as HTML (designed to).
+    modal.querySelector('#external-signup-terms-modal-title').textContent = titleText;
+    modal.querySelector('#external-signup-terms-modal-body').innerHTML = bodyHtml;
+    modal.querySelector('#external-signup-terms-modal-close').textContent = closeText;
+
+    // Manual-fallback close handlers (also fire when Bootstrap JS is
+    // missing). Bootstrap's data-bs-dismiss attribute above wires the
+    // primary path when present.
+    modal.querySelector('#external-signup-terms-modal-x')
+      .addEventListener('click', hideTermsModal);
+    modal.querySelector('#external-signup-terms-modal-close')
+      .addEventListener('click', hideTermsModal);
+
+    // Backdrop click (clicking outside the dialog) closes. When Bootstrap
+    // is active it ALSO handles this; the duplicate is harmless.
+    modal.addEventListener('click', function (ev) {
+      if (ev.target === modal) hideTermsModal();
+    });
+
+    // Esc key closes when the modal is open. The listener is attached
+    // once at module scope (in ensureTermsModal which runs once) so we
+    // do not stack handlers if the user re-opens the modal.
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && modal.classList.contains('show')) {
+        hideTermsModal();
+      }
+    });
+  }
+
+  // Shows the modal. Prefers Bootstrap's API (animation, focus trap, ARIA
+  // live region setup) when present; otherwise falls back to a manual
+  // class-and-backdrop dance.
+  function showTermsModal() {
+    var modal = document.getElementById('external-signup-terms-modal');
+    if (!modal) return;
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      var instance = window.bootstrap.Modal.getOrCreateInstance(modal);
+      instance.show();
+      return;
+    }
+    // Manual fallback.
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    modal.removeAttribute('aria-hidden');
+    document.body.classList.add('modal-open');
+    if (!document.getElementById('external-signup-terms-backdrop')) {
+      var backdrop = document.createElement('div');
+      backdrop.id = 'external-signup-terms-backdrop';
+      backdrop.className = 'modal-backdrop fade show';
+      document.body.appendChild(backdrop);
+    }
+  }
+
+  // Hides the modal. Symmetric counterpart to showTermsModal.
+  function hideTermsModal() {
+    var modal = document.getElementById('external-signup-terms-modal');
+    if (!modal) return;
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      var instance = window.bootstrap.Modal.getOrCreateInstance(modal);
+      instance.hide();
+      return;
+    }
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    var backdrop = document.getElementById('external-signup-terms-backdrop');
+    if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+  }
+
+  // OLD parity: OLD's register form has only Email -- no separate User name.
+  // ABP's stock cshtml renders Input.UserName as a required field. Our custom
+  // submit endpoint (/api/public/external-signup/register) doesn't accept a
+  // username (it derives it server-side from the email). Hiding the visible
+  // field + dropping the client-side validation requirement is enough; the
+  // hidden input still sits in the form for ABP's PageModel binding (which
+  // we never reach, since the submit hooks short-circuit to fetch).
+  function hideUserNameField(form) {
+    var input = form.querySelector('#input-user-name, input[name="Input.UserName"]');
+    if (!input) return;
+    var container = input.closest('.form-floating, .mb-3, .mb-2');
+    if (container) container.style.display = 'none';
+  }
+
   // Read the AuthServer's `__tenant` cookie. ABP's tenant resolver writes this
   // cookie when the user clicks the top-of-page "switch" link and picks a
   // tenant. The cookie's value is the tenant id (GUID). Returns null if not
@@ -165,13 +556,16 @@
     return value || null;
   }
 
-  // 1.6 / W-REG-4 (2026-04-30): tenant resolution priority on /Account/Register.
+  // 1.6 / W-REG-4 (2026-04-30, revised 2026-05-06): tenant resolution priority
+  // on /Account/Register.
   //   1. ?__tenant=<TenantName> query string (highest -- invite links carry it)
-  //   2. __tenant cookie (next -- set by login or prior tenant-switch)
-  //   3. Nothing -> register is blocked with an inline error.
-  // The query string carries the tenant NAME (per S-6.1 invite-URL shape); the
-  // cookie carries the tenant ID (GUID). We need the GUID for the API call,
-  // so when only the name is in hand we resolve via GetTenantOptionsAsync.
+  //   2. URL subdomain `<slug>.localhost` (mirrors server's DomainTenantResolver)
+  //   3. __tenant cookie (set by login or prior tenant-switch)
+  //   4. Nothing -> register is blocked with an inline error.
+  // The query string and subdomain carry the tenant NAME; the cookie carries
+  // the tenant ID (GUID). We need the GUID for the API call, so when only the
+  // name is in hand we resolve via the public `resolve-tenant` endpoint
+  // (case-insensitive exact match on Tenant.Name).
   function readTenantFromQuery() {
     try {
       var params = new URLSearchParams(window.location.search);
@@ -191,6 +585,32 @@
       var params = new URLSearchParams(window.location.search);
       var raw = params.get(name);
       return raw ? raw.trim() : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // ADR-006 -- mirror server-side DomainTenantResolveContributor on the client.
+  // The server resolves tenant from the leftmost Host-header label (e.g.
+  // `falkinstein.localhost` -> Falkinstein tenant). Without this helper, a user
+  // who navigates directly to `http://<slug>.localhost:44368/Account/Register`
+  // sees the tenant in the rendered page but the submit JS rejects with
+  // "Tenant required" because it only inspects ?__tenant= and the cookie.
+  // Returns the slug or null for bare `localhost`, IPs, and reserved labels.
+  function readTenantFromSubdomain() {
+    try {
+      var host = window.location.hostname;
+      if (!host) return null;
+      // IPv4 / IPv6 -- no slug to extract.
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null;
+      if (host.indexOf(':') !== -1) return null;
+      var parts = host.split('.');
+      if (parts.length < 2) return null; // e.g. bare `localhost`
+      var slug = parts[0].trim();
+      if (!slug) return null;
+      var reserved = ['www', 'localhost'];
+      if (reserved.indexOf(slug.toLowerCase()) !== -1) return null;
+      return slug;
     } catch (_e) {
       return null;
     }
@@ -249,6 +669,22 @@
       return tenantContextCache;
     }
 
+    // URL subdomain is as authoritative as ?__tenant= -- the server's
+    // DomainTenantResolveContributor uses the same source. A stale cookie
+    // from a different tenant must not override the current URL's slug.
+    var tenantNameFromSubdomain = readTenantFromSubdomain();
+    if (tenantNameFromSubdomain) {
+      var resolvedSub = await resolveTenantIdByName(tenantNameFromSubdomain);
+      if (resolvedSub) {
+        tenantContextCache = resolvedSub;
+        return tenantContextCache;
+      }
+      // Slug present but no tenant matched -- block (do not fall back to
+      // cookie; the URL's intent must not be silently overridden).
+      tenantContextCache = { id: null, name: tenantNameFromSubdomain, invalid: true };
+      return tenantContextCache;
+    }
+
     var cookieValue = readTenantCookie();
     if (cookieValue) {
       tenantContextCache = { id: cookieValue, name: null };
@@ -292,6 +728,90 @@
       form.style.opacity = '';
       form.style.pointerEvents = '';
     }
+
+    // 2026-05-15 -- when re-enabling, the unconditional removeAttribute
+    // above leaves the Sign Up button enabled regardless of form
+    // validity. That defeats ensureButtonDisabledBinding's gate
+    // (originally for BUG-005; now also gating the T&C checkbox).
+    // Fire a bubbling input event so the binding re-evaluates and
+    // restores the right disabled-state for the current form contents.
+    if (!disabled) {
+      try {
+        form.dispatchEvent(new Event('input', { bubbles: true }));
+      } catch (_e) {
+        // IE-compat path -- this branch is unreachable in our Chromium
+        // dev stack but keeps the function safe across user agents.
+      }
+    }
+  }
+
+  /**
+   * Replace the register form with a success banner. Two variants:
+   *
+   * - Invite-token registration: the server auto-confirms the email on
+   *   accept (OBS-25) because the invite link already proved inbox
+   *   ownership, so NO verification email is sent. Show "You're all set"
+   *   + a single "Sign in" button. Showing the verify-email prompt here
+   *   would strand the invited user waiting for a link that never arrives
+   *   (Adrian, 2026-06-09).
+   *
+   * - Self-registration (no invite): a verification email IS sent. Show
+   *   "Account created. We sent a verification link..." + a "Resend
+   *   verification" button (links to ResendVerification.cshtml.cs with
+   *   autosend=1, which enforces the resend rate limits).
+   */
+  function showSignupSuccess(form, email) {
+    // Issue #106b (2026-05-13) -- if a prior user is still cookie-authed
+    // at the AuthServer when this register completes, the next
+    // /connect/authorize from the new user's Sign In click would
+    // silently issue tokens for the prior user (because their Identity.
+    // ApplicationScheme cookie is still alive). Fire-and-forget GET to
+    // /Account/Logout BEFORE rendering the buttons clears every Identity
+    // scheme + the __tenant / XSRF-TOKEN cookies that ABP set. We use
+    // redirect:'manual' so the fetch does not follow the redirect to
+    // the SPA; the Set-Cookie headers from the 302 response are still
+    // applied by the browser, so the cookie cleanup takes effect.
+    try {
+      fetch('/Account/Logout', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
+        .catch(function () { /* best-effort */ });
+    } catch (e) { /* best-effort */ }
+    var safeEmail = String(email || '').replace(/[<>&"']/g, function (ch) {
+      switch (ch) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '"': return '&quot;';
+        default: return '&#39;';
+      }
+    });
+    // Invite-token registrations are auto-confirmed server-side (OBS-25), so
+    // no verification email is sent -- route the user straight to Sign In
+    // rather than the "verify your email" prompt that would otherwise strand
+    // them. readQueryParam('inviteToken') is the same source the prefill
+    // logic uses; the token is still on the URL at success time.
+    if (readQueryParam('inviteToken')) {
+      form.innerHTML =
+        '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
+          '<strong>You&#39;re all set.</strong>' +
+          '<div style="margin-top:0.25rem;">' +
+            'Your account is ready. Please sign in to continue.' +
+          '</div>' +
+        '</div>' +
+        '<a href="/Account/Login" class="btn btn-primary" style="width:100%;">Sign in</a>';
+      return;
+    }
+
+    var verifyUrl = '/Account/ResendVerification?context=register&email='
+      + encodeURIComponent(email || '') + '&autosend=1';
+    form.innerHTML =
+      '<div class="alert alert-success" role="status" style="margin-bottom:1rem;">' +
+        '<strong>Account created.</strong>' +
+        '<div style="margin-top:0.25rem;">' +
+          'We sent a verification link to <strong>' + safeEmail + '</strong>. ' +
+          'Click the link to sign in.' +
+        '</div>' +
+      '</div>' +
+      '<a href="' + verifyUrl + '" class="btn btn-primary" style="width:100%;">Resend verification</a>';
   }
 
   async function submitExternalSignup(form) {
@@ -311,17 +831,89 @@
       'input[name="Input.EmailAddress"]',
       'input[type="email"]',
     ]);
-    const password = getFirstValue(form, ['#password', 'input[name="Input.Password"]', 'input[type="password"]']);
+    // Look up password fields by stable id / name -- NEVER by
+    // `input[type="password"]`. LeptonX's "Show password" eye-icon
+    // (and many password-manager autofills) toggle the input's type
+    // to `text` for visibility; a type-based query would then miss
+    // the field entirely.
+    //
+    // 2026-05-13 fix: prior version used type="password" as the
+    // fallback for confirmPassword, which returned empty whenever the
+    // user (or their password manager) had toggled visibility on the
+    // Password field -- producing a spurious "Please confirm your
+    // password." error even though both fields were filled correctly.
+    const password = getFirstValue(form, [
+      '#password-input',
+      '#password',
+      'input[name="Input.Password"]',
+    ]);
+    const confirmPassword = getFirstValue(form, [
+      '#external-confirm-password',
+      'input[name="ConfirmPassword"]',
+      'input[name="Input.ConfirmPassword"]',
+    ]);
 
-    if (!username || !email || !password) {
-      notifyRegisterFailure(form, 'Please fill username, email and password.');
-      log('Validation failed before API call.', { usernamePresent: !!username, emailPresent: !!email, passwordPresent: !!password });
+    // OLD parity 2026-05-06: Username field is hidden and not part of the
+    // submit payload (server derives username from email). Validate
+    // email + password + confirm-password presence and equality.
+    if (!email || !password) {
+      notifyRegisterFailure(form, 'Enter your email and password.');
+      log('Validation failed before API call.', { emailPresent: !!email, passwordPresent: !!password });
       return;
     }
+    if (!confirmPassword) {
+      notifyRegisterFailure(form, 'Confirm your password.');
+      log('Validation failed: confirmPassword empty.');
+      return;
+    }
+    if (confirmPassword !== password) {
+      notifyRegisterFailure(form, "Passwords don't match.");
+      log('Validation failed: confirmPassword mismatch.');
+      return;
+    }
+
+    // 2026-05-15 -- defensive T&C re-check at submit time. The Sign Up
+    // button is already disabled while the checkbox is unchecked
+    // (ensureButtonDisabledBinding), but a user could remove `required`
+    // via DevTools to bypass the gate. The disabled-state binding is the
+    // primary UX path; this is the belt-and-braces layer that surfaces
+    // an inline error if the unticked checkbox slips through. Server
+    // has no AcceptTerms requirement (OLD parity), so this is the only
+    // line of enforcement.
+    var termsCheckbox = form.querySelector('#external-signup-terms-checkbox');
+    if (termsCheckbox && !termsCheckbox.checked) {
+      notifyRegisterFailure(
+        form,
+        L(
+          'Account:Terms:RequiredBeforeSubmit',
+          'Please accept the Terms and Conditions before signing up.',
+        ),
+      );
+      log('Validation failed: T&C checkbox unchecked at submit time.');
+      return;
+    }
+
     clearInlineRegisterError(form);
 
-    const selectedRoleValue = Number((select && select.value) || 1);
-    const userType = Number.isFinite(selectedRoleValue) && selectedRoleValue > 0 ? selectedRoleValue : 1;
+    // 2026-05-13 (BUG-004 follow-up) -- with the leading disabled
+    // placeholder, an unsubmitted form has select.value === ''. Reject
+    // explicitly instead of silently coalescing to Patient(1); the
+    // user must consciously pick a role.
+    const rawSelectValue = select && select.value;
+    const selectedRoleValue = Number(rawSelectValue);
+    if (!rawSelectValue || !Number.isFinite(selectedRoleValue) || selectedRoleValue <= 0) {
+      notifyRegisterFailure(form, 'Select your role.');
+      log('Validation failed: no user type selected.');
+      return;
+    }
+    const userType = selectedRoleValue;
+
+    // 2026-05-15 -- if an inviteToken is present, carry it through on the
+    // submit payload. Server re-validates + atomically marks the invitation
+    // accepted; uses the server-resolved email + role (so even if the user
+    // tampers with the disabled fields, the registration runs against the
+    // server's authoritative values).
+    const inviteToken = readQueryParam('inviteToken');
 
     // 1.6 (2026-04-30): tenant resolution priority is query > cookie. Cached
     // on init() so this is a fast path; null means we never resolved one.
@@ -336,16 +928,31 @@
     }
     const tenantId = ctx.id;
 
-    // Names are not collected on the register form. They are captured later
-    // on the booking form's patient/AA/DA/CE section. Submit null so the
-    // server stores nullable defaults rather than falsy fallbacks.
+    // C1/D1 (firm-based AA/DA registration, 2026-06-11): Patient / Claim
+    // Examiner collect First + Last; the two attorney roles (Applicant = 3,
+    // Defense = 4) are firm accounts -- send First/Last as null so
+    // IdentityUser.Name/Surname stay blank, and send Firm Name instead. Nulling
+    // here is independent of field visibility: it also drops any stale value
+    // left in a now-hidden input (user typed a name, then switched to an
+    // attorney role). Display read sites fall back to FirmName (Phase 1, C2/D4).
+    // OLD collected First/Last for every role (User.cs:64-85); the firm model deviates.
+    const firstName = getFirstValue(form, ['#external-first-name', 'input[name="FirstName"]']);
+    const lastName = getFirstValue(form, ['#external-last-name', 'input[name="LastName"]']);
+    const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
+    const isAttorney = userType === 3 || userType === 4;
+
     const payload = {
       userType: userType,
-      firstName: null,
-      lastName: null,
+      firstName: isAttorney ? null : (firstName || null),
+      lastName: isAttorney ? null : (lastName || null),
+      firmName: isAttorney ? (firmName || null) : null,
       email: email,
       password: password,
+      confirmPassword: confirmPassword,
       tenantId: tenantId,
+      // 2026-05-15 -- pass the invite token through to the server, which
+      // re-validates + uses its values as authoritative.
+      inviteToken: inviteToken || null,
     };
 
     isSubmitting = true;
@@ -389,14 +996,23 @@
         return;
       }
 
-      // Do not forward stale OIDC query params after signup.
-      // Reusing previous state/nonce can break Angular OAuth flow.
-      const loginUrl = '/Account/Login';
-      log('Signup success. Redirecting to:', loginUrl);
-      window.location.assign(loginUrl);
+      // 2026-05-06 (Adrian, Option B): keep the user on the register page
+      // and show an in-place success banner with a manual "Sign In" link,
+      // instead of silently redirecting to /Account/Login. Reason: the
+      // register POST returns 204 with no body, so without a banner the
+      // user has no confirmation that anything happened. After clicking
+      // Sign In, ABP's login flow detects EmailConfirmed=false and the
+      // Login page (B-3 redesign, proposed-copy.md 2.4) surfaces an
+      // alert + a "Resend verification" link that fires
+      // /api/public/external-signup/resend-verification through our
+      // own non-Scriban handler. The legacy /Account/ConfirmUser page
+      // now 302s to /Account/Login -- the Verify button + CORS surface
+      // it carried (BUG-013) are gone.
+      log('Signup success. Showing in-place success banner.');
+      showSignupSuccess(form, email);
     } catch (error) {
       log('Fetch threw error:', error);
-      notifyRegisterFailure(form, 'Unable to register now. Please try again.');
+      notifyRegisterFailure(form, "Couldn't register. Try again.");
     } finally {
       isSubmitting = false;
     }
@@ -488,6 +1104,89 @@
 
     log('Enter key submit intercepted.');
     submitExternalSignup(form);
+  }
+
+  // 2026-05-13 (BUG-005) -- gate the Sign Up submit button on form
+  // validity. Required by OLD parity (button is disabled on a fresh
+  // load until every required field is filled). Inputs that should
+  // gate the submit: User Type select, First Name, Last Name, Email,
+  // Password, Confirm Password. We listen on input + change so the
+  // state is responsive to both typing and dropdown selection.
+  function ensureButtonDisabledBinding(form) {
+    if (!form || form.dataset.signUpDisabledBindingAttached === 'true') {
+      return;
+    }
+    // 2026-05-15 -- selector chain mirrors onDocumentClick so the binding
+    // actually finds ABP's stock Register button (id="register" with
+    // type="button"; not a real submit). Without #register / .register-btn
+    // here, this function returned early and the button was never
+    // disabled -- the BUG-005 fix was a no-op for the as-rendered form.
+    var submitBtn =
+      form.querySelector('button#external-signup-submit') ||
+      form.querySelector('button[type="submit"]') ||
+      form.querySelector('button#register') ||
+      form.querySelector('button.register-btn');
+    if (!submitBtn) {
+      log('ensureButtonDisabledBinding: no submit button found.');
+      return;
+    }
+    form.dataset.signUpDisabledBindingAttached = 'true';
+
+    function getRequiredInputs() {
+      // Collect inputs each time the listener fires -- the register
+      // form's First Name / Last Name / Firm Name fields are injected
+      // dynamically, so the set isn't stable at init() time.
+      return Array.prototype.slice.call(
+        form.querySelectorAll('input[required], select[required]')
+      );
+    }
+
+    function updateButtonState() {
+      var inputs = getRequiredInputs();
+      if (inputs.length === 0) {
+        // Defensive: leave the button enabled if no required inputs
+        // are present (e.g. fields not yet injected); the submit
+        // handler still re-validates.
+        submitBtn.removeAttribute('disabled');
+        return;
+      }
+      var allFilled = inputs.every(function (input) {
+        // 2026-05-15 -- checkboxes carry value="on" whether or not they
+        // are checked, so the (input.value || '').trim() heuristic below
+        // would always return true for them. Evaluate `checked` instead
+        // so the required T&C checkbox actually gates the Sign Up
+        // button. Non-required checkboxes (if any are ever added) skip
+        // this gate by design.
+        if (input.type === 'checkbox') {
+          return input.required ? input.checked : true;
+        }
+        var val = (input.value || '').trim();
+        if (val === '') return false;
+        // Reject the placeholder option ("") for required selects.
+        if (input.tagName === 'SELECT' && input.required && val === '') return false;
+        return true;
+      });
+      if (allFilled) {
+        submitBtn.removeAttribute('disabled');
+      } else {
+        submitBtn.setAttribute('disabled', 'disabled');
+      }
+    }
+
+    // Initial state: disabled until the user fills at least the
+    // currently-visible required inputs.
+    submitBtn.setAttribute('disabled', 'disabled');
+
+    // Delegate from the form so dynamically-added fields are covered
+    // without needing to re-bind every time ensureExtraRegisterFields
+    // mutates the DOM.
+    form.addEventListener('input', updateButtonState);
+    form.addEventListener('change', updateButtonState);
+
+    // First pass right after attach, in case fields are already
+    // pre-filled (e.g. email prefill from query string).
+    updateButtonState();
+    log('Sign Up button disabled-binding attached.');
   }
 
   function patchNativeFormSubmit() {
@@ -620,6 +1319,210 @@
     });
   }
 
+  // 2026-05-15 -- one-time-use invitation token handling. When a user
+  // clicks an invite email link, the URL carries `?inviteToken=<raw>`.
+  // The token validates against the server (one DB row hashed at rest),
+  // and on success the form prefills + locks the email + role. On the
+  // four documented error codes (InviteInvalid / InviteExpired /
+  // InviteAlreadyAccepted) we render a friendly banner + hide the form.
+  //
+  // Server is the source of truth -- even if a user opens devtools and
+  // edits the prefilled fields, the AppService re-validates the token
+  // at submit time and uses the server-resolved values (so a tampered
+  // email/role cannot register as someone else).
+  const inviteErrorCodes = {
+    invalid: 'CaseEvaluation:Invitation.InviteInvalid',
+    expired: 'CaseEvaluation:Invitation.InviteExpired',
+    alreadyAccepted: 'CaseEvaluation:Invitation.InviteAlreadyAccepted',
+  };
+
+  function renderInviteBanner(form, message, level) {
+    var existing = form.querySelector('#external-invite-banner');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'external-invite-banner';
+      form.prepend(existing);
+    }
+    var role = level === 'success' ? 'status' : 'alert';
+    var ariaLive = level === 'success' ? 'polite' : 'assertive';
+    var levelClass = level === 'danger' ? 'alert alert-danger'
+      : level === 'success' ? 'alert alert-success'
+      : 'alert alert-info';
+    existing.className = levelClass + ' mt-2';
+    existing.setAttribute('role', role);
+    existing.setAttribute('aria-live', ariaLive);
+    existing.innerHTML = message;
+    existing.style.display = '';
+  }
+
+  function setEmailRoleLocked(form, email, userTypeValue) {
+    var emailFields = ['#input-email-address', 'input[name="Input.EmailAddress"]', 'input[type="email"]'];
+    for (var i = 0; i < emailFields.length; i++) {
+      var input = form.querySelector(emailFields[i]);
+      if (input) {
+        input.value = email;
+        input.setAttribute('readonly', 'readonly');
+        input.classList.add('form-control-plaintext');
+      }
+    }
+    var roleSelect = form.querySelector('#external-user-type');
+    if (roleSelect) {
+      roleSelect.value = String(userTypeValue);
+      roleSelect.setAttribute('disabled', 'disabled');
+      // Carry the value in a hidden input so the disabled select's value
+      // is still submitted (disabled controls are not posted).
+      var hidden = form.querySelector('#external-user-type-hidden');
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.id = 'external-user-type-hidden';
+        hidden.name = 'ExternalUserTypeLocked';
+        form.appendChild(hidden);
+      }
+      hidden.value = String(userTypeValue);
+    }
+    // Hide the FirmName field if locked role is not an attorney; show it
+    // (and mark required) when role is Applicant Attorney (3) or
+    // Defense Attorney (4).
+    var firmInput = form.querySelector('#external-firm-name');
+    var firmWrap = firmInput ? firmInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    var isAttorney = userTypeValue === 3 || userTypeValue === 4;
+    if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+    // BUG-012 (2026-05-22): mirror the required-attribute toggle from
+    // applyRoleVisibility so the invite-flow path (which locks email +
+    // role and bypasses the role-select change event) also gates submit
+    // on Firm Name for attorney roles.
+    if (firmInput) firmInput.required = isAttorney;
+    // C1/D1 (2026-06-11): mirror the First/Last hide too. setEmailRoleLocked
+    // sets the role programmatically (no 'change' event), so applyRoleVisibility
+    // does not re-run for the invite flow -- hide First/Last here for attorney
+    // invites so a firm account is not shown name fields. The submit path nulls
+    // them for attorney roles regardless, so any invite-prefilled value is dropped.
+    var firstInput = form.querySelector('#external-first-name');
+    var lastInput = form.querySelector('#external-last-name');
+    var firstWrap = firstInput ? firstInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    var lastWrap = lastInput ? lastInput.closest('.form-floating, .mb-2, .mb-3') : null;
+    if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
+    if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
+  }
+
+  function renderInviteAlreadyAcceptedBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation has already been used.</strong>'
+      + '<div class="mt-1">If that was you, <a href="/Account/Login" class="alert-link">sign in here</a>.</div>'
+      + '<div class="mt-1 small">If you did not register with this invitation, contact the clinic to request a new link.</div>',
+      'info');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function renderInviteExpiredBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation has expired.</strong>'
+      + '<div class="mt-1">Contact the clinic to request a new invitation link.</div>',
+      'danger');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function renderInviteInvalidBanner(form) {
+    renderInviteBanner(
+      form,
+      '<strong>This invitation link is invalid.</strong>'
+      + '<div class="mt-1">Contact the clinic to request a new invitation link.</div>',
+      'danger');
+    setRegisterFormDisabled(form, true, true);
+  }
+
+  function dispatchInviteErrorBanner(form, errorCode) {
+    if (errorCode === inviteErrorCodes.alreadyAccepted) {
+      renderInviteAlreadyAcceptedBanner(form);
+    } else if (errorCode === inviteErrorCodes.expired) {
+      renderInviteExpiredBanner(form);
+    } else {
+      // Includes invalid + any unexpected 4xx (defensive default).
+      renderInviteInvalidBanner(form);
+    }
+  }
+
+  // UM1 (2026-06-04): set an editable form field's value from the invite
+  // (first/last name). No-op when the value is blank or the field absent.
+  // Unlike email/role (which are locked), names stay editable so the
+  // recipient can correct them before registering.
+  function prefillEditableField(form, selectors, value) {
+    if (!value) {
+      return;
+    }
+    for (var i = 0; i < selectors.length; i++) {
+      var el = form.querySelector(selectors[i]);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    }
+  }
+
+  async function applyInviteTokenPrefill(form) {
+    var rawToken = readQueryParam('inviteToken');
+    if (!rawToken) {
+      return false;
+    }
+
+    var validateUrl = new URL('/api/public/external-signup/validate-invite', externalSignupApiBaseUrl);
+    validateUrl.searchParams.set('token', rawToken);
+
+    try {
+      var response = await fetch(validateUrl.toString(), {
+        method: 'GET',
+        credentials: 'include',
+        mode: 'cors',
+      });
+
+      if (response.status === 200) {
+        var body = await response.json();
+        setEmailRoleLocked(form, body.email, Number(body.userType));
+        // UM1 (2026-06-04): pre-fill the editable name fields from the invite.
+        prefillEditableField(form, ['#external-first-name', 'input[name="FirstName"]'], body.firstName);
+        prefillEditableField(form, ['#external-last-name', 'input[name="LastName"]'], body.lastName);
+        renderInviteBanner(
+          form,
+          '<strong>You’ve been invited to register at ' + escapeHtml(body.tenantName) + '.</strong>'
+          + '<div class="mt-1">Your role is <strong>' + escapeHtml(body.roleName) + '</strong>. Set a password below to finish registration.</div>',
+          'success');
+        return true;
+      }
+
+      // Non-200: try to read the error code from the BusinessException
+      // body so we can render the right banner.
+      var errCode = null;
+      try {
+        var errBody = await response.json();
+        errCode = errBody && errBody.error && errBody.error.code;
+      } catch (_e) {
+        // Malformed error body -- treat as invalid.
+      }
+      dispatchInviteErrorBanner(form, errCode);
+      return true;
+    } catch (e) {
+      log('Invite validate fetch failed:', e);
+      renderInviteInvalidBanner(form);
+      return true;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[<>&"']/g, function (ch) {
+      switch (ch) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '"': return '&quot;';
+        default: return '&#39;';
+      }
+    });
+  }
+
   async function applyTenantBanner(form) {
     var ctx = await resolveTenantContext();
     if (!ctx) {
@@ -638,11 +1541,12 @@
       setRegisterFormDisabled(form, true, true);
       return;
     }
-    var practiceLabel = ctx.name ? ('"' + ctx.name + '"') : 'the selected practice';
-    ensureExternalRegisterBanner(
-      form,
-      'Registering for ' + practiceLabel + '. To register at a different practice, use that practice\'s portal link.',
-      'info');
+    // 2026-05-06 (Adrian): the informational "Registering for {practice}.
+    // To register at a different practice, use that practice's portal link."
+    // banner is removed -- the practice context is already obvious from the
+    // subdomain in the URL bar, and OLD's register page has no equivalent
+    // affordance. The danger-level banners above (tenant missing / invalid)
+    // remain because they convey blocker state, not informational chrome.
     setRegisterFormDisabled(form, false, false);
   }
 
@@ -660,14 +1564,27 @@
     }
 
     var select = ensureUserTypeSelect(form);
+    ensureExtraRegisterFields(form);
+    ensureTermsBlock(form);
+    hideUserNameField(form);
+    // 2026-05-13 (BUG-005) -- wire Sign Up disabled-state to form
+    // validity. Must run AFTER ensureExtraRegisterFields so the
+    // First/Last/Firm Name inputs (added by that function) are in the
+    // DOM when the binding queries for required inputs.
+    ensureButtonDisabledBinding(form);
 
-    // 1.6 (2026-04-30): tenant banner + email/role pre-fill from query string.
-    // Run after the role dropdown is in the DOM so applyRolePrefill can find
-    // it. Banner application is async (network-bound) so we fire-and-forget;
-    // submit is gated independently via resolveTenantContext().
-    applyTenantBanner(form);
-    applyEmailPrefill(form);
-    applyRolePrefill(select);
+    // 2026-05-15 -- if `?inviteToken=X` is present, the invite-token
+    // branch takes precedence: it prefills + locks email + role and
+    // renders a success / error banner. When inviteToken is absent
+    // (anonymous self-register), the tenant banner + email/role
+    // prefill fall through to their existing query-string handling.
+    applyInviteTokenPrefill(form).then(function (handled) {
+      if (!handled) {
+        applyTenantBanner(form);
+        applyEmailPrefill(form);
+        applyRolePrefill(select);
+      }
+    });
   }
 
   attachGlobalHooks();
