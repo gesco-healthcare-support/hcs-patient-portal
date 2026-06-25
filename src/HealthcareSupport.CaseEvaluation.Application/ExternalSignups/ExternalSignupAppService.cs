@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.Localization;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -101,6 +102,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     // scopes an external caller's results to the SAME appointments that caller can
     // see, so the lookup and the appointment list cannot drift apart.
     private readonly AppointmentVisibilityService _appointmentVisibilityService;
+    // Phase C (db-per-office): the dev-only email helpers must look across every
+    // office's database, so they iterate offices via this runner instead of
+    // disabling the IMultiTenant filter on one shared connection.
+    private readonly ITenantWorkRunner _tenantWorkRunner;
 
     public ExternalSignupAppService(
         IdentityUserManager userManager,
@@ -130,7 +135,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         IAccountEmailer accountEmailer,
         Notifications.IAccountUrlBuilder accountUrlBuilder,
         IStringLocalizer<CaseEvaluationResource> localizer,
-        AppointmentVisibilityService appointmentVisibilityService)
+        AppointmentVisibilityService appointmentVisibilityService,
+        ITenantWorkRunner tenantWorkRunner)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -160,6 +166,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         _accountUrlBuilder = accountUrlBuilder;
         _localizer = localizer;
         _appointmentVisibilityService = appointmentVisibilityService;
+        _tenantWorkRunner = tenantWorkRunner;
     }
 
     /// <summary>
@@ -210,10 +217,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     }
 
     /// <summary>
-    /// Dev-only: mark a user's email as confirmed by email lookup. Cross-
-    /// tenant: switches to host context and finds the IdentityUser regardless
-    /// of which tenant they registered under, so the demo can iterate
-    /// without re-typing tenant ids. Throws if not Development.
+    /// Dev-only: mark a user's email as confirmed by email lookup. Database-per-
+    /// office: iterates every office's database to find the IdentityUser regardless
+    /// of which office they registered under, so the demo can iterate without
+    /// re-typing tenant ids. Throws if not Development, or if no office holds the email.
     /// </summary>
     [AllowAnonymous]
     public virtual async Task MarkEmailConfirmedAsync(string email)
@@ -224,51 +231,50 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             throw new UserFriendlyException("Email is required.");
         }
 
-        var normalized = email.Trim();
-        // Cross-tenant lookup: disable the IMultiTenant filter so the
-        // query returns rows from every tenant, not just the host. Switching
-        // CurrentTenant to null is NOT enough -- the filter still applies
-        // and excludes rows whose TenantId is non-null. See
-        // memory/project_imultitenant-filter.md.
-        Guid? foundTenantId;
-        Guid foundUserId;
-        using (_dataFilter.Disable<IMultiTenant>())
+        var normalized = email.Trim().ToLowerInvariant();
+        var marked = false;
+
+        // Each office has its own database, so iterate offices and look the user up
+        // inside each office's context (the IMultiTenant filter scopes the query to
+        // that office). The (TenantId, Email) unique index keeps the email unique per
+        // office, but the same email may exist in more than one office in dev -- mark
+        // each one confirmed.
+        await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
         {
             var query = await _identityUserRepository.GetQueryableAsync();
             var user = await AsyncExecuter.FirstOrDefaultAsync(
-                query.Where(u => u.Email != null && u.Email.ToLower() == normalized.ToLower()));
+                query.Where(u => u.Email != null && u.Email.ToLower() == normalized));
             if (user == null)
             {
-                throw new UserFriendlyException($"User with email '{email}' not found.");
+                return;
             }
-            foundTenantId = user.TenantId;
-            foundUserId = user.Id;
-        }
 
-        using (CurrentTenant.Change(foundTenantId))
-        {
-            var managed = await _userManager.GetByIdAsync(foundUserId);
-            if (managed == null)
-            {
-                throw new UserFriendlyException($"User with email '{email}' not found in tenant scope.");
-            }
+            var managed = await _userManager.GetByIdAsync(user.Id);
             managed.SetEmailConfirmed(true);
             var result = await _userManager.UpdateAsync(managed);
             if (!result.Succeeded)
             {
                 throw new UserFriendlyException(string.Join(", ", result.Errors.Select(x => x.Description)));
             }
+            marked = true;
+        });
+
+        if (!marked)
+        {
+            throw new UserFriendlyException($"User with email '{email}' not found.");
         }
     }
 
     /// <summary>
-    /// Dev-only: delete the IdentityUser rows matching the given emails plus
-    /// any dependent Patient / ApplicantAttorney / DefenseAttorney / ClaimExaminer
-    /// master rows. The masters are HARD-deleted: ABP soft-delete would leave the
-    /// row physically present, and the filtered unique <c>(TenantId, Email)</c>
-    /// index counts a soft-deleted row, so a soft delete would block re-registering
-    /// the same email. Lets the demo re-register the same emails repeatedly. Cross-
-    /// tenant lookup. Throws if not Development.
+    /// Dev-only: delete the IdentityUser rows matching the given emails plus any
+    /// dependent Patient / ApplicantAttorney / DefenseAttorney / ClaimExaminer master
+    /// rows. The masters are HARD-deleted: ABP soft-delete would leave the row
+    /// physically present, and the filtered unique <c>(TenantId, Email)</c> index
+    /// counts a soft-deleted row, so a soft delete would block re-registering the same
+    /// email. Partial/role-less registrations (an IdentityUser with no master) are
+    /// handled too -- the user is deleted whether or not a master exists. Lets the demo
+    /// re-register the same emails repeatedly. Database-per-office: iterates every
+    /// office's database. Throws if not Development.
     /// </summary>
     [AllowAnonymous]
     public virtual async Task<DeleteTestUsersResultDto> DeleteTestUsersAsync(IList<string> emails)
@@ -287,35 +293,25 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 continue;
             }
             var email = rawEmail.Trim();
+            var normalized = email.ToLowerInvariant();
+            var deletedAny = false;
 
-            // Cross-tenant lookup: disable the IMultiTenant filter so the
-            // query sees rows from every tenant. See
-            // memory/project_imultitenant-filter.md for why CurrentTenant.Change(null)
-            // is not sufficient on its own.
-            List<(Guid Id, Guid? TenantId)> targets;
-            using (_dataFilter.Disable<IMultiTenant>())
+            // Each office has its own database, so iterate offices and delete inside
+            // each office's context. The per-office IMultiTenant filter scopes both the
+            // email lookup and the dependent-master cleanup to that office.
+            await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
             {
                 var query = await _identityUserRepository.GetQueryableAsync();
-                var users = await AsyncExecuter.ToListAsync(
-                    query.Where(u => u.Email != null && u.Email.ToLower() == email.ToLower())
-                         .Select(u => new { u.Id, u.TenantId }));
-                targets = users.Select(u => (u.Id, u.TenantId)).ToList();
-            }
+                var ids = await AsyncExecuter.ToListAsync(
+                    query.Where(u => u.Email != null && u.Email.ToLower() == normalized)
+                         .Select(u => u.Id));
 
-            if (targets.Count == 0)
-            {
-                result.NotFound.Add(email);
-                continue;
-            }
-
-            foreach (var t in targets)
-            {
-                using (CurrentTenant.Change(t.TenantId))
+                foreach (var id in ids)
                 {
                     // Remove dependent masters first (child rows), then the user.
-                    await HardDeleteDependentMastersAsync(t.Id);
+                    await HardDeleteDependentMastersAsync(id);
 
-                    var managed = await _userManager.GetByIdAsync(t.Id);
+                    var managed = await _userManager.GetByIdAsync(id);
                     if (managed != null)
                     {
                         var deleteResult = await _userManager.DeleteAsync(managed);
@@ -326,10 +322,18 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                                 string.Join(", ", deleteResult.Errors.Select(x => x.Description)));
                         }
                     }
+                    deletedAny = true;
                 }
-            }
+            });
 
-            result.Deleted.Add(email);
+            if (deletedAny)
+            {
+                result.Deleted.Add(email);
+            }
+            else
+            {
+                result.NotFound.Add(email);
+            }
         }
 
         return result;

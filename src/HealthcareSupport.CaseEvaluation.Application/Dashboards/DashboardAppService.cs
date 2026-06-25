@@ -8,16 +8,15 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Authorization;
-using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
-using Volo.Abp.MultiTenancy;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
@@ -34,7 +33,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private readonly IRepository<AppointmentType, Guid> _appointmentTypeRepository;
     private readonly IRepository<Location, Guid> _locationRepository;
     private readonly ISystemParameterRepository _systemParameterRepository;
-    private readonly IDataFilter _dataFilter;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IAuthorizationService _authorizationService;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
 
@@ -47,7 +46,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         IRepository<AppointmentType, Guid> appointmentTypeRepository,
         IRepository<Location, Guid> locationRepository,
         ISystemParameterRepository systemParameterRepository,
-        IDataFilter dataFilter,
+        ITenantWorkRunner tenantWorkRunner,
         IAuthorizationService authorizationService,
         IRepository<IdentityUser, Guid> identityUserRepository)
     {
@@ -59,7 +58,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         _appointmentTypeRepository = appointmentTypeRepository;
         _locationRepository = locationRepository;
         _systemParameterRepository = systemParameterRepository;
-        _dataFilter = dataFilter;
+        _tenantWorkRunner = tenantWorkRunner;
         _authorizationService = authorizationService;
         _identityUserRepository = identityUserRepository;
     }
@@ -78,16 +77,35 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     }
 
     /// <summary>
-    /// Host branch: cross-tenant aggregate view via DataFilter.Disable.
-    /// Tenant + doctor totals are visible host-side; per-tenant counts roll
-    /// up to wave-level totals.
+    /// Host branch: cross-office aggregate view. Database-per-office means there is
+    /// no single connection that sees every office, so the host totals are the SUM
+    /// of each office's counters (each computed inside its own database via the
+    /// tenant work runner). TotalTenants is the registry count taken once -- it is
+    /// the same for every office, so it must not be summed.
     /// </summary>
     private async Task<DashboardCountersDto> GetHostCountersAsync()
     {
-        using (_dataFilter.Disable<IMultiTenant>())
+        var perOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(
+            _ => BuildAsync(scopedToTenant: false));
+
+        return new DashboardCountersDto
         {
-            return await BuildAsync(scopedToTenant: false);
-        }
+            PendingRequests = perOffice.Sum(c => c.PendingRequests),
+            ApprovedThisWeek = perOffice.Sum(c => c.ApprovedThisWeek),
+            RejectedThisWeek = perOffice.Sum(c => c.RejectedThisWeek),
+            PendingChangeRequests = perOffice.Sum(c => c.PendingChangeRequests),
+            RequestsApproachingLegalDeadline = perOffice.Sum(c => c.RequestsApproachingLegalDeadline),
+            DecisionOverdue = perOffice.Sum(c => c.DecisionOverdue),
+            // 8 placeholders -- populated when day-of-exam states ship.
+            BilledThisMonth = 0,
+            NoShowThisMonth = 0,
+            RescheduledThisMonth = 0,
+            CancelledThisWeek = 0,
+            CheckedInToday = 0,
+            CheckedOutToday = 0,
+            TotalDoctors = perOffice.Sum(c => c.TotalDoctors),
+            TotalTenants = await _tenantRepository.CountAsync(),
+        };
     }
 
     /// <summary>
@@ -199,74 +217,82 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
         if (isHost)
         {
-            using (_dataFilter.Disable<IMultiTenant>())
-            {
-                return await BuildHostDashboardAsync();
-            }
+            return await BuildHostDashboardAsync();
         }
 
         return await BuildTenantDashboardAsync(range);
     }
 
     /// <summary>
-    /// 2026-06-16 (Prompt 16, A-B4) -- host-only per-tenant user + appointment
-    /// counts for the Tenants management table. Disables the IMultiTenant filter
-    /// so the per-tenant CountAsync predicates see every tenant's rows; only
-    /// aggregate counts (not PHI) leave the server. Gated by <c>Saas.Tenants</c>
-    /// (the same permission the host Tenants page uses), which IT Admin holds.
+    /// 2026-06-16 (Prompt 16, A-B4) -- host-only per-office user + appointment counts
+    /// for the Tenants management table. Database-per-office: each office's counts are
+    /// taken inside its own database via the tenant work runner (the IMultiTenant
+    /// filter naturally scopes each count to that office); only aggregate counts (not
+    /// PHI) leave the server. Gated by <c>Saas.Tenants</c> (the same permission the
+    /// host Tenants page uses), which IT Admin holds.
     /// </summary>
     [Authorize("Saas.Tenants")]
     public virtual async Task<List<TenantSummaryDto>> GetTenantSummariesAsync()
     {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var tenants = await _tenantRepository.GetListAsync();
-            var summaries = new List<TenantSummaryDto>(tenants.Count);
-            foreach (var tenant in tenants)
+        var tenants = await _tenantRepository.GetListAsync();
+        var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
+
+        var summaries = await _tenantWorkRunner.AggregateAcrossOfficesAsync(async officeId =>
+            new TenantSummaryDto
             {
-                var id = tenant.Id;
-                summaries.Add(new TenantSummaryDto
-                {
-                    TenantId = id,
-                    Name = tenant.Name,
-                    UserCount = await _identityUserRepository.CountAsync(u => u.TenantId == id),
-                    AppointmentCount = await _appointmentRepository.CountAsync(a => a.TenantId == id),
-                });
-            }
-            return summaries.OrderBy(s => s.Name).ToList();
-        }
+                TenantId = officeId,
+                Name = nameById[officeId],
+                UserCount = await _identityUserRepository.CountAsync(),
+                AppointmentCount = await _appointmentRepository.CountAsync(),
+            });
+
+        return summaries.OrderBy(s => s.Name).ToList();
     }
 
     private async Task<DashboardDto> BuildHostDashboardAsync()
     {
         var lastMondayUtc = GetLastMondayUtc();
         var tenants = await _tenantRepository.GetListAsync();
-        var rows = new List<DashboardTenantRowDto>();
-        foreach (var tenant in tenants)
-        {
-            var id = tenant.Id;
-            rows.Add(new DashboardTenantRowDto
+        var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
+
+        // Database-per-office: count each office's appointments + doctors inside its
+        // own database (the IMultiTenant filter scopes each count), then roll the host
+        // totals up from the per-office results instead of disabling the filter on one
+        // shared connection (which would see no other office's database).
+        var perOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(async officeId =>
+            new
             {
-                TenantName = tenant.Name,
-                Appointments = await _appointmentRepository.CountAsync(a => a.TenantId == id),
+                OfficeId = officeId,
+                Appointments = await _appointmentRepository.CountAsync(),
                 Pending = await _appointmentRepository.CountAsync(
-                    a => a.TenantId == id && a.AppointmentStatus == AppointmentStatusType.Pending),
+                    a => a.AppointmentStatus == AppointmentStatusType.Pending),
                 Approved = await _appointmentRepository.CountAsync(
-                    a => a.TenantId == id && a.AppointmentStatus == AppointmentStatusType.Approved),
+                    a => a.AppointmentStatus == AppointmentStatusType.Approved),
                 ThisWeek = await _appointmentRepository.CountAsync(
-                    a => a.TenantId == id && a.CreationTime >= lastMondayUtc),
+                    a => a.CreationTime >= lastMondayUtc),
+                Doctors = await _doctorRepository.CountAsync(),
             });
-        }
+
+        var rows = perOffice
+            .Select(o => new DashboardTenantRowDto
+            {
+                TenantName = nameById[o.OfficeId],
+                Appointments = o.Appointments,
+                Pending = o.Pending,
+                Approved = o.Approved,
+                ThisWeek = o.ThisWeek,
+            })
+            .OrderByDescending(r => r.Appointments)
+            .ToList();
 
         return new DashboardDto
         {
             IsHost = true,
             TotalTenants = tenants.Count,
-            TotalDoctors = await _doctorRepository.CountAsync(),
-            TotalAppointments = await _appointmentRepository.CountAsync(),
-            PendingAcrossTenants = await _appointmentRepository.CountAsync(
-                a => a.AppointmentStatus == AppointmentStatusType.Pending),
-            Tenants = rows.OrderByDescending(r => r.Appointments).ToList(),
+            TotalDoctors = perOffice.Sum(o => o.Doctors),
+            TotalAppointments = perOffice.Sum(o => o.Appointments),
+            PendingAcrossTenants = perOffice.Sum(o => o.Pending),
+            Tenants = rows,
         };
     }
 
