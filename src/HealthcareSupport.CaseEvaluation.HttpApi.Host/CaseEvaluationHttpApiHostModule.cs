@@ -1059,6 +1059,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                             .ToArray() ?? Array.Empty<string>()
                     )
                     .WithAbpExposedHeaders()
+                    // F-M02 (2026-06-25): expose Retry-After so the cross-origin
+                    // AuthServer register page can show how long the rate-limit
+                    // throttle (429) lasts instead of a generic failure.
+                    .WithExposedHeaders("Retry-After")
                     .SetIsOriginAllowedToAllowWildcardSubdomains()
                     .AllowAnyHeader()
                     .AllowAnyMethod()
