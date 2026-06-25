@@ -5,9 +5,11 @@ import {
   HostListener,
   Input,
   Output,
+  inject,
 } from '@angular/core';
 import { IconComponent } from '../../ui/icon/icon.component';
 import type { IconName } from '../../ui/icon/icon.registry';
+import { BrandingService } from '../../branding/branding.service';
 
 /** One row in the notifications dropdown. The feed (BACKEND-CHANGES §G25) is not
  *  built yet, so callers pass [] and the dropdown shows an empty state. */
@@ -42,9 +44,11 @@ export interface ExternalNotification {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExternalNavbarComponent {
-  /** Tenant logo (runtime slot; static placeholder until BrandingAppService lands). */
+  /** Per-office branding (logo + display name); overrides the inputs when present. */
+  protected readonly branding = inject(BrandingService);
+  /** Tenant logo (runtime slot; static placeholder, used when no per-office logo). */
   @Input() logoUrl = 'assets/images/header-logo.png';
-  /** Clinic / tenant display name (from configState currentTenant.name). */
+  /** Clinic / tenant display name (fallback when no per-office display name). */
   @Input() clinicName = 'Appointment Portal';
   @Input() userName = '';
   @Input() roleLabel = '';

@@ -1,8 +1,8 @@
 <div class="top-header-navbar" style="margin-right: 73px">
   <a class="top-header-navbar__brand" href="/" aria-label="Home">
     <img
-      src="assets/images/header-logo.png"
-      [alt]="tenantName + ' logo'"
+      [src]="branding.logoUrl() || 'assets/images/header-logo.png'"
+      [alt]="(branding.displayName() || tenantName) + ' logo'"
       class="top-header-navbar__logo"
     />
   </a>

@@ -2,10 +2,10 @@
   <div class="ext-nav__in">
     <!-- tenant logo slot (runtime; static placeholder until BrandingAppService) -->
     <a class="ext-brand" href="#" (click)="$event.preventDefault()" aria-label="Home">
-      <img [src]="logoUrl" [alt]="clinicName" />
+      <img [src]="branding.logoUrl() || logoUrl" [alt]="branding.displayName() || clinicName" />
       <span class="ext-brand__div"></span>
       <span class="ext-brand__tag">
-        <b>{{ clinicName }}</b>
+        <b>{{ branding.displayName() || clinicName }}</b>
         <span>Patient &amp; case portal</span>
       </span>
     </a>
