@@ -1,6 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ExternalNavbarComponent } from './external-navbar.component';
+import { BrandingService } from '../../branding/branding.service';
+
+// Stub the branding service so the navbar's DI does not pull in RestService
+// (and its ABP CORE_OPTIONS) for this pure initials-logic spec.
+const brandingStub = {
+  displayName: () => null,
+  logoUrl: () => null,
+} as unknown as BrandingService;
 
 /**
  * F-008 regression: the external navbar avatar initials. A firm name must use
@@ -15,6 +23,7 @@ describe('ExternalNavbarComponent initials (F-008)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ExternalNavbarComponent],
+      providers: [{ provide: BrandingService, useValue: brandingStub }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExternalNavbarComponent);
     component = fixture.componentInstance;
