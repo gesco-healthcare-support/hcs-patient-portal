@@ -586,6 +586,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
         {
             b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
             b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
             b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
             b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
         });

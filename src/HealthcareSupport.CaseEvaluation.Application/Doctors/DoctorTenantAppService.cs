@@ -1,31 +1,29 @@
-using HealthcareSupport.CaseEvaluation.Enums;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
 using System;
-using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Data;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.Data;
-using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.Identity;
 using Volo.Abp.Uow;
 using Volo.Saas.Editions;
 using Volo.Saas.Host;
 using Volo.Saas.Host.Dtos;
 using Volo.Saas.Tenants;
-using static Volo.Abp.Identity.Settings.IdentitySettingNames;
-using static Volo.Abp.UI.Navigation.DefaultMenuNames.Application;
-using static Volo.Saas.Host.SaasHostPermissions;
 
 namespace HealthcareSupport.CaseEvaluation.Doctors
 {
     public class DoctorTenantAppService : TenantAppService
     {
-        private readonly IdentityUserManager _userManager;
-        private readonly IRepository<Doctor, Guid> _doctorRepository;
+        private readonly ITenantRepository _tenantRepository;
+        private readonly IConnectionStringChecker _connectionStringChecker;
+        private readonly ITenantConnectionStringProvider _connectionStringProvider;
+        private readonly IOfficeDatabaseProvisioner _officeProvisioner;
         private readonly IUnitOfWorkManager _unitOfWorkManager;
+
         public DoctorTenantAppService(ITenantRepository tenantRepository,
             IEditionRepository editionRepository,
             ITenantManager tenantManager,
@@ -34,15 +32,18 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             IDistributedEventBus distributedEventBus,
             IOptions<AbpDbConnectionOptions> dbConnectionOptions,
             IConnectionStringChecker connectionStringChecker,
-            IdentityUserManager userManager,
-            IRepository<Doctor, Guid> doctorRepository,
+            ITenantConnectionStringProvider connectionStringProvider,
+            IOfficeDatabaseProvisioner officeProvisioner,
             IUnitOfWorkManager unitOfWorkManager)
             : base(tenantRepository, editionRepository, tenantManager, dataSeeder, _localEventBus, distributedEventBus, dbConnectionOptions, connectionStringChecker)
         {
-            _userManager = userManager;
-            _doctorRepository = doctorRepository;
+            _tenantRepository = tenantRepository;
+            _connectionStringChecker = connectionStringChecker;
+            _connectionStringProvider = connectionStringProvider;
+            _officeProvisioner = officeProvisioner;
             _unitOfWorkManager = unitOfWorkManager;
         }
+
         // ADR-006 (2026-05-05) -- "admin" is reserved for the host-context
         // surface (admin.localhost). A tenant by that name would conflict
         // with the SPA's no-subdomain redirect target and break the URL =
@@ -62,82 +63,62 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
                     $"Tenant name '{ReservedTenantNameAdmin}' is reserved for the host-context surface and cannot be used.");
             }
 
-            // Single transactional UoW wraps SaasTenant + IdentityUser + Doctor.
-            // Failure anywhere rolls back the SaasTenant insert and suppresses the
-            // TenantCreatedEto distributed event (ABP outbox defers to UoW commit),
-            // so the tenant DB never gets provisioned on failure either.
-            //
-            // Doctor is a non-user reference entity per OLD spec (Phase 0.1, 2026-05-01):
-            // Staff Supervisor manages the Doctor on its behalf. The tenant admin user
-            // gets the "admin" role only.
+            // Derive the office slug (subdomain + database name) from the name and build
+            // its connection string up front, so a bad name or an unreachable SQL server
+            // fails before any tenant row is written. The office name must be a single
+            // DNS-safe token because it is also the subdomain (see TenantNaming).
+            string slug;
+            try
+            {
+                slug = TenantNaming.DeriveSlug(input.Name!);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new UserFriendlyException(ex.Message);
+            }
+
+            var connectionString = _connectionStringProvider.BuildConnectionString(slug);
+
+            var checkResult = await _connectionStringChecker.CheckAsync(connectionString);
+            if (!checkResult.Connected)
+            {
+                throw new UserFriendlyException(
+                    $"Cannot reach the database server for office '{input.Name}'. Verify the SQL server is running and the connection template is correct.");
+            }
+
+            // Register the tenant and store its connection string in one host-DB
+            // transaction. The TenantCreatedEto is outbox-deferred to this commit, so a
+            // failure here rolls the tenant back and never provisions an office database.
             SaasTenantDto tenant;
             using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
             {
                 tenant = await base.CreateAsync(input);
-                using (CurrentTenant.Change(tenant.Id))
-                {
-                    var adminUser = await CreateAdminUserAsync(input);
-                    await CreateDoctorProfileAsync(adminUser, input);
-                }
+
+                var tenantEntity = await _tenantRepository.GetAsync(tenant.Id);
+                tenantEntity.SetDefaultConnectionString(connectionString);
+                await _tenantRepository.UpdateAsync(tenantEntity);
+
                 await uow.CompleteAsync();
             }
+
+            // Provision the office database AFTER the host-DB commit: creating + seeding a
+            // separate database cannot share the host transaction. Seeds catalogs, the admin
+            // user, and the office doctor (B2) into the office DB. On failure the office row
+            // and its connection string remain, so a retry completes it (idempotent seeders).
+            try
+            {
+                await _officeProvisioner.ProvisionAsync(tenant.Id, input.AdminEmailAddress, input.AdminPassword);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex,
+                    "Provisioning the office database for tenant {TenantId} failed after creation.",
+                    tenant.Id);
+                throw new UserFriendlyException(
+                    $"Office '{input.Name}' was created but its database could not be fully provisioned. Re-run provisioning to complete setup.");
+            }
+
             return tenant;
-        }
-        private async Task<IdentityUser> CreateAdminUserAsync(SaasTenantCreateDto input)
-        {
-            var existingUser = await _userManager.FindByEmailAsync(input.AdminEmailAddress);
-            if (existingUser != null)
-            {
-                existingUser.Name = input.Name;
-                var updateResult = await _userManager.UpdateAsync(existingUser);
-                if (!updateResult.Succeeded)
-                {
-                    throw new UserFriendlyException("Failed to update admin user: " +
-                        string.Join(", ", updateResult.Errors.Select(e => e.Description)));
-                }
-
-                return existingUser;
-            }
-            var adminUser = new IdentityUser(
-                GuidGenerator.Create(),
-                userName: input.AdminEmailAddress,
-                email: input.AdminEmailAddress,
-                CurrentTenant.Id
-            )
-            {
-                Name = input.Name
-            };
-
-            var result = await _userManager.CreateAsync(adminUser, input.AdminPassword);
-
-            if (!result.Succeeded)
-            {
-                throw new UserFriendlyException("Failed to create admin user: " +
-                    string.Join(", ", result.Errors.Select(e => e.Description)));
-            }
-
-            return adminUser;
-        }
-        private async Task CreateDoctorProfileAsync(IdentityUser user, SaasTenantCreateDto input)
-        {
-            var existingDoctor = await _doctorRepository.FirstOrDefaultAsync(x => x.Email == user.Email);
-            if (existingDoctor != null)
-            {
-                existingDoctor.FirstName = input.Name;
-                existingDoctor.Email = user.Email;
-                await _doctorRepository.UpdateAsync(existingDoctor, autoSave: true);
-                return;
-            }
-
-            var doctor = new Doctor(
-                id: GuidGenerator.Create(),
-                firstName: input.Name,
-                lastName: "",
-                email: user.Email,
-                gender: Gender.Male
-            );
-
-            await _doctorRepository.InsertAsync(doctor, autoSave: true);
         }
     }
 }
