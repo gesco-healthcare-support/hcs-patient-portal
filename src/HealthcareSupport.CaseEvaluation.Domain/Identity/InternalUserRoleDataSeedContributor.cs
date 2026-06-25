@@ -285,6 +285,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("UserSignatures");
         yield return $"{Group}.UserSignatures.ManageOwn";
 
+        // Phase E (2026-06-25) -- per-office branding (name + logo). Default gates
+        // the host-side central manager list; Edit gates set-name / upload / remove.
+        yield return Default("Branding");
+        yield return Edit("Branding");
+
         // 2026-05-15 -- admin-issued invitation for new external users.
         // Default parent gates menu visibility; InviteExternalUser gates
         // the create-invite endpoint itself.
@@ -374,6 +379,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // provisions / revokes the per-office shadow Intake user).
         yield return $"{Group}.IntakeAssignments";
         yield return $"{Group}.IntakeAssignments.Manage";
+
+        // Phase E (2026-06-25) -- manage every office's branding from the host-side
+        // central manager (Both-sided permission, valid at host scope).
+        yield return $"{Group}.Branding";
+        yield return $"{Group}.Branding.Edit";
 
         // Create host operators (Intake Staff + Staff Supervisor). InternalUsers
         // is MultiTenancySides.Both; CreatableRoleNames bounds the creatable set.

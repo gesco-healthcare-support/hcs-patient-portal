@@ -10,6 +10,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Validation;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.Branding;
@@ -128,6 +129,7 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     }
 
     [Authorize(CaseEvaluationPermissions.Branding.Edit)]
+    [DisableValidation] // the Stream argument must not be reflectively validated (mirrors UploadStreamAsync).
     public virtual async Task<BrandingDto> UploadLogoAsync(
         Guid? officeId,
         string fileName,
