@@ -34,6 +34,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
@@ -84,6 +85,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
+    // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
+    public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
 
     public CaseEvaluationDbContext(DbContextOptions<CaseEvaluationDbContext> options) : base(options)
     {
@@ -372,6 +375,23 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 // IP6 (2026-06-05): optional -- a record-only patient has no login until claimed.
                 b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // Phase D (2026-06-25): host/management table linking a host Intake
+            // operator to the offices they may enter. Host-only (inside this
+            // IsHostDatabase block) -- it must never live in an office DB. No FK
+            // navigation: the app service validates the operator + office exist
+            // before inserting; the (OperatorUserId, OfficeId) unique index backs
+            // idempotent assign / unassign.
+            builder.Entity<IntakeOfficeAssignment>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "IntakeOfficeAssignments", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.OperatorUserId).HasColumnName(nameof(IntakeOfficeAssignment.OperatorUserId)).IsRequired();
+                b.Property(x => x.OfficeId).HasColumnName(nameof(IntakeOfficeAssignment.OfficeId)).IsRequired();
+                b.HasIndex(x => new { x.OperatorUserId, x.OfficeId })
+                    .IsUnique()
+                    .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
             });
         }
 
