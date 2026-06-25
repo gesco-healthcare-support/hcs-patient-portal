@@ -1,9 +1,19 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import { EnvironmentService, RestService } from '@abp/ng.core';
+import { EnvironmentService, ListResultDto, RestService } from '@abp/ng.core';
+import { Observable } from 'rxjs';
 
 /** Public per-office branding (mirrors the server BrandingDto). */
 export interface BrandingDto {
+  displayName?: string | null;
+  hasLogo: boolean;
+  logoUrl?: string | null;
+}
+
+/** One office's branding row for the host-side central manager (mirrors OfficeBrandingDto). */
+export interface OfficeBrandingDto {
+  officeId: string;
+  officeName: string;
   displayName?: string | null;
   hasLogo: boolean;
   logoUrl?: string | null;
@@ -33,16 +43,70 @@ export class BrandingService {
   /** Absolute logo URL, or null when the office has no custom logo. */
   readonly logoUrl = this._logoUrl.asReadonly();
 
+  /** One-shot fetch of the current office's branding (resolved by subdomain). */
+  getCurrent(): Observable<BrandingDto> {
+    return this.rest.request<void, BrandingDto>(
+      { method: 'GET', url: '/api/app/branding' },
+      { apiName: 'Default' },
+    );
+  }
+
   /** Fires the anonymous branding fetch; resolves immediately so boot never waits on it. */
   load(): void {
-    this.rest
-      .request<void, BrandingDto>({ method: 'GET', url: '/api/app/branding' })
-      .subscribe({
-        next: (dto) => this.apply(dto),
-        error: () => {
-          /* leave defaults; branding is best-effort */
-        },
-      });
+    this.getCurrent().subscribe({
+      next: (dto) => this.apply(dto),
+      error: () => {
+        /* leave defaults; branding is best-effort */
+      },
+    });
+  }
+
+  /** Host-central: every office + its branding (gated CaseEvaluation.Branding). */
+  getOffices(): Observable<ListResultDto<OfficeBrandingDto>> {
+    return this.rest.request<void, ListResultDto<OfficeBrandingDto>>(
+      { method: 'GET', url: '/api/app/branding/offices' },
+      { apiName: 'Default' },
+    );
+  }
+
+  /** Sets (or clears, when blank) the display name for a target office, or the current office when officeId is omitted. */
+  setDisplayName(displayName: string | null, officeId?: string): Observable<void> {
+    return this.rest.request<{ displayName: string | null }, void>(
+      {
+        method: 'PUT',
+        url: '/api/app/branding/display-name',
+        params: officeId ? { officeId } : {},
+        body: { displayName },
+      },
+      { apiName: 'Default' },
+    );
+  }
+
+  /** Uploads/replaces the logo for a target office, or the current office when officeId is omitted. */
+  uploadLogo(file: File, officeId?: string): Observable<BrandingDto> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.rest.request<FormData, BrandingDto>(
+      {
+        method: 'POST',
+        url: '/api/app/branding/logo',
+        params: officeId ? { officeId } : {},
+        body: form,
+      },
+      { apiName: 'Default' },
+    );
+  }
+
+  /** Removes the logo for a target office, or the current office when officeId is omitted. */
+  removeLogo(officeId?: string): Observable<void> {
+    return this.rest.request<void, void>(
+      {
+        method: 'DELETE',
+        url: '/api/app/branding/logo',
+        params: officeId ? { officeId } : {},
+      },
+      { apiName: 'Default' },
+    );
   }
 
   private apply(dto: BrandingDto | null): void {

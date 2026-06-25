@@ -221,6 +221,15 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         roles: ['supervisor'],
         requiredPolicy: 'CaseEvaluation.WcabOffices',
       },
+      {
+        // Phase E (2026-06-25): in-office branding editor (current office).
+        id: 'office-branding',
+        label: 'Office Branding',
+        icon: 'doc',
+        route: '/office-branding',
+        roles: ['supervisor', 'itadmin', 'admin'],
+        requiredPolicy: 'CaseEvaluation.Branding.Edit',
+      },
     ],
   },
   {
@@ -314,6 +323,15 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         route: '/host/my-offices',
         roles: ['intake'],
         requiredPolicy: 'CaseEvaluation.IntakeImpersonation',
+      },
+      {
+        // Phase E (2026-06-25): host-side central per-office branding manager.
+        id: 'host-branding',
+        label: 'Office Branding',
+        icon: 'doc',
+        route: '/host/branding',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.Branding',
       },
     ],
   },

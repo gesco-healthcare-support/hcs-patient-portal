@@ -236,7 +236,23 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
         canActivate: [authGuard, permissionGuard],
         data: { requiredPolicy: 'CaseEvaluation.IntakeImpersonation' },
       },
+      {
+        // Phase E (2026-06-25): host-side central per-office branding manager.
+        path: 'branding',
+        loadComponent: () =>
+          import('./branding/host-branding.component').then((c) => c.HostBrandingComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { requiredPolicy: 'CaseEvaluation.Branding' },
+      },
     ],
+  },
+  {
+    // Phase E (2026-06-25): in-office branding editor for the current office.
+    path: 'office-branding',
+    loadComponent: () =>
+      import('./branding/office-branding.component').then((c) => c.OfficeBrandingComponent),
+    canActivate: [authGuard, permissionGuard],
+    data: { requiredPolicy: 'CaseEvaluation.Branding.Edit' },
   },
   // Prompt 16 Part B (2026-06-16): Admin hub. One standalone component at four
   // section routes (deep-linkable + per-route gated); replaces the ABP module
