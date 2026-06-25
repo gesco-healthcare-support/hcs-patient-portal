@@ -311,6 +311,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return "Saas.Tenants";
         yield return "Saas.Tenants.Create";
 
+        // Phase D (2026-06-25) -- IT Admin co-owns intake office-assignment
+        // management with the host Staff Supervisor (assign/unassign operators).
+        yield return $"{Group}.IntakeAssignments";
+        yield return $"{Group}.IntakeAssignments.Manage";
+
         // Roles & access matrix (2026-06-16): IT Admin is the technical platform admin and
         // holds the ABP framework powers the custom seed previously omitted -- this is what
         // makes Roles / Audit / File / Language management + the clinic-switch reachable.
