@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Data;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -10,23 +11,18 @@ using Volo.Saas.Tenants;
 namespace HealthcareSupport.CaseEvaluation.Saas;
 
 /// <summary>
-/// ADR-006 Phase 1A (2026-05-05) -- seeds the single demo tenant
-/// "Falkinstein" so subdomain-based tenant routing has something to
-/// resolve to in dev.
+/// ADR-006 (2026-05-05) -- seeds the single demo tenant "Falkinstein"
+/// so subdomain-based tenant routing has something to resolve to in dev.
 ///
-/// Phase 1A scope (2026-05-05 demo): Falkinstein has NO separate
-/// connection string. All tenant data lives in the host database and
-/// is scoped at row level by ABP's IMultiTenant filter (Patient now
-/// implements IMultiTenant per FEAT-09). Physical DB-per-tenant
-/// isolation is deferred to Phase 1B because:
-///   1. The dual-DbContext infrastructure (CaseEvaluationTenantDbContext)
-///      has no migrations -- activating it requires generating a
-///      first-ever tenant migration that creates ~25 tenant tables.
-///   2. The demo flows (login, slot booking, approve/reject, packet)
-///      run identically against a single DB with row-level filtering.
-///   3. HIPAA cross-tenant read protection is delivered by the
-///      IMultiTenant filter; physical separation is a hardening step,
-///      not a correctness requirement.
+/// Phase 1B (db-per-office): Falkinstein gets its own connection string
+/// (database "CaseEvaluation_falkinstein"), derived from the host
+/// "Default" via the B3 secret seam. ABP's
+/// MultiTenantConnectionStringResolver then routes its queries to that
+/// database, and the migrator loop (CaseEvaluationDbMigrationService)
+/// creates + migrates + seeds it. This supersedes the original Phase 1A
+/// demo (no connection string; all tenant data in the host DB with
+/// row-level IMultiTenant filtering), which was a deliberate stop-gap
+/// until the tenant DbContext had a migration -- now in place (Phase A).
 ///
 /// Runs only when ASPNETCORE_ENVIRONMENT=Development. Idempotent: if a
 /// tenant named Falkinstein already exists the contributor is a no-op.
@@ -42,17 +38,20 @@ public class FalkinsteinTenantDataSeedContributor : IDataSeedContributor, ITrans
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantConnectionStringProvider _connectionStringProvider;
     private readonly ILogger<FalkinsteinTenantDataSeedContributor> _logger;
 
     public FalkinsteinTenantDataSeedContributor(
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         ICurrentTenant currentTenant,
+        ITenantConnectionStringProvider connectionStringProvider,
         ILogger<FalkinsteinTenantDataSeedContributor> logger)
     {
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _currentTenant = currentTenant;
+        _connectionStringProvider = connectionStringProvider;
         _logger = logger;
     }
 
@@ -84,17 +83,20 @@ public class FalkinsteinTenantDataSeedContributor : IDataSeedContributor, ITrans
                 return;
             }
 
-            // Phase 1A: no SetDefaultConnectionString call. Without a
-            // tenant-side connection string, ABP's MultiTenantConnectionStringResolver
-            // falls back to the host's "Default" connection string for
-            // every tenant query, so all tenant data lives in the same DB
-            // with row-level filtering. When Phase 1B activates dual-DbContext,
-            // restore the SetDefaultConnectionString call here.
+            // Phase 1B (db-per-office): give Falkinstein its own connection
+            // string so ABP's MultiTenantConnectionStringResolver routes its
+            // queries to "CaseEvaluation_falkinstein" and the migrator loop
+            // (CaseEvaluationDbMigrationService) provisions + seeds that
+            // database. The connection string is derived from the host
+            // "Default" (B3 secret seam) -- never built from hardcoded
+            // credentials. ABP encrypts it at rest on the tenant record.
             var tenant = await _tenantManager.CreateAsync(TenantName);
+            tenant.SetDefaultConnectionString(
+                _connectionStringProvider.BuildConnectionString(TenantSlug));
             await _tenantRepository.InsertAsync(tenant, autoSave: true);
 
             _logger.LogInformation(
-                "FalkinsteinTenantDataSeedContributor: created tenant '{Name}' ({Id}) using host DB.",
+                "FalkinsteinTenantDataSeedContributor: created tenant '{Name}' ({Id}) with its own database.",
                 TenantName, tenant.Id);
         }
     }
