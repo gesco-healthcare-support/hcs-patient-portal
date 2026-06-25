@@ -33,6 +33,8 @@ using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonX.Bundling;
 using Volo.Abp.LeptonX.Shared;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
+using Volo.Abp.Ui.LayoutHooks;
+using HealthcareSupport.CaseEvaluation.Pages.Shared.Components.BrandingHead;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Auditing;
 using Volo.Abp.Autofac;
@@ -265,6 +267,17 @@ public class CaseEvaluationAuthServerModule : AbpModule
                     bundle.AddFiles("/global-scripts.js");
                 }
             );
+        });
+
+        // Phase E (2026-06-25): inject the current office's logo into the auth pages'
+        // <head> as a --lpx-logo override (the LeptonX login layout sources the logo
+        // from that CSS variable). Head.Last so it cascades after global-styles.css,
+        // which stays as the host/default fallback.
+        Configure<AbpLayoutHookOptions>(options =>
+        {
+            options.Add(
+                LayoutHooks.Head.Last,
+                typeof(BrandingHeadViewComponent));
         });
 
         Configure<AbpAuditingOptions>(options =>
