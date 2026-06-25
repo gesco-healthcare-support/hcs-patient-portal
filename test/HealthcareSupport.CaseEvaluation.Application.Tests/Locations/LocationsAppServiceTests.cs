@@ -265,19 +265,19 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
     [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByDoctorAvailability_Throws()
     {
-        var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
-        {
-            Name = $"TEST-FkBlocked-Da-{Guid.NewGuid():N}",
-            ParkingFee = 1.00m,
-            IsActive = true
-        });
-
+        // Database-per-office: a Location and its referencing rows live in the same
+        // office database, so create, reference, and delete all in one office context.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            // autoSave forces the InsertAsync to persist before the outer
-            // test method's ambient UoW commits. Without it the child row is
-            // queued only, so the subsequent DeleteAsync on `disposable`
-            // wouldn't trigger the FK violation we're asserting.
+            var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
+            {
+                Name = $"TEST-FkBlocked-Da-{Guid.NewGuid():N}",
+                ParkingFee = 1.00m,
+                IsActive = true
+            });
+
+            // autoSave forces the InsertAsync to persist before the outer test
+            // method's ambient UoW commits, so the DeleteAsync guard sees the row.
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: Guid.NewGuid(),
                 locationId: disposable.Id,
@@ -285,29 +285,30 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
                 fromTime: new TimeOnly(9, 0),
                 toTime: new TimeOnly(10, 0),
                 bookingStatusId: BookingStatus.Available), autoSave: true);
-        }
 
-        var ex = await Should.ThrowAsync<BusinessException>(async () =>
-            await _locationsAppService.DeleteAsync(disposable.Id));
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
+            var ex = await Should.ThrowAsync<BusinessException>(async () =>
+                await _locationsAppService.DeleteAsync(disposable.Id));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
+        }
     }
 
     [Fact]
     public async Task DeleteAsync_WhenLocationReferencedByAppointment_Throws()
     {
-        var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
-        {
-            Name = $"FK-Appt-{Guid.NewGuid():N}",
-            ParkingFee = 1.00m,
-            IsActive = true
-        });
-
+        // Database-per-office: a Location and its referencing rows live in the same
+        // office database, so create, reference, and delete all in one office context.
         var availabilityId = Guid.NewGuid();
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
+            var disposable = await _locationsAppService.CreateAsync(new LocationCreateDto
+            {
+                Name = $"FK-Appt-{Guid.NewGuid():N}",
+                ParkingFee = 1.00m,
+                IsActive = true
+            });
+
             // autoSave persists each child row immediately so the subsequent
-            // DeleteAsync on `disposable` raises the NoAction FK violation we
-            // are asserting.
+            // DeleteAsync guard sees the references we are asserting on.
             var slot = new DoctorAvailability(
                 id: availabilityId,
                 locationId: disposable.Id,
@@ -328,11 +329,11 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
                 appointmentDate: new DateTime(2026, 5, 2),
                 requestConfirmationNumber: "A99998",
                 appointmentStatus: AppointmentStatusType.Pending), autoSave: true);
-        }
 
-        var ex = await Should.ThrowAsync<BusinessException>(async () =>
-            await _locationsAppService.DeleteAsync(disposable.Id));
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
+            var ex = await Should.ThrowAsync<BusinessException>(async () =>
+                await _locationsAppService.DeleteAsync(disposable.Id));
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.LocationInUse);
+        }
     }
 
     // ------------------------------------------------------------------------

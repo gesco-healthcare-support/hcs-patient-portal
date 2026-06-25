@@ -30,8 +30,7 @@ public class CancellationRescheduleReminderJobTests
 
         var job = new CancellationRescheduleReminderJob(
             ReminderJobTestHarness.AppointmentRepo(appointments),
-            ReminderJobTestHarness.NoopDataFilter(),
-            ReminderJobTestHarness.NoopCurrentTenant(),
+            ReminderJobTestHarness.TenantWorkRunner(),
             resolver,
             Substitute.For<IBackgroundJobManager>(),
             ReminderJobTestHarness.Settings(

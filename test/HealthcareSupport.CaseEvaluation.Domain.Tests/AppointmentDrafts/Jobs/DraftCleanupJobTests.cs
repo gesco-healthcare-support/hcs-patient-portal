@@ -13,9 +13,10 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDrafts.Jobs;
 
 /// <summary>
 /// #15: pins the TTL purge of stale booking drafts. A draft last saved beyond the
-/// retention window is physically removed; a recent one is kept. The job disables
-/// the multi-tenant filter so it purges across every tenant -- proven here by
-/// purging a TenantA draft while the job runs at host level.
+/// retention window is physically removed; a recent one is kept. Under
+/// database-per-office the job iterates every office via ITenantWorkRunner and
+/// purges inside each office's context -- proven here by purging expired drafts in
+/// BOTH offices while a fresh draft survives.
 /// </summary>
 public abstract class DraftCleanupJobTests<TStartupModule> : CaseEvaluationDomainTestBase<TStartupModule>
     where TStartupModule : IAbpModule
@@ -69,6 +70,58 @@ public abstract class DraftCleanupJobTests<TStartupModule> : CaseEvaluationDomai
             {
                 (await _repository.FindAsync(purgeId)).ShouldBeNull();
                 (await _repository.FindAsync(keepId)).ShouldNotBeNull();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_purges_expired_drafts_in_every_office()
+    {
+        var purgeA = Guid.NewGuid();
+        var purgeB = Guid.NewGuid();
+        var keepB = Guid.NewGuid();
+        var now = _clock.Now;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _repository.InsertAsync(
+                    new AppointmentDraft(
+                        purgeA, "{\"stale\":true}", 1,
+                        now.AddDays(-(DraftCleanupJob.RetentionDays + 5)),
+                        label: null, tenantId: TenantsTestData.TenantARef),
+                    autoSave: true);
+            }
+
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                await _repository.InsertAsync(
+                    new AppointmentDraft(
+                        purgeB, "{\"stale\":true}", 1,
+                        now.AddDays(-(DraftCleanupJob.RetentionDays + 5)),
+                        label: null, tenantId: TenantsTestData.TenantBRef),
+                    autoSave: true);
+                await _repository.InsertAsync(
+                    new AppointmentDraft(
+                        keepB, "{\"fresh\":true}", 1,
+                        now.AddDays(-1),
+                        label: null, tenantId: TenantsTestData.TenantBRef),
+                    autoSave: true);
+            }
+        });
+
+        await _job.ExecuteAsync();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                // The job iterated BOTH offices: each office's expired draft is gone,
+                // and the fresh draft survives.
+                (await _repository.FindAsync(purgeA)).ShouldBeNull();
+                (await _repository.FindAsync(purgeB)).ShouldBeNull();
+                (await _repository.FindAsync(keepB)).ShouldNotBeNull();
             }
         });
     }
