@@ -276,7 +276,13 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
       // Phase D: the host Staff Supervisor shares the host overview (cross-office
       // aggregation). The Intake operator has no dashboard -- it lands on its
       // office switcher (see the Operators section).
-      { id: 'dashboard', label: 'Overview', icon: 'grid', route: '/dashboard', roles: ['itadmin', 'supervisor'] },
+      {
+        id: 'dashboard',
+        label: 'Overview',
+        icon: 'grid',
+        route: '/dashboard',
+        roles: ['itadmin', 'supervisor'],
+      },
     ],
   },
   {
