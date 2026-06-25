@@ -350,6 +350,10 @@ export class AppointmentWizardComponent
 
   protected stepState(i: number): 'current' | 'done' | 'error' | 'disabled' {
     if (i === this.current) return 'current';
+    // F-M05 (2026-06-25): flag the Schedule step if the user advanced past it
+    // without loading a reval / re-request source, so the dead-end is visible
+    // in the stepper rather than only at a silent Submit.
+    if (this.isSourceLoadRequired && this.steps[i]?.key === 'schedule') return 'error';
     if (this.erroredSteps.has(i)) return 'error';
     if (i <= this.furthest) return 'done';
     return 'disabled';

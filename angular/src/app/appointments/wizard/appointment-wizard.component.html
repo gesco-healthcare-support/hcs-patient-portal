@@ -225,6 +225,13 @@
                 <p>Confirm everything below before sending your request.</p>
               </div>
             </div>
+            @if (isSourceLoadRequired) {
+              <div class="ra-reval__msg" role="alert">
+                Load the prior {{ isReevaluation ? 'approved ' : '' }}appointment by confirmation
+                number on the Schedule step before submitting this
+                {{ isReevaluation ? 're-evaluation' : 're-request' }}.
+              </div>
+            }
             <div class="ra-card__body">
               <div class="ra-review">
                 <div class="ra-review__group">
@@ -545,7 +552,7 @@
         <button
           class="ap-btn ap-btn--primary"
           type="button"
-          [disabled]="isSaving"
+          [disabled]="isSaving || isSourceLoadRequired"
           (click)="onSubmit()"
         >
           <app-icon name="check" [size]="16" />
