@@ -53,19 +53,9 @@ export class InviteExternalUserComponent {
   readonly form = this.fb.group({
     firstName: ['', [Validators.maxLength(128)]],
     lastName: ['', [Validators.maxLength(128)]],
-    // F-005 (2026-06-25): firm name for attorney invites. The backend already
-    // persists it on the invitation and prefills the registration page; this
-    // is the missing admin-side input. Shown only for Applicant/Defense Attorney.
-    firmName: ['', [Validators.maxLength(256)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
     userType: [1 as number | null, [Validators.required]],
   });
-
-  /** F-005: Applicant Attorney (3) and Defense Attorney (4) are firm accounts. */
-  get isAttorneySelected(): boolean {
-    const userType = Number(this.form.controls.userType.value ?? 1);
-    return userType === 3 || userType === 4;
-  }
 
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -94,8 +84,6 @@ export class InviteExternalUserComponent {
       // UM1: optional names -- send null when blank so the server stores null.
       firstName: (value.firstName ?? '').trim() || null,
       lastName: (value.lastName ?? '').trim() || null,
-      // F-005: only carry the firm name for attorney roles; null otherwise.
-      firmName: this.isAttorneySelected ? (value.firmName ?? '').trim() || null : null,
     };
 
     this.isSubmitting.set(true);
@@ -157,7 +145,7 @@ export class InviteExternalUserComponent {
   }
 
   resetForm(): void {
-    this.form.reset({ userType: 1, firmName: '' });
+    this.form.reset({ userType: 1 });
     this.result.set(null);
     this.errorMessage.set(null);
     this.copyConfirmation.set(null);
