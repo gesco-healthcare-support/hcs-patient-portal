@@ -50,6 +50,7 @@ using Volo.Abp.Account.Public.Web;
 using Volo.Abp.Account.Public.Web.Impersonation;
 using Volo.Saas.Host;
 using Volo.Abp.OpenIddict;
+using Volo.Abp.OpenIddict.ExtensionGrantTypes;
 using Volo.Abp.OpenIddict.WildcardDomains;
 using Volo.Abp.MultiTenancy;
 using System.Security.Cryptography.X509Certificates;
@@ -404,6 +405,19 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.TenantAdminUserName = "admin";
             options.ImpersonationTenantPermission = SaasHostPermissions.Tenants.Impersonation;
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
+        });
+
+        // Phase D (2026-06-25) -- replace the stock "Impersonation" grant with
+        // HostIntakeImpersonationExtensionGrant so a host Intake operator can land
+        // as their LIMITED per-office shadow Intake user (gated, deny-by-default).
+        // Supervisor / IT Admin keep the stock switch-in-as-admin path (the grant
+        // delegates to base when the caller holds Saas.Tenants.Impersonation). The
+        // "Impersonation" grant_type is already registered by the stock module's
+        // PreConfigure<OpenIddictServerBuilder>, so only the handler is swapped.
+        Configure<AbpOpenIddictExtensionGrantsOptions>(options =>
+        {
+            options.Grants.Remove("Impersonation");
+            options.Grants.Add("Impersonation", new HostIntakeImpersonationExtensionGrant());
         });
 
         // 2026-05-12 (Issue 1.5) — light is the default for first-time
