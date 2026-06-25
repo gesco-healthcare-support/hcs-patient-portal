@@ -81,6 +81,24 @@
               Users; they are not invitable here.
             </div>
           </div>
+
+          @if (isAttorneySelected) {
+            <div class="col-md-6">
+              <label for="invite-firm-name" class="form-label fw-semibold">Firm Name</label>
+              <input
+                id="invite-firm-name"
+                type="text"
+                class="form-control"
+                formControlName="firmName"
+                placeholder="Optional"
+                autocomplete="off"
+              />
+              @if (form.get('firmName')?.touched && form.get('firmName')?.hasError('maxlength')) {
+                <div class="text-danger small mt-1">Firm name is too long (max 256).</div>
+              }
+              <div class="form-text">Prefilled on the attorney's registration page.</div>
+            </div>
+          }
         </div>
 
         @if (errorMessage()) {
