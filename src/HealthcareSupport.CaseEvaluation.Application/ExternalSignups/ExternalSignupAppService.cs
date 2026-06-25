@@ -232,21 +232,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         var normalized = email.Trim().ToLowerInvariant();
-        var marked = false;
 
         // Each office has its own database, so iterate offices and look the user up
         // inside each office's context (the IMultiTenant filter scopes the query to
         // that office). The (TenantId, Email) unique index keeps the email unique per
         // office, but the same email may exist in more than one office in dev -- mark
-        // each one confirmed.
-        await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
+        // each one confirmed. Each office returns whether it confirmed a match.
+        var confirmedPerOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(async _ =>
         {
             var query = await _identityUserRepository.GetQueryableAsync();
             var user = await AsyncExecuter.FirstOrDefaultAsync(
                 query.Where(u => u.Email != null && u.Email.ToLower() == normalized));
             if (user == null)
             {
-                return;
+                return false;
             }
 
             var managed = await _userManager.GetByIdAsync(user.Id);
@@ -256,10 +255,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             {
                 throw new UserFriendlyException(string.Join(", ", result.Errors.Select(x => x.Description)));
             }
-            marked = true;
+            return true;
         });
 
-        if (!marked)
+        if (!confirmedPerOffice.Any(confirmed => confirmed))
         {
             throw new UserFriendlyException($"User with email '{email}' not found.");
         }
@@ -294,12 +293,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             }
             var email = rawEmail.Trim();
             var normalized = email.ToLowerInvariant();
-            var deletedAny = false;
 
             // Each office has its own database, so iterate offices and delete inside
             // each office's context. The per-office IMultiTenant filter scopes both the
-            // email lookup and the dependent-master cleanup to that office.
-            await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
+            // email lookup and the dependent-master cleanup to that office. Each office
+            // returns how many matching users it deleted.
+            var deletedPerOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(async _ =>
             {
                 var query = await _identityUserRepository.GetQueryableAsync();
                 var ids = await AsyncExecuter.ToListAsync(
@@ -309,24 +308,23 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 foreach (var id in ids)
                 {
                     // Remove dependent masters first (child rows), then the user.
+                    // GetByIdAsync throws if the user is gone, so it is non-null here.
                     await HardDeleteDependentMastersAsync(id);
 
                     var managed = await _userManager.GetByIdAsync(id);
-                    if (managed != null)
+                    var deleteResult = await _userManager.DeleteAsync(managed);
+                    if (!deleteResult.Succeeded)
                     {
-                        var deleteResult = await _userManager.DeleteAsync(managed);
-                        if (!deleteResult.Succeeded)
-                        {
-                            throw new UserFriendlyException(
-                                $"Delete failed for {email}: " +
-                                string.Join(", ", deleteResult.Errors.Select(x => x.Description)));
-                        }
+                        throw new UserFriendlyException(
+                            $"Delete failed for {email}: " +
+                            string.Join(", ", deleteResult.Errors.Select(x => x.Description)));
                     }
-                    deletedAny = true;
                 }
+
+                return ids.Count;
             });
 
-            if (deletedAny)
+            if (deletedPerOffice.Sum() > 0)
             {
                 result.Deleted.Add(email);
             }
