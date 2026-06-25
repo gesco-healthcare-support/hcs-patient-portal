@@ -897,8 +897,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 // booking's find-by-email (FindByNormalizedEmailAsync) could not match -> a
                 // duplicate populated master was created on first booking. Now mirrors the DA
                 // branch below so the registration master is matched + reused.
+                // F-H01 (2026-06-25): register-after-booking. When a booking named
+                // this attorney's email before they had an account, it created an
+                // unclaimed master (IdentityUserId NULL) keyed by (TenantId, Email).
+                // Match by email as well as by identity and ADOPT that row -- claim
+                // the login + backfill the firm the user just typed -- instead of
+                // inserting a second row, which would violate the
+                // IX_AppApplicantAttorneys_TenantId_Email unique index and 500.
+                // Mirrors the Patient adopt-by-email path above.
+                var normalizedApplicantEmail = input.Email.Trim().ToLower();
                 var existingApplicantAttorney = await _applicantAttorneyRepository
-                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
+                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
+                        || (a.IdentityUserId == null
+                            && a.Email != null
+                            && a.Email.ToLower() == normalizedApplicantEmail));
                 if (existingApplicantAttorney == null)
                 {
                     await _applicantAttorneyManager.CreateAsync(
@@ -908,6 +920,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         email: input.Email,
                         firstName: user.Name,
                         lastName: user.Surname);
+                }
+                else if (existingApplicantAttorney.IdentityUserId == null)
+                {
+                    existingApplicantAttorney.IdentityUserId = user.Id;
+                    if (string.IsNullOrWhiteSpace(existingApplicantAttorney.FirmName)
+                        && !string.IsNullOrWhiteSpace(input.FirmName))
+                    {
+                        existingApplicantAttorney.FirmName = input.FirmName.Trim();
+                    }
+                    await _applicantAttorneyRepository.UpdateAsync(existingApplicantAttorney);
                 }
             }
             else if (input.UserType == ExternalUserType.DefenseAttorney)
@@ -919,8 +941,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 // (MyAttorneyProfileAppService, which already supports DA) has a record to
                 // edit. FirmName is stored on the DefenseAttorney entity (not only the
                 // IdentityUser ExtraProperties), so /defense-attorneys shows the firm.
+                // F-H01 (2026-06-25): register-after-booking -- adopt the unclaimed
+                // email-keyed master a prior booking created (IdentityUserId NULL)
+                // instead of inserting a duplicate that would hit
+                // IX_AppDefenseAttorneys_TenantId_Email and 500. Symmetric with the
+                // Applicant Attorney branch above + the Patient adopt-by-email path.
+                var normalizedDefenseEmail = input.Email.Trim().ToLower();
                 var existingDefenseAttorney = await _defenseAttorneyRepository
-                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id);
+                    .FirstOrDefaultAsync(a => a.IdentityUserId == user.Id
+                        || (a.IdentityUserId == null
+                            && a.Email != null
+                            && a.Email.ToLower() == normalizedDefenseEmail));
                 if (existingDefenseAttorney == null)
                 {
                     await _defenseAttorneyManager.CreateAsync(
@@ -930,6 +961,16 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         email: input.Email,
                         firstName: user.Name,
                         lastName: user.Surname);
+                }
+                else if (existingDefenseAttorney.IdentityUserId == null)
+                {
+                    existingDefenseAttorney.IdentityUserId = user.Id;
+                    if (string.IsNullOrWhiteSpace(existingDefenseAttorney.FirmName)
+                        && !string.IsNullOrWhiteSpace(input.FirmName))
+                    {
+                        existingDefenseAttorney.FirmName = input.FirmName.Trim();
+                    }
+                    await _defenseAttorneyRepository.UpdateAsync(existingDefenseAttorney);
                 }
             }
             else if (input.UserType == ExternalUserType.ClaimExaminer)

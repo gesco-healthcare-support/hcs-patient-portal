@@ -972,6 +972,24 @@
       log('Signup response status:', response.status);
 
       if (!response.ok) {
+        // F-M02 (2026-06-25): the register endpoint is rate-limited (5/hr per IP).
+        // The 6th attempt returns 429 with a Retry-After header; show a clear
+        // throttle message with the wait time instead of the generic failure.
+        // Retry-After is exposed cross-origin via the API CORS policy; if it is
+        // absent we still tell the user it is a temporary limit.
+        if (response.status === 429) {
+          var retryAfterSeconds = parseInt(response.headers.get('Retry-After') || '', 10);
+          var waitText = ' Please try again later.';
+          if (!isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+            var minutes = Math.ceil(retryAfterSeconds / 60);
+            waitText = ' Please try again in ' + minutes + ' minute' + (minutes === 1 ? '' : 's') + '.';
+          }
+          notifyRegisterFailure(
+            form,
+            'Too many sign-up attempts from your network.' + waitText);
+          return;
+        }
+
         let message = 'Registration failed.';
         try {
           const errorResult = await response.json();

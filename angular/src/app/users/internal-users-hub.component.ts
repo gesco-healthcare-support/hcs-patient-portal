@@ -201,9 +201,11 @@ export class InternalUsersHubComponent {
     this.gateway
       .sendInvite({
         email: form.email.trim(),
-        // Attorneys are firm-only (name hidden); never send stale first/last.
-        firstName: isFirm ? undefined : form.firstName.trim() || undefined,
-        lastName: isFirm ? undefined : form.lastName.trim() || undefined,
+        // F-005 (2026-06-25): send First/Last for ALL roles (incl. attorneys) so
+        // the invitation email can greet the invitee by name. Firm name is sent
+        // only for the attorney roles (showFirm()).
+        firstName: form.firstName.trim() || undefined,
+        lastName: form.lastName.trim() || undefined,
         userType: form.userType,
         firmName,
       })

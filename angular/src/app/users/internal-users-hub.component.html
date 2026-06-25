@@ -34,29 +34,29 @@
         </div>
         <div class="ra-card__body">
           <div class="ra-grid">
-            <!-- Attorneys register firm-only (no first/last), matching the
-                 self-register form; hide the name fields for those roles so the
-                 invite surface does not diverge (QA F-005). -->
-            @if (!showFirm()) {
-              <div class="ra-field col-6">
-                <label>First name</label>
-                <input
-                  class="ra-input"
-                  [ngModel]="invite().firstName"
-                  (ngModelChange)="patchInvite({ firstName: $event })"
-                  maxlength="128"
-                />
-              </div>
-              <div class="ra-field col-6">
-                <label>Last name</label>
-                <input
-                  class="ra-input"
-                  [ngModel]="invite().lastName"
-                  (ngModelChange)="patchInvite({ lastName: $event })"
-                  maxlength="128"
-                />
-              </div>
-            }
+            <!-- F-005 (2026-06-25): the invite form collects First/Last for ALL
+                 roles -- including attorneys -- so the invitation email can greet
+                 the person by name. The self-register form stays firm-only; the
+                 two surfaces intentionally differ. Firm name is added for the
+                 attorney roles below. -->
+            <div class="ra-field col-6">
+              <label>First name</label>
+              <input
+                class="ra-input"
+                [ngModel]="invite().firstName"
+                (ngModelChange)="patchInvite({ firstName: $event })"
+                maxlength="128"
+              />
+            </div>
+            <div class="ra-field col-6">
+              <label>Last name</label>
+              <input
+                class="ra-input"
+                [ngModel]="invite().lastName"
+                (ngModelChange)="patchInvite({ lastName: $event })"
+                maxlength="128"
+              />
+            </div>
             <div class="ra-field col-6">
               <label>
                 Email
