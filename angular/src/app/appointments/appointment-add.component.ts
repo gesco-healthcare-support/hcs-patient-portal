@@ -321,6 +321,16 @@ export class AppointmentAddComponent {
     return this.bookingMode === 'reRequest';
   }
 
+  /**
+   * F-M05 (2026-06-25): a reval / re-request can only be submitted once a prior
+   * source appointment is loaded (its confirmation # routes the server call).
+   * Exposed so the wizard can disable Submit + flag the Schedule step, rather
+   * than the submit guard silently returning with feedback rendered off-screen.
+   */
+  get isSourceLoadRequired(): boolean {
+    return this.bookingMode !== 'new' && !this.sourceConfirmationNumber;
+  }
+
   /** Localization key for the page heading, by mode. */
   get headingKey(): string {
     if (this.bookingMode === 'reval') return '::ReEvaluationAppointment';

@@ -49,6 +49,9 @@ export class CancellationRequestModalComponent {
 
   reason = '';
   isBusy = false;
+  // F-M04 (2026-06-25): surface a request failure inside the modal instead of
+  // leaving an enabled-but-dead Submit button. The dialog stays dismissible.
+  errorMessage: string | null = null;
 
   readonly maxReasonLength = 500;
 
@@ -64,6 +67,7 @@ export class CancellationRequestModalComponent {
     if (!value) {
       this.reason = '';
       this.isBusy = false;
+      this.errorMessage = null;
     }
   }
 
@@ -72,6 +76,7 @@ export class CancellationRequestModalComponent {
       return;
     }
     this.isBusy = true;
+    this.errorMessage = null;
     this.changeRequestService
       .requestCancellation(this.appointmentId, { reason: this.reason.trim() })
       .subscribe({
@@ -79,8 +84,12 @@ export class CancellationRequestModalComponent {
           this.succeeded.emit(dto);
           this.setVisible(false);
         },
-        error: () => {
+        error: (err: { error?: { error?: { message?: string } } }) => {
+          // Clear busy so Submit + Close/Escape work again, and show why it failed.
           this.isBusy = false;
+          this.errorMessage =
+            err?.error?.error?.message ??
+            'This appointment cannot be cancelled in its current status.';
         },
       });
   }

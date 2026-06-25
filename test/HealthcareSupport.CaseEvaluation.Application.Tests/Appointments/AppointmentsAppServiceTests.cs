@@ -525,6 +525,58 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         }
     }
 
+    // F-M05 (2026-06-25): a re-evaluation child must link back to its source
+    // appointment via OriginalAppointmentId (reschedule children already do).
+    // Before the fix the reval child's OriginalAppointmentId stayed NULL, so a
+    // re-evaluation was untraceable to the appointment it follows up.
+    // Skipped on the epic for the same reason as the sibling create-flow tests:
+    // db-per-office makes catalogs IMultiTenant per office and the shared-SQLite
+    // test rig can't seed per-tenant catalogs (Phase F harness restore).
+    [Fact(Skip = "Phase F harness (F1): catalogs are IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
+    public async Task CreateRevalAsync_LinksRevalChildToSourceViaOriginalAppointmentId()
+    {
+        // Reval requires an APPROVED source. Seed one directly (the approval
+        // gates -- injury + active CE -- are out of scope for this link test).
+        var sourceId = Guid.NewGuid();
+        const string sourceConfirmationNumber = "A9REVALSRC";
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var source = new Appointment(
+                id: sourceId,
+                patientId: PatientsTestData.Patient1Id,
+                identityUserId: IdentityUsersTestData.Patient1UserId,
+                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1Id,
+                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: DateTime.Today.AddDays(-1),
+                requestConfirmationNumber: sourceConfirmationNumber,
+                appointmentStatus: AppointmentStatusType.Approved)
+            {
+                TenantId = TenantsTestData.TenantARef,
+            };
+            await _appointmentRepository.InsertAsync(source, autoSave: true);
+        }
+
+        var scratchSlot = await CreateScratchAvailableSlotInTenantAAsync(
+            scratchDate: DateTime.Today.AddDays(9),
+            scratchFromTime: new TimeOnly(13, 0),
+            scratchToTime: new TimeOnly(14, 0));
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var input = BuildScratchCreateDto(
+                scratchSlot.Id,
+                scratchSlot.AvailableDate.Date.AddHours(13).AddMinutes(15));
+
+            var created = await _appointmentsAppService.CreateRevalAsync(sourceConfirmationNumber, input);
+
+            created.Id.ShouldNotBe(sourceId);
+            var persisted = await _appointmentRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.OriginalAppointmentId.ShouldBe(sourceId);
+        }
+    }
+
     [Fact(Skip = "Phase F harness (F1): catalogs are IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
     public async Task CreateAsync_WhenInputOmitsIsPatientAlreadyExist_DefaultsToFalseOnEntity()
     {

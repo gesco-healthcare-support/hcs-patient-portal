@@ -628,7 +628,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         return await CreateAppointmentInternalAsync(
             input,
             lifecycleFlow: AppointmentLifecycleFlow.Reval,
-            sourceConfirmationNumber: source.RequestConfirmationNumber);
+            sourceConfirmationNumber: source.RequestConfirmationNumber,
+            originalAppointmentId: source.Id);
     }
 
     /// <summary>
@@ -663,7 +664,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     private async Task<AppointmentDto> CreateAppointmentInternalAsync(
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,
-        string? sourceConfirmationNumber)
+        string? sourceConfirmationNumber,
+        Guid? originalAppointmentId = null)
     {
         ValidateCreateGuids(input);
 
@@ -816,6 +818,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
         // 2026-06-09: per-appointment Referred By (optional; not derived from the patient).
         appointment.RefferedBy = input.RefferedBy;
+
+        // F-M05 (2026-06-25): link a re-evaluation child back to its source
+        // appointment, mirroring the reschedule cloner (AppointmentRescheduleCloner).
+        // Without this the reval child's OriginalAppointmentId stays NULL, so a
+        // re-evaluation is untraceable to the appointment it follows up.
+        if (originalAppointmentId.HasValue)
+        {
+            appointment.OriginalAppointmentId = originalAppointmentId.Value;
+        }
 
         // R2 (Phase 9, 2026-05-04): persist OLD-parity dedup outcome on the
         // appointment row. Mirrors OLD AppointmentDomain.cs:210, 217 where
