@@ -401,4 +401,35 @@ public static class CaseEvaluationPermissions
         public const string Default = GroupName + ".UserSignatures";
         public const string ManageOwn = Default + ".ManageOwn";
     }
+
+    /// <summary>
+    /// Phase D (2026-06-25) -- host-operator office-assignment management. A
+    /// host-scoped surface (HOST side) where IT Admin and the host Staff
+    /// Supervisor assign / unassign Intake operators to the offices they may
+    /// enter. <c>Default</c> gates the read of the assignment list; <c>Manage</c>
+    /// gates assign / unassign (which also provisions / revokes the per-office
+    /// shadow Intake user). Registered MultiTenancySides.Host because operators
+    /// and their assignments live in the host/management database.
+    /// </summary>
+    public static class IntakeAssignments
+    {
+        public const string Default = GroupName + ".IntakeAssignments";
+        public const string Manage = Default + ".Manage";
+    }
+
+    /// <summary>
+    /// Phase D (2026-06-25) -- the host Intake operator's switch capability. The
+    /// thin host login holds this (and only this office power); it gates (a) the
+    /// custom impersonation grant's intake branch -- letting the operator land as
+    /// their LIMITED per-office shadow Intake user -- and (b) the read of "my
+    /// assigned offices" that populates the office switcher. Registered
+    /// MultiTenancySides.Host (the operator is a host user); the per-office
+    /// assignment gate (deny-by-default) is the actual office-scope boundary,
+    /// enforced server-side in the grant. NOT granted to Supervisor / IT Admin,
+    /// who switch in as office admin via Saas.Tenants.Impersonation instead.
+    /// </summary>
+    public static class IntakeImpersonation
+    {
+        public const string Default = GroupName + ".IntakeImpersonation";
+    }
 }

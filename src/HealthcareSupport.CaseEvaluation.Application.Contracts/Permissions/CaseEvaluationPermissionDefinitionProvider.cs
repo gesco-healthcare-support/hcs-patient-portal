@@ -210,6 +210,29 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         internalUsersPermission.AddChild(
             CaseEvaluationPermissions.InternalUsers.Edit,
             L("Permission:InternalUsers.Edit"));
+
+        // Phase D (2026-06-25) -- host-operator office-assignment management.
+        // HOST side: operators + assignments live in the host/management DB,
+        // and a tenant-scoped role must never grant itself cross-office reach.
+        // IT Admin + host Staff Supervisor hold these to assign / unassign
+        // Intake operators to offices.
+        var intakeAssignmentsPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.IntakeAssignments.Default,
+            L("Permission:IntakeAssignments"),
+            MultiTenancySides.Host);
+        intakeAssignmentsPermission.AddChild(
+            CaseEvaluationPermissions.IntakeAssignments.Manage,
+            L("Permission:IntakeAssignments.Manage"));
+
+        // Phase D (2026-06-25) -- the host Intake operator's office-switch
+        // capability. HOST side; held only by the host Intake operator role.
+        // Gates the custom impersonation grant's intake branch + the "my
+        // assigned offices" read. The per-office assignment gate (deny-by-
+        // default, enforced server-side in the grant) is the office boundary.
+        myGroup.AddPermission(
+            CaseEvaluationPermissions.IntakeImpersonation.Default,
+            L("Permission:IntakeImpersonation"),
+            MultiTenancySides.Host);
     }
 
     private static LocalizableString L(string name)
