@@ -6,19 +6,28 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Identity;
 
 /// <summary>
-/// Pins the three internal roles' permission grant sets to the decided access
-/// matrix (docs/plans/2026-06-16-internal-roles-access-model.md). Pure -- reads
-/// the static grant generators, no DB. Security-sensitive: over-granting a
-/// technical power to a business role, or losing a booking-required read for
-/// Intake, must fail here.
+/// Pins the internal roles' permission grant sets to the decided access matrix.
+/// Pure -- reads the static grant generators, no DB. Security-sensitive:
+/// over-granting a technical power to a business role, or losing a booking-
+/// required read for the in-office Intake identity, must fail here.
+///
+/// Phase D (2026-06-25): Staff Supervisor + the Intake operator are now HOST
+/// operators (single host login each). The host Supervisor switches into an
+/// office as its admin; the host Intake operator holds only the gated
+/// office-switch capability and lands as the per-tenant Intake Staff shadow
+/// user. The per-tenant "Intake Staff" grant set
+/// (<see cref="InternalUserRoleDataSeedContributor.IntakeStaffGrants"/>) is what
+/// the shadow user holds and is unchanged from the front-desk tier.
 /// </summary>
 public class InternalUserRoleGrantsTests
 {
     private static readonly HashSet<string> ItAdmin =
         InternalUserRoleDataSeedContributor.ItAdminGrants().ToHashSet();
-    private static readonly HashSet<string> Supervisor =
-        InternalUserRoleDataSeedContributor.StaffSupervisorGrants().ToHashSet();
-    private static readonly HashSet<string> Intake =
+    private static readonly HashSet<string> SupervisorHost =
+        InternalUserRoleDataSeedContributor.StaffSupervisorHostGrants().ToHashSet();
+    private static readonly HashSet<string> IntakeOperatorHost =
+        InternalUserRoleDataSeedContributor.IntakeOperatorHostGrants().ToHashSet();
+    private static readonly HashSet<string> IntakeShadow =
         InternalUserRoleDataSeedContributor.IntakeStaffGrants().ToHashSet();
 
     // ---- IT Admin: the technical platform admin holds the framework powers ----
@@ -38,36 +47,55 @@ public class InternalUserRoleGrantsTests
     [InlineData("Saas.Tenants.Impersonation")]
     public void ItAdmin_has_framework_powers(string permission) => ItAdmin.ShouldContain(permission);
 
-    // ---- Staff Supervisor: business + the two 2026-06-16 additions ----
+    // ---- Host Staff Supervisor: cross-office operator (switch-in-as-admin) ----
     [Theory]
-    [InlineData("CaseEvaluation.SystemParameters.Edit")]
-    [InlineData("AuditLogging.AuditLogs")]
-    public void Supervisor_gains_sysparams_edit_and_audit_read(string permission) =>
-        Supervisor.ShouldContain(permission);
+    [InlineData("CaseEvaluation.Dashboard.Host")]
+    [InlineData("Saas.Tenants")]
+    [InlineData("Saas.Tenants.Impersonation")]
+    [InlineData("CaseEvaluation.IntakeAssignments")]
+    [InlineData("CaseEvaluation.IntakeAssignments.Manage")]
+    [InlineData("CaseEvaluation.InternalUsers.Create")]
+    [InlineData("CaseEvaluation.InternalUsers.Edit")]
+    public void SupervisorHost_has_operator_powers(string permission) =>
+        SupervisorHost.ShouldContain(permission);
 
-    // ...but NONE of the technical / host powers.
+    // ...but NOT the IT-Admin-only framework powers, NOT tenant-create, and NOT
+    // the deep tenant operational CRUD (it gets those by switching in AS admin,
+    // not by holding them at host scope), NOT the intake-only switch capability.
     [Theory]
     [InlineData("AbpIdentity.Roles")]
     [InlineData("AbpIdentity.Roles.ManagePermissions")]
     [InlineData("FileManagement.FileDescriptor")]
     [InlineData("LanguageManagement.Languages")]
-    [InlineData("Saas.Tenants")]
     [InlineData("Saas.Tenants.Create")]
-    [InlineData("Saas.Tenants.Impersonation")]
-    public void Supervisor_does_not_get_technical_powers(string permission) =>
-        Supervisor.ShouldNotContain(permission);
+    [InlineData("CaseEvaluation.Dashboard.Tenant")]
+    [InlineData("CaseEvaluation.Appointments.Create")]
+    [InlineData("CaseEvaluation.Patients.Create")]
+    [InlineData("CaseEvaluation.IntakeImpersonation")]
+    public void SupervisorHost_excludes_technical_and_tenant_crud(string permission) =>
+        SupervisorHost.ShouldNotContain(permission);
 
+    // ---- Host Intake operator: ONLY the gated office-switch capability ----
     [Fact]
-    public void Supervisor_keeps_business_essentials()
+    public void IntakeOperatorHost_holds_only_the_switch_capability()
     {
-        Supervisor.ShouldContain("CaseEvaluation.Appointments");
-        Supervisor.ShouldContain("CaseEvaluation.NotificationTemplates.Edit");
-        // Business admin manages their clinic staff (confirmed 2026-06-16).
-        Supervisor.ShouldContain("CaseEvaluation.InternalUsers.Create");
-        Supervisor.ShouldContain("CaseEvaluation.InternalUsers.Edit");
+        IntakeOperatorHost.ShouldContain("CaseEvaluation.IntakeImpersonation");
+        IntakeOperatorHost.Count.ShouldBe(1);
     }
 
-    // ---- Intake: clinic-local operations + functional reads only ----
+    [Theory]
+    [InlineData("Saas.Tenants")]
+    [InlineData("Saas.Tenants.Impersonation")]
+    [InlineData("CaseEvaluation.Dashboard.Host")]
+    [InlineData("CaseEvaluation.IntakeAssignments")]
+    [InlineData("CaseEvaluation.IntakeAssignments.Manage")]
+    [InlineData("CaseEvaluation.Appointments.Create")]
+    [InlineData("CaseEvaluation.InternalUsers.Create")]
+    public void IntakeOperatorHost_excludes_admin_and_management_powers(string permission) =>
+        IntakeOperatorHost.ShouldNotContain(permission);
+
+    // ---- Per-tenant Intake Staff (the shadow user's identity): clinic-local ----
+    // operations + functional reads only; never config / technical / host powers.
     [Theory]
     [InlineData("CaseEvaluation.NotificationTemplates")]
     [InlineData("CaseEvaluation.NotificationTemplates.Edit")]
@@ -79,17 +107,18 @@ public class InternalUserRoleGrantsTests
     [InlineData("FileManagement.FileDescriptor")]
     [InlineData("Saas.Tenants")]
     [InlineData("Saas.Tenants.Impersonation")]
-    public void Intake_excludes_config_and_technical(string permission) =>
-        Intake.ShouldNotContain(permission);
+    [InlineData("CaseEvaluation.IntakeImpersonation")]
+    public void IntakeShadow_excludes_config_and_technical(string permission) =>
+        IntakeShadow.ShouldNotContain(permission);
 
     [Fact]
-    public void Intake_keeps_operations_and_booking_reads()
+    public void IntakeShadow_keeps_operations_and_booking_reads()
     {
-        Intake.ShouldContain("CaseEvaluation.Appointments.Create");
-        Intake.ShouldContain("CaseEvaluation.Patients.Create");
-        Intake.ShouldContain("CaseEvaluation.DoctorAvailabilities.Create");
+        IntakeShadow.ShouldContain("CaseEvaluation.Appointments.Create");
+        IntakeShadow.ShouldContain("CaseEvaluation.Patients.Create");
+        IntakeShadow.ShouldContain("CaseEvaluation.DoctorAvailabilities.Create");
         // Behind-the-scenes reads the booking flow needs (no management screen).
-        Intake.ShouldContain("CaseEvaluation.SystemParameters");
-        Intake.ShouldContain("CaseEvaluation.UserManagement.InviteExternalUser");
+        IntakeShadow.ShouldContain("CaseEvaluation.SystemParameters");
+        IntakeShadow.ShouldContain("CaseEvaluation.UserManagement.InviteExternalUser");
     }
 }

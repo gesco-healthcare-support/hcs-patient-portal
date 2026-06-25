@@ -211,6 +211,33 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   },
   // Back-compat: the legacy /internal-users path now lands on the hub.
   { path: 'internal-users', redirectTo: 'users/internal', pathMatch: 'full' },
+  // Phase D (2026-06-25): host-operator office surfaces. Intake assignment
+  // management (IT Admin + host Supervisor) and the Intake operator's own office
+  // switcher. Each route's requiredPolicy matches the nav item's gate so
+  // visibility == access.
+  {
+    path: 'host',
+    children: [
+      {
+        path: 'intake-assignments',
+        loadComponent: () =>
+          import('./host-operators/intake-assignments.component').then(
+            (c) => c.IntakeAssignmentsComponent,
+          ),
+        canActivate: [authGuard, permissionGuard],
+        data: { requiredPolicy: 'CaseEvaluation.IntakeAssignments' },
+      },
+      {
+        path: 'my-offices',
+        loadComponent: () =>
+          import('./host-operators/intake-office-switcher.component').then(
+            (c) => c.IntakeOfficeSwitcherComponent,
+          ),
+        canActivate: [authGuard, permissionGuard],
+        data: { requiredPolicy: 'CaseEvaluation.IntakeImpersonation' },
+      },
+    ],
+  },
   // Prompt 16 Part B (2026-06-16): Admin hub. One standalone component at four
   // section routes (deep-linkable + per-route gated); replaces the ABP module
   // admin pages (text-template-management, setting-management, identity roles,
