@@ -273,7 +273,42 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
   {
     sect: 'Platform',
     items: [
-      { id: 'dashboard', label: 'Overview', icon: 'grid', route: '/dashboard', roles: ['itadmin'] },
+      // Phase D: the host Staff Supervisor shares the host overview (cross-office
+      // aggregation). The Intake operator has no dashboard -- it lands on its
+      // office switcher (see the Operators section).
+      { id: 'dashboard', label: 'Overview', icon: 'grid', route: '/dashboard', roles: ['itadmin', 'supervisor'] },
+    ],
+  },
+  {
+    // Phase D (2026-06-25): cross-office operator surfaces. Supervisor switches
+    // into any office as admin (Tenants); IT Admin + Supervisor manage Intake
+    // assignments; the Intake operator switches into its assigned offices.
+    sect: 'Offices',
+    items: [
+      {
+        id: 'tenants',
+        label: 'Offices',
+        icon: 'users',
+        route: '/users/tenants',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'Saas.Tenants',
+      },
+      {
+        id: 'intake-assignments',
+        label: 'Intake Assignments',
+        icon: 'user',
+        route: '/host/intake-assignments',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.IntakeAssignments',
+      },
+      {
+        id: 'my-offices',
+        label: 'My Offices',
+        icon: 'map',
+        route: '/host/my-offices',
+        roles: ['intake'],
+        requiredPolicy: 'CaseEvaluation.IntakeImpersonation',
+      },
     ],
   },
   {
@@ -281,8 +316,7 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
     items: [
       {
         // Prompt 16 (2026-06-16): the redesigned Users & Access hub serves IT Admin's
-        // invite / pending / internal-users / tenants surfaces via its rail. Editions
-        // was cancelled (no real use). Tenants keeps a direct link to the hub section.
+        // invite / pending / internal-users / tenants surfaces via its rail.
         id: 'users-access',
         label: 'Users & Access',
         icon: 'user',
@@ -291,11 +325,14 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },
       {
-        id: 'tenants',
-        label: 'Tenants',
+        // Phase D: host Staff Supervisor creates internal operators (Intake +
+        // Supervisor) -- gated by InternalUsers.Create, which it holds.
+        id: 'internal-users',
+        label: 'Internal Users',
         icon: 'users',
-        route: '/users/tenants',
-        roles: ['itadmin'],
+        route: '/users/internal',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
       },
     ],
   },
@@ -384,6 +421,16 @@ export function resolveNavGroups(
   hostScope: boolean,
   isGranted: (policy: string) => boolean = () => true,
 ): InternalNavGroup[] {
-  const usesHostNav = hostScope && (roleKey === 'itadmin' || roleKey === 'admin');
+  // Phase D (2026-06-25): Staff Supervisor + Intake Staff are HOST operators now,
+  // so at host scope they get the platform nav (office switch + assignments),
+  // NOT the tenant nav (which would 403 with no current tenant). Once they switch
+  // into an office, hostScope is false and they fall back to IN_NAV (the
+  // impersonated admin / shadow Intake user's tenant nav).
+  const usesHostNav =
+    hostScope &&
+    (roleKey === 'itadmin' ||
+      roleKey === 'admin' ||
+      roleKey === 'supervisor' ||
+      roleKey === 'intake');
   return filterNavGroups(usesHostNav ? IN_NAV_HOST : IN_NAV, roleKey, isGranted);
 }
