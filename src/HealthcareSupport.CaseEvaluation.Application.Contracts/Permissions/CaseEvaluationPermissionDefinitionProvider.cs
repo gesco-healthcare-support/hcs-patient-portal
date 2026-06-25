@@ -233,6 +233,19 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.IntakeImpersonation.Default,
             L("Permission:IntakeImpersonation"),
             MultiTenancySides.Host);
+
+        // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides:
+        // host operators (IT Admin, host Staff Supervisor) edit any office from the
+        // host-side central manager; the per-office admin role edits its own office
+        // while impersonated. The public GetBranding + logo-serve are AllowAnonymous
+        // (by subdomain) and not gated here.
+        var brandingPermission = myGroup.AddPermission(
+            CaseEvaluationPermissions.Branding.Default,
+            L("Permission:Branding"),
+            MultiTenancySides.Both);
+        brandingPermission.AddChild(
+            CaseEvaluationPermissions.Branding.Edit,
+            L("Permission:Branding.Edit"));
     }
 
     private static LocalizableString L(string name)
