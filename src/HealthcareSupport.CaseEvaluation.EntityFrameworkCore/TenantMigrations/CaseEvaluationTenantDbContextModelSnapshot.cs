@@ -3132,6 +3132,10 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("Name");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
                     b.HasKey("Id");
 
                     b.ToTable("AppNotificationTemplateTypes", (string)null);

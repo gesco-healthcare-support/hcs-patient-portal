@@ -635,17 +635,17 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
-        // NotificationTemplateType -- host-scoped lookup (Email / SMS).
-        if (builder.IsHostDatabase())
+        // NotificationTemplateType -- per-office reference copy (Email / SMS). IMultiTenant
+        // (B4) so each office database carries its own copy and NotificationTemplate's FK
+        // resolves in-DB; mapped here (not behind IsHostDatabase) like the other catalogs.
+        builder.Entity<NotificationTemplateType>(b =>
         {
-            builder.Entity<NotificationTemplateType>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
-                b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
+            b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
+        });
 
         // Per-tenant SystemParameter singleton -- booking / cancel / reschedule / JDF gates.
         builder.Entity<SystemParameter>(b =>

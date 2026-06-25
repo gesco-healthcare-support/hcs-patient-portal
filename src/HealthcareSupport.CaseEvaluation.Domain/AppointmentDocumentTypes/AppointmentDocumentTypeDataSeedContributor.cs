@@ -59,7 +59,7 @@ public class AppointmentDocumentTypeDataSeedContributor : IDataSeedContributor, 
                         isActive: true,
                         isSystem: true,
                         tenantId: context.TenantId),
-                    autoSave: true);
+                    autoSave: false);
             }
 
             // #4 (2026-06-19): one record per name, offered to a SET of appointment
@@ -94,6 +94,6 @@ public class AppointmentDocumentTypeDataSeedContributor : IDataSeedContributor, 
             isSystem: false,
             tenantId: tenantId);
         entity.SetAppointmentTypes(new List<System.Guid>(appointmentTypeIds));
-        await _repository.InsertAsync(entity, autoSave: true);
+        await _repository.InsertAsync(entity, autoSave: false);
     }
 }
