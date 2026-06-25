@@ -52,6 +52,10 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     {
         ("stafsuper1@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
         ("clistaff1@gesco.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
+        // F-003 (Phase D): a 2nd Supervisor + 2nd Intake operator so the
+        // multi-operator + assignment-gate tests have distinct subjects.
+        ("stafsuper2@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
+        ("clistaff2@gesco.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
     };
 
     private readonly IdentityUserManager _userManager;
@@ -109,6 +113,19 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                 userName: ItAdminEmail,
                 roleName: InternalUserRoleDataSeedContributor.ItAdminRoleName,
                 tenantId: null);
+
+            // Phase D (2026-06-25): Staff Supervisor + Intake Staff are HOST
+            // operators now -- a single host login each that switches into
+            // offices (Supervisor as office admin; Intake into its limited
+            // per-office shadow user). Seeded host-side (was per-tenant).
+            foreach (var (email, roleName) in ExtraSeededUsers)
+            {
+                await EnsureUserWithRoleAsync(
+                    email: email,
+                    userName: email,
+                    roleName: roleName,
+                    tenantId: null);
+            }
         }
     }
 
@@ -147,22 +164,13 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                     tenantId: tenantId);
             }
 
-            // 2026-05-19 (replaces 2026-05-06): also seed the extra demo
-            // accounts that Adrian uses for hardening test runs. Each
-            // entry carries an explicit role so the seed can produce
-            // Staff Supervisor + Intake Staff demo logins directly
-            // instead of routing them through the `admin` role.
-            // Idempotent -- existing rows (including legacy
-            // SoftwareOne/Two@evaluators.com seeded prior to 2026-05-19)
-            // are not touched here; cleanup is a separate manual step.
-            foreach (var (extraEmail, extraRoleName) in ExtraSeededUsers)
-            {
-                await EnsureUserWithRoleAsync(
-                    email: extraEmail,
-                    userName: extraEmail,
-                    roleName: extraRoleName,
-                    tenantId: tenantId);
-            }
+            // Phase D (2026-06-25): the Staff Supervisor + Intake Staff demo
+            // logins (stafsuper*/clistaff*) are NO LONGER seeded per tenant --
+            // they are HOST operators now (see SeedHostUsersAsync). The only
+            // per-office internal user seeded here is the office `admin` (the
+            // impersonation target for a switching Supervisor). The limited
+            // per-office Intake shadow users are provisioned on assignment, not
+            // seeded.
         }
     }
 
@@ -309,6 +317,8 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             // Names are synthetic (.claude/rules/test-data.md).
             "stafsuper1" => ("Patrick", "O'Neal"),
             "clistaff1" => ("Rachel", "Kim"),
+            "stafsuper2" => ("Denise", "Alvarez"),
+            "clistaff2" => ("Marcus", "Webb"),
             _ => ("Test", "User"),
         };
     }
@@ -333,6 +343,8 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             // fixtures keyed on those numbers keep working.
             "stafsuper1" => "555-010-0005",
             "clistaff1" => "555-010-0006",
+            "stafsuper2" => "555-010-0007",
+            "clistaff2" => "555-010-0008",
             _ => "555-010-0099",
         };
     }
