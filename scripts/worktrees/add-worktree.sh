@@ -52,9 +52,13 @@ SQL_HOST=$((1434 + offset))
 REDIS_HOST=$((6379 + offset))
 MINIO_API=$((9000 + offset * 10))
 MINIO_CONSOLE=$((9001 + offset * 10))
+# WT-001 (2026-06-25): the packet-renderer sidecar defaults to host port 3001;
+# without a per-worktree override every worktree collides with the main stack on
+# 3001 and `docker compose up -d` exits 1. Stride by 10 like the other services.
+PACKET_RENDERER=$((3001 + offset * 10))
 DB="CaseEvaluation"
 
-echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE)"
+echo "Creating $SLUG at $TARGET (AUTH=$AUTH API=$API NG=$NG SQL=$SQL_HOST REDIS=$REDIS_HOST MINIO_API=$MINIO_API MINIO_CONSOLE=$MINIO_CONSOLE PACKET_RENDERER=$PACKET_RENDERER)"
 
 cd "$MAIN"
 git fetch origin
@@ -91,6 +95,7 @@ SQL_HOST_PORT=$SQL_HOST
 REDIS_HOST_PORT=$REDIS_HOST
 MINIO_API_PORT=$MINIO_API
 MINIO_CONSOLE_PORT=$MINIO_CONSOLE
+PACKET_RENDERER_PORT=$PACKET_RENDERER
 NG_CONFIG=local
 ENV
 
@@ -109,6 +114,7 @@ Worktree $SLUG ready at $TARGET.
   Redis:        localhost:$REDIS_HOST
   MinIO API:    http://localhost:$MINIO_API
   MinIO Cons:   http://localhost:$MINIO_CONSOLE
+  Packet Rndr:  http://localhost:$PACKET_RENDERER
 
 To start the stack:
   cd $TARGET && docker compose up -d

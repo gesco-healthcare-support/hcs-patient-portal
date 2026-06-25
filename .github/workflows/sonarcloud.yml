@@ -75,7 +75,8 @@ jobs:
       - name: Angular tests with coverage
         working-directory: angular
         run: |
-          yarn install --frozen-lockfile
+          corepack enable
+          yarn install --immutable
           yarn test --watch=false --browsers=ChromeHeadless --code-coverage || true
         # Tolerates the current silent-skip (most features have no specs yet).
         # Phase A PR 4 hardens the frontend-test job. LCOV output lands in

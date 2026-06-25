@@ -1,0 +1,586 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
+using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.States;
+using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
+
+/// <summary>
+/// Send Back / Request-more-information (2026-06-14). Staff flag fields + add a
+/// note (Pending -&gt; InfoRequested); the external party resubmits their
+/// corrections (InfoRequested -&gt; Pending). The note + flagged-field list are
+/// returned un-masked so the external fix-it page can render them. The flagged
+/// fields are stored as a JSON array, so DTO mapping is manual (Mapperly cannot
+/// deserialize JSON).
+/// </summary>
+[RemoteService(IsEnabled = false)]
+[Authorize]
+public class AppointmentInfoRequestsAppService
+    : CaseEvaluationAppService, IAppointmentInfoRequestsAppService
+{
+    private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
+    private readonly IAppointmentRepository _appointmentRepository;
+    private readonly AppointmentManager _appointmentManager;
+    private readonly AppointmentReadAccessGuard _readAccessGuard;
+    private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IRepository<AppointmentPrimaryInsurance, Guid> _insuranceRepository;
+    private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseLinkRepository;
+    private readonly IRepository<DefenseAttorney, Guid> _defenseRepository;
+    private readonly IRepository<AppointmentLanguage, Guid> _languageRepository;
+    private readonly IRepository<State, Guid> _stateRepository;
+    private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly IIdentityUserRepository _userRepository;
+
+    public AppointmentInfoRequestsAppService(
+        IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
+        IAppointmentRepository appointmentRepository,
+        AppointmentManager appointmentManager,
+        AppointmentReadAccessGuard readAccessGuard,
+        IRepository<Patient, Guid> patientRepository,
+        IRepository<AppointmentPrimaryInsurance, Guid> insuranceRepository,
+        IRepository<AppointmentDefenseAttorney, Guid> defenseLinkRepository,
+        IRepository<DefenseAttorney, Guid> defenseRepository,
+        IRepository<AppointmentLanguage, Guid> languageRepository,
+        IRepository<State, Guid> stateRepository,
+        IRepository<AppointmentDocument, Guid> documentRepository,
+        IIdentityUserRepository userRepository)
+    {
+        _infoRequestRepository = infoRequestRepository;
+        _appointmentRepository = appointmentRepository;
+        _appointmentManager = appointmentManager;
+        _readAccessGuard = readAccessGuard;
+        _patientRepository = patientRepository;
+        _insuranceRepository = insuranceRepository;
+        _defenseLinkRepository = defenseLinkRepository;
+        _defenseRepository = defenseRepository;
+        _languageRepository = languageRepository;
+        _stateRepository = stateRepository;
+        _documentRepository = documentRepository;
+        _userRepository = userRepository;
+    }
+
+    [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
+    public virtual async Task<AppointmentInfoRequestDto> SendBackAsync(
+        Guid appointmentId,
+        SendBackAppointmentInput input)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            throw new UserFriendlyException(L["The {0} field is required.", L["Appointment"]]);
+        }
+        if (input == null || string.IsNullOrWhiteSpace(input.Note))
+        {
+            throw new UserFriendlyException(L["AppointmentInfoRequest:NoteRequired"]);
+        }
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        if (appointment.AppointmentStatus != AppointmentStatusType.Pending)
+        {
+            throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyPendingCanBeSentBack"]);
+        }
+
+        var fieldsJson = JsonSerializer.Serialize(input.FlaggedFields ?? new List<FlaggedFieldDto>());
+        var entity = new AppointmentInfoRequest(
+            GuidGenerator.Create(),
+            appointment.TenantId,
+            appointmentId,
+            input.Note.Trim(),
+            fieldsJson,
+            CurrentUser.Id);
+
+        // Snapshot the flagged fields' CURRENT values so the staff diff has a "before".
+        entity.CaptureBeforeValues(await BuildSnapshotJsonAsync(appointment, ReadFlaggedKeys(entity)));
+        await _infoRequestRepository.InsertAsync(entity, autoSave: true);
+
+        // Fire the Pending -> InfoRequested transition (re-validates the source
+        // status + publishes the status-changed event for notifications).
+        await _appointmentManager.SendBackAsync(appointmentId, CurrentUser.Id);
+
+        return MapToDto(entity);
+    }
+
+    [Authorize]
+    public virtual async Task ResubmitAsync(Guid appointmentId)
+    {
+        // Party-scoped: the creator, internal staff, or an Edit-accessor. The
+        // external user's corrected field values are saved through the existing
+        // patient / document endpoints before this transition-only call.
+        await _readAccessGuard.EnsureCanEditAsync(appointmentId);
+
+        var open = await GetOpenEntityAsync(appointmentId);
+        if (open != null)
+        {
+            var appointment = await _appointmentRepository.GetAsync(appointmentId);
+            var flaggedKeys = ReadFlaggedKeys(open);
+
+            // F-018 fix (2026-06-23): the fix-it page disables Resubmit until every flagged field
+            // is addressed, but that gate is client-side only (it keys off in-session `touched`),
+            // so a direct API call could resubmit an un-fixed appointment. Re-check server-side
+            // that each flagged field now holds a value (and that a document exists when documents
+            // were flagged) before allowing the InfoRequested -> Pending transition.
+            var unresolved = await GetUnresolvedFlaggedKeysAsync(appointment, flaggedKeys);
+            if (unresolved.Count > 0)
+            {
+                throw new UserFriendlyException(
+                    "Please complete all the requested corrections before resubmitting to the clinic.");
+            }
+
+            // Snapshot the corrected values so the staff diff has an "after".
+            open.CaptureAfterValues(await BuildSnapshotJsonAsync(appointment, flaggedKeys));
+            open.MarkResolved(Clock.Now);
+            await _infoRequestRepository.UpdateAsync(open, autoSave: true);
+        }
+
+        await _appointmentManager.ResubmitInfoAsync(appointmentId, CurrentUser.Id);
+    }
+
+    [Authorize]
+    public virtual async Task SaveCorrectionsAsync(
+        Guid appointmentId,
+        SaveInfoRequestCorrectionsInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        // Same trust boundary as ResubmitAsync: creator / internal staff / Edit-accessor.
+        await _readAccessGuard.EnsureCanEditAsync(appointmentId);
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        if (appointment.AppointmentStatus != AppointmentStatusType.InfoRequested)
+        {
+            throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyInfoRequestedCanBeCorrected"]);
+        }
+
+        var open = await GetOpenEntityAsync(appointmentId);
+        if (open == null)
+        {
+            throw new UserFriendlyException(L["AppointmentInfoRequest:NoOpenRequest"]);
+        }
+
+        // Server-side lock: a correction may only touch fields staff flagged.
+        var flaggedKeys = ReadFlaggedKeys(open);
+        if (InfoRequestCorrectionLock.FindUnflaggedChanges(input, flaggedKeys).Count > 0)
+        {
+            throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyFlaggedFieldsCanBeChanged"]);
+        }
+
+        await ApplyPatientCorrectionsAsync(appointment.PatientId, input);
+        await ApplyAppointmentEmailCorrectionsAsync(appointment, input);
+        await ApplyInsuranceCorrectionsAsync(appointmentId, input);
+        await ApplyDefenseFirmCorrectionAsync(appointmentId, input);
+    }
+
+    private static HashSet<string> ReadFlaggedKeys(AppointmentInfoRequest entity)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            var fields = JsonSerializer.Deserialize<List<FlaggedFieldDto>>(entity.RequestedFields);
+            if (fields != null)
+            {
+                foreach (var field in fields)
+                {
+                    if (!string.IsNullOrWhiteSpace(field.Key))
+                    {
+                        keys.Add(field.Key!);
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // A corrupt JSON blob yields an empty set, which locks every field -- safe.
+        }
+        return keys;
+    }
+
+    private static readonly string[] PatientSnapshotKeys =
+    {
+        "dateOfBirth", "socialSecurityNumber", "street", "city", "stateId", "zipCode",
+        "cellPhoneNumber", "appointmentLanguageId",
+    };
+
+    /// <summary>
+    /// Reads the CURRENT values of the flagged scalar fields from their homes and
+    /// serializes the masked/formatted snapshot. Only the homes a flagged key needs
+    /// are queried. Used for the send-back "before" + resubmit "after" captures.
+    /// </summary>
+    private async Task<string> BuildSnapshotJsonAsync(Appointment appointment, ISet<string> flaggedKeys)
+    {
+        DateTime? dob = null;
+        string? ssn = null, street = null, city = null, stateName = null, zip = null,
+            cell = null, languageName = null, insuranceName = null, defenseFirm = null;
+
+        if (flaggedKeys.Overlaps(PatientSnapshotKeys))
+        {
+            var patient = await _patientRepository.FindAsync(appointment.PatientId);
+            if (patient != null)
+            {
+                dob = patient.DateOfBirth;
+                ssn = patient.SocialSecurityNumber;
+                street = patient.Street;
+                city = patient.City;
+                zip = patient.ZipCode;
+                cell = patient.CellPhoneNumber;
+                if (flaggedKeys.Contains("appointmentLanguageId") && patient.AppointmentLanguageId is Guid languageId)
+                {
+                    languageName = (await _languageRepository.FindAsync(languageId))?.Name;
+                }
+                if (flaggedKeys.Contains("stateId") && patient.StateId is Guid stateId)
+                {
+                    stateName = (await _stateRepository.FindAsync(stateId))?.Name;
+                }
+            }
+        }
+
+        if (flaggedKeys.Contains("appointmentInsuranceName"))
+        {
+            insuranceName = (await _insuranceRepository
+                .FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id))?.Name;
+        }
+
+        if (flaggedKeys.Contains("defenseAttorneyFirmName"))
+        {
+            var link = await _defenseLinkRepository
+                .FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+            if (link != null)
+            {
+                defenseFirm = (await _defenseRepository.FindAsync(link.DefenseAttorneyId))?.FirmName;
+            }
+        }
+
+        var values = new InfoRequestSnapshot.FieldValues
+        {
+            DateOfBirth = dob,
+            SocialSecurityNumber = ssn,
+            Street = street,
+            City = city,
+            StateName = stateName,
+            ZipCode = zip,
+            CellPhoneNumber = cell,
+            AppointmentLanguageName = languageName,
+            ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
+            ClaimExaminerEmail = appointment.ClaimExaminerEmail,
+            InsuranceName = insuranceName,
+            DefenseAttorneyFirmName = defenseFirm,
+        };
+
+        return InfoRequestSnapshot.Serialize(InfoRequestSnapshot.Capture(values, flaggedKeys));
+    }
+
+    /// <summary>
+    /// F-018 (2026-06-23): server-side check that the staff-flagged fields were actually
+    /// addressed before a resubmit. Returns the flagged keys that still hold NO value, mirroring
+    /// the value homes in <see cref="BuildSnapshotJsonAsync"/>. The "documents" key requires at
+    /// least one uploaded document. Unknown keys are treated as resolved (fail-open) so a future
+    /// field key cannot silently wedge every resubmit; the known set covers the correctable fields.
+    /// </summary>
+    private async Task<List<string>> GetUnresolvedFlaggedKeysAsync(Appointment appointment, ISet<string> flaggedKeys)
+    {
+        var unresolved = new List<string>();
+        if (flaggedKeys.Count == 0)
+        {
+            return unresolved;
+        }
+
+        Patient? patient = null;
+        if (flaggedKeys.Overlaps(PatientSnapshotKeys))
+        {
+            patient = await _patientRepository.FindAsync(appointment.PatientId);
+        }
+
+        foreach (var key in flaggedKeys)
+        {
+            bool resolved;
+            switch (key)
+            {
+                case "dateOfBirth": resolved = patient?.DateOfBirth != null; break;
+                case "socialSecurityNumber": resolved = !string.IsNullOrWhiteSpace(patient?.SocialSecurityNumber); break;
+                case "street": resolved = !string.IsNullOrWhiteSpace(patient?.Street); break;
+                case "city": resolved = !string.IsNullOrWhiteSpace(patient?.City); break;
+                case "zipCode": resolved = !string.IsNullOrWhiteSpace(patient?.ZipCode); break;
+                case "cellPhoneNumber": resolved = !string.IsNullOrWhiteSpace(patient?.CellPhoneNumber); break;
+                case "stateId": resolved = patient?.StateId != null; break;
+                case "appointmentLanguageId": resolved = patient?.AppointmentLanguageId != null; break;
+                case "applicantAttorneyEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ApplicantAttorneyEmail); break;
+                case "claimExaminerEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ClaimExaminerEmail); break;
+                case "appointmentInsuranceName":
+                    resolved = !string.IsNullOrWhiteSpace(
+                        (await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id))?.Name);
+                    break;
+                case "defenseAttorneyFirmName":
+                    var link = await _defenseLinkRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+                    var firm = link == null ? null : (await _defenseRepository.FindAsync(link.DefenseAttorneyId))?.FirmName;
+                    resolved = !string.IsNullOrWhiteSpace(firm);
+                    break;
+                case "documents":
+                    resolved = await _documentRepository.CountAsync(x => x.AppointmentId == appointment.Id) > 0;
+                    break;
+                default:
+                    resolved = true;
+                    break;
+            }
+
+            if (!resolved)
+            {
+                unresolved.Add(key);
+            }
+        }
+
+        return unresolved;
+    }
+
+    /// <summary>
+    /// Applies the flagged patient-demographic corrections directly on the Patient
+    /// entity. Direct repository write (the endpoint is the trust boundary) -- this
+    /// avoids the booking patient endpoint, which deliberately ignores DateOfBirth,
+    /// and its permission gating. Only PROVIDED fields are written; SSN is stored
+    /// raw as typed (reads remain masked elsewhere).
+    /// </summary>
+    private async Task ApplyPatientCorrectionsAsync(Guid patientId, SaveInfoRequestCorrectionsInput input)
+    {
+        var touchesPatient = input.DateOfBirth.HasValue
+            || input.SocialSecurityNumber != null
+            || input.Street != null
+            || input.City != null
+            || input.StateId.HasValue
+            || input.ZipCode != null
+            || input.CellPhoneNumber != null
+            || input.AppointmentLanguageId.HasValue;
+        if (!touchesPatient)
+        {
+            return;
+        }
+
+        var patient = await _patientRepository.FindAsync(patientId);
+        if (patient == null)
+        {
+            return;
+        }
+
+        if (input.DateOfBirth.HasValue)
+        {
+            patient.DateOfBirth = input.DateOfBirth.Value;
+        }
+        if (input.SocialSecurityNumber != null)
+        {
+            patient.SocialSecurityNumber = input.SocialSecurityNumber;
+        }
+        if (input.Street != null)
+        {
+            patient.Street = input.Street;
+        }
+        if (input.City != null)
+        {
+            patient.City = input.City;
+        }
+        if (input.StateId.HasValue)
+        {
+            patient.StateId = input.StateId;
+        }
+        if (input.ZipCode != null)
+        {
+            patient.ZipCode = input.ZipCode;
+        }
+        if (input.CellPhoneNumber != null)
+        {
+            patient.CellPhoneNumber = input.CellPhoneNumber;
+        }
+        if (input.AppointmentLanguageId.HasValue)
+        {
+            patient.AppointmentLanguageId = input.AppointmentLanguageId;
+        }
+        await _patientRepository.UpdateAsync(patient, autoSave: true);
+    }
+
+    private async Task ApplyAppointmentEmailCorrectionsAsync(
+        Appointment appointment, SaveInfoRequestCorrectionsInput input)
+    {
+        var changed = false;
+        if (input.ApplicantAttorneyEmail != null)
+        {
+            appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
+            changed = true;
+        }
+        if (input.ClaimExaminerEmail != null)
+        {
+            appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
+            changed = true;
+        }
+        if (changed)
+        {
+            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        }
+    }
+
+    private async Task ApplyInsuranceCorrectionsAsync(
+        Guid appointmentId, SaveInfoRequestCorrectionsInput input)
+    {
+        if (input.InsuranceName == null && input.InsurancePhoneNumber == null)
+        {
+            return;
+        }
+
+        // Direct repository write: the corrections endpoint is the trust boundary
+        // (EnsureCanEditAsync above), so it must NOT route through the permission-gated
+        // AppointmentPrimaryInsurances app service (external roles lack its grants).
+        var row = await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
+        if (row == null)
+        {
+            return;
+        }
+
+        if (input.InsuranceName != null)
+        {
+            row.Name = input.InsuranceName;
+        }
+        if (input.InsurancePhoneNumber != null)
+        {
+            row.PhoneNumber = input.InsurancePhoneNumber;
+        }
+        await _insuranceRepository.UpdateAsync(row, autoSave: true);
+    }
+
+    private async Task ApplyDefenseFirmCorrectionAsync(
+        Guid appointmentId, SaveInfoRequestCorrectionsInput input)
+    {
+        if (input.DefenseAttorneyFirmName == null)
+        {
+            return;
+        }
+
+        var link = await _defenseLinkRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
+        if (link == null)
+        {
+            return;
+        }
+
+        // FirmName lives on the DefenseAttorney master (the record the booking form
+        // edits). Direct repository write -- the endpoint already authorized via
+        // EnsureCanEditAsync, so it bypasses the gated DefenseAttorneys app service.
+        var master = await _defenseRepository.FindAsync(link.DefenseAttorneyId);
+        if (master == null)
+        {
+            return;
+        }
+        master.FirmName = input.DefenseAttorneyFirmName;
+        await _defenseRepository.UpdateAsync(master, autoSave: true);
+    }
+
+    [Authorize]
+    public virtual async Task<AppointmentInfoRequestDto?> GetOpenAsync(Guid appointmentId)
+    {
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+        var open = await GetOpenEntityAsync(appointmentId);
+        return open == null ? null : MapToDto(open);
+    }
+
+    [Authorize]
+    public virtual async Task<List<AppointmentInfoRequestRoundDto>> GetHistoryAsync(Guid appointmentId)
+    {
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        var rows = await _infoRequestRepository.GetListAsync(r => r.AppointmentId == appointmentId);
+        var ordered = rows.OrderBy(r => r.CreationTime).ToList();
+
+        var nameCache = new Dictionary<Guid, string?>();
+        var result = new List<AppointmentInfoRequestRoundDto>(ordered.Count);
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var entity = ordered[i];
+            var diffs = InfoRequestSnapshot.BuildDiff(
+                InfoRequestSnapshot.Deserialize(entity.BeforeValues),
+                InfoRequestSnapshot.Deserialize(entity.AfterValues),
+                ReadFlaggedKeys(entity));
+            var resolved = entity.Status == InfoRequestStatus.Resolved;
+
+            result.Add(new AppointmentInfoRequestRoundDto
+            {
+                Id = entity.Id,
+                RoundNumber = i + 1,
+                Note = entity.Note,
+                RequestedByName = await ResolveNameAsync(entity.RequestedByUserId, nameCache),
+                RequestedAt = entity.CreationTime,
+                IsResolved = resolved,
+                ResolvedAt = entity.ResolvedAt,
+                ResubmittedByName = resolved ? await ResolveNameAsync(entity.LastModifierId, nameCache) : null,
+                FlaggedCount = diffs.Count,
+                FixedCount = diffs.Count(d => d.Changed),
+                Diffs = diffs,
+            });
+        }
+
+        result.Reverse(); // newest-first for display
+        return result;
+    }
+
+    /// <summary>Resolves an identity user id to a display name, caching within the call.</summary>
+    private async Task<string?> ResolveNameAsync(Guid? userId, IDictionary<Guid, string?> cache)
+    {
+        if (userId is not Guid id)
+        {
+            return null;
+        }
+        if (cache.TryGetValue(id, out var cached))
+        {
+            return cached;
+        }
+
+        var user = await _userRepository.FindAsync(id);
+        string? name = null;
+        if (user != null)
+        {
+            var full = $"{user.Name} {user.Surname}".Trim();
+            name = string.IsNullOrWhiteSpace(full) ? (user.UserName ?? user.Email) : full;
+        }
+        cache[id] = name;
+        return name;
+    }
+
+    private async Task<AppointmentInfoRequest?> GetOpenEntityAsync(Guid appointmentId)
+    {
+        return await _infoRequestRepository.FirstOrDefaultAsync(
+            r => r.AppointmentId == appointmentId && r.Status == InfoRequestStatus.Open);
+    }
+
+    private static AppointmentInfoRequestDto MapToDto(AppointmentInfoRequest e)
+    {
+        List<FlaggedFieldDto> fields;
+        try
+        {
+            fields = JsonSerializer.Deserialize<List<FlaggedFieldDto>>(e.RequestedFields)
+                     ?? new List<FlaggedFieldDto>();
+        }
+        catch (JsonException)
+        {
+            fields = new List<FlaggedFieldDto>();
+        }
+
+        return new AppointmentInfoRequestDto
+        {
+            Id = e.Id,
+            AppointmentId = e.AppointmentId,
+            Note = e.Note,
+            FlaggedFields = fields,
+            Status = e.Status,
+            RequestedByUserId = e.RequestedByUserId,
+            CreationTime = e.CreationTime,
+            ResolvedAt = e.ResolvedAt,
+        };
+    }
+}

@@ -14,6 +14,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 
 namespace HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 
@@ -25,13 +26,15 @@ public class DefenseAttorneysAppService : CaseEvaluationAppService, IDefenseAtto
     protected DefenseAttorneyManager _defenseAttorneyManager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected IRepository<Volo.Abp.Identity.IdentityUser, Guid> _identityUserRepository;
+    protected IRepository<AppointmentDefenseAttorney, Guid> _appointmentDefenseAttorneyRepository;
 
-    public DefenseAttorneysAppService(IDefenseAttorneyRepository defenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository)
+    public DefenseAttorneysAppService(IDefenseAttorneyRepository defenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<AppointmentDefenseAttorney, Guid> appointmentDefenseAttorneyRepository)
     {
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _defenseAttorneyManager = defenseAttorneyManager;
         _stateRepository = stateRepository;
         _identityUserRepository = identityUserRepository;
+        _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
     }
 
     [Authorize(CaseEvaluationPermissions.DefenseAttorneys.Default)]
@@ -87,6 +90,12 @@ public class DefenseAttorneysAppService : CaseEvaluationAppService, IDefenseAtto
     [Authorize(CaseEvaluationPermissions.DefenseAttorneys.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Prompt 15 / item 32: block delete while any appointment references
+        // this defense attorney (AppointmentDefenseAttorney.DefenseAttorneyId).
+        if (await _appointmentDefenseAttorneyRepository.AnyAsync(x => x.DefenseAttorneyId == id))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.DefenseAttorneyInUse);
+        }
         await _defenseAttorneyRepository.DeleteAsync(id);
     }
 
@@ -95,14 +104,14 @@ public class DefenseAttorneysAppService : CaseEvaluationAppService, IDefenseAtto
     {
         // BUG-042 / UM4 (2026-06-05): persist First/Last name (the manager already
         // accepts them) and allow a record with no login (identity now optional).
-        var defenseAttorney = await _defenseAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, firstName: input.FirstName, lastName: input.LastName);
+        var defenseAttorney = await _defenseAttorneyManager.CreateAsync(input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, email: input.Email, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<DefenseAttorney, DefenseAttorneyDto>(defenseAttorney);
     }
 
     [Authorize(CaseEvaluationPermissions.DefenseAttorneys.Edit)]
     public virtual async Task<DefenseAttorneyDto> UpdateAsync(Guid id, DefenseAttorneyUpdateDto input)
     {
-        var defenseAttorney = await _defenseAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp, firstName: input.FirstName, lastName: input.LastName);
+        var defenseAttorney = await _defenseAttorneyManager.UpdateAsync(id, input.StateId, input.IdentityUserId, input.FirmName, input.FirmAddress, input.PhoneNumber, input.WebAddress, input.FaxNumber, input.Street, input.City, input.ZipCode, input.ConcurrencyStamp, email: input.Email, firstName: input.FirstName, lastName: input.LastName);
         return ObjectMapper.Map<DefenseAttorney, DefenseAttorneyDto>(defenseAttorney);
     }
 }

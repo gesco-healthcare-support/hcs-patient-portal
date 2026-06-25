@@ -1,0 +1,830 @@
+// External Appointment Detail (read-only) styles. Faithful port of
+// design_handoff_appointment_portal/styles/ad-view.css. Global (not
+// component-scoped) so the page + the reused document-manager component share
+// the .ad-* classes; the .ad- prefix avoids collisions. Uses the foundation
+// tokens. The top navbar is the shared app-external-navbar.
+
+.ad {
+  background: var(--surface-app);
+  min-height: 100%;
+  color: var(--n-800);
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+// ---------------- Status banner ----------------
+.ad-banner {
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.ad-banner--pending {
+  background: linear-gradient(135deg, #5a4500, #8a6a00 70%, #a07c00);
+}
+.ad-banner--approved {
+  background: linear-gradient(135deg, #24400f, #3f5f14 58%, #5f7a1d);
+}
+.ad-banner--rejected,
+.ad-banner--cancelled {
+  background: linear-gradient(135deg, #5b1414, #8a2222 70%, #a32626);
+}
+.ad-banner--rescheduled {
+  background: linear-gradient(135deg, #07304f, #0a4a7e 62%, #075ca1);
+}
+// new for the redesign: Info Requested (purple) -- no class in the prototype
+// (applied inline there); added here as a proper modifier.
+.ad-banner--info-requested {
+  background: linear-gradient(135deg, #3b2a5e, #54398a 62%, #6b4aa8);
+}
+.ad-banner__in {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 64px) 26px;
+  position: relative;
+  z-index: 2;
+}
+.ad-banner__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ad-banner__crumb {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+.ad-banner__crumb a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ad-banner h1 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ad-banner h1 .ttl {
+  min-width: 0;
+}
+.ad-statepill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 5px 13px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.ad-statepill .d {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.ad-banner__meta {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.ad-banner__meta .it {
+  line-height: 1.3;
+}
+.ad-banner__meta .it .k {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ad-banner__meta .it .v {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.ad-banner__meta .it .v.mono {
+  font-family: var(--font-num);
+}
+
+// action bar (in banner)
+.ad-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.ad-actions .af-btn--glass {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.ad-actions .af-btn--glass:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+// next-step callout
+.ad-callout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  margin-top: 16px;
+}
+.ad-callout .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.ad-callout b {
+  font-size: 13.5px;
+  display: block;
+}
+.ad-callout span {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+// ---------------- Sticky section nav + action bar ----------------
+.ad-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.ad-nav__in {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 64px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.ad-nav__links {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  min-width: 0;
+}
+.ad-nav__links a {
+  padding: 14px 14px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-500);
+  text-decoration: none;
+  border-bottom: 2.5px solid transparent;
+  white-space: nowrap;
+  transition:
+    color 0.14s,
+    border-color 0.14s;
+  cursor: pointer;
+}
+.ad-nav__links a:hover {
+  color: var(--blue-700);
+}
+.ad-nav__links a.on {
+  color: var(--blue-700);
+  border-bottom-color: var(--blue-700);
+}
+.ad-nav__actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  padding: 9px 0;
+}
+
+// ---------------- Body ----------------
+.ad-wrap {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 64px) 80px;
+}
+
+// #16 (2026-06-18): fluid side gutters + a higher cap so wide screens stretch
+// content instead of stranding whitespace (mirrors .in-content). External
+// detail now reads to 1560px; internal detail (.ad--wide, inside the wider
+// shell) fills to the shell cap. Banner, nav, and body share the cap so the
+// gradient band edge stays aligned with the content.
+.ad--wide .ad-banner__in,
+.ad--wide .ad-nav__in,
+.ad--wide .ad-wrap {
+  max-width: 2240px;
+}
+.ad-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  margin-bottom: 18px;
+  scroll-margin-top: 64px;
+}
+.ad-card__head {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.ad-card__head .ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-card__head h3 {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--n-900);
+  margin: 0;
+}
+.ad-card__head .right {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ad-card__body {
+  padding: 6px 24px 14px;
+}
+
+// outcome note
+.ad-note {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.ad-note .ic {
+  flex: none;
+  margin-top: 1px;
+}
+.ad-note b {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+.ad-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ad-note--approved {
+  background: var(--green-50);
+  border: 1px solid var(--green-100);
+  color: var(--green-700);
+}
+.ad-note--rejected {
+  background: var(--st-rejected-bg);
+  border: 1px solid #f6c5c5;
+  color: var(--st-rejected-fg);
+}
+.ad-note--info-requested {
+  background: #f4effb;
+  border: 1px solid #ddccf2;
+  color: #4a3578;
+}
+
+// Send Back external fix-it page (status = Info requested)
+.sb-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--st-purple-bg);
+  border: 1px solid #ddd0ee;
+  border-left: 4px solid var(--st-purple-fg);
+  border-radius: var(--r-md);
+  padding: 15px 17px;
+  margin-bottom: 18px;
+
+  .ic {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: #fff;
+    color: var(--st-purple-fg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+  b {
+    display: block;
+    font-size: 14px;
+    color: var(--st-purple-fg);
+    margin-bottom: 3px;
+  }
+  p {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--n-700);
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+}
+
+.sb-progress-card {
+  padding: 13px 20px;
+  margin-bottom: 18px;
+}
+.sb-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--n-600);
+  font-weight: 600;
+
+  .bar {
+    flex: 1;
+    height: 7px;
+    border-radius: 99px;
+    background: var(--n-100);
+    overflow: hidden;
+    min-width: 120px;
+
+    span {
+      display: block;
+      height: 100%;
+      background: var(--green-500);
+      border-radius: 99px;
+      transition: width 0.25s ease;
+    }
+  }
+}
+
+.sb-fixrow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--n-100);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--n-700);
+  }
+  input,
+  select {
+    max-width: 380px;
+    padding: 8px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-family: var(--font);
+    color: var(--n-800);
+    background: #fff;
+  }
+}
+
+.sb-flag {
+  border: 1.5px solid var(--st-rejected-dot) !important;
+  background: #fff8f8 !important;
+}
+.sb-flaghint {
+  font-size: 12px;
+  color: var(--st-rejected-fg);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.sb-locked .v {
+  color: var(--n-500);
+}
+.sb-confirm {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--green-700);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sb-fixit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+// Send Back staff modal: field-picker tree + selected chips (ra-modal body)
+.sb-tree {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.sb-tree__group {
+  border-bottom: 1px solid var(--n-100);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+.sb-tree__ghead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  background: var(--n-25);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--n-500);
+
+  .cnt {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: var(--font-num);
+    background: var(--st-purple-bg);
+    color: var(--st-purple-fg);
+    padding: 1px 8px;
+    border-radius: 99px;
+  }
+}
+.sb-tree__row {
+  padding: 7px 14px 7px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed var(--n-100);
+
+  label.main {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--n-700);
+    cursor: pointer;
+
+    input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--st-purple-fg);
+    }
+    b {
+      font-weight: 600;
+    }
+  }
+
+  .hint-in {
+    margin-left: 25px;
+
+    input {
+      width: 100%;
+      padding: 7px 11px;
+      font-size: 12.5px;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      font-family: var(--font);
+      color: var(--n-800);
+    }
+  }
+}
+.sb-chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+
+  button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    padding: 0;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+// SEND BACK staff review (Branch 2): resubmitted diff rows + badge.
+.sb-diff {
+  display: grid;
+  grid-template-columns: 170px 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--n-100);
+  font-size: 12.5px;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  .f {
+    font-weight: 700;
+    color: var(--n-700);
+  }
+  .old {
+    color: var(--st-rejected-fg);
+    background: var(--st-rejected-bg);
+    padding: 3px 9px;
+    border-radius: 7px;
+    text-decoration: line-through;
+    word-break: break-word;
+  }
+  .new {
+    color: var(--green-700);
+    background: var(--green-50);
+    padding: 3px 9px;
+    border-radius: 7px;
+    word-break: break-word;
+  }
+  .arr {
+    color: var(--n-300);
+  }
+}
+.sb-resub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 99px;
+  background: var(--green-50);
+  color: var(--green-700);
+  border: 1px solid var(--green-100);
+}
+
+// Collapsible card head (Request history): pointer + rotating chevron.
+.ad-card__head--toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.ad-chev {
+  display: inline-flex;
+  color: var(--n-400);
+  transition: transform 0.16s ease;
+}
+.ad-chev.is-open {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 700px) {
+  .sb-diff {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+// read-only field ledger
+.ad-dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 48px;
+}
+.ad-field {
+  display: grid;
+  grid-template-columns: 158px 1fr;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--n-100);
+  min-width: 0;
+}
+.ad-field.full {
+  grid-column: 1 / -1;
+}
+.ad-field .k {
+  font-size: 12px;
+  color: var(--n-500);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ad-field .v {
+  font-size: 13.5px;
+  color: var(--n-900);
+  font-weight: 600;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.ad-field .v.mono {
+  font-family: var(--font-num);
+  letter-spacing: 0.01em;
+}
+.ad-field .v.empty {
+  color: var(--n-300);
+  font-weight: 500;
+}
+
+// read-only table
+.ad-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.ad-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--n-500);
+  padding: 11px 14px;
+  background: var(--n-50);
+  border-bottom: 1px solid var(--border);
+}
+.ad-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--n-100);
+  color: var(--n-700);
+  vertical-align: middle;
+}
+.ad-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ad-table .num {
+  font-family: var(--font-num);
+}
+.ad-empty {
+  color: var(--n-400);
+  font-size: 13px;
+  padding: 8px 2px;
+}
+
+// packet
+.ad-packet {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ad-packet .ic {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.ad-packet .tx {
+  flex: 1;
+}
+.ad-packet .tx b {
+  font-size: 14px;
+  color: var(--n-900);
+  display: block;
+}
+.ad-packet .tx span {
+  font-size: 12.5px;
+  color: var(--n-500);
+}
+
+// icon tints (shared with the wizard; redefined here so this page is
+// self-contained even if the wizard partial is not loaded).
+.ad .tint-blue {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+.ad .tint-slate {
+  background: var(--n-100);
+  color: var(--n-600);
+}
+.ad .tint-teal {
+  background: var(--st-teal-bg);
+  color: var(--st-teal-fg);
+}
+.ad .tint-amber {
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.ad .tint-green {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.ad .tint-purple {
+  background: var(--st-purple-bg);
+  color: var(--st-purple-fg);
+}
+
+// ---------------- Bootstrap compatibility for the reused document manager ----
+// <app-appointment-documents> + <app-appointment-packet> render Bootstrap
+// markup; scope these overrides under .ad so they adopt the redesign look
+// inside this page only (the legacy view page is not under .ad).
+.ad {
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: none;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 13px 16px;
+    font-weight: 700;
+    color: var(--n-900);
+  }
+  .card-body {
+    padding: 16px;
+  }
+  .form-control,
+  .form-select {
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-size: 13px;
+    min-height: 40px;
+    font-family: var(--font);
+    color: var(--n-800);
+  }
+  .form-control:focus,
+  .form-select:focus {
+    outline: none;
+    border-color: var(--blue-400);
+    box-shadow: 0 0 0 4px var(--blue-50);
+  }
+  .btn {
+    border-radius: 9px;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  .btn-primary {
+    background: var(--blue-700);
+    border-color: var(--blue-700);
+  }
+  .btn-primary:hover {
+    background: var(--blue-800);
+    border-color: var(--blue-800);
+  }
+  .badge.bg-success {
+    background: var(--green-600) !important;
+  }
+  .badge.bg-danger {
+    background: var(--st-rejected-dot) !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .ad-dl {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+  }
+  .ad-banner__top {
+    flex-direction: column;
+  }
+}
+@media (max-width: 520px) {
+  .ad-field {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 10px 0;
+  }
+}

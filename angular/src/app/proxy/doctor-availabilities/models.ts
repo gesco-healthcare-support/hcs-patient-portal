@@ -52,6 +52,7 @@ export interface DoctorAvailabilityGenerateInputDto {
   fromDate?: string;
   toDate?: string;
   selectedDays?: number[] | null;
+  selectedDates?: string[] | null;
   timeRanges?: TimeRangeDto[];
   bookingStatusId?: BookingStatus;
   locationId?: string;
@@ -116,6 +117,11 @@ export interface GetDoctorAvailabilityLookupInput {
   appointmentTypeId?: string | null;
   availableDateFrom?: string | null;
   availableDateTo?: string | null;
+}
+
+export interface SlotPatientNamesDto {
+  slotId?: string;
+  names?: string[];
 }
 
 export interface TimeRangeDto {

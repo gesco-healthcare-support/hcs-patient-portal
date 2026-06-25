@@ -1,13 +1,13 @@
-import { Injectable, OnDestroy, inject } from '@angular/core';
-import { ConfigStateService, PermissionService, RestService, RoutesService } from '@abp/ng.core';
+import { Injectable, OnDestroy, inject, signal } from '@angular/core';
+import { ConfigStateService, PermissionService, RestService } from '@abp/ng.core';
 import { Subscription, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
 /**
  * Wave 4 / #6 (NEW-only enhancement, PARITY-FLAG-NEW-003) -- polls the
  * pending-appointments count for admin / staff supervisor / clinic
- * staff users and patches the Appointments sidebar entry to show a
- * count badge.
+ * staff users and publishes it on a signal for the internal-shell
+ * Appointments nav badge.
  *
  * <p><b>Why a service, not inline in `app.component.ts`:</b> the badge
  * needs to start polling whenever the auth state changes (e.g. a user
@@ -24,26 +24,28 @@ import { switchMap } from 'rxjs/operators';
  * DA / CE) who would otherwise never see a non-zero count anyway. The
  * backend remains authoritative.</p>
  *
- * <p><b>Patch strategy:</b> ABP's `RoutesService.patch(identifier,
- * props)` merges `props` into the existing route record. We patch the
- * `name` field with a literal "Appointments (N)" string when count
- * > 0 and restore the original `::Menu:Appointments` localization key
- * when count = 0 so the sidebar reverts to the localized label. This
- * sidesteps the LeptonX nav template's lack of a built-in badge slot.
- * Localization for non-English locales is parked for a future wave;
- * the literal "Appointments" stays as a Phase 1A acceptable trade.</p>
+ * <p><b>Output:</b> the polled value is published on the {@link pendingCount}
+ * signal. This service formerly patched the LeptonX sidebar route name
+ * ("Appointments (N)") through RoutesService; the redesign dropped the LeptonX
+ * layout (bare router-outlet), so the count now feeds the internal shell's own
+ * nav badge via InternalNavBadgeService instead.</p>
  */
 @Injectable({ providedIn: 'root' })
 export class AppointmentPendingCountService implements OnDestroy {
-  private static readonly RouteIdentifier = '::Menu:Appointments';
-  private static readonly RouteOriginalName = '::Menu:Appointments';
   private static readonly EditPermission = 'CaseEvaluation.Appointments.Edit';
   private static readonly PollIntervalMs = 60_000;
 
   private readonly configState = inject(ConfigStateService);
   private readonly permission = inject(PermissionService);
   private readonly restService = inject(RestService);
-  private readonly routesService = inject(RoutesService);
+
+  private readonly _pendingCount = signal(0);
+  /**
+   * Pending-appointments count, polled while the user holds the Edit
+   * permission. Bound by InternalNavBadgeService to the internal-shell
+   * Appointments nav badge; zero for users without the permission.
+   */
+  readonly pendingCount = this._pendingCount.asReadonly();
 
   private pollSubscription: Subscription | null = null;
   private configStateSubscription: Subscription | null = null;
@@ -120,13 +122,7 @@ export class AppointmentPendingCountService implements OnDestroy {
       return;
     }
     this.currentCount = safeCount;
-    if (safeCount > 0) {
-      this.routesService.patch(AppointmentPendingCountService.RouteIdentifier, {
-        name: `Appointments (${safeCount})`,
-      });
-    } else {
-      this.resetBadge();
-    }
+    this._pendingCount.set(safeCount);
   }
 
   private resetBadge(): void {
@@ -134,8 +130,6 @@ export class AppointmentPendingCountService implements OnDestroy {
       return;
     }
     this.currentCount = 0;
-    this.routesService.patch(AppointmentPendingCountService.RouteIdentifier, {
-      name: AppointmentPendingCountService.RouteOriginalName,
-    });
+    this._pendingCount.set(0);
   }
 }

@@ -1,0 +1,239 @@
+<div class="ia-head">
+  <div>
+    <h1>Locations</h1>
+    <p>{{ rows().length }} clinic location(s)</p>
+  </div>
+  <a class="af-btn af-btn--primary" (click)="openNew()">
+    <app-icon name="plus" [size]="16" />
+    New location
+  </a>
+</div>
+
+@if (loading()) {
+  <div class="ia-empty">Loading locations...</div>
+} @else if (rows().length === 0) {
+  <div class="ia-empty">No locations yet. Add your first clinic location.</div>
+} @else {
+  <div class="ia-wrap">
+    <table class="ia-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Address</th>
+          <th>State</th>
+          <th>Parking fee</th>
+          <th>Appointment types</th>
+          <th>Status</th>
+          <th style="text-align: right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.location?.id) {
+          <tr (click)="openEdit(row)" style="cursor: pointer">
+            <td>
+              <b style="color: var(--n-900)">{{ row.location?.name }}</b>
+            </td>
+            <td class="ia-sub">
+              {{ row.location?.address }}
+              @if (row.location?.city) {
+                , {{ row.location?.city }}
+              }
+              {{ row.location?.zipCode }}
+            </td>
+            <td>{{ stateName(row) }}</td>
+            <td>${{ row.location?.parkingFee }}</td>
+            <td>
+              <span class="lw-chips">
+                @for (t of typeNames(row); track t) {
+                  <span class="lw-chip">{{ t }}</span>
+                }
+              </span>
+            </td>
+            <td>
+              <span
+                class="lw-active"
+                [class.on]="row.location?.isActive"
+                [class.off]="!row.location?.isActive"
+              >
+                {{ row.location?.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td style="text-align: right" (click)="$event.stopPropagation()">
+              <span style="display: inline-flex; gap: 6px">
+                <button class="ra-rowbtn" type="button" title="Edit" (click)="openEdit(row)">
+                  <app-icon name="doc" [size]="14" />
+                </button>
+                <button
+                  class="ra-rowbtn danger"
+                  type="button"
+                  title="Delete"
+                  (click)="askDelete(row)"
+                >
+                  <app-icon name="x" [size]="14" />
+                </button>
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (form(); as f) {
+  <div class="ra-scrim" (click)="closeModal()">
+    <div class="ra-modal ra-modal--lg" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>{{ f.id ? 'Edit location' : 'New location' }}</h3>
+        <button class="ext-iconbtn x" type="button" (click)="closeModal()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <div class="ra-grid">
+          <div class="ra-field col-6">
+            <label>
+              Name
+              <span class="req">*</span>
+            </label>
+            <input
+              class="ra-input"
+              maxlength="50"
+              [ngModel]="f.name"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ name: $event })"
+            />
+          </div>
+          <div class="ra-field col-6">
+            <label>Address</label>
+            <input
+              class="ra-input"
+              maxlength="100"
+              [ngModel]="f.address"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ address: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>City</label>
+            <input
+              class="ra-input"
+              maxlength="50"
+              [ngModel]="f.city"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ city: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>State</label>
+            <select
+              class="ra-select"
+              [ngModel]="f.stateId"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ stateId: $event })"
+            >
+              <option value="">Not set</option>
+              @for (s of states(); track s.id) {
+                <option [value]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="ra-field col-4">
+            <label>Zip code</label>
+            <input
+              class="ra-input"
+              maxlength="15"
+              [ngModel]="f.zipCode"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ zipCode: $event })"
+            />
+          </div>
+          <div class="ra-field col-4">
+            <label>
+              Parking fee ($)
+              <span class="req">*</span>
+            </label>
+            <input
+              class="ra-input"
+              type="number"
+              min="0"
+              [ngModel]="f.parkingFee"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="patch({ parkingFee: +$event })"
+            />
+          </div>
+          <div class="ra-field col-8">
+            <label>
+              Appointment types
+              <span class="opt">(offered here)</span>
+            </label>
+            <div class="gn-types">
+              @for (t of allTypes(); track t.id) {
+                <button
+                  type="button"
+                  class="gn-type"
+                  [attr.data-on]="isTypeOn(t.id)"
+                  (click)="toggleType(t.id)"
+                >
+                  {{ t.name }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="ra-field col-12">
+            <label class="ra-switch" style="margin-top: 4px">
+              Active -- bookable by external users
+              <input
+                type="checkbox"
+                [ngModel]="f.isActive"
+                [ngModelOptions]="{ standalone: true }"
+                (ngModelChange)="patch({ isActive: $event })"
+              />
+              <span class="track"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="closeModal()">Cancel</button>
+        <button class="af-btn af-btn--primary" type="button" [disabled]="isBusy()" (click)="save()">
+          <app-icon name="check" [size]="15" />
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (confirmDelete(); as row) {
+  <div class="ra-scrim" (click)="cancelDelete()">
+    <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-modal__head">
+        <h3>Delete location?</h3>
+        <button class="ext-iconbtn x" type="button" (click)="cancelDelete()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p style="margin: 0; font-size: 14px; color: var(--n-600); line-height: 1.5">
+          Delete
+          <b>{{ row.location?.name }}</b>
+          ? A location that is used by an appointment or an availability slot cannot be deleted.
+        </p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="cancelDelete()">Cancel</button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          style="background: var(--st-rejected-fg)"
+          [disabled]="isBusy()"
+          (click)="confirmDeleteRow()"
+        >
+          <app-icon name="x" [size]="15" />
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

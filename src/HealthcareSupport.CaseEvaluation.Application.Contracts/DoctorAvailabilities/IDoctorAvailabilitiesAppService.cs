@@ -48,4 +48,12 @@ public interface IDoctorAvailabilitiesAppService : IApplicationService
     /// path; admin endpoints stay gated on <c>.Default</c>.
     /// </summary>
     Task<List<DoctorAvailabilityDto>> GetDoctorAvailabilityLookupAsync(GetDoctorAvailabilityLookupInput input);
+
+    /// <summary>
+    /// #2 (2026-06-19) -- the booked/reserved patient names per slot, for the
+    /// internal week-view chips. Bulk (one call for the visible week's slots) to
+    /// avoid N+1. Returns only slots that have at least one non-terminal
+    /// appointment. Internal-only (gated on DoctorAvailabilities.Default).
+    /// </summary>
+    Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds);
 }

@@ -26,11 +26,7 @@ import { provideFileManagementConfig } from '@volo/abp.ng.file-management/config
 import { provideSaasConfig } from '@volo/abp.ng.saas/config';
 import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-management/config';
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
-import {
-  HttpErrorComponent,
-  provideThemeLeptonX,
-  withThemeLeptonXOptions,
-} from '@volosoft/abp.ng.theme.lepton-x';
+import { provideThemeLeptonX, withThemeLeptonXOptions } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideNgxMask } from 'ngx-mask';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
@@ -41,6 +37,7 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { environment, addressValidation } from '../environments/environment';
 import { APP_ROUTES } from './app.routes';
+import { AppHttpErrorComponent } from './shared/ui/state-message/app-http-error.component';
 import { APP_ROUTE_PROVIDER } from './route.provider';
 import { STATES_STATE_ROUTE_PROVIDER } from './states/state/providers/state-route.provider';
 import { APPOINTMENT_TYPES_APPOINTMENT_TYPE_ROUTE_PROVIDER } from './appointment-types/appointment-type/providers/appointment-type-route.provider';
@@ -156,7 +153,10 @@ export const appConfig: ApplicationConfig = {
     provideAbpThemeShared(
       withHttpErrorConfig({
         errorScreen: {
-          component: HttpErrorComponent,
+          // Redesign (2026-06-14): branded HTTP error screen replacing ABP's
+          // LeptonX HttpErrorComponent for both surfaces. Maps 401 (session-
+          // timeout), 403, 404, and 500 to the state-message card.
+          component: AppHttpErrorComponent,
           forWhichErrors: [401, 403, 404, 500],
           hideCloseIcon: true,
         },

@@ -1,0 +1,350 @@
+<!--
+  Redesigned internal appointments list (Prompt 10). Renders inside the internal
+  shell. Server-paged table + per-status chip counts; reuses the change-request
+  modals for kebab Reschedule/Cancel. Class names mirror the handoff in-appts.css
+  (ported to global tokens in styles/_in-appts.scss).
+-->
+<div class="ia-head">
+  <div>
+    <h1>Appointments</h1>
+    <p>{{ totalCount() }} appointment{{ totalCount() === 1 ? '' : 's' }}</p>
+  </div>
+  @if (canCreate) {
+    <button class="af-btn af-btn--primary" type="button" (click)="newAppointment()">
+      <app-icon name="plus" [size]="16" />
+      New appointment
+    </button>
+  }
+</div>
+
+<div class="ia-toolbar">
+  <div class="ia-search">
+    <app-icon name="search" [size]="16" />
+    <input
+      type="text"
+      placeholder="Search confirmation #, patient, panel #, booker..."
+      [ngModel]="search()"
+      (ngModelChange)="onSearch($event)"
+    />
+    @if (search()) {
+      <button class="ia-kebab" type="button" style="border: 0" (click)="clearSearch()">
+        <app-icon name="x" [size]="14" />
+      </button>
+    }
+  </div>
+  <button
+    class="ia-fbtn"
+    type="button"
+    [attr.aria-expanded]="showFilters()"
+    (click)="toggleFilters()"
+  >
+    <app-icon name="filter" [size]="15" />
+    Filters
+    @if (activeFilterCount() > 0) {
+      <span class="badge">{{ activeFilterCount() }}</span>
+    }
+  </button>
+</div>
+
+<div class="ia-chips">
+  @for (seg of segments; track seg.key) {
+    <button
+      class="ia-chip"
+      type="button"
+      [attr.data-on]="activeSegment() === seg.key"
+      (click)="setSegment(seg.key)"
+    >
+      {{ seg.label }}
+      <span class="cnt">{{ chipCount(seg.key) }}</span>
+    </button>
+  }
+</div>
+
+@if (showFilters()) {
+  <div class="ia-filters">
+    <div class="ia-filters__grid">
+      <div class="ia-field">
+        <label>Panel #</label>
+        <input
+          class="ia-input"
+          type="text"
+          placeholder="e.g. P-2204"
+          [ngModel]="draft().panelNumber ?? ''"
+          (ngModelChange)="updateDraft({ panelNumber: $event })"
+        />
+      </div>
+      <div class="ia-field">
+        <label>Appointment type</label>
+        <select
+          class="ia-input"
+          [ngModel]="draft().appointmentTypeId ?? ''"
+          (ngModelChange)="updateDraft({ appointmentTypeId: $event })"
+        >
+          <option value="">All types</option>
+          @for (t of types(); track t.id) {
+            <option [value]="t.id">{{ t.displayName }}</option>
+          }
+        </select>
+      </div>
+      <div class="ia-field">
+        <label>Location</label>
+        <select
+          class="ia-input"
+          [ngModel]="draft().locationId ?? ''"
+          (ngModelChange)="updateDraft({ locationId: $event })"
+        >
+          <option value="">All locations</option>
+          @for (l of locations(); track l.id) {
+            <option [value]="l.id">{{ l.displayName }}</option>
+          }
+        </select>
+      </div>
+      <div class="ia-field">
+        <label>Min appointment date</label>
+        <input
+          class="ia-input"
+          type="date"
+          [ngModel]="draft().dateMin ?? ''"
+          (ngModelChange)="updateDraft({ dateMin: $event })"
+        />
+      </div>
+      <div class="ia-field">
+        <label>Max appointment date</label>
+        <input
+          class="ia-input"
+          type="date"
+          [ngModel]="draft().dateMax ?? ''"
+          (ngModelChange)="updateDraft({ dateMax: $event })"
+        />
+      </div>
+      <div class="ia-field ia-typeahead">
+        <label>Booker</label>
+        <input
+          class="ia-input"
+          type="text"
+          placeholder="Name or email"
+          [ngModel]="draft().bookerLabel ?? ''"
+          (ngModelChange)="onBookerInput($event)"
+        />
+        @if (bookerResults().length > 0) {
+          <div class="ia-typeahead__menu">
+            @for (u of bookerResults(); track u.id) {
+              <button type="button" (click)="pickBooker(u)">{{ u.displayName }}</button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+    <div class="ia-filters__foot">
+      <button class="af-btn af-btn--ghost" type="button" (click)="clearFilters()">Clear</button>
+      <button class="af-btn af-btn--primary" type="button" (click)="applyFilters()">
+        <app-icon name="search" [size]="15" />
+        Apply
+      </button>
+    </div>
+  </div>
+}
+
+@if (selectedCount() > 0) {
+  <div class="ia-bulk">
+    <app-icon name="check" [size]="16" />
+    {{ selectedCount() }} selected
+    <div class="x">
+      <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="exportCsv()">
+        <app-icon name="arrowDown" [size]="14" />
+        Export
+      </button>
+      @if (canDelete) {
+        <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="bulkDelete()">
+          <app-icon name="x" [size]="14" />
+          Delete
+        </button>
+      }
+      <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="clearSelection()">
+        Clear
+      </button>
+    </div>
+  </div>
+}
+
+<div class="ia-wrap">
+  <div class="ia-scroll">
+    <table class="ia-table">
+      <thead>
+        <tr>
+          <th style="width: 38px">
+            <input
+              type="checkbox"
+              class="ia-chk"
+              [checked]="allOnPageSelected()"
+              (change)="toggleSelectAll()"
+            />
+          </th>
+          <th>Confirmation #</th>
+          <th>Patient</th>
+          <th>Type</th>
+          <th>Appointment</th>
+          <th>Status</th>
+          <th>Panel #</th>
+          <th>Location</th>
+          <th>Decide by</th>
+          <th style="width: 44px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading()) {
+          @for (n of [1, 2, 3, 4, 5, 6]; track n) {
+            <tr>
+              <td colspan="10"><app-skeleton height="22px" /></td>
+            </tr>
+          }
+        } @else if (loadError()) {
+          <tr>
+            <td colspan="10">
+              <div class="ia-empty">
+                <app-icon name="alert" [size]="36" />
+                <b>Could not load appointments</b>
+                <span>{{ loadErrorMessage }}</span>
+                <button class="af-btn af-btn--ghost af-btn--sm" type="button" (click)="retry()">
+                  <app-icon name="refresh" [size]="14" />
+                  Retry
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @else {
+          @for (a of rows(); track rowId(a)) {
+            <tr [class.sel]="isSelected(a)" (click)="review(a)">
+              <td (click)="$event.stopPropagation()">
+                <input
+                  type="checkbox"
+                  class="ia-chk"
+                  [checked]="isSelected(a)"
+                  (change)="toggleSelect(a)"
+                />
+              </td>
+              <td>
+                <span class="ia-conf">{{ a.appointment?.requestConfirmationNumber }}</span>
+              </td>
+              <td>
+                <span class="ia-pt">
+                  <span class="ava" [style.background]="avatar(a)">{{ initials(a) }}</span>
+                  <b>{{ patientName(a) }}</b>
+                </span>
+              </td>
+              <td>{{ a.appointmentType?.name }}</td>
+              <td>
+                {{ a.appointment?.appointmentDate | date: 'MMM d, y' }}
+                <div class="ia-sub">{{ a.appointment?.appointmentDate | date: 'h:mm a' }}</div>
+              </td>
+              <td><app-status-pill [status]="pill(a)" /></td>
+              <td class="ia-sub ia-panel">{{ a.appointment?.panelNumber }}</td>
+              <td>{{ a.location?.name }}</td>
+              <td>
+                @if (decideBy(a); as d) {
+                  <span class="ia-due">
+                    {{ d.due | date: 'MMM d, y' }}
+                    <span class="dl {{ d.level }}">{{ d.label }}</span>
+                  </span>
+                } @else {
+                  <span class="ia-sub">&mdash;</span>
+                }
+              </td>
+              <td class="ia-actions-cell" (click)="$event.stopPropagation()">
+                <button
+                  class="ia-kebab"
+                  type="button"
+                  aria-label="More actions"
+                  (click)="toggleMenu(a, $event)"
+                >
+                  <app-icon name="dots" [size]="16" />
+                </button>
+                @if (menuId() === rowId(a)) {
+                  <div class="ia-clickaway" (click)="closeMenu()"></div>
+                  <div
+                    class="ia-menu"
+                    [style.top.px]="menuPos()?.top"
+                    [style.left.px]="menuPos()?.left"
+                  >
+                    <button type="button" (click)="review(a)">
+                      <span class="i"><app-icon name="eye" [size]="15" /></span>
+                      Review
+                    </button>
+                    @if (actionable(a)) {
+                      <button type="button" (click)="openReschedule(a)">
+                        <span class="i"><app-icon name="refresh" [size]="15" /></span>
+                        Reschedule
+                      </button>
+                      <button type="button" (click)="openCancel(a)">
+                        <span class="i"><app-icon name="x" [size]="15" /></span>
+                        Cancel
+                      </button>
+                    }
+                    @if (canDelete) {
+                      <div class="ia-menu__div"></div>
+                      <button class="danger" type="button" (click)="deleteRow(a)">
+                        <span class="i"><app-icon name="x" [size]="15" /></span>
+                        Delete
+                      </button>
+                    }
+                  </div>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="10">
+                <div class="ia-empty">
+                  <app-icon name="inbox" [size]="36" />
+                  <b>No appointments match</b>
+                  <span>Try a different search, status, or filter.</span>
+                </div>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ia-pager">
+    <div class="info">Showing {{ rangeStart() }}&ndash;{{ rangeEnd() }} of {{ totalCount() }}</div>
+    <div class="right">
+      <label class="info">
+        Rows:
+        <select [ngModel]="pageSize()" (ngModelChange)="setPageSize($event)">
+          @for (n of pageSizes; track n) {
+            <option [value]="n">{{ n }}</option>
+          }
+        </select>
+      </label>
+      <div class="ia-pp">
+        <button type="button" (click)="goToPage(page() - 1)" [disabled]="page() <= 1">
+          <app-icon name="chevLeft" [size]="14" />
+        </button>
+        @for (n of pages(); track n) {
+          <button type="button" [class.on]="n === page()" (click)="goToPage(n)">{{ n }}</button>
+        }
+        <button type="button" (click)="goToPage(page() + 1)" [disabled]="page() >= totalPages()">
+          <app-icon name="chevRight" [size]="14" />
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<app-reschedule-request-modal
+  [appointmentId]="selectedRow()?.appointment?.id ?? null"
+  [locationId]="selectedRow()?.appointment?.locationId ?? null"
+  [appointmentTypeId]="selectedRow()?.appointment?.appointmentTypeId ?? null"
+  [visible]="rescheduleVisible()"
+  (visibleChange)="rescheduleVisible.set($event)"
+  (succeeded)="onChangeRequestSucceeded($event)"
+/>
+
+<app-cancellation-request-modal
+  [appointmentId]="selectedRow()?.appointment?.id ?? null"
+  [visible]="cancelVisible()"
+  (visibleChange)="cancelVisible.set($event)"
+  (succeeded)="onChangeRequestSucceeded($event)"
+/>

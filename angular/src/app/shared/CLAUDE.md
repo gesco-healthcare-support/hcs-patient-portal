@@ -102,17 +102,17 @@ digit string and will corrupt the form model.
 
 ## auth/
 
-### hasOnlyExternalRoles vs hasAnyExternalRole (external-user-roles.ts)
+### hasOnlyExternalRoles (external-user-roles.ts)
 
-Two distinct predicates; mixing them causes routing or layout bugs:
+- `hasOnlyExternalRoles` -- routing decision used by postLoginRedirectGuard and
+  the external-user-match canMatch guard (which serves the redesigned external
+  pages at the canonical routes). Returns true only when EVERY role is an
+  external role and the list is non-empty. A mixed-role user (internal +
+  external) returns false -> routed to dashboard / internal pages.
 
-- `hasOnlyExternalRoles` -- routing decision (postLoginRedirectGuard). Returns
-  true only when EVERY role is an external role and the list is non-empty.
-  A mixed-role user (internal + external) returns false -> routed to dashboard.
-- `hasAnyExternalRole` -- CSS toggle in app.component (hide LeptonX sidebar).
-  Returns true when at least one role is external. A mixed-role user returns
-  true here (they get sidebar hidden) while `hasOnlyExternalRoles` returns
-  false (they still see dashboard).
+(`hasAnyExternalRole` was removed 2026-06-14: it drove app.component's
+LeptonX-sidebar CSS toggle, which is gone now that the SPA renders a bare
+router-outlet instead of the LeptonX layout.)
 
 External roles: `patient`, `applicant attorney`, `defense attorney`,
 `claim examiner`. These mirror the seed contributor in

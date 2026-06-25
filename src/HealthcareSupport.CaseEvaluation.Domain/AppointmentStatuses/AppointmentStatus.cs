@@ -15,15 +15,20 @@ public class AppointmentStatus : FullAuditedEntity<Guid>
     [NotNull]
     public virtual string Name { get; set; } = null!;
 
+    /// <summary>Reserved system status: not editable or deletable by admins.
+    /// Mirrors <c>AppointmentDocumentType.IsSystem</c>.</summary>
+    public virtual bool IsSystem { get; set; }
+
     protected AppointmentStatus()
     {
     }
 
-    public AppointmentStatus(Guid id, string name)
+    public AppointmentStatus(Guid id, string name, bool isSystem = false)
     {
         Id = id;
         Check.NotNull(name, nameof(name));
         Check.Length(name, nameof(name), AppointmentStatusConsts.NameMaxLength, 0);
         Name = name;
+        IsSystem = isSystem;
     }
 }

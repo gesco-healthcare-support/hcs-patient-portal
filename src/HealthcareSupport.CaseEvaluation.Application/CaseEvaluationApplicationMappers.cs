@@ -63,14 +63,22 @@ public partial class CaseEvaluationCreateUpdateBookDtoToBookMapper : MapperBase<
 [Mapper]
 public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
 {
+    // UsageCount is computed in StatesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
     public override partial StateDto Map(State source);
+
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
     public override partial void Map(State source, StateDto destination);
 }
 
 [Mapper]
 public partial class AppointmentTypeToAppointmentTypeDtoMappers : MapperBase<AppointmentType, AppointmentTypeDto>
 {
+    // UsageCount is computed in AppointmentTypesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
     public override partial AppointmentTypeDto Map(AppointmentType source);
+
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
     public override partial void Map(AppointmentType source, AppointmentTypeDto destination);
 }
 
@@ -84,21 +92,38 @@ public partial class AppointmentTypeToAppointmentTypeExcelDtoMappers : MapperBas
 [Mapper]
 public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase<AppointmentStatus, AppointmentStatusDto>
 {
+    // UsageCount is always null (not tracked); never auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentStatusDto.UsageCount))]
     public override partial AppointmentStatusDto Map(AppointmentStatus source);
+
+    [MapperIgnoreTarget(nameof(AppointmentStatusDto.UsageCount))]
     public override partial void Map(AppointmentStatus source, AppointmentStatusDto destination);
 }
 
 [Mapper]
 public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
 {
+    // UsageCount + AppointmentTypeIds are projected in the app service (the join
+    // collection is not auto-mappable to a Guid list), so ignore them here.
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
     public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
+
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
     public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
 }
 
 [Mapper]
 public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : MapperBase<AppointmentLanguage, AppointmentLanguageDto>
 {
+    // UsageCount is computed in AppointmentLanguagesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentLanguageDto.UsageCount))]
     public override partial AppointmentLanguageDto Map(AppointmentLanguage source);
+
+    [MapperIgnoreTarget(nameof(AppointmentLanguageDto.UsageCount))]
     public override partial void Map(AppointmentLanguage source, AppointmentLanguageDto destination);
 }
 
@@ -125,6 +150,14 @@ public partial class LocationWithNavigationPropertiesToLocationWithNavigationPro
     // otherwise Mapperly RMG012 fails on the unmapped target.
     [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     private partial LocationDto MapLocation(Location source);
+
+    // Prompt 15: nested State/AppointmentType maps carry the computed UsageCount
+    // target (filled in the AppService, never auto-mapped) -- ignore it here too.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
+
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
+    private partial AppointmentTypeDto MapAppointmentType(AppointmentType source);
 }
 
 [Mapper]
@@ -174,6 +207,10 @@ public partial class WcabOfficeWithNavigationPropertiesToWcabOfficeWithNavigatio
 {
     public override partial WcabOfficeWithNavigationPropertiesDto Map(WcabOfficeWithNavigationProperties source);
     public override partial void Map(WcabOfficeWithNavigationProperties source, WcabOfficeWithNavigationPropertiesDto destination);
+
+    // Prompt 15: nested State -> StateDto carries the computed UsageCount target.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
 }
 
 [Mapper]
@@ -404,6 +441,10 @@ public partial class AppointmentEmployerDetailWithNavigationPropertiesToAppointm
 {
     public override partial AppointmentEmployerDetailWithNavigationPropertiesDto Map(AppointmentEmployerDetailWithNavigationProperties source);
     public override partial void Map(AppointmentEmployerDetailWithNavigationProperties source, AppointmentEmployerDetailWithNavigationPropertiesDto destination);
+
+    // Prompt 15: nested State -> StateDto carries the computed UsageCount target.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
 }
 
 [Mapper]

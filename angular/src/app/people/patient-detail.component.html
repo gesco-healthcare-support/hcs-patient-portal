@@ -1,0 +1,195 @@
+<button type="button" class="pd-back" (click)="back.emit()">
+  <app-icon name="chevLeft" [size]="15" />
+  Back to patients
+</button>
+
+<div class="pd-head">
+  <span class="ava" [style.background]="avatarColor(fullName)">
+    {{ initials(row().firstName, row().lastName) }}
+  </span>
+  <div class="meta">
+    <h2>{{ row().firstName }} {{ row().lastName }}</h2>
+    <div class="sub">
+      <span>{{ row().email || '--' }}</span>
+      <span>{{ row().city || '--' }}{{ row().stateName ? ', ' + row().stateName : '' }}</span>
+      <span>
+        {{ appointments().length }} appointment{{ appointments().length === 1 ? '' : 's' }}
+      </span>
+    </div>
+  </div>
+  <div class="acts">
+    <span class="pp-portal" [ngClass]="row().portal">
+      <span class="d"></span>
+      {{ portalLabel[row().portal] }}
+    </span>
+    @if (row().portal === 'none' && canInvite) {
+      <button type="button" class="af-btn af-btn--glass" (click)="invite.emit(row())">
+        <app-icon name="user" [size]="15" />
+        Invite to portal
+      </button>
+    }
+    @if (canEdit) {
+      <button type="button" class="af-btn af-btn--green" (click)="edit.emit(row())">
+        <app-icon name="doc" [size]="15" />
+        Edit patient
+      </button>
+    }
+  </div>
+</div>
+
+<div class="pd-grid">
+  <section class="ad-card">
+    <div class="ad-card__head">
+      <span class="ic tint-blue"><app-icon name="user" [size]="18" /></span>
+      <h3>Personal</h3>
+    </div>
+    <div class="ad-card__body">
+      <div class="ad-dl" style="grid-template-columns: 1fr">
+        <div class="ad-field">
+          <span class="k">Name</span>
+          <span class="v">{{ fullName || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Gender</span>
+          <span class="v">{{ genderLabel(row().genderId) || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Date of birth</span>
+          <span class="v mono">{{ (row().dateOfBirth | date: 'MMM d, y') || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">SSN</span>
+          <span class="v mono">{{ maskSsn(row().socialSecurityNumber) || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Appt #</span>
+          <span class="v mono">{{ row().apptNumber || '--' }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ad-card">
+    <div class="ad-card__head">
+      <span class="ic tint-teal"><app-icon name="user" [size]="18" /></span>
+      <h3>Contact</h3>
+    </div>
+    <div class="ad-card__body">
+      <div class="ad-dl" style="grid-template-columns: 1fr">
+        <div class="ad-field">
+          <span class="k">Email</span>
+          <span class="v">{{ row().email || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Phone</span>
+          <span class="v mono">{{ row().phoneNumber || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Cell</span>
+          <span class="v mono">{{ row().cellPhoneNumber || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Phone type</span>
+          <span class="v">{{ phoneTypeLabel(row().phoneNumberTypeId) || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Portal account</span>
+          <span class="v">{{ portalLabel[row().portal] }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ad-card">
+    <div class="ad-card__head">
+      <span class="ic tint-slate"><app-icon name="map" [size]="18" /></span>
+      <h3>Address</h3>
+    </div>
+    <div class="ad-card__body">
+      <div class="ad-dl" style="grid-template-columns: 1fr">
+        <div class="ad-field">
+          <span class="k">Street</span>
+          <span class="v">{{ row().street || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">City</span>
+          <span class="v">{{ row().city || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">State</span>
+          <span class="v">{{ row().stateName || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Zip</span>
+          <span class="v mono">{{ row().zipCode || '--' }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ad-card">
+    <div class="ad-card__head">
+      <span class="ic tint-amber"><app-icon name="settings" [size]="18" /></span>
+      <h3>Preferences</h3>
+    </div>
+    <div class="ad-card__body">
+      <div class="ad-dl" style="grid-template-columns: 1fr">
+        <div class="ad-field">
+          <span class="k">Appointment language</span>
+          <span class="v">{{ row().languageName || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Other language</span>
+          <span class="v">{{ row().othersLanguageName || '--' }}</span>
+        </div>
+        <div class="ad-field">
+          <span class="k">Interpreter vendor</span>
+          <span class="v">{{ row().interpreterVendorName || '--' }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ad-card pd-full">
+    <div class="ad-card__head">
+      <span class="ic tint-purple"><app-icon name="calendar" [size]="18" /></span>
+      <h3>Appointments ({{ appointments().length }})</h3>
+    </div>
+    <div class="ad-card__body" style="padding: 0">
+      <table class="ad-table">
+        <thead>
+          <tr>
+            <th>Confirmation #</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Location</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of appointments(); track a.appointment!.id) {
+            <tr>
+              <td>
+                <span class="ia-conf">{{ a.appointment?.requestConfirmationNumber || '--' }}</span>
+              </td>
+              <td>{{ a.appointmentType?.name || '--' }}</td>
+              <td class="num">{{ (a.appointment?.appointmentDate | date: 'MMM d, y') || '--' }}</td>
+              <td>{{ a.location?.name || '--' }}</td>
+              <td><app-status-pill [status]="pill(a)" /></td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 22px; color: var(--n-400)">
+                @if (loadingAppts()) {
+                  Loading...
+                } @else {
+                  No appointments yet.
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

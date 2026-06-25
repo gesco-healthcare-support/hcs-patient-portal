@@ -371,13 +371,32 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         {
             throw new UserFriendlyException(L["DoctorAvailability:CapacityMustBeAtLeastOne"]);
         }
-        if (input.ToDate.Date < input.FromDate.Date)
+        // Prompt 14 (2026-06-15): explicit-date mode (SelectedDates) bypasses
+        // the range + weekday validation; range mode keeps the original guards.
+        var useExplicitDates = input.SelectedDates != null && input.SelectedDates.Count > 0;
+        if (useExplicitDates)
         {
-            throw new UserFriendlyException(L["DoctorAvailability:ToDateBeforeFromDate"]);
+            var selectedDates = input.SelectedDates!;
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            if (selectedDates.Any(d => d < today))
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
+            }
+            if (selectedDates.Distinct().Count() != selectedDates.Count)
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:SelectedDatesDuplicate"]);
+            }
         }
-        if (input.FromDate.Date < DateTime.Today)
+        else
         {
-            throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
+            if (input.ToDate.Date < input.FromDate.Date)
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:ToDateBeforeFromDate"]);
+            }
+            if (input.FromDate.Date < DateTime.Today)
+            {
+                throw new UserFriendlyException(L["DoctorAvailability:CannotGenerateForPastDates"]);
+            }
         }
         if (input.TimeRanges == null || input.TimeRanges.Count == 0)
         {
@@ -416,7 +435,7 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             }
         }
 
-        if (input.SelectedDays != null && input.SelectedDays.Count > 0)
+        if (!useExplicitDates && input.SelectedDays != null && input.SelectedDays.Count > 0)
         {
             if (input.SelectedDays.Any(d => d < 0 || d > 6))
             {
@@ -439,46 +458,73 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         }
     }
 
-    internal static List<DoctorAvailabilitySlotPreviewDto> ExpandToSlotPreviews(
-        DoctorAvailabilityGenerateInputDto input)
+    /// <summary>
+    /// Prompt 14 (2026-06-15) -- resolve the calendar dates a generation
+    /// targets. A non-empty <see cref="DoctorAvailabilityGenerateInputDto.SelectedDates"/>
+    /// switches to explicit-date mode and is used verbatim (deduplicated +
+    /// sorted), supporting the "Pick days on calendar" pattern for irregular
+    /// schedules. Otherwise every date in [FromDate, ToDate] whose weekday is
+    /// in <see cref="DoctorAvailabilityGenerateInputDto.SelectedDays"/>
+    /// (empty/null = all weekdays) is returned. Extracted
+    /// <c>internal static</c> for unit-testability via
+    /// <c>InternalsVisibleTo</c>.
+    /// </summary>
+    internal static List<DateTime> ResolveTargetDates(DoctorAvailabilityGenerateInputDto input)
     {
+        if (input.SelectedDates != null && input.SelectedDates.Count > 0)
+        {
+            return input.SelectedDates
+                .Select(d => d.ToDateTime(TimeOnly.MinValue))
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+        }
+
         var allowedDays = (input.SelectedDays == null || input.SelectedDays.Count == 0)
             ? new HashSet<int> { 0, 1, 2, 3, 4, 5, 6 }
             : new HashSet<int>(input.SelectedDays);
 
-        var slots = new List<DoctorAvailabilitySlotPreviewDto>();
-        var currentDate = input.FromDate.Date;
-        var endDate = input.ToDate.Date;
-
-        while (currentDate <= endDate)
+        var dates = new List<DateTime>();
+        for (var day = input.FromDate.Date; day <= input.ToDate.Date; day = day.AddDays(1))
         {
-            if (allowedDays.Contains((int)currentDate.DayOfWeek))
+            if (allowedDays.Contains((int)day.DayOfWeek))
             {
-                foreach (var range in input.TimeRanges.OrderBy(r => r.FromTime))
-                {
-                    var duration = range.AppointmentDurationMinutes
-                        ?? input.AppointmentDurationMinutes;
-                    var currentTime = range.FromTime;
+                dates.Add(day);
+            }
+        }
+        return dates;
+    }
 
-                    while (currentTime.AddMinutes(duration) <= range.ToTime)
+    internal static List<DoctorAvailabilitySlotPreviewDto> ExpandToSlotPreviews(
+        DoctorAvailabilityGenerateInputDto input)
+    {
+        var slots = new List<DoctorAvailabilitySlotPreviewDto>();
+
+        foreach (var currentDate in ResolveTargetDates(input))
+        {
+            foreach (var range in input.TimeRanges.OrderBy(r => r.FromTime))
+            {
+                var duration = range.AppointmentDurationMinutes
+                    ?? input.AppointmentDurationMinutes;
+                var currentTime = range.FromTime;
+
+                while (currentTime.AddMinutes(duration) <= range.ToTime)
+                {
+                    var toTime = currentTime.AddMinutes(duration);
+                    slots.Add(new DoctorAvailabilitySlotPreviewDto
                     {
-                        var toTime = currentTime.AddMinutes(duration);
-                        slots.Add(new DoctorAvailabilitySlotPreviewDto
-                        {
-                            AppointmentTypeIds = new List<Guid>(input.AppointmentTypeIds),
-                            AvailableDate = currentDate,
-                            BookingStatusId = input.BookingStatusId,
-                            LocationId = input.LocationId,
-                            FromTime = currentTime,
-                            ToTime = toTime,
-                            Capacity = input.Capacity,
-                            IsConflict = false,
-                        });
-                        currentTime = toTime;
-                    }
+                        AppointmentTypeIds = new List<Guid>(input.AppointmentTypeIds),
+                        AvailableDate = currentDate,
+                        BookingStatusId = input.BookingStatusId,
+                        LocationId = input.LocationId,
+                        FromTime = currentTime,
+                        ToTime = toTime,
+                        Capacity = input.Capacity,
+                        IsConflict = false,
+                    });
+                    currentTime = toTime;
                 }
             }
-            currentDate = currentDate.AddDays(1);
         }
 
         return slots;
@@ -490,16 +536,9 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
         {
             return 0;
         }
-        var dayCount = 0;
-        for (var day = input.FromDate.Date; day <= input.ToDate.Date; day = day.AddDays(1))
-        {
-            if (input.SelectedDays == null
-                || input.SelectedDays.Count == 0
-                || input.SelectedDays.Contains((int)day.DayOfWeek))
-            {
-                dayCount++;
-            }
-        }
+        // Prompt 14: same date resolution as the real expansion, so the cap
+        // covers both the range+weekday and the explicit-date modes.
+        var dayCount = ResolveTargetDates(input).Count;
         var slotsPerDay = input.TimeRanges.Sum(range =>
         {
             var duration = range.AppointmentDurationMinutes ?? input.AppointmentDurationMinutes;
@@ -577,6 +616,26 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             }
         }
         return dtos;
+    }
+
+    /// <summary>
+    /// #2 (2026-06-19) -- booked/reserved patient names per slot for the internal
+    /// week-view chips. Bulk over the visible week's slot ids (one round-trip);
+    /// only slots with at least one non-terminal appointment come back. Internal-
+    /// only -- patient names are not exposed on any external surface.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Default)]
+    public virtual async Task<List<SlotPatientNamesDto>> GetSlotPatientNamesAsync(List<Guid> slotIds)
+    {
+        if (slotIds == null || slotIds.Count == 0)
+        {
+            return new List<SlotPatientNamesDto>();
+        }
+
+        var namesBySlot = await _appointmentRepository.GetActivePatientNamesForSlotsAsync(slotIds);
+        return namesBySlot
+            .Select(kvp => new SlotPatientNamesDto { SlotId = kvp.Key, Names = kvp.Value })
+            .ToList();
     }
 
     /// <summary>

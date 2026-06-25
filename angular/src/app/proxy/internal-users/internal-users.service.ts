@@ -28,4 +28,12 @@ export class InternalUsersService {
       params: { filter },
     },
     { apiName: this.apiName,...config });
+  
+
+  sendPasswordResetEmail = (id: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, void>({
+      method: 'POST',
+      url: `/api/app/internal-users/${id}/send-password-reset`,
+    },
+    { apiName: this.apiName,...config });
 }

@@ -8,6 +8,8 @@ export interface AppointmentTypeCreateDto {
 export interface AppointmentTypeDto extends FullAuditedEntityDto<string> {
   name?: string;
   description?: string | null;
+  isSystem?: boolean;
+  usageCount?: number | null;
 }
 
 export interface AppointmentTypeUpdateDto {

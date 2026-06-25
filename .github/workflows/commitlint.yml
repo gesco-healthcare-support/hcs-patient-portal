@@ -8,14 +8,23 @@ name: Commitlint
 
 on:
   pull_request:
-    branches: [main, development, staging, production, chore/dependency-updates, 'feat/**', 'fix/**']
+    branches:
+      [
+        main,
+        development,
+        staging,
+        production,
+        chore/dependency-updates,
+        "feat/**",
+        "fix/**",
+      ]
 
 permissions:
   contents: read
 
 jobs:
   lint:
-    name: 'Commitlint: PR commits'
+    name: "Commitlint: PR commits"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
@@ -25,12 +34,15 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'yarn'
+          node-version: "20"
+          cache: "yarn"
           cache-dependency-path: angular/yarn.lock
+      - name: Enable Corepack (activates the pinned Yarn 4)
+        working-directory: angular
+        run: corepack enable
       - name: Install commitlint dependencies
         working-directory: angular
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
       - uses: wagoid/commitlint-github-action@v6
         with:
           configFile: angular/commitlint.config.mjs

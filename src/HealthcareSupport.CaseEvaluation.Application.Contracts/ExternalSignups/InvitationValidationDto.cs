@@ -32,4 +32,10 @@ public class InvitationValidationDto
 
     /// <summary>Optional recipient last name stored on the invitation.</summary>
     public string? LastName { get; set; }
+
+    /// <summary>
+    /// Optional firm name stored on the invitation (attorney invites). Surfaced
+    /// so the register page can pre-fill the firm field. Null otherwise.
+    /// </summary>
+    public string? FirmName { get; set; }
 }

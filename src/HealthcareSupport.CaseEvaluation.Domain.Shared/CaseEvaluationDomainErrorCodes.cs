@@ -236,6 +236,15 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:InternalUser.TenantMismatch";
 
     /// <summary>
+    /// 2026-06-16 (Prompt 16, A-B3) -- raised by
+    /// <c>InternalUsersAppService.SendPasswordResetEmailAsync</c> when no
+    /// IdentityUser exists for the supplied id in the caller's tenant scope.
+    /// Localization key <c>InternalUser:NotFound</c>.
+    /// </summary>
+    public const string InternalUserNotFound =
+        "CaseEvaluation:InternalUser.NotFound";
+
+    /// <summary>
     /// Phase 11b (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.CreateAsync</c> when the chosen slot's
     /// <c>AvailableDate</c> falls inside the per-tenant
@@ -922,4 +931,104 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ChangeRequestConsentExpired =
         "CaseEvaluation:ChangeRequest.ConsentExpired";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>AppointmentTypeManager.UpdateAsync / DeleteAsync</c> when the targeted
+    /// row is a reserved <c>IsSystem</c> appointment type. System rows are not
+    /// editable or deletable by admins; mirrors the AppointmentDocumentType
+    /// system-lock pattern. Localization key
+    /// <c>AppointmentType:SystemReadOnly</c>.
+    /// </summary>
+    public const string AppointmentTypeSystemReadOnly =
+        "CaseEvaluation:AppointmentType.SystemReadOnly";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>AppointmentTypeManager.DeleteAsync</c> when the type is still
+    /// referenced by at least one <c>Appointment</c> (via
+    /// <c>Appointment.AppointmentTypeId</c>). Retire it rather than delete it
+    /// out from under existing appointments. Localization key
+    /// <c>AppointmentType:InUse</c>.
+    /// </summary>
+    public const string AppointmentTypeInUse =
+        "CaseEvaluation:AppointmentType.InUse";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>AppointmentStatusManager.UpdateAsync / DeleteAsync</c> when the
+    /// targeted row is a reserved <c>IsSystem</c> appointment status. The five
+    /// canonical statuses are system rows and are not editable or deletable by
+    /// admins. Localization key <c>AppointmentStatus:SystemReadOnly</c>.
+    /// </summary>
+    public const string AppointmentStatusSystemReadOnly =
+        "CaseEvaluation:AppointmentStatus.SystemReadOnly";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>AppointmentLanguageManager.UpdateAsync / DeleteAsync</c> when the
+    /// targeted row is a reserved <c>IsSystem</c> language (e.g. seeded
+    /// "English"). Localization key <c>AppointmentLanguage:SystemReadOnly</c>.
+    /// </summary>
+    public const string AppointmentLanguageSystemReadOnly =
+        "CaseEvaluation:AppointmentLanguage.SystemReadOnly";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>AppointmentLanguageManager.DeleteAsync</c> when the language is still
+    /// referenced by at least one <c>Patient</c> (via
+    /// <c>Patient.AppointmentLanguageId</c>). Localization key
+    /// <c>AppointmentLanguage:InUse</c>.
+    /// </summary>
+    public const string AppointmentLanguageInUse =
+        "CaseEvaluation:AppointmentLanguage.InUse";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>StateManager.UpdateAsync / DeleteAsync</c> when the targeted row is a
+    /// reserved <c>IsSystem</c> state (e.g. seeded "California"). Localization
+    /// key <c>State:SystemReadOnly</c>.
+    /// </summary>
+    public const string StateSystemReadOnly =
+        "CaseEvaluation:State.SystemReadOnly";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>StateManager.DeleteAsync</c> when the state is still referenced by any
+    /// of Location / WcabOffice / Patient / ApplicantAttorney / DefenseAttorney
+    /// / ClaimExaminer (via their <c>StateId</c>). Localization key
+    /// <c>State:InUse</c>.
+    /// </summary>
+    public const string StateInUse =
+        "CaseEvaluation:State.InUse";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>PatientsAppService.DeleteAsync</c> when the patient is still
+    /// referenced by at least one <c>Appointment</c> (via
+    /// <c>Appointment.PatientId</c>). Localization key <c>Patient:InUse</c>.
+    /// </summary>
+    public const string PatientInUse =
+        "CaseEvaluation:Patient.InUse";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>ApplicantAttorneysAppService.DeleteAsync</c> when the applicant
+    /// attorney is still referenced by at least one
+    /// <c>AppointmentApplicantAttorney</c> (via
+    /// <c>AppointmentApplicantAttorney.ApplicantAttorneyId</c>). Localization
+    /// key <c>ApplicantAttorney:InUse</c>.
+    /// </summary>
+    public const string ApplicantAttorneyInUse =
+        "CaseEvaluation:ApplicantAttorney.InUse";
+
+    /// <summary>
+    /// Prompt 15 / item 32 (2026-06-15) -- raised by
+    /// <c>DefenseAttorneysAppService.DeleteAsync</c> when the defense attorney
+    /// is still referenced by at least one <c>AppointmentDefenseAttorney</c>
+    /// (via <c>AppointmentDefenseAttorney.DefenseAttorneyId</c>). Localization
+    /// key <c>DefenseAttorney:InUse</c>.
+    /// </summary>
+    public const string DefenseAttorneyInUse =
+        "CaseEvaluation:DefenseAttorney.InUse";
 }

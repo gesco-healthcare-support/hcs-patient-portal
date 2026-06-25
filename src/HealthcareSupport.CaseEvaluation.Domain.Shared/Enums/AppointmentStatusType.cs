@@ -1,9 +1,14 @@
 namespace HealthcareSupport.CaseEvaluation.Enums
 {
     /// <summary>
-    /// Mirrors OLD's AppointmentStatusType enum verbatim for strict parity
-    /// (Phase 1.7, 2026-05-01). 13 values; the NEW-only AwaitingMoreInfo=14
-    /// state was removed when the SendBack flow was deleted in Phase 0.2.
+    /// OLD-parity base (Phase 1.7, 2026-05-01) extended for the redesign's
+    /// 6-status model. <see cref="InfoRequested"/> = 14 is re-introduced
+    /// (2026-06-13) for the redesign Send Back / Request-more-information flow;
+    /// it had been removed in Phase 0.2 when the original SendBack was deleted.
+    /// Legacy values (NoShow, CheckedIn, CheckedOut, Billed, and the
+    /// Cancelled/Rescheduled bill variants) are retained for data compatibility
+    /// with existing rows; the redesigned UI buckets every value into the six
+    /// pills (Pending, Info Requested, Approved, Rejected, Cancelled, Rescheduled).
     /// </summary>
     public enum AppointmentStatusType
     {
@@ -20,5 +25,6 @@ namespace HealthcareSupport.CaseEvaluation.Enums
         Billed = 11,
         RescheduleRequested = 12,
         CancellationRequested = 13,
+        InfoRequested = 14,
     }
 }

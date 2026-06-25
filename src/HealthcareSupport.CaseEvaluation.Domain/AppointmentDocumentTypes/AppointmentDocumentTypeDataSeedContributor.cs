@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Data;
 using Volo.Abp.Data;
@@ -44,7 +45,8 @@ public class AppointmentDocumentTypeDataSeedContributor : IDataSeedContributor, 
 
         using (_currentTenant.Change(context.TenantId))
         {
-            // Reserved system row (idempotent).
+            // Reserved system row (idempotent). AppliesToAll = it is offered for
+            // every appointment type.
             var systemRow = await _repository.FindAsync(
                 x => x.IsSystem && x.Name == AppointmentDocumentTypeConsts.GeneratedPacketName);
             if (systemRow == null)
@@ -53,46 +55,45 @@ public class AppointmentDocumentTypeDataSeedContributor : IDataSeedContributor, 
                     new AppointmentDocumentType(
                         id: _guidGenerator.Create(),
                         name: AppointmentDocumentTypeConsts.GeneratedPacketName,
-                        appointmentTypeId: null,
+                        appliesToAll: true,
                         isActive: true,
                         isSystem: true,
                         tenantId: context.TenantId),
                     autoSave: true);
             }
 
-            // I15 (2026-06-08): per-appointment-type document-category label sets.
-            // Idempotent per (name, appointmentTypeId) so admin edits + re-seeds are
-            // preserved. The "Panel Strike List" PQME label drives the strike-list
-            // flag (upload path) and the PQME approval gate.
-            await SeedLabelsAsync(context.TenantId, CaseEvaluationSeedIds.AppointmentTypes.Ame,
-                "Joint Letter", "Medical Records");
-            await SeedLabelsAsync(context.TenantId, CaseEvaluationSeedIds.AppointmentTypes.Ime,
-                "Advocacy Letter", "Medical Records");
-            await SeedLabelsAsync(context.TenantId, CaseEvaluationSeedIds.AppointmentTypes.PanelQme,
-                AppointmentDocumentTypeConsts.PanelStrikeListName, "Advocacy Letter", "Cover Letter", "Medical Records");
+            // #4 (2026-06-19): one record per name, offered to a SET of appointment
+            // types (inverted from the old per-type duplicate rows). Idempotent per
+            // name so admin edits + re-seeds are preserved. The "Panel Strike List"
+            // PQME label drives the strike-list flag (upload path) and the PQME
+            // approval gate.
+            var ame = CaseEvaluationSeedIds.AppointmentTypes.Ame;
+            var ime = CaseEvaluationSeedIds.AppointmentTypes.Ime;
+            var pqme = CaseEvaluationSeedIds.AppointmentTypes.PanelQme;
+            await SeedLabelAsync(context.TenantId, "Joint Letter", ame);
+            await SeedLabelAsync(context.TenantId, "Medical Records", ame, ime, pqme);
+            await SeedLabelAsync(context.TenantId, "Advocacy Letter", ime, pqme);
+            await SeedLabelAsync(context.TenantId, "Cover Letter", pqme);
+            await SeedLabelAsync(context.TenantId, AppointmentDocumentTypeConsts.PanelStrikeListName, pqme);
         }
     }
 
-    private async Task SeedLabelsAsync(System.Guid? tenantId, System.Guid appointmentTypeId, params string[] names)
+    private async Task SeedLabelAsync(System.Guid? tenantId, string name, params System.Guid[] appointmentTypeIds)
     {
-        foreach (var name in names)
+        var exists = await _repository.FindAsync(x => !x.IsSystem && x.Name == name);
+        if (exists != null)
         {
-            var exists = await _repository.FindAsync(
-                x => !x.IsSystem && x.AppointmentTypeId == appointmentTypeId && x.Name == name);
-            if (exists != null)
-            {
-                continue;
-            }
-
-            await _repository.InsertAsync(
-                new AppointmentDocumentType(
-                    id: _guidGenerator.Create(),
-                    name: name,
-                    appointmentTypeId: appointmentTypeId,
-                    isActive: true,
-                    isSystem: false,
-                    tenantId: tenantId),
-                autoSave: true);
+            return;
         }
+
+        var entity = new AppointmentDocumentType(
+            id: _guidGenerator.Create(),
+            name: name,
+            appliesToAll: false,
+            isActive: true,
+            isSystem: false,
+            tenantId: tenantId);
+        entity.SetAppointmentTypes(new List<System.Guid>(appointmentTypeIds));
+        await _repository.InsertAsync(entity, autoSave: true);
     }
 }

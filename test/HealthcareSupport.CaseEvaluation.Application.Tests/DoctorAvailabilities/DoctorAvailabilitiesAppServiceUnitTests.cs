@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using HealthcareSupport.CaseEvaluation.Enums;
 using Shouldly;
 using Xunit;
@@ -149,5 +152,138 @@ public class DoctorAvailabilitiesAppServiceUnitTests
         DoctorAvailabilitiesAppService.IsValidSlotDateRange(
             new DateTime(2026, 6, 1, 23, 59, 59),
             new DateTime(2026, 6, 1, 0, 0, 1)).ShouldBeTrue();
+    }
+
+    // ------------------------------------------------------------------
+    // ResolveTargetDates (Prompt 14, 2026-06-15) -- explicit SelectedDates
+    // for irregular patterns vs the range + weekday expansion. Backing the
+    // design's "Pick days on calendar" mode (BACKEND-CHANGES item 13).
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ResolveTargetDates_RangeMode_ExpandsSelectedWeekdaysInRange()
+    {
+        // 2026-06-15 (Mon) .. 2026-06-21 (Sun); keep Mon(1)/Wed(3)/Fri(5).
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            FromDate = new DateTime(2026, 6, 15),
+            ToDate = new DateTime(2026, 6, 21),
+            SelectedDays = new List<int> { 1, 3, 5 },
+        };
+
+        DoctorAvailabilitiesAppService.ResolveTargetDates(input).ShouldBe(new List<DateTime>
+        {
+            new DateTime(2026, 6, 15),
+            new DateTime(2026, 6, 17),
+            new DateTime(2026, 6, 19),
+        });
+    }
+
+    [Fact]
+    public void ResolveTargetDates_RangeMode_NullSelectedDays_IncludesEveryDay()
+    {
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            FromDate = new DateTime(2026, 6, 15),
+            ToDate = new DateTime(2026, 6, 17),
+            SelectedDays = null,
+        };
+
+        DoctorAvailabilitiesAppService.ResolveTargetDates(input).Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void ResolveTargetDates_ExplicitDates_WinOverRange_DeduplicatedAndSorted()
+    {
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            // A range that would resolve to a different set; explicit dates win.
+            FromDate = new DateTime(2026, 6, 1),
+            ToDate = new DateTime(2026, 6, 30),
+            SelectedDays = new List<int> { 0 },
+            SelectedDates = new List<DateOnly>
+            {
+                new DateOnly(2026, 6, 22),
+                new DateOnly(2026, 6, 18),
+                new DateOnly(2026, 6, 18), // duplicate dropped
+                new DateOnly(2026, 6, 15),
+            },
+        };
+
+        DoctorAvailabilitiesAppService.ResolveTargetDates(input).ShouldBe(new List<DateTime>
+        {
+            new DateTime(2026, 6, 15),
+            new DateTime(2026, 6, 18),
+            new DateTime(2026, 6, 22),
+        });
+    }
+
+    [Fact]
+    public void ResolveTargetDates_EmptyExplicitDates_FallsBackToRange()
+    {
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            FromDate = new DateTime(2026, 6, 15),
+            ToDate = new DateTime(2026, 6, 15),
+            SelectedDates = new List<DateOnly>(),
+        };
+
+        DoctorAvailabilitiesAppService.ResolveTargetDates(input)
+            .ShouldBe(new List<DateTime> { new DateTime(2026, 6, 15) });
+    }
+
+    [Fact]
+    public void EstimateSlotCount_ExplicitDates_CountsOnlyPickedDays()
+    {
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            FromDate = new DateTime(2026, 6, 1),
+            ToDate = new DateTime(2026, 6, 30),
+            SelectedDates = new List<DateOnly>
+            {
+                new DateOnly(2026, 6, 15),
+                new DateOnly(2026, 6, 18),
+            },
+            TimeRanges = new List<TimeRangeDto>
+            {
+                new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(12, 0) },
+            },
+            AppointmentDurationMinutes = 60,
+        };
+
+        // 2 picked days * 3 slots/day = 6.
+        DoctorAvailabilitiesAppService.EstimateSlotCount(input).ShouldBe(6);
+    }
+
+    [Fact]
+    public void ExpandToSlotPreviews_ExplicitDates_ProducesSlotsForEachPickedDate()
+    {
+        var input = new DoctorAvailabilityGenerateInputDto
+        {
+            FromDate = new DateTime(2026, 6, 1),
+            ToDate = new DateTime(2026, 6, 1),
+            SelectedDates = new List<DateOnly>
+            {
+                new DateOnly(2026, 6, 15),
+                new DateOnly(2026, 6, 18),
+            },
+            TimeRanges = new List<TimeRangeDto>
+            {
+                new TimeRangeDto { FromTime = new TimeOnly(9, 0), ToTime = new TimeOnly(11, 0) },
+            },
+            AppointmentDurationMinutes = 60,
+            LocationId = Guid.NewGuid(),
+            Capacity = 3,
+        };
+
+        var slots = DoctorAvailabilitiesAppService.ExpandToSlotPreviews(input);
+
+        // 2 dates * 2 hourly slots = 4.
+        slots.Count.ShouldBe(4);
+        slots.Select(s => s.AvailableDate.Date).Distinct().OrderBy(d => d).ShouldBe(new[]
+        {
+            new DateTime(2026, 6, 15),
+            new DateTime(2026, 6, 18),
+        });
     }
 }

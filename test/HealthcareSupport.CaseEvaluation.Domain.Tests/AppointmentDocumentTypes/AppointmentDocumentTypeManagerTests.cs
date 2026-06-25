@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
@@ -55,7 +58,8 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
             {
                 var created = await _manager.CreateAsync(
                     name: "Regression Document Category",
-                    appointmentTypeId: null,
+                    appointmentTypeIds: new List<Guid>(),
+                    appliesToAll: true,
                     isActive: true);
 
                 created.ShouldNotBeNull();
@@ -93,7 +97,8 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
             {
                 var type = await _manager.CreateAsync(
                     name: "Referenced Category",
-                    appointmentTypeId: null,
+                    appointmentTypeIds: new List<Guid>(),
+                    appliesToAll: true,
                     isActive: true);
                 typeId = type.Id;
 
@@ -119,6 +124,93 @@ public abstract class AppointmentDocumentTypeManagerTests<TStartupModule> : Case
                 var ex = await Should.ThrowAsync<BusinessException>(
                     async () => await _manager.DeleteAsync(typeId));
                 ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeInUse);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Manager_UpdateAsync_ReconcilesAppointmentTypeSet()
+    {
+        // #4: one record offered to a SET of appointment types. An update must
+        // reconcile (add new, drop removed), not append -- starting [Ame, Ime]
+        // and saving [Ime, PanelQme] must end exactly [Ime, PanelQme].
+        var ame = CaseEvaluationSeedIds.AppointmentTypes.Ame;
+        var ime = CaseEvaluationSeedIds.AppointmentTypes.Ime;
+        var pqme = CaseEvaluationSeedIds.AppointmentTypes.PanelQme;
+        var typeId = Guid.Empty;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var created = await _manager.CreateAsync(
+                    name: "Reconciled Category",
+                    appointmentTypeIds: new List<Guid> { ame, ime },
+                    appliesToAll: false,
+                    isActive: true);
+                typeId = created.Id;
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _manager.UpdateAsync(
+                    id: typeId,
+                    name: "Reconciled Category",
+                    appointmentTypeIds: new List<Guid> { ime, pqme },
+                    appliesToAll: false,
+                    isActive: true);
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var persisted = await _repository.GetWithAppointmentTypesAsync(typeId);
+                var ids = persisted.AppointmentTypes.Select(j => j.AppointmentTypeId).ToList();
+                ids.Count.ShouldBe(2);
+                ids.ShouldContain(ime);
+                ids.ShouldContain(pqme);
+                ids.ShouldNotContain(ame);
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Manager_CreateAsync_WhenNameExistsInTenant_ThrowsDuplicate()
+    {
+        // #4: uniqueness is now per-tenant (a name is curated once), no longer
+        // per appointment type -- so a second active row with the same name in
+        // the same tenant is rejected regardless of its type set. The first row
+        // is created (and flushed) in its own UoW: InsertAsync without autoSave
+        // is not yet queryable in the same UoW, so the duplicate check must run
+        // against a committed row (each CRUD call is its own UoW in the app).
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _manager.CreateAsync(
+                    name: "Unique Per Tenant",
+                    appointmentTypeIds: new List<Guid> { CaseEvaluationSeedIds.AppointmentTypes.Ame },
+                    appliesToAll: false,
+                    isActive: true);
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var ex = await Should.ThrowAsync<BusinessException>(async () =>
+                    await _manager.CreateAsync(
+                        name: "Unique Per Tenant",
+                        appointmentTypeIds: new List<Guid> { CaseEvaluationSeedIds.AppointmentTypes.Ime },
+                        appliesToAll: false,
+                        isActive: true));
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDocumentTypeNameAlreadyExists);
             }
         });
     }

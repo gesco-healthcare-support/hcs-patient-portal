@@ -1,8 +1,13 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
@@ -29,10 +34,16 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
     where TStartupModule : IAbpModule
 {
     private readonly IExternalSignupAppService _appService;
+    private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
+    private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
+    private readonly ICurrentTenant _currentTenant;
 
     protected ExternalSignupAppServiceTests()
     {
         _appService = GetRequiredService<IExternalSignupAppService>();
+        _applicantAttorneyRepository = GetRequiredService<IRepository<ApplicantAttorney, Guid>>();
+        _defenseAttorneyRepository = GetRequiredService<IRepository<DefenseAttorney, Guid>>();
+        _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -63,5 +74,115 @@ public abstract class ExternalSignupAppServiceTests<TStartupModule>
         // ValidateRegistrationInput(input, _localizer) call wired
         // through correctly.
         ex.Message.ShouldBe("Password and confirm password do not match.");
+    }
+
+    // =====================================================================
+    // F-H01 (2026-06-25): register-after-booking for attorneys. When a booking
+    // named an attorney's email before they had an account, it created an
+    // unclaimed master (IdentityUserId NULL) keyed by (TenantId, Email).
+    // Registration used to dedup only by the new user's id, miss that row, and
+    // INSERT a duplicate -> unique-index violation -> HTTP 500. The fix ADOPTS
+    // the unclaimed master (claims the login + backfills the typed firm).
+    // =====================================================================
+
+    [Fact]
+    public async Task RegisterAsync_ApplicantAttorney_AdoptsUnclaimedEmailMaster_NoDuplicate()
+    {
+        const string email = "fh01.aa.adopt@test.example";
+        const string firmName = "TEST-Adopt-AA-Firm";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _applicantAttorneyRepository.InsertAsync(
+                new ApplicantAttorney(Guid.NewGuid(), stateId: null, identityUserId: null, email: email),
+                autoSave: true);
+        }
+
+        var dto = new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.ApplicantAttorney,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirmName = firmName,
+            TenantId = TenantsTestData.TenantARef,
+        };
+
+        // Pre-fix this threw (duplicate-key 500); post-fix it adopts cleanly.
+        await _appService.RegisterAsync(dto);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var masters = await _applicantAttorneyRepository.GetListAsync(
+                a => a.Email != null && a.Email == email);
+            masters.Count.ShouldBe(1);                   // adopted, not duplicated
+            masters[0].IdentityUserId.ShouldNotBeNull(); // claimed by the new login
+            masters[0].FirmName.ShouldBe(firmName);      // firm persisted (Adrian: store the firm)
+        }
+    }
+
+    [Fact]
+    public async Task RegisterAsync_DefenseAttorney_AdoptsUnclaimedEmailMaster_NoDuplicate()
+    {
+        const string email = "fh01.da.adopt@test.example";
+        const string firmName = "TEST-Adopt-DA-Firm";
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _defenseAttorneyRepository.InsertAsync(
+                new DefenseAttorney(Guid.NewGuid(), stateId: null, identityUserId: null, email: email),
+                autoSave: true);
+        }
+
+        var dto = new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.DefenseAttorney,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirmName = firmName,
+            TenantId = TenantsTestData.TenantARef,
+        };
+
+        await _appService.RegisterAsync(dto);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var masters = await _defenseAttorneyRepository.GetListAsync(
+                a => a.Email != null && a.Email == email);
+            masters.Count.ShouldBe(1);
+            masters[0].IdentityUserId.ShouldNotBeNull();
+            masters[0].FirmName.ShouldBe(firmName);
+        }
+    }
+
+    [Fact]
+    public async Task RegisterAsync_DefenseAttorney_NoPriorBooking_CreatesSingleMaster()
+    {
+        // Registration-first (no booking placeholder) must still create exactly
+        // one master with the typed firm -- the adopt change must not regress it.
+        const string email = "fh01.da.first@test.example";
+        const string firmName = "TEST-First-DA-Firm";
+
+        var dto = new ExternalUserSignUpDto
+        {
+            UserType = ExternalUserType.DefenseAttorney,
+            Email = email,
+            Password = "Test1234!",
+            ConfirmPassword = "Test1234!",
+            FirmName = firmName,
+            TenantId = TenantsTestData.TenantARef,
+        };
+
+        await _appService.RegisterAsync(dto);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var masters = await _defenseAttorneyRepository.GetListAsync(
+                a => a.Email != null && a.Email == email);
+            masters.Count.ShouldBe(1);
+            masters[0].IdentityUserId.ShouldNotBeNull();
+            masters[0].FirmName.ShouldBe(firmName);
+        }
     }
 }

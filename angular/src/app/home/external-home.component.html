@@ -1,0 +1,353 @@
+<app-external-navbar
+  [clinicName]="clinicName"
+  [userName]="navUserName()"
+  [roleLabel]="navRoleLabel"
+  [userEmail]="navUserEmail"
+  [orgName]="navOrgName()"
+  (profileClick)="openProfile()"
+  (documentsClick)="openMyDocuments()"
+  (helpClick)="openQuery()"
+  (logoutClick)="signOut()"
+/>
+
+<div class="ext">
+  <!-- hero -->
+  <div class="ext-hero">
+    <div class="ext-hero__in">
+      <div>
+        <h1>Welcome back, {{ heroName() }}</h1>
+        <p>{{ role.heroSub }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- role-aware quick actions (float up over the hero) -->
+  @if (role.canBook || role.canReeval) {
+    <div class="ext-wrap">
+      <div class="ext-actions">
+        @if (role.canBook) {
+          <button class="ext-action" (click)="requestAppointment()">
+            <span class="ext-action__ic tint-blue"><app-icon name="calendar" [size]="22" /></span>
+            <span class="ext-action__tx">
+              <b>Request an Appointment</b>
+              <span>Schedule a new QME or AME evaluation</span>
+            </span>
+            <span class="ext-action__go"><app-icon name="chevRight" [size]="20" /></span>
+          </button>
+        }
+        @if (role.canReeval) {
+          <button class="ext-action" (click)="requestReEvaluation()">
+            <span class="ext-action__ic tint-green"><app-icon name="refresh" [size]="22" /></span>
+            <span class="ext-action__tx">
+              <b>Request a Re-evaluation</b>
+              <span>Follow-up on a previous appointment</span>
+            </span>
+            <span class="ext-action__go"><app-icon name="chevRight" [size]="20" /></span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- appointments -->
+  <div class="ext-wrap ext-list">
+    <div class="ext-list__head">
+      <div>
+        <h2>{{ role.listTitle }}</h2>
+        <p class="sub">
+          {{ role.listSub }} &middot; {{ filtered().length }} of {{ rows().length }} shown
+        </p>
+      </div>
+      <div class="ext-toolbar">
+        <div class="af-search ext-search">
+          <app-icon name="search" [size]="16" />
+          <input
+            placeholder="Search type, confirmation #, claim, patient…"
+            [ngModel]="q()"
+            (ngModelChange)="q.set($event)"
+          />
+          @if (q()) {
+            <button class="ext-search__clear" (click)="q.set('')">
+              <app-icon name="x" [size]="14" />
+            </button>
+          }
+        </div>
+        <button class="ext-fbtn" [attr.aria-expanded]="showFilters()" (click)="openFilters()">
+          <app-icon name="filter" [size]="15" />
+          Filters
+          @if (activeFilterKeys().length > 0) {
+            <span class="badge">{{ activeFilterKeys().length }}</span>
+          }
+        </button>
+        <div class="ext-vtoggle">
+          <button
+            [attr.data-on]="view() === 'cards'"
+            aria-label="Card view"
+            (click)="view.set('cards')"
+          >
+            <app-icon name="grid" [size]="16" />
+          </button>
+          <button
+            [attr.data-on]="view() === 'table'"
+            aria-label="Table view"
+            (click)="view.set('table')"
+          >
+            <app-icon name="list" [size]="16" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- advanced filters -->
+    @if (showFilters()) {
+      <div class="ext-filters">
+        <div class="ext-filters__grid">
+          <div class="ap-field">
+            <label>Appointment type</label>
+            <select
+              class="ap-select"
+              [ngModel]="draft()['type'] || ''"
+              (ngModelChange)="setDraft('type', $event)"
+            >
+              <option value="">All types</option>
+              @for (t of typeOptions; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+          <div class="ap-field">
+            <label>Confirmation #</label>
+            <input
+              class="ap-input"
+              placeholder="e.g. PQ-24817"
+              [ngModel]="draft()['conf'] || ''"
+              (ngModelChange)="setDraft('conf', $event)"
+            />
+          </div>
+          <div class="ap-field">
+            <label>Location</label>
+            <select
+              class="ap-select"
+              [ngModel]="draft()['location'] || ''"
+              (ngModelChange)="setDraft('location', $event)"
+            >
+              <option value="">All locations</option>
+              @for (l of locationOptions; track l) {
+                <option [value]="l">{{ l }}</option>
+              }
+            </select>
+          </div>
+          <div class="ap-field">
+            <label>Claim #</label>
+            <input
+              class="ap-input"
+              placeholder="e.g. WC24-10480"
+              [ngModel]="draft()['claim'] || ''"
+              (ngModelChange)="setDraft('claim', $event)"
+            />
+          </div>
+          <div class="ap-field">
+            <label>ADJ # (EAMS)</label>
+            <input
+              class="ap-input"
+              placeholder="e.g. ADJ-4471102"
+              [ngModel]="draft()['adj'] || ''"
+              (ngModelChange)="setDraft('adj', $event)"
+            />
+          </div>
+        </div>
+        <div class="ext-filters__foot">
+          <button class="ap-btn ap-btn--ghost" (click)="resetFilters()">
+            <app-icon name="refresh" [size]="15" />
+            Reset
+          </button>
+          <button class="ap-btn ap-btn--primary" (click)="applyFilters()">
+            <app-icon name="search" [size]="15" />
+            Apply filters
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- segmented status filters -->
+    <div class="ext-segs">
+      @for (s of segments; track s.key) {
+        <button
+          class="ext-seg"
+          [class.alert]="s.alert"
+          [attr.data-on]="activeSeg() === s.key"
+          (click)="activeSeg.set(s.key)"
+        >
+          {{ s.label }}
+          <span class="cnt">{{ counts()[s.key] }}</span>
+        </button>
+      }
+    </div>
+
+    <!-- active filter chips -->
+    @if (activeFilterKeys().length > 0) {
+      <div class="ext-chips">
+        @for (k of activeFilterKeys(); track k) {
+          <span class="af-chip">
+            {{ chipLabel(k) }}: {{ filters()[k] }}
+            <button (click)="clearChip(k)"><app-icon name="x" [size]="12" /></button>
+          </span>
+        }
+        <button class="ap-btn ap-btn--ghost" (click)="resetFilters()">Clear all</button>
+      </div>
+    }
+
+    <!-- list body -->
+    @if (loading()) {
+      <div class="ext-skel" aria-busy="true" aria-label="Loading appointments">
+        @for (row of skeletonRows; track row) {
+          <div class="st-skel-row">
+            <app-skeleton width="62px" height="60px" radius="10px" />
+            <div class="st-skel-row__meta">
+              <app-skeleton width="40%" height="14px" />
+              <app-skeleton width="70%" height="11px" />
+            </div>
+            <app-skeleton width="90px" height="26px" radius="99px" />
+            <app-skeleton width="104px" height="32px" radius="9px" />
+          </div>
+        }
+      </div>
+    } @else if (filtered().length === 0) {
+      @if (rows().length === 0 && role.canBook) {
+        <app-empty-state
+          icon="inbox"
+          title="No appointment requests yet"
+          body="When you request an evaluation, it'll show up here so you can track its status and manage documents."
+          ctaLabel="Request an appointment"
+          ctaIcon="plus"
+          (ctaClick)="requestAppointment()"
+        />
+      } @else {
+        <app-empty-state
+          icon="inbox"
+          title="No matching appointments"
+          body="Try a different search, status, or filter."
+        />
+      }
+    } @else if (view() === 'cards') {
+      <div class="ext-cards">
+        @for (a of filtered(); track a.id) {
+          <div class="ext-rcard">
+            <div class="when">
+              <div class="mo">{{ a.appointmentDate | date: 'MMM' }}</div>
+              <div class="dy">{{ a.appointmentDate | date: 'd' }}</div>
+              <div class="tm">{{ a.appointmentDate | date: 'h:mm a' }}</div>
+            </div>
+            <div class="meta">
+              <b>{{ a.type }}</b>
+              <div class="row2">
+                @if (role.showPatientCol) {
+                  <span>
+                    <app-icon name="user" [size]="14" />
+                    {{ a.patientName }}
+                  </span>
+                }
+                <span>
+                  <app-icon name="map" [size]="14" />
+                  {{ a.location }}
+                </span>
+                <span>
+                  <app-icon name="doc" [size]="14" />
+                  Claim
+                  <b class="hl">{{ a.claimNumber }}</b>
+                </span>
+                <span>
+                  <app-icon name="list" [size]="14" />
+                  ADJ
+                  <b class="hl">{{ a.adjNumber }}</b>
+                </span>
+                <span>
+                  <app-icon name="calendar" [size]="14" />
+                  Conf.
+                  <b class="conf">{{ a.confirmation }}</b>
+                </span>
+              </div>
+            </div>
+            <div class="right">
+              <app-status-pill [status]="a.pill" />
+              <div class="ext-rcard__acts">
+                <button class="ap-btn ap-btn--ghost" (click)="viewAppointment(a.id)">
+                  <app-icon name="eye" [size]="14" />
+                  View
+                </button>
+                <button class="ap-btn ap-btn--ghost" (click)="viewDocuments(a.id)">
+                  <app-icon name="doc" [size]="14" />
+                  Documents
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="ext-tablewrap">
+        <div class="ext-tablescroll">
+          <table class="af-table">
+            <thead>
+              <tr>
+                @if (role.showPatientCol) {
+                  <th>Patient</th>
+                }
+                <th>Type</th>
+                <th>Confirmation #</th>
+                <th>Appointment date</th>
+                <th>Claim #</th>
+                <th>ADJ #</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th class="ta-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of filtered(); track a.id) {
+                <tr>
+                  @if (role.showPatientCol) {
+                    <td>
+                      <div class="pt-cell">
+                        <span class="af-ava" [style.background]="a.patientColor">
+                          {{ a.patientInitials }}
+                        </span>
+                        <span class="af-name">{{ a.patientName }}</span>
+                      </div>
+                    </td>
+                  }
+                  <td>{{ a.type }}</td>
+                  <td>
+                    <span class="af-mono">{{ a.confirmation }}</span>
+                  </td>
+                  <td>
+                    {{ a.appointmentDate | date: 'MMM d, y' }}
+                    <div class="af-sub2">{{ a.appointmentDate | date: 'h:mm a' }}</div>
+                  </td>
+                  <td class="af-sub2 num">{{ a.claimNumber }}</td>
+                  <td class="af-sub2 num">{{ a.adjNumber }}</td>
+                  <td>{{ a.location }}</td>
+                  <td><app-status-pill [status]="a.pill" /></td>
+                  <td>
+                    <div class="row-acts">
+                      <button class="ap-btn ap-btn--ghost" (click)="viewAppointment(a.id)">
+                        <app-icon name="eye" [size]="14" />
+                        View
+                      </button>
+                      <button class="ap-btn ap-btn--ghost" (click)="viewDocuments(a.id)">
+                        <app-icon name="doc" [size]="14" />
+                        Documents
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<app-submit-query-modal [(visible)]="submitQueryVisible" />

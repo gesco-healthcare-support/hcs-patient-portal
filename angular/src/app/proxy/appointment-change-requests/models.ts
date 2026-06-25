@@ -2,10 +2,13 @@ import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/
 import type { ChangeRequestType } from './change-request-type.enum';
 import type { RequestStatusType } from '../enums/request-status-type.enum';
 import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
+import type { ChangeRequestConsentStatus } from './change-request-consent-status.enum';
+import type { ChangeRequestSide } from './change-request-side.enum';
 
 export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string> {
   tenantId?: string | null;
   appointmentId?: string;
+  appointmentConfirmationNumber?: string | null;
   changeRequestType?: ChangeRequestType;
   cancellationReason?: string | null;
   reScheduleReason?: string | null;
@@ -18,6 +21,8 @@ export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string
   adminOverrideSlotId?: string | null;
   isBeyondLimit?: boolean;
   cancellationOutcome?: AppointmentStatusType | null;
+  consentStatus?: ChangeRequestConsentStatus;
+  requestingSide?: ChangeRequestSide | null;
 }
 
 export interface ApproveCancellationInput {
@@ -30,6 +35,14 @@ export interface ApproveRescheduleInput {
   overrideSlotId?: string | null;
   adminReScheduleReason?: string | null;
   concurrencyStamp?: string | null;
+}
+
+export interface ChangeRequestConsentInfoDto {
+  confirmationNumber?: string;
+  changeRequestType?: ChangeRequestType;
+  reason?: string | null;
+  requestedNewDateTime?: string | null;
+  consentStatus?: ChangeRequestConsentStatus;
 }
 
 export interface GetChangeRequestsInput extends PagedAndSortedResultRequestDto {
@@ -53,4 +66,8 @@ export interface RequestRescheduleDto {
   newDoctorAvailabilityId: string;
   reScheduleReason: string;
   isBeyondLimit?: boolean;
+}
+
+export interface SubmitChangeRequestConsentDto {
+  approved?: boolean;
 }
