@@ -29,6 +29,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentTypeFieldConfigs;
 using HealthcareSupport.CaseEvaluation.States;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
@@ -76,6 +77,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; } = null!;
     public DbSet<AppointmentDocumentType> AppointmentDocumentTypes { get; set; } = null!;
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
+    public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
     // A2 (db-per-office): these live in the office DB so every FK resolves in-DB.
@@ -107,6 +109,24 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.Description).HasColumnName(nameof(AppointmentType.Description)).HasMaxLength(AppointmentTypeConsts.DescriptionMaxLength);
             b.Property(x => x.EvaluationType).HasColumnName(nameof(AppointmentType.EvaluationType));
             b.Property(x => x.MaxTimeCategory).HasColumnName(nameof(AppointmentType.MaxTimeCategory));
+        });
+        // W2-5 (db-per-office): per-AppointmentType field-config. IMultiTenant with a
+        // required FK to the now-tenant-side AppointmentType, so it lives in the office DB.
+        // Mirrors the host-context block verbatim (CaseEvaluationDbContext) -- without this
+        // a provisioned office's AppAppointmentTypeFieldConfigs table is missing and the
+        // booking / field-config reads throw "invalid object name".
+        builder.Entity<AppointmentTypeFieldConfig>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypeFieldConfigs", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(nameof(AppointmentTypeFieldConfig.TenantId));
+            b.Property(x => x.AppointmentTypeId).HasColumnName(nameof(AppointmentTypeFieldConfig.AppointmentTypeId)).IsRequired();
+            b.Property(x => x.FieldName).HasColumnName(nameof(AppointmentTypeFieldConfig.FieldName)).IsRequired().HasMaxLength(AppointmentTypeFieldConfigConsts.FieldNameMaxLength);
+            b.Property(x => x.Hidden).HasColumnName(nameof(AppointmentTypeFieldConfig.Hidden));
+            b.Property(x => x.ReadOnly).HasColumnName(nameof(AppointmentTypeFieldConfig.ReadOnly));
+            b.Property(x => x.DefaultValue).HasColumnName(nameof(AppointmentTypeFieldConfig.DefaultValue)).HasMaxLength(AppointmentTypeFieldConfigConsts.DefaultValueMaxLength);
+            b.HasIndex(x => new { x.TenantId, x.AppointmentTypeId, x.FieldName }).IsUnique();
+            b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<AppointmentStatus>(b =>
         {
