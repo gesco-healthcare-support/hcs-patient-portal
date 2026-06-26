@@ -203,34 +203,10 @@ public abstract class AppointmentEmployerDetailsAppServiceTests<TStartupModule> 
     // ------------------------------------------------------------------------
     // Nav-prop + lookup
     // ------------------------------------------------------------------------
-
-    [Fact(Skip = "Phase F harness (F1): State is now IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
-    public async Task GetWithNavigationPropertiesAsync_ReturnsDetailWithPopulatedState()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _detailsAppService.GetWithNavigationPropertiesAsync(AppointmentEmployerDetailsTestData.Detail1Id);
-
-            result.ShouldNotBeNull();
-            result.AppointmentEmployerDetail.Id.ShouldBe(AppointmentEmployerDetailsTestData.Detail1Id);
-            result.State.ShouldNotBeNull();
-            result.State!.Id.ShouldBe(LocationsTestData.State1Id);
-        }
-    }
-
-    [Fact(Skip = "Phase F harness (F1): State is now IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
-    public async Task GetStateLookupAsync_ReturnsSeededStates()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _detailsAppService.GetStateLookupAsync(new LookupRequestDto
-            {
-                MaxResultCount = 100
-            });
-
-            result.Items.Any(x => x.Id == LocationsTestData.State1Id).ShouldBeTrue();
-        }
-    }
+    // GetWithNavigationPropertiesAsync_ReturnsDetailWithPopulatedState and
+    // GetStateLookupAsync_ReturnsSeededStates moved to the multi-office harness as
+    // per-office assertions (Phase F / F2):
+    // MultiOffice.MultiOfficeCatalogResolutionTests.
 
     // ------------------------------------------------------------------------
     // Permission-gap encoding (GAP: AppointmentEmployerDetailsAppService

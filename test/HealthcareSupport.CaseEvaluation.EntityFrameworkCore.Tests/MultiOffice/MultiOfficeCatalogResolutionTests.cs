@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
+using HealthcareSupport.CaseEvaluation.Shared;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -30,6 +32,8 @@ public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBa
     private readonly ILocationsAppService _locationsAppService;
     private readonly IDoctorAvailabilitiesAppService _doctorAvailabilitiesAppService;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly IAppointmentEmployerDetailsAppService _employerDetailsAppService;
+    private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
 
     public MultiOfficeCatalogResolutionTests()
     {
@@ -37,6 +41,8 @@ public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBa
         _locationsAppService = GetRequiredService<ILocationsAppService>();
         _doctorAvailabilitiesAppService = GetRequiredService<IDoctorAvailabilitiesAppService>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
+        _employerDetailsAppService = GetRequiredService<IAppointmentEmployerDetailsAppService>();
+        _employerDetailRepository = GetRequiredService<IRepository<AppointmentEmployerDetail, Guid>>();
     }
 
     [Fact]
@@ -115,6 +121,65 @@ public class MultiOfficeCatalogResolutionTests : CaseEvaluationMultiOfficeTestBa
                 result.DoctorAvailability.Id.ShouldBe(looseSlotId);
                 result.AppointmentTypes.ShouldBeEmpty();
                 result.Location.ShouldNotBeNull();
+            }
+        }, requiresNew: true);
+    }
+
+    // Ports AppointmentEmployerDetailsAppServiceTests.
+    // GetWithNavigationPropertiesAsync_ReturnsDetailWithPopulatedState (State is now
+    // IMultiTenant per office). Seeds a detail in office A referencing that office's
+    // already-seeded appointment + state, then resolves its State navigation.
+    [Fact]
+    public async Task EmployerDetail_nav_resolvesOfficeScopedState()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        var detailId = Guid.NewGuid();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var detail = new AppointmentEmployerDetail(
+                    id: detailId,
+                    appointmentId: officeA.AppointmentId,
+                    stateId: officeA.StateId,
+                    employerName: "TEST-Employer-officeA",
+                    occupation: "TEST-Occupation");
+                await _employerDetailRepository.InsertAsync(detail, autoSave: true);
+            }
+        }, requiresNew: true);
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var result = await _employerDetailsAppService.GetWithNavigationPropertiesAsync(detailId);
+
+                result.ShouldNotBeNull();
+                result.AppointmentEmployerDetail.Id.ShouldBe(detailId);
+                result.State.ShouldNotBeNull();
+                result.State!.Id.ShouldBe(officeA.StateId);
+            }
+        }, requiresNew: true);
+    }
+
+    // Ports AppointmentEmployerDetailsAppServiceTests.GetStateLookupAsync_ReturnsSeededStates
+    // -- the state lookup is scoped to the current office.
+    [Fact]
+    public async Task EmployerDetail_stateLookup_isScopedToTheCurrentOffice()
+    {
+        var (officeA, officeB) = await GetSeededOfficesAsync();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var result = await _employerDetailsAppService.GetStateLookupAsync(
+                    new LookupRequestDto { MaxResultCount = 1000 });
+                var ids = result.Items.Select(x => x.Id).ToList();
+
+                ids.ShouldContain(officeA.StateId);
+                ids.ShouldNotContain(officeB.StateId);
             }
         }, requiresNew: true);
     }
