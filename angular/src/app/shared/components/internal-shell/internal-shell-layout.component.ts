@@ -20,6 +20,7 @@ import {
 } from '../../auth/internal-user-roles';
 import { avatarColor } from '../../ui/avatar.util';
 import { InternalNavBadgeService } from '../../services/internal-nav-badge.service';
+import { BrandingService } from '../../branding/branding.service';
 import { NavBadgeKey, resolveNavGroups } from './internal-nav.config';
 
 const AUTH_SERVER_PORT = '44368';
@@ -74,6 +75,10 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   protected readonly badge = inject(InternalNavBadgeService);
+  /** Per-office branding (display name); subdomain-resolved, so used as the
+   *  primary office label with a "Dr. {tenant}" fallback for the impersonation
+   *  path (host subdomain -> branding is null even when a tenant is active). */
+  protected readonly branding = inject(BrandingService);
 
   /** AuthServer Razor "manage my account" page on the current tenant host. */
   protected readonly manageAccountUrl = buildAuthServerUrl('/Account/Manage');
@@ -183,9 +188,15 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 
   protected readonly avatar = computed<string>(() => avatarColor(this.userName() || '?'));
 
-  protected readonly tenantName = computed<string>(
-    () => this.tenant()?.name || 'Appointment Portal',
-  );
+  protected readonly tenantName = computed<string>(() => {
+    // Prefer the office's branded display name ("Dr. Yuri Falkinstein");
+    // fall back to "Dr. {tenant}" when branding is unresolved (impersonation
+    // on the host subdomain), then the app name at true host scope.
+    const display = this.branding.displayName()?.trim();
+    if (display) return display;
+    const name = this.tenant()?.name?.trim();
+    return name ? `Dr. ${name}` : 'Appointment Portal';
+  });
 
   protected readonly tenantInitial = computed<string>(() =>
     (this.tenantName().trim()[0] ?? 'A').toUpperCase(),
