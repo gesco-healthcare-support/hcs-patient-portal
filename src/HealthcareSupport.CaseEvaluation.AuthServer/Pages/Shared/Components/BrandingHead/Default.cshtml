@@ -1,17 +1,16 @@
 @model HealthcareSupport.CaseEvaluation.Pages.Shared.Components.BrandingHead.BrandingHeadViewModel
 @*
-    Phase E (2026-06-25): per-office login branding. Overrides the LeptonX
-    --lpx-logo CSS variable with the current office's logo (data URI) so the
-    login + account pages show the office's logo. Rendered only when the office
-    has a logo; otherwise the static global-styles.css default applies. This block
-    is appended at Head.Last, so it wins over the bundle by source order.
+    Login branding: overrides the LeptonX --lpx-logo CSS variable (Head.Last, so it
+    wins over the bundle). The view component resolves LogoCss to the host Evaluators
+    crest, the office's uploaded logo, or an SVG wordmark of the office name when no
+    logo exists -- so the static global-styles.css default never shows a wrong brand.
 *@
-@if (!string.IsNullOrEmpty(Model.LogoDataUri))
+@if (!string.IsNullOrEmpty(Model.LogoCss))
 {
     <style>
         :root {
-            --lpx-logo: url('@Model.LogoDataUri');
-            --lpx-logo-icon: url('@Model.LogoDataUri');
+            --lpx-logo: url('@Model.LogoCss');
+            --lpx-logo-icon: url('@Model.LogoCss');
         }
     </style>
 }

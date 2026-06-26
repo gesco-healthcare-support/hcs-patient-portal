@@ -1,4 +1,6 @@
 using System;
+using System.Security;
+using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Branding;
@@ -10,15 +12,17 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Pages.Shared.Components.BrandingHead;
 
 /// <summary>
-/// Phase E (2026-06-25): injects the current office's logo into the AuthServer auth
-/// pages' &lt;head&gt; as a CSS-variable override. The E4 spike proved the LeptonX
-/// login layout sources its logo from <c>--lpx-logo</c> (not from
-/// <c>BrandingProvider.LogoUrl</c>), so this redefines <c>--lpx-logo</c> for the
-/// subdomain-resolved office. Emitted as a self-contained data URI (read from the
-/// host-side office-logos blob) so the login page needs no cross-origin API call.
-/// No tenant / no logo -> renders nothing, leaving the static <c>global-styles.css</c>
-/// default in place. Wired via <c>AbpLayoutHookOptions</c> (Head.Last) so it cascades
-/// after that bundle.
+/// Injects the auth pages' logo (the LeptonX login sources it from the
+/// <c>--lpx-logo</c> CSS variable -- E4 spike) as a Head.Last override. Resolution:
+/// <list type="bullet">
+///   <item>Host (no tenant, admin.localhost): the "Evaluators" parent crest (F3).</item>
+///   <item>Office WITH an uploaded logo: that logo, inlined as a data URI.</item>
+///   <item>Office WITHOUT a logo: an artistic SVG wordmark of the office display
+///         name (F1) -- so the login shows the office identity instead of the
+///         generic default mark.</item>
+/// </list>
+/// The branding row + logo blob live host-side, so the office read runs at host
+/// scope (an impersonated office context would otherwise route to the office DB).
 /// </summary>
 public class BrandingHeadViewComponent : ViewComponent
 {
@@ -41,14 +45,24 @@ public class BrandingHeadViewComponent : ViewComponent
         var model = new BrandingHeadViewModel();
 
         var officeId = _currentTenant.Id;
-        if (officeId != null)
+        if (officeId == null)
         {
-            // The branding row + logo blob live host-side; read at host scope so an
-            // impersonated office context does not route to the office DB.
-            using (_currentTenant.Change(null))
+            // Host scope: the Evaluators parent crest (static AuthServer asset).
+            model.LogoCss = "/images/brand/evaluators-logo.png";
+            return View(model);
+        }
+
+        var officeName = _currentTenant.Name;
+        using (_currentTenant.Change(null))
+        {
+            var branding = await _brandingRepository.FirstOrDefaultAsync(x => x.OfficeId == officeId.Value);
+            if (branding != null)
             {
-                var branding = await _brandingRepository.FirstOrDefaultAsync(x => x.OfficeId == officeId.Value);
-                if (branding != null && !string.IsNullOrWhiteSpace(branding.LogoBlobName))
+                if (!string.IsNullOrWhiteSpace(branding.DisplayName))
+                {
+                    officeName = branding.DisplayName;
+                }
+                if (!string.IsNullOrWhiteSpace(branding.LogoBlobName))
                 {
                     var bytes = await _logoContainer.GetAllBytesOrNullAsync(branding.LogoBlobName);
                     if (bytes != null && bytes.Length > 0)
@@ -56,18 +70,40 @@ public class BrandingHeadViewComponent : ViewComponent
                         var contentType = string.IsNullOrWhiteSpace(branding.LogoContentType)
                             ? "image/png"
                             : branding.LogoContentType;
-                        model.LogoDataUri = $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+                        model.LogoCss = $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+                        return View(model);
                     }
                 }
             }
         }
 
+        // Office without an uploaded logo: an artistic wordmark of its name.
+        model.LogoCss = BuildWordmarkDataUri(
+            string.IsNullOrWhiteSpace(officeName) ? "Appointment Portal" : officeName!);
         return View(model);
+    }
+
+    /// <summary>
+    /// A self-contained SVG wordmark (navy serif, centered) of the office name,
+    /// base64-encoded as a data URI so it drops straight into the <c>--lpx-logo</c>
+    /// CSS variable with no escaping hazards.
+    /// </summary>
+    private static string BuildWordmarkDataUri(string name)
+    {
+        var safe = SecurityElement.Escape(name) ?? name;
+        var svg =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='360' height='60' viewBox='0 0 360 60'>" +
+            "<text x='180' y='40' text-anchor='middle' font-family='Georgia, \"Times New Roman\", serif' " +
+            $"font-size='28' font-weight='600' fill='#1f3a5f'>{safe}</text></svg>";
+        var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(svg));
+        return $"data:image/svg+xml;base64,{b64}";
     }
 }
 
-/// <summary>View model for the auth-page branding head hook; LogoDataUri null -> render nothing.</summary>
+/// <summary>View model for the auth-page branding head hook; LogoCss null -> render nothing.</summary>
 public class BrandingHeadViewModel
 {
-    public string? LogoDataUri { get; set; }
+    /// <summary>The value placed inside <c>--lpx-logo: url(...)</c> -- a static path, a
+    /// logo data URI, or an SVG-wordmark data URI. Null leaves the global default.</summary>
+    public string? LogoCss { get; set; }
 }
