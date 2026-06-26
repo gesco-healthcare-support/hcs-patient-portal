@@ -61,34 +61,6 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // GetListAsync
     // ------------------------------------------------------------------
 
-    [Fact(Skip = "Phase F harness (F1): NotificationTemplateType is now IMultiTenant per office (B4); the shared-SQLite test rig can't seed per-tenant catalogs (same fixed GUID collides across tenants), so the tenant-scoped type join returns null. Verified working in a real per-office DB.")]
-    public async Task GetListAsync_ReturnsAllSeededCodes()
-    {
-        await EnsureSeededAsync(TenantsTestData.TenantARef);
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _appService.GetListAsync(new GetNotificationTemplatesInput
-            {
-                MaxResultCount = 100,
-            });
-
-            // The seed inserts exactly one row per NotificationTemplateConsts.Codes.All
-            // entry, so assert against that count rather than a magic number -- it then
-            // tracks code additions/removals automatically (e.g. the 2026-06 reminder
-            // consolidation dropped the count to 62) instead of going stale.
-            var expectedCount = NotificationTemplateConsts.Codes.All.Length;
-            result.TotalCount.ShouldBe(expectedCount);
-            result.Items.Count.ShouldBe(expectedCount);
-            result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.AppointmentApproved)
-                .ShouldBeTrue();
-            result.Items.Any(x => x.NotificationTemplate.TemplateCode == NotificationTemplateConsts.Codes.JointAgreementLetterUploaded)
-                .ShouldBeTrue();
-            // Each row should have its NotificationTemplateType populated (LEFT JOIN succeeded).
-            result.Items.ShouldAllBe(x => x.NotificationTemplateType != null);
-        }
-    }
-
     [Fact]
     public async Task GetListAsync_FilterText_NarrowsResultSet()
     {
@@ -129,21 +101,6 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // GetAsync / GetByCodeAsync
     // ------------------------------------------------------------------
 
-    [Fact(Skip = "Phase F harness (F1): NotificationTemplateType is now IMultiTenant per office (B4); the shared-SQLite test rig can't seed per-tenant catalogs (same fixed GUID collides across tenants), so the tenant-scoped type join returns null. Verified working in a real per-office DB.")]
-    public async Task GetByCodeAsync_KnownCode_ReturnsTemplate()
-    {
-        await EnsureSeededAsync(TenantsTestData.TenantARef);
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var dto = await _appService.GetByCodeAsync(NotificationTemplateConsts.Codes.AppointmentApproved);
-
-            dto.NotificationTemplate.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentApproved);
-            dto.NotificationTemplate.IsActive.ShouldBeTrue();
-            dto.NotificationTemplateType.ShouldNotBeNull();
-        }
-    }
-
     [Fact]
     public async Task GetByCodeAsync_UnknownCode_Throws()
     {
@@ -173,21 +130,6 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     // ------------------------------------------------------------------
     // GetTypeLookupAsync
     // ------------------------------------------------------------------
-
-    [Fact(Skip = "Phase F harness (F1): NotificationTemplateType is now IMultiTenant per office (B4); the shared-SQLite test rig can't seed per-tenant catalogs (same fixed GUID collides across tenants), so the tenant-scoped type lookup returns nothing. Verified working in a real per-office DB.")]
-    public async Task GetTypeLookupAsync_ReturnsEmailAndSmsRows()
-    {
-        await EnsureSeededAsync(TenantsTestData.TenantARef);
-
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _appService.GetTypeLookupAsync();
-
-            result.Items.Count.ShouldBe(2);
-            result.Items.Any(x => x.Name == "Email").ShouldBeTrue();
-            result.Items.Any(x => x.Name == "SMS").ShouldBeTrue();
-        }
-    }
 
     // ------------------------------------------------------------------
     // UpdateAsync
