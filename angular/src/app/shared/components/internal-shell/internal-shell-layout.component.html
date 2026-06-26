@@ -1,9 +1,13 @@
 <div class="in" [class.in--collapsed]="collapsed()">
   <aside class="in-side">
     <div class="in-side__brand">
-      <span class="mark">A</span>
+      @if (brandLogo()) {
+        <img class="in-side__crest" [src]="brandLogo()" alt="Evaluators" />
+      } @else {
+        <span class="mark">A</span>
+      }
       <span class="tt">
-        <b>Appointment Portal</b>
+        <b>{{ brandName() }}</b>
         <span>{{ brandSubtitle() }}</span>
       </span>
     </div>

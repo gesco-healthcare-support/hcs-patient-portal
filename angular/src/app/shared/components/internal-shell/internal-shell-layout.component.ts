@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { Subscription, filter } from 'rxjs';
 import { IconComponent } from '../../ui/icon/icon.component';
@@ -84,6 +85,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly branding = inject(BrandingService);
   private readonly impersonation = inject(ImpersonationService);
   private readonly internalUsers = inject(InternalUsersService);
+  private readonly title = inject(Title);
 
   /** AuthServer Razor "manage my account" page on the current tenant host. */
   protected readonly manageAccountUrl = buildAuthServerUrl('/Account/Manage');
@@ -198,14 +200,25 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 
   protected readonly avatar = computed<string>(() => avatarColor(this.userName() || '?'));
 
+  /**
+   * Parent/host brand shown at host scope (admin.localhost): the "Evaluators"
+   * crest + name. Offices keep the app identity; the office name is the label.
+   */
+  protected readonly brandName = computed<string>(() =>
+    this.hostScope() ? 'Evaluators' : 'Appointment Portal',
+  );
+  protected readonly brandLogo = computed<string | null>(() =>
+    this.hostScope() ? 'assets/branding/evaluators-logo.png' : null,
+  );
+
   protected readonly tenantName = computed<string>(() => {
     // Prefer the office's branded display name ("Dr. Yuri Falkinstein");
     // fall back to "Dr. {tenant}" when branding is unresolved (impersonation
-    // on the host subdomain), then the app name at true host scope.
+    // on the host subdomain), then the parent brand at true host scope.
     const display = this.branding.displayName()?.trim();
     if (display) return display;
     const name = this.tenant()?.name?.trim();
-    return name ? `Dr. ${name}` : 'Appointment Portal';
+    return name ? `Dr. ${name}` : this.brandName();
   });
 
   protected readonly tenantInitial = computed<string>(() =>
@@ -216,7 +229,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly canSwitch = computed<boolean>(() => this.roleKey() !== 'intake');
 
   protected readonly brandSubtitle = computed<string>(() =>
-    this.platform() ? 'Platform administration' : this.tenantName(),
+    this.hostScope() ? 'Platform administration' : this.tenantName(),
   );
 
   ngOnInit(): void {
@@ -329,6 +342,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     // flips to the tenant view when IT Admin impersonates into a clinic
     // (currentTenant becomes the impersonated tenant) and back on exit.
     this.hostScope.set(isHostScope(this.configState));
+    // Host scope (admin.localhost) carries the parent "Evaluators" brand; offices
+    // get their tab title from BrandingService (per-office display name).
+    if (this.hostScope() && !this.branding.displayName()) {
+      this.title.setTitle('Evaluators');
+    }
   }
 }
 
