@@ -485,38 +485,10 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
         }
     }
 
-    [Fact(Skip = "Phase F harness (F1): catalogs are IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
-    public async Task GetWithNavigationPropertiesAsync_ResolvesLocationAndAppointmentType()
-    {
-        // 2026-05-15 slot rework: AppointmentTypes is a M2M collection.
-        // Slot1 has Location1 and a single AppointmentType1 join row.
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot1Id);
-
-            result.ShouldNotBeNull();
-            result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot1Id);
-            result.Location.ShouldNotBeNull();
-            result.Location!.Id.ShouldBe(LocationsTestData.Location1Id);
-            result.AppointmentTypes.Count.ShouldBe(1);
-            result.AppointmentTypes.Single().Id.ShouldBe(LocationsTestData.AppointmentType1Id);
-        }
-    }
-
-    [Fact(Skip = "Phase F harness (F1): catalogs are IMultiTenant per office; the shared-SQLite test rig can't seed per-tenant catalogs.")]
-    public async Task GetWithNavigationPropertiesAsync_WhenAppointmentTypesEmpty_ReturnsEmptyList()
-    {
-        // 2026-05-15 slot rework: Slot2 has no join rows (loose mode).
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _appService.GetWithNavigationPropertiesAsync(DoctorAvailabilitiesTestData.Slot2Id);
-
-            result.ShouldNotBeNull();
-            result.DoctorAvailability.Id.ShouldBe(DoctorAvailabilitiesTestData.Slot2Id);
-            result.AppointmentTypes.ShouldBeEmpty();
-            result.Location.ShouldNotBeNull();
-        }
-    }
+    // GetWithNavigationPropertiesAsync_ResolvesLocationAndAppointmentType and
+    // _WhenAppointmentTypesEmpty_ReturnsEmptyList moved to the multi-office harness as
+    // per-office assertions (Phase F / F2):
+    // MultiOffice.MultiOfficeCatalogResolutionTests.
 
     [Fact]
     public async Task CreateAsync_WhenInputValid_PersistsScratchSlot()

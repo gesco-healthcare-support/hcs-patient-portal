@@ -336,21 +336,7 @@ public abstract class LocationsAppServiceTests<TStartupModule> : CaseEvaluationA
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Host-only scoping (Location is NOT IMultiTenant; tenant context should
-    // not filter it out).
-    // ------------------------------------------------------------------------
-
-    [Fact(Skip = "Phase F harness (F1): Location is now IMultiTenant (db-per-office); the shared-SQLite test rig seeds locations at host scope so they are not visible in a tenant context. Rewrite as a per-office assertion with the multi-office harness.")]
-    public async Task LocationsAreVisible_FromTenantContext()
-    {
-        using (_currentTenant.Change(TenantsTestData.TenantARef))
-        {
-            var result = await _locationsAppService.GetListAsync(new GetLocationsInput());
-
-            result.Items.Any(x => x.Location.Id == LocationsTestData.Location1Id).ShouldBeTrue();
-            result.Items.Any(x => x.Location.Id == LocationsTestData.Location2Id).ShouldBeTrue();
-            result.Items.Any(x => x.Location.Id == LocationsTestData.Location3Id).ShouldBeTrue();
-        }
-    }
+    // LocationsAreVisible_FromTenantContext moved to the multi-office harness as a
+    // per-office visibility/isolation assertion (Phase F / F2):
+    // MultiOffice.MultiOfficeCatalogResolutionTests.
 }
