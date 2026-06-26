@@ -1,0 +1,189 @@
+// Host-operator pages -- intake office assignments (.ho-assign), host-central
+// office branding (reuses .ho-assign), and the intake office-switcher landing
+// (.ho-switcher). These shared components shipped without styling; this gives
+// them the app's page / card / table / form look using the _tokens.scss design
+// tokens (mirroring the host dashboard and users hub). Uncertain tokens carry a
+// literal fallback so the page renders correctly regardless.
+
+.ho-assign,
+.ho-switcher {
+  padding: 24px clamp(16px, 3vw, 64px) 64px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.ho-assign__head,
+.ho-switcher__head {
+  margin-bottom: 20px;
+}
+.ho-assign__head h1,
+.ho-switcher__head h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--n-900, #16263b);
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.ho-assign__head p,
+.ho-switcher__head p {
+  color: var(--n-500, #64748b);
+  font-size: 14px;
+  margin: 0;
+}
+
+// ---- assignment form card ----
+.ho-assign__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--sh-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+  padding: 18px;
+  margin-bottom: 22px;
+}
+.ho-assign__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--n-700);
+  min-width: 220px;
+  flex: 1;
+}
+.ho-assign__form select,
+.ho-assign__table input[type='text'] {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--n-800, #1f2c3d);
+}
+.ho-assign__form select:focus,
+.ho-assign__table input[type='text']:focus {
+  outline: none;
+  border-color: var(--blue-300, #93c5fd);
+  box-shadow: 0 0 0 3px var(--blue-50);
+}
+
+// ---- buttons ----
+.ho-assign__btn,
+.ho-switcher__btn,
+.ho-assign__table button {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9px;
+  border: 0;
+  background: var(--blue-700);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background 0.14s;
+}
+.ho-assign__btn:hover,
+.ho-switcher__btn:hover,
+.ho-assign__table button:hover {
+  background: var(--blue-800, #1e40af);
+}
+.ho-assign__btn:disabled,
+.ho-switcher__btn:disabled,
+.ho-assign__table button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+// secondary / destructive action
+.ho-assign__unassign {
+  background: #fff !important;
+  color: var(--st-rejected-fg, #b91c1c) !important;
+  border: 1px solid var(--border) !important;
+}
+.ho-assign__unassign:hover {
+  background: var(--st-rejected-bg, #fef2f2) !important;
+}
+
+// ---- table (card-wrapped) ----
+.ho-assign__table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--sh-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+.ho-assign__table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--n-500, #64748b);
+  padding: 13px 16px;
+  background: var(--n-25, #f8fafc);
+  border-bottom: 1px solid var(--border);
+}
+.ho-assign__table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--n-800, #1f2c3d);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.ho-assign__table tr:last-child td {
+  border-bottom: 0;
+}
+.ho-assign__table td button + button {
+  margin-left: 8px;
+}
+.ho-assign__table input[type='file'] {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--n-500, #64748b);
+}
+
+.ho-assign__muted {
+  color: var(--n-400);
+  font-size: 13.5px;
+}
+
+// ---- intake office-switcher landing ----
+.ho-switcher__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+.ho-switcher__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--sh-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+.ho-switcher__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--n-800, #1f2c3d);
+}
