@@ -378,10 +378,12 @@
     <!-- ============ Tenants ============ -->
     @if (section() === 'tenants') {
       <div class="ux-hdrbar">
-        <button class="af-btn af-btn--primary" (click)="openNewTenant()">
-          <app-icon name="plus" [size]="15" />
-          New tenant
-        </button>
+        @if (canCreateTenant()) {
+          <button class="af-btn af-btn--primary" (click)="openNewTenant()">
+            <app-icon name="plus" [size]="15" />
+            New tenant
+          </button>
+        }
       </div>
       <div class="ia-wrap">
         <table class="ia-table">

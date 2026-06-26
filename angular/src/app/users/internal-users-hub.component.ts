@@ -122,6 +122,12 @@ export class InternalUsersHubComponent {
     return this.permission.getGrantedPolicy(section.policy);
   }
 
+  /** Creating a tenant needs Saas.Tenants.Create (IT-Admin-only); hide the
+   *  button otherwise so non-IT-Admin roles never click into a 403. */
+  protected canCreateTenant(): boolean {
+    return this.permission.getGrantedPolicy('Saas.Tenants.Create');
+  }
+
   private closeModals(): void {
     this.createForm.set(null);
     this.tenantForm.set(null);
