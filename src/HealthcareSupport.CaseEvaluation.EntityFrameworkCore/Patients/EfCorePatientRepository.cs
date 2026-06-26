@@ -12,20 +12,31 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Domain.Repositories.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
 public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext, Patient, Guid>, IPatientRepository
 {
-    public EfCorePatientRepository(IDbContextProvider<CaseEvaluationDbContext> dbContextProvider) : base(dbContextProvider)
+    private readonly ICurrentTenant _currentTenant;
+
+    public EfCorePatientRepository(
+        IDbContextProvider<CaseEvaluationDbContext> dbContextProvider,
+        ICurrentTenant currentTenant) : base(dbContextProvider)
     {
+        _currentTenant = currentTenant;
     }
 
     public virtual async Task<PatientWithNavigationProperties?> GetWithNavigationPropertiesAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var dbContext = await GetDbContextAsync();
-        return await (await GetDbSetAsync()).Where(b => b.Id == id).Select(patient => new PatientWithNavigationProperties { Patient = patient, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == patient.StateId), AppointmentLanguage = dbContext.Set<AppointmentLanguage>().FirstOrDefault(c => c.Id == patient.AppointmentLanguageId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == patient.IdentityUserId), Tenant = dbContext.Set<Tenant>().FirstOrDefault(c => c.Id == patient.TenantId) }).FirstOrDefaultAsync(cancellationToken);
+        // Patient is NOT IMultiTenant, so the ABP filter does not scope this by-id read.
+        // Apply the explicit tenant guard (defense in depth) so a tenant-scoped caller
+        // cannot fetch another office's patient by id; host scope (no current tenant)
+        // still sees all for cross-office aggregation.
+        var tenantId = _currentTenant.Id;
+        return await (await GetDbSetAsync()).Where(b => b.Id == id && (tenantId == null || b.TenantId == tenantId)).Select(patient => new PatientWithNavigationProperties { Patient = patient, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == patient.StateId), AppointmentLanguage = dbContext.Set<AppointmentLanguage>().FirstOrDefault(c => c.Id == patient.AppointmentLanguageId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == patient.IdentityUserId), Tenant = dbContext.Set<Tenant>().FirstOrDefault(c => c.Id == patient.TenantId) }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<PatientWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
