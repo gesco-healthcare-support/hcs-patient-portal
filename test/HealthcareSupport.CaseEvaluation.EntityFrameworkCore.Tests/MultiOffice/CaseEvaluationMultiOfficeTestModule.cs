@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.Internal;
 using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Autofac;
@@ -8,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Sqlite;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Volo.Abp.PermissionManagement;
 using Volo.Abp.TextTemplateManagement;
@@ -35,6 +39,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
     typeof(AbpTestBaseModule),
     typeof(AbpAuthorizationModule),
     typeof(AbpBackgroundJobsAbstractionsModule),
+    typeof(CaseEvaluationApplicationModule),
     typeof(CaseEvaluationEntityFrameworkCoreModule),
     typeof(AbpEntityFrameworkCoreSqliteModule)
 )]
@@ -73,6 +78,24 @@ public class CaseEvaluationMultiOfficeTestModule : AbpModule
         });
 
         context.Services.AddAlwaysDisableUnitOfWorkTransaction();
+
+        // App services pulled in via CaseEvaluationApplicationModule need two stubs the
+        // production host provides (mirrors CaseEvaluationApplicationTestModule):
+        // an IHostEnvironment (ExternalSignupAppService gates dev-only helpers on it) and
+        // an Identity "Default" token provider (RegisterAsync generates a confirmation
+        // token through it).
+        context.Services.AddSingleton<IHostEnvironment>(new HostingEnvironment
+        {
+            EnvironmentName = Environments.Development,
+            ApplicationName = "CaseEvaluationMultiOfficeTests",
+            ContentRootPath = System.IO.Directory.GetCurrentDirectory(),
+        });
+        context.Services.AddTransient<NoOpTwoFactorTokenProvider>();
+        context.Services.Configure<IdentityOptions>(options =>
+        {
+            options.Tokens.ProviderMap["Default"] =
+                new TokenProviderDescriptor(typeof(NoOpTwoFactorTokenProvider));
+        });
 
         // The F1 self-validation is a data-layer proof; authorization is irrelevant
         // here. The behavioral-authz harness (F2) is a separate module that seeds real
