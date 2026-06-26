@@ -221,7 +221,11 @@ export class InternalDashboardComponent implements OnInit {
     }
   }
   protected openTenants(): void {
-    void this.router.navigateByUrl('/saas/tenants');
+    // The styled Offices page (host-accessible) rather than the raw Volo SaaS
+    // screen. The other host KPIs have no host-scoped drill-down (a host user
+    // reaches a clinic's data by switching into it), so their tiles are static
+    // -- the per-office breakdown is the Tenants table below.
+    void this.router.navigateByUrl('/users/tenants');
   }
   protected openDoctors(): void {
     void this.router.navigateByUrl('/doctor-management/doctors');

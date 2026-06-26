@@ -52,21 +52,21 @@
           </div>
           <div class="dh-kpi__num">{{ d.totalTenants ?? 0 }}</div>
         </div>
-        <div class="dh-kpi green" (click)="openDoctors()">
+        <div class="dh-kpi green" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-green"><app-icon name="stetho" [size]="18" /></span>
             <span class="dh-kpi__lbl">Total doctors</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalDoctors ?? 0 }}</div>
         </div>
-        <div class="dh-kpi amber" (click)="openAppointments()">
+        <div class="dh-kpi amber" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-amber"><app-icon name="calendar" [size]="18" /></span>
             <span class="dh-kpi__lbl">Appointments</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalAppointments ?? 0 }}</div>
         </div>
-        <div class="dh-kpi red" (click)="openByStatus(1)">
+        <div class="dh-kpi red" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-red"><app-icon name="clock" [size]="18" /></span>
             <span class="dh-kpi__lbl">Pending across tenants</span>
