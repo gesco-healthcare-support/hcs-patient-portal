@@ -307,6 +307,15 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.InternalUsers.Create";
         yield return $"{Group}.InternalUsers.Edit";
 
+        // 2026-06-26 -- the internal-users hub LISTS staff via UserExtendedAppService
+        // (extends Volo IdentityUserAppService), whose endpoints are gated by the
+        // framework AbpIdentity.Users policy, NOT CaseEvaluation.InternalUsers. Without
+        // it /users/internal 403s on GET user-extended even for IT Admin. Grant read
+        // (list/get) + Update (the activate/deactivate toggle); create/reset still flow
+        // through CaseEvaluation.InternalUsers.
+        yield return "AbpIdentity.Users";
+        yield return "AbpIdentity.Users.Update";
+
         // 2026-05-19 -- IT Admin can create new tenants from the Volo
         // SaaS Tenants page (/saas/tenants). Host Admin (admin@abp.io)
         // already gets this implicitly as the ABP superuser. The Volo
@@ -390,6 +399,14 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
         yield return $"{Group}.InternalUsers.Edit";
+
+        // 2026-06-26 (near-full host admin, Adrian) -- the internal-users hub lists +
+        // toggles staff via UserExtendedAppService (Volo IdentityUserAppService), gated
+        // by AbpIdentity.Users. Grant read + Update so the Supervisor's /users/internal
+        // loads and the activate toggle works. Still WITHOUT AbpIdentity.Roles,
+        // File/Language management, or Saas.Tenants.Create -- those stay IT-Admin-only.
+        yield return "AbpIdentity.Users";
+        yield return "AbpIdentity.Users.Update";
     }
 
     /// <summary>
