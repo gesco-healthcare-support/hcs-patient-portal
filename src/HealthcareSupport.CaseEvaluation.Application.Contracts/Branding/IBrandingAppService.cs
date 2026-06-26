@@ -19,14 +19,14 @@ public interface IBrandingAppService
     /// <summary>AllowAnonymous: current office's branding (resolved by subdomain). Host scope -> defaults.</summary>
     Task<BrandingDto> GetBrandingAsync();
 
-    /// <summary>AllowAnonymous: streams the current office's logo (resolved by subdomain).</summary>
-    Task<DownloadResult> DownloadLogoAsync();
+    /// <summary>AllowAnonymous: streams the current office's logo (resolved by subdomain); null when none.</summary>
+    Task<DownloadResult?> DownloadLogoAsync();
 
     /// <summary>Host-central: every office + its branding, for the central manager grid.</summary>
     Task<ListResultDto<OfficeBrandingDto>> GetOfficeBrandingsAsync();
 
-    /// <summary>Host-central: streams a specific office's logo (the host surface has no subdomain office).</summary>
-    Task<DownloadResult> DownloadLogoForOfficeAsync(Guid officeId);
+    /// <summary>Host-central: streams a specific office's logo (the host surface has no subdomain office); null when none.</summary>
+    Task<DownloadResult?> DownloadLogoForOfficeAsync(Guid officeId);
 
     /// <summary>Sets (or clears, when null/blank) the display name for the target office (explicit id) or the current office.</summary>
     Task SetDisplayNameAsync(Guid? officeId, string? displayName);

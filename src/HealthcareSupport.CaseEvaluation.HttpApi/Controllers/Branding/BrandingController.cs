@@ -43,7 +43,7 @@ public class BrandingController : AbpController
     public virtual async Task<IActionResult> GetLogoAsync()
     {
         var result = await _service.DownloadLogoAsync();
-        return File(result.Content, result.ContentType, result.FileName);
+        return result == null ? NotFound() : File(result.Content, result.ContentType, result.FileName);
     }
 
     [HttpGet("offices")]
@@ -56,7 +56,7 @@ public class BrandingController : AbpController
     public virtual async Task<IActionResult> GetOfficeLogoAsync(Guid officeId)
     {
         var result = await _service.DownloadLogoForOfficeAsync(officeId);
-        return File(result.Content, result.ContentType, result.FileName);
+        return result == null ? NotFound() : File(result.Content, result.ContentType, result.FileName);
     }
 
     [HttpPost("logo")]

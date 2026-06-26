@@ -67,12 +67,12 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     }
 
     [AllowAnonymous]
-    public virtual async Task<DownloadResult> DownloadLogoAsync()
+    public virtual async Task<DownloadResult?> DownloadLogoAsync()
     {
         var officeId = CurrentTenant.Id;
         if (officeId == null)
         {
-            throw new UserFriendlyException(L["Branding:LogoNotFound"]);
+            return null;
         }
 
         return await ReadLogoAsync(officeId.Value);
@@ -111,7 +111,7 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     }
 
     [Authorize(CaseEvaluationPermissions.Branding.Default)]
-    public virtual async Task<DownloadResult> DownloadLogoForOfficeAsync(Guid officeId)
+    public virtual async Task<DownloadResult?> DownloadLogoForOfficeAsync(Guid officeId)
     {
         return await ReadLogoAsync(officeId);
     }
@@ -188,14 +188,16 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
         }
     }
 
-    private async Task<DownloadResult> ReadLogoAsync(Guid officeId)
+    private async Task<DownloadResult?> ReadLogoAsync(Guid officeId)
     {
         using (CurrentTenant.Change(null))
         {
             var branding = await _brandingRepository.FirstOrDefaultAsync(x => x.OfficeId == officeId);
             if (branding == null || string.IsNullOrWhiteSpace(branding.LogoBlobName))
             {
-                throw new UserFriendlyException(L["Branding:LogoNotFound"]);
+                // No custom logo -> let the controller return 404 (a routine case,
+                // not an error): the SPA only requests the logo when hasLogo is true.
+                return null;
             }
 
             var stream = await _logoContainer.GetAsync(branding.LogoBlobName);
