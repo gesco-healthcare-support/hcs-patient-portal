@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
@@ -174,7 +174,11 @@ public class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMultiOfficeT
 
             var created = await _appointmentsAppService.CreateAsync(input);
 
-            Regex.IsMatch(created.RequestConfirmationNumber, @"^A\d{5}$").ShouldBeTrue();
+            // Format "A" + 5 digits (asserted without a regex to keep it source-gen-free).
+            var confirmation = created.RequestConfirmationNumber;
+            confirmation.Length.ShouldBe(6);
+            confirmation[0].ShouldBe('A');
+            confirmation.Substring(1).All(char.IsDigit).ShouldBeTrue();
         });
     }
 
