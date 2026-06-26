@@ -21,6 +21,9 @@ import {
 import { avatarColor } from '../../ui/avatar.util';
 import { InternalNavBadgeService } from '../../services/internal-nav-badge.service';
 import { BrandingService } from '../../branding/branding.service';
+import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
+import { InternalUsersService } from '../../../proxy/internal-users/internal-users.service';
+import type { LookupDto } from '../../../proxy/shared/models';
 import { NavBadgeKey, resolveNavGroups } from './internal-nav.config';
 
 const AUTH_SERVER_PORT = '44368';
@@ -79,6 +82,8 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
    *  primary office label with a "Dr. {tenant}" fallback for the impersonation
    *  path (host subdomain -> branding is null even when a tenant is active). */
   protected readonly branding = inject(BrandingService);
+  private readonly impersonation = inject(ImpersonationService);
+  private readonly internalUsers = inject(InternalUsersService);
 
   /** AuthServer Razor "manage my account" page on the current tenant host. */
   protected readonly manageAccountUrl = buildAuthServerUrl('/Account/Manage');
@@ -89,6 +94,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 
   protected readonly collapsed = signal(false);
   protected readonly acctOpen = signal(false);
+
+  /** Office-switcher dropdown (host operators). Loaded lazily on first open. */
+  protected readonly switcherOpen = signal(false);
+  protected readonly offices = signal<LookupDto<string>[]>([]);
+  protected readonly switching = signal(false);
 
   /**
    * Per-group accordion state: section name -> explicitly toggled open/closed.
@@ -259,6 +269,47 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     this.acctOpen.set(false);
   }
 
+  /**
+   * Toggle the office-switcher dropdown. On first open, lazily load the offices
+   * the operator may switch into. Host operators (IT Admin / Staff Supervisor)
+   * get the full active-office list (getTenantOptions, gated by InternalUsers);
+   * Intake Staff is tenant-locked (canSwitch() is false) and uses its own
+   * landing page instead, so this never opens for them.
+   */
+  protected toggleSwitcher(): void {
+    if (!this.canSwitch()) {
+      return;
+    }
+    const open = !this.switcherOpen();
+    this.switcherOpen.set(open);
+    if (open && this.offices().length === 0) {
+      this.internalUsers.getTenantOptions().subscribe({
+        next: (res) => this.offices.set(res.items ?? []),
+        error: () => this.offices.set([]),
+      });
+    }
+  }
+
+  protected closeSwitcher(): void {
+    this.switcherOpen.set(false);
+  }
+
+  /**
+   * Switch into an office. Uses stock tenant impersonation as the office `admin`
+   * (same path as the Offices list's "Switch into tenant" button) -- a host
+   * Supervisor / IT Admin gets the office admin's full powers once switched in.
+   */
+  protected switchInto(officeId: string | undefined): void {
+    if (this.switching() || !officeId) {
+      return;
+    }
+    this.switching.set(true);
+    this.closeSwitcher();
+    this.impersonation.impersonateTenant(officeId, 'admin').subscribe({
+      error: () => this.switching.set(false),
+    });
+  }
+
   protected signOut(): void {
     this.closeAcct();
     void performFullLogout(this.injector);
@@ -267,6 +318,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     this.closeAcct();
+    this.closeSwitcher();
   }
 
   private refreshIdentity(): void {

@@ -72,15 +72,35 @@
 
       <div class="spacer"></div>
 
-      <div
-        class="in-tenant"
-        [class.host]="platform()"
-        [style.cursor]="canSwitch() ? 'pointer' : 'default'"
-      >
-        <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
-        {{ platform() ? 'All tenants' : tenantName() }}
-        @if (canSwitch()) {
-          <app-icon name="chevDown" [size]="14" />
+      <div class="in-tenantwrap">
+        @if (switcherOpen()) {
+          <div class="in-clickaway" (click)="closeSwitcher()"></div>
+        }
+        <div
+          class="in-tenant"
+          [class.host]="platform()"
+          [style.cursor]="canSwitch() ? 'pointer' : 'default'"
+          (click)="toggleSwitcher()"
+        >
+          <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
+          {{ platform() ? 'All tenants' : tenantName() }}
+          @if (canSwitch()) {
+            <app-icon name="chevDown" [size]="14" />
+          }
+        </div>
+        @if (switcherOpen()) {
+          <div class="in-tenant__pop">
+            @if (offices().length === 0) {
+              <span class="in-tenant__muted">No offices available.</span>
+            } @else {
+              @for (office of offices(); track office.id) {
+                <button type="button" (click)="switchInto(office.id)">
+                  <span class="i"><app-icon name="map" [size]="16" /></span>
+                  {{ office.displayName }}
+                </button>
+              }
+            }
+          </div>
         }
       </div>
 
