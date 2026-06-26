@@ -66,14 +66,24 @@ public class DoctorProfileDataSeedContributor : IDataSeedContributor, ITransient
         }
 
         var tenant = await _tenantStore.FindAsync(context.TenantId.Value);
-        var officeName = tenant?.Name ?? adminEmail;
+        var office = Saas.OfficeSeedData.FindByTenantName(tenant?.Name);
 
-        var doctor = new Doctor(
-            id: _guidGenerator.Create(),
-            firstName: officeName,
-            lastName: "",
-            email: adminEmail,
-            gender: Gender.Male);
+        // Seed the office's real owner doctor when the office is in the seed config;
+        // otherwise fall back to the office-name/admin-email placeholder (e.g. an office
+        // created at runtime through the SaaS UI rather than the seed config).
+        var doctor = office != null
+            ? new Doctor(
+                id: _guidGenerator.Create(),
+                firstName: office.DoctorFirstName,
+                lastName: office.DoctorLastName,
+                email: office.DoctorEmail,
+                gender: Gender.Male)
+            : new Doctor(
+                id: _guidGenerator.Create(),
+                firstName: tenant?.Name ?? adminEmail,
+                lastName: "",
+                email: adminEmail,
+                gender: Gender.Male);
 
         // tenant === doctor: the office's catalogs belong to its one doctor by default.
         doctor.AddAppointmentType(CaseEvaluationSeedIds.AppointmentTypes.Ame);
