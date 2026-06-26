@@ -66,7 +66,9 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
                   />
                 </td>
                 <td>
-                  <button type="button" [disabled]="busy()" (click)="saveName(row)">Save name</button>
+                  <button type="button" [disabled]="busy()" (click)="saveName(row)">
+                    Save name
+                  </button>
                   @if (row.hasLogo) {
                     <button
                       type="button"
