@@ -36,30 +36,37 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     public const string ItAdminEmail = "adriang@gesco.com";
 
     /// <summary>
-    /// 2026-05-19 -- additional per-tenant seeded users for the demo
-    /// scripts. Each entry pairs an email with the tenant-scoped role to
-    /// assign. Replaces the previous flat `ExtraTenantAdminEmails` array
-    /// (which hard-coded the `admin` role) so role assignment is
-    /// expressive enough to seed Staff Supervisor / Intake Staff demo
-    /// accounts directly. Development-gated like the rest of the seeder.
-    ///
-    /// The demo accounts are the ones used by Adrian's hardening test
-    /// runs; renaming or removing one here will leave any prior DB rows
-    /// untouched -- the seeder is idempotent only for the emails it
-    /// still lists.
+    /// Host operator logins seeded in Development (alongside the real IT Admin in
+    /// <see cref="ItAdminEmail"/>). Each entry is (email, role, forceReset):
+    ///   - REAL accounts (forceReset = true): the actual go-live operators. Seeded so the
+    ///     stack mirrors production, but force a password change on first login (the dev
+    ///     default is well-known) -- and Adrian does NOT use these for day-to-day testing
+    ///     so their real inboxes never receive test emails.
+    ///   - SYNTHETIC test accounts (forceReset = false): kept until the prod cutover so
+    ///     Adrian can test host-operator + assignment-gate flows with the shared dev
+    ///     password and no reset step, without touching real people's accounts.
+    /// Idempotent: existing rows are left alone.
     /// </summary>
-    public static readonly (string Email, string RoleName)[] ExtraSeededUsers =
+    public static readonly (string Email, string RoleName, bool ForceReset)[] ExtraSeededUsers =
     {
-        // Real host operators (2026-06-26): 2 Staff Supervisors + 4 Intake operators.
-        // Intake operators are gated to one office each via IntakeOfficeAssignment (seed
-        // via the host-central assignment UI, or a follow-up assignment seeder):
+        // Real go-live operators: 2 Staff Supervisors + 4 Intake operators. Intake
+        // operators are gated to one office each via IntakeOfficeAssignment (seed via the
+        // host-central assignment UI, or a follow-up assignment seeder):
         //   jocelynh -> hekmat, jonatanb -> longacre, myrkas -> pelton, genevieveg -> falkinstein.
-        ("teresal@socalpm.com",     InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
-        ("karenm@gesco.com",        InternalUserRoleDataSeedContributor.StaffSupervisorRoleName),
-        ("jocelynh@socalpm.com",    InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
-        ("jonatanb@socalpm.com",    InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
-        ("myrkas@socalpm.com",      InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
-        ("genevieveg@socalpm.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName),
+        ("teresal@socalpm.com",     InternalUserRoleDataSeedContributor.StaffSupervisorRoleName, true),
+        ("karenm@gesco.com",        InternalUserRoleDataSeedContributor.StaffSupervisorRoleName, true),
+        ("jocelynh@socalpm.com",    InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      true),
+        ("jonatanb@socalpm.com",    InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      true),
+        ("myrkas@socalpm.com",      InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      true),
+        ("genevieveg@socalpm.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      true),
+
+        // Synthetic test accounts (kept until prod): a synthetic IT Admin + 2 Supervisors
+        // + 2 Intake operators, usable directly with the dev password (no force-reset).
+        ("it.admin@hcs.test",   InternalUserRoleDataSeedContributor.ItAdminRoleName,          false),
+        ("stafsuper1@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName, false),
+        ("stafsuper2@gesco.com", InternalUserRoleDataSeedContributor.StaffSupervisorRoleName, false),
+        ("clistaff1@gesco.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      false),
+        ("clistaff2@gesco.com",  InternalUserRoleDataSeedContributor.IntakeStaffRoleName,      false),
     };
 
     private readonly IdentityUserManager _userManager;
@@ -112,23 +119,25 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
     {
         using (_currentTenant.Change(null))
         {
+            // Real IT Admin (Adrian) -- force a reset on first login.
             await EnsureUserWithRoleAsync(
                 email: ItAdminEmail,
                 userName: ItAdminEmail,
                 roleName: InternalUserRoleDataSeedContributor.ItAdminRoleName,
-                tenantId: null);
+                tenantId: null,
+                forceResetOnFirstLogin: true);
 
-            // Phase D (2026-06-25): Staff Supervisor + Intake Staff are HOST
-            // operators now -- a single host login each that switches into
-            // offices (Supervisor as office admin; Intake into its limited
-            // per-office shadow user). Seeded host-side (was per-tenant).
-            foreach (var (email, roleName) in ExtraSeededUsers)
+            // Phase D (2026-06-25): Staff Supervisor + Intake Staff are HOST operators
+            // (a host login each that switches into offices). Real go-live operators
+            // force-reset; synthetic test accounts do not (see ExtraSeededUsers).
+            foreach (var (email, roleName, forceReset) in ExtraSeededUsers)
             {
                 await EnsureUserWithRoleAsync(
                     email: email,
                     userName: email,
                     roleName: roleName,
-                    tenantId: null);
+                    tenantId: null,
+                    forceResetOnFirstLogin: forceReset);
             }
         }
     }
@@ -188,7 +197,8 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         string email,
         string userName,
         string roleName,
-        Guid? tenantId)
+        Guid? tenantId,
+        bool forceResetOnFirstLogin = false)
     {
         var role = await _roleManager.FindByNameAsync(roleName);
         if (role == null)
@@ -230,11 +240,14 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
                 "InternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
                 email, tenantId);
 
-            // Force a password change on first login. The shared dev default
-            // (DefaultPassword) is intentionally well-known and this is a disposable
-            // feature-branch DB, so the real owner sets their own password on first sign-in.
-            user.SetShouldChangePasswordOnNextLogin(true);
-            await _userManager.UpdateAsync(user);
+            // Real accounts force a password change on first login (the shared dev
+            // default is well-known); synthetic test accounts skip this so they stay
+            // usable with the dev password for repeated testing.
+            if (forceResetOnFirstLogin)
+            {
+                user.SetShouldChangePasswordOnNextLogin(true);
+                await _userManager.UpdateAsync(user);
+            }
         }
         else
         {
@@ -328,6 +341,12 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             "jonatanb" => ("Jonatan", "Barbero"),
             "myrkas" => ("Myrka", "Solis"),
             "genevieveg" => ("Genevieve", "Garcia"),
+            // Synthetic test accounts (kept until prod). Names are synthetic.
+            "it.admin" => ("IT", "Administrator"),
+            "stafsuper1" => ("Patrick", "O'Neal"),
+            "stafsuper2" => ("Denise", "Alvarez"),
+            "clistaff1" => ("Rachel", "Kim"),
+            "clistaff2" => ("Marcus", "Webb"),
             _ => ("Test", "User"),
         };
     }
@@ -352,6 +371,11 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             "jonatanb" => "555-010-0012",
             "myrkas" => "555-010-0013",
             "genevieveg" => "555-010-0014",
+            "it.admin" => "555-010-0004",
+            "stafsuper1" => "555-010-0005",
+            "stafsuper2" => "555-010-0007",
+            "clistaff1" => "555-010-0006",
+            "clistaff2" => "555-010-0008",
             _ => "555-010-0099",
         };
     }
