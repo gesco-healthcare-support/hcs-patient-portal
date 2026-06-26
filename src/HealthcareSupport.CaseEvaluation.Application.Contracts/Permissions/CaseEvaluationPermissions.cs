@@ -432,4 +432,21 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".IntakeImpersonation";
     }
+
+    /// <summary>
+    /// Phase E (2026-06-25) -- per-office branding (display name + logo).
+    /// <c>Default</c> gates reading the host-side central per-office branding list;
+    /// <c>Edit</c> gates set-name / upload-logo / remove-logo. Registered
+    /// MultiTenancySides.Both: the host operators (IT Admin, host Staff Supervisor)
+    /// edit any office centrally from the host surface, and the per-office <c>admin</c>
+    /// role edits its own office while a host operator is impersonating it. The public
+    /// GetBranding + logo-serve endpoints are AllowAnonymous (tenant resolved by
+    /// subdomain, so the login page + SPA boot can read pre-auth) and are NOT gated by
+    /// this permission.
+    /// </summary>
+    public static class Branding
+    {
+        public const string Default = GroupName + ".Branding";
+        public const string Edit = Default + ".Edit";
+    }
 }

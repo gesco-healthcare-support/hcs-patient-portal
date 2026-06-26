@@ -57,6 +57,7 @@ import { CLAIM_EXAMINERS_CLAIM_EXAMINER_ROUTE_PROVIDER } from './claim-examiners
 import { AddressValidationProvider } from './shared/address/address-validation.provider';
 import { MockAddressProvider } from './shared/address/mock-address.provider';
 import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
+import { BrandingService } from './shared/branding/branding.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -117,6 +118,13 @@ export const appConfig: ApplicationConfig = {
       if (v === null || v === 'system') {
         window.localStorage.setItem('LPX_THEME', 'light');
       }
+    }),
+    // Phase E (2026-06-25) -- fetch the current office's branding (name + logo)
+    // at boot from the AllowAnonymous endpoint (resolved by subdomain). Fired,
+    // not awaited: the shell navbars + tab title update reactively when it
+    // returns, and a failure never blocks boot.
+    provideAppInitializer(() => {
+      inject(BrandingService).load();
     }),
     provideSideMenuLayout(),
     // Issue 2.1 + 2.8 (2026-05-12) — ngx-mask drives the on-screen SSN

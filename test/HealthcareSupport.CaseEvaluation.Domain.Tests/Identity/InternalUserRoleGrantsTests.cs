@@ -83,6 +83,18 @@ public class InternalUserRoleGrantsTests
         IntakeOperatorHost.Count.ShouldBe(1);
     }
 
+    // ---- Phase E: per-office branding (name + logo). Both host operators manage it
+    // from the host-side central manager; the per-office admin auto-holds the Both-
+    // sided permission and edits in-office (not pinned here -- ABP grants it). ----
+    [Fact]
+    public void Branding_grantedToHostOperators()
+    {
+        ItAdmin.ShouldContain("CaseEvaluation.Branding");
+        ItAdmin.ShouldContain("CaseEvaluation.Branding.Edit");
+        SupervisorHost.ShouldContain("CaseEvaluation.Branding");
+        SupervisorHost.ShouldContain("CaseEvaluation.Branding.Edit");
+    }
+
     [Theory]
     [InlineData("Saas.Tenants")]
     [InlineData("Saas.Tenants.Impersonation")]

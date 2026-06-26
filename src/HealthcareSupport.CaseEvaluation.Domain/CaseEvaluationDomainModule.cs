@@ -183,6 +183,7 @@ public class CaseEvaluationDomainModule : AbpModule
             UseMinio<JointDeclarationsContainer>();
             UseMinio<AppointmentPacketsContainer>();
             UseMinio<UserSignaturesContainer>();
+            UseMinio<OfficeLogosContainer>();
         });
     }
 

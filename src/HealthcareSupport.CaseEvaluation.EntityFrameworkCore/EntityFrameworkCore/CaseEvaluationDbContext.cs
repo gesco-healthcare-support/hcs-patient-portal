@@ -35,6 +35,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.HostOperators;
+using HealthcareSupport.CaseEvaluation.Branding;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
@@ -87,6 +88,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
     // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
     public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
+    // Phase E (2026-06-25): host/management per-office branding (name + logo).
+    public DbSet<OfficeBranding> OfficeBrandings { get; set; } = null!;
 
     public CaseEvaluationDbContext(DbContextOptions<CaseEvaluationDbContext> options) : base(options)
     {
@@ -392,6 +395,24 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 b.HasIndex(x => new { x.OperatorUserId, x.OfficeId })
                     .IsUnique()
                     .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
+            });
+
+            // Phase E (2026-06-25): host/management per-office branding (name +
+            // logo). Host-only (inside this IsHostDatabase block) so the login
+            // page + the host-side central manager resolve an office's brand
+            // without an office-DB hop. One row per office; the unique index on
+            // OfficeId backs upsert-by-office.
+            builder.Entity<OfficeBranding>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "OfficeBrandings", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.OfficeId).HasColumnName(nameof(OfficeBranding.OfficeId)).IsRequired();
+                b.Property(x => x.DisplayName).HasColumnName(nameof(OfficeBranding.DisplayName)).HasMaxLength(OfficeBranding.DisplayNameMaxLength);
+                b.Property(x => x.LogoBlobName).HasColumnName(nameof(OfficeBranding.LogoBlobName)).HasMaxLength(OfficeBranding.LogoBlobNameMaxLength);
+                b.Property(x => x.LogoContentType).HasColumnName(nameof(OfficeBranding.LogoContentType)).HasMaxLength(OfficeBranding.LogoContentTypeMaxLength);
+                b.HasIndex(x => x.OfficeId)
+                    .IsUnique()
+                    .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
             });
         }
 
