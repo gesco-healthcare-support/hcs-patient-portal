@@ -7,8 +7,11 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
@@ -20,10 +23,12 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 public record SeededOffice(
     Guid OfficeId,
     Guid AppointmentTypeId,
+    Guid SecondAppointmentTypeId,
     Guid StateId,
     Guid LocationId,
     Guid DoctorAvailabilityId,
     Guid PatientId,
+    Guid BookerUserId,
     Guid AppointmentId,
     string PatientEmail,
     string PatientSsnSentinel);
@@ -49,6 +54,8 @@ public class MultiOfficeSeeder : ITransientDependency
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<IdentityUser, Guid> _userRepository;
+    private readonly SystemParameterDataSeedContributor _systemParameterSeeder;
 
     public MultiOfficeSeeder(
         ICurrentTenant currentTenant,
@@ -57,7 +64,9 @@ public class MultiOfficeSeeder : ITransientDependency
         IRepository<Location, Guid> locationRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<Patient, Guid> patientRepository,
-        IRepository<Appointment, Guid> appointmentRepository)
+        IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<IdentityUser, Guid> userRepository,
+        SystemParameterDataSeedContributor systemParameterSeeder)
     {
         _currentTenant = currentTenant;
         _appointmentTypeRepository = appointmentTypeRepository;
@@ -66,6 +75,8 @@ public class MultiOfficeSeeder : ITransientDependency
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _patientRepository = patientRepository;
         _appointmentRepository = appointmentRepository;
+        _userRepository = userRepository;
+        _systemParameterSeeder = systemParameterSeeder;
     }
 
     /// <param name="label">Short, distinct token woven into names/email so the two
@@ -73,19 +84,36 @@ public class MultiOfficeSeeder : ITransientDependency
     public async Task<SeededOffice> SeedAsync(Guid officeId, string label)
     {
         var appointmentTypeId = Guid.NewGuid();
+        var secondAppointmentTypeId = Guid.NewGuid();
         var stateId = Guid.NewGuid();
         var locationId = Guid.NewGuid();
         var slotId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
+        var bookerUserId = Guid.NewGuid();
         var appointmentId = Guid.NewGuid();
         var patientEmail = $"patient.{label}@example.test";
         var ssnSentinel = $"SSN-SENTINEL-{label}";
 
         using (_currentTenant.Change(officeId))
         {
-            // Catalogs first (FK targets for the operational chain).
+            // Per-office system parameters (booking lead time / max window etc.) --
+            // CreateAsync rejects with "System parameters have not been seeded" without
+            // them. Reuse the production contributor so defaults stay in lock-step.
+            await _systemParameterSeeder.SeedAsync(new DataSeedContext(officeId));
+
+            // Booker identity user: the appointment-create DTO requires a Booker
+            // (IdentityUserId) and the Appointment FK to AbpUsers is enforced, so the
+            // user must physically exist in THIS office's database.
+            await _userRepository.InsertAsync(
+                new IdentityUser(bookerUserId, $"booker-{label}", $"booker.{label}@example.test", officeId),
+                autoSave: true);
+
+            // Catalogs first (FK targets for the operational chain). A second type lets
+            // type-mismatch booking tests request a type the slot does not accept.
             await _appointmentTypeRepository.InsertAsync(
                 new AppointmentType(appointmentTypeId, $"TEST-IME-{label}"), autoSave: true);
+            await _appointmentTypeRepository.InsertAsync(
+                new AppointmentType(secondAppointmentTypeId, $"TEST-Ortho-{label}"), autoSave: true);
             await _stateRepository.InsertAsync(
                 new State(stateId, $"TEST-State-{label}"), autoSave: true);
 
@@ -116,7 +144,7 @@ public class MultiOfficeSeeder : ITransientDependency
                 id: patientId,
                 stateId: null,
                 appointmentLanguageId: null,
-                identityUserId: null,
+                identityUserId: bookerUserId,
                 tenantId: officeId,
                 firstName: $"Pat-{label}",
                 lastName: "Synthetic",
@@ -139,7 +167,7 @@ public class MultiOfficeSeeder : ITransientDependency
         }
 
         return new SeededOffice(
-            officeId, appointmentTypeId, stateId, locationId, slotId, patientId,
-            appointmentId, patientEmail, ssnSentinel);
+            officeId, appointmentTypeId, secondAppointmentTypeId, stateId, locationId, slotId,
+            patientId, bookerUserId, appointmentId, patientEmail, ssnSentinel);
     }
 }
