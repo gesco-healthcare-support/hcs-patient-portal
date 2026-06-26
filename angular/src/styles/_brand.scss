@@ -53,7 +53,7 @@
   // -- Logo + asset slots -----------------------------------------------------
   // Filled at runtime by Phase 19b BrandingService once tenant config is live.
   // Placeholder paths point at NEW assets folder so the page renders during dev.
-  --brand-logo-header-url: url('/assets/images/header-logo.png');
+  --brand-logo-header-url: url('/assets/branding/falkinstein-logo.png');
   --brand-logo-collapsed-url: url('/assets/images/fav-logo.png');
   --brand-logo-login-url: url('/assets/images/Doctor.png');
   --brand-login-bg-url: url('/assets/images/login-bg.jpg');
