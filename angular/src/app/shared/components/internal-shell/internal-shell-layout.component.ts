@@ -201,12 +201,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly avatar = computed<string>(() => avatarColor(this.userName() || '?'));
 
   /**
-   * Parent/host brand shown at host scope (admin.localhost): the "Evaluators"
-   * crest + name. Offices keep the app identity; the office name is the label.
+   * App brand text -- constant "Appointment Portal" everywhere (host + offices).
+   * Identity is carried by the logo (the Evaluators crest at host, the office
+   * logo at offices), not by this label (F3 follow-up 2026-06-28).
    */
-  protected readonly brandName = computed<string>(() =>
-    this.hostScope() ? 'Evaluators' : 'Appointment Portal',
-  );
+  protected readonly brandName = computed<string>(() => 'Appointment Portal');
   protected readonly brandLogo = computed<string | null>(() =>
     this.hostScope() ? 'assets/branding/evaluators-logo.png' : null,
   );
@@ -342,10 +341,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     // flips to the tenant view when IT Admin impersonates into a clinic
     // (currentTenant becomes the impersonated tenant) and back on exit.
     this.hostScope.set(isHostScope(this.configState));
-    // Host scope (admin.localhost) carries the parent "Evaluators" brand; offices
-    // get their tab title from BrandingService (per-office display name).
+    // Brand text is constant "Appointment Portal" everywhere (F3 follow-up); set the
+    // host tab title to match. Offices keep their per-office tab title (set by
+    // BrandingService from the display name) so multiple office tabs stay tellable apart.
     if (this.hostScope() && !this.branding.displayName()) {
-      this.title.setTitle('Evaluators');
+      this.title.setTitle('Appointment Portal');
     }
   }
 }
