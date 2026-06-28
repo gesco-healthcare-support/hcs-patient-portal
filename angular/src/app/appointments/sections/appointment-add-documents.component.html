@@ -10,14 +10,20 @@
     </small>
   </div>
   <div class="card-body">
-    <input
-      type="file"
-      class="form-control form-control-sm mb-3"
-      multiple
-      accept=".pdf,.jpg,.jpeg,.png"
-      [disabled]="disabled"
-      (change)="onFilesSelected($event)"
-    />
+    <!-- 2026-06-28: styled trigger (label-wrapped hidden input) replaces the raw
+         "Choose File" native control so it matches the app's button styling.
+         Picked files render in the staged-documents list below. -->
+    <label class="btn btn-outline-primary btn-sm mb-3" [class.disabled]="disabled">
+      Choose files
+      <input
+        type="file"
+        class="d-none"
+        multiple
+        accept=".pdf,.jpg,.jpeg,.png"
+        [disabled]="disabled"
+        (change)="onFilesSelected($event)"
+      />
+    </label>
 
     @if (isPqme) {
       <div class="form-check mb-3">
