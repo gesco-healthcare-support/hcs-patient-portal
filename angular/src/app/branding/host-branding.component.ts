@@ -58,12 +58,17 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
                   } @else {
                     <span class="ho-assign__muted">No logo</span>
                   }
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    [disabled]="busy()"
-                    (change)="onLogoSelected(row, $event)"
-                  />
+                  <label class="ho-assign__upload" [class.is-disabled]="busy()">
+                    <app-icon name="upload" [size]="14" />
+                    {{ row.hasLogo ? 'Replace logo' : 'Upload logo' }}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      hidden
+                      [disabled]="busy()"
+                      (change)="onLogoSelected(row, $event)"
+                    />
+                  </label>
                 </td>
                 <td>
                   <button type="button" [disabled]="busy()" (click)="saveName(row)">

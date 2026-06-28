@@ -49,12 +49,17 @@ import { BrandingService } from '../shared/branding/branding.service';
           } @else {
             <span class="ho-assign__muted">No logo uploaded.</span>
           }
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            [disabled]="busy()"
-            (change)="onLogoSelected($event)"
-          />
+          <label class="ho-assign__upload" [class.is-disabled]="busy()">
+            <app-icon name="upload" [size]="14" />
+            {{ branding.logoUrl() ? 'Replace logo' : 'Upload logo' }}
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              hidden
+              [disabled]="busy()"
+              (change)="onLogoSelected($event)"
+            />
+          </label>
           @if (branding.logoUrl()) {
             <button
               type="button"

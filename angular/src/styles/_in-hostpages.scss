@@ -147,11 +147,36 @@
 .ho-assign__table td button + button {
   margin-left: 8px;
 }
-.ho-assign__table input[type='file'] {
-  display: block;
+// Styled logo-upload control: a button-styled <label> wrapping a hidden native
+// file input (clicking the label opens the OS picker via native label-for-input).
+// Replaces the raw "Choose File" control, which was on-brand-inconsistent and gave
+// no feedback when the OS dialog opened behind the window (read as "does nothing").
+.ho-assign__upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
   margin-top: 6px;
-  font-size: 12px;
-  color: var(--n-500, #64748b);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--n-700, #334155);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition:
+    background 0.14s,
+    border-color 0.14s;
+}
+.ho-assign__upload:hover {
+  background: var(--n-25, #f8fafc);
+  border-color: var(--blue-300, #93c5fd);
+}
+.ho-assign__upload.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ho-assign__muted {
