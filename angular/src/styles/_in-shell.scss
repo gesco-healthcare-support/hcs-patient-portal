@@ -462,6 +462,53 @@
   font-size: 13px;
 }
 
+// ---------------- Impersonation banner ----------------
+// Shown when a host operator is acting as an office (internal-shell impersonating()).
+// Amber strip so the "you are not yourself" state reads at a glance, with a one-click
+// exit back to the host (Evaluators). Literal amber hex (no amber design token yet).
+.in-imp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px clamp(16px, 3vw, 28px);
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13.5px;
+}
+.in-imp__txt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.in-imp__txt b {
+  font-weight: 700;
+}
+.in-imp__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #fff;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 0.14s;
+}
+.in-imp__back:hover {
+  background: #fffbeb;
+}
+.in-imp__back:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .in-content {
   flex: 1;
   // Prompt 15 (2026-06-15): fluid side gutters + a higher cap so wide / ultrawide

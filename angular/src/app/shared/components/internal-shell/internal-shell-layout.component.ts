@@ -103,6 +103,15 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly switching = signal(false);
 
   /**
+   * True when the current session is an impersonation -- a host operator acting as
+   * an office user (ABP sets currentUser.impersonatorUserId). Drives the "Acting
+   * as ... / Back to Evaluators" banner: without it the operator is stranded in
+   * the office, since the office user lacks host permissions and our custom shell
+   * replaces ABP's default "back to impersonator" user-menu item.
+   */
+  protected readonly impersonating = signal(false);
+
+  /**
    * Per-group accordion state: section name -> explicitly toggled open/closed.
    * Unset sections fall back to "open only when they contain the active route"
    * (see isSectionOpen), so the rail is collapsed-by-default except where the
@@ -322,6 +331,23 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Exit impersonation and return to the host operator's own session. Calls ABP's
+   * Impersonation grant with no target (the "back to impersonator" path), which
+   * restores the original user and reloads on the host (admin.localhost). Needs no
+   * app permission -- it is an AuthServer grant, so it works even though the
+   * impersonated office user lacks host rights.
+   */
+  protected backToHost(): void {
+    if (this.switching()) {
+      return;
+    }
+    this.switching.set(true);
+    this.impersonation.impersonate({}).subscribe({
+      error: () => this.switching.set(false),
+    });
+  }
+
   protected signOut(): void {
     this.closeAcct();
     void performFullLogout(this.injector);
@@ -341,6 +367,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     // flips to the tenant view when IT Admin impersonates into a clinic
     // (currentTenant becomes the impersonated tenant) and back on exit.
     this.hostScope.set(isHostScope(this.configState));
+    this.impersonating.set(this.impersonation.isImpersonatorVisible());
     // Brand text is constant "Appointment Portal" everywhere (F3 follow-up); set the
     // host tab title to match. Offices keep their per-office tab title (set by
     // BrandingService from the display name) so multiple office tabs stay tellable apart.

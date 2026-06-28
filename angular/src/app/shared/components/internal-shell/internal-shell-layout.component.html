@@ -152,6 +152,24 @@
       </div>
     </header>
 
+    @if (impersonating()) {
+      <div class="in-imp" role="status">
+        <span class="in-imp__txt">
+          <app-icon name="map" [size]="15" />
+          Acting as <b>{{ tenantName() }}</b>
+        </span>
+        <button
+          class="in-imp__back"
+          type="button"
+          [disabled]="switching()"
+          (click)="backToHost()"
+        >
+          <app-icon name="chevLeft" [size]="15" />
+          Back to Evaluators
+        </button>
+      </div>
+    }
+
     <div class="in-content">
       <router-outlet />
     </div>
