@@ -26,8 +26,7 @@ import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { InternalUsersService } from '../../../proxy/internal-users/internal-users.service';
 import type { LookupDto } from '../../../proxy/shared/models';
 import { NavBadgeKey, resolveNavGroups } from './internal-nav.config';
-
-const AUTH_SERVER_PORT = '44368';
+import { OAuthService } from 'angular-oauth2-oidc';
 
 const ROLE_LABELS: Record<InternalRoleKey, string> = {
   itadmin: 'IT Admin',
@@ -87,8 +86,18 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private readonly internalUsers = inject(InternalUsersService);
   private readonly title = inject(Title);
 
-  /** AuthServer Razor "manage my account" page on the current tenant host. */
-  protected readonly manageAccountUrl = buildAuthServerUrl('/Account/Manage');
+  /** AuthServer Razor "manage my account" page, resolved from the runtime OAuth
+   *  issuer so the host:port is correct per tenant subdomain (and on shifted
+   *  worktree ports, where the build-time environment is overridden). */
+  protected get manageAccountUrl(): string {
+    let issuer = '';
+    try {
+      issuer = this.injector.get(OAuthService).issuer ?? '';
+    } catch {
+      issuer = '';
+    }
+    return buildAuthServerUrl(issuer, '/Account/Manage');
+  }
 
   private readonly user = signal<ShellUser | null>(null);
   private readonly tenant = signal<ShellTenant | null>(null);
@@ -377,11 +386,10 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 }
 
-/** Build an AuthServer Razor URL on the current tenant subdomain (port 44368). */
-function buildAuthServerUrl(path: string): string {
-  if (typeof window === 'undefined') {
-    return path;
-  }
-  const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:${AUTH_SERVER_PORT}${path}`;
+/** Build an AuthServer Razor URL from the runtime OAuth issuer (carries the
+ *  correct host:port for the current tenant subdomain). Falls back to the bare
+ *  path if the issuer is unavailable. */
+function buildAuthServerUrl(issuer: string, path: string): string {
+  const base = (issuer ?? '').replace(/\/+$/, '');
+  return base ? `${base}${path}` : path;
 }
