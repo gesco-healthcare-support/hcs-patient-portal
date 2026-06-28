@@ -66,14 +66,25 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     [Authorize]
     public virtual async Task<DashboardCountersDto> GetAsync()
     {
-        var isHost = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host);
-        var isTenant = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant);
-        if (!isHost && !isTenant)
+        // Branch on the request's tenant SCOPE (not which permission is held), and
+        // probe ONLY the scope-appropriate permission. Probing Dashboard.Host in
+        // tenant context (e.g. the 60s nav-badge poll after a host operator switches
+        // into an office) logged a benign-but-noisy "Dashboard.Host not granted" auth
+        // failure on every tick even though the request succeeded via Dashboard.Tenant.
+        if (CurrentTenant.Id == null)
+        {
+            if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host))
+            {
+                throw new AbpAuthorizationException(L["Forbidden"]);
+            }
+            return await GetHostCountersAsync();
+        }
+
+        if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant))
         {
             throw new AbpAuthorizationException(L["Forbidden"]);
         }
-
-        return isHost ? await GetHostCountersAsync() : await GetTenantCountersAsync();
+        return await GetTenantCountersAsync();
     }
 
     /// <summary>
@@ -208,18 +219,22 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     [Authorize]
     public virtual async Task<DashboardDto> GetDashboardAsync(DashboardRange range)
     {
-        var isHost = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host);
-        var isTenant = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant);
-        if (!isHost && !isTenant)
+        // Scope-based branch (see GetAsync): probe only the scope-appropriate
+        // permission so a tenant-context call never logs a benign Dashboard.Host
+        // authorization failure.
+        if (CurrentTenant.Id == null)
         {
-            throw new AbpAuthorizationException(L["Forbidden"]);
-        }
-
-        if (isHost)
-        {
+            if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host))
+            {
+                throw new AbpAuthorizationException(L["Forbidden"]);
+            }
             return await BuildHostDashboardAsync();
         }
 
+        if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant))
+        {
+            throw new AbpAuthorizationException(L["Forbidden"]);
+        }
         return await BuildTenantDashboardAsync(range);
     }
 
