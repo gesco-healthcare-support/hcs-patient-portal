@@ -34,7 +34,7 @@
     <RestoreLockedMode>false</RestoreLockedMode>
   </PropertyGroup>
 
-  <!-- Scriban 7.2.0: clears NuGetAudit NU1903 alerts on the 7.x line.
+  <!-- Scriban 7.2.5: clears NuGetAudit NU1902/NU1903 alerts on the 7.2.x line.
        History:
          - ABP 10.0.2 ships against Scriban 6.3.0. The 6.x line accumulated
            several high/critical CVE advisories in 2026, prompting an
@@ -42,6 +42,14 @@
          - 2026-05-19: GHSA-24c8-4792-22hx was published against Scriban
            <= 7.1.0 and the audit feed re-raised NU1903. 7.2.0 is the
            patched version per the advisory; bumping the pin here.
+         - 2026-06-28: GHSA-6q7j-xr26-3h2c (parse-recursion StackOverflow
+           DoS) + GHSA-q6rr-fm2g-g5x8 (array*int memory-exhaustion DoS),
+           both Moderate + DoS-only, published against Scriban <= 7.2.0;
+           NU1902 re-raised. Both fixed in 7.2.1 (latest same-line is
+           7.2.5); bumping the pin to 7.2.5. Same-line patch -> does NOT
+           re-cross the 6.x->7.x ParserOptions ABI break (already crossed
+           at 7.2.0). Both require attacker-controlled template text, so
+           unreachable here given the OBS-14 no-runtime-Scriban contract.
        The 7.x line changed Scriban.Parsing.ParserOptions to a different
        value-type layout vs 6.3.0, so any code path that hits
        Volo.Abp.TextTemplating.Scriban throws System.TypeLoadException at
@@ -78,7 +86,7 @@
        upgrades the Scriban dep; 10.1.1 still pins Scriban &gt;= 6.3.0)
        or render through the same TemplateVariableSubstitutor pipeline. -->
   <ItemGroup>
-    <PackageReference Include="Scriban" Version="7.2.0" />
+    <PackageReference Include="Scriban" Version="7.2.5" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
          matches our net10.0 TFM and resolves GHSA-37gx / GHSA-w3x6 CVEs. -->
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
