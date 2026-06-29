@@ -45,6 +45,10 @@
       ></textarea>
       <small class="text-muted">{{ reason.length }} / {{ maxReasonLength }}</small>
     </div>
+
+    @if (errorMessage) {
+      <div class="alert alert-danger mb-0" role="alert">{{ errorMessage }}</div>
+    }
   </ng-template>
 
   <ng-template #abpFooter>

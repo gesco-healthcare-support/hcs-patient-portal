@@ -60,6 +60,12 @@ export class RescheduleRequestModalComponent implements OnChanges {
   reason = '';
   isBusy = false;
   isLoadingSlots = false;
+  // F-M04 parity (2026-06-29): surface a request failure inside the modal instead
+  // of leaving an enabled-but-dead Submit button. Matches the cancellation modal;
+  // without it an unmapped BusinessException (e.g. NewSlotNotAvailable when the
+  // chosen slot fills before submit) only reaches ABP's generic error dialog. The
+  // dialog stays dismissible and the reason/slot are preserved for a retry.
+  errorMessage: string | null = null;
 
   readonly maxReasonLength = 500;
 
@@ -77,6 +83,7 @@ export class RescheduleRequestModalComponent implements OnChanges {
     if (changes['visible'] && this.visible && !changes['visible'].previousValue) {
       this.reason = '';
       this.newDoctorAvailabilityId = null;
+      this.errorMessage = null;
       this.loadSlots();
     }
   }
@@ -88,6 +95,7 @@ export class RescheduleRequestModalComponent implements OnChanges {
       this.reason = '';
       this.newDoctorAvailabilityId = null;
       this.isBusy = false;
+      this.errorMessage = null;
     }
   }
 
@@ -131,6 +139,7 @@ export class RescheduleRequestModalComponent implements OnChanges {
       return;
     }
     this.isBusy = true;
+    this.errorMessage = null;
     this.changeRequestService
       .requestReschedule(this.appointmentId, {
         newDoctorAvailabilityId: this.newDoctorAvailabilityId,
@@ -142,9 +151,12 @@ export class RescheduleRequestModalComponent implements OnChanges {
           this.succeeded.emit(dto);
           this.setVisible(false);
         },
-        // ABP's default error handler renders the BusinessException toast.
-        error: () => {
+        error: (err: { error?: { error?: { message?: string } } }) => {
+          // Clear busy so Submit + Close/Escape work again, and show why it failed.
           this.isBusy = false;
+          this.errorMessage =
+            err?.error?.error?.message ??
+            'This appointment could not be rescheduled to the selected slot. The slot may no longer be available -- pick another, or try again.';
         },
       });
   }
