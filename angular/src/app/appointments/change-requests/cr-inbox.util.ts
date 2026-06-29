@@ -67,20 +67,37 @@ export function changeRequestConsentView(
 }
 
 /**
- * Warning shown in the approve modal when finalizing would override an
- * unresolved opposing-side consent. Null when consent is Approved or NotRequired
- * (nothing to override).
+ * True when consent is in a state that BLOCKS approval. The server
+ * (OpposingConsentValidator) only allows approval for Approved / NotRequired;
+ * Pending, Rejected and Expired are all blocked -- there is NO override path, so
+ * the UI must not let staff finalize these (it would 403). Reject is unaffected.
  */
-export function consentOverrideWarning(
+export function consentBlocksApproval(
+  status: ChangeRequestConsentStatus | null | undefined,
+): boolean {
+  return (
+    status === ChangeRequestConsentStatus.Pending ||
+    status === ChangeRequestConsentStatus.Rejected ||
+    status === ChangeRequestConsentStatus.Expired
+  );
+}
+
+/**
+ * Corrective note shown in the approve modal when consent blocks approval. There
+ * is no "override" -- the only way forward is to Reject the request (which has no
+ * consent gate) or wait for consent. Null when approval is allowed (Approved /
+ * NotRequired).
+ */
+export function consentBlockNote(
   status: ChangeRequestConsentStatus | null | undefined,
 ): string | null {
   switch (status) {
     case ChangeRequestConsentStatus.Pending:
-      return 'Opposing-counsel consent is still pending -- approving now overrides it.';
+      return "The opposing party's consent is still pending, so this cannot be approved yet. Reject the request instead, or wait for their consent.";
     case ChangeRequestConsentStatus.Rejected:
-      return 'Opposing-counsel consent was declined -- approving now overrides it.';
+      return 'The opposing party declined consent, so this cannot be approved. Reject the request instead.';
     case ChangeRequestConsentStatus.Expired:
-      return 'Opposing-counsel consent expired -- approving now overrides it.';
+      return "The opposing party's consent window expired, so this cannot be approved. Reject the request instead.";
     default:
       return null;
   }

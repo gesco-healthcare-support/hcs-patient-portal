@@ -212,6 +212,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             options.Map(
                 CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresPanelStrikeList,
                 System.Net.HttpStatusCode.Conflict);
+            // 2026-06-29 -- opposing-consent approval gate (OpposingConsentValidator).
+            // Same class as the gates above: it was missing from this map, so a
+            // consent block surfaced as the default 403 + the generic "internal
+            // error" dialog (a dead-end). 409 Conflict so the SPA shows the
+            // localized "consent still pending -- reject instead" message.
+            options.Map(
+                CaseEvaluationDomainErrorCodes.ChangeRequestConsentNotGranted,
+                System.Net.HttpStatusCode.Conflict);
 
             // 2026-05-15 -- one-doctor-per-tenant invariant guards in
             // DoctorsAppService. Both are client-input / precondition

@@ -731,6 +731,7 @@
     "ChangeRequest:InvalidCancellationOutcome": "Cancellation outcome must be CancelledNoBill or CancelledLate.",
     "ChangeRequest:InvalidRescheduleOutcome": "Reschedule outcome must be RescheduledNoBill or RescheduledLate.",
     "ChangeRequest:AdminReasonRequired": "Please provide an admin reason when overriding the user-selected reschedule slot.",
-    "ChangeRequest:RejectionRequiresNotes": "Please provide rejection notes before rejecting the change request."
+    "ChangeRequest:RejectionRequiresNotes": "Please provide rejection notes before rejecting the change request.",
+    "ChangeRequest:ConsentNotGranted": "The opposing party's consent is still pending, so this request cannot be approved yet. Reject the request, or wait for their consent before finalizing."
   }
 }

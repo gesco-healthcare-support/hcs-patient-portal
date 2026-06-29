@@ -21,7 +21,8 @@ import {
   changeRequestAgeClass,
   changeRequestAgeDays,
   changeRequestConsentView,
-  consentOverrideWarning,
+  consentBlockNote,
+  consentBlocksApproval,
   requestingSideLabel,
   type CrConsentView,
 } from './cr-inbox.util';
@@ -189,8 +190,14 @@ export class InternalChangeRequestInboxComponent implements OnInit {
         ];
   }
 
-  protected overrideWarning(row: AppointmentChangeRequestDto): string | null {
-    return consentOverrideWarning(row.consentStatus);
+  /** Corrective note in the approve modal when consent blocks approval (null = approvable). */
+  protected consentNote(row: AppointmentChangeRequestDto): string | null {
+    return consentBlockNote(row.consentStatus);
+  }
+
+  /** True when the row's consent state blocks approval; the server forbids it (no override). */
+  protected approveBlocked(row: AppointmentChangeRequestDto): boolean {
+    return consentBlocksApproval(row.consentStatus);
   }
 
   protected confirmApprove(): void {
@@ -199,13 +206,32 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     if (!m || m.kind !== 'approve' || !m.row.id || out === null || this.isBusy()) {
       return;
     }
+    // Defense-in-depth: the Approve button is disabled when consent blocks
+    // approval, but guard here too so a stale click never fires a doomed request.
+    if (this.approveBlocked(m.row)) {
+      this.toaster.warn(
+        consentBlockNote(m.row.consentStatus) ?? 'This request cannot be approved yet.',
+      );
+      return;
+    }
     this.isBusy.set(true);
+    // skipHandleError: surface failures as our own corrective toast (see
+    // handleRequestError) instead of ABP's global blocking dialog, which left
+    // the modal stuck behind it -- the dead-end staff hit on a consent block.
     const req$ = this.isReschedule(m.row)
-      ? this.approvalService.approveReschedule(m.row.id, { rescheduleOutcome: out })
-      : this.approvalService.approveCancellation(m.row.id, { cancellationOutcome: out });
+      ? this.approvalService.approveReschedule(
+          m.row.id,
+          { rescheduleOutcome: out },
+          { skipHandleError: true },
+        )
+      : this.approvalService.approveCancellation(
+          m.row.id,
+          { cancellationOutcome: out },
+          { skipHandleError: true },
+        );
     req$.subscribe({
       next: () => this.onHandled(m, 'approved'),
-      error: () => this.isBusy.set(false),
+      error: (err) => this.handleRequestError(err),
     });
   }
 
@@ -217,11 +243,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     }
     this.isBusy.set(true);
     const req$ = this.isReschedule(m.row)
-      ? this.approvalService.rejectReschedule(m.row.id, { reason: text })
-      : this.approvalService.rejectCancellation(m.row.id, { reason: text });
+      ? this.approvalService.rejectReschedule(m.row.id, { reason: text }, { skipHandleError: true })
+      : this.approvalService.rejectCancellation(m.row.id, { reason: text }, { skipHandleError: true });
     req$.subscribe({
       next: () => this.onHandled(m, 'rejected'),
-      error: () => this.isBusy.set(false),
+      error: (err) => this.handleRequestError(err),
     });
   }
 
@@ -233,5 +259,22 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     // Drop the handled row immediately, then refresh from the server.
     this.rows.set(this.rows().filter((r) => r.id !== m.row.id));
     this.load();
+  }
+
+  /**
+   * Show a failed approve/reject as a dismissible corrective toast and close the
+   * modal so the user is never stuck on an error page. With skipHandleError on
+   * the call, ABP's global blocking dialog/page is bypassed; we surface the
+   * server's message (e.g. the consent-block message) when present, else a safe
+   * fallback.
+   */
+  private handleRequestError(err: unknown): void {
+    this.isBusy.set(false);
+    this.modal.set(null);
+    this.reason.set('');
+    const message =
+      (err as { error?: { error?: { message?: string } } })?.error?.error?.message ??
+      'Could not complete the request. Please try again, or contact your administrator if it persists.';
+    this.toaster.error(message);
   }
 }

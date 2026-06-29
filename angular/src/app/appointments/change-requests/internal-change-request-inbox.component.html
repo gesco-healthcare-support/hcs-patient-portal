@@ -156,10 +156,10 @@
               }
             </select>
           </div>
-          @if (overrideWarning(m.row); as warn) {
+          @if (consentNote(m.row); as note) {
             <div class="ra-note warn" style="margin-top: 12px">
               <span class="i"><app-icon name="alert" [size]="15" /></span>
-              <span>{{ warn }}</span>
+              <span>{{ note }}</span>
             </div>
           }
         </div>
@@ -168,7 +168,7 @@
           <button
             class="af-btn af-btn--green"
             type="button"
-            [disabled]="isBusy() || outcome() === null"
+            [disabled]="isBusy() || outcome() === null || approveBlocked(m.row)"
             (click)="confirmApprove()"
           >
             <app-icon name="check" [size]="15" />
