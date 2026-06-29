@@ -11,6 +11,7 @@ import {
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ConfigStateService, PermissionService } from '@abp/ng.core';
+import { ToasterService } from '@abp/ng.theme.shared';
 import { Subscription, filter } from 'rxjs';
 import { IconComponent } from '../../ui/icon/icon.component';
 import { performFullLogout } from '../../auth/full-logout';
@@ -85,6 +86,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   private readonly impersonation = inject(ImpersonationService);
   private readonly internalUsers = inject(InternalUsersService);
   private readonly title = inject(Title);
+  private readonly toaster = inject(ToasterService);
 
   /** AuthServer Razor "manage my account" page, resolved from the runtime OAuth
    *  issuer so the host:port is correct per tenant subdomain (and on shifted
@@ -242,8 +244,17 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     (this.tenantName().trim()[0] ?? 'A').toUpperCase(),
   );
 
-  /** Intake Staff is tenant-locked; everyone else can (eventually) switch. */
-  protected readonly canSwitch = computed<boolean>(() => this.roleKey() !== 'intake');
+  /**
+   * Office switcher is a HOST-scope affordance only. Intake Staff is tenant-locked,
+   * and once a host operator has switched into an office (or a per-office admin is
+   * signed in directly) the session lacks tenant-impersonation rights, so the only
+   * valid switch path from inside an office is "Back to Evaluators". Gating on
+   * hostScope() hides the populated-but-dead dropdown that otherwise silently
+   * Forbids an office A -> office B jump.
+   */
+  protected readonly canSwitch = computed<boolean>(
+    () => this.roleKey() !== 'intake' && this.hostScope(),
+  );
 
   protected readonly brandSubtitle = computed<string>(() =>
     this.hostScope() ? 'Platform administration' : this.tenantName(),
@@ -336,7 +347,15 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     this.switching.set(true);
     this.closeSwitcher();
     this.impersonation.impersonateTenant(officeId, 'admin').subscribe({
-      error: () => this.switching.set(false),
+      // Impersonation runs through the OAuth token grant, NOT RestService, so ABP's
+      // global HTTP error dialog never fires -- this handler is the only place a
+      // failed switch can surface. Without it the spinner just stops (looks frozen).
+      error: () => {
+        this.switching.set(false);
+        this.toaster.error(
+          'Could not switch into that office. Please try again, or contact an administrator.',
+        );
+      },
     });
   }
 
@@ -353,7 +372,13 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     }
     this.switching.set(true);
     this.impersonation.impersonate({}).subscribe({
-      error: () => this.switching.set(false),
+      // Same OAuth-grant path as switchInto: a failed exit surfaces only here.
+      error: () => {
+        this.switching.set(false);
+        this.toaster.error(
+          'Could not return to the Evaluators view. Please try again, or sign out and back in.',
+        );
+      },
     });
   }
 
