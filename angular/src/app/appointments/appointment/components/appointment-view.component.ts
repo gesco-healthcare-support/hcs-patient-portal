@@ -885,6 +885,14 @@ export class AppointmentViewComponent implements OnInit {
 
   save(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Re-entrancy guard (mirrors AppointmentAddComponent.onSubmit): a fast second
+      // click must not re-fire the patient + appointment + party-upsert chain while
+      // the first round-trip is in flight (the [disabled]="isSaving" binding only
+      // applies after change detection, leaving a click window). Resolve as a no-op.
+      if (this.isSaving) {
+        resolve();
+        return;
+      }
       const selected = this.appointment?.appointment;
       if (
         !selected?.id ||
