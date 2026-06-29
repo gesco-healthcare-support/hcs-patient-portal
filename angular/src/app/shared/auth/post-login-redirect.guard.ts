@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { AuthService, ConfigStateService } from '@abp/ng.core';
 import { CanMatchFn, Router } from '@angular/router';
 import { hasOnlyExternalRoles } from './external-user-roles';
-import { resolveInternalRoleKey } from './internal-user-roles';
+import { isHostScope, resolveInternalRoleKey } from './internal-user-roles';
 
 // Phase 9 L7 (2026-05-04) + Issue 1.1 (2026-05-12) -- post-login redirect guard.
 //
@@ -59,11 +59,15 @@ export const postLoginRedirectGuard: CanMatchFn = () => {
     return true;
   }
 
-  // Intake Staff have no host dashboard access (Dashboard.Host); their home is
-  // the assigned-office switcher. Routing them to /dashboard lands them on the
-  // "you don't have access" page with no nav -- on login AND after exiting an
-  // impersonated office (which reloads to /). Send them to /host/my-offices.
-  if (resolveInternalRoleKey(roles) === 'intake') {
+  // Intake Staff at HOST scope (no current tenant) have no host dashboard access
+  // (Dashboard.Host); their home is the assigned-office switcher. Routing them to
+  // /dashboard lands them on the nav-less "you don't have access" page -- on login
+  // AND after exiting an office (which reloads to /). Send them to /host/my-offices.
+  // IMPORTANT: scope-gated. While they are INSIDE an office (impersonating -> a
+  // current tenant is set), the office dashboard IS reachable (Dashboard.Tenant),
+  // and /host/my-offices would 403 (the office shadow user lacks IntakeImpersonation).
+  // So only redirect at host scope; in-office intake falls through to /dashboard.
+  if (resolveInternalRoleKey(roles) === 'intake' && isHostScope(config)) {
     return router.parseUrl('/host/my-offices');
   }
 
