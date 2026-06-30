@@ -34,6 +34,27 @@
         </div>
         <div class="ra-card__body">
           <div class="ra-grid">
+            <!-- QA item C: host-scope callers must choose the target office; the
+                 picker is hidden inside an office (tenant is then implicit). -->
+            @if (tenantPickerRequired()) {
+              <div class="ra-field col-6">
+                <label>
+                  Office
+                  <span class="req">*</span>
+                </label>
+                <select
+                  class="ra-select"
+                  [ngModel]="invite().tenantId"
+                  (ngModelChange)="patchInvite({ tenantId: $event })"
+                >
+                  <option value="">Select an office</option>
+                  @for (o of tenantOptions(); track o.id) {
+                    <option [value]="o.id">{{ o.displayName | officeName }}</option>
+                  }
+                </select>
+                <span class="ra-hint">The external user is invited into this office.</span>
+              </div>
+            }
             <!-- F-005 (2026-06-25): the invite form collects First/Last for ALL
                  roles -- including attorneys -- so the invitation email can greet
                  the person by name. The self-register form stays firm-only; the

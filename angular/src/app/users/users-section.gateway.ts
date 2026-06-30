@@ -4,6 +4,7 @@ import { map, switchMap } from 'rxjs/operators';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 import type { SaasTenantCreateDto, SaasTenantUpdateDto } from '@volo/abp.ng.saas/proxy';
 import { ExternalUserService } from '../proxy/external-users/external-user.service';
+import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
 import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
@@ -13,6 +14,7 @@ import type {
   InviteExternalUserResultDto,
 } from '../proxy/external-signups/models';
 import type { CreateInternalUserDto, InternalUserCreatedDto } from '../proxy/internal-users/models';
+import type { LookupDto } from '../proxy/shared/models';
 import { INTERNAL_ROLE_NAMES, primaryInternalRole } from './users-hub.util';
 
 const PAGE = { maxResultCount: 500, skipCount: 0 };
@@ -61,6 +63,7 @@ export interface TenantFormState {
 @Injectable({ providedIn: 'root' })
 export class UsersSectionGateway {
   private readonly externalUsers = inject(ExternalUserService);
+  private readonly externalSignup = inject(ExternalSignupService);
   private readonly internalUsers = inject(InternalUsersService);
   private readonly userExtended = inject(UserExtendedService);
   private readonly dashboard = inject(DashboardService);
@@ -70,6 +73,14 @@ export class UsersSectionGateway {
   // ---- Invite External ----
   sendInvite(input: InviteExternalUserDto): Observable<InviteExternalUserResultDto> {
     return this.externalUsers.inviteExternalUser(input);
+  }
+  /**
+   * QA item C: offices an external user can be invited into. Populated only at
+   * HOST scope (the backend returns an empty list inside an office, where the
+   * tenant is implicit), so a non-empty result means "show the office picker".
+   */
+  getInviteTenantOptions(): Observable<LookupDto<string>[]> {
+    return this.externalSignup.getTenantOptions().pipe(map((r) => r.items ?? []));
   }
 
   // ---- Pending Invites ----

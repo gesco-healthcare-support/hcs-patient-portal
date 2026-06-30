@@ -13,6 +13,7 @@ import { ExternalUserType } from '../proxy/external-signups/external-user-type.e
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 import type { InvitationDto, InviteExternalUserResultDto } from '../proxy/external-signups/models';
 import type { InternalUserCreatedDto } from '../proxy/internal-users/models';
+import type { LookupDto } from '../proxy/shared/models';
 import {
   avatarColor,
   CREATABLE_INTERNAL_ROLES,
@@ -40,6 +41,8 @@ interface InviteDraft {
   email: string;
   userType: ExternalUserType;
   firmName: string;
+  /** Target office; required + used only at host scope (see tenantPickerRequired). */
+  tenantId: string;
 }
 
 interface CreateUserDraft {
@@ -92,6 +95,10 @@ export class InternalUsersHubComponent {
   protected readonly invite = signal<InviteDraft>(this.emptyInvite());
   protected readonly inviteResult = signal<InviteExternalUserResultDto | null>(null);
   protected readonly showFirm = computed(() => isAttorneyType(this.invite().userType));
+  // QA item C: offices the invitee can be invited into. Non-empty only at host
+  // scope; a non-empty list means the office picker is shown + required.
+  protected readonly tenantOptions = signal<LookupDto<string>[]>([]);
+  protected readonly tenantPickerRequired = computed(() => this.tenantOptions().length > 0);
 
   // Pending Invites
   protected readonly invites = signal<InvitationDto[]>([]);
@@ -134,6 +141,7 @@ export class InternalUsersHubComponent {
     const key = this.section();
     if (key === 'invite') {
       this.applyInvitePrefill();
+      this.loadInviteTenantOptions();
       this.loading.set(false);
       return;
     }
@@ -167,6 +175,7 @@ export class InternalUsersHubComponent {
       email: '',
       userType: ExternalUserType.Patient,
       firmName: '',
+      tenantId: '',
     };
   }
   private applyInvitePrefill(): void {
@@ -189,6 +198,13 @@ export class InternalUsersHubComponent {
     this.invite.set(this.emptyInvite());
     this.inviteResult.set(null);
   }
+  /** QA item C: load the host-scope office picker source (empty in-office). */
+  private loadInviteTenantOptions(): void {
+    this.gateway.getInviteTenantOptions().subscribe({
+      next: (o) => this.tenantOptions.set(o),
+      error: () => this.tenantOptions.set([]),
+    });
+  }
   protected sendInvite(): void {
     const form = this.invite();
     if (this.isBusy()) {
@@ -196,6 +212,10 @@ export class InternalUsersHubComponent {
     }
     if (!EMAIL_RE.test(form.email.trim())) {
       this.toaster.warn('A valid email is required.');
+      return;
+    }
+    if (this.tenantPickerRequired() && !form.tenantId) {
+      this.toaster.warn('Select an office for the invitation.');
       return;
     }
     const isFirm = this.showFirm();
@@ -211,6 +231,9 @@ export class InternalUsersHubComponent {
         lastName: form.lastName.trim() || undefined,
         userType: form.userType,
         firmName,
+        // QA item C: host-scope invites carry the chosen office; in-office
+        // callers leave it undefined and the backend uses the ambient tenant.
+        tenantId: form.tenantId || undefined,
       })
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({

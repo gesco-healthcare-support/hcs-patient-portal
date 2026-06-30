@@ -1349,13 +1349,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         var roleName = ToRoleName(input.UserType);
-        var tenantId = CurrentTenant.Id;
-        if (!tenantId.HasValue)
-        {
-            throw new UserFriendlyException(L["Tenant context required for invite."]);
-        }
+        // QA item C: at HOST scope the caller picks the target office
+        // (input.TenantId); in-office callers keep their ambient tenant.
+        // ResolveTenantId throws when neither is present.
+        var tenantId = ResolveTenantId(input.TenantId);
 
-        var tenantName = await ResolveCurrentTenantNameAsync(tenantId.Value);
+        var tenantName = await ResolveCurrentTenantNameAsync(tenantId!.Value);
         if (string.IsNullOrWhiteSpace(tenantName))
         {
             throw new UserFriendlyException(L["Could not resolve tenant name for invite."]);
@@ -1374,55 +1373,62 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             ? input.FirmName.Trim()
             : null;
 
-        var (invitation, rawToken) = await _invitationManager.IssueAsync(
-            tenantId: tenantId.Value,
-            email: normalizedEmail,
-            userType: input.UserType,
-            invitedByUserId: invitedByUserId,
-            firstName: firstName,
-            lastName: lastName,
-            firmName: firmName);
-
-        // BUG-029 v3 fix (2026-05-21): invite URL now routes through
-        // IAccountUrlBuilder, which composes the tenant subdomain.
-        // The prior `BuildInviteUrl(authServerBaseUrl, rawToken)` static
-        // concatenated the raw setting value with the path and dropped
-        // the tenant prefix.
-        var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(
-            tenantId.Value, rawToken);
-
-        // Dispatch through the per-tenant InviteExternalUser
-        // NotificationTemplate. Failure is logged (by the dispatcher) but
-        // does NOT bubble: the admin can always copy + share the inviteUrl
-        // manually when SMTP is degraded.
-        try
+        // QA item C: issue + dispatch under the TARGET office's tenant scope so
+        // the invitation row lands in that office's database and the email uses
+        // its per-office template + branding. For in-office callers this resolves
+        // to the same tenant (a harmless no-op).
+        using (CurrentTenant.Change(tenantId.Value, tenantName))
         {
-            await _notificationDispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
-                recipients: new[]
-                {
-                    new NotificationRecipient(
-                        email: normalizedEmail,
-                        role: MapToRecipientRole(input.UserType),
-                        isRegistered: false),
-                },
-                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
-                contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
+            var (invitation, rawToken) = await _invitationManager.IssueAsync(
+                tenantId: tenantId.Value,
+                email: normalizedEmail,
+                userType: input.UserType,
+                invitedByUserId: invitedByUserId,
+                firstName: firstName,
+                lastName: lastName,
+                firmName: firmName);
+
+            // BUG-029 v3 fix (2026-05-21): invite URL now routes through
+            // IAccountUrlBuilder, which composes the tenant subdomain.
+            // The prior `BuildInviteUrl(authServerBaseUrl, rawToken)` static
+            // concatenated the raw setting value with the path and dropped
+            // the tenant prefix.
+            var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(
+                tenantId.Value, rawToken);
+
+            // Dispatch through the per-tenant InviteExternalUser
+            // NotificationTemplate. Failure is logged (by the dispatcher) but
+            // does NOT bubble: the admin can always copy + share the inviteUrl
+            // manually when SMTP is degraded.
+            try
+            {
+                await _notificationDispatcher.DispatchAsync(
+                    templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
+                    recipients: new[]
+                    {
+                        new NotificationRecipient(
+                            email: normalizedEmail,
+                            role: MapToRecipientRole(input.UserType),
+                            isRegistered: false),
+                    },
+                    variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
+                    contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
+            }
+            catch (Exception)
+            {
+                // Swallowed by design -- the dispatcher logs its own failures
+                // and the admin always sees the inviteUrl in the response.
+            }
+
+            return new InviteExternalUserResultDto
+            {
+                InviteUrl = inviteUrl,
+                Email = normalizedEmail,
+                RoleName = roleName,
+                TenantName = tenantName,
+                ExpiresAt = invitation.ExpiresAt,
+            };
         }
-        catch (Exception)
-        {
-            // Swallowed by design -- the dispatcher logs its own failures
-            // and the admin always sees the inviteUrl in the response.
-        }
-
-        return new InviteExternalUserResultDto
-        {
-            InviteUrl = inviteUrl,
-            Email = normalizedEmail,
-            RoleName = roleName,
-            TenantName = tenantName,
-            ExpiresAt = invitation.ExpiresAt,
-        };
     }
 
     /// <summary>
