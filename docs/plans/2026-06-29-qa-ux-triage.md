@@ -24,7 +24,7 @@ Process: go item by item -> plan -> fix -> verify -> commit -> next.
 | 4 | A | Show office name as "Dr. {name}" | S | low | scope of "everywhere" | DONE a3164d9b (5 pages + switcher; banner -> F) |
 | 5 | G | Dashboard time filter must drive all sections | M | low | which sections + host/intake | DONE 2a7d9168 (tenant: donut/trend/activity; host/intake deferred) |
 | 6 | M | Authorized-user emails (2 wired stubs) | M | low | wording sign-off | DONE ee6199e6 (reseed-verified; accessor ##URL## restored) |
-| 7 | F | "Acting as" banner + Evaluators relabel + direct switch | M-L | med-HIGH | DECIDED 2026-06-29 | next: remove banner + switcher-inside-office exit; host label "Management"; office->office via single-click CUSTOM AuthServer grant (needs isolation/HIPAA gate re-run) |
+| 7 | F | "Acting as" banner + Evaluators relabel + direct switch | M-L | med-HIGH | - | Half 1 DONE 425e5f5e (banner removed + "Management" relabel + in-office switcher exit; live-verified). Half 2 DEFERRED: office->office single-click custom AuthServer grant (security-sensitive, needs isolation/HIPAA gate re-run) |
 | 8 | C | Host-scope invite needs a tenant chooser | M | med | picker scope | todo |
 | 9 | B | Reusable table: search / filter / sort | L | med | build-vs-buy, server-side | todo (Claude Design) |
 | 10 | H | Intake-assignments UX at scale (depends on B) | M | low | layout choice | todo (Claude Design) |
