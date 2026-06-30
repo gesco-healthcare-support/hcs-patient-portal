@@ -87,7 +87,7 @@
           (click)="toggleSwitcher()"
         >
           <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
-          {{ platform() ? 'All tenants' : tenantName() }}
+          {{ platform() ? 'All tenants' : (tenantName() | officeName) }}
           @if (canSwitch()) {
             <app-icon name="chevDown" [size]="14" />
           }
@@ -100,7 +100,7 @@
               @for (office of offices(); track office.id) {
                 <button type="button" (click)="switchInto(office.id)">
                   <span class="i"><app-icon name="map" [size]="16" /></span>
-                  {{ office.displayName }}
+                  {{ office.displayName | officeName }}
                 </button>
               }
             }

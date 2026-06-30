@@ -403,7 +403,7 @@
                       <span class="ux-ava" [style.background]="avatarColor(t.id)">
                         {{ initials(t.name) }}
                       </span>
-                      <b>{{ t.name }}</b>
+                      <b>{{ t.name | officeName }}</b>
                     </span>
                   </td>
                   <td class="ia-sub">{{ t.subdomain }}.caseeval.app</td>

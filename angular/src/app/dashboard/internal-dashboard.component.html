@@ -6,8 +6,8 @@
         isHost()
           ? 'Activity across all tenants.'
           : isIntake()
-            ? 'Today at ' + tenantName() + '.'
-            : 'Overview for ' + tenantName() + '.'
+            ? 'Today at ' + (tenantName() | officeName) + '.'
+            : 'Overview for ' + (tenantName() | officeName) + '.'
       }}
     </p>
   </div>
@@ -94,7 +94,7 @@
                   <td>
                     <span class="tn">
                       <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
-                      {{ t.tenantName }}
+                      {{ t.tenantName | officeName }}
                     </span>
                   </td>
                   <td class="r num">{{ t.appointments ?? 0 }}</td>

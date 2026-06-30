@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
 import { IntakeAssignmentsService } from '../proxy/host-operators/intake-assignments.service';
 import type { IntakeOfficeAssignmentDto } from '../proxy/host-operators/models';
 import type { LookupDto } from '../proxy/shared/models';
@@ -19,7 +20,7 @@ import type { LookupDto } from '../proxy/shared/models';
   selector: 'app-intake-assignments',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, OfficeNamePipe],
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
@@ -42,7 +43,7 @@ import type { LookupDto } from '../proxy/shared/models';
           <select [(ngModel)]="officeId" name="officeId" [disabled]="busy()">
             <option value="">Select an office...</option>
             @for (office of offices(); track office.id) {
-              <option [value]="office.id">{{ office.displayName }}</option>
+              <option [value]="office.id">{{ office.displayName | officeName }}</option>
             }
           </select>
         </label>
@@ -74,7 +75,7 @@ import type { LookupDto } from '../proxy/shared/models';
               <tr>
                 <td>{{ row.operatorName }}</td>
                 <td>{{ row.operatorEmail }}</td>
-                <td>{{ row.officeName }}</td>
+                <td>{{ row.officeName | officeName }}</td>
                 <td>
                   <button
                     type="button"

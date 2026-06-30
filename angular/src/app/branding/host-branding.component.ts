@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
 import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.service';
 
 /**
@@ -17,7 +18,7 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
   selector: 'app-host-branding',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, OfficeNamePipe],
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
@@ -42,7 +43,7 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
           <tbody>
             @for (row of rows(); track row.officeId) {
               <tr>
-                <td>{{ row.officeName }}</td>
+                <td>{{ row.officeName | officeName }}</td>
                 <td>
                   <input
                     type="text"

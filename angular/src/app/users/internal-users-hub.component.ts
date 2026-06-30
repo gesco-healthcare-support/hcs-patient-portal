@@ -8,6 +8,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
 import { ExternalUserType } from '../proxy/external-signups/external-user-type.enum';
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 import type { InvitationDto, InviteExternalUserResultDto } from '../proxy/external-signups/models';
@@ -63,7 +64,7 @@ const EMAIL_RE = /.+@.+\..+/;
   selector: 'app-internal-users-hub',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
+  imports: [CommonModule, FormsModule, RouterLink, IconComponent, OfficeNamePipe],
   templateUrl: './internal-users-hub.component.html',
 })
 export class InternalUsersHubComponent {

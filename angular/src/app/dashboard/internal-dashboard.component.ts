@@ -15,6 +15,7 @@ import { DashboardRange } from '../proxy/dashboards/dashboard-range.enum';
 import { resolveInternalRoleKey } from '../shared/auth/internal-user-roles';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
+import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
 import type { IconName } from '../shared/ui/icon/icon.registry';
 
 /** A resolved donut slice (pill + label + count + CSS color). */
@@ -54,7 +55,7 @@ const PILL_COLOR: Record<string, string> = {
 @Component({
   selector: 'app-internal-dashboard',
   standalone: true,
-  imports: [DatePipe, IconComponent, SkeletonComponent],
+  imports: [DatePipe, IconComponent, SkeletonComponent, OfficeNamePipe],
   templateUrl: './internal-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
