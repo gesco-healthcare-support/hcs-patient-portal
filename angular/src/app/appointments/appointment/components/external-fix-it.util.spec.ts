@@ -1,23 +1,46 @@
 import {
   allFixed,
   buildCorrectionsPayload,
+  fieldKind,
+  fieldLabelOf,
   fixItProgress,
   isInlineEditable,
 } from './external-fix-it.util';
 
 describe('external-fix-it.util', () => {
   describe('isInlineEditable', () => {
-    it('is true for form fields', () => {
+    it('is true for editable scalar fields across sections', () => {
       expect(isInlineEditable('socialSecurityNumber')).toBe(true);
       expect(isInlineEditable('appointmentInsuranceName')).toBe(true);
+      expect(isInlineEditable('employerName')).toBe(true);
     });
 
-    it('is false for documents (handled by upload)', () => {
+    it('is false for documents and the dropped claim-information section', () => {
       expect(isInlineEditable('documents')).toBe(false);
+      expect(isInlineEditable('claimInformation')).toBe(false);
+    });
+  });
+
+  describe('fieldKind', () => {
+    it('classifies select + special-widget fields', () => {
+      expect(fieldKind('documents')).toBe('document');
+      expect(fieldKind('genderId')).toBe('gender');
+      expect(fieldKind('appointmentLanguageId')).toBe('language');
+      expect(fieldKind('dateOfBirth')).toBe('date');
+      expect(fieldKind('stateId')).toBe('state');
+      expect(fieldKind('employerStateId')).toBe('state');
+      expect(fieldKind('appointmentClaimExaminerStateId')).toBe('state');
+      expect(fieldKind('firstName')).toBe('text');
+    });
+  });
+
+  describe('fieldLabelOf', () => {
+    it('disambiguates shared field names by section', () => {
+      expect(fieldLabelOf('employerStreet')).toBe('Employer Details: Street');
     });
 
-    it('is false for an unknown key', () => {
-      expect(isInlineEditable('panelNumber')).toBe(false);
+    it('does not double up when group and label match', () => {
+      expect(fieldLabelOf('documents')).toBe('Documents');
     });
   });
 
@@ -42,7 +65,7 @@ describe('external-fix-it.util', () => {
   });
 
   describe('buildCorrectionsPayload', () => {
-    it('maps flagged + edited fields to the payload, trimming values', () => {
+    it('maps flagged + edited fields verbatim, trimming values', () => {
       const payload = buildCorrectionsPayload(
         ['cellPhoneNumber', 'appointmentClaimExaminerEmail', 'appointmentInsuranceName'],
         {
@@ -53,8 +76,8 @@ describe('external-fix-it.util', () => {
       );
       expect(payload).toEqual({
         cellPhoneNumber: '(213) 555-0148',
-        claimExaminerEmail: 'ce@example.test',
-        insuranceName: 'Acme Mutual',
+        appointmentClaimExaminerEmail: 'ce@example.test',
+        appointmentInsuranceName: 'Acme Mutual',
       });
     });
 
@@ -66,7 +89,7 @@ describe('external-fix-it.util', () => {
       expect(payload).toEqual({ street: '128 W 4th St' });
     });
 
-    it('omits blank edits and documents', () => {
+    it('omits blank edits and the documents key', () => {
       const payload = buildCorrectionsPayload(['street', 'documents'], {
         street: '   ',
         documents: 'whatever',

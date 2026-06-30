@@ -8,6 +8,8 @@ import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-t
 import {
   allFixed,
   buildCorrectionsPayload,
+  fieldKind,
+  fieldLabelOf,
   fixItProgress,
   isInlineEditable,
 } from './external-fix-it.util';
@@ -40,25 +42,6 @@ interface OpenInfoRequest {
   note: string;
   flaggedFields: { key: string; hint?: string | null }[];
 }
-
-// Display labels for flagged-field keys (mirrors the staff Request-info modal).
-const FIELD_LABELS: Record<string, string> = {
-  panelNumber: 'Panel number',
-  appointmentDate: 'Appointment date',
-  dateOfBirth: 'Date of birth',
-  socialSecurityNumber: 'Social Security #',
-  street: 'Street address',
-  city: 'City',
-  stateId: 'State',
-  zipCode: 'ZIP code',
-  cellPhoneNumber: 'Cell phone',
-  appointmentLanguageId: 'Language',
-  applicantAttorneyEmail: 'Applicant attorney email',
-  defenseAttorneyFirmName: 'Defense attorney firm',
-  appointmentInsuranceName: 'Insurance company',
-  appointmentClaimExaminerEmail: 'Claim examiner email',
-  documents: 'Documents',
-};
 
 const CALLOUTS: Record<string, CalloutCopy> = {
   pending: {
@@ -428,10 +411,13 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     return isInlineEditable(key);
   }
   protected isLanguage(key: string): boolean {
-    return key === 'appointmentLanguageId';
+    return fieldKind(key) === 'language';
   }
   protected isState(key: string): boolean {
-    return key === 'stateId';
+    return fieldKind(key) === 'state';
+  }
+  protected isGender(key: string): boolean {
+    return fieldKind(key) === 'gender';
   }
   protected isFixed(key: string): boolean {
     return this.touched.has(key);
@@ -461,7 +447,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   }
 
   protected fieldLabel(key: string): string {
-    return FIELD_LABELS[key] ?? key;
+    return fieldLabelOf(key);
   }
   protected hintFor(key: string): string {
     return this.infoRequest?.flaggedFields.find((f) => f.key === key)?.hint ?? '';
@@ -522,17 +508,19 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     if (!id) {
       return false;
     }
-    const payload = buildCorrectionsPayload(this.flaggedKeys, this.edits);
-    if (Object.keys(payload).length === 0) {
+    const corrections = buildCorrectionsPayload(this.flaggedKeys, this.edits);
+    if (Object.keys(corrections).length === 0) {
       return true; // nothing to persist (e.g. a document-only correction)
     }
+    // Body shape mirrors the backend SaveInfoRequestCorrectionsInput { corrections }.
+    const body = { corrections };
     try {
       await firstValueFrom(
-        this.shellRest.request<typeof payload, void>(
+        this.shellRest.request<typeof body, void>(
           {
             method: 'POST',
             url: `/api/app/appointment-info-requests/corrections/${id}`,
-            body: payload,
+            body,
           },
           { apiName: 'Default' },
         ),

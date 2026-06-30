@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
-using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
@@ -39,8 +39,8 @@ public class AppointmentInfoRequestsAppService
     private readonly AppointmentReadAccessGuard _readAccessGuard;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<AppointmentPrimaryInsurance, Guid> _insuranceRepository;
-    private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseLinkRepository;
-    private readonly IRepository<DefenseAttorney, Guid> _defenseRepository;
+    private readonly IRepository<AppointmentEmployerDetail, Guid> _employerRepository;
+    private readonly IRepository<AppointmentClaimExaminer, Guid> _claimExaminerRepository;
     private readonly IRepository<AppointmentLanguage, Guid> _languageRepository;
     private readonly IRepository<State, Guid> _stateRepository;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
@@ -53,8 +53,8 @@ public class AppointmentInfoRequestsAppService
         AppointmentReadAccessGuard readAccessGuard,
         IRepository<Patient, Guid> patientRepository,
         IRepository<AppointmentPrimaryInsurance, Guid> insuranceRepository,
-        IRepository<AppointmentDefenseAttorney, Guid> defenseLinkRepository,
-        IRepository<DefenseAttorney, Guid> defenseRepository,
+        IRepository<AppointmentEmployerDetail, Guid> employerRepository,
+        IRepository<AppointmentClaimExaminer, Guid> claimExaminerRepository,
         IRepository<AppointmentLanguage, Guid> languageRepository,
         IRepository<State, Guid> stateRepository,
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -66,8 +66,8 @@ public class AppointmentInfoRequestsAppService
         _readAccessGuard = readAccessGuard;
         _patientRepository = patientRepository;
         _insuranceRepository = insuranceRepository;
-        _defenseLinkRepository = defenseLinkRepository;
-        _defenseRepository = defenseRepository;
+        _employerRepository = employerRepository;
+        _claimExaminerRepository = claimExaminerRepository;
         _languageRepository = languageRepository;
         _stateRepository = stateRepository;
         _documentRepository = documentRepository;
@@ -171,17 +171,33 @@ public class AppointmentInfoRequestsAppService
             throw new UserFriendlyException(L["AppointmentInfoRequest:NoOpenRequest"]);
         }
 
+        // A null/empty value means "no change", so only provided known keys are applied.
+        var provided = (input.Corrections ?? new Dictionary<string, string?>())
+            .Where(kv => !string.IsNullOrWhiteSpace(kv.Value) && InfoRequestFields.ByKey.ContainsKey(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+
         // Server-side lock: a correction may only touch fields staff flagged.
         var flaggedKeys = ReadFlaggedKeys(open);
-        if (InfoRequestCorrectionLock.FindUnflaggedChanges(input, flaggedKeys).Count > 0)
+        if (InfoRequestCorrectionLock.FindUnflaggedChanges(provided.Keys, flaggedKeys).Count > 0)
         {
             throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyFlaggedFieldsCanBeChanged"]);
         }
+        if (provided.Count == 0)
+        {
+            return;
+        }
 
-        await ApplyPatientCorrectionsAsync(appointment.PatientId, input);
-        await ApplyAppointmentEmailCorrectionsAsync(appointment, input);
-        await ApplyInsuranceCorrectionsAsync(appointmentId, input);
-        await ApplyDefenseFirmCorrectionAsync(appointmentId, input);
+        // Generic apply: load (or create) each owning entity, write each flagged value
+        // through its registry descriptor, then persist the touched owners.
+        var bundle = await BuildCorrectionBundleAsync(appointment, provided.Keys, createIfAbsent: true);
+        var touchedOwners = new HashSet<InfoRequestFieldOwner>();
+        foreach (var (key, raw) in provided)
+        {
+            var spec = InfoRequestFields.ByKey[key];
+            spec.Write(bundle, raw);
+            touchedOwners.Add(spec.Owner);
+        }
+        await SaveBundleAsync(bundle, touchedOwners);
     }
 
     private static HashSet<string> ReadFlaggedKeys(AppointmentInfoRequest entity)
@@ -208,86 +224,52 @@ public class AppointmentInfoRequestsAppService
         return keys;
     }
 
-    private static readonly string[] PatientSnapshotKeys =
-    {
-        "dateOfBirth", "socialSecurityNumber", "street", "city", "stateId", "zipCode",
-        "cellPhoneNumber", "appointmentLanguageId",
-    };
-
     /// <summary>
-    /// Reads the CURRENT values of the flagged scalar fields from their homes and
-    /// serializes the masked/formatted snapshot. Only the homes a flagged key needs
-    /// are queried. Used for the send-back "before" + resubmit "after" captures.
+    /// Reads the CURRENT values of the flagged scalar fields from their homes (via the
+    /// field registry) and serializes the masked/formatted snapshot for the send-back
+    /// "before" + resubmit "after" captures. Select ids (state / language) are resolved
+    /// to display names; SSN masking + date formatting come from the registry.
     /// </summary>
     private async Task<string> BuildSnapshotJsonAsync(Appointment appointment, ISet<string> flaggedKeys)
     {
-        DateTime? dob = null;
-        string? ssn = null, street = null, city = null, stateName = null, zip = null,
-            cell = null, languageName = null, insuranceName = null, defenseFirm = null;
-
-        if (flaggedKeys.Overlaps(PatientSnapshotKeys))
+        var bundle = await BuildCorrectionBundleAsync(appointment, flaggedKeys, createIfAbsent: false);
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var key in flaggedKeys)
         {
-            var patient = await _patientRepository.FindAsync(appointment.PatientId);
-            if (patient != null)
+            if (!InfoRequestFields.ByKey.TryGetValue(key, out var spec))
             {
-                dob = patient.DateOfBirth;
-                ssn = patient.SocialSecurityNumber;
-                street = patient.Street;
-                city = patient.City;
-                zip = patient.ZipCode;
-                cell = patient.CellPhoneNumber;
-                if (flaggedKeys.Contains("appointmentLanguageId") && patient.AppointmentLanguageId is Guid languageId)
-                {
-                    languageName = (await _languageRepository.FindAsync(languageId))?.Name;
-                }
-                if (flaggedKeys.Contains("stateId") && patient.StateId is Guid stateId)
-                {
-                    stateName = (await _stateRepository.FindAsync(stateId))?.Name;
-                }
+                continue; // documents + any non-scalar key are excluded from the value diff
             }
+            map[key] = await ResolveDisplayValueAsync(spec, bundle);
         }
+        return InfoRequestSnapshot.Serialize(map);
+    }
 
-        if (flaggedKeys.Contains("appointmentInsuranceName"))
+    /// <summary>Registry value with state/language ids resolved to their display names.</summary>
+    private async Task<string> ResolveDisplayValueAsync(InfoRequestFieldSpec spec, CorrectionBundle bundle)
+    {
+        var raw = spec.Read(bundle);
+        if (string.IsNullOrWhiteSpace(raw))
         {
-            insuranceName = (await _insuranceRepository
-                .FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id))?.Name;
+            return string.Empty;
         }
-
-        if (flaggedKeys.Contains("defenseAttorneyFirmName"))
+        if (spec.Kind == InfoRequestFieldKind.StateId && Guid.TryParse(raw, out var stateId))
         {
-            var link = await _defenseLinkRepository
-                .FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
-            if (link != null)
-            {
-                defenseFirm = (await _defenseRepository.FindAsync(link.DefenseAttorneyId))?.FirmName;
-            }
+            return (await _stateRepository.FindAsync(stateId))?.Name ?? raw;
         }
-
-        var values = new InfoRequestSnapshot.FieldValues
+        if (spec.Kind == InfoRequestFieldKind.LanguageId && Guid.TryParse(raw, out var languageId))
         {
-            DateOfBirth = dob,
-            SocialSecurityNumber = ssn,
-            Street = street,
-            City = city,
-            StateName = stateName,
-            ZipCode = zip,
-            CellPhoneNumber = cell,
-            AppointmentLanguageName = languageName,
-            ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
-            ClaimExaminerEmail = appointment.ClaimExaminerEmail,
-            InsuranceName = insuranceName,
-            DefenseAttorneyFirmName = defenseFirm,
-        };
-
-        return InfoRequestSnapshot.Serialize(InfoRequestSnapshot.Capture(values, flaggedKeys));
+            return (await _languageRepository.FindAsync(languageId))?.Name ?? raw;
+        }
+        return raw;
     }
 
     /// <summary>
-    /// F-018 (2026-06-23): server-side check that the staff-flagged fields were actually
-    /// addressed before a resubmit. Returns the flagged keys that still hold NO value, mirroring
-    /// the value homes in <see cref="BuildSnapshotJsonAsync"/>. The "documents" key requires at
-    /// least one uploaded document. Unknown keys are treated as resolved (fail-open) so a future
-    /// field key cannot silently wedge every resubmit; the known set covers the correctable fields.
+    /// F-018 / L (2026-06-30): server-side check that the staff-flagged fields were
+    /// actually addressed before a resubmit. FAIL-CLOSED: a flagged scalar key is
+    /// unresolved unless it now holds a value (per its registry descriptor), so an
+    /// unknown or not-yet-fixed field blocks the resubmit rather than passing silently.
+    /// The "documents" key requires at least one uploaded document.
     /// </summary>
     private async Task<List<string>> GetUnresolvedFlaggedKeysAsync(Appointment appointment, ISet<string> flaggedKeys)
     {
@@ -297,45 +279,20 @@ public class AppointmentInfoRequestsAppService
             return unresolved;
         }
 
-        Patient? patient = null;
-        if (flaggedKeys.Overlaps(PatientSnapshotKeys))
-        {
-            patient = await _patientRepository.FindAsync(appointment.PatientId);
-        }
-
+        var bundle = await BuildCorrectionBundleAsync(appointment, flaggedKeys, createIfAbsent: false);
         foreach (var key in flaggedKeys)
         {
-            bool resolved;
-            switch (key)
+            if (key == "documents")
             {
-                case "dateOfBirth": resolved = patient?.DateOfBirth != null; break;
-                case "socialSecurityNumber": resolved = !string.IsNullOrWhiteSpace(patient?.SocialSecurityNumber); break;
-                case "street": resolved = !string.IsNullOrWhiteSpace(patient?.Street); break;
-                case "city": resolved = !string.IsNullOrWhiteSpace(patient?.City); break;
-                case "zipCode": resolved = !string.IsNullOrWhiteSpace(patient?.ZipCode); break;
-                case "cellPhoneNumber": resolved = !string.IsNullOrWhiteSpace(patient?.CellPhoneNumber); break;
-                case "stateId": resolved = patient?.StateId != null; break;
-                case "appointmentLanguageId": resolved = patient?.AppointmentLanguageId != null; break;
-                case "applicantAttorneyEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ApplicantAttorneyEmail); break;
-                case "claimExaminerEmail": resolved = !string.IsNullOrWhiteSpace(appointment.ClaimExaminerEmail); break;
-                case "appointmentInsuranceName":
-                    resolved = !string.IsNullOrWhiteSpace(
-                        (await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id))?.Name);
-                    break;
-                case "defenseAttorneyFirmName":
-                    var link = await _defenseLinkRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
-                    var firm = link == null ? null : (await _defenseRepository.FindAsync(link.DefenseAttorneyId))?.FirmName;
-                    resolved = !string.IsNullOrWhiteSpace(firm);
-                    break;
-                case "documents":
-                    resolved = await _documentRepository.CountAsync(x => x.AppointmentId == appointment.Id) > 0;
-                    break;
-                default:
-                    resolved = true;
-                    break;
+                if (await _documentRepository.CountAsync(x => x.AppointmentId == appointment.Id) == 0)
+                {
+                    unresolved.Add(key);
+                }
+                continue;
             }
 
-            if (!resolved)
+            if (!InfoRequestFields.ByKey.TryGetValue(key, out var spec)
+                || string.IsNullOrWhiteSpace(spec.Read(bundle)))
             {
                 unresolved.Add(key);
             }
@@ -345,140 +302,102 @@ public class AppointmentInfoRequestsAppService
     }
 
     /// <summary>
-    /// Applies the flagged patient-demographic corrections directly on the Patient
-    /// entity. Direct repository write (the endpoint is the trust boundary) -- this
-    /// avoids the booking patient endpoint, which deliberately ignores DateOfBirth,
-    /// and its permission gating. Only PROVIDED fields are written; SSN is stored
-    /// raw as typed (reads remain masked elsewhere).
+    /// Loads the entities that own the given flagged/provided keys. The Appointment is
+    /// always present; Patient is loaded when any patient field is involved; the linked
+    /// Employer / Insurance / ClaimExaminer rows are loaded on demand and -- when
+    /// <paramref name="createIfAbsent"/> -- created in memory so a flagged field on an
+    /// appointment that never captured that section can still be filled in.
     /// </summary>
-    private async Task ApplyPatientCorrectionsAsync(Guid patientId, SaveInfoRequestCorrectionsInput input)
+    private async Task<CorrectionBundle> BuildCorrectionBundleAsync(
+        Appointment appointment, IEnumerable<string> keys, bool createIfAbsent)
     {
-        var touchesPatient = input.DateOfBirth.HasValue
-            || input.SocialSecurityNumber != null
-            || input.Street != null
-            || input.City != null
-            || input.StateId.HasValue
-            || input.ZipCode != null
-            || input.CellPhoneNumber != null
-            || input.AppointmentLanguageId.HasValue;
-        if (!touchesPatient)
+        var owners = keys
+            .Where(InfoRequestFields.ByKey.ContainsKey)
+            .Select(k => InfoRequestFields.ByKey[k].Owner)
+            .ToHashSet();
+
+        var bundle = new CorrectionBundle { Appointment = appointment };
+
+        if (owners.Contains(InfoRequestFieldOwner.Patient))
         {
-            return;
+            bundle.Patient = await _patientRepository.FindAsync(appointment.PatientId);
         }
 
-        var patient = await _patientRepository.FindAsync(patientId);
-        if (patient == null)
+        if (owners.Contains(InfoRequestFieldOwner.Employer))
         {
-            return;
+            bundle.Employer = await _employerRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+            if (bundle.Employer == null && createIfAbsent)
+            {
+                bundle.Employer = new AppointmentEmployerDetail(
+                    GuidGenerator.Create(), appointment.Id, null, string.Empty, string.Empty);
+                bundle.EmployerIsNew = true;
+            }
         }
 
-        if (input.DateOfBirth.HasValue)
+        if (owners.Contains(InfoRequestFieldOwner.Insurance))
         {
-            patient.DateOfBirth = input.DateOfBirth.Value;
+            bundle.Insurance = await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+            if (bundle.Insurance == null && createIfAbsent)
+            {
+                bundle.Insurance = new AppointmentPrimaryInsurance(GuidGenerator.Create(), appointment.Id, true);
+                bundle.InsuranceIsNew = true;
+            }
         }
-        if (input.SocialSecurityNumber != null)
+
+        if (owners.Contains(InfoRequestFieldOwner.ClaimExaminer))
         {
-            patient.SocialSecurityNumber = input.SocialSecurityNumber;
+            bundle.ClaimExaminer = await _claimExaminerRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
+            if (bundle.ClaimExaminer == null && createIfAbsent)
+            {
+                bundle.ClaimExaminer = new AppointmentClaimExaminer(GuidGenerator.Create(), appointment.Id, true);
+                bundle.ClaimExaminerIsNew = true;
+            }
         }
-        if (input.Street != null)
-        {
-            patient.Street = input.Street;
-        }
-        if (input.City != null)
-        {
-            patient.City = input.City;
-        }
-        if (input.StateId.HasValue)
-        {
-            patient.StateId = input.StateId;
-        }
-        if (input.ZipCode != null)
-        {
-            patient.ZipCode = input.ZipCode;
-        }
-        if (input.CellPhoneNumber != null)
-        {
-            patient.CellPhoneNumber = input.CellPhoneNumber;
-        }
-        if (input.AppointmentLanguageId.HasValue)
-        {
-            patient.AppointmentLanguageId = input.AppointmentLanguageId;
-        }
-        await _patientRepository.UpdateAsync(patient, autoSave: true);
+
+        return bundle;
     }
 
-    private async Task ApplyAppointmentEmailCorrectionsAsync(
-        Appointment appointment, SaveInfoRequestCorrectionsInput input)
+    /// <summary>
+    /// Persists the entities a correction touched. Direct repository writes: the
+    /// corrections endpoint is the trust boundary (EnsureCanEditAsync), so it must NOT
+    /// route through the permission-gated per-entity app services (external roles lack
+    /// their grants). New linked rows are inserted; existing rows updated.
+    /// </summary>
+    private async Task SaveBundleAsync(CorrectionBundle bundle, ISet<InfoRequestFieldOwner> touchedOwners)
     {
-        var changed = false;
-        if (input.ApplicantAttorneyEmail != null)
+        if (touchedOwners.Contains(InfoRequestFieldOwner.Patient) && bundle.Patient != null)
         {
-            appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
-            changed = true;
+            await _patientRepository.UpdateAsync(bundle.Patient, autoSave: true);
         }
-        if (input.ClaimExaminerEmail != null)
+        if (touchedOwners.Contains(InfoRequestFieldOwner.Appointment))
         {
-            appointment.ClaimExaminerEmail = input.ClaimExaminerEmail;
-            changed = true;
+            await _appointmentRepository.UpdateAsync(bundle.Appointment, autoSave: true);
         }
-        if (changed)
+        if (touchedOwners.Contains(InfoRequestFieldOwner.Employer) && bundle.Employer != null)
         {
-            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+            await PersistAsync(_employerRepository, bundle.Employer, bundle.EmployerIsNew);
+        }
+        if (touchedOwners.Contains(InfoRequestFieldOwner.Insurance) && bundle.Insurance != null)
+        {
+            await PersistAsync(_insuranceRepository, bundle.Insurance, bundle.InsuranceIsNew);
+        }
+        if (touchedOwners.Contains(InfoRequestFieldOwner.ClaimExaminer) && bundle.ClaimExaminer != null)
+        {
+            await PersistAsync(_claimExaminerRepository, bundle.ClaimExaminer, bundle.ClaimExaminerIsNew);
         }
     }
 
-    private async Task ApplyInsuranceCorrectionsAsync(
-        Guid appointmentId, SaveInfoRequestCorrectionsInput input)
+    private static async Task PersistAsync<TEntity>(IRepository<TEntity, Guid> repository, TEntity entity, bool isNew)
+        where TEntity : class, Volo.Abp.Domain.Entities.IEntity<Guid>
     {
-        if (input.InsuranceName == null && input.InsurancePhoneNumber == null)
+        if (isNew)
         {
-            return;
+            await repository.InsertAsync(entity, autoSave: true);
         }
-
-        // Direct repository write: the corrections endpoint is the trust boundary
-        // (EnsureCanEditAsync above), so it must NOT route through the permission-gated
-        // AppointmentPrimaryInsurances app service (external roles lack its grants).
-        var row = await _insuranceRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
-        if (row == null)
+        else
         {
-            return;
+            await repository.UpdateAsync(entity, autoSave: true);
         }
-
-        if (input.InsuranceName != null)
-        {
-            row.Name = input.InsuranceName;
-        }
-        if (input.InsurancePhoneNumber != null)
-        {
-            row.PhoneNumber = input.InsurancePhoneNumber;
-        }
-        await _insuranceRepository.UpdateAsync(row, autoSave: true);
-    }
-
-    private async Task ApplyDefenseFirmCorrectionAsync(
-        Guid appointmentId, SaveInfoRequestCorrectionsInput input)
-    {
-        if (input.DefenseAttorneyFirmName == null)
-        {
-            return;
-        }
-
-        var link = await _defenseLinkRepository.FirstOrDefaultAsync(x => x.AppointmentId == appointmentId);
-        if (link == null)
-        {
-            return;
-        }
-
-        // FirmName lives on the DefenseAttorney master (the record the booking form
-        // edits). Direct repository write -- the endpoint already authorized via
-        // EnsureCanEditAsync, so it bypasses the gated DefenseAttorneys app service.
-        var master = await _defenseRepository.FindAsync(link.DefenseAttorneyId);
-        if (master == null)
-        {
-            return;
-        }
-        master.FirmName = input.DefenseAttorneyFirmName;
-        await _defenseRepository.UpdateAsync(master, autoSave: true);
     }
 
     [Authorize]

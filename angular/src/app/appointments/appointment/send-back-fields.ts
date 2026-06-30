@@ -91,10 +91,12 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
     sendBackFlaggable: true,
   },
   {
+    // Dropped from send-back (2026-06-30): no persisted column -- the interpreter
+    // need is expressed by Language + Interpreter vendor, which ARE flaggable.
     key: 'needsInterpreter',
     label: 'Needs interpreter',
     group: 'Patient Demographics',
-    sendBackFlaggable: true,
+    sendBackFlaggable: false,
   },
   {
     key: 'interpreterVendorName',
@@ -372,10 +374,13 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
 
   // --- Claim Information (1, consolidated section-level flag) ---
   {
+    // Dropped from send-back for this pass (2026-06-30): the repeating injury-detail
+    // collection needs its own collection-replace correction path + embedded editor,
+    // tracked as a focused fast-follow rather than the per-field scalar flow.
     key: 'claimInformation',
     label: 'Claim information',
     group: 'Claim Information',
-    sendBackFlaggable: true,
+    sendBackFlaggable: false,
   },
 
   // --- Documents (1) ---

@@ -1,50 +1,25 @@
-using System.Collections.Generic;
-
 namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 
 /// <summary>
-/// Server-side lock for the fix-it flow: maps each corrections field to its
-/// flaggable-field key and reports any PROVIDED change that targets a field the
-/// open request did not flag. Pure (no DI) so the security rule is unit-tested
-/// directly; the app service throws when the result is non-empty. The keys mirror
-/// the frontend send-back-fields registry (insurance name + phone share the one
-/// "appointmentInsuranceName" flag).
+/// Server-side lock for the fix-it flow: a correction may only touch fields the open
+/// request flagged. With the generic key-&gt;value corrections map (QA item L), the rule
+/// is simply "every provided key must be a flagged key" -- any other key is a violation.
+/// Pure (no DI) so the security rule is unit-tested directly; the app service throws when
+/// the result is non-empty.
 /// </summary>
 internal static class InfoRequestCorrectionLock
 {
     /// <summary>
-    /// Returns the flaggable keys the input tries to change that are NOT in
-    /// <paramref name="flaggedKeys"/>. An empty result means the correction
-    /// touches only flagged fields and is allowed.
+    /// Returns the provided keys that are NOT in <paramref name="flaggedKeys"/>. An empty
+    /// result means the correction touches only flagged fields and is allowed.
     /// </summary>
     public static IReadOnlyList<string> FindUnflaggedChanges(
-        SaveInfoRequestCorrectionsInput input,
+        IEnumerable<string> providedKeys,
         ISet<string> flaggedKeys)
     {
-        var violations = new List<string>();
-
-        void Require(bool provided, string key)
-        {
-            if (provided && !flaggedKeys.Contains(key))
-            {
-                violations.Add(key);
-            }
-        }
-
-        Require(input.DateOfBirth.HasValue, "dateOfBirth");
-        Require(input.SocialSecurityNumber != null, "socialSecurityNumber");
-        Require(input.Street != null, "street");
-        Require(input.City != null, "city");
-        Require(input.StateId.HasValue, "stateId");
-        Require(input.ZipCode != null, "zipCode");
-        Require(input.CellPhoneNumber != null, "cellPhoneNumber");
-        Require(input.AppointmentLanguageId.HasValue, "appointmentLanguageId");
-        Require(input.ApplicantAttorneyEmail != null, "applicantAttorneyEmail");
-        Require(input.ClaimExaminerEmail != null, "appointmentClaimExaminerEmail");
-        Require(input.InsuranceName != null, "appointmentInsuranceName");
-        Require(input.InsurancePhoneNumber != null, "appointmentInsuranceName");
-        Require(input.DefenseAttorneyFirmName != null, "defenseAttorneyFirmName");
-
-        return violations;
+        return providedKeys
+            .Where(key => !flaggedKeys.Contains(key))
+            .Distinct()
+            .ToList();
     }
 }

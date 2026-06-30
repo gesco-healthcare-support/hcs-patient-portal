@@ -191,6 +191,19 @@
                         </option>
                       }
                     </select>
+                  } @else if (isGender(key)) {
+                    <select
+                      [id]="'fix-' + key"
+                      [class.sb-flag]="!isFixed(key)"
+                      (change)="onEdit(key, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!edits[key]">Select gender</option>
+                      @for (opt of genderOptions; track opt.value) {
+                        <option [value]="opt.value" [selected]="opt.value + '' === edits[key]">
+                          {{ opt.key }}
+                        </option>
+                      }
+                    </select>
                   } @else {
                     <input
                       [id]="'fix-' + key"
