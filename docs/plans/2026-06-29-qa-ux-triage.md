@@ -18,11 +18,11 @@ Process: go item by item -> plan -> fix -> verify -> commit -> next.
 
 | # | ID | Item | Effort | Risk | Decision needed | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | K + email | Close out in-flight: tenant login title+logo, email-tenant resolver | - | low | no | applied, needs verify+commit |
-| 2 | J | Panel strike list double badge | XS | low | cosmetic only | todo |
-| 3 | D | "Create Internal User" residual tenant placeholder | XS | low | confirm scope | mostly done |
-| 4 | A | Show office name as "Dr. {name}" | S | low | scope of "everywhere" | todo |
-| 5 | G | Dashboard time filter must drive all sections | M | low | which sections + host/intake | todo |
+| 1 | K + email | Close out in-flight: tenant login title+logo, email-tenant resolver | - | low | no | DONE 038efe94 (email) + 75af63e5 (login); live logo re-render deferred |
+| 2 | J | Panel strike list double badge | XS | low | cosmetic only | DONE fdf872f8 (+ karma unblock be9a2823) |
+| 3 | D | "Create Internal User" tenant field | XS | low | confirm scope | DONE 45025547 (full removal) + proxy regen 7afd582c |
+| 4 | A | Show office name as "Dr. {name}" | S | low | scope of "everywhere" | DONE a3164d9b (5 pages + switcher; banner -> F) |
+| 5 | G | Dashboard time filter must drive all sections | M | low | which sections + host/intake | DONE 2a7d9168 (tenant: donut/trend/activity; host/intake deferred) |
 | 6 | M | Authorized-user emails (2 wired stubs) | M | low | wording sign-off | todo |
 | 7 | F | "Acting as" banner + Evaluators relabel + direct switch | M | med | banner/switch behavior | todo |
 | 8 | C | Host-scope invite needs a tenant chooser | M | med | picker scope | todo |
@@ -38,6 +38,19 @@ cluster (B -> H, E, I), then the single XL/high-risk item (L) last.
 
 Couplings: A and F both edit `internal-shell-layout`; do them adjacently. H
 depends on B's reusable table. B/E/H all want a Claude Design pass.
+
+## Live verification (2026-06-30)
+
+Stack rebuilt (api+authserver+angular), all healthy. Verified live:
+- K - curl tenant login: title "Appointment Portal", logo data URI clean (no entity corruption).
+- A - browser as IT Admin: "Dr. {office}" on dashboard tenants table, /users/tenants,
+  /host/branding (Office col only - Display name left as stored), /host/intake-assignments
+  (dropdown + table), and the navbar switcher dropdown. Subdomain + Display name not prefixed.
+- D - browser: Create Internal User form has only Role/First/Last/Email/Phone (no Tenant);
+  internal-users list has no Tenant column.
+- G - API (tenant scope, impersonated Falkinstein): trend buckets 1/5/13 and donut total
+  4/6/6 and activity 5/6/6 all shift Week/Month/Quarter; tiles already worked.
+- J - 4 passing component specs (live badge needs a strike-list document).
 
 ---
 
