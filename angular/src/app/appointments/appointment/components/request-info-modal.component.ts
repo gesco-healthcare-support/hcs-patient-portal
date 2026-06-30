@@ -12,20 +12,25 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { firstValueFrom } from 'rxjs';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
-import { FLAGGABLE_FIELDS, FlaggableField } from '../send-back-fields';
+import { FLAGGABLE_FIELDS, FlaggableField, SEND_BACK_GROUPS } from '../send-back-fields';
 import { buildSendBackInput, canSendBack } from './request-info-modal.util';
 
-/** Only requester-provided fields are sent back; staff/scheduling fields are excluded. */
-const SEND_BACK_FIELDS = FLAGGABLE_FIELDS.filter((f) => f.sendBackFlaggable);
+/** Flat list of all send-back-flaggable fields (across every section). */
+const SEND_BACK_FIELDS: FlaggableField[] = FLAGGABLE_FIELDS.filter((f) => f.sendBackFlaggable);
 
 /**
- * Staff "Request info" / Send Back modal (Prompt 17 redesign). Lets internal
- * staff flag specific requester-provided fields -- each with an optional hint --
- * plus a required note on a Pending appointment, moving it to InfoRequested and
- * emailing the requester a fix-it link. Built on the redesign's ra-modal shell
- * (design_handoff_appointment_portal/components/sb-after.jsx, StaffSendBack);
- * submits through the generated AppointmentInfoRequestService proxy. Default CD
- * because the host (internal appointment detail) extends the default-CD view.
+ * Staff "Request info" / Send Back modal. Lets internal staff flag specific
+ * appointment fields -- each with an optional hint -- plus a required note on a
+ * Pending appointment, moving it to InfoRequested and emailing the requester a
+ * fix-it link.
+ *
+ * QA item L (2026-06-30): the field picker now covers all 65 flaggable fields
+ * grouped into the wizard's own sections (SEND_BACK_GROUPS). Each section is a
+ * COLLAPSIBLE row (collapsed by default so the list never scrolls endlessly) with
+ * a select-all-in-section checkbox (checked / indeterminate / unchecked), so staff
+ * can flag a whole wizard section in one click. Section names mirror the wizard for
+ * non-technical parity. Default CD because the host (internal appointment detail)
+ * extends the default-CD view.
  */
 @Component({
   selector: 'app-request-info-modal',
@@ -56,36 +61,57 @@ const SEND_BACK_FIELDS = FLAGGABLE_FIELDS.filter((f) => f.sendBackFlaggable);
                 <span class="req">*</span>
               </label>
               <div class="sb-tree">
-                @for (g of groups; track g) {
+                @for (g of groups; track g.group) {
                   <div class="sb-tree__group">
                     <div class="sb-tree__ghead">
-                      {{ g }}
-                      @if (groupCount(g) > 0) {
-                        <span class="cnt">{{ groupCount(g) }}</span>
-                      }
-                    </div>
-                    @for (f of fieldsIn(g); track f.key) {
-                      <div class="sb-tree__row">
-                        <label class="main">
-                          <input
-                            type="checkbox"
-                            [checked]="selected.has(f.key)"
-                            (change)="toggle(f.key)"
-                          />
-                          <b>{{ f.label }}</b>
-                        </label>
-                        @if (selected.has(f.key)) {
-                          <div class="hint-in">
-                            <input
-                              #hi
-                              maxlength="150"
-                              [value]="hints[f.key] || ''"
-                              [placeholder]="hintPlaceholder"
-                              (input)="setHint(f.key, hi.value)"
-                            />
-                          </div>
+                      <label class="sb-tree__all" (click)="$event.stopPropagation()">
+                        <input
+                          type="checkbox"
+                          [checked]="sectionState(g.group) === 'all'"
+                          [indeterminate]="sectionState(g.group) === 'some'"
+                          (change)="toggleSection(g.group)"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        class="sb-tree__gtoggle"
+                        [attr.aria-expanded]="isExpanded(g.group)"
+                        (click)="toggleExpand(g.group)"
+                      >
+                        <app-icon
+                          [name]="isExpanded(g.group) ? 'chevDown' : 'chevRight'"
+                          [size]="13"
+                        />
+                        <span>{{ g.group }}</span>
+                        @if (groupSelectedCount(g.group) > 0) {
+                          <span class="cnt">{{ groupSelectedCount(g.group) }}</span>
                         }
-                      </div>
+                      </button>
+                    </div>
+                    @if (isExpanded(g.group)) {
+                      @for (f of g.fields; track f.key) {
+                        <div class="sb-tree__row">
+                          <label class="main">
+                            <input
+                              type="checkbox"
+                              [checked]="selected.has(f.key)"
+                              (change)="toggle(f.key)"
+                            />
+                            <b>{{ f.label }}</b>
+                          </label>
+                          @if (selected.has(f.key)) {
+                            <div class="hint-in">
+                              <input
+                                #hi
+                                maxlength="150"
+                                [value]="hints[f.key] || ''"
+                                [placeholder]="hintPlaceholder"
+                                (input)="setHint(f.key, hi.value)"
+                              />
+                            </div>
+                          }
+                        </div>
+                      }
                     }
                   </div>
                 }
@@ -161,10 +187,12 @@ export class RequestInfoModalComponent {
   private readonly infoRequests = inject(AppointmentInfoRequestService);
   private readonly toaster = inject(ToasterService);
 
-  protected readonly fields = SEND_BACK_FIELDS;
-  protected readonly groups = [...new Set(SEND_BACK_FIELDS.map((f) => f.group))];
+  /** Wizard-parity sections, each with its flaggable fields, in wizard order. */
+  protected readonly groups = SEND_BACK_GROUPS;
   protected readonly selected = new Set<string>();
   protected readonly hints: Record<string, string> = {};
+  /** Sections currently expanded; collapsed by default so the list stays short. */
+  protected readonly expandedGroups = new Set<string>();
   protected note = '';
   protected isBusy = false;
 
@@ -175,20 +203,60 @@ export class RequestInfoModalComponent {
     return canSendBack(this.selected.size, this.note);
   }
 
-  protected fieldsIn(group: string): FlaggableField[] {
-    return this.fields.filter((f) => f.group === group);
+  protected isExpanded(group: string): boolean {
+    return this.expandedGroups.has(group);
   }
 
-  protected groupCount(group: string): number {
+  protected toggleExpand(group: string): void {
+    if (this.expandedGroups.has(group)) {
+      this.expandedGroups.delete(group);
+    } else {
+      this.expandedGroups.add(group);
+    }
+  }
+
+  protected fieldsIn(group: string): FlaggableField[] {
+    return this.groups.find((g) => g.group === group)?.fields ?? [];
+  }
+
+  protected groupSelectedCount(group: string): number {
     return this.fieldsIn(group).filter((f) => this.selected.has(f.key)).length;
   }
 
+  /** 'all' | 'some' | 'none' -- drives the section's select-all checkbox state. */
+  protected sectionState(group: string): 'all' | 'some' | 'none' {
+    const fields = this.fieldsIn(group);
+    const count = this.groupSelectedCount(group);
+    if (count === 0) {
+      return 'none';
+    }
+    return count === fields.length ? 'all' : 'some';
+  }
+
+  /** Select all fields in the section, or clear them if all are already selected. */
+  protected toggleSection(group: string): void {
+    const fields = this.fieldsIn(group);
+    const selectAll = this.sectionState(group) !== 'all';
+    for (const f of fields) {
+      if (selectAll) {
+        this.selected.add(f.key);
+      } else {
+        this.selected.delete(f.key);
+        delete this.hints[f.key];
+      }
+    }
+    // Auto-expand when selecting a whole section so the choice is visible.
+    if (selectAll) {
+      this.expandedGroups.add(group);
+    }
+  }
+
   protected selectedKeys(): string[] {
-    return this.fields.filter((f) => this.selected.has(f.key)).map((f) => f.key);
+    return SEND_BACK_FIELDS.filter((f) => this.selected.has(f.key)).map((f) => f.key);
   }
 
   protected labelOf(key: string): string {
-    return this.fields.find((f) => f.key === key)?.label ?? key;
+    return SEND_BACK_FIELDS.find((f) => f.key === key)?.label ?? key;
   }
 
   protected toggle(key: string): void {
@@ -233,6 +301,7 @@ export class RequestInfoModalComponent {
 
   private reset(): void {
     this.selected.clear();
+    this.expandedGroups.clear();
     for (const k of Object.keys(this.hints)) {
       delete this.hints[k];
     }
