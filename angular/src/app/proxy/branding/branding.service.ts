@@ -1,6 +1,6 @@
-import type { BrandingDto, OfficeBrandingDto, SetBrandingDisplayNameInput, UploadBrandingLogoForm } from './models';
+import type { BrandingDto, GetOfficeBrandingInput, OfficeBrandingDto, SetBrandingDisplayNameInput, UploadBrandingLogoForm } from './models';
 import { RestService, Rest } from '@abp/ng.core';
-import type { ListResultDto } from '@abp/ng.core';
+import type { ListResultDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { IActionResult } from '../microsoft/asp-net-core/mvc/models';
 
@@ -40,6 +40,15 @@ export class BrandingService {
     this.restService.request<any, IActionResult>({
       method: 'GET',
       url: `/api/app/branding/offices/${officeId}/logo`,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getPagedOfficeBrandings = (input: GetOfficeBrandingInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, PagedResultDto<OfficeBrandingDto>>({
+      method: 'GET',
+      url: '/api/app/branding/offices-paged',
+      params: { filter: input.filter, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

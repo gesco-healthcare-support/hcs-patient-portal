@@ -2,9 +2,19 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
+import { Subject } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
+import { ManagedTableComponent } from '../shared/components/managed-table/managed-table.component';
+import {
+  ManagedTableCellDirective,
+  ManagedTableRowActionsDirective,
+} from '../shared/components/managed-table/managed-table-cell.directive';
+import type {
+  ManagedTableColumn,
+  ManagedTableDataSource,
+} from '../shared/components/managed-table/managed-table.models';
 import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.service';
 
 /**
@@ -18,7 +28,35 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
   selector: 'app-host-branding',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent, OfficeNamePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IconComponent,
+    OfficeNamePipe,
+    ManagedTableComponent,
+    ManagedTableCellDirective,
+    ManagedTableRowActionsDirective,
+  ],
+  // The display-name cell used to be styled by .ho-assign__table input[type='text'];
+  // inside app-managed-table that selector no longer matches, so the input rule is
+  // re-declared component-scoped (the projected template belongs to this view).
+  styles: `
+    input[type='text'] {
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: #fff;
+      font-size: 14px;
+      font-family: var(--font);
+      color: var(--n-800, #1f2c3d);
+    }
+    input[type='text']:focus {
+      outline: none;
+      border-color: var(--blue-300, #93c5fd);
+      box-shadow: 0 0 0 3px var(--blue-50);
+    }
+  `,
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
@@ -26,72 +64,61 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
         <p>Set each office's display name and logo. Changes apply to that office only.</p>
       </header>
 
-      @if (loading()) {
-        <p class="ho-assign__muted">Loading offices...</p>
-      } @else if (rows().length === 0) {
-        <p class="ho-assign__muted">No offices yet.</p>
-      } @else {
-        <table class="ho-assign__table">
-          <thead>
-            <tr>
-              <th>Office</th>
-              <th>Display name</th>
-              <th>Logo</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of rows(); track row.officeId) {
-              <tr>
-                <td>{{ row.officeName | officeName }}</td>
-                <td>
-                  <input
-                    type="text"
-                    [(ngModel)]="names[row.officeId]"
-                    [disabled]="busy()"
-                    maxlength="128"
-                    placeholder="Office display name"
-                  />
-                </td>
-                <td>
-                  @if (row.hasLogo) {
-                    <span class="ho-assign__muted">Logo set</span>
-                  } @else {
-                    <span class="ho-assign__muted">No logo</span>
-                  }
-                  <label class="ho-assign__upload" [class.is-disabled]="busy()">
-                    <app-icon name="upload" [size]="14" />
-                    {{ row.hasLogo ? 'Replace logo' : 'Upload logo' }}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      hidden
-                      [disabled]="busy()"
-                      (change)="onLogoSelected(row, $event)"
-                    />
-                  </label>
-                </td>
-                <td>
-                  <button type="button" [disabled]="busy()" (click)="saveName(row)">
-                    Save name
-                  </button>
-                  @if (row.hasLogo) {
-                    <button
-                      type="button"
-                      class="ho-assign__unassign"
-                      [disabled]="busy()"
-                      (click)="removeLogo(row)"
-                    >
-                      <app-icon name="trash" />
-                      Remove logo
-                    </button>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-managed-table
+        [dataSource]="dataSource"
+        [columns]="columns"
+        [busy]="busy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="officeId"
+        searchPlaceholder="Search by office or display name..."
+        emptyText="No offices yet."
+      >
+        <span *managedTableCell="'officeName'; let row">{{ row.officeName | officeName }}</span>
+        <input
+          *managedTableCell="'displayName'; let row"
+          type="text"
+          [ngModel]="displayNameFor(row)"
+          (ngModelChange)="names[row.officeId] = $event"
+          [disabled]="busy()"
+          maxlength="128"
+          placeholder="Office display name"
+        />
+        <ng-container *managedTableCell="'hasLogo'; let row">
+          @if (row.hasLogo) {
+            <span class="ho-assign__muted">Logo set</span>
+          } @else {
+            <span class="ho-assign__muted">No logo</span>
+          }
+          <label class="ho-assign__upload" [class.is-disabled]="busy()">
+            <app-icon name="upload" [size]="14" />
+            {{ row.hasLogo ? 'Replace logo' : 'Upload logo' }}
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              hidden
+              [disabled]="busy()"
+              (change)="onLogoSelected(row, $event)"
+            />
+          </label>
+        </ng-container>
+        <ng-container *managedTableRowActions="let row">
+          <button type="button" class="ho-assign__btn" [disabled]="busy()" (click)="saveName(row)">
+            Save name
+          </button>
+          @if (row.hasLogo) {
+            <button
+              type="button"
+              class="ho-assign__btn ho-assign__unassign"
+              [disabled]="busy()"
+              (click)="removeLogo(row)"
+            >
+              <app-icon name="trash" />
+              Remove logo
+            </button>
+          }
+        </ng-container>
+      </app-managed-table>
     </section>
   `,
 })
@@ -99,15 +126,30 @@ export class HostBrandingComponent {
   private readonly service = inject(BrandingService);
   private readonly toaster = inject(ToasterService);
 
-  protected readonly rows = signal<OfficeBrandingDto[]>([]);
-  protected readonly loading = signal(true);
   protected readonly busy = signal(false);
 
-  /** Editable display-name buffer keyed by office id. */
+  /** Forces the offices table to refetch after a save / upload / remove. */
+  protected readonly reload$ = new Subject<void>();
+
+  /** Editable display-name buffer keyed by office id (only holds user edits). */
   protected names: Record<string, string> = {};
 
-  constructor() {
-    this.reload();
+  protected readonly columns: ManagedTableColumn[] = [
+    { key: 'officeName', header: 'Office', sortable: true, sortKey: 'officeName' },
+    { key: 'displayName', header: 'Display name', sortable: true, sortKey: 'displayName' },
+    { key: 'hasLogo', header: 'Logo' },
+  ];
+
+  protected readonly dataSource: ManagedTableDataSource<OfficeBrandingDto> = (query) =>
+    this.service.getOfficesPaged(query);
+
+  /**
+   * Display name shown in the editable cell: the user's in-progress edit if any,
+   * otherwise the office's current saved value. The managed table owns the rows, so
+   * the buffer is no longer seeded on load -- it only captures edits.
+   */
+  protected displayNameFor(row: OfficeBrandingDto): string {
+    return this.names[row.officeId] ?? row.displayName ?? '';
   }
 
   protected saveName(row: OfficeBrandingDto): void {
@@ -115,14 +157,14 @@ export class HostBrandingComponent {
       return;
     }
     this.busy.set(true);
-    const value = (this.names[row.officeId] ?? '').trim();
+    const value = (this.names[row.officeId] ?? row.displayName ?? '').trim();
     this.service
       .setDisplayName(value.length ? value : null, row.officeId)
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: () => {
           this.toaster.success('Display name saved.');
-          this.reload();
+          this.reload$.next();
         },
         error: () => undefined,
       });
@@ -142,7 +184,7 @@ export class HostBrandingComponent {
         next: () => {
           this.toaster.success('Logo uploaded.');
           input.value = '';
-          this.reload();
+          this.reload$.next();
         },
         error: () => {
           input.value = '';
@@ -161,27 +203,9 @@ export class HostBrandingComponent {
       .subscribe({
         next: () => {
           this.toaster.success('Logo removed.');
-          this.reload();
+          this.reload$.next();
         },
         error: () => undefined,
-      });
-  }
-
-  private reload(): void {
-    this.loading.set(true);
-    this.service
-      .getOffices()
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: (res) => {
-          const items = res.items ?? [];
-          this.rows.set(items);
-          this.names = {};
-          for (const item of items) {
-            this.names[item.officeId] = item.displayName ?? '';
-          }
-        },
-        error: () => this.rows.set([]),
       });
   }
 }

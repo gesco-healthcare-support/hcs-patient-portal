@@ -172,104 +172,72 @@
 
     <!-- ============ Pending Invites ============ -->
     @if (section() === 'pending') {
-      <div class="ia-toolbar">
-        <div class="ia-search">
-          <app-icon name="search" [size]="16" />
-          <input
-            placeholder="Search by email..."
-            [ngModel]="pendingFilter()"
-            (ngModelChange)="applyPendingFilter($event)"
-          />
+      <app-managed-table
+        [dataSource]="invitesDataSource"
+        [columns]="invitesColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by email..."
+        emptyText="No invitations yet."
+      >
+        <b *managedTableCell="'email'; let inv">{{ inv.email }}</b>
+        <span class="ux-role" *managedTableCell="'roleName'; let inv">{{ inv.roleName }}</span>
+        <span class="ia-sub" *managedTableCell="'invitedByName'; let inv">
+          {{ inv.invitedByName || '--' }}
+        </span>
+        <span class="ia-sub" *managedTableCell="'creationTime'; let inv">
+          {{ inv.creationTime | date: 'mediumDate' }}
+        </span>
+        <ng-container *managedTableCell="'expiresAt'; let inv">
+          @if (expiry(inv); as e) {
+            <span
+              class="ux-exp"
+              [class.ok]="e.cls === 'ok'"
+              [class.soon]="e.cls === 'soon'"
+              [class.gone]="e.cls === 'gone'"
+            >
+              {{ e.label }}
+            </span>
+          }
+        </ng-container>
+        <ng-container *managedTableCell="'status'; let inv">
+          @if (status(inv); as st) {
+            <span
+              class="pp-portal"
+              [class.invited]="st.cls === 'invited'"
+              [class.linked]="st.cls === 'linked'"
+              [class.none]="st.cls === 'none'"
+            >
+              <i></i>
+              {{ st.label }}
+            </span>
+          }
+        </ng-container>
+        <div class="ux-rowacts" *managedTableRowActions="let inv">
+          @if (canManageInvite(inv)) {
+            <button
+              class="ra-rowbtn"
+              title="Resend &amp; copy link"
+              (click)="resend(inv)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="refresh" [size]="15" />
+            </button>
+          }
+          @if (isPending(inv)) {
+            <button
+              class="ra-rowbtn danger"
+              title="Revoke"
+              (click)="revoke(inv)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="x" [size]="15" />
+            </button>
+          }
         </div>
-      </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Invited by</th>
-              <th>Sent</th>
-              <th>Expires</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="7" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (inv of invites(); track inv.id) {
-                <tr>
-                  <td>
-                    <b>{{ inv.email }}</b>
-                  </td>
-                  <td>
-                    <span class="ux-role">{{ inv.roleName }}</span>
-                  </td>
-                  <td class="ia-sub">{{ inv.invitedByName || '--' }}</td>
-                  <td class="ia-sub">{{ inv.creationTime | date: 'mediumDate' }}</td>
-                  <td>
-                    @if (expiry(inv); as e) {
-                      <span
-                        class="ux-exp"
-                        [class.ok]="e.cls === 'ok'"
-                        [class.soon]="e.cls === 'soon'"
-                        [class.gone]="e.cls === 'gone'"
-                      >
-                        {{ e.label }}
-                      </span>
-                    }
-                  </td>
-                  <td>
-                    @if (status(inv); as st) {
-                      <span
-                        class="pp-portal"
-                        [class.invited]="st.cls === 'invited'"
-                        [class.linked]="st.cls === 'linked'"
-                        [class.none]="st.cls === 'none'"
-                      >
-                        <i></i>
-                        {{ st.label }}
-                      </span>
-                    }
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      @if (canManageInvite(inv)) {
-                        <button
-                          class="ra-rowbtn"
-                          title="Resend &amp; copy link"
-                          (click)="resend(inv)"
-                          [disabled]="isBusy()"
-                        >
-                          <app-icon name="refresh" [size]="15" />
-                        </button>
-                      }
-                      @if (isPending(inv)) {
-                        <button
-                          class="ra-rowbtn danger"
-                          title="Revoke"
-                          (click)="revoke(inv)"
-                          [disabled]="isBusy()"
-                        >
-                          <app-icon name="x" [size]="15" />
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="7" class="ia-sub" style="padding: 20px; text-align: center">
-                    No invitations yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      </app-managed-table>
     }
 
     <!-- ============ Internal Users ============ -->
@@ -280,79 +248,59 @@
           Create internal user
         </button>
       </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="5" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (u of internalUsers(); track u.id) {
-                <tr>
-                  <td>
-                    <span class="ux-name">
-                      <span class="ux-ava" [style.background]="avatarColor(u.id)">
-                        {{ initials(u.firstName, u.lastName, u.email) }}
-                      </span>
-                      <b>{{ u.fullName }}</b>
-                    </span>
-                  </td>
-                  <td class="ia-sub">{{ u.email }}</td>
-                  <td>
-                    <span
-                      class="ux-role"
-                      [class.sup]="roleChipClass(u.role) === 'sup'"
-                      [class.admin]="roleChipClass(u.role) === 'admin'"
-                    >
-                      {{ u.role }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="lw-active" [class.on]="u.isActive" [class.off]="!u.isActive">
-                      {{ u.isActive ? 'Active' : 'Deactivated' }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      <button
-                        class="ra-rowbtn"
-                        title="Send password reset"
-                        (click)="sendReset(u)"
-                        [disabled]="isBusy()"
-                      >
-                        <app-icon name="refresh" [size]="15" />
-                      </button>
-                      <button
-                        class="ra-rowbtn"
-                        [class.danger]="u.isActive"
-                        [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
-                        (click)="toggleActive(u)"
-                        [disabled]="isBusy()"
-                      >
-                        <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="5" class="ia-sub" style="padding: 20px; text-align: center">
-                    No internal users yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      <app-managed-table
+        [dataSource]="internalUsersDataSource"
+        [columns]="internalUsersColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by name or email..."
+        emptyText="No internal users yet."
+      >
+        <span class="ux-name" *managedTableCell="'fullName'; let u">
+          <span class="ux-ava" [style.background]="avatarColor(u.id)">
+            {{ initials(u.firstName, u.lastName, u.email) }}
+          </span>
+          <b>{{ u.fullName }}</b>
+        </span>
+        <span class="ia-sub" *managedTableCell="'email'; let u">{{ u.email }}</span>
+        <span
+          class="ux-role"
+          *managedTableCell="'role'; let u"
+          [class.sup]="roleChipClass(u.role) === 'sup'"
+          [class.admin]="roleChipClass(u.role) === 'admin'"
+        >
+          {{ u.role }}
+        </span>
+        <span
+          class="lw-active"
+          *managedTableCell="'isActive'; let u"
+          [class.on]="u.isActive"
+          [class.off]="!u.isActive"
+        >
+          {{ u.isActive ? 'Active' : 'Deactivated' }}
+        </span>
+        <div class="ux-rowacts" *managedTableRowActions="let u">
+          <button
+            class="ra-rowbtn"
+            title="Send password reset"
+            (click)="sendReset(u)"
+            [disabled]="isBusy()"
+          >
+            <app-icon name="refresh" [size]="15" />
+          </button>
+          <button
+            class="ra-rowbtn"
+            [class.danger]="u.isActive"
+            [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
+            (click)="toggleActive(u)"
+            [disabled]="isBusy()"
+          >
+            <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
+          </button>
+        </div>
+      </app-managed-table>
 
       @if (createResult(); as res) {
         <div class="ux-result">
@@ -400,74 +348,49 @@
           </button>
         }
       </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Tenant</th>
-              <th>Subdomain</th>
-              <th>Edition</th>
-              <th>Users</th>
-              <th>Appointments</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="7" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (t of tenants(); track t.id) {
-                <tr>
-                  <td>
-                    <span class="ux-name">
-                      <span class="ux-ava" [style.background]="avatarColor(t.id)">
-                        {{ initials(t.name) }}
-                      </span>
-                      <b>{{ t.name | officeName }}</b>
-                    </span>
-                  </td>
-                  <td class="ia-sub">{{ t.subdomain }}.caseeval.app</td>
-                  <td>
-                    @if (t.editionName) {
-                      <span class="ux-ed">{{ t.editionName }}</span>
-                    } @else {
-                      <span class="ia-sub">--</span>
-                    }
-                  </td>
-                  <td>{{ t.userCount }}</td>
-                  <td>{{ t.appointmentCount }}</td>
-                  <td>
-                    <span class="lw-active" [class.on]="t.isActive" [class.off]="!t.isActive">
-                      {{ t.isActive ? 'Active' : 'Inactive' }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      <button
-                        class="ra-rowbtn"
-                        title="Switch into tenant"
-                        (click)="switchTenant(t)"
-                      >
-                        <app-icon name="chevRight" [size]="15" />
-                      </button>
-                      <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
-                        <app-icon name="doc" [size]="15" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="7" class="ia-sub" style="padding: 20px; text-align: center">
-                    No tenants yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      <app-managed-table
+        [dataSource]="officesDataSource"
+        [columns]="officesColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by tenant name..."
+        emptyText="No tenants yet."
+      >
+        <span class="ux-name" *managedTableCell="'name'; let t">
+          <span class="ux-ava" [style.background]="avatarColor(t.id)">
+            {{ initials(t.name) }}
+          </span>
+          <b>{{ t.name | officeName }}</b>
+        </span>
+        <span class="ia-sub" *managedTableCell="'subdomain'; let t">
+          {{ t.subdomain }}.caseeval.app
+        </span>
+        <ng-container *managedTableCell="'editionName'; let t">
+          @if (t.editionName) {
+            <span class="ux-ed">{{ t.editionName }}</span>
+          } @else {
+            <span class="ia-sub">--</span>
+          }
+        </ng-container>
+        <span
+          class="lw-active"
+          *managedTableCell="'isActive'; let t"
+          [class.on]="t.isActive"
+          [class.off]="!t.isActive"
+        >
+          {{ t.isActive ? 'Active' : 'Inactive' }}
+        </span>
+        <div class="ux-rowacts" *managedTableRowActions="let t">
+          <button class="ra-rowbtn" title="Switch into tenant" (click)="switchTenant(t)">
+            <app-icon name="chevRight" [size]="15" />
+          </button>
+          <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
+            <app-icon name="doc" [size]="15" />
+          </button>
+        </div>
+      </app-managed-table>
     }
   </div>
 </div>

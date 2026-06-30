@@ -70,6 +70,92 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         }
     }
 
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged + searchable variant of
+    /// <see cref="GetListAsync"/>. Removes that method's per-row N+1
+    /// (FindByIdAsync + FindAsync per assignment) by batch-loading the host Intake
+    /// operators and the office registry once into dictionaries, then joining in
+    /// memory. Operator name / email / office filter, sort, and offset paging are
+    /// applied in memory (the join spans the host identity + SaaS contexts, so a
+    /// single SQL join is not possible). Host context throughout.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.IntakeAssignments.Default)]
+    public virtual async Task<PagedResultDto<IntakeOfficeAssignmentDto>> GetPagedListAsync(
+        GetIntakeAssignmentsInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            var assignments = await _assignmentRepository.GetListAsync();
+
+            // Batch-load (one query each) instead of per-row lookups.
+            var operatorsById = (await _userManager.GetUsersInRoleAsync(
+                    InternalUserRoleDataSeedContributor.IntakeStaffRoleName))
+                .Where(u => u.TenantId == null) // host operators only (exclude per-office shadows)
+                .ToDictionary(u => u.Id);
+            var officeNameById = (await _tenantRepository.GetListAsync())
+                .ToDictionary(t => t.Id, t => t.Name);
+
+            var projected = assignments
+                .Select(a =>
+                {
+                    operatorsById.TryGetValue(a.OperatorUserId, out var op);
+                    officeNameById.TryGetValue(a.OfficeId, out var officeName);
+                    return new IntakeOfficeAssignmentDto
+                    {
+                        Id = a.Id,
+                        OperatorUserId = a.OperatorUserId,
+                        OperatorName = op == null ? string.Empty : JoinName(op.Name, op.Surname),
+                        OperatorEmail = op?.Email ?? string.Empty,
+                        OfficeId = a.OfficeId,
+                        OfficeName = officeName ?? string.Empty,
+                    };
+                })
+                .ToList();
+
+            var filter = input.Filter?.Trim();
+            var filtered = projected
+                .Where(d => string.IsNullOrEmpty(filter)
+                    || d.OperatorName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || d.OperatorEmail.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || d.OfficeName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var totalCount = filtered.Count;
+
+            var page = SortIntakeAssignments(filtered, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            return new PagedResultDto<IntakeOfficeAssignmentDto>(totalCount, page);
+        }
+    }
+
+    private static List<IntakeOfficeAssignmentDto> SortIntakeAssignments(
+        List<IntakeOfficeAssignmentDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "operatorname";
+        var descending = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<IntakeOfficeAssignmentDto> ordered = field switch
+        {
+            "operatoremail" or "email" => descending
+                ? rows.OrderByDescending(r => r.OperatorEmail, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OperatorEmail, StringComparer.OrdinalIgnoreCase),
+            "officename" or "office" => descending
+                ? rows.OrderByDescending(r => r.OfficeName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase),
+            _ => descending
+                ? rows.OrderByDescending(r => r.OperatorName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OperatorName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase),
+        };
+        return ordered.ToList();
+    }
+
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
     public virtual async Task AssignAsync(AssignIntakeOfficeDto input)
     {

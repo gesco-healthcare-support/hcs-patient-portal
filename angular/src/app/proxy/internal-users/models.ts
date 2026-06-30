@@ -1,3 +1,4 @@
+import type { PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
 export interface CreateInternalUserDto {
   email: string;
@@ -8,6 +9,10 @@ export interface CreateInternalUserDto {
   phoneNumber?: string | null;
 }
 
+export interface GetInternalUsersInput extends PagedAndSortedResultRequestDto {
+  filter?: string | null;
+}
+
 export interface InternalUserCreatedDto {
   userId?: string;
   email?: string;
@@ -16,4 +21,14 @@ export interface InternalUserCreatedDto {
   roleName?: string;
   tenantName?: string;
   welcomeEmailQueued?: boolean;
+}
+
+export interface InternalUserListDto {
+  id?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role?: string;
+  isActive?: boolean;
 }

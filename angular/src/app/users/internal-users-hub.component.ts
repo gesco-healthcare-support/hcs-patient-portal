@@ -6,13 +6,24 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
+import { Subject } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
+import { ManagedTableComponent } from '../shared/components/managed-table/managed-table.component';
+import {
+  ManagedTableCellDirective,
+  ManagedTableRowActionsDirective,
+} from '../shared/components/managed-table/managed-table-cell.directive';
+import type {
+  ManagedTableColumn,
+  ManagedTableDataSource,
+} from '../shared/components/managed-table/managed-table.models';
 import { ExternalUserType } from '../proxy/external-signups/external-user-type.enum';
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 import type { InvitationDto, InviteExternalUserResultDto } from '../proxy/external-signups/models';
-import type { InternalUserCreatedDto } from '../proxy/internal-users/models';
+import type { InternalUserCreatedDto, InternalUserListDto } from '../proxy/internal-users/models';
+import type { OfficeListDto } from '../proxy/dashboards/models';
 import type { LookupDto } from '../proxy/shared/models';
 import {
   avatarColor,
@@ -28,12 +39,7 @@ import {
   UsersSectionKey,
   userTypeFromName,
 } from './users-hub.util';
-import {
-  InternalUserRow,
-  TenantFormState,
-  TenantRow,
-  UsersSectionGateway,
-} from './users-section.gateway';
+import { TenantFormState, UsersSectionGateway } from './users-section.gateway';
 
 interface InviteDraft {
   firstName: string;
@@ -67,7 +73,16 @@ const EMAIL_RE = /.+@.+\..+/;
   selector: 'app-internal-users-hub',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent, OfficeNamePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    IconComponent,
+    OfficeNamePipe,
+    ManagedTableComponent,
+    ManagedTableCellDirective,
+    ManagedTableRowActionsDirective,
+  ],
   templateUrl: './internal-users-hub.component.html',
 })
 export class InternalUsersHubComponent {
@@ -88,8 +103,10 @@ export class InternalUsersHubComponent {
   protected readonly meta = computed<UsersSection>(
     () => this.sections.find((s) => s.key === this.section()) ?? this.sections[0],
   );
-  protected readonly loading = signal(true);
   protected readonly isBusy = signal(false);
+
+  /** Forces the currently-mounted app-managed-table to refetch after a mutation. */
+  protected readonly reload$ = new Subject<void>();
 
   // Invite External
   protected readonly invite = signal<InviteDraft>(this.emptyInvite());
@@ -100,17 +117,41 @@ export class InternalUsersHubComponent {
   protected readonly tenantOptions = signal<LookupDto<string>[]>([]);
   protected readonly tenantPickerRequired = computed(() => this.tenantOptions().length > 0);
 
-  // Pending Invites
-  protected readonly invites = signal<InvitationDto[]>([]);
-  protected readonly pendingFilter = signal('');
+  // Pending Invites (server-driven table)
+  protected readonly invitesColumns: ManagedTableColumn[] = [
+    { key: 'email', header: 'Email', sortable: true, sortKey: 'email' },
+    { key: 'roleName', header: 'Role' },
+    { key: 'invitedByName', header: 'Invited by' },
+    { key: 'creationTime', header: 'Sent', sortable: true, sortKey: 'creationTime' },
+    { key: 'expiresAt', header: 'Expires' },
+    { key: 'status', header: 'Status' },
+  ];
+  protected readonly invitesDataSource: ManagedTableDataSource<InvitationDto> = (q) =>
+    this.gateway.invitesPage(q);
 
-  // Internal Users
-  protected readonly internalUsers = signal<InternalUserRow[]>([]);
+  // Internal Users (server-driven table)
+  protected readonly internalUsersColumns: ManagedTableColumn[] = [
+    { key: 'fullName', header: 'Name', sortable: true, sortKey: 'fullName' },
+    { key: 'email', header: 'Email', sortable: true, sortKey: 'email' },
+    { key: 'role', header: 'Role', sortable: true, sortKey: 'role' },
+    { key: 'isActive', header: 'Status', sortable: true, sortKey: 'isActive' },
+  ];
+  protected readonly internalUsersDataSource: ManagedTableDataSource<InternalUserListDto> = (q) =>
+    this.gateway.internalUsersPage(q);
   protected readonly createForm = signal<CreateUserDraft | null>(null);
   protected readonly createResult = signal<InternalUserCreatedDto | null>(null);
 
-  // Tenants
-  protected readonly tenants = signal<TenantRow[]>([]);
+  // Tenants / Offices (server-driven table)
+  protected readonly officesColumns: ManagedTableColumn[] = [
+    { key: 'name', header: 'Tenant', sortable: true, sortKey: 'name' },
+    { key: 'subdomain', header: 'Subdomain' },
+    { key: 'editionName', header: 'Edition', sortable: true, sortKey: 'editionName' },
+    { key: 'userCount', header: 'Users' },
+    { key: 'appointmentCount', header: 'Appointments' },
+    { key: 'isActive', header: 'Status' },
+  ];
+  protected readonly officesDataSource: ManagedTableDataSource<OfficeListDto> = (q) =>
+    this.gateway.officesPage(q);
   protected readonly tenantForm = signal<TenantFormState | null>(null);
   protected readonly editionOptions = signal<{ id: string; name: string }[]>([]);
 
@@ -138,32 +179,12 @@ export class InternalUsersHubComponent {
   }
 
   private load(): void {
-    const key = this.section();
-    if (key === 'invite') {
+    // The three list sections (pending / staff / tenants) fetch through
+    // app-managed-table's own server data source, so only the invite form needs
+    // per-section setup here.
+    if (this.section() === 'invite') {
       this.applyInvitePrefill();
       this.loadInviteTenantOptions();
-      this.loading.set(false);
-      return;
-    }
-    this.loading.set(true);
-    if (key === 'pending') {
-      this.gateway
-        .listInvites(this.pendingFilter())
-        .pipe(finalize(() => this.loading.set(false)))
-        .subscribe({ next: (r) => this.invites.set(r), error: () => this.invites.set([]) });
-    } else if (key === 'staff') {
-      this.gateway
-        .listInternalUsers()
-        .pipe(finalize(() => this.loading.set(false)))
-        .subscribe({
-          next: (r) => this.internalUsers.set(r),
-          error: () => this.internalUsers.set([]),
-        });
-    } else {
-      this.gateway
-        .listTenants()
-        .pipe(finalize(() => this.loading.set(false)))
-        .subscribe({ next: (r) => this.tenants.set(r), error: () => this.tenants.set([]) });
     }
   }
 
@@ -252,10 +273,6 @@ export class InternalUsersHubComponent {
   }
 
   // ---- Pending Invites ----
-  protected applyPendingFilter(value: string): void {
-    this.pendingFilter.set(value);
-    this.load();
-  }
   protected expiry(invitation: InvitationDto) {
     return expiryChip(
       invitation.expiresAt,
@@ -285,7 +302,7 @@ export class InternalUsersHubComponent {
         next: (r) => {
           this.copy(r.inviteUrl);
           this.toaster.success('Invite re-sent; fresh link copied.');
-          this.load();
+          this.reload$.next();
         },
         error: () => undefined,
       });
@@ -301,7 +318,7 @@ export class InternalUsersHubComponent {
       .subscribe({
         next: () => {
           this.toaster.success('Invite revoked.');
-          this.load();
+          this.reload$.next();
         },
         error: () => undefined,
       });
@@ -356,34 +373,34 @@ export class InternalUsersHubComponent {
           this.createResult.set(r);
           this.createForm.set(null);
           this.toaster.success('Internal user created.');
-          this.load();
+          this.reload$.next();
         },
         error: () => undefined,
       });
   }
-  protected toggleActive(row: InternalUserRow): void {
+  protected toggleActive(row: InternalUserListDto): void {
     if (this.isBusy()) {
       return;
     }
     this.isBusy.set(true);
     this.gateway
-      .setUserActive(row.id, !row.isActive)
+      .setUserActive(row.id ?? '', !row.isActive)
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({
         next: () => {
           this.toaster.success(row.isActive ? 'User deactivated.' : 'User reactivated.');
-          this.load();
+          this.reload$.next();
         },
         error: () => undefined,
       });
   }
-  protected sendReset(row: InternalUserRow): void {
+  protected sendReset(row: InternalUserListDto): void {
     if (this.isBusy()) {
       return;
     }
     this.isBusy.set(true);
     this.gateway
-      .sendPasswordReset(row.id)
+      .sendPasswordReset(row.id ?? '')
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({
         next: () => this.toaster.success('Password reset email queued.'),
@@ -396,13 +413,13 @@ export class InternalUsersHubComponent {
     this.tenantForm.set({ id: null, name: '', editionId: null, adminEmail: '', isActive: true });
     this.ensureEditions();
   }
-  protected openEditTenant(row: TenantRow): void {
+  protected openEditTenant(row: OfficeListDto): void {
     this.tenantForm.set({
-      id: row.id,
-      name: row.name,
-      editionId: row.editionId,
+      id: row.id ?? null,
+      name: row.name ?? '',
+      editionId: row.editionId ?? null,
       adminEmail: '',
-      isActive: row.isActive,
+      isActive: row.isActive ?? true,
       concurrencyStamp: row.concurrencyStamp,
     });
     this.ensureEditions();
@@ -445,7 +462,7 @@ export class InternalUsersHubComponent {
       next: () => {
         this.toaster.success(form.id ? 'Tenant saved.' : 'Tenant created.');
         this.tenantForm.set(null);
-        this.load();
+        this.reload$.next();
       },
       error: () => undefined,
     });
@@ -461,14 +478,14 @@ export class InternalUsersHubComponent {
    * Staff Supervisor's business-only switch is a separate, deferred effort
    * (stock ABP cannot scope tenant impersonation down -- see the access-model plan).
    */
-  protected switchTenant(row: TenantRow): void {
+  protected switchTenant(row: OfficeListDto): void {
     if (this.isBusy()) {
       return;
     }
     this.isBusy.set(true);
-    this.toaster.info('Switching into ' + row.name + '...');
+    this.toaster.info('Switching into ' + (row.name ?? '') + '...');
     this.impersonation
-      .impersonateTenant(row.id, 'admin')
+      .impersonateTenant(row.id ?? '', 'admin')
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({ error: () => undefined });
   }

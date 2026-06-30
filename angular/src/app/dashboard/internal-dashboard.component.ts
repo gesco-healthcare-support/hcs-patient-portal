@@ -9,13 +9,20 @@ import {
 import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { ConfigStateService } from '@abp/ng.core';
+import { map } from 'rxjs/operators';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
-import type { DashboardDto, DashboardKpiDto } from '../proxy/dashboards/models';
+import type { DashboardDto, DashboardKpiDto, DashboardTenantRowDto } from '../proxy/dashboards/models';
 import { DashboardRange } from '../proxy/dashboards/dashboard-range.enum';
 import { resolveInternalRoleKey } from '../shared/auth/internal-user-roles';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
 import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
+import { ManagedTableComponent } from '../shared/components/managed-table/managed-table.component';
+import { ManagedTableCellDirective } from '../shared/components/managed-table/managed-table-cell.directive';
+import type {
+  ManagedTableColumn,
+  ManagedTableDataSource,
+} from '../shared/components/managed-table/managed-table.models';
 import type { IconName } from '../shared/ui/icon/icon.registry';
 
 /** A resolved donut slice (pill + label + count + CSS color). */
@@ -55,8 +62,45 @@ const PILL_COLOR: Record<string, string> = {
 @Component({
   selector: 'app-internal-dashboard',
   standalone: true,
-  imports: [DatePipe, IconComponent, SkeletonComponent, OfficeNamePipe],
+  imports: [
+    DatePipe,
+    IconComponent,
+    SkeletonComponent,
+    OfficeNamePipe,
+    ManagedTableComponent,
+    ManagedTableCellDirective,
+  ],
   templateUrl: './internal-dashboard.component.html',
+  // The tenant-breakdown cells used to be styled by .dh-ttable-nested rules
+  // (.tn / .mk / .num). Now they render inside app-managed-table, so these are
+  // re-declared component-scoped (the projected templates belong to this
+  // component's view, so the encapsulation attribute still matches them).
+  styles: `
+    .tn {
+      font-weight: 700;
+      color: var(--n-900);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tn .mk {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--blue-700);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+    .num {
+      font-family: var(--font-num);
+      font-weight: 600;
+    }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InternalDashboardComponent implements OnInit {
@@ -68,6 +112,25 @@ export class InternalDashboardComponent implements OnInit {
   protected readonly range = signal(DashboardRange.Week);
   protected readonly data = signal<DashboardDto | null>(null);
   protected readonly loading = signal(true);
+
+  // Host per-office breakdown table (server-paged via GetTenantBreakdownAsync,
+  // independent of the monolithic overview DTO).
+  protected readonly tenantColumns: ManagedTableColumn[] = [
+    { key: 'tenantName', header: 'Tenant', sortable: true, sortKey: 'tenantName' },
+    { key: 'appointments', header: 'Appointments', sortable: true, sortKey: 'appointments', align: 'right' },
+    { key: 'pending', header: 'Pending', sortable: true, sortKey: 'pending', align: 'right' },
+    { key: 'approved', header: 'Approved', sortable: true, sortKey: 'approved', align: 'right' },
+    { key: 'thisWeek', header: 'This week', sortable: true, sortKey: 'thisWeek', align: 'right' },
+  ];
+  protected readonly tenantDataSource: ManagedTableDataSource<DashboardTenantRowDto> = (query) =>
+    this.dashboardService
+      .getTenantBreakdown({
+        filter: query.search.trim() || undefined,
+        sorting: query.sorting || undefined,
+        skipCount: query.skipCount,
+        maxResultCount: query.maxResultCount,
+      })
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
 
   private readonly roles = signal<string[]>([]);
   protected readonly roleKey = computed(() => resolveInternalRoleKey(this.roles()));

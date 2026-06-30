@@ -38,7 +38,7 @@ export interface InfoRequestFieldDiffDto {
 }
 
 export interface SaveInfoRequestCorrectionsInput {
-  corrections: Record<string, string>;
+  corrections?: Record<string, string>;
 }
 
 export interface SendBackAppointmentInput {

@@ -78,39 +78,23 @@
       <div class="dh-card">
         <div class="dh-card__head"><h3>Tenants</h3></div>
         <div class="dh-card__body" style="padding: 0">
-          <table class="dh-ttable">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th class="r">Appointments</th>
-                <th class="r">Pending</th>
-                <th class="r">Approved</th>
-                <th class="r">This week</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (t of d.tenants; track t.tenantName) {
-                <tr>
-                  <td>
-                    <span class="tn">
-                      <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
-                      {{ t.tenantName | officeName }}
-                    </span>
-                  </td>
-                  <td class="r num">{{ t.appointments ?? 0 }}</td>
-                  <td class="r num">{{ t.pending ?? 0 }}</td>
-                  <td class="r num">{{ t.approved ?? 0 }}</td>
-                  <td class="r num">{{ t.thisWeek ?? 0 }}</td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="5" style="text-align: center; color: var(--n-400); padding: 28px">
-                    No tenants yet.
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <app-managed-table
+            [dataSource]="tenantDataSource"
+            [columns]="tenantColumns"
+            [pageSize]="20"
+            trackByKey="tenantName"
+            searchPlaceholder="Search by tenant name..."
+            emptyText="No tenants yet."
+          >
+            <span class="tn" *managedTableCell="'tenantName'; let t">
+              <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
+              {{ t.tenantName | officeName }}
+            </span>
+            <span class="num" *managedTableCell="'appointments'; let t">{{ t.appointments ?? 0 }}</span>
+            <span class="num" *managedTableCell="'pending'; let t">{{ t.pending ?? 0 }}</span>
+            <span class="num" *managedTableCell="'approved'; let t">{{ t.approved ?? 0 }}</span>
+            <span class="num" *managedTableCell="'thisWeek'; let t">{{ t.thisWeek ?? 0 }}</span>
+          </app-managed-table>
         </div>
       </div>
     } @else {

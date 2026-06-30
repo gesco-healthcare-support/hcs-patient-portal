@@ -20,6 +20,14 @@ public interface IIntakeAssignmentsAppService : IApplicationService
     Task<ListResultDto<IntakeOfficeAssignmentDto>> GetListAsync();
 
     /// <summary>
+    /// 2026-06-30 (QA item B) -- paged + searchable assignments list for the
+    /// management grid (filter on operator name / email / office, sorting, offset
+    /// paging). Batch-loads operators + offices (no per-row lookups). The non-paged
+    /// <see cref="GetListAsync"/> stays for back-compat.
+    /// </summary>
+    Task<PagedResultDto<IntakeOfficeAssignmentDto>> GetPagedListAsync(GetIntakeAssignmentsInput input);
+
+    /// <summary>
     /// Assign an operator to an office (idempotent). Eagerly provisions the
     /// operator's limited shadow Intake user in that office's database.
     /// </summary>

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { forkJoin, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 import type { SaasTenantCreateDto, SaasTenantUpdateDto } from '@volo/abp.ng.saas/proxy';
@@ -13,35 +13,17 @@ import type {
   InviteExternalUserDto,
   InviteExternalUserResultDto,
 } from '../proxy/external-signups/models';
-import type { CreateInternalUserDto, InternalUserCreatedDto } from '../proxy/internal-users/models';
+import type {
+  CreateInternalUserDto,
+  InternalUserCreatedDto,
+  InternalUserListDto,
+} from '../proxy/internal-users/models';
+import type { OfficeListDto } from '../proxy/dashboards/models';
 import type { LookupDto } from '../proxy/shared/models';
-import { INTERNAL_ROLE_NAMES, primaryInternalRole } from './users-hub.util';
-
-const PAGE = { maxResultCount: 500, skipCount: 0 };
-
-/** A normalized internal-user row for the Internal Users table. */
-export interface InternalUserRow {
-  id: string;
-  fullName: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-}
-
-/** A normalized tenant row for the Tenants table (SaaS tenant + per-tenant counts). */
-export interface TenantRow {
-  id: string;
-  name: string;
-  subdomain: string;
-  editionName: string;
-  editionId: string | null;
-  userCount: number;
-  appointmentCount: number;
-  isActive: boolean;
-  concurrencyStamp?: string;
-}
+import type {
+  ManagedTablePage,
+  ManagedTableQuery,
+} from '../shared/components/managed-table/managed-table.models';
 
 /** Draft for the create/edit tenant modal. */
 export interface TenantFormState {
@@ -84,10 +66,16 @@ export class UsersSectionGateway {
   }
 
   // ---- Pending Invites ----
-  listInvites(filter: string): Observable<InvitationDto[]> {
+  /** Server-paged data source for the Pending Invites table (getInvites is already paged). */
+  invitesPage(query: ManagedTableQuery): Observable<ManagedTablePage<InvitationDto>> {
     return this.externalUsers
-      .getInvites({ filter: filter.trim() || undefined, ...PAGE })
-      .pipe(map((r) => r.items ?? []));
+      .getInvites({
+        filter: query.search.trim() || undefined,
+        sorting: query.sorting || undefined,
+        skipCount: query.skipCount,
+        maxResultCount: query.maxResultCount,
+      })
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
   }
   resendInvite(id: string): Observable<InviteExternalUserResultDto> {
     return this.externalUsers.resendInvite(id);
@@ -97,22 +85,21 @@ export class UsersSectionGateway {
   }
 
   // ---- Internal Users ----
-  listInternalUsers(): Observable<InternalUserRow[]> {
-    return this.userExtended.getList({ ...PAGE }).pipe(
-      map((r) =>
-        (r.items ?? [])
-          .filter((u) => (u.roleNames ?? []).some((rn) => INTERNAL_ROLE_NAMES.includes(rn)))
-          .map((u) => ({
-            id: u.id ?? '',
-            fullName: `${u.name ?? ''} ${u.surname ?? ''}`.trim() || (u.userName ?? ''),
-            firstName: u.name ?? '',
-            lastName: u.surname ?? '',
-            email: u.email ?? '',
-            role: primaryInternalRole(u.roleNames),
-            isActive: u.isActive ?? true,
-          })),
-      ),
-    );
+  /**
+   * Server-paged data source for the Internal Users table. The backend
+   * (GetInternalUsersAsync) scopes to the internal roles and applies the
+   * filter/sort/page, replacing the old client-side load-500-then-filter (which
+   * truncated the staff list past 500 total identity users).
+   */
+  internalUsersPage(query: ManagedTableQuery): Observable<ManagedTablePage<InternalUserListDto>> {
+    return this.internalUsers
+      .getInternalUsers({
+        filter: query.search.trim() || undefined,
+        sorting: query.sorting || undefined,
+        skipCount: query.skipCount,
+        maxResultCount: query.maxResultCount,
+      })
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
   }
   createInternalUser(input: CreateInternalUserDto): Observable<InternalUserCreatedDto> {
     return this.internalUsers.create(input);
@@ -147,31 +134,21 @@ export class UsersSectionGateway {
   }
 
   // ---- Tenants ----
-  listTenants(): Observable<TenantRow[]> {
-    return forkJoin({
-      page: this.tenants.getList({ getEditionNames: true, ...PAGE }),
-      stats: this.dashboard.getTenantSummaries(),
-    }).pipe(
-      map(({ page, stats }) => {
-        const byId = new Map((stats ?? []).map((s) => [s.tenantId, s]));
-        return (page.items ?? []).map((t) => {
-          const id = t.id ?? '';
-          const summary = byId.get(id);
-          return {
-            id,
-            name: t.name ?? '',
-            subdomain: (t.name ?? '').toLowerCase(),
-            editionName: t.editionName ?? '',
-            editionId: t.editionId ?? null,
-            userCount: summary?.userCount ?? 0,
-            appointmentCount: summary?.appointmentCount ?? 0,
-            // TenantActivationState: 0 Active, 1 ActiveWithLimitedTime, 2 Passive.
-            isActive: Number(t.activationState ?? 0) !== 2,
-            concurrencyStamp: t.concurrencyStamp,
-          };
-        });
-      }),
-    );
+  /**
+   * Server-paged data source for the Offices/Tenants table. One call to
+   * GetOfficesAsync returns the page's tenants WITH their edition, activation, and
+   * per-office user/appointment counts -- replacing the old client forkJoin of the
+   * Volo SaaS list + getTenantSummaries.
+   */
+  officesPage(query: ManagedTableQuery): Observable<ManagedTablePage<OfficeListDto>> {
+    return this.dashboard
+      .getOffices({
+        filter: query.search.trim() || undefined,
+        sorting: query.sorting || undefined,
+        skipCount: query.skipCount,
+        maxResultCount: query.maxResultCount,
+      })
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
   }
   getEditionOptions(): Observable<{ id: string; name: string }[]> {
     return this.editions

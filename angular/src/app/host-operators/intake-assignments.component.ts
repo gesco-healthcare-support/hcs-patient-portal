@@ -2,9 +2,19 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
-import { finalize } from 'rxjs/operators';
+import { Subject } from 'rxjs';
+import { finalize, map } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
+import { ManagedTableComponent } from '../shared/components/managed-table/managed-table.component';
+import {
+  ManagedTableCellDirective,
+  ManagedTableRowActionsDirective,
+} from '../shared/components/managed-table/managed-table-cell.directive';
+import type {
+  ManagedTableColumn,
+  ManagedTableDataSource,
+} from '../shared/components/managed-table/managed-table.models';
 import { IntakeAssignmentsService } from '../proxy/host-operators/intake-assignments.service';
 import type { IntakeOfficeAssignmentDto } from '../proxy/host-operators/models';
 import type { LookupDto } from '../proxy/shared/models';
@@ -20,7 +30,15 @@ import type { LookupDto } from '../proxy/shared/models';
   selector: 'app-intake-assignments',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent, OfficeNamePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IconComponent,
+    OfficeNamePipe,
+    ManagedTableComponent,
+    ManagedTableCellDirective,
+    ManagedTableRowActionsDirective,
+  ],
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
@@ -56,42 +74,28 @@ import type { LookupDto } from '../proxy/shared/models';
         </button>
       </form>
 
-      @if (loading()) {
-        <p class="ho-assign__muted">Loading assignments...</p>
-      } @else if (rows().length === 0) {
-        <p class="ho-assign__muted">No assignments yet.</p>
-      } @else {
-        <table class="ho-assign__table">
-          <thead>
-            <tr>
-              <th>Operator</th>
-              <th>Email</th>
-              <th>Office</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of rows(); track row.id) {
-              <tr>
-                <td>{{ row.operatorName }}</td>
-                <td>{{ row.operatorEmail }}</td>
-                <td>{{ row.officeName | officeName }}</td>
-                <td>
-                  <button
-                    type="button"
-                    class="ho-assign__unassign"
-                    [disabled]="busy()"
-                    (click)="unassign(row)"
-                  >
-                    <app-icon name="trash" />
-                    Unassign
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-managed-table
+        [dataSource]="dataSource"
+        [columns]="columns"
+        [busy]="busy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by operator or office..."
+        emptyText="No assignments yet."
+      >
+        <span *managedTableCell="'officeName'; let row">{{ row.officeName | officeName }}</span>
+        <button
+          type="button"
+          class="ho-assign__btn ho-assign__unassign"
+          *managedTableRowActions="let row"
+          [disabled]="busy()"
+          (click)="unassign(row)"
+        >
+          <app-icon name="trash" />
+          Unassign
+        </button>
+      </app-managed-table>
     </section>
   `,
 })
@@ -99,19 +103,36 @@ export class IntakeAssignmentsComponent {
   private readonly service = inject(IntakeAssignmentsService);
   private readonly toaster = inject(ToasterService);
 
-  protected readonly rows = signal<IntakeOfficeAssignmentDto[]>([]);
   protected readonly operators = signal<LookupDto<string>[]>([]);
   protected readonly offices = signal<LookupDto<string>[]>([]);
-  protected readonly loading = signal(true);
   protected readonly busy = signal(false);
 
   protected operatorId = '';
   protected officeId = '';
 
+  /** Refetch trigger for the assignments table after assign / unassign. */
+  protected readonly reload$ = new Subject<void>();
+
+  protected readonly columns: ManagedTableColumn[] = [
+    { key: 'operatorName', header: 'Operator', sortable: true, sortKey: 'operatorName' },
+    { key: 'operatorEmail', header: 'Email', sortable: true, sortKey: 'operatorEmail' },
+    { key: 'officeName', header: 'Office', sortable: true, sortKey: 'officeName' },
+  ];
+
+  /** Server-paged data source backed by the paged + batch-loaded GetPagedListAsync. */
+  protected readonly dataSource: ManagedTableDataSource<IntakeOfficeAssignmentDto> = (query) =>
+    this.service
+      .getPagedList({
+        filter: query.search.trim() || undefined,
+        sorting: query.sorting || undefined,
+        skipCount: query.skipCount,
+        maxResultCount: query.maxResultCount,
+      })
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
+
   constructor() {
     this.service.getAssignableOperators().subscribe((res) => this.operators.set(res.items ?? []));
     this.service.getOfficeOptions().subscribe((res) => this.offices.set(res.items ?? []));
-    this.reload();
   }
 
   protected assign(): void {
@@ -127,7 +148,7 @@ export class IntakeAssignmentsComponent {
           this.toaster.success('Operator assigned.');
           this.operatorId = '';
           this.officeId = '';
-          this.reload();
+          this.reload$.next();
         },
         error: () => undefined,
       });
@@ -146,20 +167,9 @@ export class IntakeAssignmentsComponent {
       .subscribe({
         next: () => {
           this.toaster.success('Assignment removed.');
-          this.reload();
+          this.reload$.next();
         },
         error: () => undefined,
-      });
-  }
-
-  private reload(): void {
-    this.loading.set(true);
-    this.service
-      .getList()
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: (res) => this.rows.set(res.items ?? []),
-        error: () => this.rows.set([]),
       });
   }
 }

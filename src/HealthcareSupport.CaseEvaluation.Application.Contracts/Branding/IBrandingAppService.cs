@@ -25,6 +25,14 @@ public interface IBrandingAppService
     /// <summary>Host-central: every office + its branding, for the central manager grid.</summary>
     Task<ListResultDto<OfficeBrandingDto>> GetOfficeBrandingsAsync();
 
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- host-central office-branding list, paged + searchable
+    /// (filter on office / display name, sorting, offset paging). The non-paged
+    /// <see cref="GetOfficeBrandingsAsync"/> stays for back-compat. Gated by
+    /// <c>CaseEvaluation.Branding</c>.
+    /// </summary>
+    Task<PagedResultDto<OfficeBrandingDto>> GetPagedOfficeBrandingsAsync(GetOfficeBrandingInput input);
+
     /// <summary>Host-central: streams a specific office's logo (the host surface has no subdomain office); null when none.</summary>
     Task<DownloadResult?> DownloadLogoForOfficeAsync(Guid officeId);
 

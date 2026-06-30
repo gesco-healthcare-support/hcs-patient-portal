@@ -52,6 +52,16 @@ public class BrandingController : AbpController
         return _service.GetOfficeBrandingsAsync();
     }
 
+    // 2026-06-30 (QA item B): paged + searchable office-branding list for the
+    // reusable host-central Branding table. Distinct route from the non-paged
+    // /offices above. Gated (Branding.Default) at the app service.
+    [HttpGet("offices-paged")]
+    public virtual Task<PagedResultDto<OfficeBrandingDto>> GetPagedOfficeBrandingsAsync(
+        [FromQuery] GetOfficeBrandingInput input)
+    {
+        return _service.GetPagedOfficeBrandingsAsync(input);
+    }
+
     [HttpGet("offices/{officeId}/logo")]
     public virtual async Task<IActionResult> GetOfficeLogoAsync(Guid officeId)
     {
