@@ -11,6 +11,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.Security.Claims;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.HostOperators;
@@ -158,7 +159,27 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeImpersonation.Default)]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetMyOfficesAsync()
     {
-        var operatorId = CurrentUser.Id;
+        return await GetAssignedOfficesAsync(CurrentUser.Id);
+    }
+
+    [Authorize]
+    public virtual async Task<ListResultDto<LookupDto<Guid>>> GetSwitchableOfficesAsync()
+    {
+        // In-office single-click hop (F Half 2): the caller is the impersonated office
+        // user, so resolve the host operator behind the session from the signed
+        // impersonation claim. A non-impersonating caller (a real office user, or a
+        // host operator who has not switched in) has no such claim -> empty list. The
+        // grant's per-office assignment gate is the real boundary; this only shapes
+        // the switcher menu.
+        var operatorId = Guid.TryParse(
+            CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
+            ? id
+            : (Guid?)null;
+        return await GetAssignedOfficesAsync(operatorId);
+    }
+
+    private async Task<ListResultDto<LookupDto<Guid>>> GetAssignedOfficesAsync(Guid? operatorId)
+    {
         if (operatorId == null)
         {
             return new ListResultDto<LookupDto<Guid>>(new List<LookupDto<Guid>>());

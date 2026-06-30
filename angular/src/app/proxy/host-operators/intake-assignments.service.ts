@@ -51,7 +51,15 @@ export class IntakeAssignmentsService {
       url: '/api/app/intake-assignments/office-options',
     },
     { apiName: this.apiName,...config });
-  
+
+
+  getSwitchableOffices = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, ListResultDto<LookupDto<string>>>({
+      method: 'GET',
+      url: '/api/app/intake-assignments/switchable-offices',
+    },
+    { apiName: this.apiName,...config });
+
 
   unassign = (operatorUserId: string, officeId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, void>({

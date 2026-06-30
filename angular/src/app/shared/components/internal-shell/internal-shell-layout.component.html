@@ -106,10 +106,20 @@
                 }
               }
             } @else {
-              <!-- F (QA item): the exit lives in the switcher now that the
-                   impersonation banner is removed. Office-to-office direct switch is a
-                   follow-up (custom AuthServer grant); for now the in-office switcher
-                   returns to host. -->
+              <!-- F Half 2: single-click office -> office. The in-office switcher lists
+                   the other offices the caller may hop into (every office for a
+                   supervisor, assigned offices for an Intake operator), then the exit
+                   back to host. The custom AuthServer grant re-authorizes each hop
+                   against the original operator. -->
+              @for (office of offices(); track office.id) {
+                <button type="button" [disabled]="switching()" (click)="switchInto(office.id)">
+                  <span class="i"><app-icon name="map" [size]="16" /></span>
+                  {{ office.displayName | officeName }}
+                </button>
+              }
+              @if (offices().length > 0) {
+                <div class="in-tenant__div"></div>
+              }
               <button type="button" [disabled]="switching()" (click)="backToHost()">
                 <span class="i"><app-icon name="chevLeft" [size]="16" /></span>
                 Management

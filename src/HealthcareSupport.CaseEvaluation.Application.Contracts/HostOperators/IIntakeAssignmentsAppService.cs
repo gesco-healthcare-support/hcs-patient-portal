@@ -39,4 +39,16 @@ public interface IIntakeAssignmentsAppService : IApplicationService
 
     /// <summary>The current operator's assigned offices, for the SPA office switcher.</summary>
     Task<ListResultDto<LookupDto<Guid>>> GetMyOfficesAsync();
+
+    /// <summary>
+    /// The offices the current in-office switcher caller may hop into directly
+    /// (F Half 2 single-click office -> office). Resolves the host operator from the
+    /// impersonation claim (<c>AbpClaimTypes.ImpersonatorUserId</c>) -- the in-office
+    /// shadow Intake user does NOT hold <c>IntakeImpersonation</c>, so unlike
+    /// <see cref="GetMyOfficesAsync"/> this is callable while impersonating. Returns
+    /// the impersonator's assigned offices, or empty when the caller is not an
+    /// impersonation. Convenience only: the impersonation grant's per-office
+    /// assignment gate (deny-by-default) remains the actual boundary.
+    /// </summary>
+    Task<ListResultDto<LookupDto<Guid>>> GetSwitchableOfficesAsync();
 }

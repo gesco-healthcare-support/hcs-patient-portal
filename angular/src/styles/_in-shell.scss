@@ -455,6 +455,11 @@
   background: var(--blue-50);
   color: var(--blue-700);
 }
+.in-tenant__div {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+}
 .in-tenant__muted {
   display: block;
   padding: 10px 12px;

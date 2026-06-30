@@ -26,8 +26,14 @@ import { InternalNavBadgeService } from '../../services/internal-nav-badge.servi
 import { BrandingService } from '../../branding/branding.service';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { InternalUsersService } from '../../../proxy/internal-users/internal-users.service';
+import { IntakeAssignmentsService } from '../../../proxy/host-operators/intake-assignments.service';
 import type { LookupDto } from '../../../proxy/shared/models';
 import { NavBadgeKey, resolveNavGroups } from './internal-nav.config';
+import {
+  clearPendingOfficeSwitch,
+  readPendingOfficeSwitch,
+  storePendingOfficeSwitch,
+} from './pending-office-switch';
 import { OAuthService } from 'angular-oauth2-oidc';
 
 const ROLE_LABELS: Record<InternalRoleKey, string> = {
@@ -86,6 +92,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   protected readonly branding = inject(BrandingService);
   private readonly impersonation = inject(ImpersonationService);
   private readonly internalUsers = inject(InternalUsersService);
+  private readonly intakeAssignments = inject(IntakeAssignmentsService);
   private readonly title = inject(Title);
   private readonly toaster = inject(ToasterService);
 
@@ -312,11 +319,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Toggle the office-switcher dropdown. On first open, lazily load the offices
-   * the operator may switch into. Host operators (IT Admin / Staff Supervisor)
-   * get the full active-office list (getTenantOptions, gated by InternalUsers);
-   * Intake Staff is tenant-locked (canSwitch() is false) and uses its own
-   * landing page instead, so this never opens for them.
+   * Toggle the office-switcher dropdown, lazily loading its targets on first open
+   * (see loadSwitchTargets). At host scope a supervisor/IT Admin opens it to switch
+   * INTO an office; inside an office (F Half 2) any impersonating operator opens it
+   * to hop directly to another office or return to host. Intake Staff at host scope
+   * is tenant-locked (canSwitch() is false) and uses its landing page instead.
    */
   protected toggleSwitcher(): void {
     if (!this.canSwitch()) {
@@ -324,12 +331,35 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     }
     const open = !this.switcherOpen();
     this.switcherOpen.set(open);
-    if (open && this.hostScope() && this.offices().length === 0) {
-      this.internalUsers.getTenantOptions().subscribe({
-        next: (res) => this.offices.set(res.items ?? []),
-        error: () => this.offices.set([]),
-      });
+    if (open && this.offices().length === 0) {
+      this.loadSwitchTargets();
     }
+  }
+
+  /**
+   * Load the offices the switcher may hop into. At host scope (or for a supervisor
+   * impersonating as an office admin) that is every active office (getTenantOptions,
+   * AllowAnonymous + host-scoped). An in-office Intake operator instead gets only
+   * their assigned offices (getSwitchableOffices, resolved server-side from the
+   * impersonation claim -- the in-office shadow user does not hold IntakeImpersonation).
+   * The current office is excluded so the menu reads "where else can I go". The grant
+   * + assignment gate remain the boundary; this list is convenience.
+   */
+  private loadSwitchTargets(): void {
+    const inOfficeIntake = !this.hostScope() && this.roleKey() === 'intake';
+    const targets$ = inOfficeIntake
+      ? this.intakeAssignments.getSwitchableOffices()
+      : this.internalUsers.getTenantOptions();
+    targets$.subscribe({
+      next: (res) => this.offices.set(this.excludeCurrentOffice(res.items ?? [])),
+      error: () => this.offices.set([]),
+    });
+  }
+
+  /** Drop the office the caller is already in, so it is not offered as a target. */
+  private excludeCurrentOffice(items: LookupDto<string>[]): LookupDto<string>[] {
+    const currentId = this.tenant()?.id;
+    return currentId ? items.filter((o) => o.id !== currentId) : items;
   }
 
   protected closeSwitcher(): void {
@@ -337,17 +367,46 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Switch into an office. Uses stock tenant impersonation as the office `admin`
-   * (same path as the Offices list's "Switch into tenant" button) -- a host
-   * Supervisor / IT Admin gets the office admin's full powers once switched in.
+   * Switch into an office. A supervisor / IT Admin enters as the office `admin`
+   * (same path as the Offices list's "Switch into tenant" button) and gets the
+   * admin's full powers; an Intake operator sends an empty username so the custom
+   * grant forces their own limited shadow user.
+   *
+   * From host scope this is a single direct impersonation. From INSIDE an office
+   * (F Half 2 office -> office), ABP forbids nested impersonation, so we instead
+   * stash the target, de-impersonate to host, and let maybeResumePendingSwitch()
+   * finish the tenant hop after the reload -- two stock operations, one click.
    */
   protected switchInto(officeId: string | undefined): void {
     if (this.switching() || !officeId) {
       return;
     }
+    const userName = this.roleKey() === 'intake' ? '' : 'admin';
     this.switching.set(true);
     this.closeSwitcher();
-    this.impersonation.impersonateTenant(officeId, 'admin').subscribe({
+
+    if (this.impersonating()) {
+      // Office -> office: persist the target across the de-impersonation reload,
+      // then return to host. The second leg runs in maybeResumePendingSwitch().
+      storePendingOfficeSwitch({ officeId, userName });
+      this.toaster.info('Switching offices...');
+      this.impersonation.impersonate({}).subscribe({
+        // The back-to-host grant runs through the OAuth token path (no RestService),
+        // so a failure surfaces only here. Drop the pending record so the operator is
+        // not auto-bounced on the next load.
+        error: () => {
+          clearPendingOfficeSwitch();
+          this.switching.set(false);
+          this.toaster.error(
+            'Could not switch into that office. Please try again, or contact an administrator.',
+          );
+        },
+      });
+      return;
+    }
+
+    // Host scope: a direct single-hop impersonation (no nesting), unchanged.
+    this.impersonation.impersonateTenant(officeId, userName).subscribe({
       // Impersonation runs through the OAuth token grant, NOT RestService, so ABP's
       // global HTTP error dialog never fires -- this handler is the only place a
       // failed switch can surface. Without it the spinner just stops (looks frozen).
@@ -409,6 +468,39 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     if (this.hostScope() && !this.branding.displayName()) {
       this.title.setTitle('Appointment Portal');
     }
+
+    // F Half 2: complete a pending office -> office hop. switchInto() stashes the
+    // target and de-impersonates to host (ABP forbids nested impersonation); once we
+    // are back at host scope, finish the second leg by impersonating the target.
+    this.maybeResumePendingSwitch();
+  }
+
+  /**
+   * Finish a pending office -> office hop stashed by switchInto(). Runs on every
+   * identity refresh; acts only when we are back at host scope (de-impersonation
+   * completed) and a target is pending. Clears the record FIRST so a failed second
+   * leg or a config re-emit cannot loop -- a failure simply leaves the operator at
+   * host.
+   */
+  private maybeResumePendingSwitch(): void {
+    if (!this.hostScope() || this.impersonating()) {
+      return;
+    }
+    const pending = readPendingOfficeSwitch();
+    if (!pending) {
+      return;
+    }
+    clearPendingOfficeSwitch();
+    this.switching.set(true);
+    this.toaster.info('Switching offices...');
+    this.impersonation.impersonateTenant(pending.officeId, pending.userName).subscribe({
+      error: () => {
+        this.switching.set(false);
+        this.toaster.error(
+          'Could not switch into that office. Please try again, or contact an administrator.',
+        );
+      },
+    });
   }
 }
 
