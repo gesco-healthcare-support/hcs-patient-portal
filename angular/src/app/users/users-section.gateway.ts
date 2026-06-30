@@ -1,8 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { forkJoin, Observable } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
-import { ConfigStateService } from '@abp/ng.core';
-import type { LookupDto } from '../proxy/shared/models';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 import type { SaasTenantCreateDto, SaasTenantUpdateDto } from '@volo/abp.ng.saas/proxy';
 import { ExternalUserService } from '../proxy/external-users/external-user.service';
@@ -27,7 +25,6 @@ export interface InternalUserRow {
   lastName: string;
   email: string;
   role: string;
-  tenantName: string;
   isActive: boolean;
 }
 
@@ -69,7 +66,6 @@ export class UsersSectionGateway {
   private readonly dashboard = inject(DashboardService);
   private readonly tenants = inject(TenantService);
   private readonly editions = inject(EditionService);
-  private readonly config = inject(ConfigStateService);
 
   // ---- Invite External ----
   sendInvite(input: InviteExternalUserDto): Observable<InviteExternalUserResultDto> {
@@ -91,7 +87,6 @@ export class UsersSectionGateway {
 
   // ---- Internal Users ----
   listInternalUsers(): Observable<InternalUserRow[]> {
-    const tenantName = this.currentTenantName();
     return this.userExtended.getList({ ...PAGE }).pipe(
       map((r) =>
         (r.items ?? [])
@@ -103,14 +98,10 @@ export class UsersSectionGateway {
             lastName: u.surname ?? '',
             email: u.email ?? '',
             role: primaryInternalRole(u.roleNames),
-            tenantName,
             isActive: u.isActive ?? true,
           })),
       ),
     );
-  }
-  getTenantOptions(): Observable<LookupDto<string>[]> {
-    return this.internalUsers.getTenantOptions().pipe(map((r) => r.items ?? []));
   }
   createInternalUser(input: CreateInternalUserDto): Observable<InternalUserCreatedDto> {
     return this.internalUsers.create(input);
@@ -200,10 +191,6 @@ export class UsersSectionGateway {
       concurrencyStamp: form.concurrencyStamp,
     };
     return this.tenants.update(form.id as string, input);
-  }
-  private currentTenantName(): string {
-    const tenant = this.config.getOne('currentTenant') as { name?: string } | undefined;
-    return tenant?.name ?? '--';
   }
 
   private generatePassword(): string {

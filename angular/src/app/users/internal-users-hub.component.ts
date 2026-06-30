@@ -12,7 +12,6 @@ import { ExternalUserType } from '../proxy/external-signups/external-user-type.e
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 import type { InvitationDto, InviteExternalUserResultDto } from '../proxy/external-signups/models';
 import type { InternalUserCreatedDto } from '../proxy/internal-users/models';
-import type { LookupDto } from '../proxy/shared/models';
 import {
   avatarColor,
   CREATABLE_INTERNAL_ROLES,
@@ -43,7 +42,6 @@ interface InviteDraft {
 }
 
 interface CreateUserDraft {
-  tenantId: string;
   roleName: string;
   firstName: string;
   lastName: string;
@@ -51,7 +49,6 @@ interface CreateUserDraft {
   phoneNumber: string;
 }
 
-const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 const EMAIL_RE = /.+@.+\..+/;
 
 /**
@@ -103,7 +100,6 @@ export class InternalUsersHubComponent {
   protected readonly internalUsers = signal<InternalUserRow[]>([]);
   protected readonly createForm = signal<CreateUserDraft | null>(null);
   protected readonly createResult = signal<InternalUserCreatedDto | null>(null);
-  protected readonly tenantOptions = signal<LookupDto<string>[]>([]);
 
   // Tenants
   protected readonly tenants = signal<TenantRow[]>([]);
@@ -291,19 +287,12 @@ export class InternalUsersHubComponent {
   protected openCreateUser(): void {
     this.createResult.set(null);
     this.createForm.set({
-      tenantId: '',
       roleName: 'Intake Staff',
       firstName: '',
       lastName: '',
       email: '',
       phoneNumber: '',
     });
-    if (!this.tenantOptions().length) {
-      this.gateway.getTenantOptions().subscribe({
-        next: (o) => this.tenantOptions.set(o),
-        error: () => this.tenantOptions.set([]),
-      });
-    }
   }
   protected patchCreate(partial: Partial<CreateUserDraft>): void {
     const current = this.createForm();
@@ -316,10 +305,6 @@ export class InternalUsersHubComponent {
       this.createForm.set(null);
     }
   }
-  /** Host callers must pick a tenant; tenant-scoped callers get an empty list and the backend defaults to their tenant. */
-  protected get tenantPickerRequired(): boolean {
-    return this.tenantOptions().length > 0;
-  }
   protected saveCreateUser(): void {
     const form = this.createForm();
     if (!form || this.isBusy()) {
@@ -329,14 +314,12 @@ export class InternalUsersHubComponent {
       this.toaster.warn('First name, last name, and a valid email are required.');
       return;
     }
-    if (this.tenantPickerRequired && !form.tenantId) {
-      this.toaster.warn('Select a tenant for the new user.');
-      return;
-    }
     this.isBusy.set(true);
     this.gateway
       .createInternalUser({
-        tenantId: form.tenantId || EMPTY_GUID,
+        // tenantId is intentionally omitted: internal operators are HOST logins (the
+        // app service forces CurrentTenant.Change(null)); office access is granted
+        // later via the assignment screen.
         roleName: form.roleName,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),

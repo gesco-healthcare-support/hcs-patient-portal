@@ -266,14 +266,13 @@
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Tenant</th>
               <th>Status</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             @if (loading()) {
-              <tr><td colspan="6" class="ia-sub" style="padding: 20px">Loading...</td></tr>
+              <tr><td colspan="5" class="ia-sub" style="padding: 20px">Loading...</td></tr>
             } @else {
               @for (u of internalUsers(); track u.id) {
                 <tr>
@@ -295,7 +294,6 @@
                       {{ u.role }}
                     </span>
                   </td>
-                  <td>{{ u.tenantName }}</td>
                   <td>
                     <span class="lw-active" [class.on]="u.isActive" [class.off]="!u.isActive">
                       {{ u.isActive ? 'Active' : 'Deactivated' }}
@@ -325,7 +323,7 @@
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="6" class="ia-sub" style="padding: 20px; text-align: center">
+                  <td colspan="5" class="ia-sub" style="padding: 20px; text-align: center">
                     No internal users yet.
                   </td>
                 </tr>
@@ -347,10 +345,6 @@
           </div>
           <div class="ux-result__body">
             <div class="ux-result__grid">
-              <div>
-                <div class="k">Tenant</div>
-                <div class="v">{{ res.tenantName }}</div>
-              </div>
               <div>
                 <div class="k">Email</div>
                 <div class="v">{{ res.email }}</div>
@@ -467,24 +461,6 @@
       </div>
       <div class="ra-modal__body">
         <div class="ra-grid">
-          @if (tenantPickerRequired) {
-            <div class="ra-field col-6">
-              <label>
-                Tenant
-                <span class="req">*</span>
-              </label>
-              <select
-                class="ra-select"
-                [ngModel]="f.tenantId"
-                (ngModelChange)="patchCreate({ tenantId: $event })"
-              >
-                <option value="">Select a tenant</option>
-                @for (t of tenantOptions(); track t.id) {
-                  <option [value]="t.id">{{ t.displayName }}</option>
-                }
-              </select>
-            </div>
-          }
           <div class="ra-field col-6">
             <label>
               Role
