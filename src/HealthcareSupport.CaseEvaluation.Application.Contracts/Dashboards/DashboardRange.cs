@@ -1,9 +1,10 @@
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
 
 /// <summary>
-/// Time-frame for the dashboard's period-based KPIs (Approved / Rejected) and
-/// their prior-period deltas. Snapshot metrics (live Pending counts, status
-/// breakdown, deadlines, schedule, activity) ignore the range.
+/// Time-frame for the dashboard's period-based sections: the Approved / Rejected
+/// KPIs (with prior-period deltas), the status-breakdown donut, the trend chart,
+/// and recent activity all follow the range. Point-in-time metrics (live Pending
+/// counts, decision deadlines, today's schedule) ignore it.
 /// </summary>
 public enum DashboardRange
 {

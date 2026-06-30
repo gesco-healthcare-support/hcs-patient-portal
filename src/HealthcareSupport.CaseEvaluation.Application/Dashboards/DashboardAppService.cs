@@ -202,7 +202,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     // ===================== Redesigned composite dashboard (Prompt 9) =====================
 
-    private const int TrendWeeks = 6;
+    private const int MaxTrendBuckets = 14;
     private const int DeadlineListSize = 5;
     private const int ApproachWindowDays = 2;
     private const int ScheduleListSize = 8;
@@ -211,10 +211,10 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     /// <summary>
     /// Rich payload for the redesigned internal dashboard. Host callers get
     /// cross-tenant KPIs + a per-tenant table; tenant callers get the hero KPIs
-    /// (with prior-period deltas for the range-based Approved/Rejected), the
-    /// decision-deadline list, a 6-week trend, the status breakdown, today's
-    /// schedule, and recent activity. The legacy <see cref="GetAsync"/> stays for
-    /// the nav badge.
+    /// (with prior-period deltas for the range-based Approved/Rejected), plus a
+    /// range-windowed trend, status breakdown, and recent activity. The
+    /// decision-deadline list and today's schedule stay point-in-time. The legacy
+    /// <see cref="GetAsync"/> stays for the nav badge.
     /// </summary>
     [Authorize]
     public virtual async Task<DashboardDto> GetDashboardAsync(DashboardRange range)
@@ -351,10 +351,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         };
 
         await BuildDeadlineSectionAsync(dto, nowUtc);
-        dto.Trend = await BuildTrendAsync();
-        dto.StatusBreakdown = await BuildStatusBreakdownAsync();
+        // QA item G: the donut, trend, and recent activity now follow the selected
+        // range window so the whole tenant dashboard reflects one period. Live
+        // Pending tiles, the decision-deadline SLA list, and Today's schedule stay
+        // point-in-time by design (a quarter-long "today" is meaningless).
+        dto.Trend = await BuildTrendAsync(currentStart, nowUtc);
+        dto.StatusBreakdown = await BuildStatusBreakdownAsync(currentStart);
         dto.TodaySchedule = await BuildTodayScheduleAsync(nowUtc);
-        dto.RecentActivity = await BuildRecentActivityAsync();
+        dto.RecentActivity = await BuildRecentActivityAsync(currentStart);
         return dto;
     }
 
@@ -410,40 +414,48 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         }).ToList();
     }
 
-    private async Task<List<DashboardTrendPointDto>> BuildTrendAsync()
+    // Weekly buckets spanning the selected range window [currentStart, now] so the
+    // trend matches the period the KPI tiles + donut reflect (QA item G). The
+    // window length sets the bucket count: Week -> 1, Month -> ~5, Quarter -> ~13,
+    // capped at MaxTrendBuckets.
+    private async Task<List<DashboardTrendPointDto>> BuildTrendAsync(DateTime currentStart, DateTime nowUtc)
     {
-        var lastMondayUtc = GetLastMondayUtc();
         var trend = new List<DashboardTrendPointDto>();
-        for (var i = TrendWeeks - 1; i >= 0; i--)
+        var weekStart = currentStart;
+        for (var index = 0; weekStart < nowUtc && index < MaxTrendBuckets; index++)
         {
-            var weekStart = lastMondayUtc.AddDays(-7 * i);
-            var weekEnd = weekStart.AddDays(7);
+            var bucketStart = weekStart;
+            var bucketEnd = bucketStart.AddDays(7);
             // Volume bar: requests RECEIVED that week (by creation date).
             var count = await _appointmentRepository.CountAsync(
-                a => a.CreationTime >= weekStart && a.CreationTime < weekEnd);
+                a => a.CreationTime >= bucketStart && a.CreationTime < bucketEnd);
             // Completion line: requests APPROVED that week (by approve date), mirroring
             // the ApprovedRequests hero KPI so "received in" and "approved out" compare.
             var completedCount = await _appointmentRepository.CountAsync(
                 a => a.AppointmentStatus == AppointmentStatusType.Approved
                      && a.AppointmentApproveDate != null
-                     && a.AppointmentApproveDate >= weekStart
-                     && a.AppointmentApproveDate < weekEnd);
+                     && a.AppointmentApproveDate >= bucketStart
+                     && a.AppointmentApproveDate < bucketEnd);
             trend.Add(new DashboardTrendPointDto
             {
-                Label = $"Wk {TrendWeeks - i}",
-                WeekStart = weekStart,
+                Label = $"Wk {index + 1}",
+                WeekStart = bucketStart,
                 Count = count,
                 CompletedCount = completedCount,
             });
+            weekStart = bucketEnd;
         }
         return trend;
     }
 
-    private async Task<List<DashboardStatusSliceDto>> BuildStatusBreakdownAsync()
+    // QA item G: window the status breakdown to requests CREATED in the selected
+    // range so the donut reflects the same period as the KPI tiles.
+    private async Task<List<DashboardStatusSliceDto>> BuildStatusBreakdownAsync(DateTime currentStart)
     {
         var q = await _appointmentRepository.GetQueryableAsync();
         var byStatus = await AsyncExecuter.ToListAsync(
-            q.GroupBy(a => a.AppointmentStatus)
+            q.Where(a => a.CreationTime >= currentStart)
+             .GroupBy(a => a.AppointmentStatus)
              .Select(g => new { Status = g.Key, Count = g.Count() }));
 
         var counts = StatusPillPolicy.DonutOrder.ToDictionary(p => p, _ => 0);
@@ -489,11 +501,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         }).ToList();
     }
 
-    private async Task<List<DashboardActivityItemDto>> BuildRecentActivityAsync()
+    // QA item G: only activity within the selected range, so the feed matches the
+    // period the rest of the tenant dashboard reflects.
+    private async Task<List<DashboardActivityItemDto>> BuildRecentActivityAsync(DateTime currentStart)
     {
         var q = await _appointmentRepository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
-            q.OrderByDescending(a => a.LastModificationTime ?? a.CreationTime)
+            q.Where(a => (a.LastModificationTime ?? a.CreationTime) >= currentStart)
+             .OrderByDescending(a => a.LastModificationTime ?? a.CreationTime)
              .Take(ActivityListSize)
              .Select(a => new
              {
