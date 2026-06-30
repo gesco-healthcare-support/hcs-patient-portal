@@ -7,10 +7,17 @@
 *@
 @if (!string.IsNullOrEmpty(Model.LogoCss))
 {
+    @* Html.Raw: LogoCss is a server-built, controlled value (a static asset path
+       or our own base64 data URI). Razor's default HTML-encoding turns the data
+       URI's '+' into a numeric character entity, and since style is an HTML
+       raw-text element the browser does NOT decode entities -- so the encoded URI
+       is corrupt and the office logo/wordmark never renders. The host crest is a
+       plain path with no special chars, which is why only tenant (data-URI) logos
+       regressed. *@
     <style>
         :root {
-            --lpx-logo: url('@Model.LogoCss');
-            --lpx-logo-icon: url('@Model.LogoCss');
+            --lpx-logo: url('@Html.Raw(Model.LogoCss)');
+            --lpx-logo-icon: url('@Html.Raw(Model.LogoCss)');
         }
     </style>
 }
