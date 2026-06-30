@@ -40,7 +40,10 @@ export interface InfoRequestFieldDiffDto {
 export interface SaveInfoRequestCorrectionsInput {
   dateOfBirth?: string | null;
   socialSecurityNumber?: string | null;
-  address?: string | null;
+  street?: string | null;
+  city?: string | null;
+  stateId?: string | null;
+  zipCode?: string | null;
   cellPhoneNumber?: string | null;
   appointmentLanguageId?: string | null;
   applicantAttorneyEmail?: string | null;

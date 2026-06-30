@@ -4,7 +4,7 @@ export interface CreateInternalUserDto {
   firstName: string;
   lastName: string;
   roleName: string;
-  tenantId: string;
+  tenantId?: string | null;
   phoneNumber?: string | null;
 }
 
