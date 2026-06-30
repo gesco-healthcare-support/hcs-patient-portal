@@ -4,7 +4,8 @@ import {
   changeRequestAgeClass,
   changeRequestAgeDays,
   changeRequestConsentView,
-  consentOverrideWarning,
+  consentBlockNote,
+  consentBlocksApproval,
   requestingSideLabel,
 } from './cr-inbox.util';
 
@@ -50,16 +51,29 @@ describe('cr-inbox.util', () => {
     });
   });
 
-  describe('consentOverrideWarning', () => {
-    it('warns only when an unresolved consent would be overridden', () => {
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Pending)).toContain('still pending');
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Rejected)).toContain('declined');
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Expired)).toContain('expired');
+  describe('consentBlocksApproval', () => {
+    it('blocks approval for pending, declined, or expired consent', () => {
+      expect(consentBlocksApproval(ChangeRequestConsentStatus.Pending)).toBe(true);
+      expect(consentBlocksApproval(ChangeRequestConsentStatus.Rejected)).toBe(true);
+      expect(consentBlocksApproval(ChangeRequestConsentStatus.Expired)).toBe(true);
     });
-    it('is silent when consent is granted or not required', () => {
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Approved)).toBeNull();
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.NotRequired)).toBeNull();
-      expect(consentOverrideWarning(null)).toBeNull();
+    it('allows approval when consent is granted or not required', () => {
+      expect(consentBlocksApproval(ChangeRequestConsentStatus.Approved)).toBe(false);
+      expect(consentBlocksApproval(ChangeRequestConsentStatus.NotRequired)).toBe(false);
+      expect(consentBlocksApproval(null)).toBe(false);
+    });
+  });
+
+  describe('consentBlockNote', () => {
+    it('returns a corrective note when consent blocks approval', () => {
+      expect(consentBlockNote(ChangeRequestConsentStatus.Pending)).toContain('still pending');
+      expect(consentBlockNote(ChangeRequestConsentStatus.Rejected)).toContain('declined');
+      expect(consentBlockNote(ChangeRequestConsentStatus.Expired)).toContain('expired');
+    });
+    it('is null when approval is allowed (granted or not required)', () => {
+      expect(consentBlockNote(ChangeRequestConsentStatus.Approved)).toBeNull();
+      expect(consentBlockNote(ChangeRequestConsentStatus.NotRequired)).toBeNull();
+      expect(consentBlockNote(null)).toBeNull();
     });
   });
 
