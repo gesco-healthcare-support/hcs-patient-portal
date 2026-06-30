@@ -2,7 +2,7 @@
   <aside class="in-side">
     <div class="in-side__brand">
       @if (brandLogo()) {
-        <img class="in-side__crest" [src]="brandLogo()" alt="Evaluators" />
+        <img class="in-side__crest" [src]="brandLogo()" alt="Management" />
       } @else {
         <span class="mark">A</span>
       }
@@ -94,15 +94,26 @@
         </div>
         @if (switcherOpen()) {
           <div class="in-tenant__pop">
-            @if (offices().length === 0) {
-              <span class="in-tenant__muted">No offices available.</span>
-            } @else {
-              @for (office of offices(); track office.id) {
-                <button type="button" (click)="switchInto(office.id)">
-                  <span class="i"><app-icon name="map" [size]="16" /></span>
-                  {{ office.displayName | officeName }}
-                </button>
+            @if (hostScope()) {
+              @if (offices().length === 0) {
+                <span class="in-tenant__muted">No offices available.</span>
+              } @else {
+                @for (office of offices(); track office.id) {
+                  <button type="button" (click)="switchInto(office.id)">
+                    <span class="i"><app-icon name="map" [size]="16" /></span>
+                    {{ office.displayName | officeName }}
+                  </button>
+                }
               }
+            } @else {
+              <!-- F (QA item): the exit lives in the switcher now that the
+                   impersonation banner is removed. Office-to-office direct switch is a
+                   follow-up (custom AuthServer grant); for now the in-office switcher
+                   returns to host. -->
+              <button type="button" [disabled]="switching()" (click)="backToHost()">
+                <span class="i"><app-icon name="chevLeft" [size]="16" /></span>
+                Management
+              </button>
             }
           </div>
         }
@@ -152,23 +163,6 @@
       </div>
     </header>
 
-    @if (impersonating()) {
-      <div class="in-imp" role="status">
-        <span class="in-imp__txt">
-          <app-icon name="map" [size]="15" />
-          Acting as <b>{{ tenantName() }}</b>
-        </span>
-        <button
-          class="in-imp__back"
-          type="button"
-          [disabled]="switching()"
-          (click)="backToHost()"
-        >
-          <app-icon name="chevLeft" [size]="15" />
-          Back to Evaluators
-        </button>
-      </div>
-    }
 
     <div class="in-content">
       <router-outlet />

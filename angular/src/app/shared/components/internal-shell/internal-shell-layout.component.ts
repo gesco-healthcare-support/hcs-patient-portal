@@ -116,10 +116,10 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
 
   /**
    * True when the current session is an impersonation -- a host operator acting as
-   * an office user (ABP sets currentUser.impersonatorUserId). Drives the "Acting
-   * as ... / Back to Evaluators" banner: without it the operator is stranded in
-   * the office, since the office user lacks host permissions and our custom shell
-   * replaces ABP's default "back to impersonator" user-menu item.
+   * an office user (ABP sets currentUser.impersonatorUserId). Inside an office it
+   * makes the navbar switcher show the "Management" exit (the office user lacks host
+   * permissions and our custom shell replaces ABP's default "back to impersonator"
+   * user-menu item), so no operator is stranded after the banner's removal.
    */
   protected readonly impersonating = signal(false);
 
@@ -246,15 +246,15 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   );
 
   /**
-   * Office switcher is a HOST-scope affordance only. Intake Staff is tenant-locked,
-   * and once a host operator has switched into an office (or a per-office admin is
-   * signed in directly) the session lacks tenant-impersonation rights, so the only
-   * valid switch path from inside an office is "Back to Evaluators". Gating on
-   * hostScope() hides the populated-but-dead dropdown that otherwise silently
-   * Forbids an office A -> office B jump.
+   * Drives the navbar office-switcher pill. At HOST scope, supervisors/admins open
+   * it to switch INTO an office (Intake Staff is tenant-locked and uses its landing
+   * page). INSIDE an office, anyone who is impersonating opens it to return to host
+   * ("Management") -- this replaces the removed impersonation banner so no operator
+   * is stranded. Office A -> office B direct switching is a follow-up (custom
+   * AuthServer grant); until then the in-office dropdown offers only the host exit.
    */
-  protected readonly canSwitch = computed<boolean>(
-    () => this.roleKey() !== 'intake' && this.hostScope(),
+  protected readonly canSwitch = computed<boolean>(() =>
+    this.hostScope() ? this.roleKey() !== 'intake' : this.impersonating(),
   );
 
   protected readonly brandSubtitle = computed<string>(() =>
@@ -324,7 +324,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     }
     const open = !this.switcherOpen();
     this.switcherOpen.set(open);
-    if (open && this.offices().length === 0) {
+    if (open && this.hostScope() && this.offices().length === 0) {
       this.internalUsers.getTenantOptions().subscribe({
         next: (res) => this.offices.set(res.items ?? []),
         error: () => this.offices.set([]),
@@ -377,7 +377,7 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
       error: () => {
         this.switching.set(false);
         this.toaster.error(
-          'Could not return to the Evaluators view. Please try again, or sign out and back in.',
+          'Could not return to Management. Please try again, or sign out and back in.',
         );
       },
     });
