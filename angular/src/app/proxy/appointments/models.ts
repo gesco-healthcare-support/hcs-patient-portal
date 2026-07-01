@@ -158,11 +158,6 @@ export interface DefenseAttorneyDetailsDto {
   concurrencyStamp?: string | null;
 }
 
-export interface DirectCancelAppointmentInput {
-  cancellationOutcome: AppointmentStatusType;
-  reason: string;
-}
-
 export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   filterText?: string | null;
   panelNumber?: string | null;

@@ -37,7 +37,6 @@ import {
 } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
 import { RequestInfoModalComponent } from './request-info-modal.component';
@@ -48,7 +47,7 @@ import { AppointmentPacketComponent } from '../../../appointment-packet/appointm
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 
-type TransitionAction = 'approve' | 'reject' | 'cancel';
+type TransitionAction = 'approve' | 'reject';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -142,7 +141,6 @@ type ApplicantAttorneyLookupResult = {
     NgbTypeaheadModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
-    CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
     RequestInfoModalComponent,
@@ -168,7 +166,6 @@ export class AppointmentViewComponent implements OnInit {
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
-  cancelModalVisible = false;
   // AP1 (decision 4): external-initiated change-request entry on the read-only
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
@@ -688,7 +685,8 @@ export class AppointmentViewComponent implements OnInit {
     const status = this.currentStatus;
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      // Pending shows Approve/Reject; Approved shows the G-02-05 direct Cancel.
+      // Pending shows Approve/Reject; staff cancel/reschedule of an Approved
+      // appointment route through the change-request flow (B4, no direct cancel).
       // Server [Authorize(Appointments.*)] gates remain authoritative.
       !this.isPatientUser &&
       (status === AppointmentStatusType.Pending || status === AppointmentStatusType.Approved)
@@ -697,16 +695,15 @@ export class AppointmentViewComponent implements OnInit {
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending:  approve | reject  (OLD parity -- no send-back path)
-   *  Approved: cancel            (G-02-05 one-step staff cancel)
+   *  Pending: approve | reject (OLD parity -- no send-back path)
+   * An Approved appointment has no direct toolbar action: staff cancel and
+   * reschedule now route through the change-request + consent flow (B4,
+   * 2026-07-01), so the one-step direct cancel was removed.
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
       return ['approve', 'reject'];
-    }
-    if (status === AppointmentStatusType.Approved) {
-      return ['cancel'];
     }
     return [];
   }
@@ -784,9 +781,6 @@ export class AppointmentViewComponent implements OnInit {
         break;
       case 'reject':
         this.rejectModalVisible = true;
-        break;
-      case 'cancel':
-        this.cancelModalVisible = true;
         break;
     }
   }
