@@ -7,7 +7,7 @@ import {
 
 describe('internal-detail.util', () => {
   describe('detailActions', () => {
-    it('offers approve/reject/reschedule/request-info on Pending', () => {
+    it('offers approve/reject/reschedule/cancel/request-info on Pending', () => {
       const a = detailActions('Pending');
       expect(a).toContain('approve');
       expect(a).toContain('reject');
@@ -15,11 +15,11 @@ describe('internal-detail.util', () => {
       expect(a).toContain('requestInfo');
     });
 
-    // F-M04 (2026-06-25): Cancel is NOT offered on Pending -- the domain rejects
-    // cancelling a Pending appointment (Reject is the terminal action), so the
-    // action previously produced a 403 + a stuck dialog.
-    it('does NOT offer cancel on Pending (reject is the valid action)', () => {
-      expect(detailActions('Pending')).not.toContain('cancel');
+    // B1/C3 (2026-07-01): Cancel IS now offered on Pending. B1 lets internal
+    // staff cancel a not-yet-approved appointment via the change-request +
+    // consent flow, superseding the old F-M04 hide (which avoided a 403).
+    it('offers cancel on Pending (routes through the consent flow)', () => {
+      expect(detailActions('Pending')).toContain('cancel');
     });
 
     it('offers only reschedule + cancel on Approved and Rescheduled', () => {
