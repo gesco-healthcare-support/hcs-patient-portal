@@ -129,9 +129,12 @@
         }
       </div>
 
-      <button class="in-iconbtn" type="button" aria-label="Notifications">
-        <app-icon name="bell" [size]="18" />
-      </button>
+      <!--
+        QA item 7: the notifications bell was removed -- it had no click handler
+        and no backend, so it was a dead affordance. The full in-app notifications
+        feature (per-office notification store, event hooks, unread badge +
+        dropdown) is scoped as a separate effort and will reintroduce this control.
+      -->
 
       @if (!hostScope()) {
         <a class="ap-btn ap-btn--primary" routerLink="/appointments/add">
@@ -172,7 +175,6 @@
         }
       </div>
     </header>
-
 
     <div class="in-content">
       <router-outlet />
