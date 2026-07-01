@@ -29,7 +29,6 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
     isImpersonatorVisible: jasmine.Spy;
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function createComponent(): any {
     impersonation = {
       impersonateTenant: jasmine.createSpy('impersonateTenant').and.returnValue(of({})),

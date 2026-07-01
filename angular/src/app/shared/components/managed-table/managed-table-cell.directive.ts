@@ -1,4 +1,4 @@
-import { Directive, Input, TemplateRef } from '@angular/core';
+import { Directive, Input, TemplateRef, inject } from '@angular/core';
 
 /**
  * Template context exposed to projected cell / row-action templates. The row is
@@ -22,6 +22,7 @@ export interface ManagedTableRowContext<T = any> {
  * plain text.
  */
 @Directive({
+  // eslint-disable-next-line @angular-eslint/directive-selector -- established short attribute selector; renaming would touch every host table
   selector: '[managedTableCell]',
   standalone: true,
 })
@@ -29,7 +30,7 @@ export class ManagedTableCellDirective<T = any> {
   /** The column key this template renders. */
   @Input('managedTableCell') columnKey = '';
 
-  constructor(readonly template: TemplateRef<ManagedTableRowContext<T>>) {}
+  readonly template: TemplateRef<ManagedTableRowContext<T>> = inject(TemplateRef);
 
   /** Lets the template compiler type `let row` as the row, not `any`. */
   static ngTemplateContextGuard<T>(
@@ -48,11 +49,12 @@ export class ManagedTableCellDirective<T = any> {
  * The managed table renders a trailing column only when this slot is present.
  */
 @Directive({
+  // eslint-disable-next-line @angular-eslint/directive-selector -- established short attribute selector; renaming would touch every host table
   selector: '[managedTableRowActions]',
   standalone: true,
 })
 export class ManagedTableRowActionsDirective<T = any> {
-  constructor(readonly template: TemplateRef<ManagedTableRowContext<T>>) {}
+  readonly template: TemplateRef<ManagedTableRowContext<T>> = inject(TemplateRef);
 
   static ngTemplateContextGuard<T>(
     _dir: ManagedTableRowActionsDirective<T>,

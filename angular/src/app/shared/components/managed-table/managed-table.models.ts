@@ -34,7 +34,9 @@ export interface ManagedTablePage<T> {
  * of one page. The host wires this to its paged proxy endpoint (filter / sorting /
  * skipCount / maxResultCount -> PagedResultDto).
  */
-export type ManagedTableDataSource<T> = (query: ManagedTableQuery) => Observable<ManagedTablePage<T>>;
+export type ManagedTableDataSource<T> = (
+  query: ManagedTableQuery,
+) => Observable<ManagedTablePage<T>>;
 
 /**
  * One column definition. Columns with a matching projected `*managedTableCell`

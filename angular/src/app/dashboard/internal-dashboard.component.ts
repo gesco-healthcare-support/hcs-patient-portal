@@ -11,7 +11,11 @@ import { Router } from '@angular/router';
 import { ConfigStateService } from '@abp/ng.core';
 import { map } from 'rxjs/operators';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
-import type { DashboardDto, DashboardKpiDto, DashboardTenantRowDto } from '../proxy/dashboards/models';
+import type {
+  DashboardDto,
+  DashboardKpiDto,
+  DashboardTenantRowDto,
+} from '../proxy/dashboards/models';
 import { DashboardRange } from '../proxy/dashboards/dashboard-range.enum';
 import { resolveInternalRoleKey } from '../shared/auth/internal-user-roles';
 import { IconComponent } from '../shared/ui/icon/icon.component';
@@ -118,7 +122,13 @@ export class InternalDashboardComponent implements OnInit {
   protected readonly tenantColumns: ManagedTableColumn[] = [
     // UI label: header 'Practice' (code key: tenantName)
     { key: 'tenantName', header: 'Practice', sortable: true, sortKey: 'tenantName' },
-    { key: 'appointments', header: 'Appointments', sortable: true, sortKey: 'appointments', align: 'right' },
+    {
+      key: 'appointments',
+      header: 'Appointments',
+      sortable: true,
+      sortKey: 'appointments',
+      align: 'right',
+    },
     { key: 'pending', header: 'Pending', sortable: true, sortKey: 'pending', align: 'right' },
     { key: 'approved', header: 'Approved', sortable: true, sortKey: 'approved', align: 'right' },
     { key: 'thisWeek', header: 'This week', sortable: true, sortKey: 'thisWeek', align: 'right' },
