@@ -9,11 +9,11 @@ using Volo.Abp.Timing;
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
 /// <summary>
-/// Group D (2026-06-09) -- domain service for the opposing-side consent token on
-/// a change request. Mirrors <c>Invitations/InvitationManager</c>: a 256-bit
-/// random raw token is returned once and only its SHA256 hash is persisted; the
-/// token is single-use (the aggregate's concurrency stamp resolves double-click
-/// races) and expires after 7 days (expiry defaults to a No).
+/// Domain service for the change-request consent tokens (reschedule/cancel consent
+/// redesign, 2026-07-01). Each solicited side gets its own 256-bit random raw token
+/// (returned once; only the SHA256 hash is persisted). A token is single-use (the
+/// aggregate's concurrency stamp resolves double-click races) and expires after 7 days
+/// (expiry defaults that side to a No). Mirrors <c>Invitations/InvitationManager</c>.
 /// </summary>
 public class ChangeRequestConsentManager : DomainService
 {
@@ -29,30 +29,28 @@ public class ChangeRequestConsentManager : DomainService
     }
 
     /// <summary>
-    /// Issues consent on a freshly-submitted request: stores the token hash +
-    /// submitting side on the entity and returns the raw token (once) for the
-    /// email link. The caller persists the request in its own unit of work.
+    /// Issues consent for one side: generates a token, stores its hash + expiry on that
+    /// side of the entity, and returns the raw token (once) for the email link. The caller
+    /// sets submitter metadata via <see cref="AppointmentChangeRequest.InitiateConsent"/> and
+    /// persists the request in its own unit of work.
     /// </summary>
-    public virtual string IssueConsent(
-        AppointmentChangeRequest request,
-        ChangeRequestSide requestingSide,
-        Guid submittedByUserId)
+    public virtual string IssueSideConsent(AppointmentChangeRequest request, ChangeRequestSide side)
     {
         Check.NotNull(request, nameof(request));
         var rawToken = GenerateRawToken();
         var tokenHash = ComputeTokenHash(rawToken);
         var expiresAt = _clock.Now.ToUniversalTime()
             .AddDays(AppointmentChangeRequestConsts.ConsentDefaultTtlDays);
-        request.IssueConsent(tokenHash, requestingSide, submittedByUserId, expiresAt);
+        request.IssueSideConsent(side, tokenHash, expiresAt);
         return rawToken;
     }
 
     /// <summary>
-    /// Non-mutating: resolves the change request a raw token points at, for the
-    /// public landing page. Throws <c>ConsentTokenInvalid</c> when no match. A
-    /// length guard rejects obvious fuzzing before a DB roundtrip.
+    /// Non-mutating: resolves the change request + which side a raw token points at, for the
+    /// public landing page. Throws <c>ConsentTokenInvalid</c> when no match. A length guard
+    /// rejects obvious fuzzing before a DB roundtrip.
     /// </summary>
-    public virtual async Task<AppointmentChangeRequest> ResolveByRawTokenAsync(string rawToken)
+    public virtual async Task<ChangeRequestConsentMatch> ResolveByRawTokenAsync(string rawToken)
     {
         if (string.IsNullOrWhiteSpace(rawToken)
             || rawToken.Length > AppointmentChangeRequestConsts.ConsentEncodedTokenMaxLength)
@@ -61,39 +59,44 @@ public class ChangeRequestConsentManager : DomainService
         }
 
         var tokenHash = ComputeTokenHash(rawToken);
-        var request = await _repository.FindAsync(x => x.ConsentTokenHash == tokenHash);
+        var request = await _repository.FindAsync(x =>
+            x.SideAConsentTokenHash == tokenHash || x.SideBConsentTokenHash == tokenHash);
         if (request == null)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentTokenInvalid);
         }
-        return request;
+
+        var side = request.SideConsentTokenHash(ChangeRequestSide.SideA) == tokenHash
+            ? ChangeRequestSide.SideA
+            : ChangeRequestSide.SideB;
+        return new ChangeRequestConsentMatch(request, side);
     }
 
     /// <summary>
-    /// Atomic: records the opposing side's decision. If the token has expired it
-    /// is defaulted to a No (Expired) and <c>ConsentExpired</c> is thrown so the
-    /// caller can surface the expiry message + notify staff. The aggregate's
-    /// concurrency stamp makes a double-click race resolve to a single decision
-    /// (the loser sees <c>AbpDbConcurrencyException</c>).
+    /// Atomic: records the matched side's decision. If that side's token has expired it is
+    /// defaulted to a No (Expired) and <c>ConsentExpired</c> is thrown so the caller can
+    /// surface the expiry message + notify staff. The aggregate's concurrency stamp makes a
+    /// double-click race resolve to a single decision (the loser sees
+    /// <c>AbpDbConcurrencyException</c>).
     /// </summary>
-    public virtual async Task<AppointmentChangeRequest> RecordDecisionAsync(
+    public virtual async Task<ChangeRequestConsentMatch> RecordDecisionAsync(
         string rawToken,
         bool approved,
         string? respondedByEmail)
     {
-        var request = await ResolveByRawTokenAsync(rawToken);
+        var match = await ResolveByRawTokenAsync(rawToken);
         var nowUtc = _clock.Now.ToUniversalTime();
 
-        if (request.IsConsentExpired(nowUtc))
+        if (match.Request.IsSideExpired(match.Side, nowUtc))
         {
-            request.MarkConsentExpired(nowUtc);
-            await _repository.UpdateAsync(request, autoSave: true);
+            match.Request.MarkSideExpired(match.Side, nowUtc);
+            await _repository.UpdateAsync(match.Request, autoSave: true);
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentExpired);
         }
 
-        request.RecordConsentDecision(approved, respondedByEmail, nowUtc);
-        await _repository.UpdateAsync(request, autoSave: true);
-        return request;
+        match.Request.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
+        await _repository.UpdateAsync(match.Request, autoSave: true);
+        return match;
     }
 
     /// <summary>
@@ -123,3 +126,6 @@ public class ChangeRequestConsentManager : DomainService
         return sb.ToString();
     }
 }
+
+/// <summary>A raw consent token resolved to its change request + the side that owns it.</summary>
+public sealed record ChangeRequestConsentMatch(AppointmentChangeRequest Request, ChangeRequestSide Side);

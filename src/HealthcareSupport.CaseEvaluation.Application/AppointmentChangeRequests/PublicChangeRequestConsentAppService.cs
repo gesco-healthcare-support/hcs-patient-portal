@@ -40,8 +40,8 @@ public class PublicChangeRequestConsentAppService :
     [AllowAnonymous]
     public virtual async Task<ChangeRequestConsentInfoDto> GetConsentInfoAsync(string token)
     {
-        var request = await _consentManager.ResolveByRawTokenAsync(token);
-        return await BuildInfoAsync(request);
+        var match = await _consentManager.ResolveByRawTokenAsync(token);
+        return await BuildInfoAsync(match.Request, match.Side);
     }
 
     [AllowAnonymous]
@@ -52,8 +52,8 @@ public class PublicChangeRequestConsentAppService :
         Check.NotNull(input, nameof(input));
         try
         {
-            var request = await _consentManager.RecordDecisionAsync(token, input.Approved, respondedByEmail: null);
-            return await BuildInfoAsync(request);
+            var match = await _consentManager.RecordDecisionAsync(token, input.Approved, respondedByEmail: null);
+            return await BuildInfoAsync(match.Request, match.Side);
         }
         catch (BusinessException ex) when (
             ex.Code == CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded ||
@@ -62,12 +62,12 @@ public class PublicChangeRequestConsentAppService :
             // Idempotent replay / expiry: surface the current decision state for the
             // landing page instead of a hard error. (Expiry already recorded the
             // default-No inside RecordDecisionAsync.)
-            var request = await _consentManager.ResolveByRawTokenAsync(token);
-            return await BuildInfoAsync(request);
+            var match = await _consentManager.ResolveByRawTokenAsync(token);
+            return await BuildInfoAsync(match.Request, match.Side);
         }
     }
 
-    private async Task<ChangeRequestConsentInfoDto> BuildInfoAsync(AppointmentChangeRequest request)
+    private async Task<ChangeRequestConsentInfoDto> BuildInfoAsync(AppointmentChangeRequest request, ChangeRequestSide side)
     {
         var appointment = await _appointmentRepository.FindAsync(request.AppointmentId);
 
@@ -93,7 +93,7 @@ public class PublicChangeRequestConsentAppService :
                 ? request.CancellationReason
                 : request.ReScheduleReason,
             RequestedNewDateTime = newDateTime,
-            ConsentStatus = request.ConsentStatus,
+            ConsentStatus = request.SideConsentStatus(side),
         };
     }
 }
