@@ -24,9 +24,30 @@ public class RescheduleRequestValidatorsUnitTests
     [InlineData(AppointmentStatusType.CheckedOut, false)]
     [InlineData(AppointmentStatusType.Billed, false)]
     [InlineData(AppointmentStatusType.CancellationRequested, false)]
-    public void CanRequestReschedule_AllowsOnlyApproved(AppointmentStatusType status, bool expected)
+    public void CanRequestReschedule_External_AllowsOnlyApproved(AppointmentStatusType status, bool expected)
     {
-        RescheduleRequestValidators.CanRequestReschedule(status).ShouldBe(expected);
+        RescheduleRequestValidators.CanRequestReschedule(status, allowPendingSource: false).ShouldBe(expected);
+    }
+
+    // B1 (2026-07-01): internal staff may also reschedule a Pending appointment;
+    // every other non-Approved status stays rejected.
+    [Theory]
+    [InlineData(AppointmentStatusType.Approved, true)]
+    [InlineData(AppointmentStatusType.Pending, true)]
+    [InlineData(AppointmentStatusType.Rejected, false)]
+    [InlineData(AppointmentStatusType.NoShow, false)]
+    [InlineData(AppointmentStatusType.CancelledNoBill, false)]
+    [InlineData(AppointmentStatusType.CancelledLate, false)]
+    [InlineData(AppointmentStatusType.RescheduleRequested, false)]
+    [InlineData(AppointmentStatusType.RescheduledNoBill, false)]
+    [InlineData(AppointmentStatusType.RescheduledLate, false)]
+    [InlineData(AppointmentStatusType.CheckedIn, false)]
+    [InlineData(AppointmentStatusType.CheckedOut, false)]
+    [InlineData(AppointmentStatusType.Billed, false)]
+    [InlineData(AppointmentStatusType.CancellationRequested, false)]
+    public void CanRequestReschedule_Internal_AllowsApprovedAndPending(AppointmentStatusType status, bool expected)
+    {
+        RescheduleRequestValidators.CanRequestReschedule(status, allowPendingSource: true).ShouldBe(expected);
     }
 
     [Theory]

@@ -88,9 +88,14 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         // AccessType.Edit. View accessors are rejected.
         await EnsureCanEditAsync(appointmentId);
 
+        // B1 (2026-07-01): internal staff may cancel a not-yet-approved
+        // (Pending) appointment; external users stay Approved-only.
+        var allowPendingSource = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+
         var changeRequest = await _manager.SubmitCancellationAsync(
             appointmentId: appointmentId,
             cancellationReason: input.Reason,
+            allowPendingSource: allowPendingSource,
             actingUserId: CurrentUser.Id);
 
         await IssueConsentAndNotifyAsync(changeRequest);
@@ -144,11 +149,15 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         var isInternalRescheduler = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
         await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId, isInternalRescheduler);
 
+        // B1 (2026-07-01): the same internal-caller flag admits a Pending
+        // source appointment for the reschedule request; external stays
+        // Approved-only.
         var changeRequest = await _manager.SubmitRescheduleAsync(
             appointmentId: appointmentId,
             newDoctorAvailabilityId: input.NewDoctorAvailabilityId,
             reScheduleReason: input.ReScheduleReason,
             isBeyondLimit: input.IsBeyondLimit,
+            allowPendingSource: isInternalRescheduler,
             actingUserId: CurrentUser.Id);
 
         await IssueConsentAndNotifyAsync(changeRequest);
