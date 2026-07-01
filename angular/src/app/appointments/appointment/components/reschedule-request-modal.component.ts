@@ -48,6 +48,8 @@ export class RescheduleRequestModalComponent implements OnChanges {
   @Input() appointmentId: string | null = null;
   @Input() locationId: string | null = null;
   @Input() appointmentTypeId: string | null = null;
+  // C2 (2026-07-01): staff filer -> both-parties-consent note; external -> opposing-party note.
+  @Input() requesterIsStaff = false;
   @Input() visible = false;
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() succeeded = new EventEmitter<AppointmentChangeRequestDto>();

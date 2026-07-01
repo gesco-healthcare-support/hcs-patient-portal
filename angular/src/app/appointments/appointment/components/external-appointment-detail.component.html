@@ -95,6 +95,11 @@
               Cancel
             </button>
           }
+          @if (consentIndicator; as consent) {
+            <span class="badge rounded-pill bg-light text-dark border align-self-center">
+              {{ consent.label }}
+            </span>
+          }
           @if (canReRequest) {
             <button class="ap-btn ap-btn--primary" type="button" (click)="reRequest()">
               <app-icon name="refresh" [size]="15" />

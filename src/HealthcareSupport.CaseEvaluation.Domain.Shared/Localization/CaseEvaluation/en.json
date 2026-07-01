@@ -514,6 +514,8 @@
     "Appointment:Modal:CancelRequestTitle": "Request cancellation",
     "Appointment:Modal:CancelReasonLabel": "Reason for cancellation",
     "Appointment:Modal:CancelReasonPlaceholder": "Why is this appointment being cancelled? Required.",
+    "Appointment:Modal:ConsentNoteStaff": "Both involved parties must consent before this change takes effect.",
+    "Appointment:Modal:ConsentNoteExternal": "The other involved party must approve before this change is finalized.",
     "Appointment:Toast:RescheduleRequested": "Reschedule request submitted",
     "Appointment:Toast:RescheduleApproved": "Appointment rescheduled",
     "Appointment:Toast:CancelRequested": "Cancellation request submitted",

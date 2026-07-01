@@ -4,6 +4,14 @@
   </ng-template>
 
   <ng-template #abpBody>
+    <div class="alert alert-info py-2 mb-3" role="note">
+      @if (requesterIsStaff) {
+        {{ '::Appointment:Modal:ConsentNoteStaff' | abpLocalization }}
+      } @else {
+        {{ '::Appointment:Modal:ConsentNoteExternal' | abpLocalization }}
+      }
+    </div>
+
     <div class="mb-3">
       <label class="form-label" for="reschedule-slot">
         {{ '::Appointment:Modal:RescheduleSlotLabel' | abpLocalization }} *

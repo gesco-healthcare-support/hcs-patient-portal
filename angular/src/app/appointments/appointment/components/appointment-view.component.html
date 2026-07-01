@@ -151,12 +151,14 @@
         [appointmentId]="appointment.appointment?.id ?? null"
         [locationId]="appointment.appointment?.locationId ?? null"
         [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="rescheduleRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-reschedule-request-modal>
 
       <app-cancellation-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="cancelRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-cancellation-request-modal>
