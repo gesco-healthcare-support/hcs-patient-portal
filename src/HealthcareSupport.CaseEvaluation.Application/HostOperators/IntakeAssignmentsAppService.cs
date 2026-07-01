@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -29,17 +32,23 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
 {
     private readonly IRepository<IntakeOfficeAssignment, Guid> _assignmentRepository;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IdentityUserManager _userManager;
     private readonly IIntakeShadowUserProvisioner _shadowProvisioner;
 
     public IntakeAssignmentsAppService(
         IRepository<IntakeOfficeAssignment, Guid> assignmentRepository,
         IRepository<Tenant, Guid> tenantRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IdentityUserManager userManager,
         IIntakeShadowUserProvisioner shadowProvisioner)
     {
         _assignmentRepository = assignmentRepository;
         _tenantRepository = tenantRepository;
+        _appointmentRepository = appointmentRepository;
+        _changeRequestRepository = changeRequestRepository;
         _userManager = userManager;
         _shadowProvisioner = shadowProvisioner;
     }
@@ -246,6 +255,60 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetMyOfficesAsync()
     {
         return await GetAssignedOfficesAsync(CurrentUser.Id);
+    }
+
+    [Authorize(CaseEvaluationPermissions.IntakeImpersonation.Default)]
+    public virtual async Task<ListResultDto<IntakeOfficeMetricsDto>> GetMyOfficeMetricsAsync()
+    {
+        var operatorId = CurrentUser.Id;
+        if (operatorId == null)
+        {
+            return new ListResultDto<IntakeOfficeMetricsDto>(new List<IntakeOfficeMetricsDto>());
+        }
+
+        // The assignment rows (host DB) are the isolation boundary -- only the
+        // operator's own offices are visited. Each office's counts are read INSIDE
+        // that office's database (CurrentTenant.Change scopes the IMultiTenant
+        // filter); only aggregate counts (no PHI) leave the server.
+        List<IntakeOfficeAssignment> assignments;
+        Dictionary<Guid, string> officeNameById;
+        using (CurrentTenant.Change(null))
+        {
+            assignments =
+                await _assignmentRepository.GetListAsync(a => a.OperatorUserId == operatorId.Value);
+            officeNameById = (await _tenantRepository.GetListAsync())
+                .ToDictionary(t => t.Id, t => t.Name ?? string.Empty);
+        }
+
+        var todayStart = DateTime.UtcNow.Date;
+        var todayEnd = todayStart.AddDays(1);
+
+        var metrics = new List<IntakeOfficeMetricsDto>(assignments.Count);
+        foreach (var assignment in assignments)
+        {
+            if (!officeNameById.TryGetValue(assignment.OfficeId, out var officeName))
+            {
+                continue; // office no longer in the registry
+            }
+
+            using (CurrentTenant.Change(assignment.OfficeId))
+            {
+                metrics.Add(new IntakeOfficeMetricsDto
+                {
+                    OfficeId = assignment.OfficeId,
+                    OfficeName = officeName,
+                    PendingRequests = await _appointmentRepository.CountAsync(
+                        x => x.AppointmentStatus == AppointmentStatusType.Pending),
+                    TodayAppointments = await _appointmentRepository.CountAsync(
+                        x => x.AppointmentDate >= todayStart && x.AppointmentDate < todayEnd),
+                    PendingChangeRequests = await _changeRequestRepository.CountAsync(
+                        x => x.RequestStatus == RequestStatusType.Pending),
+                });
+            }
+        }
+
+        return new ListResultDto<IntakeOfficeMetricsDto>(
+            metrics.OrderBy(m => m.OfficeName, StringComparer.OrdinalIgnoreCase).ToList());
     }
 
     [Authorize]

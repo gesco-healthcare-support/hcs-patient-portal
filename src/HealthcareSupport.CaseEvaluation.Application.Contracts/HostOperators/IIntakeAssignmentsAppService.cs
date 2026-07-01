@@ -49,6 +49,14 @@ public interface IIntakeAssignmentsAppService : IApplicationService
     Task<ListResultDto<LookupDto<Guid>>> GetMyOfficesAsync();
 
     /// <summary>
+    /// QA item 9: view-only per-practice metrics (pending requests, today's
+    /// appointments, pending change-requests) for the current Intake operator's
+    /// assigned offices. Gated by <c>CaseEvaluation.IntakeImpersonation</c>; each
+    /// office's counts are read inside that office's own database (isolation).
+    /// </summary>
+    Task<ListResultDto<IntakeOfficeMetricsDto>> GetMyOfficeMetricsAsync();
+
+    /// <summary>
     /// The offices the current in-office switcher caller may hop into directly
     /// (F Half 2 single-click office -> office). Resolves the host operator from the
     /// impersonation claim (<c>AbpClaimTypes.ImpersonatorUserId</c>) -- the in-office

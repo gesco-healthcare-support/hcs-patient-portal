@@ -17,3 +17,11 @@ export interface IntakeOfficeAssignmentDto {
   officeId?: string;
   officeName?: string;
 }
+
+export interface IntakeOfficeMetricsDto {
+  officeId?: string;
+  officeName?: string;
+  pendingRequests?: number;
+  todayAppointments?: number;
+  pendingChangeRequests?: number;
+}
