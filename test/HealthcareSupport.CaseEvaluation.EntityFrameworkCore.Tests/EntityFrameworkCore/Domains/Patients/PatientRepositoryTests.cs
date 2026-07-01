@@ -92,7 +92,7 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
     }
 
     [Fact]
-    public async Task GetWithNavigationPropertiesAsync_ReturnsPatientWithTenantNavProp()
+    public async Task GetWithNavigationPropertiesAsync_LeavesTenantNavNull()
     {
         await WithUnitOfWorkAsync(async () =>
         {
@@ -103,10 +103,10 @@ public class PatientRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 
                 result.ShouldNotBeNull();
                 result!.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
-                // Tenant nav prop resolves because the orchestrator seeds TenantA as a real
-                // SaasTenants row (via ITenantManager.CreateAsync, which is the production path).
-                result.Tenant.ShouldNotBeNull();
-                result.Tenant!.Id.ShouldBe(TenantsTestData.TenantARef);
+                // BUG-01 (db-per-office): the SaaS Tenant row lives in the host DB only, so an
+                // office DB context never joins SaasTenants -- the repo leaves the Tenant nav
+                // null (joining it 500'd patient get-or-create on every booking).
+                result.Tenant.ShouldBeNull();
             }
         });
     }
