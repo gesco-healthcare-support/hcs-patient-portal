@@ -21,7 +21,8 @@ export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string
   adminOverrideSlotId?: string | null;
   isBeyondLimit?: boolean;
   cancellationOutcome?: AppointmentStatusType | null;
-  consentStatus?: ChangeRequestConsentStatus;
+  sideAConsentStatus?: ChangeRequestConsentStatus;
+  sideBConsentStatus?: ChangeRequestConsentStatus;
   requestingSide?: ChangeRequestSide | null;
 }
 

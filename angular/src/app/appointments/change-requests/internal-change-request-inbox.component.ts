@@ -136,7 +136,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     return changeRequestAgeClass(this.ageDays(row));
   }
   protected consent(row: AppointmentChangeRequestDto): CrConsentView {
-    return changeRequestConsentView(row.consentStatus);
+    return changeRequestConsentView(row.sideAConsentStatus, row.sideBConsentStatus);
   }
   protected sideLabel(row: AppointmentChangeRequestDto): string {
     return requestingSideLabel(row.requestingSide);
@@ -192,12 +192,12 @@ export class InternalChangeRequestInboxComponent implements OnInit {
 
   /** Corrective note in the approve modal when consent blocks approval (null = approvable). */
   protected consentNote(row: AppointmentChangeRequestDto): string | null {
-    return consentBlockNote(row.consentStatus);
+    return consentBlockNote(row.sideAConsentStatus, row.sideBConsentStatus);
   }
 
   /** True when the row's consent state blocks approval; the server forbids it (no override). */
   protected approveBlocked(row: AppointmentChangeRequestDto): boolean {
-    return consentBlocksApproval(row.consentStatus);
+    return consentBlocksApproval(row.sideAConsentStatus, row.sideBConsentStatus);
   }
 
   protected confirmApprove(): void {
@@ -210,7 +210,8 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     // approval, but guard here too so a stale click never fires a doomed request.
     if (this.approveBlocked(m.row)) {
       this.toaster.warn(
-        consentBlockNote(m.row.consentStatus) ?? 'This request cannot be approved yet.',
+        consentBlockNote(m.row.sideAConsentStatus, m.row.sideBConsentStatus) ??
+          'This request cannot be approved yet.',
       );
       return;
     }
@@ -244,7 +245,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     this.isBusy.set(true);
     const req$ = this.isReschedule(m.row)
       ? this.approvalService.rejectReschedule(m.row.id, { reason: text }, { skipHandleError: true })
-      : this.approvalService.rejectCancellation(m.row.id, { reason: text }, { skipHandleError: true });
+      : this.approvalService.rejectCancellation(
+          m.row.id,
+          { reason: text },
+          { skipHandleError: true },
+        );
     req$.subscribe({
       next: () => this.onHandled(m, 'rejected'),
       error: (err) => this.handleRequestError(err),
