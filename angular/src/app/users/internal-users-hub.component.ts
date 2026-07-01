@@ -146,7 +146,6 @@ export class InternalUsersHubComponent {
     // UI label: header 'Practice' (code key: name)
     { key: 'name', header: 'Practice', sortable: true, sortKey: 'name' },
     { key: 'subdomain', header: 'Subdomain' },
-    { key: 'editionName', header: 'Edition', sortable: true, sortKey: 'editionName' },
     { key: 'userCount', header: 'Users' },
     { key: 'appointmentCount', header: 'Appointments' },
     { key: 'isActive', header: 'Status' },
@@ -154,7 +153,6 @@ export class InternalUsersHubComponent {
   protected readonly officesDataSource: ManagedTableDataSource<OfficeListDto> = (q) =>
     this.gateway.officesPage(q);
   protected readonly tenantForm = signal<TenantFormState | null>(null);
-  protected readonly editionOptions = signal<{ id: string; name: string }[]>([]);
 
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
@@ -185,6 +183,16 @@ export class InternalUsersHubComponent {
    *  AbpIdentity.Users.Update; hide the toggle otherwise (deny-by-default). */
   protected canDeactivateUser(): boolean {
     return this.permission.getGrantedPolicy('AbpIdentity.Users.Update');
+  }
+
+  /** O3: base domain for the subdomain preview, derived from the current host so
+   *  it self-corrects per environment (admin.localhost -> 'localhost';
+   *  admin.example.com -> 'example.com'). Falls back to the full host when there
+   *  is no leading subdomain label to strip (e.g. a bare 'localhost'). */
+  protected get tenantBaseDomain(): string {
+    const host = window.location.hostname;
+    const labels = host.split('.');
+    return labels.length > 1 ? labels.slice(1).join('.') : host;
   }
 
   private closeModals(): void {
@@ -426,9 +434,10 @@ export class InternalUsersHubComponent {
   // ---- Tenants ----
   protected openNewTenant(): void {
     this.tenantForm.set({ id: null, name: '', editionId: null, adminEmail: '', isActive: true });
-    this.ensureEditions();
   }
   protected openEditTenant(row: OfficeListDto): void {
+    // editionId is preserved on the DTO but no longer editable (O4 removed the
+    // unused SaaS-edition selector); new practices are always created edition-less.
     this.tenantForm.set({
       id: row.id ?? null,
       name: row.name ?? '',
@@ -437,15 +446,6 @@ export class InternalUsersHubComponent {
       isActive: row.isActive ?? true,
       concurrencyStamp: row.concurrencyStamp,
     });
-    this.ensureEditions();
-  }
-  private ensureEditions(): void {
-    if (!this.editionOptions().length) {
-      this.gateway.getEditionOptions().subscribe({
-        next: (o) => this.editionOptions.set(o),
-        error: () => this.editionOptions.set([]),
-      });
-    }
   }
   protected patchTenant(partial: Partial<TenantFormState>): void {
     const current = this.tenantForm();

@@ -373,15 +373,8 @@
           <b>{{ t.name | officeName }}</b>
         </span>
         <span class="ia-sub" *managedTableCell="'subdomain'; let t">
-          {{ t.subdomain }}.caseeval.app
+          {{ t.subdomain }}.{{ tenantBaseDomain }}
         </span>
-        <ng-container *managedTableCell="'editionName'; let t">
-          @if (t.editionName) {
-            <span class="ux-ed">{{ t.editionName }}</span>
-          } @else {
-            <span class="ia-sub">--</span>
-          }
-        </ng-container>
         <span
           class="lw-active"
           *managedTableCell="'isActive'; let t"
@@ -523,20 +516,7 @@
               maxlength="40"
               placeholder="clinic-name"
             />
-            <span class="ra-hint">{{ f.name || 'subdomain' }}.caseeval.app</span>
-          </div>
-          <div class="ra-field col-6">
-            <label>Edition</label>
-            <select
-              class="ra-select"
-              [ngModel]="f.editionId"
-              (ngModelChange)="patchTenant({ editionId: $event })"
-            >
-              <option [ngValue]="null">None</option>
-              @for (e of editionOptions(); track e.id) {
-                <option [ngValue]="e.id">{{ e.name }}</option>
-              }
-            </select>
+            <span class="ra-hint">{{ f.name || 'subdomain' }}.{{ tenantBaseDomain }}</span>
           </div>
           @if (!f.id) {
             <div class="ra-field col-6">
