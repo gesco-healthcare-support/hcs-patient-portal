@@ -174,6 +174,19 @@ export class InternalUsersHubComponent {
     return this.permission.getGrantedPolicy('Saas.Tenants.Create');
   }
 
+  /** O5: editing a practice needs Saas.Tenants.Update; hide the row Edit button
+   *  otherwise so a view-only operator never clicks into a 403. */
+  protected canEditTenant(): boolean {
+    return this.permission.getGrantedPolicy('Saas.Tenants.Update');
+  }
+
+  /** IU2: deactivate/reactivate routes through the ABP identity user update
+   *  (UserExtendedAppService : IdentityUserAppService, no override), gated by
+   *  AbpIdentity.Users.Update; hide the toggle otherwise (deny-by-default). */
+  protected canDeactivateUser(): boolean {
+    return this.permission.getGrantedPolicy('AbpIdentity.Users.Update');
+  }
+
   private closeModals(): void {
     this.createForm.set(null);
     this.tenantForm.set(null);

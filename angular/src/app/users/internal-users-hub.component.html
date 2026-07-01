@@ -294,15 +294,17 @@
           >
             <app-icon name="refresh" [size]="15" />
           </button>
-          <button
-            class="ra-rowbtn"
-            [class.danger]="u.isActive"
-            [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
-            (click)="toggleActive(u)"
-            [disabled]="isBusy()"
-          >
-            <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
-          </button>
+          @if (canDeactivateUser()) {
+            <button
+              class="ra-rowbtn"
+              [class.danger]="u.isActive"
+              [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
+              (click)="toggleActive(u)"
+              [disabled]="isBusy()"
+            >
+              <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
+            </button>
+          }
         </div>
       </app-managed-table>
 
@@ -393,9 +395,11 @@
           <button class="ra-rowbtn" title="Switch into practice" (click)="switchTenant(t)">
             <app-icon name="chevRight" [size]="15" />
           </button>
-          <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
-            <app-icon name="doc" [size]="15" />
-          </button>
+          @if (canEditTenant()) {
+            <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
+              <app-icon name="doc" [size]="15" />
+            </button>
+          }
         </div>
       </app-managed-table>
     }
