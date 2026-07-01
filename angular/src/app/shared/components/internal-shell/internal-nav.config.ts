@@ -156,7 +156,9 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'System Parameters',
         icon: 'settings',
         route: '/admin/parameters',
-        roles: ['supervisor', 'intake'],
+        // MO4 (2026-06-30): Intake staff are read-only operators; System
+        // Parameters is supervisor-only. Dropped 'intake' from the role filter.
+        roles: ['supervisor'],
         requiredPolicy: 'CaseEvaluation.SystemParameters',
       },
       {
@@ -295,49 +297,40 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
     ],
   },
   {
-    // Phase D (2026-06-25): cross-office operator surfaces. Supervisor switches
-    // into any office as admin (Tenants); IT Admin + Supervisor manage Intake
-    // assignments; the Intake operator switches into its assigned offices.
-    sect: 'Offices',
+    // Item 1 (2026-06-30): the former 'Offices' + 'SaaS' groups merged into one
+    // "Practice Management" group. Per the ratified noun model a tenant = a
+    // doctor's PRACTICE, so the office surfaces read as practices; the external-
+    // user invite hub (Users & Access) folds in beside internal-staff management.
+    // Overview stays in Platform. Labels are UI-only -- ids/routes/policies stay.
+    sect: 'Practice Management',
     items: [
       {
         id: 'tenants',
-        label: 'Offices',
+        label: 'Practices', // UI label: 'Practices' (code id: tenants, route /users/tenants)
         icon: 'users',
         route: '/users/tenants',
         roles: ['itadmin', 'supervisor'],
         requiredPolicy: 'Saas.Tenants',
       },
       {
-        id: 'intake-assignments',
-        label: 'Intake Assignments',
-        icon: 'user',
-        route: '/host/intake-assignments',
-        roles: ['itadmin', 'supervisor'],
-        requiredPolicy: 'CaseEvaluation.IntakeAssignments',
-      },
-      {
-        id: 'my-offices',
-        label: 'My Offices',
-        icon: 'map',
-        route: '/host/my-offices',
-        roles: ['intake'],
-        requiredPolicy: 'CaseEvaluation.IntakeImpersonation',
-      },
-      {
         // Phase E (2026-06-25): host-side central per-office branding manager.
         id: 'host-branding',
-        label: 'Office Branding',
+        label: 'Practice Branding', // UI label: 'Practice Branding' (code id: host-branding, route /host/branding)
         icon: 'doc',
         route: '/host/branding',
         roles: ['itadmin', 'supervisor'],
         requiredPolicy: 'CaseEvaluation.Branding',
       },
-    ],
-  },
-  {
-    sect: 'SaaS',
-    items: [
+      {
+        // Phase D: host Staff Supervisor creates internal operators (Intake +
+        // Supervisor) -- gated by InternalUsers.Create, which it holds.
+        id: 'internal-users',
+        label: 'Staff Management', // UI label: 'Staff Management' (code id: internal-users, route /users/internal)
+        icon: 'users',
+        route: '/users/internal',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
+      },
       {
         // Prompt 16 (2026-06-16): the redesigned Users & Access hub serves IT Admin's
         // invite / pending / internal-users / tenants surfaces via its rail.
@@ -349,14 +342,20 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },
       {
-        // Phase D: host Staff Supervisor creates internal operators (Intake +
-        // Supervisor) -- gated by InternalUsers.Create, which it holds.
-        id: 'internal-users',
-        label: 'Internal Users',
-        icon: 'users',
-        route: '/users/internal',
+        id: 'intake-assignments',
+        label: 'Staff Assignments', // UI label: 'Staff Assignments' (code id: intake-assignments, route /host/intake-assignments)
+        icon: 'user',
+        route: '/host/intake-assignments',
         roles: ['itadmin', 'supervisor'],
-        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
+        requiredPolicy: 'CaseEvaluation.IntakeAssignments',
+      },
+      {
+        id: 'my-offices',
+        label: 'Assigned Practices', // UI label: 'Assigned Practices' (code id: my-offices, route /host/my-offices)
+        icon: 'map',
+        route: '/host/my-offices',
+        roles: ['intake'],
+        requiredPolicy: 'CaseEvaluation.IntakeImpersonation',
       },
     ],
   },
