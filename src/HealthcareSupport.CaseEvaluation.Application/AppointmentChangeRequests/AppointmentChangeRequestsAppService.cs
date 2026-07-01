@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Enums;
 using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Linq;
@@ -163,6 +164,35 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         await IssueConsentAndNotifyAsync(changeRequest);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
+    }
+
+    /// <summary>
+    /// C2a (2026-07-01): the latest Pending change request for the appointment
+    /// (with per-side consent) or null. Read-gated so any viewer of the
+    /// appointment can drive the consent indicator + request-button hiding.
+    /// </summary>
+    [Authorize]
+    public virtual async Task<AppointmentChangeRequestDto?> GetActiveForAppointmentAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            return null;
+        }
+
+        // Anyone who can VIEW the appointment may read its consent state; staff
+        // bypass the per-row rule inside the guard.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        var queryable = await _changeRequestRepository.GetQueryableAsync();
+        var active = await AsyncExecuter.FirstOrDefaultAsync(
+            queryable
+                .Where(cr => cr.AppointmentId == appointmentId
+                    && cr.RequestStatus == RequestStatusType.Pending)
+                .OrderByDescending(cr => cr.CreationTime));
+
+        return active == null
+            ? null
+            : ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(active);
     }
 
     private async Task EnsureCanEditAsync(Guid appointmentId)

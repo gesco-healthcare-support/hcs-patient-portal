@@ -36,4 +36,15 @@ public interface IAppointmentChangeRequestsAppService : IApplicationService
     /// reschedule path (lines 96-122 validation + 197-223 action).
     /// </summary>
     Task<AppointmentChangeRequestDto> RequestRescheduleAsync(Guid appointmentId, RequestRescheduleDto input);
+
+    /// <summary>
+    /// C2a (2026-07-01) -- returns the active (Pending) change request for the
+    /// appointment (the latest one), with its per-side consent status, or null
+    /// when none is open. Read-gated by
+    /// <c>AppointmentReadAccessGuard.EnsureCanReadAsync</c> so any user who can
+    /// view the appointment (booker, named parties, edit-accessor, staff) can
+    /// read its consent state for the UI consent indicator + request-button
+    /// gating (hide external buttons while a cancel is pending).
+    /// </summary>
+    Task<AppointmentChangeRequestDto?> GetActiveForAppointmentAsync(Guid appointmentId);
 }
