@@ -154,7 +154,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
     private static readonly string[] AllEntities =
     {
-        "Books",
+        // QA item 10 (2026-06-30): the ABP-template Books sample permission was
+        // removed from the definition provider; dropping it here keeps seeding
+        // from granting an undefined permission.
         "States",
         "AppointmentTypes",
         "AppointmentStatuses",
