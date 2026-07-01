@@ -451,6 +451,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                 ThisWeek = await _appointmentRepository.CountAsync(
                     a => a.CreationTime >= lastMondayUtc),
                 Doctors = await _doctorRepository.CountAsync(),
+                // QA item 6 (D2): clinic locations per office, summed for the host tile.
+                Locations = await _locationRepository.CountAsync(),
             });
 
         var rows = perOffice
@@ -470,6 +472,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             IsHost = true,
             TotalTenants = tenants.Count,
             TotalDoctors = perOffice.Sum(o => o.Doctors),
+            TotalLocations = perOffice.Sum(o => o.Locations),
             TotalAppointments = perOffice.Sum(o => o.Appointments),
             PendingAcrossTenants = perOffice.Sum(o => o.Pending),
             Tenants = rows,

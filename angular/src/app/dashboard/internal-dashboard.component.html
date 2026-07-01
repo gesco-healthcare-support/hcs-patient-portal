@@ -49,16 +49,18 @@
         <div class="dh-kpi blue" (click)="openTenants()">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-blue"><app-icon name="users" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Total tenants</span>
+            <!-- UI label: 'Total Practices' (code: totalTenants) -->
+            <span class="dh-kpi__lbl">Total Practices</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalTenants ?? 0 }}</div>
         </div>
+        <!-- QA item 6 (D2): replaced the redundant Total-Doctors tile with Total Locations. -->
         <div class="dh-kpi green" style="cursor: default">
           <div class="dh-kpi__top">
-            <span class="dh-kpi__ic tint-green"><app-icon name="stetho" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Total doctors</span>
+            <span class="dh-kpi__ic tint-green"><app-icon name="map" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Total Locations</span>
           </div>
-          <div class="dh-kpi__num">{{ d.totalDoctors ?? 0 }}</div>
+          <div class="dh-kpi__num">{{ d.totalLocations ?? 0 }}</div>
         </div>
         <div class="dh-kpi amber" style="cursor: default">
           <div class="dh-kpi__top">
