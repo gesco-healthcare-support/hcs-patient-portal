@@ -1,10 +1,11 @@
 <div class="dh-head">
   <div>
     <h1>{{ isHost() ? 'Host dashboard' : 'Dashboard' }}</h1>
+    <!-- UI label: host subtitle 'practices' (code: tenants) -->
     <p>
       {{
         isHost()
-          ? 'Activity across all tenants.'
+          ? 'Activity across all practices.'
           : isIntake()
             ? 'Today at ' + (tenantName() | officeName) + '.'
             : 'Overview for ' + (tenantName() | officeName) + '.'
@@ -69,22 +70,25 @@
         <div class="dh-kpi red" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-red"><app-icon name="clock" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Pending across tenants</span>
+            <!-- UI label: 'Pending across practices' (code: tenants) -->
+            <span class="dh-kpi__lbl">Pending across practices</span>
           </div>
           <div class="dh-kpi__num">{{ d.pendingAcrossTenants ?? 0 }}</div>
         </div>
       </div>
 
       <div class="dh-card">
-        <div class="dh-card__head"><h3>Tenants</h3></div>
+        <!-- UI label: 'Practices' (code: tenants) -->
+        <div class="dh-card__head"><h3>Practices</h3></div>
         <div class="dh-card__body" style="padding: 0">
+          <!-- UI labels: search 'practice name', empty 'No practices yet.' (code: tenants) -->
           <app-managed-table
             [dataSource]="tenantDataSource"
             [columns]="tenantColumns"
             [pageSize]="20"
             trackByKey="tenantName"
-            searchPlaceholder="Search by tenant name..."
-            emptyText="No tenants yet."
+            searchPlaceholder="Search by practice name..."
+            emptyText="No practices yet."
           >
             <span class="tn" *managedTableCell="'tenantName'; let t">
               <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>

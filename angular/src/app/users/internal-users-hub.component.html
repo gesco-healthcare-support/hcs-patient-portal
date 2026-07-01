@@ -39,7 +39,8 @@
             @if (tenantPickerRequired()) {
               <div class="ra-field col-6">
                 <label>
-                  Office
+                  <!-- UI label: 'Practice' (code: office) -->
+                  Practice
                   <span class="req">*</span>
                 </label>
                 <select
@@ -47,12 +48,14 @@
                   [ngModel]="invite().tenantId"
                   (ngModelChange)="patchInvite({ tenantId: $event })"
                 >
-                  <option value="">Select an office</option>
+                  <!-- UI label: 'Select a practice' (code: office) -->
+                  <option value="">Select a practice</option>
                   @for (o of tenantOptions(); track o.id) {
                     <option [value]="o.id">{{ o.displayName | officeName }}</option>
                   }
                 </select>
-                <span class="ra-hint">The external user is invited into this office.</span>
+                <!-- UI label: 'practice' (code: office) -->
+                <span class="ra-hint">The external user is invited into this practice.</span>
               </div>
             }
             <!-- F-005 (2026-06-25): the invite form collects First/Last for ALL
@@ -141,7 +144,8 @@
           <div class="ux-result__body">
             <div class="ux-result__grid">
               <div>
-                <div class="k">Tenant</div>
+                <!-- UI label: 'Practice' (code: tenant, field res.tenantName) -->
+                <div class="k">Practice</div>
                 <div class="v">{{ res.tenantName }}</div>
               </div>
               <div>
@@ -344,10 +348,12 @@
         @if (canCreateTenant()) {
           <button class="af-btn af-btn--primary" (click)="openNewTenant()">
             <app-icon name="plus" [size]="15" />
-            New tenant
+            <!-- UI label: 'New practice' (code: tenant) -->
+            New practice
           </button>
         }
       </div>
+      <!-- UI labels: search 'practice name', empty 'No practices yet.' (code: tenant) -->
       <app-managed-table
         [dataSource]="officesDataSource"
         [columns]="officesColumns"
@@ -355,8 +361,8 @@
         [reload$]="reload$"
         [pageSize]="20"
         trackByKey="id"
-        searchPlaceholder="Search by tenant name..."
-        emptyText="No tenants yet."
+        searchPlaceholder="Search by practice name..."
+        emptyText="No practices yet."
       >
         <span class="ux-name" *managedTableCell="'name'; let t">
           <span class="ux-ava" [style.background]="avatarColor(t.id)">
@@ -383,7 +389,8 @@
           {{ t.isActive ? 'Active' : 'Inactive' }}
         </span>
         <div class="ux-rowacts" *managedTableRowActions="let t">
-          <button class="ra-rowbtn" title="Switch into tenant" (click)="switchTenant(t)">
+          <!-- UI label: title 'Switch into practice' (code: tenant) -->
+          <button class="ra-rowbtn" title="Switch into practice" (click)="switchTenant(t)">
             <app-icon name="chevRight" [size]="15" />
           </button>
           <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
@@ -494,7 +501,8 @@
   <div class="ra-scrim" (click)="closeTenant()">
     <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
       <div class="ra-modal__head">
-        <h3>{{ f.id ? 'Edit tenant' : 'New tenant' }}</h3>
+        <!-- UI label: 'Edit practice' / 'New practice' (code: tenant) -->
+        <h3>{{ f.id ? 'Edit practice' : 'New practice' }}</h3>
         <button class="x" (click)="closeTenant()"><app-icon name="x" [size]="18" /></button>
       </div>
       <div class="ra-modal__body">
@@ -549,7 +557,8 @@
                 (ngModelChange)="patchTenant({ isActive: $event })"
               />
               <span class="track"></span>
-              Active -- tenant can sign in and book
+              <!-- UI label: 'practice' (code: tenant) -->
+              Active -- practice can sign in and book
             </label>
           </div>
         </div>

@@ -42,24 +42,30 @@ import type { LookupDto } from '../proxy/shared/models';
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
-        <h1>Intake office assignments</h1>
-        <p>Control which offices each Intake operator may switch into.</p>
+        <!-- UI label: 'Staff Assignments' (code: intake office assignments) -->
+        <h1>Staff Assignments</h1>
+        <!-- UI label: 'Assign practices to intake staff' (code: offices/operator) -->
+        <p>Assign practices to intake staff.</p>
       </header>
 
       <form class="ho-assign__form" (ngSubmit)="assign()">
         <label>
-          Operator
+          <!-- UI label: 'Staff' (code: operator) -->
+          Staff
           <select [(ngModel)]="operatorId" name="operatorId" [disabled]="busy()">
-            <option value="">Select an operator...</option>
+            <!-- UI label: 'Select staff...' (code: operator) -->
+            <option value="">Select staff...</option>
             @for (op of operators(); track op.id) {
               <option [value]="op.id">{{ op.displayName }}</option>
             }
           </select>
         </label>
         <label>
-          Office
+          <!-- UI label: 'Practice' (code: office) -->
+          Practice
           <select [(ngModel)]="officeId" name="officeId" [disabled]="busy()">
-            <option value="">Select an office...</option>
+            <!-- UI label: 'Select a practice...' (code: office) -->
+            <option value="">Select a practice...</option>
             @for (office of offices(); track office.id) {
               <option [value]="office.id">{{ office.displayName | officeName }}</option>
             }
@@ -74,6 +80,7 @@ import type { LookupDto } from '../proxy/shared/models';
         </button>
       </form>
 
+      <!-- UI label: search 'staff or practice' (code: operator/office) -->
       <app-managed-table
         [dataSource]="dataSource"
         [columns]="columns"
@@ -81,7 +88,7 @@ import type { LookupDto } from '../proxy/shared/models';
         [reload$]="reload$"
         [pageSize]="20"
         trackByKey="id"
-        searchPlaceholder="Search by operator or office..."
+        searchPlaceholder="Search by staff or practice..."
         emptyText="No assignments yet."
       >
         <span *managedTableCell="'officeName'; let row">{{ row.officeName | officeName }}</span>
@@ -114,9 +121,11 @@ export class IntakeAssignmentsComponent {
   protected readonly reload$ = new Subject<void>();
 
   protected readonly columns: ManagedTableColumn[] = [
-    { key: 'operatorName', header: 'Operator', sortable: true, sortKey: 'operatorName' },
+    // UI label: header 'Staff' (code key: operatorName)
+    { key: 'operatorName', header: 'Staff', sortable: true, sortKey: 'operatorName' },
     { key: 'operatorEmail', header: 'Email', sortable: true, sortKey: 'operatorEmail' },
-    { key: 'officeName', header: 'Office', sortable: true, sortKey: 'officeName' },
+    // UI label: header 'Practice' (code key: officeName)
+    { key: 'officeName', header: 'Practice', sortable: true, sortKey: 'officeName' },
   ];
 
   /** Server-paged data source backed by the paged + batch-loaded GetPagedListAsync. */
@@ -145,7 +154,8 @@ export class IntakeAssignmentsComponent {
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: () => {
-          this.toaster.success('Operator assigned.');
+          // UI label: 'Staff assigned.' (code: operator)
+          this.toaster.success('Staff assigned.');
           this.operatorId = '';
           this.officeId = '';
           this.reload$.next();

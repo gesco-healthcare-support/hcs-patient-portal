@@ -60,10 +60,13 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
   template: `
     <section class="ho-assign">
       <header class="ho-assign__head">
-        <h1>Office branding</h1>
-        <p>Set each office's display name and logo. Changes apply to that office only.</p>
+        <!-- UI label: 'Practice Branding' (code: office branding) -->
+        <h1>Practice Branding</h1>
+        <!-- UI label: 'practice' (code: office) -->
+        <p>Set each practice's display name and logo. Changes apply to that practice only.</p>
       </header>
 
+      <!-- UI labels: search 'practice or display name', empty 'No practices yet.' (code: office) -->
       <app-managed-table
         [dataSource]="dataSource"
         [columns]="columns"
@@ -71,10 +74,11 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
         [reload$]="reload$"
         [pageSize]="20"
         trackByKey="officeId"
-        searchPlaceholder="Search by office or display name..."
-        emptyText="No offices yet."
+        searchPlaceholder="Search by practice or display name..."
+        emptyText="No practices yet."
       >
         <span *managedTableCell="'officeName'; let row">{{ row.officeName | officeName }}</span>
+        <!-- UI label: placeholder 'Practice display name' (code: office) -->
         <input
           *managedTableCell="'displayName'; let row"
           type="text"
@@ -82,7 +86,7 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
           (ngModelChange)="names[row.officeId] = $event"
           [disabled]="busy()"
           maxlength="128"
-          placeholder="Office display name"
+          placeholder="Practice display name"
         />
         <ng-container *managedTableCell="'hasLogo'; let row">
           @if (row.hasLogo) {
@@ -135,7 +139,8 @@ export class HostBrandingComponent {
   protected names: Record<string, string> = {};
 
   protected readonly columns: ManagedTableColumn[] = [
-    { key: 'officeName', header: 'Office', sortable: true, sortKey: 'officeName' },
+    // UI label: header 'Practice' (code key: officeName)
+    { key: 'officeName', header: 'Practice', sortable: true, sortKey: 'officeName' },
     { key: 'displayName', header: 'Display name', sortable: true, sortKey: 'displayName' },
     { key: 'hasLogo', header: 'Logo' },
   ];

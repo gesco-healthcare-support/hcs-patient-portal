@@ -143,7 +143,8 @@ export class InternalUsersHubComponent {
 
   // Tenants / Offices (server-driven table)
   protected readonly officesColumns: ManagedTableColumn[] = [
-    { key: 'name', header: 'Tenant', sortable: true, sortKey: 'name' },
+    // UI label: header 'Practice' (code key: name)
+    { key: 'name', header: 'Practice', sortable: true, sortKey: 'name' },
     { key: 'subdomain', header: 'Subdomain' },
     { key: 'editionName', header: 'Edition', sortable: true, sortKey: 'editionName' },
     { key: 'userCount', header: 'Users' },
@@ -236,7 +237,8 @@ export class InternalUsersHubComponent {
       return;
     }
     if (this.tenantPickerRequired() && !form.tenantId) {
-      this.toaster.warn('Select an office for the invitation.');
+      // UI label: 'practice' (code: office)
+      this.toaster.warn('Select a practice for the invitation.');
       return;
     }
     const isFirm = this.showFirm();
@@ -453,14 +455,16 @@ export class InternalUsersHubComponent {
       return;
     }
     if (!form.id && !EMAIL_RE.test(form.adminEmail.trim())) {
-      this.toaster.warn('A valid admin email is required for a new tenant.');
+      // UI label: 'practice' (code: tenant)
+      this.toaster.warn('A valid admin email is required for a new practice.');
       return;
     }
     this.isBusy.set(true);
     const request$ = form.id ? this.gateway.updateTenant(form) : this.gateway.createTenant(form);
     request$.pipe(finalize(() => this.isBusy.set(false))).subscribe({
       next: () => {
-        this.toaster.success(form.id ? 'Tenant saved.' : 'Tenant created.');
+        // UI label: 'Practice' (code: tenant)
+        this.toaster.success(form.id ? 'Practice saved.' : 'Practice created.');
         this.tenantForm.set(null);
         this.reload$.next();
       },

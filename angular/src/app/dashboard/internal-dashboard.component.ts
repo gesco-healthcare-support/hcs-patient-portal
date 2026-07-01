@@ -116,7 +116,8 @@ export class InternalDashboardComponent implements OnInit {
   // Host per-office breakdown table (server-paged via GetTenantBreakdownAsync,
   // independent of the monolithic overview DTO).
   protected readonly tenantColumns: ManagedTableColumn[] = [
-    { key: 'tenantName', header: 'Tenant', sortable: true, sortKey: 'tenantName' },
+    // UI label: header 'Practice' (code key: tenantName)
+    { key: 'tenantName', header: 'Practice', sortable: true, sortKey: 'tenantName' },
     { key: 'appointments', header: 'Appointments', sortable: true, sortKey: 'appointments', align: 'right' },
     { key: 'pending', header: 'Pending', sortable: true, sortKey: 'pending', align: 'right' },
     { key: 'approved', header: 'Approved', sortable: true, sortKey: 'approved', align: 'right' },

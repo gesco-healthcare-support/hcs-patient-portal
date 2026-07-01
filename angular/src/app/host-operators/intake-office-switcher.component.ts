@@ -25,15 +25,19 @@ import type { LookupDto } from '../proxy/shared/models';
   template: `
     <section class="ho-switcher">
       <header class="ho-switcher__head">
-        <h1>Select an office</h1>
-        <p>Switch into one of your assigned offices to begin intake work.</p>
+        <!-- UI label: 'Select a Practice' (code: office) -->
+        <h1>Select a Practice</h1>
+        <!-- UI label: 'practices' (code: offices) -->
+        <p>Switch into one of your assigned practices to begin intake work.</p>
       </header>
 
       @if (loading()) {
-        <p class="ho-switcher__muted">Loading your offices...</p>
+        <!-- UI label: 'practices' (code: offices) -->
+        <p class="ho-switcher__muted">Loading your practices...</p>
       } @else if (offices().length === 0) {
+        <!-- UI label: 'practice' (code: office) -->
         <p class="ho-switcher__muted">
-          You have no office assignments yet. Ask an administrator to assign you to an office.
+          You have no practice assignments yet. Ask an administrator to assign you to a practice.
         </p>
       } @else {
         <ul class="ho-switcher__list">
@@ -49,7 +53,8 @@ import type { LookupDto } from '../proxy/shared/models';
                 [disabled]="busy()"
                 (click)="switchInto(office)"
               >
-                Enter office
+                <!-- UI label: 'Enter practice' (code: office) -->
+                Enter practice
               </button>
             </li>
           }
@@ -83,7 +88,8 @@ export class IntakeOfficeSwitcherComponent {
       return;
     }
     this.busy.set(true);
-    this.toaster.info('Switching into ' + (office.displayName ?? 'office') + '...');
+    // UI label: fallback 'practice' (code: office)
+    this.toaster.info('Switching into ' + (office.displayName ?? 'practice') + '...');
     // Empty username -> the custom grant forces the operator's own shadow user.
     this.impersonation
       .impersonateTenant(officeId, '')
