@@ -56,6 +56,12 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
       border-color: var(--blue-300, #93c5fd);
       box-shadow: 0 0 0 3px var(--blue-50);
     }
+    /* OB2: keep the "Logo set/No logo" status clear of the upload button. */
+    .ob-logocell {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
   `,
   template: `
     <section class="ho-assign">
@@ -89,22 +95,24 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
           placeholder="Practice display name"
         />
         <ng-container *managedTableCell="'hasLogo'; let row">
-          @if (row.hasLogo) {
-            <span class="ho-assign__muted">Logo set</span>
-          } @else {
-            <span class="ho-assign__muted">No logo</span>
-          }
-          <label class="ho-assign__upload" [class.is-disabled]="busy()">
-            <app-icon name="upload" [size]="14" />
-            {{ row.hasLogo ? 'Replace logo' : 'Upload logo' }}
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              hidden
-              [disabled]="busy()"
-              (change)="onLogoSelected(row, $event)"
-            />
-          </label>
+          <span class="ob-logocell">
+            @if (row.hasLogo) {
+              <span class="ho-assign__muted">Logo set</span>
+            } @else {
+              <span class="ho-assign__muted">No logo</span>
+            }
+            <label class="ho-assign__upload" [class.is-disabled]="busy()">
+              <app-icon name="upload" [size]="14" />
+              {{ row.hasLogo ? 'Replace logo' : 'Upload logo' }}
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                hidden
+                [disabled]="busy()"
+                (change)="onLogoSelected(row, $event)"
+              />
+            </label>
+          </span>
         </ng-container>
         <ng-container *managedTableRowActions="let row">
           <button type="button" class="ho-assign__btn" [disabled]="busy()" (click)="saveName(row)">
