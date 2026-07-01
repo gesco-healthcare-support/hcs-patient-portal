@@ -249,8 +249,50 @@
                   }
                 </div>
               }
+
+              @if (claimInformationFlagged) {
+                <div class="sb-fixrow">
+                  <label>{{ fieldLabel('claimInformation') }}</label>
+                  @if (!isFixed('claimInformation')) {
+                    <div class="sb-flaghint">
+                      <app-icon name="alert" [size]="13" />
+                      {{
+                        hintFor('claimInformation') ||
+                          'Update the claim / injury details below, then mark this done.'
+                      }}
+                    </div>
+                    <button
+                      class="af-btn af-btn--ghost af-btn--sm"
+                      type="button"
+                      (click)="ackClaimInformationUpdated()"
+                    >
+                      <app-icon name="check" [size]="14" />
+                      I've updated the claim information
+                    </button>
+                  } @else {
+                    <span class="sb-confirm">
+                      <app-icon name="check" [size]="13" />
+                      Claim information noted -- it saves when you resubmit.
+                    </span>
+                  }
+                </div>
+              }
             </div>
           </section>
+
+          <!-- QA item 11: the repeating Claim Information editor, reused from the booking
+               wizard. Mutates injuryDrafts in place; the set posts on save/resubmit. -->
+          @if (claimInformationFlagged) {
+            <section class="ad-card">
+              <div class="ad-card__head">
+                <span class="ic tint-purple"><app-icon name="help" [size]="18" /></span>
+                <h3>Claim information</h3>
+              </div>
+              <div class="ad-card__body">
+                <app-appointment-add-claim-information [injuryDrafts]="injuryDrafts" />
+              </div>
+            </section>
+          }
         }
 
         <!-- Actions -->

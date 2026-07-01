@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -44,7 +45,12 @@ public class AppointmentInfoRequestsAppService
     private readonly IRepository<AppointmentLanguage, Guid> _languageRepository;
     private readonly IRepository<State, Guid> _stateRepository;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
     private readonly IIdentityUserRepository _userRepository;
+
+    // The section-level flag key for Claim Information (the repeating injury collection).
+    // Kept as one constant because it is both the lock key and the fail-closed gate key.
+    private const string ClaimInformationFieldKey = "claimInformation";
 
     public AppointmentInfoRequestsAppService(
         IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
@@ -58,6 +64,7 @@ public class AppointmentInfoRequestsAppService
         IRepository<AppointmentLanguage, Guid> languageRepository,
         IRepository<State, Guid> stateRepository,
         IRepository<AppointmentDocument, Guid> documentRepository,
+        IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
         IIdentityUserRepository userRepository)
     {
         _infoRequestRepository = infoRequestRepository;
@@ -71,6 +78,7 @@ public class AppointmentInfoRequestsAppService
         _languageRepository = languageRepository;
         _stateRepository = stateRepository;
         _documentRepository = documentRepository;
+        _injuryDetailRepository = injuryDetailRepository;
         _userRepository = userRepository;
     }
 
@@ -150,6 +158,29 @@ public class AppointmentInfoRequestsAppService
     }
 
     [Authorize]
+    public virtual async Task<List<InjuryDetailCorrectionDto>> GetInjuryDetailsForCorrectionAsync(Guid appointmentId)
+    {
+        // Read-access guard, not the injury-details CRUD permission: external roles must be
+        // able to prefill the fix-it editor with the rows they are being asked to correct.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        var rows = await _injuryDetailRepository.GetListAsync(x => x.AppointmentId == appointmentId);
+        return rows
+            .OrderBy(x => x.DateOfInjury)
+            .Select(x => new InjuryDetailCorrectionDto
+            {
+                DateOfInjury = x.DateOfInjury,
+                ToDateOfInjury = x.ToDateOfInjury,
+                ClaimNumber = x.ClaimNumber,
+                IsCumulativeInjury = x.IsCumulativeInjury,
+                WcabAdj = x.WcabAdj,
+                BodyPartsSummary = x.BodyPartsSummary,
+                WcabOfficeId = x.WcabOfficeId,
+            })
+            .ToList();
+    }
+
+    [Authorize]
     public virtual async Task SaveCorrectionsAsync(
         Guid appointmentId,
         SaveInfoRequestCorrectionsInput input)
@@ -182,6 +213,24 @@ public class AppointmentInfoRequestsAppService
         {
             throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyFlaggedFieldsCanBeChanged"]);
         }
+
+        // Claim Information is a repeating collection, not a scalar registry field, so it
+        // rides alongside the scalar map as a full replacement set (QA item 11, 2026-07-01).
+        // Same only-flagged lock: a supplied set is accepted only when staff flagged
+        // claimInformation, then the appointment's injury rows are rewritten via direct
+        // repository access (this endpoint, not the gated CRUD service, is the trust boundary).
+        if (input.InjuryDetails != null)
+        {
+            // Same only-flagged lock as the scalar map, reusing the tested helper: the
+            // collection replace is allowed only when staff flagged Claim Information.
+            if (InfoRequestCorrectionLock
+                    .FindUnflaggedChanges(new[] { ClaimInformationFieldKey }, flaggedKeys).Count > 0)
+            {
+                throw new UserFriendlyException(L["AppointmentInfoRequest:OnlyFlaggedFieldsCanBeChanged"]);
+            }
+            await ReplaceInjuryDetailsAsync(appointment, input.InjuryDetails);
+        }
+
         if (provided.Count == 0)
         {
             return;
@@ -198,6 +247,38 @@ public class AppointmentInfoRequestsAppService
             touchedOwners.Add(spec.Owner);
         }
         await SaveBundleAsync(bundle, touchedOwners);
+    }
+
+    /// <summary>
+    /// Replaces the appointment's Claim Information (injury-detail) collection with the
+    /// corrected set: the existing rows are deleted and the supplied rows inserted. Direct
+    /// repository writes -- the corrections endpoint is the trust boundary (EnsureCanEditAsync),
+    /// so it must NOT route through the permission-gated injury-details app service (external
+    /// roles lack its grants). Each row is re-validated by the domain ctor (claim number, ADJ#,
+    /// body-parts summary non-empty + length-capped); TenantId is stamped by the office scope.
+    /// </summary>
+    private async Task ReplaceInjuryDetailsAsync(Appointment appointment, List<InjuryDetailCorrectionDto> rows)
+    {
+        var existing = await _injuryDetailRepository.GetListAsync(x => x.AppointmentId == appointment.Id);
+        foreach (var row in existing)
+        {
+            await _injuryDetailRepository.DeleteAsync(row, autoSave: true);
+        }
+
+        foreach (var dto in rows)
+        {
+            var entity = new AppointmentInjuryDetail(
+                GuidGenerator.Create(),
+                appointment.Id,
+                dto.DateOfInjury,
+                dto.ClaimNumber,
+                dto.IsCumulativeInjury,
+                dto.BodyPartsSummary,
+                dto.ToDateOfInjury,
+                dto.WcabAdj,
+                dto.WcabOfficeId);
+            await _injuryDetailRepository.InsertAsync(entity, autoSave: true);
+        }
     }
 
     private static HashSet<string> ReadFlaggedKeys(AppointmentInfoRequest entity)
@@ -285,6 +366,18 @@ public class AppointmentInfoRequestsAppService
             if (key == "documents")
             {
                 if (await _documentRepository.CountAsync(x => x.AppointmentId == appointment.Id) == 0)
+                {
+                    unresolved.Add(key);
+                }
+                continue;
+            }
+
+            // Claim Information is resolved once the appointment has at least one injury row
+            // (QA item 11): the collection-replace correction leaves >= 1 row, mirroring the
+            // documents rule. FAIL-CLOSED -- an empty collection blocks the resubmit.
+            if (key == ClaimInformationFieldKey)
+            {
+                if (await _injuryDetailRepository.CountAsync(x => x.AppointmentId == appointment.Id) == 0)
                 {
                     unresolved.Add(key);
                 }

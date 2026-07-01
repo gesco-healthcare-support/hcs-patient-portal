@@ -25,6 +25,14 @@ public interface IAppointmentInfoRequestsAppService : IApplicationService
     /// <summary>External party. Resolve the open request + move the appointment back to Pending.</summary>
     Task ResubmitAsync(Guid appointmentId);
 
+    /// <summary>
+    /// External party. The appointment's current Claim Information (injury-detail) rows, so
+    /// the fix-it page can prefill its editor (QA item 11, 2026-07-01). Gated by the
+    /// read-access guard rather than the injury-details CRUD permission, which external
+    /// roles lack; returns an empty list when none exist.
+    /// </summary>
+    Task<List<InjuryDetailCorrectionDto>> GetInjuryDetailsForCorrectionAsync(Guid appointmentId);
+
     /// <summary>The open (unresolved) info request for the appointment, or null when none is open.</summary>
     Task<AppointmentInfoRequestDto?> GetOpenAsync(Guid appointmentId);
 

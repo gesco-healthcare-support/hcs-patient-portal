@@ -374,13 +374,14 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
 
   // --- Claim Information (1, consolidated section-level flag) ---
   {
-    // Dropped from send-back for this pass (2026-06-30): the repeating injury-detail
-    // collection needs its own collection-replace correction path + embedded editor,
-    // tracked as a focused fast-follow rather than the per-field scalar flow.
+    // Section-level pseudo-field (QA item 11, 2026-07-01): the repeating injury-detail
+    // collection is corrected as a full replacement set via the fix-it page's embedded
+    // editor, not the per-field scalar flow. isInlineEditable() keeps it out of the scalar
+    // loop; the fix-it page renders the collection editor + posts SaveInfoRequestCorrectionsInput.InjuryDetails.
     key: 'claimInformation',
     label: 'Claim information',
     group: 'Claim Information',
-    sendBackFlaggable: false,
+    sendBackFlaggable: true,
   },
 
   // --- Documents (1) ---

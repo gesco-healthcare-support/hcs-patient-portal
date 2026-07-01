@@ -15,4 +15,15 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 public class SaveInfoRequestCorrectionsInput
 {
     public Dictionary<string, string?> Corrections { get; set; } = new();
+
+    /// <summary>
+    /// The corrected Claim Information (injury-detail) rows, when the open request flagged
+    /// <c>claimInformation</c> (QA item 11, 2026-07-01). Null means "no change"; a non-null
+    /// list is a full REPLACEMENT of the appointment's injury-detail collection (Claim
+    /// Information cannot be modelled as scalar key/value pairs). Accepted only when
+    /// <c>claimInformation</c> is in the flagged set, then written via direct repository
+    /// access -- the corrections endpoint is the trust boundary, so external roles do not
+    /// need the gated injury-details CRUD grants.
+    /// </summary>
+    public List<InjuryDetailCorrectionDto>? InjuryDetails { get; set; }
 }

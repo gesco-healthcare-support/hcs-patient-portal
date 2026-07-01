@@ -48,4 +48,27 @@ public class InfoRequestCorrectionLockTests
             .FindUnflaggedChanges(System.Array.Empty<string>(), new HashSet<string>())
             .ShouldBeEmpty();
     }
+
+    // QA item 11: the Claim Information collection-replace path is gated by the SAME lock,
+    // passing its section key through this helper -- a supplied injury set is accepted only
+    // when staff flagged claimInformation.
+    [Fact]
+    public void Allows_the_claim_information_collection_when_flagged()
+    {
+        var flagged = new HashSet<string> { "claimInformation" };
+
+        InfoRequestCorrectionLock
+            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
+            .ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Rejects_the_claim_information_collection_when_not_flagged()
+    {
+        var flagged = new HashSet<string> { "cellPhoneNumber" };
+
+        InfoRequestCorrectionLock
+            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
+            .ShouldContain("claimInformation");
+    }
 }
