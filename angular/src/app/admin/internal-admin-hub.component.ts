@@ -33,6 +33,25 @@ import {
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
 
+/** A single permission node in the role matrix (item 10 Part B nesting). */
+interface PermNode {
+  name: string;
+  displayName: string;
+}
+
+/** A parent permission with its (possibly empty) child actions, for the nested matrix. */
+interface PermParentNode {
+  parent: PermNode;
+  children: PermNode[];
+}
+
+/** A permission group shaped for the nested + searchable matrix. */
+interface PermMatrixGroup {
+  name: string;
+  displayName: string;
+  parents: PermParentNode[];
+}
+
 /** The editable working copy of the selected notification template. */
 interface NtDraft {
   subject: string;
@@ -55,6 +74,30 @@ interface NtDraft {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, RouterLink, IconComponent, QuillEditorComponent],
   templateUrl: './internal-admin-hub.component.html',
+  styles: `
+    /* Item 10 Part B: permission-matrix search + parent/child nesting. */
+    .pm-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      max-width: 320px;
+    }
+    .pm-search input {
+      flex: 1;
+      height: 38px;
+      border: 0;
+      background: none;
+      font: inherit;
+      outline: none;
+    }
+    .pm-perm--child {
+      padding-left: 22px;
+    }
+  `,
 })
 export class InternalAdminHubComponent {
   private readonly route = inject(ActivatedRoute);
@@ -143,6 +186,55 @@ export class InternalAdminHubComponent {
   protected readonly permTotal = computed(() =>
     this.permGroups().reduce((sum, g) => sum + (g.permissions?.length ?? 0), 0),
   );
+  protected readonly permSearch = signal('');
+
+  /**
+   * Item 10 Part B: shapes permGroups() into a nested (parent -> child actions),
+   * searchable matrix. Nesting is by the ABP permission `parentName`; toggling
+   * stays per-permission (checkboxes are independent, matching prior behavior).
+   * A search term keeps a parent + all its children when the PARENT matches,
+   * else only the matching children under their parent; empty groups drop out.
+   */
+  protected readonly permMatrix = computed<PermMatrixGroup[]>(() => {
+    const query = this.permSearch().trim().toLowerCase();
+    const result: PermMatrixGroup[] = [];
+    for (const g of this.permGroups()) {
+      const childrenByParent = new Map<string, PermNode[]>();
+      const parents: PermNode[] = [];
+      for (const p of g.permissions ?? []) {
+        if (!p.name) {
+          continue;
+        }
+        const node: PermNode = { name: p.name, displayName: p.displayName ?? p.name };
+        if (p.parentName) {
+          const list = childrenByParent.get(p.parentName) ?? [];
+          list.push(node);
+          childrenByParent.set(p.parentName, list);
+        } else {
+          parents.push(node);
+        }
+      }
+      const parentNodes: PermParentNode[] = [];
+      for (const parent of parents) {
+        const children = childrenByParent.get(parent.name) ?? [];
+        if (!query) {
+          parentNodes.push({ parent, children });
+          continue;
+        }
+        const parentMatch = parent.displayName.toLowerCase().includes(query);
+        const shownChildren = parentMatch
+          ? children
+          : children.filter((c) => c.displayName.toLowerCase().includes(query));
+        if (parentMatch || shownChildren.length > 0) {
+          parentNodes.push({ parent, children: shownChildren });
+        }
+      }
+      if (parentNodes.length > 0) {
+        result.push({ name: g.name ?? '', displayName: g.displayName ?? '', parents: parentNodes });
+      }
+    }
+    return result;
+  });
 
   // ---- Audit Logs ----
   protected readonly auditRows = signal<AuditLogDto[]>([]);

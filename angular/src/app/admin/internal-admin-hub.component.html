@@ -336,26 +336,53 @@
               </button>
             }
           </div>
+          @if (roleSelected()) {
+            <div class="pm-search">
+              <app-icon name="search" [size]="16" />
+              <input
+                type="search"
+                [ngModel]="permSearch()"
+                (ngModelChange)="permSearch.set($event)"
+                placeholder="Search permissions..."
+                aria-label="Search permissions"
+              />
+            </div>
+          }
           <div class="pm-matrix">
-            @for (g of permGroups(); track g.name) {
+            @for (g of permMatrix(); track g.name) {
               <div class="pm-group">
                 <h4>{{ g.displayName }}</h4>
                 <div class="pm-perms">
-                  @for (p of g.permissions; track p.name) {
-                    <label class="pm-perm">
+                  @for (node of g.parents; track node.parent.name) {
+                    <label class="pm-perm pm-perm--parent">
                       <input
                         type="checkbox"
-                        [checked]="isGranted(p.name)"
+                        [checked]="isGranted(node.parent.name)"
                         [disabled]="roleLocked()"
-                        (change)="togglePermission(p.name)"
+                        (change)="togglePermission(node.parent.name)"
                       />
-                      <span>{{ p.displayName }}</span>
+                      <span>{{ node.parent.displayName }}</span>
                     </label>
+                    @for (child of node.children; track child.name) {
+                      <label class="pm-perm pm-perm--child">
+                        <input
+                          type="checkbox"
+                          [checked]="isGranted(child.name)"
+                          [disabled]="roleLocked()"
+                          (change)="togglePermission(child.name)"
+                        />
+                        <span>{{ child.displayName }}</span>
+                      </label>
+                    }
                   }
                 </div>
               </div>
             } @empty {
-              <div class="ia-empty">Select a role to view its permissions.</div>
+              @if (roleSelected()) {
+                <div class="ia-empty">No permissions match "{{ permSearch() }}".</div>
+              } @else {
+                <div class="ia-empty">Select a role to view its permissions.</div>
+              }
             }
           </div>
         </div>
