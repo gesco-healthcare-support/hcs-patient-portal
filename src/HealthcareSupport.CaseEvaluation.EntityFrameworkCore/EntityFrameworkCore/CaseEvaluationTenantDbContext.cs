@@ -37,6 +37,7 @@ using Volo.Abp.Data;
 using Volo.Abp.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Notifications;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 
@@ -84,6 +85,8 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<Patient> Patients { get; set; } = null!;
     public DbSet<Location> Locations { get; set; } = null!;
     public DbSet<WcabOffice> WcabOffices { get; set; } = null!;
+    // QA item 7: per-office in-app notifications (one row per staff recipient).
+    public DbSet<AppNotification> AppNotifications { get; set; } = null!;
 
     public CaseEvaluationTenantDbContext(DbContextOptions<CaseEvaluationTenantDbContext> options) : base(options)
     {
@@ -164,6 +167,24 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
             b.Property(x => x.LastSavedTime).HasColumnName("LastSavedTime");
             b.HasIndex(x => new { x.TenantId, x.CreatorId });
             b.HasIndex(x => x.LastSavedTime);
+        });
+        // QA item 7: per-office in-app notifications. IMultiTenant -> lives in the
+        // office DB; mirrored verbatim in the host context per the dual-DbContext
+        // convention. The (TenantId, RecipientUserId, IsRead) index backs both the
+        // unread-count and the my-list (newest-first) queries.
+        builder.Entity<AppNotification>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppNotifications", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.RecipientUserId).HasColumnName(nameof(AppNotification.RecipientUserId)).IsRequired();
+            b.Property(x => x.NotificationType).HasColumnName(nameof(AppNotification.NotificationType)).IsRequired();
+            b.Property(x => x.Title).HasColumnName(nameof(AppNotification.Title)).IsRequired().HasMaxLength(AppNotificationConsts.TitleMaxLength);
+            b.Property(x => x.Body).HasColumnName(nameof(AppNotification.Body)).IsRequired().HasMaxLength(AppNotificationConsts.BodyMaxLength);
+            b.Property(x => x.Url).HasColumnName(nameof(AppNotification.Url)).HasMaxLength(AppNotificationConsts.UrlMaxLength);
+            b.Property(x => x.IsRead).HasColumnName(nameof(AppNotification.IsRead));
+            b.Property(x => x.ReadTime).HasColumnName(nameof(AppNotification.ReadTime));
+            b.HasIndex(x => new { x.TenantId, x.RecipientUserId, x.IsRead });
         });
         // #4 (2026-06-19): document-category <-> appointment-type M2M (loose
         // AppointmentTypeId, no FK -- AppointmentType is absent here).

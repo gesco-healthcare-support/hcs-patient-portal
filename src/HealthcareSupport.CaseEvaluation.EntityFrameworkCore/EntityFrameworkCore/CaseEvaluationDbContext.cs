@@ -36,6 +36,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Branding;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
@@ -86,6 +87,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
+    // QA item 7: in-app notifications (IMultiTenant; mirrored here per the dual-DbContext convention).
+    public DbSet<AppNotification> AppNotifications { get; set; } = null!;
     // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
     public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
     // Phase E (2026-06-25): host/management per-office branding (name + logo).
@@ -245,6 +248,24 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.LastSavedTime).HasColumnName("LastSavedTime");
             b.HasIndex(x => new { x.TenantId, x.CreatorId });
             b.HasIndex(x => x.LastSavedTime);
+        });
+
+        // QA item 7: per-office in-app notifications (verbatim mirror of the tenant
+        // context block per the dual-DbContext convention). IMultiTenant; the
+        // (TenantId, RecipientUserId, IsRead) index backs the unread-count + my-list.
+        builder.Entity<AppNotification>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppNotifications", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.RecipientUserId).HasColumnName(nameof(AppNotification.RecipientUserId)).IsRequired();
+            b.Property(x => x.NotificationType).HasColumnName(nameof(AppNotification.NotificationType)).IsRequired();
+            b.Property(x => x.Title).HasColumnName(nameof(AppNotification.Title)).IsRequired().HasMaxLength(AppNotificationConsts.TitleMaxLength);
+            b.Property(x => x.Body).HasColumnName(nameof(AppNotification.Body)).IsRequired().HasMaxLength(AppNotificationConsts.BodyMaxLength);
+            b.Property(x => x.Url).HasColumnName(nameof(AppNotification.Url)).HasMaxLength(AppNotificationConsts.UrlMaxLength);
+            b.Property(x => x.IsRead).HasColumnName(nameof(AppNotification.IsRead));
+            b.Property(x => x.ReadTime).HasColumnName(nameof(AppNotification.ReadTime));
+            b.HasIndex(x => new { x.TenantId, x.RecipientUserId, x.IsRead });
         });
 
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the

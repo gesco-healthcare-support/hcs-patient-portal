@@ -15,6 +15,7 @@ import { ToasterService } from '@abp/ng.theme.shared';
 import { Subscription, filter } from 'rxjs';
 import { IconComponent } from '../../ui/icon/icon.component';
 import { OfficeNamePipe } from '../../pipes/office-name.pipe';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 import { performFullLogout } from '../../auth/full-logout';
 import {
   InternalRoleKey,
@@ -71,7 +72,7 @@ interface ShellTenant {
 @Component({
   selector: 'app-internal-shell-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, IconComponent, OfficeNamePipe],
+  imports: [RouterOutlet, RouterLink, IconComponent, OfficeNamePipe, NotificationBellComponent],
   templateUrl: './internal-shell-layout.component.html',
   // Default (not OnPush) on purpose: the shell hosts legacy default-CD pages
   // (appointment detail/add extend AppointmentViewComponent/AppointmentAddComponent,
