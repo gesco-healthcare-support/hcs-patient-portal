@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -108,6 +109,80 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
 
             return new ListResultDto<OfficeBrandingDto>(dtos);
         }
+    }
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged + searchable variant of
+    /// <see cref="GetOfficeBrandingsAsync"/> for the host-central manager grid. Same
+    /// host-side office + branding join (the office registry is bounded, so the
+    /// filter / sort / page apply in memory). The non-paged method is kept intact for
+    /// back-compat.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Branding.Default)]
+    public virtual async Task<PagedResultDto<OfficeBrandingDto>> GetPagedOfficeBrandingsAsync(
+        GetOfficeBrandingInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            var offices = await _tenantRepository.GetListAsync();
+            var brandings = await _brandingRepository.GetListAsync();
+            var byOffice = brandings
+                .GroupBy(b => b.OfficeId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var all = offices
+                .Select(office =>
+                {
+                    byOffice.TryGetValue(office.Id, out var branding);
+                    var hasLogo = branding != null && !string.IsNullOrWhiteSpace(branding.LogoBlobName);
+                    return new OfficeBrandingDto
+                    {
+                        OfficeId = office.Id,
+                        OfficeName = office.Name ?? string.Empty,
+                        DisplayName = branding?.DisplayName,
+                        HasLogo = hasLogo,
+                        LogoUrl = hasLogo ? BuildOfficeLogoUrl(office.Id, branding!) : null,
+                    };
+                })
+                .ToList();
+
+            var filter = input.Filter?.Trim();
+            var filtered = all
+                .Where(d => string.IsNullOrEmpty(filter)
+                    || d.OfficeName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || (d.DisplayName != null
+                        && d.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            var totalCount = filtered.Count;
+
+            var page = SortOfficeBrandings(filtered, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            return new PagedResultDto<OfficeBrandingDto>(totalCount, page);
+        }
+    }
+
+    private static List<OfficeBrandingDto> SortOfficeBrandings(
+        List<OfficeBrandingDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "officename";
+        var descending = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<OfficeBrandingDto> ordered = field switch
+        {
+            "displayname" => descending
+                ? rows.OrderByDescending(r => r.DisplayName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.DisplayName ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+            _ => descending
+                ? rows.OrderByDescending(r => r.OfficeName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase),
+        };
+        return ordered.ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.Branding.Default)]

@@ -160,9 +160,9 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             //     without rejection sampling.
             var generatedPassword = GenerateParityPassword();
 
-            // 4d. Construct the IdentityUser. Tenant id is set
-            //     explicitly to the resolved target (CurrentTenant.Id
-            //     is now == input.TenantId because of the using block).
+            // 4d. Construct the IdentityUser in HOST scope. The enclosing
+            //     CurrentTenant.Change(null) makes CurrentTenant.Id null, so the
+            //     operator is a host login (input.TenantId is ignored -- see step 2).
             var user = new IdentityUser(
                 id: GuidGenerator.Create(),
                 userName: normalizedEmail,
@@ -244,15 +244,15 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     }
 
     /// <summary>
-    /// 2026-06-16 (Prompt 16, A-B3) -- admin-triggered password reset. Resolves
-    /// the target user in the caller's current tenant scope (the internal-users
-    /// list + this action both run inside the managed tenant), generates an ABP
-    /// Identity reset token, builds the tenant-aware reset URL, and dispatches
-    /// the per-tenant ResetPassword template -- the same pipeline the
-    /// self-service forgot-password flow uses. Dispatch failures are NOT
-    /// swallowed (unlike the create welcome email): there is no committed
-    /// side-effect to protect, so a queue failure should surface to the admin
-    /// rather than show a false success.
+    /// 2026-06-16 (Prompt 16, A-B3) -- admin-triggered password reset. Finds the
+    /// target user in the caller's ambient scope (since Phase D the internal-users
+    /// list is HOST-scoped, so operators resolve in host context), generates an ABP
+    /// Identity reset token, builds the reset URL (host root for host operators,
+    /// subdomain-prefixed for any tenant-scoped user), and dispatches the
+    /// ResetPassword template -- the same pipeline the self-service forgot-password
+    /// flow uses. Dispatch failures are NOT swallowed (unlike the create welcome
+    /// email): there is no committed side-effect to protect, so a queue failure
+    /// should surface to the admin rather than show a false success.
     /// </summary>
     [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
     public virtual async Task SendPasswordResetEmailAsync(Guid userId)
@@ -262,15 +262,14 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
         }
-        if (!user.TenantId.HasValue)
-        {
-            // Internal users are always tenant-scoped; a missing tenant is a data bug.
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserTenantRequired);
-        }
-
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        var resetUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
-            user.TenantId.Value, user.Id, token);
+        // Phase D (2026-06-25): internal operators are HOST logins (TenantId null).
+        // The prior guard threw InternalUserTenantRequired here, breaking reset for
+        // every host operator. Host users get the host AuthServer reset URL; a
+        // tenant-scoped user (legacy/edge) still gets the subdomain-prefixed one.
+        var resetUrl = user.TenantId.HasValue
+            ? await _accountUrlBuilder.BuildPasswordResetUrlAsync(user.TenantId.Value, user.Id, token)
+            : await _accountUrlBuilder.BuildHostPasswordResetUrlAsync(user.Id, token);
 
         await _notificationDispatcher.DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
@@ -477,4 +476,127 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         if (hasLast) return last!.Trim();
         return string.Empty;
     }
+
+    /// <summary>
+    /// Internal role names, in display precedence (IT Admin &gt; Staff Supervisor
+    /// &gt; Intake Staff). Mirrors the frontend INTERNAL_ROLE_NAMES + the Domain
+    /// seed contributor's role names; kept as literals to match this file's
+    /// existing <see cref="CreatableRoleNames"/> style (ABP layering keeps the
+    /// Domain constant out of reach without a new dependency).
+    /// </summary>
+    private static readonly string[] InternalRoleNamesByPrecedence =
+        new[] { "IT Admin", "Staff Supervisor", "Intake Staff" };
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged, internal-role-scoped Staff list. See
+    /// <see cref="IInternalUsersAppService.GetInternalUsersAsync"/>.
+    ///
+    /// <para>Queries only the three internal roles (one membership query each, in
+    /// host context) and de-duplicates with the precedence above, so a user with
+    /// two internal roles surfaces under the higher one. This is bounded by
+    /// internal-staff headcount -- not business-volume data -- so the page's
+    /// filter / sort / offset are applied in memory after the role union. Crucially
+    /// it never loads the full identity-user set, which is what made the old
+    /// load-500-then-filter truncate the Staff list past 500 total users.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.InternalUsers.Default)]
+    public virtual async Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(
+        GetInternalUsersInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            // Union the three internal roles, host operators only (TenantId null),
+            // keeping the first (highest-precedence) role each user is found under.
+            var byUserId = new Dictionary<Guid, (IdentityUser User, string Role)>();
+            foreach (var roleName in InternalRoleNamesByPrecedence)
+            {
+                var usersInRole = await _userManager.GetUsersInRoleAsync(roleName);
+                foreach (var user in usersInRole)
+                {
+                    if (user.TenantId != null || byUserId.ContainsKey(user.Id))
+                    {
+                        continue;
+                    }
+                    byUserId[user.Id] = (user, roleName);
+                }
+            }
+
+            var filter = input.Filter?.Trim();
+            var rows = byUserId.Values
+                .Where(x => MatchesInternalUserFilter(x.User, filter))
+                .Select(x => new InternalUserListDto
+                {
+                    Id = x.User.Id,
+                    FirstName = x.User.Name ?? string.Empty,
+                    LastName = x.User.Surname ?? string.Empty,
+                    FullName = ComposeUserFullName(x.User),
+                    Email = x.User.Email ?? string.Empty,
+                    Role = x.Role,
+                    IsActive = x.User.IsActive,
+                })
+                .ToList();
+
+            var totalCount = rows.Count;
+            var page = SortInternalUsers(rows, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            return new PagedResultDto<InternalUserListDto>(totalCount, page);
+        }
+    }
+
+    private static bool MatchesInternalUserFilter(IdentityUser user, string? filter)
+    {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return true;
+        }
+        return Contains(user.Name, filter)
+            || Contains(user.Surname, filter)
+            || Contains(user.UserName, filter)
+            || Contains(user.Email, filter);
+    }
+
+    private static bool Contains(string? value, string filter) =>
+        value != null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    private static string ComposeUserFullName(IdentityUser user)
+    {
+        var full = JoinName(user.Name, user.Surname);
+        return string.IsNullOrEmpty(full) ? user.UserName ?? string.Empty : full;
+    }
+
+    private static List<InternalUserListDto> SortInternalUsers(
+        List<InternalUserListDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "fullname";
+        var descending = parts.Length > 1
+            && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<InternalUserListDto> ordered = field switch
+        {
+            "email" => OrderInternalUsers(rows, r => r.Email, descending),
+            "role" => OrderInternalUsers(rows, r => r.Role, descending),
+            "isactive" or "status" => descending
+                ? rows.OrderByDescending(r => r.IsActive)
+                : rows.OrderBy(r => r.IsActive),
+            "firstname" or "name" => OrderInternalUsers(rows, r => r.FirstName, descending),
+            "lastname" => OrderInternalUsers(rows, r => r.LastName, descending),
+            _ => OrderInternalUsers(rows, r => r.FullName, descending),
+        };
+        return ordered.ToList();
+    }
+
+    private static IOrderedEnumerable<InternalUserListDto> OrderInternalUsers(
+        IEnumerable<InternalUserListDto> rows,
+        Func<InternalUserListDto, string> selector,
+        bool descending) =>
+        descending
+            ? rows.OrderByDescending(selector, StringComparer.OrdinalIgnoreCase)
+            : rows.OrderBy(selector, StringComparer.OrdinalIgnoreCase);
 }

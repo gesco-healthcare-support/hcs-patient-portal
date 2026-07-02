@@ -64,9 +64,6 @@
     "RequestConfirmationNumber": "Confirmation #",
     "AppointmentStatus": "Status",
     "Patient": "Patient",
-    "Enum:BookingStatus.8": "Available",
-    "Enum:BookingStatus.9": "Reserved",
-    "Enum:BookingStatus.10": "Booked",
     "Enum:Gender.1": "Male",
     "Enum:Gender.2": "Female",
     "Enum:Gender.3": "Other",
@@ -122,6 +119,12 @@
     "Enum:BookType.7": "Science fiction",
     "Enum:BookType.8": "Poetry",
     "Permission:CaseEvaluation": "Book Store",
+    "Permission:Group:AppointmentsAndRequests": "Appointments & Requests",
+    "Permission:Group:People": "People",
+    "Permission:Group:DoctorsAndLocations": "Doctors & Locations",
+    "Permission:Group:Configuration": "Configuration",
+    "Permission:Group:UsersAndAccess": "Users & Access",
+    "Permission:Group:AdministrationAndHost": "Administration & Host",
     "Permission:Books": "Book Management",
     "Permission:Books.Create": "Creating new books",
     "Permission:Books.Edit": "Editing the books",
@@ -511,6 +514,8 @@
     "Appointment:Modal:CancelRequestTitle": "Request cancellation",
     "Appointment:Modal:CancelReasonLabel": "Reason for cancellation",
     "Appointment:Modal:CancelReasonPlaceholder": "Why is this appointment being cancelled? Required.",
+    "Appointment:Modal:ConsentNoteStaff": "Both involved parties must consent before this change takes effect.",
+    "Appointment:Modal:ConsentNoteExternal": "The other involved party must approve before this change is finalized.",
     "Appointment:Toast:RescheduleRequested": "Reschedule request submitted",
     "Appointment:Toast:RescheduleApproved": "Appointment rescheduled",
     "Appointment:Toast:CancelRequested": "Cancellation request submitted",
@@ -731,6 +736,7 @@
     "ChangeRequest:InvalidCancellationOutcome": "Cancellation outcome must be CancelledNoBill or CancelledLate.",
     "ChangeRequest:InvalidRescheduleOutcome": "Reschedule outcome must be RescheduledNoBill or RescheduledLate.",
     "ChangeRequest:AdminReasonRequired": "Please provide an admin reason when overriding the user-selected reschedule slot.",
-    "ChangeRequest:RejectionRequiresNotes": "Please provide rejection notes before rejecting the change request."
+    "ChangeRequest:RejectionRequiresNotes": "Please provide rejection notes before rejecting the change request.",
+    "ChangeRequest:ConsentNotGranted": "The opposing party's consent is still pending, so this request cannot be approved yet. Reject the request, or wait for their consent before finalizing."
   }
 }

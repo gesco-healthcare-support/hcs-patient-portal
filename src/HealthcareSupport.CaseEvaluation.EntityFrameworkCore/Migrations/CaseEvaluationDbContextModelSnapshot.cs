@@ -377,28 +377,6 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
 
-                    b.Property<DateTime?>("ConsentExpiresAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("ConsentExpiresAt");
-
-                    b.Property<DateTime?>("ConsentRespondedAt")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("ConsentRespondedAt");
-
-                    b.Property<string>("ConsentRespondedByEmail")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
-                        .HasColumnName("ConsentRespondedByEmail");
-
-                    b.Property<int>("ConsentStatus")
-                        .HasColumnType("int")
-                        .HasColumnName("ConsentStatus");
-
-                    b.Property<string>("ConsentTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
-                        .HasColumnName("ConsentTokenHash");
-
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreationTime");
@@ -464,6 +442,50 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnType("int")
                         .HasColumnName("RequestingSide");
 
+                    b.Property<DateTime?>("SideAConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideAConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideAConsentRespondedAt");
+
+                    b.Property<string>("SideAConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideAConsentRespondedByEmail");
+
+                    b.Property<int>("SideAConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideAConsentStatus");
+
+                    b.Property<string>("SideAConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideAConsentTokenHash");
+
+                    b.Property<DateTime?>("SideBConsentExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentExpiresAt");
+
+                    b.Property<DateTime?>("SideBConsentRespondedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SideBConsentRespondedAt");
+
+                    b.Property<string>("SideBConsentRespondedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("SideBConsentRespondedByEmail");
+
+                    b.Property<int>("SideBConsentStatus")
+                        .HasColumnType("int")
+                        .HasColumnName("SideBConsentStatus");
+
+                    b.Property<string>("SideBConsentTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("SideBConsentTokenHash");
+
                     b.Property<Guid?>("SubmittedByUserId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("SubmittedByUserId");
@@ -476,7 +498,9 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
 
                     b.HasIndex("AppointmentId");
 
-                    b.HasIndex("ConsentTokenHash");
+                    b.HasIndex("SideAConsentTokenHash");
+
+                    b.HasIndex("SideBConsentTokenHash");
 
                     b.HasIndex("AppointmentId", "RequestStatus");
 

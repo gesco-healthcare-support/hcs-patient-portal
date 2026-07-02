@@ -120,12 +120,17 @@
             *
           }
         </label>
+        <!-- 2026-06-28: Email is always editable. It was read-only for patient /
+             non-IT-admin staff bookers and filled only by the async profile
+             prefill; when that prefill lost its init race the read-only field
+             stayed empty + required, hard-blocking the booking with no way to
+             type it. Editable removes that dead end (the prefill still fills it
+             on the happy path). -->
         <input
           type="email"
           class="form-control"
           formControlName="email"
           maxlength="50"
-          [readonly]="!isExternalUserNonPatient && !isItAdmin"
           (input)="isExternalUserNonPatient ? patientEmailChanged.emit() : null"
         />
       </div>

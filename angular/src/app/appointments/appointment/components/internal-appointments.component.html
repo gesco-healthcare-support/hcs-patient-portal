@@ -337,6 +337,7 @@
   [appointmentId]="selectedRow()?.appointment?.id ?? null"
   [locationId]="selectedRow()?.appointment?.locationId ?? null"
   [appointmentTypeId]="selectedRow()?.appointment?.appointmentTypeId ?? null"
+  [requesterIsStaff]="true"
   [visible]="rescheduleVisible()"
   (visibleChange)="rescheduleVisible.set($event)"
   (succeeded)="onChangeRequestSucceeded($event)"
@@ -344,6 +345,7 @@
 
 <app-cancellation-request-modal
   [appointmentId]="selectedRow()?.appointment?.id ?? null"
+  [requesterIsStaff]="true"
   [visible]="cancelVisible()"
   (visibleChange)="cancelVisible.set($event)"
   (succeeded)="onChangeRequestSucceeded($event)"

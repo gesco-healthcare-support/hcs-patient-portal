@@ -34,6 +34,8 @@ describe('filterNavGroups', () => {
     expect(ids).not.toContain('identity');
     expect(ids).not.toContain('locations');
     expect(ids).not.toContain('appt-types');
+    // MO4 (2026-06-30): System Parameters is supervisor-only now.
+    expect(ids).not.toContain('settings');
   });
 
   it('lets the superuser see every item in the source nav', () => {
@@ -47,7 +49,8 @@ describe('resolveNavGroups', () => {
   it('gives an IT Admin at host scope the platform nav', () => {
     const sects = resolveNavGroups('itadmin', true).map((g) => g.sect);
     expect(sects).toContain('Platform');
-    expect(sects).toContain('SaaS');
+    // Item 1 (2026-06-30): the 'SaaS' group merged into 'Practice Management'.
+    expect(sects).toContain('Practice Management');
   });
 
   it('gives a host Staff Supervisor the platform nav, and the tenant nav once switched into an office', () => {
@@ -56,7 +59,7 @@ describe('resolveNavGroups', () => {
     // tenant nav. Once it impersonates into an office (hostScope=false), it falls
     // back to IN_NAV (the office admin's tenant nav).
     const hostSects = resolveNavGroups('supervisor', true).map((g) => g.sect);
-    expect(hostSects).toContain('Offices');
+    expect(hostSects).toContain('Practice Management');
     expect(hostSects).not.toContain('Workspace');
     const tenantSects = resolveNavGroups('supervisor', false).map((g) => g.sect);
     expect(tenantSects).toContain('Workspace');
@@ -68,7 +71,7 @@ describe('resolveNavGroups', () => {
     // Offices group (its My Offices switcher); once impersonating its per-office
     // shadow user (hostScope=false) it gets the tenant operational nav.
     const hostSects = resolveNavGroups('intake', true).map((g) => g.sect);
-    expect(hostSects).toContain('Offices');
+    expect(hostSects).toContain('Practice Management');
     expect(hostSects).not.toContain('Workspace');
     const tenantSects = resolveNavGroups('intake', false).map((g) => g.sect);
     expect(tenantSects).toContain('Workspace');

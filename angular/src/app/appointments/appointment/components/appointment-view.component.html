@@ -66,14 +66,6 @@
                 >
                   {{ '::Appointment:Action:Reject' | abpLocalization }}
                 </button>
-              } @else if (action === 'cancel') {
-                <button
-                  type="button"
-                  class="btn btn-warning btn-sm"
-                  (click)="dispatchAction('cancel')"
-                >
-                  {{ '::Appointment:Action:CancelAppointment' | abpLocalization }}
-                </button>
               }
             }
           }
@@ -155,22 +147,18 @@
         (succeeded)="onActionSucceeded($event)"
       ></app-reject-appointment-modal>
 
-      <app-cancel-appointment-modal
-        [appointmentId]="appointment.appointment?.id ?? null"
-        [(visible)]="cancelModalVisible"
-        (succeeded)="onActionSucceeded($event)"
-      ></app-cancel-appointment-modal>
-
       <app-reschedule-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
         [locationId]="appointment.appointment?.locationId ?? null"
         [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="rescheduleRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-reschedule-request-modal>
 
       <app-cancellation-request-modal
         [appointmentId]="appointment.appointment?.id ?? null"
+        [requesterIsStaff]="isInternalUser"
         [(visible)]="cancelRequestVisible"
         (succeeded)="onChangeRequestSucceeded($event)"
       ></app-cancellation-request-modal>

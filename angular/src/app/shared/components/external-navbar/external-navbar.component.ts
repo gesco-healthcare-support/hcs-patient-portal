@@ -47,7 +47,7 @@ export class ExternalNavbarComponent {
   /** Per-office branding (logo + display name); overrides the inputs when present. */
   protected readonly branding = inject(BrandingService);
   /** Tenant logo (runtime slot; static placeholder, used when no per-office logo). */
-  @Input() logoUrl = 'assets/images/header-logo.png';
+  @Input() logoUrl = 'assets/branding/falkinstein-logo.png';
   /** Clinic / tenant display name (fallback when no per-office display name). */
   @Input() clinicName = 'Appointment Portal';
   @Input() userName = '';

@@ -820,9 +820,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.RefferedBy = input.RefferedBy;
 
         // F-M05 (2026-06-25): link a re-evaluation child back to its source
-        // appointment, mirroring the reschedule cloner (AppointmentRescheduleCloner).
-        // Without this the reval child's OriginalAppointmentId stays NULL, so a
-        // re-evaluation is untraceable to the appointment it follows up.
+        // appointment so OriginalAppointmentId is set. Without this the reval
+        // child's OriginalAppointmentId stays NULL, so a re-evaluation is
+        // untraceable to the appointment it follows up.
         if (originalAppointmentId.HasValue)
         {
             appointment.OriginalAppointmentId = originalAppointmentId.Value;

@@ -9,56 +9,19 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
 {
     public override void Define(IPermissionDefinitionContext context)
     {
-        var myGroup = context.AddGroup(CaseEvaluationPermissions.GroupName);
-        myGroup.AddPermission(CaseEvaluationPermissions.Dashboard.Host, L("Permission:Dashboard"), MultiTenancySides.Host);
-        myGroup.AddPermission(CaseEvaluationPermissions.Dashboard.Tenant, L("Permission:Dashboard"), MultiTenancySides.Tenant);
-        var booksPermission = myGroup.AddPermission(CaseEvaluationPermissions.Books.Default, L("Permission:Books"));
-        booksPermission.AddChild(CaseEvaluationPermissions.Books.Create, L("Permission:Books.Create"));
-        booksPermission.AddChild(CaseEvaluationPermissions.Books.Edit, L("Permission:Books.Edit"));
-        booksPermission.AddChild(CaseEvaluationPermissions.Books.Delete, L("Permission:Books.Delete"));
-        var statePermission = myGroup.AddPermission(CaseEvaluationPermissions.States.Default, L("Permission:States"));
-        statePermission.AddChild(CaseEvaluationPermissions.States.Create, L("Permission:Create"));
-        statePermission.AddChild(CaseEvaluationPermissions.States.Edit, L("Permission:Edit"));
-        statePermission.AddChild(CaseEvaluationPermissions.States.Delete, L("Permission:Delete"));
-        var appointmentTypePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentTypes.Default, L("Permission:AppointmentTypes"));
-        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Create, L("Permission:Create"));
-        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Edit, L("Permission:Edit"));
-        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Delete, L("Permission:Delete"));
-        var appointmentStatusPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentStatuses.Default, L("Permission:AppointmentStatuses"));
-        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Create, L("Permission:Create"));
-        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Edit, L("Permission:Edit"));
-        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Delete, L("Permission:Delete"));
-        // G-03-01 (2026-06-03) -- per-appointment-type document category master.
-        var appointmentDocumentTypePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocumentTypes.Default, L("Permission:AppointmentDocumentTypes"));
-        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Create, L("Permission:Create"));
-        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Edit, L("Permission:Edit"));
-        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete, L("Permission:Delete"));
-        var appointmentLanguagePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentLanguages.Default, L("Permission:AppointmentLanguages"));
-        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Create, L("Permission:Create"));
-        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Edit, L("Permission:Edit"));
-        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Delete, L("Permission:Delete"));
-        var locationPermission = myGroup.AddPermission(CaseEvaluationPermissions.Locations.Default, L("Permission:Locations"));
-        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Create, L("Permission:Create"));
-        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Edit, L("Permission:Edit"));
-        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Delete, L("Permission:Delete"));
-        var wcabOfficePermission = myGroup.AddPermission(CaseEvaluationPermissions.WcabOffices.Default, L("Permission:WcabOffices"));
-        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Create, L("Permission:Create"));
-        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Edit, L("Permission:Edit"));
-        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Delete, L("Permission:Delete"));
-        var doctorPermission = myGroup.AddPermission(CaseEvaluationPermissions.Doctors.Default, L("Permission:Doctors"));
-        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Create, L("Permission:Create"));
-        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Edit, L("Permission:Edit"));
-        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Delete, L("Permission:Delete"));
-        var doctorAvailabilityPermission = myGroup.AddPermission(CaseEvaluationPermissions.DoctorAvailabilities.Default, L("Permission:DoctorAvailabilities"));
-        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Create, L("Permission:Create"));
-        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Edit, L("Permission:Edit"));
-        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Delete, L("Permission:Delete"));
-        var patientPermission = myGroup.AddPermission(CaseEvaluationPermissions.Patients.Default, L("Permission:Patients"));
-        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Create, L("Permission:Create"));
-        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Edit, L("Permission:Edit"));
-        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Delete, L("Permission:Delete"));
-        patientPermission.AddChild(CaseEvaluationPermissions.Patients.RevealSsn, L("Permission:RevealSsn"));
-        var appointmentPermission = myGroup.AddPermission(CaseEvaluationPermissions.Appointments.Default, L("Permission:Appointments"));
+        // QA item 10 (2026-06-30): permissions are split into domain groups for a
+        // readable, navigable matrix. The permission CONSTANTS (grant keys) are
+        // UNCHANGED -- only the grouping + group display labels change, so existing
+        // role grants are unaffected. The legacy single "Book Store" group and the
+        // ABP-template Books sample permission are removed (the seeder grant is
+        // dropped too; the dead BookAppService is left for a separate cleanup).
+
+        // ===================== Appointments & Requests =====================
+        var appointments = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".AppointmentsAndRequests",
+            L("Permission:Group:AppointmentsAndRequests"));
+
+        var appointmentPermission = appointments.AddPermission(CaseEvaluationPermissions.Appointments.Default, L("Permission:Appointments"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Create, L("Permission:Create"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Edit, L("Permission:Edit"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Delete, L("Permission:Delete"));
@@ -68,139 +31,204 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.Reject, L("Permission:Reject"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestCancellation, L("Permission:RequestCancellation"));
         appointmentPermission.AddChild(CaseEvaluationPermissions.Appointments.RequestReschedule, L("Permission:RequestReschedule"));
-        var appointmentEmployerDetailPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentEmployerDetails.Default, L("Permission:AppointmentEmployerDetails"));
+
+        var appointmentEmployerDetailPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentEmployerDetails.Default, L("Permission:AppointmentEmployerDetails"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Create, L("Permission:Create"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Edit, L("Permission:Edit"));
         appointmentEmployerDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentEmployerDetails.Delete, L("Permission:Delete"));
-        var appointmentAccessorPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentAccessors.Default, L("Permission:AppointmentAccessors"));
+
+        var appointmentAccessorPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentAccessors.Default, L("Permission:AppointmentAccessors"));
         appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Create, L("Permission:Create"));
         appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Edit, L("Permission:Edit"));
         appointmentAccessorPermission.AddChild(CaseEvaluationPermissions.AppointmentAccessors.Delete, L("Permission:Delete"));
-        var applicantAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.ApplicantAttorneys.Default, L("Permission:ApplicantAttorneys"));
-        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Create, L("Permission:Create"));
-        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Edit, L("Permission:Edit"));
-        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Delete, L("Permission:Delete"));
-        var claimExaminerPermission = myGroup.AddPermission(CaseEvaluationPermissions.ClaimExaminers.Default, L("Permission:ClaimExaminers"));
-        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Create, L("Permission:Create"));
-        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Edit, L("Permission:Edit"));
-        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Delete, L("Permission:Delete"));
-        var appointmentApplicantAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Default, L("Permission:AppointmentApplicantAttorneys"));
+
+        var appointmentApplicantAttorneyPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Default, L("Permission:AppointmentApplicantAttorneys"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Create, L("Permission:Create"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Edit, L("Permission:Edit"));
         appointmentApplicantAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentApplicantAttorneys.Delete, L("Permission:Delete"));
-        var defenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.DefenseAttorneys.Default, L("Permission:DefenseAttorneys"));
-        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Create, L("Permission:Create"));
-        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Edit, L("Permission:Edit"));
-        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Delete, L("Permission:Delete"));
-        var appointmentDefenseAttorneyPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default, L("Permission:AppointmentDefenseAttorneys"));
+
+        var appointmentDefenseAttorneyPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Default, L("Permission:AppointmentDefenseAttorneys"));
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Create, L("Permission:Create"));
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Edit, L("Permission:Edit"));
         appointmentDefenseAttorneyPermission.AddChild(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete, L("Permission:Delete"));
-        var appointmentInjuryDetailPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentInjuryDetails.Default, L("Permission:AppointmentInjuryDetails"));
-        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Create, L("Permission:Create"));
-        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Edit, L("Permission:Edit"));
-        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete, L("Permission:Delete"));
-        var appointmentBodyPartPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentBodyParts.Default, L("Permission:AppointmentBodyParts"));
-        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Create, L("Permission:Create"));
-        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Edit, L("Permission:Edit"));
-        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Delete, L("Permission:Delete"));
-        var appointmentClaimExaminerPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentClaimExaminers.Default, L("Permission:AppointmentClaimExaminers"));
+
+        var appointmentClaimExaminerPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentClaimExaminers.Default, L("Permission:AppointmentClaimExaminers"));
         appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Create, L("Permission:Create"));
         appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Edit, L("Permission:Edit"));
         appointmentClaimExaminerPermission.AddChild(CaseEvaluationPermissions.AppointmentClaimExaminers.Delete, L("Permission:Delete"));
-        var appointmentPrimaryInsurancePermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default, L("Permission:AppointmentPrimaryInsurances"));
+
+        var appointmentInjuryDetailPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentInjuryDetails.Default, L("Permission:AppointmentInjuryDetails"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Create, L("Permission:Create"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Edit, L("Permission:Edit"));
+        appointmentInjuryDetailPermission.AddChild(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete, L("Permission:Delete"));
+
+        var appointmentBodyPartPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentBodyParts.Default, L("Permission:AppointmentBodyParts"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Create, L("Permission:Create"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Edit, L("Permission:Edit"));
+        appointmentBodyPartPermission.AddChild(CaseEvaluationPermissions.AppointmentBodyParts.Delete, L("Permission:Delete"));
+
+        var appointmentPrimaryInsurancePermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Default, L("Permission:AppointmentPrimaryInsurances"));
         appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Create, L("Permission:Create"));
         appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Edit, L("Permission:Edit"));
         appointmentPrimaryInsurancePermission.AddChild(CaseEvaluationPermissions.AppointmentPrimaryInsurances.Delete, L("Permission:Delete"));
 
-        // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
-        myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
-
-        // G-08-01 (2026-06-06): read-only Appointment Request Report. No
-        // Create/Edit/Delete -- reports are read-only. G-08-03 (2026-06-06) adds
-        // the Export child gating the PDF export of the filtered set.
-        var reportsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
-        reportsPermission.AddChild(CaseEvaluationPermissions.Reports.Export, L("Permission:Reports.Export"));
-
-        // W2-5: per-AppointmentType field-config admin. Default lets the booker
-        // form read the apply-on-change config; Create/Edit/Delete gate admin
-        // mutation paths.
-        var customFieldsPermission = myGroup.AddPermission(CaseEvaluationPermissions.CustomFields.Default, L("Permission:CustomFields"));
-        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Create, L("Permission:Create"));
-        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Edit, L("Permission:Edit"));
-        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Delete, L("Permission:Delete"));
-
-        var systemParametersPermission = myGroup.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
-        systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
-
-        var appointmentDocumentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentDocuments.Default, L("Permission:AppointmentDocuments"));
+        var appointmentDocumentsPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentDocuments.Default, L("Permission:AppointmentDocuments"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Create, L("Permission:Create"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Edit, L("Permission:Edit"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Delete, L("Permission:Delete"));
         appointmentDocumentsPermission.AddChild(CaseEvaluationPermissions.AppointmentDocuments.Approve, L("Permission:Approve"));
 
-        var appointmentPacketsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
+        var appointmentPacketsPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
         appointmentPacketsPermission.AddChild(CaseEvaluationPermissions.AppointmentPackets.Regenerate, L("Permission:Regenerate"));
 
         // Phase 2.5 (2026-05-01) -- supervisor approval surface for cancel /
         // reschedule. Default = read-only inbox; Approve / Reject = supervisor.
-        var appointmentChangeRequestsPermission = myGroup.AddPermission(CaseEvaluationPermissions.AppointmentChangeRequests.Default, L("Permission:AppointmentChangeRequests"));
+        var appointmentChangeRequestsPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentChangeRequests.Default, L("Permission:AppointmentChangeRequests"));
         appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Approve, L("Permission:Approve"));
         appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Reject, L("Permission:Reject"));
 
-        // Phase 2.5 (2026-05-01) -- IT Admin notification template editor.
-        var notificationTemplatesPermission = myGroup.AddPermission(CaseEvaluationPermissions.NotificationTemplates.Default, L("Permission:NotificationTemplates"));
-        notificationTemplatesPermission.AddChild(CaseEvaluationPermissions.NotificationTemplates.Edit, L("Permission:Edit"));
+        // W2-4: read-only audit-log permission. No children -- audit rows are immutable.
+        appointments.AddPermission(CaseEvaluationPermissions.AppointmentChangeLogs.Default, L("Permission:AppointmentChangeLogs"));
 
-        // Phase 5 (2026-05-03) -- IT Admin master Document catalog.
-        var documentsPermission = myGroup.AddPermission(CaseEvaluationPermissions.Documents.Default, L("Permission:Documents"));
-        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Create, L("Permission:Create"));
-        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Edit, L("Permission:Edit"));
-        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Delete, L("Permission:Delete"));
+        // G-08-01 (2026-06-06): read-only Appointment Request Report. G-08-03 adds
+        // the Export child gating the PDF export of the filtered set.
+        var reportsPermission = appointments.AddPermission(CaseEvaluationPermissions.Reports.Default, L("Permission:Reports"));
+        reportsPermission.AddChild(CaseEvaluationPermissions.Reports.Export, L("Permission:Reports.Export"));
 
-        // Phase 5 (2026-05-03) -- IT Admin per-AppointmentType package templates.
-        var packageDetailsPermission = myGroup.AddPermission(CaseEvaluationPermissions.PackageDetails.Default, L("Permission:PackageDetails"));
-        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Create, L("Permission:Create"));
-        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Edit, L("Permission:Edit"));
-        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Delete, L("Permission:Delete"));
-        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.ManageDocuments, L("Permission:PackageDetails.ManageDocuments"));
+        // ===================== People =====================
+        var people = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".People",
+            L("Permission:Group:People"));
+
+        var patientPermission = people.AddPermission(CaseEvaluationPermissions.Patients.Default, L("Permission:Patients"));
+        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Create, L("Permission:Create"));
+        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Edit, L("Permission:Edit"));
+        patientPermission.AddChild(CaseEvaluationPermissions.Patients.Delete, L("Permission:Delete"));
+        patientPermission.AddChild(CaseEvaluationPermissions.Patients.RevealSsn, L("Permission:RevealSsn"));
+
+        var applicantAttorneyPermission = people.AddPermission(CaseEvaluationPermissions.ApplicantAttorneys.Default, L("Permission:ApplicantAttorneys"));
+        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Create, L("Permission:Create"));
+        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Edit, L("Permission:Edit"));
+        applicantAttorneyPermission.AddChild(CaseEvaluationPermissions.ApplicantAttorneys.Delete, L("Permission:Delete"));
+
+        var defenseAttorneyPermission = people.AddPermission(CaseEvaluationPermissions.DefenseAttorneys.Default, L("Permission:DefenseAttorneys"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Create, L("Permission:Create"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Edit, L("Permission:Edit"));
+        defenseAttorneyPermission.AddChild(CaseEvaluationPermissions.DefenseAttorneys.Delete, L("Permission:Delete"));
+
+        var claimExaminerPermission = people.AddPermission(CaseEvaluationPermissions.ClaimExaminers.Default, L("Permission:ClaimExaminers"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Create, L("Permission:Create"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Edit, L("Permission:Edit"));
+        claimExaminerPermission.AddChild(CaseEvaluationPermissions.ClaimExaminers.Delete, L("Permission:Delete"));
+
+        // ===================== Doctors & Locations =====================
+        var doctors = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".DoctorsAndLocations",
+            L("Permission:Group:DoctorsAndLocations"));
+
+        var doctorPermission = doctors.AddPermission(CaseEvaluationPermissions.Doctors.Default, L("Permission:Doctors"));
+        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Create, L("Permission:Create"));
+        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Edit, L("Permission:Edit"));
+        doctorPermission.AddChild(CaseEvaluationPermissions.Doctors.Delete, L("Permission:Delete"));
+
+        var doctorAvailabilityPermission = doctors.AddPermission(CaseEvaluationPermissions.DoctorAvailabilities.Default, L("Permission:DoctorAvailabilities"));
+        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Create, L("Permission:Create"));
+        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Edit, L("Permission:Edit"));
+        doctorAvailabilityPermission.AddChild(CaseEvaluationPermissions.DoctorAvailabilities.Delete, L("Permission:Delete"));
 
         // Phase 7b (2026-05-03) -- Doctor-Location preference toggle.
-        var doctorPreferredLocationsPermission = myGroup.AddPermission(
+        var doctorPreferredLocationsPermission = doctors.AddPermission(
             CaseEvaluationPermissions.DoctorPreferredLocations.Default,
             L("Permission:DoctorPreferredLocations"));
         doctorPreferredLocationsPermission.AddChild(
             CaseEvaluationPermissions.DoctorPreferredLocations.Toggle,
             L("Permission:DoctorPreferredLocations.Toggle"));
 
-        // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
-        var userSignaturesPermission = myGroup.AddPermission(
-            CaseEvaluationPermissions.UserSignatures.Default,
-            L("Permission:UserSignatures"));
-        userSignaturesPermission.AddChild(
-            CaseEvaluationPermissions.UserSignatures.ManageOwn,
-            L("Permission:UserSignatures.ManageOwn"));
+        var locationPermission = doctors.AddPermission(CaseEvaluationPermissions.Locations.Default, L("Permission:Locations"));
+        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Create, L("Permission:Create"));
+        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Edit, L("Permission:Edit"));
+        locationPermission.AddChild(CaseEvaluationPermissions.Locations.Delete, L("Permission:Delete"));
 
-        // 2026-05-15 -- admin invite for new external users. The parent
-        // Default lets future invite-management surfaces (revoke,
-        // resend, history) share the same menu visibility gate without
-        // re-mapping every role-seeder; the child InviteExternalUser
-        // gates the create-invite endpoint itself.
-        var userManagementPermission = myGroup.AddPermission(
+        var wcabOfficePermission = doctors.AddPermission(CaseEvaluationPermissions.WcabOffices.Default, L("Permission:WcabOffices"));
+        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Create, L("Permission:Create"));
+        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Edit, L("Permission:Edit"));
+        wcabOfficePermission.AddChild(CaseEvaluationPermissions.WcabOffices.Delete, L("Permission:Delete"));
+
+        // ===================== Configuration =====================
+        var configuration = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".Configuration",
+            L("Permission:Group:Configuration"));
+
+        var appointmentTypePermission = configuration.AddPermission(CaseEvaluationPermissions.AppointmentTypes.Default, L("Permission:AppointmentTypes"));
+        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Create, L("Permission:Create"));
+        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Edit, L("Permission:Edit"));
+        appointmentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentTypes.Delete, L("Permission:Delete"));
+
+        var appointmentStatusPermission = configuration.AddPermission(CaseEvaluationPermissions.AppointmentStatuses.Default, L("Permission:AppointmentStatuses"));
+        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Create, L("Permission:Create"));
+        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Edit, L("Permission:Edit"));
+        appointmentStatusPermission.AddChild(CaseEvaluationPermissions.AppointmentStatuses.Delete, L("Permission:Delete"));
+
+        // G-03-01 (2026-06-03) -- per-appointment-type document category master.
+        var appointmentDocumentTypePermission = configuration.AddPermission(CaseEvaluationPermissions.AppointmentDocumentTypes.Default, L("Permission:AppointmentDocumentTypes"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Create, L("Permission:Create"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Edit, L("Permission:Edit"));
+        appointmentDocumentTypePermission.AddChild(CaseEvaluationPermissions.AppointmentDocumentTypes.Delete, L("Permission:Delete"));
+
+        var appointmentLanguagePermission = configuration.AddPermission(CaseEvaluationPermissions.AppointmentLanguages.Default, L("Permission:AppointmentLanguages"));
+        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Create, L("Permission:Create"));
+        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Edit, L("Permission:Edit"));
+        appointmentLanguagePermission.AddChild(CaseEvaluationPermissions.AppointmentLanguages.Delete, L("Permission:Delete"));
+
+        var statePermission = configuration.AddPermission(CaseEvaluationPermissions.States.Default, L("Permission:States"));
+        statePermission.AddChild(CaseEvaluationPermissions.States.Create, L("Permission:Create"));
+        statePermission.AddChild(CaseEvaluationPermissions.States.Edit, L("Permission:Edit"));
+        statePermission.AddChild(CaseEvaluationPermissions.States.Delete, L("Permission:Delete"));
+
+        // W2-5: per-AppointmentType field-config admin.
+        var customFieldsPermission = configuration.AddPermission(CaseEvaluationPermissions.CustomFields.Default, L("Permission:CustomFields"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Create, L("Permission:Create"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Edit, L("Permission:Edit"));
+        customFieldsPermission.AddChild(CaseEvaluationPermissions.CustomFields.Delete, L("Permission:Delete"));
+
+        // Phase 5 (2026-05-03) -- IT Admin master Document catalog.
+        var documentsPermission = configuration.AddPermission(CaseEvaluationPermissions.Documents.Default, L("Permission:Documents"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Create, L("Permission:Create"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Edit, L("Permission:Edit"));
+        documentsPermission.AddChild(CaseEvaluationPermissions.Documents.Delete, L("Permission:Delete"));
+
+        // Phase 5 (2026-05-03) -- IT Admin per-AppointmentType package templates.
+        var packageDetailsPermission = configuration.AddPermission(CaseEvaluationPermissions.PackageDetails.Default, L("Permission:PackageDetails"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Create, L("Permission:Create"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Edit, L("Permission:Edit"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.Delete, L("Permission:Delete"));
+        packageDetailsPermission.AddChild(CaseEvaluationPermissions.PackageDetails.ManageDocuments, L("Permission:PackageDetails.ManageDocuments"));
+
+        var systemParametersPermission = configuration.AddPermission(CaseEvaluationPermissions.SystemParameters.Default, L("Permission:SystemParameters"));
+        systemParametersPermission.AddChild(CaseEvaluationPermissions.SystemParameters.Edit, L("Permission:Edit"));
+
+        // Phase 2.5 (2026-05-01) -- IT Admin notification template editor.
+        var notificationTemplatesPermission = configuration.AddPermission(CaseEvaluationPermissions.NotificationTemplates.Default, L("Permission:NotificationTemplates"));
+        notificationTemplatesPermission.AddChild(CaseEvaluationPermissions.NotificationTemplates.Edit, L("Permission:Edit"));
+
+        // ===================== Users & Access =====================
+        var usersAndAccess = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".UsersAndAccess",
+            L("Permission:Group:UsersAndAccess"));
+
+        // 2026-05-15 -- admin invite for new external users. The parent Default lets
+        // future invite-management surfaces share the menu-visibility gate; the child
+        // InviteExternalUser gates the create-invite endpoint.
+        var userManagementPermission = usersAndAccess.AddPermission(
             CaseEvaluationPermissions.UserManagement.Default,
             L("Permission:UserManagement"));
         userManagementPermission.AddChild(
             CaseEvaluationPermissions.UserManagement.InviteExternalUser,
             L("Permission:UserManagement.InviteExternalUser"));
 
-        // 2026-05-19 (extension of 2026-05-15): now `MultiTenancySides.Both`
-        // so the per-tenant static `admin` role can also create internal
-        // users inside its own tenant. IT Admin (host scope) keeps the
-        // same grant via the host pass in InternalUserRoleDataSeedContributor;
-        // tenant admin gets the grant in the per-tenant pass. The
-        // AppService disambiguates host vs tenant by checking
-        // CurrentTenant.Id when the input DTO carries Guid.Empty.
-        var internalUsersPermission = myGroup.AddPermission(
+        // 2026-05-19: MultiTenancySides.Both so the per-tenant static `admin` role
+        // can also create internal users inside its own tenant.
+        var internalUsersPermission = usersAndAccess.AddPermission(
             CaseEvaluationPermissions.InternalUsers.Default,
             L("Permission:InternalUsers"),
             MultiTenancySides.Both);
@@ -211,12 +239,25 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.InternalUsers.Edit,
             L("Permission:InternalUsers.Edit"));
 
-        // Phase D (2026-06-25) -- host-operator office-assignment management.
-        // HOST side: operators + assignments live in the host/management DB,
-        // and a tenant-scoped role must never grant itself cross-office reach.
-        // IT Admin + host Staff Supervisor hold these to assign / unassign
-        // Intake operators to offices.
-        var intakeAssignmentsPermission = myGroup.AddPermission(
+        // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
+        var userSignaturesPermission = usersAndAccess.AddPermission(
+            CaseEvaluationPermissions.UserSignatures.Default,
+            L("Permission:UserSignatures"));
+        userSignaturesPermission.AddChild(
+            CaseEvaluationPermissions.UserSignatures.ManageOwn,
+            L("Permission:UserSignatures.ManageOwn"));
+
+        // ===================== Administration & Host =====================
+        var administration = context.AddGroup(
+            CaseEvaluationPermissions.GroupName + ".AdministrationAndHost",
+            L("Permission:Group:AdministrationAndHost"));
+
+        administration.AddPermission(CaseEvaluationPermissions.Dashboard.Host, L("Permission:Dashboard"), MultiTenancySides.Host);
+        administration.AddPermission(CaseEvaluationPermissions.Dashboard.Tenant, L("Permission:Dashboard"), MultiTenancySides.Tenant);
+
+        // Phase D (2026-06-25) -- host-operator office-assignment management. HOST
+        // side: operators + assignments live in the host/management DB.
+        var intakeAssignmentsPermission = administration.AddPermission(
             CaseEvaluationPermissions.IntakeAssignments.Default,
             L("Permission:IntakeAssignments"),
             MultiTenancySides.Host);
@@ -224,22 +265,15 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.IntakeAssignments.Manage,
             L("Permission:IntakeAssignments.Manage"));
 
-        // Phase D (2026-06-25) -- the host Intake operator's office-switch
-        // capability. HOST side; held only by the host Intake operator role.
-        // Gates the custom impersonation grant's intake branch + the "my
-        // assigned offices" read. The per-office assignment gate (deny-by-
-        // default, enforced server-side in the grant) is the office boundary.
-        myGroup.AddPermission(
+        // Phase D (2026-06-25) -- the host Intake operator's office-switch capability.
+        // The per-office assignment gate (deny-by-default, server-side) is the boundary.
+        administration.AddPermission(
             CaseEvaluationPermissions.IntakeImpersonation.Default,
             L("Permission:IntakeImpersonation"),
             MultiTenancySides.Host);
 
-        // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides:
-        // host operators (IT Admin, host Staff Supervisor) edit any office from the
-        // host-side central manager; the per-office admin role edits its own office
-        // while impersonated. The public GetBranding + logo-serve are AllowAnonymous
-        // (by subdomain) and not gated here.
-        var brandingPermission = myGroup.AddPermission(
+        // Phase E (2026-06-25) -- per-office branding (name + logo). Both sides.
+        var brandingPermission = administration.AddPermission(
             CaseEvaluationPermissions.Branding.Default,
             L("Permission:Branding"),
             MultiTenancySides.Both);

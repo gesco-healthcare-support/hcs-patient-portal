@@ -610,15 +610,21 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
-            // Group D (2026-06-09): opposing-side consent columns.
+            // Consent (2026-07-01 redesign): two symmetric side-consent slots.
             b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
             b.Property(x => x.SubmittedByUserId).HasColumnName(nameof(AppointmentChangeRequest.SubmittedByUserId));
-            b.Property(x => x.ConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.ConsentStatus));
-            b.Property(x => x.ConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.ConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
-            b.Property(x => x.ConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentExpiresAt));
-            b.Property(x => x.ConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedAt));
-            b.Property(x => x.ConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
-            b.HasIndex(x => x.ConsentTokenHash);
+            b.Property(x => x.SideAConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentStatus));
+            b.Property(x => x.SideAConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideAConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentExpiresAt));
+            b.Property(x => x.SideAConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentRespondedAt));
+            b.Property(x => x.SideAConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.Property(x => x.SideBConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentStatus));
+            b.Property(x => x.SideBConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideBConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentExpiresAt));
+            b.Property(x => x.SideBConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentRespondedAt));
+            b.Property(x => x.SideBConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.HasIndex(x => x.SideAConsentTokenHash);
+            b.HasIndex(x => x.SideBConsentTokenHash);
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);

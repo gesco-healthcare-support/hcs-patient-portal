@@ -8,8 +8,13 @@ import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-t
 import {
   allFixed,
   buildCorrectionsPayload,
+  buildInjuryCorrections,
+  fieldKind,
+  fieldLabelOf,
   fixItProgress,
+  injuryRowToDraft,
   isInlineEditable,
+  type InjuryCorrectionRow,
 } from './external-fix-it.util';
 import { AppointmentViewComponent } from './appointment-view.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
@@ -28,6 +33,10 @@ import type { PatientDto } from '../../../proxy/patients/models';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
 import type { AppointmentInfoRequestRoundDto } from '../../../proxy/appointment-info-requests/models';
 import { InfoRequestHistoryComponent } from './info-request-history.component';
+import {
+  AppointmentAddClaimInformationComponent,
+  type AppointmentInjuryDraft,
+} from '../../sections/appointment-add-claim-information.component';
 import { firstValueFrom } from 'rxjs';
 
 interface CalloutCopy {
@@ -40,25 +49,6 @@ interface OpenInfoRequest {
   note: string;
   flaggedFields: { key: string; hint?: string | null }[];
 }
-
-// Display labels for flagged-field keys (mirrors the staff Request-info modal).
-const FIELD_LABELS: Record<string, string> = {
-  panelNumber: 'Panel number',
-  appointmentDate: 'Appointment date',
-  dateOfBirth: 'Date of birth',
-  socialSecurityNumber: 'Social Security #',
-  street: 'Street address',
-  city: 'City',
-  stateId: 'State',
-  zipCode: 'ZIP code',
-  cellPhoneNumber: 'Cell phone',
-  appointmentLanguageId: 'Language',
-  applicantAttorneyEmail: 'Applicant attorney email',
-  defenseAttorneyFirmName: 'Defense attorney firm',
-  appointmentInsuranceName: 'Insurance company',
-  appointmentClaimExaminerEmail: 'Claim examiner email',
-  documents: 'Documents',
-};
 
 const CALLOUTS: Record<string, CalloutCopy> = {
   pending: {
@@ -117,6 +107,7 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     ExternalNavbarComponent,
     SubmitQueryModalComponent,
     InfoRequestHistoryComponent,
+    AppointmentAddClaimInformationComponent,
   ],
   templateUrl: './external-appointment-detail.component.html',
   styleUrl: './external-appointment-detail.component.scss',
@@ -145,6 +136,10 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected readonly touched = new Set<string>();
   protected languageOptions: { id: string; name: string }[] = [];
   protected stateOptions: { id: string; name: string }[] = [];
+  // QA item 11: Claim Information is a repeating collection, edited through the reused
+  // booking-wizard section component (passed by reference, mutated in place). Prefilled
+  // from the appointment's current injury rows; posted as a full replacement set.
+  protected injuryDrafts: AppointmentInjuryDraft[] = [];
 
   protected navClinicName = 'Appointment Portal';
   protected navDisplayName = '';
@@ -315,6 +310,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
         next: (r) => {
           this.infoRequest = r ?? null;
           this.seedEdits();
+          this.loadInjuryDraftsIfFlagged();
         },
         error: () => {
           /* no open request -> ordinary read-only view */
@@ -424,14 +420,22 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     return this.flaggedKeys.includes('documents');
   }
 
+  /** QA item 11: staff flagged the Claim Information section (repeating injury collection). */
+  protected get claimInformationFlagged(): boolean {
+    return this.flaggedKeys.includes('claimInformation');
+  }
+
   protected isInlineEditable(key: string): boolean {
     return isInlineEditable(key);
   }
   protected isLanguage(key: string): boolean {
-    return key === 'appointmentLanguageId';
+    return fieldKind(key) === 'language';
   }
   protected isState(key: string): boolean {
-    return key === 'stateId';
+    return fieldKind(key) === 'state';
+  }
+  protected isGender(key: string): boolean {
+    return fieldKind(key) === 'gender';
   }
   protected isFixed(key: string): boolean {
     return this.touched.has(key);
@@ -445,6 +449,47 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   protected ackDocumentReplaced(): void {
     this.touched.add('documents');
     this.fixItToaster.success('Thanks -- upload your replacement in the Documents section below.');
+  }
+
+  /**
+   * Prefill the reused Claim Information editor with the appointment's current injury rows,
+   * via the read-access-guarded corrections read (external roles lack the gated CRUD read).
+   * Best-effort: on failure the requester simply starts from an empty set.
+   */
+  private loadInjuryDraftsIfFlagged(): void {
+    if (!this.claimInformationFlagged) {
+      return;
+    }
+    const id = this.detailRoute.snapshot.paramMap.get('id');
+    if (!id) {
+      return;
+    }
+    this.shellRest
+      .request<
+        unknown,
+        InjuryCorrectionRow[]
+      >({ method: 'GET', url: `/api/app/appointment-info-requests/injury-details/${id}` }, { apiName: 'Default' })
+      .subscribe({
+        next: (rows) => {
+          this.injuryDrafts = (rows ?? []).map((r) => injuryRowToDraft(r));
+        },
+        error: () => {
+          /* prefill is best-effort; the requester can add rows from scratch */
+        },
+      });
+  }
+
+  /**
+   * Mark Claim Information addressed once at least one injury row exists (mirrors the
+   * documents ack). The rows themselves persist through the corrections endpoint on save.
+   */
+  protected ackClaimInformationUpdated(): void {
+    if (this.injuryDrafts.length === 0) {
+      this.fixItToaster.warn('Add at least one claim/injury entry before marking this done.');
+      return;
+    }
+    this.touched.add('claimInformation');
+    this.fixItToaster.success('Claim information noted -- it will be saved when you resubmit.');
   }
 
   protected get fixedCount(): number {
@@ -461,7 +506,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   }
 
   protected fieldLabel(key: string): string {
-    return FIELD_LABELS[key] ?? key;
+    return fieldLabelOf(key);
   }
   protected hintFor(key: string): string {
     return this.infoRequest?.flaggedFields.find((f) => f.key === key)?.hint ?? '';
@@ -522,17 +567,28 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     if (!id) {
       return false;
     }
-    const payload = buildCorrectionsPayload(this.flaggedKeys, this.edits);
-    if (Object.keys(payload).length === 0) {
+    const corrections = buildCorrectionsPayload(this.flaggedKeys, this.edits);
+    // Claim Information rides alongside the scalar map as a full replacement set (QA item 11).
+    const injuryDetails = this.claimInformationFlagged
+      ? buildInjuryCorrections(this.injuryDrafts)
+      : undefined;
+    if (Object.keys(corrections).length === 0 && !injuryDetails) {
       return true; // nothing to persist (e.g. a document-only correction)
+    }
+    // Body shape mirrors the backend SaveInfoRequestCorrectionsInput { corrections, injuryDetails }.
+    const body: { corrections: Record<string, string>; injuryDetails?: InjuryCorrectionRow[] } = {
+      corrections,
+    };
+    if (injuryDetails) {
+      body.injuryDetails = injuryDetails;
     }
     try {
       await firstValueFrom(
-        this.shellRest.request<typeof payload, void>(
+        this.shellRest.request<typeof body, void>(
           {
             method: 'POST',
             url: `/api/app/appointment-info-requests/corrections/${id}`,
-            body: payload,
+            body,
           },
           { apiName: 'Default' },
         ),

@@ -54,4 +54,13 @@ public class InviteExternalUserDto
     /// </summary>
     [Required]
     public ExternalUserType UserType { get; set; }
+
+    /// <summary>
+    /// QA item C (2026-06-29): target office for the invitation. Optional --
+    /// in-office callers leave it null and the AppService uses their ambient
+    /// tenant. HOST-scope callers (IT Admin / Staff Supervisor) MUST supply it;
+    /// the office picker is shown only at host scope. ResolveTenantId enforces
+    /// "ambient OR explicit, else error".
+    /// </summary>
+    public Guid? TenantId { get; set; }
 }

@@ -106,7 +106,7 @@ export class StateMessageComponent {
 
   // Brand slots -- static placeholders matching AppExternalNavbar until a
   // BrandingAppService lands (see external-navbar.component.ts).
-  @Input() logoUrl = 'assets/images/header-logo.png';
+  @Input() logoUrl = 'assets/branding/falkinstein-logo.png';
   @Input() clinicName = 'Appointment Portal';
   @Input() tagline = 'patient & case portal';
   @Input() supportText = 'Need help? Contact your clinic.';

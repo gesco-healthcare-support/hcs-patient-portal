@@ -38,16 +38,7 @@ export interface InfoRequestFieldDiffDto {
 }
 
 export interface SaveInfoRequestCorrectionsInput {
-  dateOfBirth?: string | null;
-  socialSecurityNumber?: string | null;
-  address?: string | null;
-  cellPhoneNumber?: string | null;
-  appointmentLanguageId?: string | null;
-  applicantAttorneyEmail?: string | null;
-  claimExaminerEmail?: string | null;
-  insuranceName?: string | null;
-  insurancePhoneNumber?: string | null;
-  defenseAttorneyFirmName?: string | null;
+  corrections?: Record<string, string>;
 }
 
 export interface SendBackAppointmentInput {

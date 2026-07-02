@@ -1,5 +1,4 @@
 using HealthcareSupport.CaseEvaluation.Enums;
-using Volo.Saas.Tenants;
 using Volo.Abp.Identity;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.States;
@@ -35,8 +34,11 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
         // Apply the explicit tenant guard (defense in depth) so a tenant-scoped caller
         // cannot fetch another office's patient by id; host scope (no current tenant)
         // still sees all for cross-office aggregation.
+        // The SaaS Tenant row lives in the host DB only; under db-per-office an office DB
+        // has no SaasTenants table, so the Tenant nav is left null here (BUG-01). The
+        // office's identity is the office context itself; this property is unused per-office.
         var tenantId = _currentTenant.Id;
-        return await (await GetDbSetAsync()).Where(b => b.Id == id && (tenantId == null || b.TenantId == tenantId)).Select(patient => new PatientWithNavigationProperties { Patient = patient, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == patient.StateId), AppointmentLanguage = dbContext.Set<AppointmentLanguage>().FirstOrDefault(c => c.Id == patient.AppointmentLanguageId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == patient.IdentityUserId), Tenant = dbContext.Set<Tenant>().FirstOrDefault(c => c.Id == patient.TenantId) }).FirstOrDefaultAsync(cancellationToken);
+        return await (await GetDbSetAsync()).Where(b => b.Id == id && (tenantId == null || b.TenantId == tenantId)).Select(patient => new PatientWithNavigationProperties { Patient = patient, State = dbContext.Set<State>().FirstOrDefault(c => c.Id == patient.StateId), AppointmentLanguage = dbContext.Set<AppointmentLanguage>().FirstOrDefault(c => c.Id == patient.AppointmentLanguageId), IdentityUser = dbContext.Set<IdentityUser>().FirstOrDefault(c => c.Id == patient.IdentityUserId), Tenant = null }).FirstOrDefaultAsync(cancellationToken);
     }
 
     public virtual async Task<List<PatientWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, string? firstName = null, string? lastName = null, string? middleName = null, string? email = null, Gender? genderId = null, DateTime? dateOfBirthMin = null, DateTime? dateOfBirthMax = null, string? phoneNumber = null, string? socialSecurityNumber = null, string? address = null, string? city = null, string? zipCode = null, string? cellPhoneNumber = null, string? street = null, string? interpreterVendorName = null, string? apptNumber = null, Guid? stateId = null, Guid? appointmentLanguageId = null, Guid? identityUserId = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
@@ -56,15 +58,15 @@ public class EfCorePatientRepository : EfCoreRepository<CaseEvaluationDbContext,
                from appointmentLanguage in appointmentLanguages.DefaultIfEmpty()
                join identityUser in (await GetDbContextAsync()).Set<IdentityUser>() on patient.IdentityUserId equals identityUser.Id into identityUsers
                from identityUser in identityUsers.DefaultIfEmpty()
-               join tenant in (await GetDbContextAsync()).Set<Tenant>() on patient.TenantId equals tenant.Id into tenants
-               from tenant in tenants.DefaultIfEmpty()
+                   // SaaS Tenant lives in the host DB only; never join it from an office DB
+                   // context -- office DBs have no SaasTenants table (BUG-01). Leave Tenant null.
                select new PatientWithNavigationProperties
                {
                    Patient = patient,
                    State = state,
                    AppointmentLanguage = appointmentLanguage,
                    IdentityUser = identityUser,
-                   Tenant = tenant
+                   Tenant = null
                };
     }
 

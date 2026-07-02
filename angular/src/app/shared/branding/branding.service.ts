@@ -1,7 +1,12 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import { EnvironmentService, ListResultDto, RestService } from '@abp/ng.core';
+import { EnvironmentService, ListResultDto, PagedResultDto, RestService } from '@abp/ng.core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import type {
+  ManagedTablePage,
+  ManagedTableQuery,
+} from '../components/managed-table/managed-table.models';
 
 /** Public per-office branding (mirrors the server BrandingDto). */
 export interface BrandingDto {
@@ -67,6 +72,28 @@ export class BrandingService {
       { method: 'GET', url: '/api/app/branding/offices' },
       { apiName: 'Default' },
     );
+  }
+
+  /**
+   * 2026-06-30 (QA item B): server-paged data source for the host-central branding
+   * table -- filter on office / display name, sorting, offset paging.
+   */
+  getOfficesPaged(query: ManagedTableQuery): Observable<ManagedTablePage<OfficeBrandingDto>> {
+    return this.rest
+      .request<void, PagedResultDto<OfficeBrandingDto>>(
+        {
+          method: 'GET',
+          url: '/api/app/branding/offices-paged',
+          params: {
+            filter: query.search.trim() || undefined,
+            sorting: query.sorting || undefined,
+            skipCount: query.skipCount,
+            maxResultCount: query.maxResultCount,
+          },
+        },
+        { apiName: 'Default' },
+      )
+      .pipe(map((r) => ({ items: r.items ?? [], totalCount: r.totalCount ?? 0 })));
   }
 
   /** Sets (or clears, when blank) the display name for a target office, or the current office when officeId is omitted. */

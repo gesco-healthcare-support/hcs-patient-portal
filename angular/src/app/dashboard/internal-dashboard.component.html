@@ -1,13 +1,14 @@
 <div class="dh-head">
   <div>
     <h1>{{ isHost() ? 'Host dashboard' : 'Dashboard' }}</h1>
+    <!-- UI label: host subtitle 'practices' (code: tenants) -->
     <p>
       {{
         isHost()
-          ? 'Activity across all tenants.'
+          ? 'Activity across all practices.'
           : isIntake()
-            ? 'Today at ' + tenantName() + '.'
-            : 'Overview for ' + tenantName() + '.'
+            ? 'Today at ' + (tenantName() | officeName) + '.'
+            : 'Overview for ' + (tenantName() | officeName) + '.'
       }}
     </p>
   </div>
@@ -48,69 +49,60 @@
         <div class="dh-kpi blue" (click)="openTenants()">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-blue"><app-icon name="users" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Total tenants</span>
+            <!-- UI label: 'Total Practices' (code: totalTenants) -->
+            <span class="dh-kpi__lbl">Total Practices</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalTenants ?? 0 }}</div>
         </div>
-        <div class="dh-kpi green" (click)="openDoctors()">
+        <!-- QA item 6 (D2): replaced the redundant Total-Doctors tile with Total Locations. -->
+        <div class="dh-kpi green" style="cursor: default">
           <div class="dh-kpi__top">
-            <span class="dh-kpi__ic tint-green"><app-icon name="stetho" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Total doctors</span>
+            <span class="dh-kpi__ic tint-green"><app-icon name="map" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Total Locations</span>
           </div>
-          <div class="dh-kpi__num">{{ d.totalDoctors ?? 0 }}</div>
+          <div class="dh-kpi__num">{{ d.totalLocations ?? 0 }}</div>
         </div>
-        <div class="dh-kpi amber" (click)="openAppointments()">
+        <div class="dh-kpi amber" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-amber"><app-icon name="calendar" [size]="18" /></span>
             <span class="dh-kpi__lbl">Appointments</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalAppointments ?? 0 }}</div>
         </div>
-        <div class="dh-kpi red" (click)="openByStatus(1)">
+        <div class="dh-kpi red" style="cursor: default">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-red"><app-icon name="clock" [size]="18" /></span>
-            <span class="dh-kpi__lbl">Pending across tenants</span>
+            <!-- UI label: 'Pending across practices' (code: tenants) -->
+            <span class="dh-kpi__lbl">Pending across practices</span>
           </div>
           <div class="dh-kpi__num">{{ d.pendingAcrossTenants ?? 0 }}</div>
         </div>
       </div>
 
       <div class="dh-card">
-        <div class="dh-card__head"><h3>Tenants</h3></div>
+        <!-- UI label: 'Practices' (code: tenants) -->
+        <div class="dh-card__head"><h3>Practices</h3></div>
         <div class="dh-card__body" style="padding: 0">
-          <table class="dh-ttable">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th class="r">Appointments</th>
-                <th class="r">Pending</th>
-                <th class="r">Approved</th>
-                <th class="r">This week</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (t of d.tenants; track t.tenantName) {
-                <tr>
-                  <td>
-                    <span class="tn">
-                      <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
-                      {{ t.tenantName }}
-                    </span>
-                  </td>
-                  <td class="r num">{{ t.appointments ?? 0 }}</td>
-                  <td class="r num">{{ t.pending ?? 0 }}</td>
-                  <td class="r num">{{ t.approved ?? 0 }}</td>
-                  <td class="r num">{{ t.thisWeek ?? 0 }}</td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="5" style="text-align: center; color: var(--n-400); padding: 28px">
-                    No tenants yet.
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <!-- UI labels: search 'practice name', empty 'No practices yet.' (code: tenants) -->
+          <app-managed-table
+            [dataSource]="tenantDataSource"
+            [columns]="tenantColumns"
+            [pageSize]="20"
+            trackByKey="tenantName"
+            searchPlaceholder="Search by practice name..."
+            emptyText="No practices yet."
+          >
+            <span class="tn" *managedTableCell="'tenantName'; let t">
+              <span class="mk">{{ (t.tenantName || '?').charAt(0).toUpperCase() }}</span>
+              {{ t.tenantName | officeName }}
+            </span>
+            <span class="num" *managedTableCell="'appointments'; let t">
+              {{ t.appointments ?? 0 }}
+            </span>
+            <span class="num" *managedTableCell="'pending'; let t">{{ t.pending ?? 0 }}</span>
+            <span class="num" *managedTableCell="'approved'; let t">{{ t.approved ?? 0 }}</span>
+            <span class="num" *managedTableCell="'thisWeek'; let t">{{ t.thisWeek ?? 0 }}</span>
+          </app-managed-table>
         </div>
       </div>
     } @else {

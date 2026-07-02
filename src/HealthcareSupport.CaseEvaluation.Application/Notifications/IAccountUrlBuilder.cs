@@ -58,6 +58,16 @@ public interface IAccountUrlBuilder
     Task<string> BuildPasswordResetUrlAsync(Guid tenantId, Guid userId, string token);
 
     /// <summary>
+    /// Builds the AuthServer-hosted password-reset URL for a HOST-scoped user.
+    /// Phase D (2026-06-25) made internal operators (Staff Supervisor / Intake
+    /// Staff) host logins with a null <c>TenantId</c>, so their reset link cannot
+    /// go through the tenant-scoped <see cref="BuildPasswordResetUrlAsync"/> (which
+    /// requires a real tenant). Same <c>/Account/ResetPassword</c> path, composed
+    /// against the host AuthServer root (bare-localhost, no subdomain prefix).
+    /// </summary>
+    Task<string> BuildHostPasswordResetUrlAsync(Guid userId, string token);
+
+    /// <summary>
     /// Builds the AuthServer-hosted invite-acceptance URL the
     /// IT-Admin invite flow emails to the prospective external user.
     /// Format:

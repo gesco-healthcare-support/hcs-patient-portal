@@ -37,18 +37,20 @@ import {
 } from '@ng-bootstrap/ng-bootstrap';
 import { ApproveConfirmationModalComponent } from './approve-confirmation-modal.component';
 import { RejectAppointmentModalComponent } from './reject-appointment-modal.component';
-import { CancelAppointmentModalComponent } from './cancel-appointment-modal.component';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
 import { RequestInfoModalComponent } from './request-info-modal.component';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
+import { RequestStatusType } from '../../../proxy/enums/request-status-type.enum';
+import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
+import { changeRequestConsentView, type CrConsentView } from '../../change-requests/cr-inbox.util';
 import { AppointmentDocumentsComponent } from '../../../appointment-documents/appointment-documents.component';
 import { AppointmentPacketComponent } from '../../../appointment-packet/appointment-packet.component';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 
-type TransitionAction = 'approve' | 'reject' | 'cancel';
+type TransitionAction = 'approve' | 'reject';
 
 type ExternalAuthorizedUserOption = {
   identityUserId: string;
@@ -142,7 +144,6 @@ type ApplicantAttorneyLookupResult = {
     NgbTypeaheadModule,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
-    CancelAppointmentModalComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
     RequestInfoModalComponent,
@@ -163,18 +164,23 @@ export class AppointmentViewComponent implements OnInit {
   private readonly environmentService = inject(EnvironmentService);
   private readonly toaster = inject(ToasterService);
   private readonly localization = inject(LocalizationService);
+  private readonly changeRequestService = inject(AppointmentChangeRequestService);
 
   // W1-1: state-machine transition UI
   readonly AppointmentStatusType = AppointmentStatusType;
   approveModalVisible = false;
   rejectModalVisible = false;
-  cancelModalVisible = false;
   // AP1 (decision 4): external-initiated change-request entry on the read-only
   // Review page (Approved appointments only).
   rescheduleRequestVisible = false;
   cancelRequestVisible = false;
   // Send Back (2026-06-14): staff "Request info" modal visibility (Pending only).
   requestInfoModalVisible = false;
+  // C2/C4 (2026-07-01): the appointment's active (Pending) change request, if
+  // any. Drives the two-sided consent indicator and hides the external request
+  // buttons while a cancel is pending (a pending cancel leaves the parent
+  // Approved, so status alone cannot reveal it). Null when none is open.
+  activeChangeRequest: AppointmentChangeRequestDto | null = null;
 
   // B8 (2026-05-06): widen the DOB datepicker year range. Default
   // ngbDatepicker only navigates +/-10 years; with [minDate]/[maxDate]
@@ -470,6 +476,7 @@ export class AppointmentViewComponent implements OnInit {
         this.bindDefenseAttorneyForAppointment(data.appointment?.id);
         this.loadInjuryDetails(data.appointment?.id);
         this.loadAppointmentAccessors(data.appointment?.id);
+        this.loadActiveChangeRequest(data.appointment?.id);
         const patient = data.patient;
         this.form.patchValue(
           {
@@ -688,7 +695,8 @@ export class AppointmentViewComponent implements OnInit {
     const status = this.currentStatus;
     return (
       // S-5.3b (W-VIEW-10): internal staff = NOT in any of the 4 external roles.
-      // Pending shows Approve/Reject; Approved shows the G-02-05 direct Cancel.
+      // Pending shows Approve/Reject; staff cancel/reschedule of an Approved
+      // appointment route through the change-request flow (B4, no direct cancel).
       // Server [Authorize(Appointments.*)] gates remain authoritative.
       !this.isPatientUser &&
       (status === AppointmentStatusType.Pending || status === AppointmentStatusType.Approved)
@@ -697,16 +705,15 @@ export class AppointmentViewComponent implements OnInit {
 
   /**
    * Action keys the office can pick at the current status.
-   *  Pending:  approve | reject  (OLD parity -- no send-back path)
-   *  Approved: cancel            (G-02-05 one-step staff cancel)
+   *  Pending: approve | reject (OLD parity -- no send-back path)
+   * An Approved appointment has no direct toolbar action: staff cancel and
+   * reschedule now route through the change-request + consent flow (B4,
+   * 2026-07-01), so the one-step direct cancel was removed.
    */
   get availableActions(): TransitionAction[] {
     const status = this.currentStatus;
     if (status === AppointmentStatusType.Pending) {
       return ['approve', 'reject'];
-    }
-    if (status === AppointmentStatusType.Approved) {
-      return ['cancel'];
     }
     return [];
   }
@@ -785,9 +792,6 @@ export class AppointmentViewComponent implements OnInit {
       case 'reject':
         this.rejectModalVisible = true;
         break;
-      case 'cancel':
-        this.cancelModalVisible = true;
-        break;
     }
   }
 
@@ -824,6 +828,9 @@ export class AppointmentViewComponent implements OnInit {
     return (
       this.isPatientUser &&
       this.currentStatus === AppointmentStatusType.Approved &&
+      // C4 (2026-07-01): hide the buttons once a cancel request is pending -- the
+      // parent stays Approved during that window, so status alone cannot gate it.
+      !this.hasPendingCancelRequest &&
       !!this.appointment?.appointment?.id
     );
   }
@@ -836,6 +843,45 @@ export class AppointmentViewComponent implements OnInit {
   openCancelRequest(): void {
     this.rescheduleRequestVisible = false;
     this.cancelRequestVisible = true;
+  }
+
+  /** C4 (2026-07-01): true when a cancel change request is already Pending. */
+  get hasPendingCancelRequest(): boolean {
+    return (
+      this.activeChangeRequest?.changeRequestType === ChangeRequestType.Cancel &&
+      this.activeChangeRequest?.requestStatus === RequestStatusType.Pending
+    );
+  }
+
+  /**
+   * C2 (2026-07-01): aggregate two-sided consent chip for the active change
+   * request (null when none is open or consent is not in play). Reuses the
+   * supervisor-inbox helper so the appointment view + inbox stay consistent.
+   */
+  get consentIndicator(): CrConsentView | null {
+    if (!this.activeChangeRequest) {
+      return null;
+    }
+    const view = changeRequestConsentView(
+      this.activeChangeRequest.sideAConsentStatus,
+      this.activeChangeRequest.sideBConsentStatus,
+    );
+    return view.show ? view : null;
+  }
+
+  private loadActiveChangeRequest(appointmentId?: string): void {
+    if (!appointmentId) {
+      this.activeChangeRequest = null;
+      return;
+    }
+    this.changeRequestService.getActiveForAppointment(appointmentId).subscribe({
+      next: (dto) => {
+        this.activeChangeRequest = dto ?? null;
+      },
+      error: () => {
+        this.activeChangeRequest = null;
+      },
+    });
   }
 
   /** Send Back (2026-06-14): staff opens the "Request info" modal (Pending only). */
@@ -880,11 +926,21 @@ export class AppointmentViewComponent implements OnInit {
           this.appointment = data;
         },
       });
+      // Refresh the consent indicator + button gating for the just-filed request.
+      this.loadActiveChangeRequest(id);
     }
   }
 
   save(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Re-entrancy guard (mirrors AppointmentAddComponent.onSubmit): a fast second
+      // click must not re-fire the patient + appointment + party-upsert chain while
+      // the first round-trip is in flight (the [disabled]="isSaving" binding only
+      // applies after change detection, leaving a click window). Resolve as a no-op.
+      if (this.isSaving) {
+        resolve();
+        return;
+      }
       const selected = this.appointment?.appointment;
       if (
         !selected?.id ||

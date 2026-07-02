@@ -92,6 +92,38 @@ public abstract class BrandingAppServiceTests<TStartupModule>
             o.OfficeId == TenantsTestData.TenantARef && o.DisplayName == "Listed A");
     }
 
+    // 2026-06-30 (QA item B): paged office-branding list for the reusable table.
+    [Fact]
+    public async Task GetPagedOfficeBrandings_ReturnsPagedShape_WithTargetOffice()
+    {
+        await _branding.SetDisplayNameAsync(TenantsTestData.TenantARef, "Paged Alpha");
+
+        var page = await _branding.GetPagedOfficeBrandingsAsync(
+            new GetOfficeBrandingInput { SkipCount = 0, MaxResultCount = 50 });
+
+        page.TotalCount.ShouldBeGreaterThan(0);
+        ((long)page.Items.Count).ShouldBeLessThanOrEqualTo(page.TotalCount);
+        page.Items.ShouldContain(o =>
+            o.OfficeId == TenantsTestData.TenantARef && o.DisplayName == "Paged Alpha");
+    }
+
+    [Fact]
+    public async Task GetPagedOfficeBrandings_Filter_NarrowsToMatchingOffice()
+    {
+        await _branding.SetDisplayNameAsync(TenantsTestData.TenantARef, "ZzqPagedToken");
+
+        var page = await _branding.GetPagedOfficeBrandingsAsync(
+            new GetOfficeBrandingInput { Filter = "ZzqPagedToken", SkipCount = 0, MaxResultCount = 50 });
+
+        page.Items.ShouldContain(o => o.OfficeId == TenantsTestData.TenantARef);
+        // Every returned row matches the filter on office name OR display name.
+        page.Items.ShouldAllBe(o =>
+            (o.DisplayName != null
+                && o.DisplayName.Contains("ZzqPagedToken", StringComparison.OrdinalIgnoreCase))
+            || (o.OfficeName != null
+                && o.OfficeName.Contains("ZzqPagedToken", StringComparison.OrdinalIgnoreCase)));
+    }
+
     [Fact]
     public async Task UploadLogo_RejectsUnsupportedExtension()
     {

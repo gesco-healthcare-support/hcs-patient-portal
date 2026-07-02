@@ -14,9 +14,12 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Saas;
+using Volo.Saas.Editions;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
@@ -36,6 +39,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IAuthorizationService _authorizationService;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly IRepository<Edition, Guid> _editionRepository;
 
     public DashboardAppService(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -48,7 +52,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         ISystemParameterRepository systemParameterRepository,
         ITenantWorkRunner tenantWorkRunner,
         IAuthorizationService authorizationService,
-        IRepository<IdentityUser, Guid> identityUserRepository)
+        IRepository<IdentityUser, Guid> identityUserRepository,
+        IRepository<Edition, Guid> editionRepository)
     {
         _appointmentRepository = appointmentRepository;
         _changeRequestRepository = changeRequestRepository;
@@ -61,19 +66,31 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         _tenantWorkRunner = tenantWorkRunner;
         _authorizationService = authorizationService;
         _identityUserRepository = identityUserRepository;
+        _editionRepository = editionRepository;
     }
 
     [Authorize]
     public virtual async Task<DashboardCountersDto> GetAsync()
     {
-        var isHost = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host);
-        var isTenant = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant);
-        if (!isHost && !isTenant)
+        // Branch on the request's tenant SCOPE (not which permission is held), and
+        // probe ONLY the scope-appropriate permission. Probing Dashboard.Host in
+        // tenant context (e.g. the 60s nav-badge poll after a host operator switches
+        // into an office) logged a benign-but-noisy "Dashboard.Host not granted" auth
+        // failure on every tick even though the request succeeded via Dashboard.Tenant.
+        if (CurrentTenant.Id == null)
+        {
+            if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host))
+            {
+                throw new AbpAuthorizationException(L["Forbidden"]);
+            }
+            return await GetHostCountersAsync();
+        }
+
+        if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant))
         {
             throw new AbpAuthorizationException(L["Forbidden"]);
         }
-
-        return isHost ? await GetHostCountersAsync() : await GetTenantCountersAsync();
+        return await GetTenantCountersAsync();
     }
 
     /// <summary>
@@ -191,7 +208,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
 
     // ===================== Redesigned composite dashboard (Prompt 9) =====================
 
-    private const int TrendWeeks = 6;
+    private const int MaxTrendBuckets = 14;
     private const int DeadlineListSize = 5;
     private const int ApproachWindowDays = 2;
     private const int ScheduleListSize = 8;
@@ -200,26 +217,30 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     /// <summary>
     /// Rich payload for the redesigned internal dashboard. Host callers get
     /// cross-tenant KPIs + a per-tenant table; tenant callers get the hero KPIs
-    /// (with prior-period deltas for the range-based Approved/Rejected), the
-    /// decision-deadline list, a 6-week trend, the status breakdown, today's
-    /// schedule, and recent activity. The legacy <see cref="GetAsync"/> stays for
-    /// the nav badge.
+    /// (with prior-period deltas for the range-based Approved/Rejected), plus a
+    /// range-windowed trend, status breakdown, and recent activity. The
+    /// decision-deadline list and today's schedule stay point-in-time. The legacy
+    /// <see cref="GetAsync"/> stays for the nav badge.
     /// </summary>
     [Authorize]
     public virtual async Task<DashboardDto> GetDashboardAsync(DashboardRange range)
     {
-        var isHost = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host);
-        var isTenant = await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant);
-        if (!isHost && !isTenant)
+        // Scope-based branch (see GetAsync): probe only the scope-appropriate
+        // permission so a tenant-context call never logs a benign Dashboard.Host
+        // authorization failure.
+        if (CurrentTenant.Id == null)
         {
-            throw new AbpAuthorizationException(L["Forbidden"]);
-        }
-
-        if (isHost)
-        {
+            if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Host))
+            {
+                throw new AbpAuthorizationException(L["Forbidden"]);
+            }
             return await BuildHostDashboardAsync();
         }
 
+        if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant))
+        {
+            throw new AbpAuthorizationException(L["Forbidden"]);
+        }
         return await BuildTenantDashboardAsync(range);
     }
 
@@ -249,6 +270,165 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         return summaries.OrderBy(s => s.Name).ToList();
     }
 
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged Offices/Tenants list. See
+    /// <see cref="IDashboardAppService.GetOfficesAsync"/>. Reads the office
+    /// registry + editions host-side, then computes user/appointment counts only
+    /// for the page's offices (each inside its own database). The office registry
+    /// is bounded (one row per office), so the name/edition filter + sort + paging
+    /// are applied in memory before the per-office count hops.
+    /// </summary>
+    [Authorize("Saas.Tenants")]
+    public virtual async Task<PagedResultDto<OfficeListDto>> GetOfficesAsync(GetOfficesInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            var tenants = await _tenantRepository.GetListAsync();
+            var editions = await _editionRepository.GetListAsync();
+            var editionNameById = editions.ToDictionary(e => e.Id, e => e.DisplayName ?? string.Empty);
+
+            var filter = input.Filter?.Trim();
+            var filtered = tenants
+                .Where(t => string.IsNullOrEmpty(filter)
+                    || (t.Name != null && t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            var totalCount = filtered.Count;
+
+            var pageTenants = SortOffices(filtered, editionNameById, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            var rows = new List<OfficeListDto>(pageTenants.Count);
+            foreach (var tenant in pageTenants)
+            {
+                int userCount;
+                int appointmentCount;
+                // Database-per-office: each count runs inside that office's own
+                // database (the IMultiTenant filter scopes it naturally).
+                using (CurrentTenant.Change(tenant.Id))
+                {
+                    userCount = await _identityUserRepository.CountAsync();
+                    appointmentCount = await _appointmentRepository.CountAsync();
+                }
+
+                rows.Add(new OfficeListDto
+                {
+                    Id = tenant.Id,
+                    Name = tenant.Name ?? string.Empty,
+                    Subdomain = (tenant.Name ?? string.Empty).ToLowerInvariant(),
+                    EditionId = tenant.EditionId,
+                    EditionName = ResolveEditionName(tenant, editionNameById),
+                    UserCount = userCount,
+                    AppointmentCount = appointmentCount,
+                    IsActive = tenant.ActivationState != TenantActivationState.Passive,
+                    ConcurrencyStamp = tenant.ConcurrencyStamp,
+                });
+            }
+
+            return new PagedResultDto<OfficeListDto>(totalCount, rows);
+        }
+    }
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged host per-office breakdown. See
+    /// <see cref="IDashboardAppService.GetTenantBreakdownAsync"/>. Mirrors
+    /// <see cref="BuildHostDashboardAsync"/>'s per-office counting (each office in
+    /// its own database via the tenant work runner); the result set is bounded by
+    /// office count, so the name filter + sort + paging run in memory after the
+    /// aggregate.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.Dashboard.Host)]
+    public virtual async Task<PagedResultDto<DashboardTenantRowDto>> GetTenantBreakdownAsync(
+        GetTenantBreakdownInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        var lastMondayUtc = GetLastMondayUtc();
+        var tenants = await _tenantRepository.GetListAsync();
+        var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
+
+        var perOffice = await _tenantWorkRunner.AggregateAcrossOfficesAsync(async officeId =>
+            new DashboardTenantRowDto
+            {
+                TenantName = nameById[officeId] ?? string.Empty,
+                Appointments = await _appointmentRepository.CountAsync(),
+                Pending = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Pending),
+                Approved = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Approved),
+                ThisWeek = await _appointmentRepository.CountAsync(
+                    a => a.CreationTime >= lastMondayUtc),
+            });
+
+        var filter = input.Filter?.Trim();
+        var filtered = perOffice
+            .Where(r => string.IsNullOrEmpty(filter)
+                || r.TenantName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var totalCount = filtered.Count;
+
+        var page = SortTenantBreakdown(filtered, input.Sorting)
+            .Skip(input.SkipCount)
+            .Take(input.MaxResultCount)
+            .ToList();
+
+        return new PagedResultDto<DashboardTenantRowDto>(totalCount, page);
+    }
+
+    private static string ResolveEditionName(
+        Tenant tenant, IReadOnlyDictionary<Guid, string> editionNameById) =>
+        tenant.EditionId.HasValue && editionNameById.TryGetValue(tenant.EditionId.Value, out var name)
+            ? name
+            : string.Empty;
+
+    private static List<Tenant> SortOffices(
+        List<Tenant> tenants,
+        IReadOnlyDictionary<Guid, string> editionNameById,
+        string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "name";
+        var descending = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<Tenant> ordered = field switch
+        {
+            "editionname" or "edition" => descending
+                ? tenants.OrderByDescending(t => ResolveEditionName(t, editionNameById), StringComparer.OrdinalIgnoreCase)
+                : tenants.OrderBy(t => ResolveEditionName(t, editionNameById), StringComparer.OrdinalIgnoreCase),
+            _ => descending
+                ? tenants.OrderByDescending(t => t.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                : tenants.OrderBy(t => t.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+        };
+        return ordered.ToList();
+    }
+
+    private static List<DashboardTenantRowDto> SortTenantBreakdown(
+        List<DashboardTenantRowDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var hasSort = parts.Length > 0;
+        var field = hasSort ? parts[0].ToLowerInvariant() : "appointments";
+        // No client sort -> most-active office first (mirrors the dashboard's own order).
+        var descending = hasSort
+            ? parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase)
+            : true;
+
+        IOrderedEnumerable<DashboardTenantRowDto> ordered = field switch
+        {
+            "tenantname" or "name" or "tenant" => descending
+                ? rows.OrderByDescending(r => r.TenantName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.TenantName, StringComparer.OrdinalIgnoreCase),
+            "pending" => descending ? rows.OrderByDescending(r => r.Pending) : rows.OrderBy(r => r.Pending),
+            "approved" => descending ? rows.OrderByDescending(r => r.Approved) : rows.OrderBy(r => r.Approved),
+            "thisweek" => descending ? rows.OrderByDescending(r => r.ThisWeek) : rows.OrderBy(r => r.ThisWeek),
+            _ => descending ? rows.OrderByDescending(r => r.Appointments) : rows.OrderBy(r => r.Appointments),
+        };
+        return ordered.ToList();
+    }
+
     private async Task<DashboardDto> BuildHostDashboardAsync()
     {
         var lastMondayUtc = GetLastMondayUtc();
@@ -271,6 +451,8 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                 ThisWeek = await _appointmentRepository.CountAsync(
                     a => a.CreationTime >= lastMondayUtc),
                 Doctors = await _doctorRepository.CountAsync(),
+                // QA item 6 (D2): clinic locations per office, summed for the host tile.
+                Locations = await _locationRepository.CountAsync(),
             });
 
         var rows = perOffice
@@ -290,6 +472,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             IsHost = true,
             TotalTenants = tenants.Count,
             TotalDoctors = perOffice.Sum(o => o.Doctors),
+            TotalLocations = perOffice.Sum(o => o.Locations),
             TotalAppointments = perOffice.Sum(o => o.Appointments),
             PendingAcrossTenants = perOffice.Sum(o => o.Pending),
             Tenants = rows,
@@ -336,10 +519,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         };
 
         await BuildDeadlineSectionAsync(dto, nowUtc);
-        dto.Trend = await BuildTrendAsync();
-        dto.StatusBreakdown = await BuildStatusBreakdownAsync();
+        // QA item G: the donut, trend, and recent activity now follow the selected
+        // range window so the whole tenant dashboard reflects one period. Live
+        // Pending tiles, the decision-deadline SLA list, and Today's schedule stay
+        // point-in-time by design (a quarter-long "today" is meaningless).
+        dto.Trend = await BuildTrendAsync(currentStart, nowUtc);
+        dto.StatusBreakdown = await BuildStatusBreakdownAsync(currentStart);
         dto.TodaySchedule = await BuildTodayScheduleAsync(nowUtc);
-        dto.RecentActivity = await BuildRecentActivityAsync();
+        dto.RecentActivity = await BuildRecentActivityAsync(currentStart);
         return dto;
     }
 
@@ -395,40 +582,48 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         }).ToList();
     }
 
-    private async Task<List<DashboardTrendPointDto>> BuildTrendAsync()
+    // Weekly buckets spanning the selected range window [currentStart, now] so the
+    // trend matches the period the KPI tiles + donut reflect (QA item G). The
+    // window length sets the bucket count: Week -> 1, Month -> ~5, Quarter -> ~13,
+    // capped at MaxTrendBuckets.
+    private async Task<List<DashboardTrendPointDto>> BuildTrendAsync(DateTime currentStart, DateTime nowUtc)
     {
-        var lastMondayUtc = GetLastMondayUtc();
         var trend = new List<DashboardTrendPointDto>();
-        for (var i = TrendWeeks - 1; i >= 0; i--)
+        var weekStart = currentStart;
+        for (var index = 0; weekStart < nowUtc && index < MaxTrendBuckets; index++)
         {
-            var weekStart = lastMondayUtc.AddDays(-7 * i);
-            var weekEnd = weekStart.AddDays(7);
+            var bucketStart = weekStart;
+            var bucketEnd = bucketStart.AddDays(7);
             // Volume bar: requests RECEIVED that week (by creation date).
             var count = await _appointmentRepository.CountAsync(
-                a => a.CreationTime >= weekStart && a.CreationTime < weekEnd);
+                a => a.CreationTime >= bucketStart && a.CreationTime < bucketEnd);
             // Completion line: requests APPROVED that week (by approve date), mirroring
             // the ApprovedRequests hero KPI so "received in" and "approved out" compare.
             var completedCount = await _appointmentRepository.CountAsync(
                 a => a.AppointmentStatus == AppointmentStatusType.Approved
                      && a.AppointmentApproveDate != null
-                     && a.AppointmentApproveDate >= weekStart
-                     && a.AppointmentApproveDate < weekEnd);
+                     && a.AppointmentApproveDate >= bucketStart
+                     && a.AppointmentApproveDate < bucketEnd);
             trend.Add(new DashboardTrendPointDto
             {
-                Label = $"Wk {TrendWeeks - i}",
-                WeekStart = weekStart,
+                Label = $"Wk {index + 1}",
+                WeekStart = bucketStart,
                 Count = count,
                 CompletedCount = completedCount,
             });
+            weekStart = bucketEnd;
         }
         return trend;
     }
 
-    private async Task<List<DashboardStatusSliceDto>> BuildStatusBreakdownAsync()
+    // QA item G: window the status breakdown to requests CREATED in the selected
+    // range so the donut reflects the same period as the KPI tiles.
+    private async Task<List<DashboardStatusSliceDto>> BuildStatusBreakdownAsync(DateTime currentStart)
     {
         var q = await _appointmentRepository.GetQueryableAsync();
         var byStatus = await AsyncExecuter.ToListAsync(
-            q.GroupBy(a => a.AppointmentStatus)
+            q.Where(a => a.CreationTime >= currentStart)
+             .GroupBy(a => a.AppointmentStatus)
              .Select(g => new { Status = g.Key, Count = g.Count() }));
 
         var counts = StatusPillPolicy.DonutOrder.ToDictionary(p => p, _ => 0);
@@ -474,11 +669,14 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         }).ToList();
     }
 
-    private async Task<List<DashboardActivityItemDto>> BuildRecentActivityAsync()
+    // QA item G: only activity within the selected range, so the feed matches the
+    // period the rest of the tenant dashboard reflects.
+    private async Task<List<DashboardActivityItemDto>> BuildRecentActivityAsync(DateTime currentStart)
     {
         var q = await _appointmentRepository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
-            q.OrderByDescending(a => a.LastModificationTime ?? a.CreationTime)
+            q.Where(a => (a.LastModificationTime ?? a.CreationTime) >= currentStart)
+             .OrderByDescending(a => a.LastModificationTime ?? a.CreationTime)
              .Take(ActivityListSize)
              .Select(a => new
              {

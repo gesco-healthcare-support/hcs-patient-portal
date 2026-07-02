@@ -137,6 +137,11 @@
                 Cancel
               </button>
             }
+            @if (consentIndicator; as consent) {
+              <span class="badge rounded-pill bg-light text-dark border align-self-center">
+                {{ consent.label }}
+              </span>
+            }
             @if (can('requestInfo')) {
               <button class="af-btn af-btn--glass" type="button" (click)="requestInfo()">
                 <app-icon name="help" [size]="15" />
@@ -1245,11 +1250,13 @@
       [appointmentId]="appointment.appointment?.id ?? null"
       [locationId]="appointment.appointment?.locationId ?? null"
       [appointmentTypeId]="appointment.appointment?.appointmentTypeId ?? null"
+      [requesterIsStaff]="true"
       [(visible)]="rescheduleRequestVisible"
       (succeeded)="onChangeRequestSucceeded($event)"
     ></app-reschedule-request-modal>
     <app-cancellation-request-modal
       [appointmentId]="appointment.appointment?.id ?? null"
+      [requesterIsStaff]="true"
       [(visible)]="cancelRequestVisible"
       (succeeded)="onChangeRequestSucceeded($event)"
     ></app-cancellation-request-modal>

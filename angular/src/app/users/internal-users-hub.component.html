@@ -34,6 +34,30 @@
         </div>
         <div class="ra-card__body">
           <div class="ra-grid">
+            <!-- QA item C: host-scope callers must choose the target office; the
+                 picker is hidden inside an office (tenant is then implicit). -->
+            @if (tenantPickerRequired()) {
+              <div class="ra-field col-6">
+                <label>
+                  <!-- UI label: 'Practice' (code: office) -->
+                  Practice
+                  <span class="req">*</span>
+                </label>
+                <select
+                  class="ra-select"
+                  [ngModel]="invite().tenantId"
+                  (ngModelChange)="patchInvite({ tenantId: $event })"
+                >
+                  <!-- UI label: 'Select a practice' (code: office) -->
+                  <option value="">Select a practice</option>
+                  @for (o of tenantOptions(); track o.id) {
+                    <option [value]="o.id">{{ o.displayName | officeName }}</option>
+                  }
+                </select>
+                <!-- UI label: 'practice' (code: office) -->
+                <span class="ra-hint">The external user is invited into this practice.</span>
+              </div>
+            }
             <!-- F-005 (2026-06-25): the invite form collects First/Last for ALL
                  roles -- including attorneys -- so the invitation email can greet
                  the person by name. The self-register form stays firm-only; the
@@ -120,7 +144,8 @@
           <div class="ux-result__body">
             <div class="ux-result__grid">
               <div>
-                <div class="k">Tenant</div>
+                <!-- UI label: 'Practice' (code: tenant, field res.tenantName) -->
+                <div class="k">Practice</div>
                 <div class="v">{{ res.tenantName }}</div>
               </div>
               <div>
@@ -151,104 +176,72 @@
 
     <!-- ============ Pending Invites ============ -->
     @if (section() === 'pending') {
-      <div class="ia-toolbar">
-        <div class="ia-search">
-          <app-icon name="search" [size]="16" />
-          <input
-            placeholder="Search by email..."
-            [ngModel]="pendingFilter()"
-            (ngModelChange)="applyPendingFilter($event)"
-          />
+      <app-managed-table
+        [dataSource]="invitesDataSource"
+        [columns]="invitesColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by email..."
+        emptyText="No invitations yet."
+      >
+        <b *managedTableCell="'email'; let inv">{{ inv.email }}</b>
+        <span class="ux-role" *managedTableCell="'roleName'; let inv">{{ inv.roleName }}</span>
+        <span class="ia-sub" *managedTableCell="'invitedByName'; let inv">
+          {{ inv.invitedByName || '--' }}
+        </span>
+        <span class="ia-sub" *managedTableCell="'creationTime'; let inv">
+          {{ inv.creationTime | date: 'mediumDate' }}
+        </span>
+        <ng-container *managedTableCell="'expiresAt'; let inv">
+          @if (expiry(inv); as e) {
+            <span
+              class="ux-exp"
+              [class.ok]="e.cls === 'ok'"
+              [class.soon]="e.cls === 'soon'"
+              [class.gone]="e.cls === 'gone'"
+            >
+              {{ e.label }}
+            </span>
+          }
+        </ng-container>
+        <ng-container *managedTableCell="'status'; let inv">
+          @if (status(inv); as st) {
+            <span
+              class="pp-portal"
+              [class.invited]="st.cls === 'invited'"
+              [class.linked]="st.cls === 'linked'"
+              [class.none]="st.cls === 'none'"
+            >
+              <i></i>
+              {{ st.label }}
+            </span>
+          }
+        </ng-container>
+        <div class="ux-rowacts" *managedTableRowActions="let inv">
+          @if (canManageInvite(inv)) {
+            <button
+              class="ra-rowbtn"
+              title="Resend &amp; copy link"
+              (click)="resend(inv)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="refresh" [size]="15" />
+            </button>
+          }
+          @if (isPending(inv)) {
+            <button
+              class="ra-rowbtn danger"
+              title="Revoke"
+              (click)="revoke(inv)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="x" [size]="15" />
+            </button>
+          }
         </div>
-      </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Invited by</th>
-              <th>Sent</th>
-              <th>Expires</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="7" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (inv of invites(); track inv.id) {
-                <tr>
-                  <td>
-                    <b>{{ inv.email }}</b>
-                  </td>
-                  <td>
-                    <span class="ux-role">{{ inv.roleName }}</span>
-                  </td>
-                  <td class="ia-sub">{{ inv.invitedByName || '--' }}</td>
-                  <td class="ia-sub">{{ inv.creationTime | date: 'mediumDate' }}</td>
-                  <td>
-                    @if (expiry(inv); as e) {
-                      <span
-                        class="ux-exp"
-                        [class.ok]="e.cls === 'ok'"
-                        [class.soon]="e.cls === 'soon'"
-                        [class.gone]="e.cls === 'gone'"
-                      >
-                        {{ e.label }}
-                      </span>
-                    }
-                  </td>
-                  <td>
-                    @if (status(inv); as st) {
-                      <span
-                        class="pp-portal"
-                        [class.invited]="st.cls === 'invited'"
-                        [class.linked]="st.cls === 'linked'"
-                        [class.none]="st.cls === 'none'"
-                      >
-                        <i></i>
-                        {{ st.label }}
-                      </span>
-                    }
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      @if (canManageInvite(inv)) {
-                        <button
-                          class="ra-rowbtn"
-                          title="Resend &amp; copy link"
-                          (click)="resend(inv)"
-                          [disabled]="isBusy()"
-                        >
-                          <app-icon name="refresh" [size]="15" />
-                        </button>
-                      }
-                      @if (isPending(inv)) {
-                        <button
-                          class="ra-rowbtn danger"
-                          title="Revoke"
-                          (click)="revoke(inv)"
-                          [disabled]="isBusy()"
-                        >
-                          <app-icon name="x" [size]="15" />
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="7" class="ia-sub" style="padding: 20px; text-align: center">
-                    No invitations yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      </app-managed-table>
     }
 
     <!-- ============ Internal Users ============ -->
@@ -259,81 +252,61 @@
           Create internal user
         </button>
       </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Tenant</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="6" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (u of internalUsers(); track u.id) {
-                <tr>
-                  <td>
-                    <span class="ux-name">
-                      <span class="ux-ava" [style.background]="avatarColor(u.id)">
-                        {{ initials(u.firstName, u.lastName, u.email) }}
-                      </span>
-                      <b>{{ u.fullName }}</b>
-                    </span>
-                  </td>
-                  <td class="ia-sub">{{ u.email }}</td>
-                  <td>
-                    <span
-                      class="ux-role"
-                      [class.sup]="roleChipClass(u.role) === 'sup'"
-                      [class.admin]="roleChipClass(u.role) === 'admin'"
-                    >
-                      {{ u.role }}
-                    </span>
-                  </td>
-                  <td>{{ u.tenantName }}</td>
-                  <td>
-                    <span class="lw-active" [class.on]="u.isActive" [class.off]="!u.isActive">
-                      {{ u.isActive ? 'Active' : 'Deactivated' }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      <button
-                        class="ra-rowbtn"
-                        title="Send password reset"
-                        (click)="sendReset(u)"
-                        [disabled]="isBusy()"
-                      >
-                        <app-icon name="refresh" [size]="15" />
-                      </button>
-                      <button
-                        class="ra-rowbtn"
-                        [class.danger]="u.isActive"
-                        [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
-                        (click)="toggleActive(u)"
-                        [disabled]="isBusy()"
-                      >
-                        <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="6" class="ia-sub" style="padding: 20px; text-align: center">
-                    No internal users yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      <app-managed-table
+        [dataSource]="internalUsersDataSource"
+        [columns]="internalUsersColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by name or email..."
+        emptyText="No internal users yet."
+      >
+        <span class="ux-name" *managedTableCell="'fullName'; let u">
+          <span class="ux-ava" [style.background]="avatarColor(u.id)">
+            {{ initials(u.firstName, u.lastName, u.email) }}
+          </span>
+          <b>{{ u.fullName }}</b>
+        </span>
+        <span class="ia-sub" *managedTableCell="'email'; let u">{{ u.email }}</span>
+        <span
+          class="ux-role"
+          *managedTableCell="'role'; let u"
+          [class.sup]="roleChipClass(u.role) === 'sup'"
+          [class.admin]="roleChipClass(u.role) === 'admin'"
+        >
+          {{ u.role }}
+        </span>
+        <span
+          class="lw-active"
+          *managedTableCell="'isActive'; let u"
+          [class.on]="u.isActive"
+          [class.off]="!u.isActive"
+        >
+          {{ u.isActive ? 'Active' : 'Deactivated' }}
+        </span>
+        <div class="ux-rowacts" *managedTableRowActions="let u">
+          <button
+            class="ra-rowbtn"
+            title="Send password reset"
+            (click)="sendReset(u)"
+            [disabled]="isBusy()"
+          >
+            <app-icon name="refresh" [size]="15" />
+          </button>
+          @if (canDeactivateUser()) {
+            <button
+              class="ra-rowbtn"
+              [class.danger]="u.isActive"
+              [title]="u.isActive ? 'Deactivate' : 'Reactivate'"
+              (click)="toggleActive(u)"
+              [disabled]="isBusy()"
+            >
+              <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
+            </button>
+          }
+        </div>
+      </app-managed-table>
 
       @if (createResult(); as res) {
         <div class="ux-result">
@@ -347,10 +320,6 @@
           </div>
           <div class="ux-result__body">
             <div class="ux-result__grid">
-              <div>
-                <div class="k">Tenant</div>
-                <div class="v">{{ res.tenantName }}</div>
-              </div>
               <div>
                 <div class="k">Email</div>
                 <div class="v">{{ res.email }}</div>
@@ -378,79 +347,54 @@
     <!-- ============ Tenants ============ -->
     @if (section() === 'tenants') {
       <div class="ux-hdrbar">
-        <button class="af-btn af-btn--primary" (click)="openNewTenant()">
-          <app-icon name="plus" [size]="15" />
-          New tenant
-        </button>
+        @if (canCreateTenant()) {
+          <button class="af-btn af-btn--primary" (click)="openNewTenant()">
+            <app-icon name="plus" [size]="15" />
+            <!-- UI label: 'New practice' (code: tenant) -->
+            New practice
+          </button>
+        }
       </div>
-      <div class="ia-wrap">
-        <table class="ia-table">
-          <thead>
-            <tr>
-              <th>Tenant</th>
-              <th>Subdomain</th>
-              <th>Edition</th>
-              <th>Users</th>
-              <th>Appointments</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              <tr><td colspan="7" class="ia-sub" style="padding: 20px">Loading...</td></tr>
-            } @else {
-              @for (t of tenants(); track t.id) {
-                <tr>
-                  <td>
-                    <span class="ux-name">
-                      <span class="ux-ava" [style.background]="avatarColor(t.id)">
-                        {{ initials(t.name) }}
-                      </span>
-                      <b>{{ t.name }}</b>
-                    </span>
-                  </td>
-                  <td class="ia-sub">{{ t.subdomain }}.caseeval.app</td>
-                  <td>
-                    @if (t.editionName) {
-                      <span class="ux-ed">{{ t.editionName }}</span>
-                    } @else {
-                      <span class="ia-sub">--</span>
-                    }
-                  </td>
-                  <td>{{ t.userCount }}</td>
-                  <td>{{ t.appointmentCount }}</td>
-                  <td>
-                    <span class="lw-active" [class.on]="t.isActive" [class.off]="!t.isActive">
-                      {{ t.isActive ? 'Active' : 'Inactive' }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="ux-rowacts">
-                      <button
-                        class="ra-rowbtn"
-                        title="Switch into tenant"
-                        (click)="switchTenant(t)"
-                      >
-                        <app-icon name="chevRight" [size]="15" />
-                      </button>
-                      <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
-                        <app-icon name="doc" [size]="15" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="7" class="ia-sub" style="padding: 20px; text-align: center">
-                    No tenants yet.
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
+      <!-- UI labels: search 'practice name', empty 'No practices yet.' (code: tenant) -->
+      <app-managed-table
+        [dataSource]="officesDataSource"
+        [columns]="officesColumns"
+        [busy]="isBusy()"
+        [reload$]="reload$"
+        [pageSize]="20"
+        trackByKey="id"
+        searchPlaceholder="Search by practice name..."
+        emptyText="No practices yet."
+      >
+        <span class="ux-name" *managedTableCell="'name'; let t">
+          <span class="ux-ava" [style.background]="avatarColor(t.id)">
+            {{ initials(t.name) }}
+          </span>
+          <b>{{ t.name | officeName }}</b>
+        </span>
+        <span class="ia-sub" *managedTableCell="'subdomain'; let t">
+          {{ t.subdomain }}.{{ tenantBaseDomain }}
+        </span>
+        <span
+          class="lw-active"
+          *managedTableCell="'isActive'; let t"
+          [class.on]="t.isActive"
+          [class.off]="!t.isActive"
+        >
+          {{ t.isActive ? 'Active' : 'Inactive' }}
+        </span>
+        <div class="ux-rowacts" *managedTableRowActions="let t">
+          <!-- UI label: title 'Switch into practice' (code: tenant) -->
+          <button class="ra-rowbtn" title="Switch into practice" (click)="switchTenant(t)">
+            <app-icon name="chevRight" [size]="15" />
+          </button>
+          @if (canEditTenant()) {
+            <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
+              <app-icon name="doc" [size]="15" />
+            </button>
+          }
+        </div>
+      </app-managed-table>
     }
   </div>
 </div>
@@ -465,24 +409,6 @@
       </div>
       <div class="ra-modal__body">
         <div class="ra-grid">
-          @if (tenantPickerRequired) {
-            <div class="ra-field col-6">
-              <label>
-                Tenant
-                <span class="req">*</span>
-              </label>
-              <select
-                class="ra-select"
-                [ngModel]="f.tenantId"
-                (ngModelChange)="patchCreate({ tenantId: $event })"
-              >
-                <option value="">Select a tenant</option>
-                @for (t of tenantOptions(); track t.id) {
-                  <option [value]="t.id">{{ t.displayName }}</option>
-                }
-              </select>
-            </div>
-          }
           <div class="ra-field col-6">
             <label>
               Role
@@ -572,7 +498,8 @@
   <div class="ra-scrim" (click)="closeTenant()">
     <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
       <div class="ra-modal__head">
-        <h3>{{ f.id ? 'Edit tenant' : 'New tenant' }}</h3>
+        <!-- UI label: 'Edit practice' / 'New practice' (code: tenant) -->
+        <h3>{{ f.id ? 'Edit practice' : 'New practice' }}</h3>
         <button class="x" (click)="closeTenant()"><app-icon name="x" [size]="18" /></button>
       </div>
       <div class="ra-modal__body">
@@ -589,20 +516,7 @@
               maxlength="40"
               placeholder="clinic-name"
             />
-            <span class="ra-hint">{{ f.name || 'subdomain' }}.caseeval.app</span>
-          </div>
-          <div class="ra-field col-6">
-            <label>Edition</label>
-            <select
-              class="ra-select"
-              [ngModel]="f.editionId"
-              (ngModelChange)="patchTenant({ editionId: $event })"
-            >
-              <option [ngValue]="null">None</option>
-              @for (e of editionOptions(); track e.id) {
-                <option [ngValue]="e.id">{{ e.name }}</option>
-              }
-            </select>
+            <span class="ra-hint">{{ f.name || 'subdomain' }}.{{ tenantBaseDomain }}</span>
           </div>
           @if (!f.id) {
             <div class="ra-field col-6">
@@ -627,7 +541,8 @@
                 (ngModelChange)="patchTenant({ isActive: $event })"
               />
               <span class="track"></span>
-              Active -- tenant can sign in and book
+              <!-- UI label: 'practice' (code: tenant) -->
+              Active -- practice can sign in and book
             </label>
           </div>
         </div>

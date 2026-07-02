@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -11,6 +14,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
+using Volo.Abp.Security.Claims;
 using Volo.Saas.Tenants;
 
 namespace HealthcareSupport.CaseEvaluation.HostOperators;
@@ -28,17 +32,23 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
 {
     private readonly IRepository<IntakeOfficeAssignment, Guid> _assignmentRepository;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IdentityUserManager _userManager;
     private readonly IIntakeShadowUserProvisioner _shadowProvisioner;
 
     public IntakeAssignmentsAppService(
         IRepository<IntakeOfficeAssignment, Guid> assignmentRepository,
         IRepository<Tenant, Guid> tenantRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IdentityUserManager userManager,
         IIntakeShadowUserProvisioner shadowProvisioner)
     {
         _assignmentRepository = assignmentRepository;
         _tenantRepository = tenantRepository;
+        _appointmentRepository = appointmentRepository;
+        _changeRequestRepository = changeRequestRepository;
         _userManager = userManager;
         _shadowProvisioner = shadowProvisioner;
     }
@@ -67,6 +77,92 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
             return new ListResultDto<IntakeOfficeAssignmentDto>(
                 dtos.OrderBy(d => d.OperatorName).ThenBy(d => d.OfficeName).ToList());
         }
+    }
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged + searchable variant of
+    /// <see cref="GetListAsync"/>. Removes that method's per-row N+1
+    /// (FindByIdAsync + FindAsync per assignment) by batch-loading the host Intake
+    /// operators and the office registry once into dictionaries, then joining in
+    /// memory. Operator name / email / office filter, sort, and offset paging are
+    /// applied in memory (the join spans the host identity + SaaS contexts, so a
+    /// single SQL join is not possible). Host context throughout.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.IntakeAssignments.Default)]
+    public virtual async Task<PagedResultDto<IntakeOfficeAssignmentDto>> GetPagedListAsync(
+        GetIntakeAssignmentsInput input)
+    {
+        Check.NotNull(input, nameof(input));
+
+        using (CurrentTenant.Change(null))
+        {
+            var assignments = await _assignmentRepository.GetListAsync();
+
+            // Batch-load (one query each) instead of per-row lookups.
+            var operatorsById = (await _userManager.GetUsersInRoleAsync(
+                    InternalUserRoleDataSeedContributor.IntakeStaffRoleName))
+                .Where(u => u.TenantId == null) // host operators only (exclude per-office shadows)
+                .ToDictionary(u => u.Id);
+            var officeNameById = (await _tenantRepository.GetListAsync())
+                .ToDictionary(t => t.Id, t => t.Name);
+
+            var projected = assignments
+                .Select(a =>
+                {
+                    operatorsById.TryGetValue(a.OperatorUserId, out var op);
+                    officeNameById.TryGetValue(a.OfficeId, out var officeName);
+                    return new IntakeOfficeAssignmentDto
+                    {
+                        Id = a.Id,
+                        OperatorUserId = a.OperatorUserId,
+                        OperatorName = op == null ? string.Empty : JoinName(op.Name, op.Surname),
+                        OperatorEmail = op?.Email ?? string.Empty,
+                        OfficeId = a.OfficeId,
+                        OfficeName = officeName ?? string.Empty,
+                    };
+                })
+                .ToList();
+
+            var filter = input.Filter?.Trim();
+            var filtered = projected
+                .Where(d => string.IsNullOrEmpty(filter)
+                    || d.OperatorName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || d.OperatorEmail.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || d.OfficeName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var totalCount = filtered.Count;
+
+            var page = SortIntakeAssignments(filtered, input.Sorting)
+                .Skip(input.SkipCount)
+                .Take(input.MaxResultCount)
+                .ToList();
+
+            return new PagedResultDto<IntakeOfficeAssignmentDto>(totalCount, page);
+        }
+    }
+
+    private static List<IntakeOfficeAssignmentDto> SortIntakeAssignments(
+        List<IntakeOfficeAssignmentDto> rows, string? sorting)
+    {
+        var parts = (sorting ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var field = parts.Length > 0 ? parts[0].ToLowerInvariant() : "operatorname";
+        var descending = parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<IntakeOfficeAssignmentDto> ordered = field switch
+        {
+            "operatoremail" or "email" => descending
+                ? rows.OrderByDescending(r => r.OperatorEmail, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OperatorEmail, StringComparer.OrdinalIgnoreCase),
+            "officename" or "office" => descending
+                ? rows.OrderByDescending(r => r.OfficeName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase),
+            _ => descending
+                ? rows.OrderByDescending(r => r.OperatorName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(r => r.OperatorName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.OfficeName, StringComparer.OrdinalIgnoreCase),
+        };
+        return ordered.ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]
@@ -158,7 +254,81 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     [Authorize(CaseEvaluationPermissions.IntakeImpersonation.Default)]
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetMyOfficesAsync()
     {
+        return await GetAssignedOfficesAsync(CurrentUser.Id);
+    }
+
+    [Authorize(CaseEvaluationPermissions.IntakeImpersonation.Default)]
+    public virtual async Task<ListResultDto<IntakeOfficeMetricsDto>> GetMyOfficeMetricsAsync()
+    {
         var operatorId = CurrentUser.Id;
+        if (operatorId == null)
+        {
+            return new ListResultDto<IntakeOfficeMetricsDto>(new List<IntakeOfficeMetricsDto>());
+        }
+
+        // The assignment rows (host DB) are the isolation boundary -- only the
+        // operator's own offices are visited. Each office's counts are read INSIDE
+        // that office's database (CurrentTenant.Change scopes the IMultiTenant
+        // filter); only aggregate counts (no PHI) leave the server.
+        List<IntakeOfficeAssignment> assignments;
+        Dictionary<Guid, string> officeNameById;
+        using (CurrentTenant.Change(null))
+        {
+            assignments =
+                await _assignmentRepository.GetListAsync(a => a.OperatorUserId == operatorId.Value);
+            officeNameById = (await _tenantRepository.GetListAsync())
+                .ToDictionary(t => t.Id, t => t.Name ?? string.Empty);
+        }
+
+        var todayStart = DateTime.UtcNow.Date;
+        var todayEnd = todayStart.AddDays(1);
+
+        var metrics = new List<IntakeOfficeMetricsDto>(assignments.Count);
+        foreach (var assignment in assignments)
+        {
+            if (!officeNameById.TryGetValue(assignment.OfficeId, out var officeName))
+            {
+                continue; // office no longer in the registry
+            }
+
+            using (CurrentTenant.Change(assignment.OfficeId))
+            {
+                metrics.Add(new IntakeOfficeMetricsDto
+                {
+                    OfficeId = assignment.OfficeId,
+                    OfficeName = officeName,
+                    PendingRequests = await _appointmentRepository.CountAsync(
+                        x => x.AppointmentStatus == AppointmentStatusType.Pending),
+                    TodayAppointments = await _appointmentRepository.CountAsync(
+                        x => x.AppointmentDate >= todayStart && x.AppointmentDate < todayEnd),
+                    PendingChangeRequests = await _changeRequestRepository.CountAsync(
+                        x => x.RequestStatus == RequestStatusType.Pending),
+                });
+            }
+        }
+
+        return new ListResultDto<IntakeOfficeMetricsDto>(
+            metrics.OrderBy(m => m.OfficeName, StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
+    [Authorize]
+    public virtual async Task<ListResultDto<LookupDto<Guid>>> GetSwitchableOfficesAsync()
+    {
+        // In-office single-click hop (F Half 2): the caller is the impersonated office
+        // user, so resolve the host operator behind the session from the signed
+        // impersonation claim. A non-impersonating caller (a real office user, or a
+        // host operator who has not switched in) has no such claim -> empty list. The
+        // grant's per-office assignment gate is the real boundary; this only shapes
+        // the switcher menu.
+        var operatorId = Guid.TryParse(
+            CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
+            ? id
+            : (Guid?)null;
+        return await GetAssignedOfficesAsync(operatorId);
+    }
+
+    private async Task<ListResultDto<LookupDto<Guid>>> GetAssignedOfficesAsync(Guid? operatorId)
+    {
         if (operatorId == null)
         {
             return new ListResultDto<LookupDto<Guid>>(new List<LookupDto<Guid>>());

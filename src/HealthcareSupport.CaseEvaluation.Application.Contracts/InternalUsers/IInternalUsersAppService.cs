@@ -61,4 +61,14 @@ public interface IInternalUsersAppService : IApplicationService
     /// insensitive substring filter on tenant <c>Name</c>.
     /// </summary>
     Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(string? filter = null);
+
+    /// <summary>
+    /// 2026-06-30 (QA item B) -- paged, internal-role-scoped user list for the
+    /// Staff table. Runs in HOST context (internal operators are host logins) and
+    /// returns only members of the three internal roles (IT Admin, Staff
+    /// Supervisor, Intake Staff), with a server-side <c>Filter</c> (name / email)
+    /// plus <c>Sorting</c> and offset paging. Replaces the client-side
+    /// load-500-then-filter, which silently truncated past 500 identity users.
+    /// </summary>
+    Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(GetInternalUsersInput input);
 }

@@ -50,13 +50,16 @@ public class AppointmentChangeRequestDto : FullAuditedEntityDto<Guid>
     public AppointmentStatusType? CancellationOutcome { get; set; }
 
     /// <summary>
-    /// Group D (2026-06-09): opposing-side consent state. Drives the supervisor
-    /// queue buckets -- Pending = awaiting opposing-side consent; Approved = ready to
-    /// finalize; Rejected/Expired = declined, needs staff mediation; NotRequired =
-    /// routed straight to staff (no opposing party resolved / gating off).
+    /// Two-sided consent state (2026-07-01). Side A = Patient/Applicant Attorney; Side B =
+    /// Defense Attorney/Claim Examiner. Per side: Pending = awaiting that side's consent;
+    /// Approved = granted; Rejected/Expired = declined (needs staff mediation); NotRequired =
+    /// not solicited (gating off, no rep, or the requestor's own side once auto-granted).
+    /// The finalize gate passes when every non-NotRequired side is Approved.
     /// </summary>
-    public ChangeRequestConsentStatus ConsentStatus { get; set; }
+    public ChangeRequestConsentStatus SideAConsentStatus { get; set; }
 
-    /// <summary>Group D: which side submitted (the opposing side was solicited for consent).</summary>
+    public ChangeRequestConsentStatus SideBConsentStatus { get; set; }
+
+    /// <summary>Which side submitted (party-initiated); null when staff initiated.</summary>
     public ChangeRequestSide? RequestingSide { get; set; }
 }

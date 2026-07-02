@@ -4,7 +4,8 @@ import {
   changeRequestAgeClass,
   changeRequestAgeDays,
   changeRequestConsentView,
-  consentOverrideWarning,
+  consentBlockNote,
+  consentBlocksApproval,
   requestingSideLabel,
 } from './cr-inbox.util';
 
@@ -33,33 +34,57 @@ describe('cr-inbox.util', () => {
     });
   });
 
-  describe('changeRequestConsentView', () => {
-    it('hides the chip when consent is not in play', () => {
-      expect(changeRequestConsentView(ChangeRequestConsentStatus.NotRequired).show).toBe(false);
-      expect(changeRequestConsentView(null).show).toBe(false);
+  describe('changeRequestConsentView (two-sided)', () => {
+    const S = ChangeRequestConsentStatus;
+    it('hides the chip when neither side is in play', () => {
+      expect(changeRequestConsentView(S.NotRequired, S.NotRequired).show).toBe(false);
+      expect(changeRequestConsentView(null, null).show).toBe(false);
     });
-    it('maps each consent state to a label + class', () => {
-      expect(changeRequestConsentView(ChangeRequestConsentStatus.Approved)).toEqual({
+    it('shows "received" only when every in-play side is approved', () => {
+      expect(changeRequestConsentView(S.Approved, S.Approved)).toEqual({
         show: true,
         label: 'Consent received',
         cls: 'agreed',
       });
-      expect(changeRequestConsentView(ChangeRequestConsentStatus.Pending).cls).toBe('pending');
-      expect(changeRequestConsentView(ChangeRequestConsentStatus.Rejected).cls).toBe('declined');
-      expect(changeRequestConsentView(ChangeRequestConsentStatus.Expired).cls).toBe('declined');
+      expect(changeRequestConsentView(S.NotRequired, S.Approved).label).toBe('Consent received');
+    });
+    it('is pending when an in-play side is still pending', () => {
+      expect(changeRequestConsentView(S.Approved, S.Pending).cls).toBe('pending');
+      expect(changeRequestConsentView(S.Pending, S.NotRequired).cls).toBe('pending');
+    });
+    it('is declined/expired when any side rejected or expired', () => {
+      expect(changeRequestConsentView(S.Approved, S.Rejected).cls).toBe('declined');
+      expect(changeRequestConsentView(S.Approved, S.Rejected).label).toBe('Consent declined');
+      expect(changeRequestConsentView(S.Expired, S.Approved).label).toBe('Consent expired');
     });
   });
 
-  describe('consentOverrideWarning', () => {
-    it('warns only when an unresolved consent would be overridden', () => {
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Pending)).toContain('still pending');
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Rejected)).toContain('declined');
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Expired)).toContain('expired');
+  describe('consentBlocksApproval (two-sided)', () => {
+    const S = ChangeRequestConsentStatus;
+    it('blocks approval when any side is pending, declined, or expired', () => {
+      expect(consentBlocksApproval(S.Pending, S.Approved)).toBe(true);
+      expect(consentBlocksApproval(S.Approved, S.Rejected)).toBe(true);
+      expect(consentBlocksApproval(S.Expired, S.NotRequired)).toBe(true);
     });
-    it('is silent when consent is granted or not required', () => {
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.Approved)).toBeNull();
-      expect(consentOverrideWarning(ChangeRequestConsentStatus.NotRequired)).toBeNull();
-      expect(consentOverrideWarning(null)).toBeNull();
+    it('allows approval only when every side is granted or not required', () => {
+      expect(consentBlocksApproval(S.Approved, S.Approved)).toBe(false);
+      expect(consentBlocksApproval(S.NotRequired, S.Approved)).toBe(false);
+      expect(consentBlocksApproval(S.NotRequired, S.NotRequired)).toBe(false);
+      expect(consentBlocksApproval(null, null)).toBe(false);
+    });
+  });
+
+  describe('consentBlockNote (two-sided)', () => {
+    const S = ChangeRequestConsentStatus;
+    it('returns a corrective note naming the blocking condition', () => {
+      expect(consentBlockNote(S.Pending, S.Approved)).toContain('still pending');
+      expect(consentBlockNote(S.Approved, S.Rejected)).toContain('declined');
+      expect(consentBlockNote(S.Expired, S.Approved)).toContain('expired');
+    });
+    it('is null when approval is allowed (every side granted or not required)', () => {
+      expect(consentBlockNote(S.Approved, S.Approved)).toBeNull();
+      expect(consentBlockNote(S.NotRequired, S.Approved)).toBeNull();
+      expect(consentBlockNote(null, null)).toBeNull();
     });
   });
 

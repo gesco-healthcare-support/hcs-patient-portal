@@ -53,4 +53,16 @@ public class AppointmentChangeRequestController : AbpController, IAppointmentCha
     {
         return _appointmentChangeRequestsAppService.RequestRescheduleAsync(appointmentId, input);
     }
+
+    /// <summary>
+    /// C2a (2026-07-01) -- read the appointment's active (Pending) change
+    /// request + per-side consent for the appointment-view consent indicator
+    /// and request-button gating. Read-gated in the app service.
+    /// </summary>
+    [HttpGet]
+    [Route("active/{appointmentId}")]
+    public virtual Task<AppointmentChangeRequestDto?> GetActiveForAppointmentAsync(Guid appointmentId)
+    {
+        return _appointmentChangeRequestsAppService.GetActiveForAppointmentAsync(appointmentId);
+    }
 }

@@ -26,6 +26,13 @@ import { AppointmentDocumentUrls } from './appointment-document-urls';
 import { MAX_DOCUMENT_UPLOAD_BYTES } from './document-upload.constants';
 
 /**
+ * Mirrors the backend AppointmentDocumentTypeConsts.PanelStrikeListName. Used to
+ * suppress the standalone strike-list flag badge when the category badge already
+ * shows the same text (QA item J -- avoids two identical "Panel Strike List" badges).
+ */
+const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
+
+/**
  * W1-3 + W2-11 appointment-documents UI. Embedded inside appointment-view
  * as a standalone child block. Lists existing documents with status badges,
  * exposes upload + Approve/Reject for internal users (gated on the
@@ -479,5 +486,17 @@ export class AppointmentDocumentsComponent implements OnChanges {
       return match?.displayName ?? null;
     }
     return null;
+  }
+
+  /**
+   * QA item J: the panel-strike-list status surfaces two ways -- the document
+   * category label and the IsPanelStrikeList flag -- which rendered two identical
+   * badges for a strike-list-categorized document. Show the standalone flag badge
+   * only when the category badge does not already say "Panel Strike List", so the
+   * status appears exactly once. It still appears when a document carries the flag
+   * under a different or absent category.
+   */
+  showStrikeListFlagBadge(doc: AppointmentDocumentDto): boolean {
+    return !!doc.isPanelStrikeList && this.documentTypeLabel(doc) !== PANEL_STRIKE_LIST_LABEL;
   }
 }

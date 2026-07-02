@@ -1,9 +1,13 @@
 <div class="in" [class.in--collapsed]="collapsed()">
   <aside class="in-side">
     <div class="in-side__brand">
-      <span class="mark">A</span>
+      @if (brandLogo()) {
+        <img class="in-side__crest" [src]="brandLogo()" alt="Management" />
+      } @else {
+        <span class="mark">A</span>
+      }
       <span class="tt">
-        <b>Appointment Portal</b>
+        <b>{{ brandName() }}</b>
         <span>{{ brandSubtitle() }}</span>
       </span>
     </div>
@@ -72,23 +76,67 @@
 
       <div class="spacer"></div>
 
-      <div
-        class="in-tenant"
-        [class.host]="platform()"
-        [style.cursor]="canSwitch() ? 'pointer' : 'default'"
-      >
-        <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
-        {{ platform() ? 'All tenants' : tenantName() }}
-        @if (canSwitch()) {
-          <app-icon name="chevDown" [size]="14" />
+      <div class="in-tenantwrap">
+        @if (switcherOpen()) {
+          <div class="in-clickaway" (click)="closeSwitcher()"></div>
+        }
+        <div
+          class="in-tenant"
+          [class.host]="platform()"
+          [style.cursor]="canSwitch() ? 'pointer' : 'default'"
+          (click)="toggleSwitcher()"
+        >
+          <span class="mk">{{ platform() ? 'A' : tenantInitial() }}</span>
+          {{ platform() ? 'All tenants' : (tenantName() | officeName) }}
+          @if (canSwitch()) {
+            <app-icon name="chevDown" [size]="14" />
+          }
+        </div>
+        @if (switcherOpen()) {
+          <div class="in-tenant__pop">
+            @if (hostScope()) {
+              @if (offices().length === 0) {
+                <span class="in-tenant__muted">No offices available.</span>
+              } @else {
+                @for (office of offices(); track office.id) {
+                  <button type="button" (click)="switchInto(office.id)">
+                    <span class="i"><app-icon name="map" [size]="16" /></span>
+                    {{ office.displayName | officeName }}
+                  </button>
+                }
+              }
+            } @else {
+              <!-- F Half 2: single-click office -> office. The in-office switcher lists
+                   the other offices the caller may hop into (every office for a
+                   supervisor, assigned offices for an Intake operator), then the exit
+                   back to host. The custom AuthServer grant re-authorizes each hop
+                   against the original operator. -->
+              @for (office of offices(); track office.id) {
+                <button type="button" [disabled]="switching()" (click)="switchInto(office.id)">
+                  <span class="i"><app-icon name="map" [size]="16" /></span>
+                  {{ office.displayName | officeName }}
+                </button>
+              }
+              @if (offices().length > 0) {
+                <div class="in-tenant__div"></div>
+              }
+              <button type="button" [disabled]="switching()" (click)="backToHost()">
+                <span class="i"><app-icon name="chevLeft" [size]="16" /></span>
+                Management
+              </button>
+            }
+          </div>
         }
       </div>
 
-      <button class="in-iconbtn" type="button" aria-label="Notifications">
-        <app-icon name="bell" [size]="18" />
-      </button>
+      <!--
+        QA item 7: the notifications bell was removed -- it had no click handler
+        and no backend, so it was a dead affordance. The full in-app notifications
+        feature (per-office notification store, event hooks, unread badge +
+        dropdown) is scoped as a separate effort and will reintroduce this control.
+      -->
 
-      @if (!platform()) {
+      @if (!hostScope()) {
         <a class="ap-btn ap-btn--primary" routerLink="/appointments/add">
           <app-icon name="plus" [size]="15" />
           New appointment
