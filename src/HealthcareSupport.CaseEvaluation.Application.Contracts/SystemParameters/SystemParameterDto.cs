@@ -37,5 +37,13 @@ public class SystemParameterDto : FullAuditedEntityDto<Guid>, IHasConcurrencySta
     [CanBeNull]
     public string? CcEmailIds { get; set; }
 
+    /// <summary>
+    /// QA item 13: the office inbox that receives the intake-staff notices
+    /// (cancel-request, booking-submission, pending digest). Backed by the ABP
+    /// setting <c>NotificationsPolicy.OfficeEmail</c>, not a column -- surfaced
+    /// here so staff can set it. Empty = those office notifications are skipped.
+    /// </summary>
+    public string? OfficeEmail { get; set; }
+
     public string ConcurrencyStamp { get; set; } = null!;
 }

@@ -12,7 +12,7 @@
       }}
     </p>
   </div>
-  @if (!isHost() && !isIntake()) {
+  @if (!isIntake()) {
     <div class="dh-tf">
       <button type="button" [attr.data-on]="range() === Range.Week" (click)="setRange(Range.Week)">
         This week
@@ -45,7 +45,8 @@
   @if (data(); as d) {
     @if (isHost()) {
       <!-- ===================== Host (IT Admin) ===================== -->
-      <div class="dh-hero">
+      <!-- QA item 6 (D1): 6-tile period hero -- dh-hero--host lays it out 3x2. -->
+      <div class="dh-hero" [class.dh-hero--host]="isHost()">
         <div class="dh-kpi blue" (click)="openTenants()">
           <div class="dh-kpi__top">
             <span class="dh-kpi__ic tint-blue"><app-icon name="users" [size]="18" /></span>
@@ -68,6 +69,53 @@
             <span class="dh-kpi__lbl">Appointments</span>
           </div>
           <div class="dh-kpi__num">{{ d.totalAppointments ?? 0 }}</div>
+        </div>
+        <!-- QA item 6 (D1): cross-practice period KPIs; follow the range switcher. -->
+        <div class="dh-kpi green" style="cursor: default">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-green"><app-icon name="check" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Approved</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.approvedRequests?.value ?? 0 }}</div>
+          @if (hasDelta(d.approvedRequests)) {
+            <div class="dh-kpi__foot">
+              <span
+                class="dh-delta"
+                [class.up]="deltaDir(d.approvedRequests) === 'up'"
+                [class.down]="deltaDir(d.approvedRequests) === 'down'"
+              >
+                <app-icon
+                  [name]="deltaDir(d.approvedRequests) === 'down' ? 'arrowDown' : 'arrowUp'"
+                  [size]="11"
+                />
+                {{ deltaText(d.approvedRequests) }}
+              </span>
+              vs. last period
+            </div>
+          }
+        </div>
+        <div class="dh-kpi red" style="cursor: default">
+          <div class="dh-kpi__top">
+            <span class="dh-kpi__ic tint-red"><app-icon name="x" [size]="18" /></span>
+            <span class="dh-kpi__lbl">Rejected</span>
+          </div>
+          <div class="dh-kpi__num">{{ d.rejectedRequests?.value ?? 0 }}</div>
+          @if (hasDelta(d.rejectedRequests)) {
+            <div class="dh-kpi__foot">
+              <span
+                class="dh-delta"
+                [class.up]="deltaDir(d.rejectedRequests) === 'up'"
+                [class.down]="deltaDir(d.rejectedRequests) === 'down'"
+              >
+                <app-icon
+                  [name]="deltaDir(d.rejectedRequests) === 'down' ? 'arrowDown' : 'arrowUp'"
+                  [size]="11"
+                />
+                {{ deltaText(d.rejectedRequests) }}
+              </span>
+              vs. last period
+            </div>
+          }
         </div>
         <div class="dh-kpi red" style="cursor: default">
           <div class="dh-kpi__top">

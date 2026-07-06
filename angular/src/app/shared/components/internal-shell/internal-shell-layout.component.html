@@ -129,12 +129,11 @@
         }
       </div>
 
-      <!--
-        QA item 7: the notifications bell was removed -- it had no click handler
-        and no backend, so it was a dead affordance. The full in-app notifications
-        feature (per-office notification store, event hooks, unread badge +
-        dropdown) is scoped as a separate effort and will reintroduce this control.
-      -->
+      <!-- QA item 7: in-app notifications bell (office scope, where notifications
+           exist). Self-contained: badge + dropdown + poll live in the component. -->
+      @if (!hostScope()) {
+        <app-notification-bell />
+      }
 
       @if (!hostScope()) {
         <a class="ap-btn ap-btn--primary" routerLink="/appointments/add">

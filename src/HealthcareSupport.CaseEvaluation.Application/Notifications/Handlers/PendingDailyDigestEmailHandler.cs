@@ -71,7 +71,10 @@ public class PendingDailyDigestEmailHandler :
                 CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
             if (string.IsNullOrWhiteSpace(officeEmail))
             {
-                _logger.LogInformation(
+                // Item 13 audit (2026-07-01): raised Info -> Warning. OfficeEmail defaults
+                // to empty and has no admin UI, so this office digest silently drops until
+                // it is set per tenant; surface it in logs/monitoring.
+                _logger.LogWarning(
                     "PendingDailyDigestEmailHandler: tenant {TenantId} has no OfficeEmail configured; skipping digest.",
                     eventData.TenantId);
                 return;

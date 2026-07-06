@@ -14,7 +14,7 @@ import {
   PermissionDirective,
   RestService,
 } from '@abp/ng.core';
-import { ToasterService } from '@abp/ng.theme.shared';
+import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 import type {
   AppointmentDto,
   AppointmentUpdateDto,
@@ -164,6 +164,7 @@ export class AppointmentViewComponent implements OnInit {
   private readonly environmentService = inject(EnvironmentService);
   private readonly toaster = inject(ToasterService);
   private readonly localization = inject(LocalizationService);
+  private readonly confirmation = inject(ConfirmationService);
   private readonly changeRequestService = inject(AppointmentChangeRequestService);
 
   // W1-1: state-machine transition UI
@@ -1216,6 +1217,19 @@ export class AppointmentViewComponent implements OnInit {
       return;
     }
 
+    // QA item 14: removing an authorized user is destructive (they lose access),
+    // so confirm first -- previously it deleted on a single click.
+    const who = [item.firstName, item.lastName].filter(Boolean).join(' ').trim() || item.email;
+    const status = await firstValueFrom(
+      this.confirmation.warn(
+        `Remove ${who || 'this user'} as an authorized user? They will lose access to this appointment.`,
+        'Remove authorized user',
+      ),
+    );
+    if (status !== Confirmation.Status.confirm) {
+      return;
+    }
+
     await firstValueFrom(
       this.restService.request<any, any>(
         {
@@ -1532,7 +1546,9 @@ export class AppointmentViewComponent implements OnInit {
               firstName: identityUser?.name ?? option?.firstName ?? '',
               lastName: identityUser?.surname ?? option?.lastName ?? '',
               email: identityUser?.email ?? option?.email ?? '',
-              userRole: option?.userRole ?? '',
+              // QA item 14: prefer the server-resolved role (always populated);
+              // fall back to the client lookup only if the backend didn't return one.
+              userRole: item?.userRoleName ?? option?.userRole ?? '',
               accessTypeId: Number(accessor?.accessTypeId ?? 23),
             } as AppointmentAuthorizedUserRow;
           });

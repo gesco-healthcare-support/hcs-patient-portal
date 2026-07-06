@@ -234,7 +234,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             {
                 throw new AbpAuthorizationException(L["Forbidden"]);
             }
-            return await BuildHostDashboardAsync();
+            return await BuildHostDashboardAsync(range);
         }
 
         if (!await _authorizationService.IsGrantedAsync(CaseEvaluationPermissions.Dashboard.Tenant))
@@ -429,9 +429,15 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
         return ordered.ToList();
     }
 
-    private async Task<DashboardDto> BuildHostDashboardAsync()
+    private async Task<DashboardDto> BuildHostDashboardAsync(DashboardRange range)
     {
         var lastMondayUtc = GetLastMondayUtc();
+        // QA item 6 (D1): the host hero's Approved/Rejected tiles are period-windowed with a
+        // prior-period comparison (same date fields + window math as the tenant hero). The
+        // structural (Practices/Locations/Doctors), volume (all-time Appointments), and live
+        // (Pending) tiles stay point-in-time -- a date range is meaningless for them (mirrors
+        // item G's rule that only period metrics follow the switcher).
+        var (currentStart, previousStart) = GetRangeWindows(range, DateTime.UtcNow);
         var tenants = await _tenantRepository.GetListAsync();
         var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
 
@@ -453,6 +459,25 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                 Doctors = await _doctorRepository.CountAsync(),
                 // QA item 6 (D2): clinic locations per office, summed for the host tile.
                 Locations = await _locationRepository.CountAsync(),
+                // QA item 6 (D1): windowed Approved/Rejected for the period hero tiles.
+                ApprovedCurrent = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Approved
+                         && a.AppointmentApproveDate != null
+                         && a.AppointmentApproveDate >= currentStart),
+                ApprovedPrevious = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Approved
+                         && a.AppointmentApproveDate != null
+                         && a.AppointmentApproveDate >= previousStart
+                         && a.AppointmentApproveDate < currentStart),
+                RejectedCurrent = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Rejected
+                         && a.LastModificationTime != null
+                         && a.LastModificationTime >= currentStart),
+                RejectedPrevious = await _appointmentRepository.CountAsync(
+                    a => a.AppointmentStatus == AppointmentStatusType.Rejected
+                         && a.LastModificationTime != null
+                         && a.LastModificationTime >= previousStart
+                         && a.LastModificationTime < currentStart),
             });
 
         var rows = perOffice
@@ -475,6 +500,17 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             TotalLocations = perOffice.Sum(o => o.Locations),
             TotalAppointments = perOffice.Sum(o => o.Appointments),
             PendingAcrossTenants = perOffice.Sum(o => o.Pending),
+            // QA item 6 (D1): cross-practice period KPIs (value + prior-period value for the delta).
+            ApprovedRequests = new DashboardKpiDto
+            {
+                Value = perOffice.Sum(o => o.ApprovedCurrent),
+                PreviousValue = perOffice.Sum(o => o.ApprovedPrevious),
+            },
+            RejectedRequests = new DashboardKpiDto
+            {
+                Value = perOffice.Sum(o => o.RejectedCurrent),
+                PreviousValue = perOffice.Sum(o => o.RejectedPrevious),
+            },
             Tenants = rows,
         };
     }

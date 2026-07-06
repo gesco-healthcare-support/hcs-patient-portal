@@ -28,37 +28,11 @@ using System.Linq;
 using System.Collections.Generic;
 using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
-using HealthcareSupport.CaseEvaluation.Books;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 
 [assembly: MapperDefaults(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 
 namespace HealthcareSupport.CaseEvaluation;
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CaseEvaluationBookToBookDtoMapper : MapperBase<Book, BookDto>
-{
-    public override partial BookDto Map(Book source);
-    public override partial void Map(Book source, BookDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CaseEvaluationCreateUpdateBookDtoToBookMapper : MapperBase<CreateUpdateBookDto, Book>
-{
-    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
-    [MapperIgnoreTarget(nameof(Book.CreationTime))]
-    [MapperIgnoreTarget(nameof(Book.CreatorId))]
-    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
-    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
-    public override partial Book Map(CreateUpdateBookDto source);
-
-    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
-    [MapperIgnoreTarget(nameof(Book.CreationTime))]
-    [MapperIgnoreTarget(nameof(Book.CreatorId))]
-    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
-    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
-    public override partial void Map(CreateUpdateBookDto source, Book destination);
-}
 
 [Mapper]
 public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
@@ -639,7 +613,12 @@ public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDto
 public partial class SystemParameterToSystemParameterDtoMapper
     : MapperBase<SystemParameter, SystemParameterDto>
 {
+    // QA item 13: OfficeEmail is an ABP setting, not an entity column -- the app
+    // service populates it from the setting store, so ignore it on the entity map.
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
     public override partial SystemParameterDto Map(SystemParameter source);
+
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
     public override partial void Map(SystemParameter source, SystemParameterDto destination);
 }
 
