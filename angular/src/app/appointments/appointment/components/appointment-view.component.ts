@@ -1546,7 +1546,9 @@ export class AppointmentViewComponent implements OnInit {
               firstName: identityUser?.name ?? option?.firstName ?? '',
               lastName: identityUser?.surname ?? option?.lastName ?? '',
               email: identityUser?.email ?? option?.email ?? '',
-              userRole: option?.userRole ?? '',
+              // QA item 14: prefer the server-resolved role (always populated);
+              // fall back to the client lookup only if the backend didn't return one.
+              userRole: item?.userRoleName ?? option?.userRole ?? '',
               accessTypeId: Number(accessor?.accessTypeId ?? 23),
             } as AppointmentAuthorizedUserRow;
           });
