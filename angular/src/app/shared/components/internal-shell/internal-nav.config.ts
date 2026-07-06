@@ -111,7 +111,10 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'Doctor Availabilities',
         icon: 'calendar',
         route: '/doctor-management/doctor-availabilities',
-        roles: ['supervisor'],
+        // QA #15 item 3 (2026-07-06): intake keeps the bookable slot grid current,
+        // and its per-tenant role has held full slot CRUD since 2026-06-11 -- the
+        // nav role filter was the only thing hiding the page.
+        roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {
