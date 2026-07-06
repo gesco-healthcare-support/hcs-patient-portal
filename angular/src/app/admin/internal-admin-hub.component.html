@@ -251,6 +251,24 @@
           </div>
           <div class="sp-group__body" style="grid-template-columns: 1fr">
             <div class="sp-field">
+              <label>Office notification inbox</label>
+              <input
+                type="email"
+                [disabled]="!canEditParams()"
+                [ngModel]="p.officeEmail"
+                (ngModelChange)="patchParam('officeEmail', $event)"
+                placeholder="office@example.com"
+              />
+              @if (!p.officeEmail) {
+                <div class="hint" style="color: var(--st-rejected-dot, #b91c1c)">
+                  Not set &mdash; new-request, cancellation, and daily-digest notices to the office
+                  are not sent until you add an address.
+                </div>
+              } @else {
+                <div class="hint">Where the office receives its intake notifications.</div>
+              }
+            </div>
+            <div class="sp-field">
               <label>CC every appointment email to</label>
               <input
                 type="text"

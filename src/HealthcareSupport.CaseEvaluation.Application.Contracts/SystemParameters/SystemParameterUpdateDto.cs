@@ -64,5 +64,13 @@ public class SystemParameterUpdateDto : IHasConcurrencyStamp
     [StringLength(SystemParameterConsts.CcEmailIdsMaxLength)]
     public string? CcEmailIds { get; set; }
 
+    /// <summary>QA item 13: the office notification inbox (ABP setting, not a
+    /// column). Empty is allowed (notifications skip); a value must be a valid
+    /// email. [EmailAddress] ignores null/empty.</summary>
+    [CanBeNull]
+    [EmailAddress]
+    [StringLength(256)]
+    public string? OfficeEmail { get; set; }
+
     public string ConcurrencyStamp { get; set; } = null!;
 }

@@ -466,6 +466,7 @@ export class InternalAdminHubComponent {
         reminderCutoffTime: p.reminderCutoffTime,
         isCustomField: p.isCustomField,
         ccEmailIds: p.ccEmailIds,
+        officeEmail: p.officeEmail,
         concurrencyStamp: p.concurrencyStamp,
       })
       .pipe(finalize(() => this.isBusy.set(false)))
