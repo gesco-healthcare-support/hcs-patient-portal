@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
@@ -177,6 +178,52 @@ public class DocumentUploadedInAppNotificationHandler :
                 AppNotificationType.DocumentUploaded,
                 title: "Document uploaded",
                 body: $"A document was uploaded for {confirmation}.",
+                url: InAppNotificationUrls.AppointmentDetail(eventData.AppointmentId));
+        }
+    }
+}
+
+/// <summary>
+/// Info-request RESUBMIT -> notify office staff a sent-back request was corrected.
+/// Resubmit is an appointment status transition (InfoRequested -> Pending), not a
+/// dedicated ETO, so this subscribes to <see cref="AppointmentStatusChangedEto"/>
+/// and acts only on that exact transition (a no-op for every other status change).
+/// </summary>
+public class InfoRequestResubmittedInAppNotificationHandler :
+    ILocalEventHandler<AppointmentStatusChangedEto>,
+    ITransientDependency
+{
+    private readonly AppNotificationManager _notificationManager;
+    private readonly IRepository<Appointment, Guid> _appointmentRepository;
+    private readonly ICurrentTenant _currentTenant;
+
+    public InfoRequestResubmittedInAppNotificationHandler(
+        AppNotificationManager notificationManager,
+        IRepository<Appointment, Guid> appointmentRepository,
+        ICurrentTenant currentTenant)
+    {
+        _notificationManager = notificationManager;
+        _appointmentRepository = appointmentRepository;
+        _currentTenant = currentTenant;
+    }
+
+    [UnitOfWork]
+    public virtual async Task HandleEventAsync(AppointmentStatusChangedEto eventData)
+    {
+        if (eventData == null
+            || eventData.FromStatus != AppointmentStatusType.InfoRequested
+            || eventData.ToStatus != AppointmentStatusType.Pending)
+        {
+            return;
+        }
+        using (_currentTenant.Change(eventData.TenantId))
+        {
+            var appointment = await _appointmentRepository.FindAsync(eventData.AppointmentId);
+            var confirmation = appointment?.RequestConfirmationNumber ?? "an appointment";
+            await _notificationManager.RaiseForOfficeStaffAsync(
+                AppNotificationType.InfoRequestResubmitted,
+                title: "Corrected request resubmitted",
+                body: $"The requested corrections for {confirmation} were resubmitted for review.",
                 url: InAppNotificationUrls.AppointmentDetail(eventData.AppointmentId));
         }
     }
