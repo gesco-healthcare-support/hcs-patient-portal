@@ -613,7 +613,12 @@ public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDto
 public partial class SystemParameterToSystemParameterDtoMapper
     : MapperBase<SystemParameter, SystemParameterDto>
 {
+    // QA item 13: OfficeEmail is an ABP setting, not an entity column -- the app
+    // service populates it from the setting store, so ignore it on the entity map.
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
     public override partial SystemParameterDto Map(SystemParameter source);
+
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
     public override partial void Map(SystemParameter source, SystemParameterDto destination);
 }
 
