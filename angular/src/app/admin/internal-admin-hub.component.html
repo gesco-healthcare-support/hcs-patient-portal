@@ -439,12 +439,36 @@
           <thead>
             <tr>
               <th style="width: 34px"></th>
-              <th>Time</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th>Duration</th>
+              <th
+                appSortHeader="executionTime"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Time
+              </th>
+              <th appSortHeader="userName" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                User
+              </th>
+              <th appSortHeader="url" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                Action
+              </th>
+              <th appSortHeader="httpMethod" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                Method
+              </th>
+              <th
+                appSortHeader="httpStatusCode"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Status
+              </th>
+              <th
+                appSortHeader="executionDuration"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Duration
+              </th>
             </tr>
           </thead>
           <tbody>
