@@ -267,10 +267,11 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
-    /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
+    /// Phase 2.5 (2026-05-01) -- internal approval surface for the
     /// user-submitted cancel / reschedule lifecycle. External roles never
-    /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
-    /// Intake Staff gets Default (read-only inbox view).
+    /// see this group. QA #15 item 4 (2026-07-06) reversed the original
+    /// intake read-only tier: IT Admin, Staff Supervisor (as office admin),
+    /// and Intake Staff all hold Approve / Reject now.
     /// </summary>
     public static class AppointmentChangeRequests
     {

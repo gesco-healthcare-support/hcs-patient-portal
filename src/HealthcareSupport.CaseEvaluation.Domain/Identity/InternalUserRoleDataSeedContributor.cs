@@ -534,11 +534,16 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Reports.Export";
 
         // Phase 2.5 (2026-05-01) -- intake staff is the front-line approver
-        // for new bookings. Change requests are read-only at this tier; only
-        // the supervisor finalizes cancel / reschedule outcomes.
+        // for new bookings. QA #15 item 4 (2026-07-06, Adrian) REVERSED the
+        // original read-only change-request tier: intake now also finalizes
+        // cancel / reschedule outcomes in its assigned offices. The opposing-
+        // consent gate (OpposingConsentValidator) still blocks non-consented
+        // approvals at this tier exactly as it does for supervisors.
         yield return Approve("Appointments");
         yield return Reject("Appointments");
         yield return Default("AppointmentChangeRequests");
+        yield return Approve("AppointmentChangeRequests");
+        yield return Reject("AppointmentChangeRequests");
         yield return Default("SystemParameters");
 
         // Phase A (2026-05-05) -- intake staff uploads a signature so OLD

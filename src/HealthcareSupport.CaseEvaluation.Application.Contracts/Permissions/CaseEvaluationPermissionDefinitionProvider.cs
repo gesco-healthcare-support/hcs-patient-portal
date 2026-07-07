@@ -81,8 +81,9 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         var appointmentPacketsPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentPackets.Default, L("Permission:AppointmentPackets"));
         appointmentPacketsPermission.AddChild(CaseEvaluationPermissions.AppointmentPackets.Regenerate, L("Permission:Regenerate"));
 
-        // Phase 2.5 (2026-05-01) -- supervisor approval surface for cancel /
-        // reschedule. Default = read-only inbox; Approve / Reject = supervisor.
+        // Phase 2.5 (2026-05-01) -- internal approval surface for cancel /
+        // reschedule. Default = inbox read; Approve / Reject = finalize. All
+        // three internal tiers hold the children since QA #15 item 4 (2026-07-06).
         var appointmentChangeRequestsPermission = appointments.AddPermission(CaseEvaluationPermissions.AppointmentChangeRequests.Default, L("Permission:AppointmentChangeRequests"));
         appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Approve, L("Permission:Approve"));
         appointmentChangeRequestsPermission.AddChild(CaseEvaluationPermissions.AppointmentChangeRequests.Reject, L("Permission:Reject"));
