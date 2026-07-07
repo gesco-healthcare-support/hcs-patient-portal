@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 import { PagedResultDto, RestService } from '@abp/ng.core';
+import { UsDateAutoSlashDirective } from '../../shared/us-date-auto-slash.directive';
 import type { LookupDto } from '../../proxy/shared/models';
 
 /**
@@ -66,7 +67,7 @@ export interface AppointmentInjuryDraft {
 @Component({
   selector: 'app-appointment-add-claim-information',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, NgbDatepickerModule],
+  imports: [CommonModule, ReactiveFormsModule, NgbDatepickerModule, UsDateAutoSlashDirective],
   templateUrl: './appointment-add-claim-information.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
