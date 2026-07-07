@@ -26,6 +26,8 @@ import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-cha
 import { StatusPillComponent } from '../../../shared/ui/status-pill/status-pill.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { SortHeaderComponent } from '../../../shared/sort/sort-header.component';
+import { sortingClause, type SortModel } from '../../../shared/sort/sort-state';
 import {
   EXTERNAL_STATUS_SEGMENTS,
   appointmentStatusToSegment,
@@ -79,6 +81,7 @@ const PAGE_SIZES = [10, 25, 50] as const;
     StatusPillComponent,
     IconComponent,
     SkeletonComponent,
+    SortHeaderComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
   ],
@@ -105,6 +108,10 @@ export class InternalAppointmentsComponent implements OnInit {
   protected readonly showFilters = signal(false);
   protected readonly page = signal(1);
   protected readonly pageSize = signal<number>(PAGE_SIZES[0]);
+  // QA #15 item 6 (2026-07-07): server-side column sort. Keys are property paths on
+  // AppointmentWithNavigationProperties (Dynamic LINQ over the nav-join); an unset
+  // sort falls back to the repository default (Appointment.CreationTime desc).
+  protected readonly sort = signal<SortModel>({ key: null, dir: 'asc' });
 
   // ---- results ----
   protected readonly rows = signal<Row[]>([]);
@@ -215,6 +222,8 @@ export class InternalAppointmentsComponent implements OnInit {
       // Required by the paged input contract; the counts endpoint ignores paging.
       skipCount: (this.page() - 1) * this.pageSize(),
       maxResultCount: this.pageSize(),
+      // Empty clause -> server default order; the counts endpoint ignores it.
+      sorting: sortingClause(this.sort()) || undefined,
     };
     if (forList) {
       const statuses = segmentStatuses(this.activeSegment());
@@ -365,6 +374,14 @@ export class InternalAppointmentsComponent implements OnInit {
 
   protected setPageSize(size: number): void {
     this.pageSize.set(Number(size));
+    this.page.set(1);
+    this.loadList();
+  }
+
+  // ---- sorting ----
+  protected onSort(model: SortModel): void {
+    this.sort.set(model);
+    // A new sort re-pages from the first row; counts are order-independent.
     this.page.set(1);
     this.loadList();
   }
