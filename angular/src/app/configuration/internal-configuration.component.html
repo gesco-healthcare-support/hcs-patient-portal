@@ -21,17 +21,19 @@
           @if (meta().key === 'types') {
             <th style="width: 38px"></th>
           }
-          <th>Name</th>
+          <th appSortHeader="name" [model]="sort()" (sortChange)="onSort($event)">Name</th>
           @if (meta().hasDescription) {
-            <th>Description</th>
+            <th appSortHeader="description" [model]="sort()" (sortChange)="onSort($event)">
+              Description
+            </th>
           }
-          <th>Usage</th>
+          <th appSortHeader="usage" [model]="sort()" (sortChange)="onSort($event)">Usage</th>
           <th>Flags</th>
           <th style="text-align: right">Actions</th>
         </tr>
       </thead>
       <tbody>
-        @for (row of rows(); track row.id) {
+        @for (row of displayRows(); track row.id) {
           <tr (click)="onRowClick(row)">
             @if (meta().key === 'types') {
               <td>

@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -11,6 +18,8 @@ import type {
 } from '../../proxy/locations/models';
 import type { AppointmentTypeDto } from '../../proxy/appointment-types/models';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
+import { SortHeaderComponent } from '../../shared/sort/sort-header.component';
+import { makeComparator, type SortModel, type SortValue } from '../../shared/sort/sort-state';
 
 /**
  * The list/nav-props rows carry the full appointment-type M2M as
@@ -54,7 +63,7 @@ interface LocFormState {
   selector: 'app-internal-locations',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, SortHeaderComponent],
   templateUrl: './internal-locations.component.html',
 })
 export class InternalLocationsComponent implements OnInit {
@@ -64,6 +73,13 @@ export class InternalLocationsComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly isBusy = signal(false);
   protected readonly rows = signal<LocationRow[]>([]);
+  // QA #15 item 6 (2026-07-07): client-side column sort over the loaded rows.
+  protected readonly sort = signal<SortModel>({ key: null, dir: 'asc' });
+  protected readonly displayRows = computed(() =>
+    [...this.rows()].sort(
+      makeComparator<LocationRow>(this.sort(), (row, key) => this.sortValue(row, key)),
+    ),
+  );
   protected readonly states = signal<LookupOption[]>([]);
   protected readonly allTypes = signal<LookupOption[]>([]);
   protected readonly form = signal<LocFormState | null>(null);
@@ -105,6 +121,27 @@ export class InternalLocationsComponent implements OnInit {
   }
   protected stateName(row: LocationRow): string {
     return row.state?.name ?? '';
+  }
+
+  // ---- sorting (client-side over the loaded rows) ----
+  private sortValue(row: LocationRow, key: string): SortValue {
+    switch (key) {
+      case 'name':
+        return row.location?.name ?? '';
+      case 'address':
+        return row.location?.address ?? '';
+      case 'state':
+        return this.stateName(row);
+      case 'parkingFee':
+        return row.location?.parkingFee ?? null;
+      case 'status':
+        return row.location?.isActive ? 1 : 0;
+      default:
+        return null;
+    }
+  }
+  protected onSort(model: SortModel): void {
+    this.sort.set(model);
   }
 
   // ---- modal ----

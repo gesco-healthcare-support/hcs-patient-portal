@@ -7,6 +7,8 @@ import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SortHeaderComponent } from '../shared/sort/sort-header.component';
+import { makeComparator, type SortModel, type SortValue } from '../shared/sort/sort-state';
 import { genderOptions } from '../proxy/enums/gender.enum';
 import { LookupOption, PeopleSectionGateway } from './people-section.gateway';
 import { PatientDetailComponent } from './patient-detail.component';
@@ -53,6 +55,7 @@ const OPTIONAL_COLUMNS = [
     FormsModule,
     RouterLink,
     IconComponent,
+    SortHeaderComponent,
     PatientDetailComponent,
     PeopleEditModalComponent,
   ],
@@ -92,10 +95,18 @@ export class InternalPeopleComponent {
   protected readonly states = signal<LookupOption[]>([]);
   protected readonly languages = signal<LookupOption[]>([]);
 
+  // QA #15 item 6 (2026-07-07): client-side column sort applied after the existing
+  // search + filter, over the loaded rows.
+  protected readonly sort = signal<SortModel>({ key: null, dir: 'asc' });
   protected readonly displayRows = computed(() => {
     const q = this.search();
     const f = this.filters();
-    return this.rows().filter((r) => matchesPeopleSearch(r, q) && matchesPeopleFilters(r, f));
+    const filtered = this.rows().filter(
+      (r) => matchesPeopleSearch(r, q) && matchesPeopleFilters(r, f),
+    );
+    return filtered.sort(
+      makeComparator<PersonRow>(this.sort(), (row, key) => this.sortValue(row, key)),
+    );
   });
   protected readonly stateOptions = computed<LookupOption[]>(() =>
     this.distinct(
@@ -123,6 +134,45 @@ export class InternalPeopleComponent {
     this.gateway
       .languageLookup()
       .subscribe({ next: (l) => this.languages.set(l), error: () => undefined });
+  }
+
+  // ---- sorting (client-side, keyed per visible column) ----
+  private sortValue(row: PersonRow, key: string): SortValue {
+    switch (key) {
+      case 'name':
+        return row.lastName;
+      case 'firm':
+        return row.firmName ?? '';
+      case 'email':
+        return row.email ?? '';
+      case 'dob': {
+        const t = row.dateOfBirth ? Date.parse(row.dateOfBirth) : NaN;
+        return Number.isNaN(t) ? null : t;
+      }
+      case 'phone':
+        return row.phoneNumber ?? '';
+      case 'cityState':
+        return row.city ?? '';
+      case 'language':
+        return row.languageName ?? '';
+      case 'gender':
+        return row.genderId ?? null;
+      case 'street':
+        return row.street ?? '';
+      case 'zip':
+        return row.zipCode ?? '';
+      case 'interpreter':
+        return row.interpreterVendorName ?? '';
+      case 'apptNumber':
+        return row.apptNumber ?? '';
+      case 'portal':
+        return row.portal ?? '';
+      default:
+        return null;
+    }
+  }
+  protected onSort(model: SortModel): void {
+    this.sort.set(model);
   }
 
   // ---- rail ----
