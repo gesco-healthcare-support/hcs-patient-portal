@@ -28,6 +28,8 @@ import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
 import { provideThemeLeptonX, withThemeLeptonXOptions } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideNgxMask } from 'ngx-mask';
+import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
+import { UsDateParserFormatter } from './shared/us-date-parser-formatter';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
@@ -173,6 +175,11 @@ export const appConfig: ApplicationConfig = {
         wrongPassword: 'Password must contain uppercase, lowercase, number, and special character',
       }),
     ),
+    // QA #15 item 5 (2026-07-07): US date presentation everywhere. Must come
+    // AFTER provideAbpThemeShared so it outranks ABP's culture-driven
+    // DateParserFormatter (which rendered the API host culture's short pattern
+    // and could not parse typed US input).
+    { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
     provideLogo(withEnvironmentOptions(environment)),
     provideGdprConfig(
       withCookieConsentOptions({
