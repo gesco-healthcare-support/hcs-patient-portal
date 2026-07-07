@@ -90,7 +90,10 @@ export class InternalGenerateSlotsComponent implements OnInit {
     { fromTime: '08:30', toTime: '11:30', durationOverride: null },
   ]);
   protected readonly capacity = signal(3);
-  protected readonly durationMinutes = signal(60);
+  // QA #15 obs 2 (2026-07-07): 30 min is the most common slot length per internal
+  // data. Drives both the Default duration field and the per-range Duration
+  // override placeholder (the template binds both to this signal).
+  protected readonly durationMinutes = signal(30);
   protected readonly selectedTypeIds = signal<string[]>([]);
 
   protected readonly monthCursor = signal(
