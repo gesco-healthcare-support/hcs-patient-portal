@@ -34,7 +34,8 @@ interface CrModal {
 }
 
 /**
- * Internal Workflow (Prompt 13) -- unified supervisor change-request inbox.
+ * Internal Workflow (Prompt 13) -- unified internal-staff change-request inbox
+ * (supervisor + intake since QA #15 item 4, 2026-07-06).
  * Replaces the two legacy per-type Bootstrap tables (reschedules / cancellations)
  * with one tabbed inbox over the SAME approval engine
  * (AppointmentChangeRequestApprovalService): both queues load via getPending and

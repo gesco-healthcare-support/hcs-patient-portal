@@ -31,8 +31,9 @@ describe('filterNavGroups', () => {
     expect(ids).toContain('invite-external');
     // QA #15 item 3 (2026-07-06): intake manages the bookable slot grid.
     expect(ids).toContain('availabilities');
+    // QA #15 item 4 (2026-07-06): intake finalizes change requests too.
+    expect(ids).toContain('change-requests');
     // ...but not supervisor-only config / scheduling / admin items.
-    expect(ids).not.toContain('change-requests');
     expect(ids).not.toContain('identity');
     expect(ids).not.toContain('locations');
     expect(ids).not.toContain('appt-types');
