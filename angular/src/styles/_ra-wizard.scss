@@ -725,6 +725,44 @@ textarea.ra-input {
   margin-top: 1px;
 }
 
+// Item 1 (2026-07-08): per-step error summary shown when Continue is blocked.
+// Red-tinted (distinct from the amber .ra-note.warn gates) and focusable so a
+// blocked Continue moves focus here, announcing the reason to AT users.
+.ra-errsum {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #f4c9c9;
+  color: var(--st-rejected-fg, #b91c1c);
+  outline: none;
+}
+.ra-errsum__hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ra-errsum ul {
+  margin: 0;
+  padding-left: 30px;
+  font-size: 12.5px;
+}
+.ra-errsum li {
+  margin: 2px 0;
+}
+.ra-errsum li span {
+  font-weight: 500;
+  opacity: 0.85;
+}
+.ra-errsum li span::before {
+  content: ' - ';
+}
+
 // ---------------- Sticky footer nav ----------------
 .ra-foot {
   position: fixed;

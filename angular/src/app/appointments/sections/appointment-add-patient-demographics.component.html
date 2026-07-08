@@ -46,11 +46,27 @@
     <div class="row">
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::LastName' | abpLocalization }} *</label>
-        <input class="form-control" formControlName="lastName" maxlength="50" />
+        <input
+          class="form-control"
+          formControlName="lastName"
+          maxlength="50"
+          [class.is-invalid]="isFieldInvalid('lastName')"
+        />
+        @if (isFieldInvalid('lastName')) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::FirstName' | abpLocalization }} *</label>
-        <input class="form-control" formControlName="firstName" maxlength="50" />
+        <input
+          class="form-control"
+          formControlName="firstName"
+          maxlength="50"
+          [class.is-invalid]="isFieldInvalid('firstName')"
+        />
+        @if (isFieldInvalid('firstName')) {
+          <div class="invalid-feedback d-block">Required.</div>
+        }
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">{{ '::MiddleName' | abpLocalization }}</label>
@@ -94,6 +110,7 @@
             #dateOfBirthDatepicker="ngbDatepicker"
             [minDate]="dobMinDate"
             [maxDate]="dobMaxDate"
+            [class.is-invalid]="isFieldInvalid('dateOfBirth')"
             navigation="select"
           />
           <div class="input-group-append">
@@ -122,6 +139,15 @@
             </div>
           }
         </div>
+        @if (isFieldInvalid('dateOfBirth')) {
+          <div class="invalid-feedback d-block">
+            {{
+              form.get('dateOfBirth')?.hasError('required')
+                ? 'Required.'
+                : 'Enter a valid date (MM/DD/YYYY).'
+            }}
+          </div>
+        }
       </div>
       <div class="col-md-3 mb-3">
         <!-- 2026-06-11: asterisk is conditional -- patient email is required only
@@ -144,8 +170,16 @@
           class="form-control"
           formControlName="email"
           maxlength="50"
+          [class.is-invalid]="isFieldInvalid('email')"
           (input)="isExternalUserNonPatient ? patientEmailChanged.emit() : null"
         />
+        @if (isFieldInvalid('email')) {
+          <div class="invalid-feedback d-block">
+            {{
+              form.get('email')?.hasError('email') ? 'Enter a valid email address.' : 'Required.'
+            }}
+          </div>
+        }
       </div>
       <div class="col-md-3 mb-3">
         <label class="form-label fw-semibold">
