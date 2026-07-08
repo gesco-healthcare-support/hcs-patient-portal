@@ -18,6 +18,11 @@ import { ariaSortFor, nextSort, type SortModel } from './sort-state';
  * sort-state); the host owns the signal and decides what to do with the new model.
  */
 @Component({
+  // Attribute selector on <th> (not an app-* element) so the cell keeps its native
+  // columnheader role + aria-sort state -- an <app-sort-header> element could not be a
+  // table header. The repo's element-only component-selector rule does not fit this
+  // deliberate accessibility pattern, so it is disabled for this one selector.
+  // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'th[appSortHeader]',
   standalone: true,
   imports: [IconComponent],
