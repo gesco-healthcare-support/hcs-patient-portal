@@ -2,7 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
-import type { SaasTenantCreateDto, SaasTenantUpdateDto } from '@volo/abp.ng.saas/proxy';
+import type { SaasTenantUpdateDto } from '@volo/abp.ng.saas/proxy';
+import { DoctorTenantService } from '../proxy/doctors/doctor-tenant.service';
+import type { CreatePracticeInput } from '../proxy/doctors/models';
+import type { SaasTenantDto } from '../proxy/volo/saas/host/dtos/models';
+import { BrandingService } from '../shared/branding/branding.service';
 import { ExternalUserService } from '../proxy/external-users/external-user.service';
 import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
@@ -25,14 +29,20 @@ import type {
   ManagedTableQuery,
 } from '../shared/components/managed-table/managed-table.models';
 
-/** Draft for the create/edit tenant modal. */
+/** Draft for the create/edit practice (tenant) modal. */
 export interface TenantFormState {
   id: string | null;
   name: string;
   editionId: string | null;
-  adminEmail: string;
   isActive: boolean;
   concurrencyStamp?: string;
+  // New Practice create-only fields (left undefined on the edit form). The slug is
+  // `name`; the doctor email doubles as the office admin login; displayName defaults to
+  // "Dr. {first} {last}" server-side when blank.
+  doctorFirstName?: string;
+  doctorLastName?: string;
+  doctorEmail?: string;
+  displayName?: string;
 }
 
 /**
@@ -51,6 +61,8 @@ export class UsersSectionGateway {
   private readonly dashboard = inject(DashboardService);
   private readonly tenants = inject(TenantService);
   private readonly editions = inject(EditionService);
+  private readonly doctorTenant = inject(DoctorTenantService);
+  private readonly branding = inject(BrandingService);
 
   // ---- Invite External ----
   sendInvite(input: InviteExternalUserDto): Observable<InviteExternalUserResultDto> {
@@ -158,18 +170,26 @@ export class UsersSectionGateway {
       );
   }
 
-  createTenant(form: TenantFormState): Observable<unknown> {
-    const input: SaasTenantCreateDto = {
-      name: form.name.trim().toLowerCase(),
-      editionId: form.editionId ?? undefined,
-      // Omit activationState on create -> SaaS defaults to Active.
-      adminEmailAddress: form.adminEmail.trim(),
-      // The new tenant admin sets their own password via the forgot-password flow;
-      // we seed a strong throwaway so the SaaS create (which requires one) succeeds.
-      adminPassword: this.generatePassword(),
-      connectionStrings: { databases: [] },
+  /**
+   * Creates a COMPLETE practice via the custom provisioning endpoint (office DB + owner
+   * doctor + branding), NOT the stock SaaS create, which only writes a bare tenant row.
+   * The office admin login is the doctor's email; the admin password is server-generated
+   * and reset via forgot-password. Returns the created tenant so the caller can attach an
+   * optional logo by office id.
+   */
+  createPractice(form: TenantFormState): Observable<SaasTenantDto> {
+    const input: CreatePracticeInput = {
+      slug: form.name.trim().toLowerCase(),
+      doctorFirstName: (form.doctorFirstName ?? '').trim(),
+      doctorLastName: (form.doctorLastName ?? '').trim(),
+      doctorEmail: (form.doctorEmail ?? '').trim(),
+      displayName: form.displayName?.trim() || undefined,
     };
-    return this.tenants.create(input);
+    return this.doctorTenant.createPractice(input);
+  }
+  /** Uploads the optional branding logo for a freshly created office (best-effort). */
+  uploadOfficeLogo(officeId: string, file: File): Observable<unknown> {
+    return this.branding.uploadLogo(file, officeId);
   }
   updateTenant(form: TenantFormState): Observable<unknown> {
     const input: SaasTenantUpdateDto = {
@@ -179,18 +199,5 @@ export class UsersSectionGateway {
       concurrencyStamp: form.concurrencyStamp,
     };
     return this.tenants.update(form.id as string, input);
-  }
-
-  private generatePassword(): string {
-    const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '!@#$%*'];
-    const all = sets.join('');
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    const pick = (chars: string, byte: number) => chars.charAt(byte % chars.length);
-    let password = sets.map((chars, i) => pick(chars, bytes[i])).join('');
-    for (let i = 4; i < bytes.length; i++) {
-      password += pick(all, bytes[i]);
-    }
-    return password;
   }
 }

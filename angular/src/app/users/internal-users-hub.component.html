@@ -511,40 +511,113 @@
             </label>
             <input
               class="ra-input"
+              [class.bad]="slugError()"
               [ngModel]="f.name"
               (ngModelChange)="patchTenant({ name: $event })"
-              maxlength="40"
+              maxlength="63"
               placeholder="clinic-name"
             />
             <span class="ra-hint">{{ f.name || 'subdomain' }}.{{ tenantBaseDomain }}</span>
+            @if (slugError()) {
+              <span class="ra-err">Use lowercase letters, digits and hyphens (not "admin").</span>
+            }
           </div>
+
           @if (!f.id) {
+            <!-- New practice: the doctor owns + signs into the office; the doctor email
+              is the admin login. Location(s) are added later on the Locations page. -->
             <div class="ra-field col-6">
               <label>
-                Admin email
+                Doctor first name
+                <span class="req">*</span>
+              </label>
+              <input
+                class="ra-input"
+                [class.bad]="doctorFirstError()"
+                [ngModel]="f.doctorFirstName"
+                (ngModelChange)="patchTenant({ doctorFirstName: $event })"
+                maxlength="50"
+              />
+              @if (doctorFirstError()) {
+                <span class="ra-err">Required.</span>
+              }
+            </div>
+            <div class="ra-field col-6">
+              <label>
+                Doctor last name
+                <span class="req">*</span>
+              </label>
+              <input
+                class="ra-input"
+                [class.bad]="doctorLastError()"
+                [ngModel]="f.doctorLastName"
+                (ngModelChange)="patchTenant({ doctorLastName: $event })"
+                maxlength="50"
+              />
+              @if (doctorLastError()) {
+                <span class="ra-err">Required.</span>
+              }
+            </div>
+            <div class="ra-field col-12">
+              <label>
+                Doctor email
                 <span class="req">*</span>
               </label>
               <input
                 class="ra-input"
                 type="email"
-                [ngModel]="f.adminEmail"
-                (ngModelChange)="patchTenant({ adminEmail: $event })"
-                maxlength="256"
+                [class.bad]="doctorEmailError()"
+                [ngModel]="f.doctorEmail"
+                (ngModelChange)="patchTenant({ doctorEmail: $event })"
+                maxlength="49"
               />
+              <span class="ra-hint">
+                Also the office sign-in login; the doctor sets a password via "Forgot password".
+              </span>
+              @if (doctorEmailError()) {
+                <span class="ra-err">A valid email is required.</span>
+              }
+            </div>
+            <div class="ra-field col-12">
+              <label>Display name</label>
+              <input
+                class="ra-input"
+                [ngModel]="f.displayName"
+                (ngModelChange)="patchTenant({ displayName: $event })"
+                maxlength="128"
+                [placeholder]="displayNamePreview()"
+              />
+              <span class="ra-hint">
+                Shown in the portal + on the sign-in page. Defaults to "{{ displayNamePreview() }}".
+              </span>
+            </div>
+            <div class="ra-field col-12">
+              <label>Logo</label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                (change)="onTenantLogoSelected($event)"
+              />
+              <span class="ra-hint">
+                Optional (PNG or JPEG). Can also be set later on the Branding page.
+              </span>
             </div>
           }
-          <div class="ra-field col-12">
-            <label class="ra-switch">
-              <input
-                type="checkbox"
-                [ngModel]="f.isActive"
-                (ngModelChange)="patchTenant({ isActive: $event })"
-              />
-              <span class="track"></span>
-              <!-- UI label: 'practice' (code: tenant) -->
-              Active -- practice can sign in and book
-            </label>
-          </div>
+
+          @if (f.id) {
+            <div class="ra-field col-12">
+              <label class="ra-switch">
+                <input
+                  type="checkbox"
+                  [ngModel]="f.isActive"
+                  (ngModelChange)="patchTenant({ isActive: $event })"
+                />
+                <span class="track"></span>
+                <!-- UI label: 'practice' (code: tenant) -->
+                Active -- practice can sign in and book
+              </label>
+            </div>
+          }
         </div>
       </div>
       <div class="ra-modal__foot">
@@ -553,7 +626,7 @@
         </button>
         <button class="af-btn af-btn--primary" (click)="saveTenant()" [disabled]="isBusy()">
           <app-icon name="check" [size]="15" />
-          Save
+          {{ f.id ? 'Save' : 'Create practice' }}
         </button>
       </div>
     </div>

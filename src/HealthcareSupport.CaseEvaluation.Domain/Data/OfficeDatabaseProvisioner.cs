@@ -45,7 +45,13 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
         _logger = logger;
     }
 
-    public async Task ProvisionAsync(Guid tenantId, string adminEmailAddress, string adminPassword)
+    public async Task ProvisionAsync(
+        Guid tenantId,
+        string adminEmailAddress,
+        string adminPassword,
+        string? doctorFirstName = null,
+        string? doctorLastName = null,
+        string? doctorEmail = null)
     {
         using (_currentTenant.Change(tenantId))
         {
@@ -77,11 +83,26 @@ public class OfficeDatabaseProvisioner : IOfficeDatabaseProvisioner, ITransientD
             // Seed catalogs + admin user + the office doctor into the office database.
             using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
             {
-                await _dataSeeder.SeedAsync(
-                    new DataSeedContext(tenantId)
-                        .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmailAddress)
-                        .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword)
-                );
+                var seedContext = new DataSeedContext(tenantId)
+                    .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, adminEmailAddress)
+                    .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, adminPassword);
+
+                // New Practice create flow: seed the real owner doctor from the form. Left
+                // unset on the DbMigrator path so the doctor seed uses its own fallback.
+                if (!doctorFirstName.IsNullOrWhiteSpace())
+                {
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorFirstName, doctorFirstName!);
+                }
+                if (!doctorLastName.IsNullOrWhiteSpace())
+                {
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorLastName, doctorLastName!);
+                }
+                if (!doctorEmail.IsNullOrWhiteSpace())
+                {
+                    seedContext.WithProperty(OfficeSeedProperties.DoctorEmail, doctorEmail!);
+                }
+
+                await _dataSeeder.SeedAsync(seedContext);
 
                 await uow.CompleteAsync();
             }

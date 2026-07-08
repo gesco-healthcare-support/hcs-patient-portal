@@ -2,6 +2,7 @@ import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { EditionLookupDto, GetTenantsInput, SaasTenantConnectionStringsDto, SaasTenantCreateDto, SaasTenantDatabasesDto, SaasTenantDto, SaasTenantSetPasswordDto, SaasTenantUpdateDto } from '../volo/saas/host/dtos/models';
+import type { CreatePracticeInput } from './models';
 
 @Injectable({
   providedIn: 'root',
@@ -35,7 +36,16 @@ export class DoctorTenantService {
       body: input,
     },
     { apiName: this.apiName,...config });
-  
+
+
+  createPractice = (input: CreatePracticeInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, SaasTenantDto>({
+      method: 'POST',
+      url: '/api/app/doctor-tenant/practice',
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+
 
   delete = (id: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, void>({
