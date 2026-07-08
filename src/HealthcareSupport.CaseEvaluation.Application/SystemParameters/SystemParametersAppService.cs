@@ -1,9 +1,11 @@
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
+using Volo.Abp.SettingManagement;
 
 namespace HealthcareSupport.CaseEvaluation.SystemParameters;
 
@@ -34,10 +36,14 @@ namespace HealthcareSupport.CaseEvaluation.SystemParameters;
 public class SystemParametersAppService : ApplicationService, ISystemParametersAppService
 {
     private readonly ISystemParameterRepository _repository;
+    private readonly ISettingManager _settingManager;
 
-    public SystemParametersAppService(ISystemParameterRepository repository)
+    public SystemParametersAppService(
+        ISystemParameterRepository repository,
+        ISettingManager settingManager)
     {
         _repository = repository;
+        _settingManager = settingManager;
     }
 
     public virtual async Task<SystemParameterDto> GetAsync()
@@ -47,7 +53,12 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.SystemParameterNotSeeded);
         }
-        return ObjectMapper.Map<SystemParameter, SystemParameterDto>(entity);
+        var dto = ObjectMapper.Map<SystemParameter, SystemParameterDto>(entity);
+        // QA item 13: OfficeEmail lives in the ABP setting store (not a column);
+        // surface the tenant's value so the settings page can show/edit it.
+        dto.OfficeEmail = await _settingManager.GetOrNullForCurrentTenantAsync(
+            CaseEvaluationSettings.NotificationsPolicy.OfficeEmail);
+        return dto;
     }
 
     [Authorize(CaseEvaluationPermissions.SystemParameters.Edit)]
@@ -76,7 +87,17 @@ public class SystemParametersAppService : ApplicationService, ISystemParametersA
         ApplyUpdate(input, entity);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ObjectMapper.Map<SystemParameter, SystemParameterDto>(entity);
+
+        // QA item 13: persist OfficeEmail as the per-tenant ABP setting the
+        // notification handlers read. Trim; empty clears it (office notices skip,
+        // by design -- no fake value is ever stored).
+        var officeEmail = input.OfficeEmail?.Trim() ?? string.Empty;
+        await _settingManager.SetForCurrentTenantAsync(
+            CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, officeEmail);
+
+        var dto = ObjectMapper.Map<SystemParameter, SystemParameterDto>(entity);
+        dto.OfficeEmail = officeEmail;
+        return dto;
     }
 
     /// <summary>

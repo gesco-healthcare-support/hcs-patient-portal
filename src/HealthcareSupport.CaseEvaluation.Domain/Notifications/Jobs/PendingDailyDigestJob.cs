@@ -3,14 +3,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
@@ -38,23 +37,20 @@ public class PendingDailyDigestJob : ITransientDependency
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<PendingDailyDigestJob> _logger;
 
     public PendingDailyDigestJob(
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         ILocalEventBus localEventBus,
         ILogger<PendingDailyDigestJob> logger)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _localEventBus = localEventBus;
         _logger = logger;
     }
@@ -64,20 +60,9 @@ public class PendingDailyDigestJob : ITransientDependency
     {
         _logger.LogInformation("PendingDailyDigestJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
-        var tenantIds = await GetDistinctTenantIdsAsync();
 
-        foreach (var tenantId in tenantIds)
-        {
-            if (!tenantId.HasValue)
-            {
-                // Host-scope pending appointments do not exist by design.
-                continue;
-            }
-            using (_currentTenant.Change(tenantId))
-            {
-                await ProcessTenantAsync(tenantId, nowUtc);
-            }
-        }
+        await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
+            ProcessTenantAsync(officeId, nowUtc));
     }
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime nowUtc)
@@ -142,17 +127,5 @@ public class PendingDailyDigestJob : ITransientDependency
             "PendingDailyDigestJob: tenant {TenantId} published digest with {Count} pending row(s).",
             tenantId,
             rows.Count);
-    }
-
-    private async Task<Guid?[]> GetDistinctTenantIdsAsync()
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable
-                .Select(a => a.TenantId)
-                .Distinct()
-                .ToArray();
-        }
     }
 }

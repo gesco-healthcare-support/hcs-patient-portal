@@ -1,3 +1,4 @@
+import type { PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
 export interface DashboardActivityItemDto {
   icon?: string;
@@ -40,6 +41,8 @@ export interface DashboardDto {
   rejectedRequests?: DashboardKpiDto;
   totalTenants?: number;
   totalDoctors?: number;
+  // hand-added (QA item 6); abp generate-proxy reproduces it from DashboardDto.TotalLocations
+  totalLocations?: number;
   totalAppointments?: number;
   pendingAcrossTenants?: number;
   deadlines?: DashboardDeadlineItemDto[];
@@ -80,6 +83,26 @@ export interface DashboardTrendPointDto {
   weekStart?: string;
   count?: number;
   completedCount?: number;
+}
+
+export interface GetOfficesInput extends PagedAndSortedResultRequestDto {
+  filter?: string | null;
+}
+
+export interface GetTenantBreakdownInput extends PagedAndSortedResultRequestDto {
+  filter?: string | null;
+}
+
+export interface OfficeListDto {
+  id?: string;
+  name?: string;
+  subdomain?: string;
+  editionId?: string | null;
+  editionName?: string;
+  userCount?: number;
+  appointmentCount?: number;
+  isActive?: boolean;
+  concurrencyStamp?: string | null;
 }
 
 export interface TenantSummaryDto {

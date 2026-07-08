@@ -3,14 +3,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
@@ -48,23 +47,20 @@ public class AppointmentReminderJob : ITransientDependency
     };
 
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly ILocalEventBus _localEventBus;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<AppointmentReminderJob> _logger;
 
     public AppointmentReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         ILocalEventBus localEventBus,
         ISettingProvider settingProvider,
         ILogger<AppointmentReminderJob> logger)
     {
         _appointmentRepository = appointmentRepository;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _localEventBus = localEventBus;
         _settingProvider = settingProvider;
         _logger = logger;
@@ -76,19 +72,9 @@ public class AppointmentReminderJob : ITransientDependency
         _logger.LogInformation("AppointmentReminderJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
         var todayDate = nowUtc.Date;
-        var tenantIds = await GetDistinctTenantIdsAsync();
 
-        foreach (var tenantId in tenantIds)
-        {
-            if (!tenantId.HasValue)
-            {
-                continue;
-            }
-            using (_currentTenant.Change(tenantId))
-            {
-                await ProcessTenantAsync(tenantId, todayDate, nowUtc);
-            }
-        }
+        await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
+            ProcessTenantAsync(officeId, todayDate, nowUtc));
     }
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime todayDate, DateTime nowUtc)
@@ -132,17 +118,5 @@ public class AppointmentReminderJob : ITransientDependency
             "AppointmentReminderJob: tenant {TenantId} fired {Count} reminder event(s).",
             tenantId,
             published);
-    }
-
-    private async Task<Guid?[]> GetDistinctTenantIdsAsync()
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable
-                .Select(a => a.TenantId)
-                .Distinct()
-                .ToArray();
-        }
     }
 }

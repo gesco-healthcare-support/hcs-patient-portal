@@ -95,6 +95,11 @@
               Cancel
             </button>
           }
+          @if (consentIndicator; as consent) {
+            <span class="badge rounded-pill bg-light text-dark border align-self-center">
+              {{ consent.label }}
+            </span>
+          }
           @if (canReRequest) {
             <button class="ap-btn ap-btn--primary" type="button" (click)="reRequest()">
               <app-icon name="refresh" [size]="15" />
@@ -191,6 +196,19 @@
                         </option>
                       }
                     </select>
+                  } @else if (isGender(key)) {
+                    <select
+                      [id]="'fix-' + key"
+                      [class.sb-flag]="!isFixed(key)"
+                      (change)="onEdit(key, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!edits[key]">Select gender</option>
+                      @for (opt of genderOptions; track opt.value) {
+                        <option [value]="opt.value" [selected]="opt.value + '' === edits[key]">
+                          {{ opt.key }}
+                        </option>
+                      }
+                    </select>
                   } @else {
                     <input
                       [id]="'fix-' + key"
@@ -236,8 +254,50 @@
                   }
                 </div>
               }
+
+              @if (claimInformationFlagged) {
+                <div class="sb-fixrow">
+                  <label>{{ fieldLabel('claimInformation') }}</label>
+                  @if (!isFixed('claimInformation')) {
+                    <div class="sb-flaghint">
+                      <app-icon name="alert" [size]="13" />
+                      {{
+                        hintFor('claimInformation') ||
+                          'Update the claim / injury details below, then mark this done.'
+                      }}
+                    </div>
+                    <button
+                      class="af-btn af-btn--ghost af-btn--sm"
+                      type="button"
+                      (click)="ackClaimInformationUpdated()"
+                    >
+                      <app-icon name="check" [size]="14" />
+                      I've updated the claim information
+                    </button>
+                  } @else {
+                    <span class="sb-confirm">
+                      <app-icon name="check" [size]="13" />
+                      Claim information noted -- it saves when you resubmit.
+                    </span>
+                  }
+                </div>
+              }
             </div>
           </section>
+
+          <!-- QA item 11: the repeating Claim Information editor, reused from the booking
+               wizard. Mutates injuryDrafts in place; the set posts on save/resubmit. -->
+          @if (claimInformationFlagged) {
+            <section class="ad-card">
+              <div class="ad-card__head">
+                <span class="ic tint-purple"><app-icon name="help" [size]="18" /></span>
+                <h3>Claim information</h3>
+              </div>
+              <div class="ad-card__body">
+                <app-appointment-add-claim-information [injuryDrafts]="injuryDrafts" />
+              </div>
+            </section>
+          }
         }
 
         <!-- Actions -->

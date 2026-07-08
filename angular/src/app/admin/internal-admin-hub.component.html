@@ -251,6 +251,24 @@
           </div>
           <div class="sp-group__body" style="grid-template-columns: 1fr">
             <div class="sp-field">
+              <label>Office notification inbox</label>
+              <input
+                type="email"
+                [disabled]="!canEditParams()"
+                [ngModel]="p.officeEmail"
+                (ngModelChange)="patchParam('officeEmail', $event)"
+                placeholder="office@example.com"
+              />
+              @if (!p.officeEmail) {
+                <div class="hint" style="color: var(--st-rejected-dot, #b91c1c)">
+                  Not set &mdash; new-request, cancellation, and daily-digest notices to the office
+                  are not sent until you add an address.
+                </div>
+              } @else {
+                <div class="hint">Where the office receives its intake notifications.</div>
+              }
+            </div>
+            <div class="sp-field">
               <label>CC every appointment email to</label>
               <input
                 type="text"
@@ -336,26 +354,53 @@
               </button>
             }
           </div>
+          @if (roleSelected()) {
+            <div class="pm-search">
+              <app-icon name="search" [size]="16" />
+              <input
+                type="search"
+                [ngModel]="permSearch()"
+                (ngModelChange)="permSearch.set($event)"
+                placeholder="Search permissions..."
+                aria-label="Search permissions"
+              />
+            </div>
+          }
           <div class="pm-matrix">
-            @for (g of permGroups(); track g.name) {
+            @for (g of permMatrix(); track g.name) {
               <div class="pm-group">
                 <h4>{{ g.displayName }}</h4>
                 <div class="pm-perms">
-                  @for (p of g.permissions; track p.name) {
-                    <label class="pm-perm">
+                  @for (node of g.parents; track node.parent.name) {
+                    <label class="pm-perm pm-perm--parent">
                       <input
                         type="checkbox"
-                        [checked]="isGranted(p.name)"
+                        [checked]="isGranted(node.parent.name)"
                         [disabled]="roleLocked()"
-                        (change)="togglePermission(p.name)"
+                        (change)="togglePermission(node.parent.name)"
                       />
-                      <span>{{ p.displayName }}</span>
+                      <span>{{ node.parent.displayName }}</span>
                     </label>
+                    @for (child of node.children; track child.name) {
+                      <label class="pm-perm pm-perm--child">
+                        <input
+                          type="checkbox"
+                          [checked]="isGranted(child.name)"
+                          [disabled]="roleLocked()"
+                          (change)="togglePermission(child.name)"
+                        />
+                        <span>{{ child.displayName }}</span>
+                      </label>
+                    }
                   }
                 </div>
               </div>
             } @empty {
-              <div class="ia-empty">Select a role to view its permissions.</div>
+              @if (roleSelected()) {
+                <div class="ia-empty">No permissions match "{{ permSearch() }}".</div>
+              } @else {
+                <div class="ia-empty">Select a role to view its permissions.</div>
+              }
             }
           </div>
         </div>
@@ -394,12 +439,36 @@
           <thead>
             <tr>
               <th style="width: 34px"></th>
-              <th>Time</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th>Duration</th>
+              <th
+                appSortHeader="executionTime"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Time
+              </th>
+              <th appSortHeader="userName" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                User
+              </th>
+              <th appSortHeader="url" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                Action
+              </th>
+              <th appSortHeader="httpMethod" [model]="auditSort()" (sortChange)="sortAudit($event)">
+                Method
+              </th>
+              <th
+                appSortHeader="httpStatusCode"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Status
+              </th>
+              <th
+                appSortHeader="executionDuration"
+                [model]="auditSort()"
+                (sortChange)="sortAudit($event)"
+              >
+                Duration
+              </th>
             </tr>
           </thead>
           <tbody>

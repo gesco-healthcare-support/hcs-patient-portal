@@ -70,8 +70,8 @@ public class RecipientRoleResolver : IRecipientRoleResolver, ITransientDependenc
             // catch the missing mapping at deploy time instead.
             _logger.LogWarning(
                 "RecipientRoleResolver: no role-name mapping for RecipientRole.{Role}; " +
-                "treating {Email} as off-role until mapping is added.",
-                expectedRole, email);
+                "treating user {UserId} as off-role until mapping is added.",
+                expectedRole, user.Id);
             return new RecipientRoleClassification(
                 IsRegistered: false, MatchesRole: false, UserId: user.Id);
         }
@@ -85,9 +85,9 @@ public class RecipientRoleResolver : IRecipientRoleResolver, ITransientDependenc
             // "Defense Attorney received the patient's email and ended up
             // on a Patient dashboard with no DA binding."
             _logger.LogInformation(
-                "RecipientRoleResolver: {Email} resolves to user {UserId} but does not " +
+                "RecipientRoleResolver: user {UserId} does not " +
                 "hold role '{ExpectedRole}'; routing as not-registered for Option A.",
-                email, user.Id, expectedRoleName);
+                user.Id, expectedRoleName);
         }
 
         return new RecipientRoleClassification(

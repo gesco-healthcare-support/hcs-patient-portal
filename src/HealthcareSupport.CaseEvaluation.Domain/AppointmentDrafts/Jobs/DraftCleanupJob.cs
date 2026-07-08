@@ -1,10 +1,9 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Timing;
 using Volo.Abp.Uow;
 
@@ -24,18 +23,18 @@ public class DraftCleanupJob : ITransientDependency
     public const int RetentionDays = 30;
 
     private readonly IRepository<AppointmentDraft, Guid> _draftRepository;
-    private readonly IDataFilter _dataFilter;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IClock _clock;
     private readonly ILogger<DraftCleanupJob> _logger;
 
     public DraftCleanupJob(
         IRepository<AppointmentDraft, Guid> draftRepository,
-        IDataFilter dataFilter,
+        ITenantWorkRunner tenantWorkRunner,
         IClock clock,
         ILogger<DraftCleanupJob> logger)
     {
         _draftRepository = draftRepository;
-        _dataFilter = dataFilter;
+        _tenantWorkRunner = tenantWorkRunner;
         _clock = clock;
         _logger = logger;
     }
@@ -45,10 +44,12 @@ public class DraftCleanupJob : ITransientDependency
     {
         var cutoff = _clock.Now.AddDays(-RetentionDays);
 
-        // Drafts are creator+tenant scoped, but the purge must span every tenant,
-        // so the multi-tenant filter is disabled for the sweep. Only the count is
-        // logged -- never the PHI payload.
-        using (_dataFilter.Disable<IMultiTenant>())
+        // Drafts are creator+tenant scoped, and under database-per-office each
+        // office's drafts live in its own database. Iterate every office from the
+        // tenant registry and purge inside that office's context, where the
+        // IMultiTenant filter naturally scopes the sweep to that office. Only the
+        // count is logged -- never the PHI payload.
+        await _tenantWorkRunner.ForEachOfficeAsync(async officeId =>
         {
             var expired = await _draftRepository.GetListAsync(x => x.LastSavedTime < cutoff);
             if (expired.Count > 0)
@@ -57,9 +58,10 @@ public class DraftCleanupJob : ITransientDependency
             }
 
             _logger.LogInformation(
-                "DraftCleanupJob: purged {Count} booking draft(s) last saved before {Cutoff:o}.",
+                "DraftCleanupJob: office {OfficeId} purged {Count} booking draft(s) last saved before {Cutoff:o}.",
+                officeId,
                 expired.Count,
                 cutoff);
-        }
+        });
     }
 }

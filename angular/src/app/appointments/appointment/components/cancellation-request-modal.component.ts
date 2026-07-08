@@ -41,6 +41,9 @@ import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-cha
 })
 export class CancellationRequestModalComponent {
   @Input() appointmentId: string | null = null;
+  // C2 (2026-07-01): a staff filer sees the both-parties-consent note; an
+  // external party sees the opposing-party note.
+  @Input() requesterIsStaff = false;
   @Input() visible = false;
   @Output() visibleChange = new EventEmitter<boolean>();
   @Output() succeeded = new EventEmitter<AppointmentChangeRequestDto>();

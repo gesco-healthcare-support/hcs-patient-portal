@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
@@ -15,6 +16,10 @@ namespace HealthcareSupport.CaseEvaluation.Controllers.AppointmentChangeRequests
 /// partial controller file per the 2-session-split file ownership
 /// rule).
 /// </summary>
+// [Authorize] mirrors the app-service authorization (AppointmentChangeRequestsAppService
+// gates the class + every action method); declared here too so this manual delegating
+// controller carries visible function-level access control (defense in depth).
+[Authorize]
 [RemoteService]
 [Area("app")]
 [Route("api/app/appointment-change-requests")]
@@ -52,5 +57,17 @@ public class AppointmentChangeRequestController : AbpController, IAppointmentCha
         [FromBody] RequestRescheduleDto input)
     {
         return _appointmentChangeRequestsAppService.RequestRescheduleAsync(appointmentId, input);
+    }
+
+    /// <summary>
+    /// C2a (2026-07-01) -- read the appointment's active (Pending) change
+    /// request + per-side consent for the appointment-view consent indicator
+    /// and request-button gating. Read-gated in the app service.
+    /// </summary>
+    [HttpGet]
+    [Route("active/{appointmentId}")]
+    public virtual Task<AppointmentChangeRequestDto?> GetActiveForAppointmentAsync(Guid appointmentId)
+    {
+        return _appointmentChangeRequestsAppService.GetActiveForAppointmentAsync(appointmentId);
     }
 }

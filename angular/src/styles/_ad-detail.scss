@@ -460,13 +460,38 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 10px 14px;
+  padding: 6px 14px;
   background: var(--n-25);
+}
+.sb-tree__all {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--st-purple-fg);
+    cursor: pointer;
+  }
+}
+.sb-tree__gtoggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--n-500);
+  text-align: left;
 
   .cnt {
     margin-left: auto;

@@ -14,6 +14,8 @@ import type {
 } from '@abp/ng.permission-management/proxy';
 import type { AuditLogDto } from '@volo/abp.ng.audit-logging/proxy';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SortHeaderComponent } from '../shared/sort/sort-header.component';
+import { makeComparator, type SortModel, type SortValue } from '../shared/sort/sort-state';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
 import type { NotificationTemplateVariableDto } from '../proxy/notification-templates/models';
@@ -33,12 +35,54 @@ import {
 } from './admin-hub.util';
 import { AdminSectionGateway, NtRow, RoleRow } from './admin-section.gateway';
 
+/** A single permission node in the role matrix (item 10 Part B nesting). */
+interface PermNode {
+  name: string;
+  displayName: string;
+}
+
+/** A parent permission with its (possibly empty) child actions, for the nested matrix. */
+interface PermParentNode {
+  parent: PermNode;
+  children: PermNode[];
+}
+
+/** A permission group shaped for the nested + searchable matrix. */
+interface PermMatrixGroup {
+  name: string;
+  displayName: string;
+  parents: PermParentNode[];
+}
+
 /** The editable working copy of the selected notification template. */
 interface NtDraft {
   subject: string;
   bodyEmail: string;
   bodySms: string;
   active: boolean;
+}
+
+/**
+ * QA #15 item 6: maps an audit column key to its comparable primitive. Time and
+ * duration/status sort numerically; the rest as strings (blank last).
+ */
+function auditSortValue(row: AuditLogDto, key: string): SortValue {
+  switch (key) {
+    case 'executionTime':
+      return row.executionTime ? Date.parse(row.executionTime) : null;
+    case 'userName':
+      return row.userName ?? '';
+    case 'url':
+      return row.url ?? '';
+    case 'httpMethod':
+      return row.httpMethod ?? '';
+    case 'httpStatusCode':
+      return row.httpStatusCode ?? null;
+    case 'executionDuration':
+      return row.executionDuration ?? null;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -53,8 +97,39 @@ interface NtDraft {
   selector: 'app-internal-admin-hub',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent, QuillEditorComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    IconComponent,
+    SortHeaderComponent,
+    QuillEditorComponent,
+  ],
   templateUrl: './internal-admin-hub.component.html',
+  styles: `
+    /* Item 10 Part B: permission-matrix search + parent/child nesting. */
+    .pm-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      max-width: 320px;
+    }
+    .pm-search input {
+      flex: 1;
+      height: 38px;
+      border: 0;
+      background: none;
+      font: inherit;
+      outline: none;
+    }
+    .pm-perm--child {
+      padding-left: 22px;
+    }
+  `,
 })
 export class InternalAdminHubComponent {
   private readonly route = inject(ActivatedRoute);
@@ -143,21 +218,78 @@ export class InternalAdminHubComponent {
   protected readonly permTotal = computed(() =>
     this.permGroups().reduce((sum, g) => sum + (g.permissions?.length ?? 0), 0),
   );
+  protected readonly permSearch = signal('');
+
+  /**
+   * Item 10 Part B: shapes permGroups() into a nested (parent -> child actions),
+   * searchable matrix. Nesting is by the ABP permission `parentName`; toggling
+   * stays per-permission (checkboxes are independent, matching prior behavior).
+   * A search term keeps a parent + all its children when the PARENT matches,
+   * else only the matching children under their parent; empty groups drop out.
+   */
+  protected readonly permMatrix = computed<PermMatrixGroup[]>(() => {
+    const query = this.permSearch().trim().toLowerCase();
+    const result: PermMatrixGroup[] = [];
+    for (const g of this.permGroups()) {
+      const childrenByParent = new Map<string, PermNode[]>();
+      const parents: PermNode[] = [];
+      for (const p of g.permissions ?? []) {
+        if (!p.name) {
+          continue;
+        }
+        const node: PermNode = { name: p.name, displayName: p.displayName ?? p.name };
+        if (p.parentName) {
+          const list = childrenByParent.get(p.parentName) ?? [];
+          list.push(node);
+          childrenByParent.set(p.parentName, list);
+        } else {
+          parents.push(node);
+        }
+      }
+      const parentNodes: PermParentNode[] = [];
+      for (const parent of parents) {
+        const children = childrenByParent.get(parent.name) ?? [];
+        if (!query) {
+          parentNodes.push({ parent, children });
+          continue;
+        }
+        const parentMatch = parent.displayName.toLowerCase().includes(query);
+        const shownChildren = parentMatch
+          ? children
+          : children.filter((c) => c.displayName.toLowerCase().includes(query));
+        if (parentMatch || shownChildren.length > 0) {
+          parentNodes.push({ parent, children: shownChildren });
+        }
+      }
+      if (parentNodes.length > 0) {
+        result.push({ name: g.name ?? '', displayName: g.displayName ?? '', parents: parentNodes });
+      }
+    }
+    return result;
+  });
 
   // ---- Audit Logs ----
   protected readonly auditRows = signal<AuditLogDto[]>([]);
   protected readonly auditQuery = signal('');
   protected readonly auditMethod = signal('');
   protected readonly auditOpen = signal<Set<string>>(new Set<string>());
+  // QA #15 item 6 (2026-07-07): client-side sort over the loaded page. The Volo
+  // audit endpoint supports server sorting, but the whole (bounded 100-row) page is
+  // already in memory and filtered client-side, so sorting here avoids a re-fetch.
+  protected readonly auditSort = signal<SortModel>({ key: null, dir: 'asc' });
   protected readonly auditShown = computed(() => {
     const q = this.auditQuery().trim().toLowerCase();
-    if (!q) {
-      return this.auditRows();
+    const filtered = !q
+      ? this.auditRows()
+      : this.auditRows().filter(
+          (l) =>
+            (l.userName ?? '').toLowerCase().includes(q) || (l.url ?? '').toLowerCase().includes(q),
+        );
+    const model = this.auditSort();
+    if (!model.key) {
+      return filtered;
     }
-    return this.auditRows().filter(
-      (l) =>
-        (l.userName ?? '').toLowerCase().includes(q) || (l.url ?? '').toLowerCase().includes(q),
-    );
+    return [...filtered].sort(makeComparator<AuditLogDto>(model, auditSortValue));
   });
 
   constructor() {
@@ -374,6 +506,7 @@ export class InternalAdminHubComponent {
         reminderCutoffTime: p.reminderCutoffTime,
         isCustomField: p.isCustomField,
         ccEmailIds: p.ccEmailIds,
+        officeEmail: p.officeEmail,
         concurrencyStamp: p.concurrencyStamp,
       })
       .pipe(finalize(() => this.isBusy.set(false)))
@@ -484,6 +617,9 @@ export class InternalAdminHubComponent {
   protected applyAuditMethod(method: string): void {
     this.auditMethod.set(method);
     this.loadAudit();
+  }
+  protected sortAudit(model: SortModel): void {
+    this.auditSort.set(model);
   }
   protected toggleAuditRow(id: string | undefined): void {
     if (!id) {

@@ -48,6 +48,12 @@ public class AppointmentInfoRequestController : AbpController, IAppointmentInfoR
     public virtual Task ResubmitAsync(Guid appointmentId)
         => _service.ResubmitAsync(appointmentId);
 
+    /// <summary>External party: current Claim Information rows to prefill the fix-it editor.</summary>
+    [HttpGet]
+    [Route("injury-details/{appointmentId}")]
+    public virtual Task<List<InjuryDetailCorrectionDto>> GetInjuryDetailsForCorrectionAsync(Guid appointmentId)
+        => _service.GetInjuryDetailsForCorrectionAsync(appointmentId);
+
     /// <summary>The open info request (note + flagged fields) for the fix-it page.</summary>
     [HttpGet]
     [Route("open/{appointmentId}")]

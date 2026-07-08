@@ -1,6 +1,7 @@
 import type { DashboardRange } from './dashboard-range.enum';
-import type { DashboardCountersDto, DashboardDto, TenantSummaryDto } from './models';
+import type { DashboardCountersDto, DashboardDto, DashboardTenantRowDto, GetOfficesInput, GetTenantBreakdownInput, OfficeListDto, TenantSummaryDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
+import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 
 @Injectable({
@@ -24,6 +25,24 @@ export class DashboardService {
       method: 'GET',
       url: '/api/app/dashboard/overview',
       params: { range },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getOffices = (input: GetOfficesInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, PagedResultDto<OfficeListDto>>({
+      method: 'GET',
+      url: '/api/app/dashboard/offices',
+      params: { filter: input.filter, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
+    },
+    { apiName: this.apiName,...config });
+  
+
+  getTenantBreakdown = (input: GetTenantBreakdownInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, PagedResultDto<DashboardTenantRowDto>>({
+      method: 'GET',
+      url: '/api/app/dashboard/tenant-breakdown',
+      params: { filter: input.filter, sorting: input.sorting, skipCount: input.skipCount, maxResultCount: input.maxResultCount },
     },
     { apiName: this.apiName,...config });
   

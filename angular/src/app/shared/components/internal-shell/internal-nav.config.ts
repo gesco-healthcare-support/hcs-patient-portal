@@ -80,8 +80,10 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'refresh',
         // Prompt 13 (2026-06-15): the reschedule + cancellation queues are unified
         // into one tabbed inbox at the parent path. See change-request-routes.ts.
+        // QA #15 item 4 (2026-07-06): intake finalizes change requests in its
+        // assigned offices now (Phase 2.5 read-only tier reversed by Adrian).
         route: '/appointments/change-requests',
-        roles: ['supervisor'],
+        roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests',
         badge: 'changeRequests',
       },
@@ -111,7 +113,10 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'Doctor Availabilities',
         icon: 'calendar',
         route: '/doctor-management/doctor-availabilities',
-        roles: ['supervisor'],
+        // QA #15 item 3 (2026-07-06): intake keeps the bookable slot grid current,
+        // and its per-tenant role has held full slot CRUD since 2026-06-11 -- the
+        // nav role filter was the only thing hiding the page.
+        roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {
@@ -156,7 +161,9 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'System Parameters',
         icon: 'settings',
         route: '/admin/parameters',
-        roles: ['supervisor', 'intake'],
+        // MO4 (2026-06-30): Intake staff are read-only operators; System
+        // Parameters is supervisor-only. Dropped 'intake' from the role filter.
+        roles: ['supervisor'],
         requiredPolicy: 'CaseEvaluation.SystemParameters',
       },
       {
@@ -221,6 +228,15 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         roles: ['supervisor'],
         requiredPolicy: 'CaseEvaluation.WcabOffices',
       },
+      {
+        // Phase E (2026-06-25): in-office branding editor (current office).
+        id: 'office-branding',
+        label: 'Office Branding',
+        icon: 'doc',
+        route: '/office-branding',
+        roles: ['supervisor', 'itadmin', 'admin'],
+        requiredPolicy: 'CaseEvaluation.Branding.Edit',
+      },
     ],
   },
   {
@@ -273,16 +289,56 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
   {
     sect: 'Platform',
     items: [
-      { id: 'dashboard', label: 'Overview', icon: 'grid', route: '/dashboard', roles: ['itadmin'] },
+      // Phase D: the host Staff Supervisor shares the host overview (cross-office
+      // aggregation). The Intake operator has no dashboard -- it lands on its
+      // office switcher (see the Operators section).
+      {
+        id: 'dashboard',
+        label: 'Overview',
+        icon: 'grid',
+        route: '/dashboard',
+        roles: ['itadmin', 'supervisor'],
+      },
     ],
   },
   {
-    sect: 'SaaS',
+    // Item 1 (2026-06-30): the former 'Offices' + 'SaaS' groups merged into one
+    // "Practice Management" group. Per the ratified noun model a tenant = a
+    // doctor's PRACTICE, so the office surfaces read as practices; the external-
+    // user invite hub (Users & Access) folds in beside internal-staff management.
+    // Overview stays in Platform. Labels are UI-only -- ids/routes/policies stay.
+    sect: 'Practice Management',
     items: [
       {
+        id: 'tenants',
+        label: 'Practices', // UI label: 'Practices' (code id: tenants, route /users/tenants)
+        icon: 'users',
+        route: '/users/tenants',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'Saas.Tenants',
+      },
+      {
+        // Phase E (2026-06-25): host-side central per-office branding manager.
+        id: 'host-branding',
+        label: 'Practice Branding', // UI label: 'Practice Branding' (code id: host-branding, route /host/branding)
+        icon: 'doc',
+        route: '/host/branding',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.Branding',
+      },
+      {
+        // Phase D: host Staff Supervisor creates internal operators (Intake +
+        // Supervisor) -- gated by InternalUsers.Create, which it holds.
+        id: 'internal-users',
+        label: 'Staff Management', // UI label: 'Staff Management' (code id: internal-users, route /users/internal)
+        icon: 'users',
+        route: '/users/internal',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.InternalUsers.Create',
+      },
+      {
         // Prompt 16 (2026-06-16): the redesigned Users & Access hub serves IT Admin's
-        // invite / pending / internal-users / tenants surfaces via its rail. Editions
-        // was cancelled (no real use). Tenants keeps a direct link to the hub section.
+        // invite / pending / internal-users / tenants surfaces via its rail.
         id: 'users-access',
         label: 'Users & Access',
         icon: 'user',
@@ -291,11 +347,20 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },
       {
-        id: 'tenants',
-        label: 'Tenants',
-        icon: 'users',
-        route: '/users/tenants',
-        roles: ['itadmin'],
+        id: 'intake-assignments',
+        label: 'Staff Assignments', // UI label: 'Staff Assignments' (code id: intake-assignments, route /host/intake-assignments)
+        icon: 'user',
+        route: '/host/intake-assignments',
+        roles: ['itadmin', 'supervisor'],
+        requiredPolicy: 'CaseEvaluation.IntakeAssignments',
+      },
+      {
+        id: 'my-offices',
+        label: 'Assigned Practices', // UI label: 'Assigned Practices' (code id: my-offices, route /host/my-offices)
+        icon: 'map',
+        route: '/host/my-offices',
+        roles: ['intake'],
+        requiredPolicy: 'CaseEvaluation.IntakeImpersonation',
       },
     ],
   },
@@ -384,6 +449,16 @@ export function resolveNavGroups(
   hostScope: boolean,
   isGranted: (policy: string) => boolean = () => true,
 ): InternalNavGroup[] {
-  const usesHostNav = hostScope && (roleKey === 'itadmin' || roleKey === 'admin');
+  // Phase D (2026-06-25): Staff Supervisor + Intake Staff are HOST operators now,
+  // so at host scope they get the platform nav (office switch + assignments),
+  // NOT the tenant nav (which would 403 with no current tenant). Once they switch
+  // into an office, hostScope is false and they fall back to IN_NAV (the
+  // impersonated admin / shadow Intake user's tenant nav).
+  const usesHostNav =
+    hostScope &&
+    (roleKey === 'itadmin' ||
+      roleKey === 'admin' ||
+      roleKey === 'supervisor' ||
+      roleKey === 'intake');
   return filterNavGroups(usesHostNav ? IN_NAV_HOST : IN_NAV, roleKey, isGranted);
 }

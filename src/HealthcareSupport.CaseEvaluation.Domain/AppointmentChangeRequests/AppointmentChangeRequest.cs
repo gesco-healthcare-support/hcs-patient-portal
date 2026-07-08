@@ -88,31 +88,46 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// </summary>
     public virtual AppointmentStatusType? CancellationOutcome { get; set; }
 
-    // ---- Group D (2026-06-09): opposing-side consent ----
+    // ---- Consent (2026-07-01 redesign): two symmetric side-consent slots ----
+    // Side A = Patient + Applicant Attorney; Side B = Defense Attorney + Claim Examiner.
+    // Party-initiated auto-grants the requestor's side and tokens the opposing side;
+    // staff-initiated tokens both sides. The finalize gate passes when every side whose
+    // consent was required (status != NotRequired) is Approved.
 
-    /// <summary>Which side submitted this request; the opposing side's consent is solicited.</summary>
+    /// <summary>Which side submitted this request (party-initiated); null when staff initiated.</summary>
     public virtual ChangeRequestSide? RequestingSide { get; protected set; }
 
     /// <summary>
-    /// IdentityUser id of the submitter, persisted so consent routing can
-    /// determine the opposing side. ABP's audit <c>CreatorId</c> is the fallback.
+    /// IdentityUser id of the submitter, persisted for audit + consent routing.
+    /// ABP's audit <c>CreatorId</c> is the fallback.
     /// </summary>
     public virtual Guid? SubmittedByUserId { get; protected set; }
 
-    /// <summary>Opposing-side consent state. <c>NotRequired</c> when consent gating is off.</summary>
-    public virtual ChangeRequestConsentStatus ConsentStatus { get; protected set; } = ChangeRequestConsentStatus.NotRequired;
+    /// <summary>Side A consent state. <c>NotRequired</c> when not solicited (gating off / no rep).</summary>
+    public virtual ChangeRequestConsentStatus SideAConsentStatus { get; protected set; } = ChangeRequestConsentStatus.NotRequired;
 
-    /// <summary>SHA256 hex of the consent token; the raw token is never stored. Null when NotRequired.</summary>
-    public virtual string? ConsentTokenHash { get; protected set; }
+    /// <summary>SHA256 hex of Side A's consent token; the raw token is never stored. Null when auto-granted / NotRequired.</summary>
+    public virtual string? SideAConsentTokenHash { get; protected set; }
 
-    /// <summary>UTC expiry of the consent token (issue + 7 days).</summary>
-    public virtual DateTime? ConsentExpiresAt { get; protected set; }
+    public virtual DateTime? SideAConsentExpiresAt { get; protected set; }
 
-    /// <summary>UTC timestamp the opposing side responded (or the request was marked Expired).</summary>
-    public virtual DateTime? ConsentRespondedAt { get; protected set; }
+    public virtual DateTime? SideAConsentRespondedAt { get; protected set; }
 
-    /// <summary>Email of the opposing-side representative who responded (audit; null on expiry-default).</summary>
-    public virtual string? ConsentRespondedByEmail { get; protected set; }
+    /// <summary>Email of Side A's representative who responded (audit; null on auto-grant / expiry-default).</summary>
+    public virtual string? SideAConsentRespondedByEmail { get; protected set; }
+
+    /// <summary>Side B consent state. <c>NotRequired</c> when not solicited (gating off / no rep).</summary>
+    public virtual ChangeRequestConsentStatus SideBConsentStatus { get; protected set; } = ChangeRequestConsentStatus.NotRequired;
+
+    /// <summary>SHA256 hex of Side B's consent token; the raw token is never stored. Null when auto-granted / NotRequired.</summary>
+    public virtual string? SideBConsentTokenHash { get; protected set; }
+
+    public virtual DateTime? SideBConsentExpiresAt { get; protected set; }
+
+    public virtual DateTime? SideBConsentRespondedAt { get; protected set; }
+
+    /// <summary>Email of Side B's representative who responded (audit; null on auto-grant / expiry-default).</summary>
+    public virtual string? SideBConsentRespondedByEmail { get; protected set; }
 
     protected AppointmentChangeRequest()
     {
@@ -150,68 +165,125 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
         RequestStatus = RequestStatusType.Pending;
     }
 
-    // ---- Group D consent transitions (pure domain logic) ----
+    // ---- Two-sided consent transitions (pure domain logic) ----
 
-    /// <summary>
-    /// Issue opposing-side consent: records the token hash + submitting side and
-    /// moves consent to <see cref="ChangeRequestConsentStatus.Pending"/>. Only
-    /// valid from <see cref="ChangeRequestConsentStatus.NotRequired"/>.
-    /// </summary>
-    public void IssueConsent(
-        string tokenHash,
-        ChangeRequestSide requestingSide,
-        Guid submittedByUserId,
-        DateTime expiresAtUtc)
+    /// <summary>Records submitter metadata: the party's side when party-initiated (else null), plus the user id.</summary>
+    public void InitiateConsent(ChangeRequestSide? requestingSide, Guid submittedByUserId)
     {
-        Check.NotNullOrWhiteSpace(tokenHash, nameof(tokenHash));
-        if (ConsentStatus != ChangeRequestConsentStatus.NotRequired)
-        {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded);
-        }
         RequestingSide = requestingSide;
         SubmittedByUserId = submittedByUserId;
-        ConsentTokenHash = tokenHash;
-        ConsentExpiresAt = expiresAtUtc;
-        ConsentStatus = ChangeRequestConsentStatus.Pending;
     }
 
     /// <summary>
-    /// Record the opposing side's decision. Single-use: throws
-    /// <c>ChangeRequestConsentAlreadyResponded</c> unless currently
+    /// Grant a side without a token -- the requestor's own side (party-initiated), or a side
+    /// with no representative. Only valid from <see cref="ChangeRequestConsentStatus.NotRequired"/>.
+    /// </summary>
+    public void AutoGrantSide(ChangeRequestSide side, DateTime nowUtc)
+    {
+        EnsureSideStatus(side, ChangeRequestConsentStatus.NotRequired);
+        SetSideStatus(side, ChangeRequestConsentStatus.Approved);
+        SetSideRespondedAt(side, nowUtc);
+    }
+
+    /// <summary>
+    /// Issue a consent token to a side, moving it to <see cref="ChangeRequestConsentStatus.Pending"/>.
+    /// Only valid from <see cref="ChangeRequestConsentStatus.NotRequired"/>.
+    /// </summary>
+    public void IssueSideConsent(ChangeRequestSide side, string tokenHash, DateTime expiresAtUtc)
+    {
+        Check.NotNullOrWhiteSpace(tokenHash, nameof(tokenHash));
+        EnsureSideStatus(side, ChangeRequestConsentStatus.NotRequired);
+        SetSideTokenHash(side, tokenHash);
+        SetSideExpiresAt(side, expiresAtUtc);
+        SetSideStatus(side, ChangeRequestConsentStatus.Pending);
+    }
+
+    /// <summary>
+    /// Record a side's decision. Single-use: throws unless the side is currently
     /// <see cref="ChangeRequestConsentStatus.Pending"/>.
     /// </summary>
-    public void RecordConsentDecision(bool approved, string? respondedByEmail, DateTime nowUtc)
+    public void RecordSideDecision(ChangeRequestSide side, bool approved, string? respondedByEmail, DateTime nowUtc)
     {
-        if (ConsentStatus != ChangeRequestConsentStatus.Pending)
+        if (SideConsentStatus(side) != ChangeRequestConsentStatus.Pending)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded);
         }
-        ConsentStatus = approved ? ChangeRequestConsentStatus.Approved : ChangeRequestConsentStatus.Rejected;
-        ConsentRespondedAt = nowUtc;
-        ConsentRespondedByEmail = respondedByEmail;
+        SetSideStatus(side, approved ? ChangeRequestConsentStatus.Approved : ChangeRequestConsentStatus.Rejected);
+        SetSideRespondedAt(side, nowUtc);
+        SetSideRespondedByEmail(side, respondedByEmail);
     }
 
-    /// <summary>
-    /// Mark consent expired (token lapsed). Treated as a No for the supervisor
-    /// gate; staff are notified. No-op unless currently
-    /// <see cref="ChangeRequestConsentStatus.Pending"/>.
-    /// </summary>
-    public void MarkConsentExpired(DateTime nowUtc)
+    /// <summary>Mark a side expired (token lapsed). Treated as a No for the gate. No-op unless Pending.</summary>
+    public void MarkSideExpired(ChangeRequestSide side, DateTime nowUtc)
     {
-        if (ConsentStatus != ChangeRequestConsentStatus.Pending)
+        if (SideConsentStatus(side) != ChangeRequestConsentStatus.Pending)
         {
             return;
         }
-        ConsentStatus = ChangeRequestConsentStatus.Expired;
-        ConsentRespondedAt = nowUtc;
+        SetSideStatus(side, ChangeRequestConsentStatus.Expired);
+        SetSideRespondedAt(side, nowUtc);
     }
 
-    /// <summary>True when the consent token is still pending and has passed its expiry.</summary>
-    public bool IsConsentExpired(DateTime nowUtc) =>
-        ConsentStatus == ChangeRequestConsentStatus.Pending
-        && ConsentExpiresAt.HasValue
-        && ConsentExpiresAt.Value <= nowUtc;
+    /// <summary>True when the side's token is still pending and has passed its expiry.</summary>
+    public bool IsSideExpired(ChangeRequestSide side, DateTime nowUtc)
+    {
+        var expiresAt = side == ChangeRequestSide.SideA ? SideAConsentExpiresAt : SideBConsentExpiresAt;
+        return SideConsentStatus(side) == ChangeRequestConsentStatus.Pending
+            && expiresAt.HasValue
+            && expiresAt.Value <= nowUtc;
+    }
 
-    /// <summary>True when the opposing side has granted consent (the supervisor gate passes).</summary>
-    public bool IsConsentGranted() => ConsentStatus == ChangeRequestConsentStatus.Approved;
+    /// <summary>Current consent status for a side.</summary>
+    public ChangeRequestConsentStatus SideConsentStatus(ChangeRequestSide side) =>
+        side == ChangeRequestSide.SideA ? SideAConsentStatus : SideBConsentStatus;
+
+    /// <summary>SHA256 hex of a side's consent token (null when auto-granted / NotRequired).</summary>
+    public string? SideConsentTokenHash(ChangeRequestSide side) =>
+        side == ChangeRequestSide.SideA ? SideAConsentTokenHash : SideBConsentTokenHash;
+
+    /// <summary>
+    /// Finalize gate: every side whose consent was required (status != NotRequired) must be
+    /// Approved. Both NotRequired (gating off / no reps) also passes -- nothing to consent.
+    /// </summary>
+    public bool AreAllRequiredSidesGranted() =>
+        IsSideSatisfied(ChangeRequestSide.SideA) && IsSideSatisfied(ChangeRequestSide.SideB);
+
+    private bool IsSideSatisfied(ChangeRequestSide side)
+    {
+        var status = SideConsentStatus(side);
+        return status is ChangeRequestConsentStatus.NotRequired or ChangeRequestConsentStatus.Approved;
+    }
+
+    private void EnsureSideStatus(ChangeRequestSide side, ChangeRequestConsentStatus expected)
+    {
+        if (SideConsentStatus(side) != expected)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestConsentAlreadyResponded);
+        }
+    }
+
+    private void SetSideStatus(ChangeRequestSide side, ChangeRequestConsentStatus value)
+    {
+        if (side == ChangeRequestSide.SideA) { SideAConsentStatus = value; } else { SideBConsentStatus = value; }
+    }
+
+    private void SetSideTokenHash(ChangeRequestSide side, string value)
+    {
+        if (side == ChangeRequestSide.SideA) { SideAConsentTokenHash = value; } else { SideBConsentTokenHash = value; }
+    }
+
+    private void SetSideExpiresAt(ChangeRequestSide side, DateTime value)
+    {
+        if (side == ChangeRequestSide.SideA) { SideAConsentExpiresAt = value; } else { SideBConsentExpiresAt = value; }
+    }
+
+    private void SetSideRespondedAt(ChangeRequestSide side, DateTime value)
+    {
+        if (side == ChangeRequestSide.SideA) { SideAConsentRespondedAt = value; } else { SideBConsentRespondedAt = value; }
+    }
+
+    private void SetSideRespondedByEmail(ChangeRequestSide side, string? value)
+    {
+        if (side == ChangeRequestSide.SideA) { SideAConsentRespondedByEmail = value; } else { SideBConsentRespondedByEmail = value; }
+    }
 }

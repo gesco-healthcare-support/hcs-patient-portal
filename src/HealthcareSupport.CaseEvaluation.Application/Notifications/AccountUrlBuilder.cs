@@ -48,10 +48,22 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
     public async Task<string> BuildPasswordResetUrlAsync(Guid tenantId, Guid userId, string token)
     {
         var baseUrl = await ResolveAuthServerBaseUrlInternalAsync(tenantId);
-        return AppendPath(baseUrl, "/Account/ResetPassword",
+        return ComposeResetUrl(baseUrl, userId, token);
+    }
+
+    public async Task<string> BuildHostPasswordResetUrlAsync(Guid userId, string token)
+    {
+        // Host-scoped reset (internal operators -- Phase D host logins): compose
+        // against the host AuthServer root (null tenant -> bare-localhost, no
+        // subdomain prefix). Same reset path as the tenant-scoped overload.
+        var baseUrl = await BuildAuthServerRootUrlAsync(null);
+        return ComposeResetUrl(baseUrl, userId, token);
+    }
+
+    private static string ComposeResetUrl(string baseUrl, Guid userId, string token) =>
+        AppendPath(baseUrl, "/Account/ResetPassword",
             ("userId", userId.ToString()),
             ("resetToken", WebUtility.UrlEncode(token)));
-    }
 
     public async Task<string> BuildInviteUrlAsync(Guid tenantId, string rawToken)
     {

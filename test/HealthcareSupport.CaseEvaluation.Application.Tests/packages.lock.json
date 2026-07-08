@@ -37,9 +37,9 @@
       },
       "Scriban": {
         "type": "Direct",
-        "requested": "[7.2.0, )",
-        "resolved": "7.2.0",
-        "contentHash": "GiAuu6bCPVWJeMMK8AkJMCNX+wyqt2qgiKjVAPLvRWxzBwpDJjLhJltVP034tsZUHOkBtdfA/Otrny+n3NelBw=="
+        "requested": "[7.2.5, )",
+        "resolved": "7.2.5",
+        "contentHash": "6HDyv0P6PVdx/prWM3Aw0QHAT/DCpkBxOovZ2iPIH4L4ZvJ13JNYJgyUI+xJ5K2agXreYTBe23AL5ZQNTqJQvA=="
       },
       "System.Security.Cryptography.Xml": {
         "type": "Direct",
@@ -3625,7 +3625,7 @@
           "MessagePack": "[3.1.7, )",
           "MiniExcel": "[1.41.4, )",
           "QuestPDF": "[2026.2.4, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Account.Pro.Admin.Application": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application": "[10.0.2, )",
@@ -3648,7 +3648,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Account.Pro.Admin.Application.Contracts": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.Application.Contracts": "[10.0.2, )",
@@ -3673,7 +3673,7 @@
           "MessagePack": "[3.1.7, )",
           "MimeKit": "[4.16.0, )",
           "QuestPDF": "[2026.2.4, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "Stateless": "[5.20.1, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
@@ -3702,7 +3702,7 @@
         "dependencies": {
           "MessagePack": "[3.1.7, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",
@@ -3728,7 +3728,7 @@
           "HealthcareSupport.CaseEvaluation.TestBase": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )"
         }
       },
@@ -3738,7 +3738,7 @@
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.0, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.AuditLogging.EntityFrameworkCore": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.EntityFrameworkCore": "[10.0.2, )",
@@ -3761,7 +3761,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "MessagePack": "[3.1.7, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Account.Pro.Admin.HttpApi": "[10.0.2, )",
           "Volo.Abp.Account.Pro.Public.HttpApi": "[10.0.2, )",
@@ -3798,7 +3798,7 @@
           "Microsoft.AspNetCore.Authentication.Twitter": "[10.0.0, )",
           "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": "[10.0.0, )",
           "Microsoft.EntityFrameworkCore.InMemory": "[10.0.0, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "Serilog.AspNetCore": "[9.0.0, )",
           "Serilog.Sinks.Async": "[2.1.0, )",
           "Volo.Abp.AspNetCore.Authentication.JwtBearer": "[10.0.2, )",
@@ -3822,7 +3822,7 @@
           "MessagePack": "[3.1.7, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "NSubstitute": "[5.3.0, )",
-          "Scriban": "[7.2.0, )",
+          "Scriban": "[7.2.5, )",
           "Shouldly": "[4.3.0, )",
           "System.Security.Cryptography.Xml": "[10.0.6, )",
           "Volo.Abp.Authorization": "[10.0.2, )",

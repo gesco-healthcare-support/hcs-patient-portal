@@ -47,6 +47,8 @@
 // Prompt 16 Part B (2026-06-16): Language management (lg-*) + File management (fm-*).
 @use 'styles/in-lang';
 @use 'styles/in-files';
+// 2026-06-26: host-operator pages (intake assignments, office branding) + intake switcher.
+@use 'styles/in-hostpages';
 
 /* F4-01 (2026-05-25): the prior .app-ssn-redacted class applied
  * -webkit-text-security to every SSN input. Removed because (a) it

@@ -2,17 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
-using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
-using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
-using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
-using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
-using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
-using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
-using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
-using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
-using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
@@ -43,10 +33,12 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 /// <c>api/app/appointment-change-request-approvals</c>); only class
 /// layout differs. Sync 4 cleanup PR can converge if desired.</para>
 ///
-/// <para>Reschedule cascade-copy reuses Session A's Phase 11j
-/// <see cref="AppointmentRescheduleCloner"/> for both the scalar
-/// clone and every child-entity helper. The orchestration
-/// (read source children, clone, persist) lives here.</para>
+/// <para>B2 (2026-07-01) reschedule redesign: approve moves the SAME
+/// appointment to the new slot IN PLACE (see
+/// <see cref="RescheduleInPlacePolicy"/>), keeping its confirmation
+/// number, child entities and audit trail, instead of cloning a new
+/// row. No child-entity cascade-copy is needed; the capacity model
+/// tracks the move via the appointment's <c>DoctorAvailabilityId</c>.</para>
 /// </summary>
 [RemoteService(IsEnabled = false)]
 [Authorize]
@@ -57,19 +49,6 @@ public class AppointmentChangeRequestsApprovalAppService :
     private readonly IAppointmentChangeRequestRepository _changeRequestRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
-    private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryDetailRepository;
-    private readonly IRepository<AppointmentBodyPart, Guid> _bodyPartRepository;
-    private readonly IRepository<AppointmentClaimExaminer, Guid> _claimExaminerRepository;
-    private readonly IRepository<AppointmentPrimaryInsurance, Guid> _primaryInsuranceRepository;
-    private readonly IRepository<AppointmentEmployerDetail, Guid> _employerDetailRepository;
-    private readonly IRepository<AppointmentApplicantAttorney, Guid> _applicantAttorneyLinkRepository;
-    private readonly IRepository<AppointmentDefenseAttorney, Guid> _defenseAttorneyLinkRepository;
-    private readonly IRepository<AppointmentAccessor, Guid> _accessorRepository;
-    // C6 (2026-05-04) -- Phase 17 cascade-clone gap fill. OLD also clones
-    // CustomFieldsValues (line 435-450) and AppointmentNewDocument
-    // (line 523-549) on reschedule approval.
-    private readonly IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
-    private readonly IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentChangeRequestsApprovalAppService> _logger;
 
@@ -77,32 +56,12 @@ public class AppointmentChangeRequestsApprovalAppService :
         IAppointmentChangeRequestRepository changeRequestRepository,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
-        IRepository<AppointmentInjuryDetail, Guid> injuryDetailRepository,
-        IRepository<AppointmentBodyPart, Guid> bodyPartRepository,
-        IRepository<AppointmentClaimExaminer, Guid> claimExaminerRepository,
-        IRepository<AppointmentPrimaryInsurance, Guid> primaryInsuranceRepository,
-        IRepository<AppointmentEmployerDetail, Guid> employerDetailRepository,
-        IRepository<AppointmentApplicantAttorney, Guid> applicantAttorneyLinkRepository,
-        IRepository<AppointmentDefenseAttorney, Guid> defenseAttorneyLinkRepository,
-        IRepository<AppointmentAccessor, Guid> accessorRepository,
-        IRepository<CustomFieldValue, Guid> customFieldValueRepository,
-        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
         ILocalEventBus localEventBus,
         ILogger<AppointmentChangeRequestsApprovalAppService> logger)
     {
         _changeRequestRepository = changeRequestRepository;
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
-        _injuryDetailRepository = injuryDetailRepository;
-        _bodyPartRepository = bodyPartRepository;
-        _claimExaminerRepository = claimExaminerRepository;
-        _primaryInsuranceRepository = primaryInsuranceRepository;
-        _employerDetailRepository = employerDetailRepository;
-        _applicantAttorneyLinkRepository = applicantAttorneyLinkRepository;
-        _defenseAttorneyLinkRepository = defenseAttorneyLinkRepository;
-        _accessorRepository = accessorRepository;
-        _customFieldValueRepository = customFieldValueRepository;
-        _appointmentDocumentRepository = appointmentDocumentRepository;
         _localEventBus = localEventBus;
         _logger = logger;
     }
@@ -256,46 +215,44 @@ public class AppointmentChangeRequestsApprovalAppService :
         var sourceAppointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
         var newSlot = await _doctorAvailabilityRepository.GetAsync(newSlotId);
 
-        // Build the new appointment via Session A's scalar-clone helper.
-        // F4 fix (2026-06-07): a reschedule creates a NEW Appointment row, so it
-        // must carry a FRESH RequestConfirmationNumber. Reusing the source's
-        // number (sameConfirmationNumber: true) violated the unique index
-        // IX_AppEntity_Appointments_TenantId_RequestConfirmationNumber and 500'd
-        // the approval. Generate-and-insert is wrapped in the same
-        // ConfirmationNumberRetryPolicy the booking flow uses, so if a concurrent
-        // booking grabs the same number the insert just retries with the next one.
-        var newAppointmentId = GuidGenerator.Create();
-        var newAppointment = await ConfirmationNumberRetryPolicy.RunWithRetryAsync(async () =>
-        {
-            var freshConfirmationNumber = await GenerateNextRequestConfirmationNumberAsync();
-            var clone = AppointmentRescheduleCloner.BuildScalarClone(
-                source: sourceAppointment,
-                newAppointmentId: newAppointmentId,
-                newTenantId: sourceAppointment.TenantId,
-                newDoctorAvailabilityId: newSlotId,
-                // F-017 fix (2026-06-23): AvailableDate is date-only (midnight); the slot's
-                // start time lives in TimeOnly FromTime. Combine them so the rescheduled
-                // appointment carries the picked time (was showing 12:00 AM everywhere).
-                newAppointmentDate: newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan(),
-                sameConfirmationNumber: false,
-                overrideConfirmationNumber: freshConfirmationNumber,
-                approveDate: DateTime.UtcNow,
-                isBeyondLimit: changeRequest.IsBeyondLimit);
-
-            await _appointmentRepository.InsertAsync(clone, autoSave: true);
-            return clone;
-        });
-
-        // Cascade-clone every child entity. Done in dependency order:
-        // injury details first (parents of body-parts / claim-examiners
-        // / primary-insurances), then siblings.
-        await CloneChildEntitiesAsync(sourceAppointment.Id, newAppointment.Id, newAppointment.TenantId);
-
-        // Stamp the source appointment as Rescheduled* + record reschedule actor.
-        var fromSourceStatus = sourceAppointment.AppointmentStatus;
-        sourceAppointment.AppointmentStatus = input.RescheduleOutcome;
+        // B2 (2026-07-01) reschedule redesign -- move the SAME appointment to the
+        // resolved slot instead of cloning a new row. The confirmation number,
+        // party links, injuries, documents and audit trail all stay on the one
+        // appointment; the capacity model reflects the move automatically once
+        // DoctorAvailabilityId changes (active-count is evaluated per slot). The
+        // RescheduledNoBill / RescheduledLate outcome is recorded on the
+        // change-request row below, NOT on the appointment status.
+        var fromStatus = sourceAppointment.AppointmentStatus;
+        sourceAppointment.DoctorAvailabilityId = newSlotId;
+        // F-017 (2026-06-23): AvailableDate is date-only (midnight); the slot's
+        // start time lives in TimeOnly FromTime. Combine them so the moved
+        // appointment carries the picked time (was showing 12:00 AM everywhere).
+        sourceAppointment.AppointmentDate = newSlot.AvailableDate.Date + newSlot.FromTime.ToTimeSpan();
         sourceAppointment.ReScheduledById = CurrentUser.Id;
+        // Approved source returns from RescheduleRequested to Approved; a Pending
+        // source stays Pending (see RescheduleInPlacePolicy).
+        sourceAppointment.AppointmentStatus =
+            RescheduleInPlacePolicy.ResolveFinalizedStatus(sourceAppointment.AppointmentStatus);
         await _appointmentRepository.UpdateAsync(sourceAppointment, autoSave: true);
+
+        // Release the transient Reserved hold the submit placed on the user-picked
+        // slot (Phase 16 submit sets it Reserved). Idempotent and guarded -- release
+        // ONLY that slot and ONLY if it is still Reserved, so a slot a doctor's-admin
+        // genuinely closed is never reopened. Also covers the admin-override case:
+        // the user-picked (held) slot is freed while the appointment lands on the
+        // override slot. Mirrors the reject path's release. Under the capacity model
+        // Booked == Available, so releasing the hold lets the slot rejoin the
+        // bookable pool with this appointment now counted against its capacity.
+        if (changeRequest.NewDoctorAvailabilityId.HasValue)
+        {
+            var heldSlot = await _doctorAvailabilityRepository.FindAsync(
+                changeRequest.NewDoctorAvailabilityId.Value);
+            if (heldSlot != null && heldSlot.BookingStatusId == BookingStatus.Reserved)
+            {
+                heldSlot.BookingStatusId = BookingStatus.Available;
+                await _doctorAvailabilityRepository.UpdateAsync(heldSlot, autoSave: true);
+            }
+        }
 
         // Mark change request Accepted; record outcome + override fields + approver.
         changeRequest.RequestStatus = RequestStatusType.Accepted;
@@ -308,43 +265,28 @@ public class AppointmentChangeRequestsApprovalAppService :
         }
         await PersistChangeRequestAsync(changeRequest);
 
-        // Slot transitions:
-        //  - source slot (Booked) -> Available via the Rescheduled* status cascade.
-        //  - new slot (was Reserved by Phase 16 submit OR Available if override) -> Booked
-        //    via initial-create publish on the new appointment.
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: sourceAppointment.Id,
-            tenantId: sourceAppointment.TenantId,
-            fromStatus: fromSourceStatus,
-            toStatus: sourceAppointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: changeRequest.ReScheduleReason,
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
-
-        await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
-            appointmentId: newAppointment.Id,
-            tenantId: newAppointment.TenantId,
-            fromStatus: null,
-            toStatus: newAppointment.AppointmentStatus,
-            actingUserId: CurrentUser.Id,
-            reason: null,
-            occurredAt: DateTime.UtcNow,
-            doctorAvailabilityId: newSlotId));
-
-        // 2026-05-15 (slot rework plan 3) -- ReleaseSlotIfReservedAsync
-        // call removed. Under capacity-aware booking, BookingStatusId =
-        // Reserved means "manually closed by doctor's-admin", not
-        // "held while pending"; an unrelated change-request approval
-        // must NOT flip a manually-closed slot back to Available.
-        // Phase 16's submit no longer puts the user-picked slot into
-        // Reserved (SlotCascadeHandler is a log-only stub).
+        // Notify audit / downstream subscribers of the status change only when it
+        // actually changed (Approved source: RescheduleRequested -> Approved; a
+        // Pending source stays Pending, so there is nothing to publish). The
+        // date/slot move itself is captured by the appointment's own audit trail.
+        if (sourceAppointment.AppointmentStatus != fromStatus)
+        {
+            await _localEventBus.PublishAsync(new AppointmentStatusChangedEto(
+                appointmentId: sourceAppointment.Id,
+                tenantId: sourceAppointment.TenantId,
+                fromStatus: fromStatus,
+                toStatus: sourceAppointment.AppointmentStatus,
+                actingUserId: CurrentUser.Id,
+                reason: changeRequest.ReScheduleReason,
+                occurredAt: DateTime.UtcNow,
+                doctorAvailabilityId: sourceAppointment.DoctorAvailabilityId));
+        }
 
         await _localEventBus.PublishAsync(new NotificationsEvents.AppointmentChangeRequestApprovedEto
         {
-            AppointmentId = newAppointment.Id,
+            AppointmentId = sourceAppointment.Id,
             ChangeRequestId = changeRequest.Id,
-            TenantId = newAppointment.TenantId,
+            TenantId = sourceAppointment.TenantId,
             ChangeRequestType = ChangeRequestType.Reschedule,
             Outcome = input.RescheduleOutcome,
             IsAdminOverride = isAdminOverride,
@@ -353,9 +295,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         });
 
         _logger.LogInformation(
-            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; new appointment {NewAppointmentId} created at slot {SlotId} (override={Override}).",
+            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {AppointmentId} moved in place to slot {SlotId} (override={Override}).",
             changeRequest.Id,
-            newAppointment.Id,
+            sourceAppointment.Id,
             newSlotId,
             isAdminOverride);
 
@@ -525,172 +467,4 @@ public class AppointmentChangeRequestsApprovalAppService :
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
     }
 
-    /// <summary>
-    /// F4 fix (2026-06-07) -- generates the next "A#####" confirmation number
-    /// for a rescheduled appointment clone. Mirrors the canonical booking-flow
-    /// generator in <c>AppointmentsAppService</c>; kept local so the
-    /// change-request service does not depend on the booking service. The
-    /// generate-then-insert race is covered by the shared
-    /// <see cref="ConfirmationNumberRetryPolicy"/> at the call site.
-    /// </summary>
-    private async Task<string> GenerateNextRequestConfirmationNumberAsync()
-    {
-        const string prefix = "A";
-        const int digits = 5;
-        var requiredLength = prefix.Length + digits;
-
-        var query = await _appointmentRepository.GetQueryableAsync();
-        var latestNumber = await AsyncExecuter.FirstOrDefaultAsync(
-            query
-                .Where(x => x.RequestConfirmationNumber != null
-                    && x.RequestConfirmationNumber.StartsWith(prefix)
-                    && x.RequestConfirmationNumber.Length == requiredLength)
-                .OrderByDescending(x => x.RequestConfirmationNumber)
-                .Select(x => x.RequestConfirmationNumber));
-
-        var nextValue = 1;
-        if (!string.IsNullOrWhiteSpace(latestNumber)
-            && int.TryParse(latestNumber.Substring(prefix.Length), out var currentValue))
-        {
-            nextValue = currentValue + 1;
-        }
-
-        var maxValue = (int)Math.Pow(10, digits) - 1;
-        if (nextValue > maxValue)
-        {
-            throw new UserFriendlyException(L["Request confirmation number limit reached."]);
-        }
-
-        return $"{prefix}{nextValue:D5}";
-    }
-
-    /// <summary>
-    /// Cascade-clones every child entity from <paramref name="sourceAppointmentId"/>
-    /// onto <paramref name="newAppointmentId"/>. Reads via repositories,
-    /// reuses Session A's per-child clone helpers in
-    /// <see cref="AppointmentRescheduleCloner"/>, persists via repos.
-    /// Strict-parity intent: the new appointment row is structurally
-    /// identical to the source for purposes of party-fan-out, billing,
-    /// document workflows.
-    /// </summary>
-    private async Task CloneChildEntitiesAsync(Guid sourceAppointmentId, Guid newAppointmentId, Guid? newTenantId)
-    {
-        // Injury details (parents of body parts / claim examiners / primary insurances).
-        var injuryQueryable = await _injuryDetailRepository.GetQueryableAsync();
-        var sourceInjuries = injuryQueryable.Where(i => i.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var sourceInjury in sourceInjuries)
-        {
-            var newInjuryId = GuidGenerator.Create();
-            var clonedInjury = AppointmentRescheduleCloner.CloneInjuryDetailFor(
-                sourceInjury, newInjuryId, newAppointmentId, newTenantId);
-            await _injuryDetailRepository.InsertAsync(clonedInjury, autoSave: true);
-
-            var bodyPartQueryable = await _bodyPartRepository.GetQueryableAsync();
-            var sourceBodyParts = bodyPartQueryable
-                .Where(b => b.AppointmentInjuryDetailId == sourceInjury.Id).ToList();
-            foreach (var bp in sourceBodyParts)
-            {
-                var clonedBp = AppointmentRescheduleCloner.CloneBodyPartFor(
-                    bp, GuidGenerator.Create(), newInjuryId, newTenantId);
-                await _bodyPartRepository.InsertAsync(clonedBp);
-            }
-
-        }
-
-        // CI1 (2026-06-05): Claim Examiner + Primary Insurance are now a single
-        // appointment-level record (one each), so clone them ONCE per
-        // appointment rather than inside the per-injury loop.
-        var claimExaminerQueryable = await _claimExaminerRepository.GetQueryableAsync();
-        var sourceClaimExaminers = claimExaminerQueryable
-            .Where(c => c.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var ce in sourceClaimExaminers)
-        {
-            var clonedCe = AppointmentRescheduleCloner.CloneClaimExaminerFor(
-                ce, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _claimExaminerRepository.InsertAsync(clonedCe);
-        }
-
-        var primaryInsuranceQueryable = await _primaryInsuranceRepository.GetQueryableAsync();
-        var sourcePrimaryInsurances = primaryInsuranceQueryable
-            .Where(p => p.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var pi in sourcePrimaryInsurances)
-        {
-            var clonedPi = AppointmentRescheduleCloner.ClonePrimaryInsuranceFor(
-                pi, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _primaryInsuranceRepository.InsertAsync(clonedPi);
-        }
-
-        // Employer details (1:N with appointment per Phase 1.6).
-        var employerQueryable = await _employerDetailRepository.GetQueryableAsync();
-        var sourceEmployers = employerQueryable.Where(e => e.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var emp in sourceEmployers)
-        {
-            var clonedEmp = AppointmentRescheduleCloner.CloneEmployerDetailFor(
-                emp, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _employerDetailRepository.InsertAsync(clonedEmp);
-        }
-
-        // Applicant attorney link rows.
-        var applicantQueryable = await _applicantAttorneyLinkRepository.GetQueryableAsync();
-        var sourceApplicantLinks = applicantQueryable.Where(a => a.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var aa in sourceApplicantLinks)
-        {
-            var clonedAa = AppointmentRescheduleCloner.CloneApplicantAttorneyFor(
-                aa, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _applicantAttorneyLinkRepository.InsertAsync(clonedAa);
-        }
-
-        // Defense attorney link rows.
-        var defenseQueryable = await _defenseAttorneyLinkRepository.GetQueryableAsync();
-        var sourceDefenseLinks = defenseQueryable.Where(d => d.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var da in sourceDefenseLinks)
-        {
-            var clonedDa = AppointmentRescheduleCloner.CloneDefenseAttorneyFor(
-                da, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _defenseAttorneyLinkRepository.InsertAsync(clonedDa);
-        }
-
-        // Accessor grants.
-        var accessorQueryable = await _accessorRepository.GetQueryableAsync();
-        var sourceAccessors = accessorQueryable.Where(a => a.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var ac in sourceAccessors)
-        {
-            var clonedAc = AppointmentRescheduleCloner.CloneAccessorFor(
-                ac, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _accessorRepository.InsertAsync(clonedAc);
-        }
-
-        // C6 (2026-05-04) -- CustomFieldValues. Mirrors OLD
-        // AppointmentChangeRequestDomain.cs:435-450: every CustomFieldsValues
-        // row pointing at the source appointment is duplicated to the new
-        // appointment with the same CustomFieldId + Value so the IT-Admin-
-        // defined intake answers carry forward verbatim.
-        var customFieldValueQueryable = await _customFieldValueRepository.GetQueryableAsync();
-        var sourceCustomFieldValues = customFieldValueQueryable
-            .Where(cfv => cfv.AppointmentId == sourceAppointmentId).ToList();
-        foreach (var cfv in sourceCustomFieldValues)
-        {
-            var clonedCfv = AppointmentRescheduleCloner.CloneCustomFieldValueFor(
-                cfv, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _customFieldValueRepository.InsertAsync(clonedCfv);
-        }
-
-        // C6 (2026-05-04) -- ad-hoc AppointmentDocument rows. Mirrors OLD
-        // AppointmentChangeRequestDomain.cs:523-549 (AppointmentNewDocument).
-        // OLD did not clone its package-document or joint-declaration tables
-        // -- only the ad-hoc patient uploads. NEW unified all three into
-        // AppointmentDocument; we filter to IsAdHoc=true to match OLD
-        // semantics. The blob storage pointer (BlobName) is reused so the
-        // file is shared between source + new rows -- saves storage and
-        // matches the content-addressed model.
-        var documentQueryable = await _appointmentDocumentRepository.GetQueryableAsync();
-        var sourceAdHocDocuments = documentQueryable
-            .Where(d => d.AppointmentId == sourceAppointmentId && d.IsAdHoc).ToList();
-        foreach (var doc in sourceAdHocDocuments)
-        {
-            var clonedDoc = AppointmentRescheduleCloner.CloneAdHocDocumentFor(
-                doc, GuidGenerator.Create(), newAppointmentId, newTenantId);
-            await _appointmentDocumentRepository.InsertAsync(clonedDoc);
-        }
-    }
 }

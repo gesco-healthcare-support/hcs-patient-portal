@@ -69,6 +69,28 @@ public class ChangeRequestSideResolver : ITransientDependency
             recipients);
     }
 
+    /// <summary>
+    /// Resolves BOTH sides' single actionable representatives for a staff-initiated change
+    /// (2026-07-01): Side A = Applicant Attorney (else Patient); Side B = Defense Attorney
+    /// (else Claim Examiner). Either email may be null when that side has no representative
+    /// on the appointment -- the caller then leaves that side NotRequired (auto-satisfied).
+    /// </summary>
+    public virtual async Task<ChangeRequestBothSidesResolution> ResolveBothSidesAsync(Guid appointmentId)
+    {
+        var recipients = (await _recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted))
+            .Where(r => !string.IsNullOrWhiteSpace(r.To))
+            .ToList();
+
+        var sideA = recipients.FirstOrDefault(r => r.Role == RecipientRole.ApplicantAttorney)
+                    ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.Patient);
+        var sideB = recipients.FirstOrDefault(r => r.Role == RecipientRole.DefenseAttorney)
+                    ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.ClaimExaminer);
+
+        return new ChangeRequestBothSidesResolution(
+            sideA?.To, sideA?.Role,
+            sideB?.To, sideB?.Role);
+    }
+
     private static ChangeRequestSide? ClassifySide(RecipientRole? role) => role switch
     {
         RecipientRole.Patient => ChangeRequestSide.SideA,
@@ -122,3 +144,13 @@ public sealed record ChangeRequestSideResolution(
     string OpposingRepEmail,
     RecipientRole OpposingRepRole,
     IReadOnlyList<SendAppointmentEmailArgs> AllParties);
+
+/// <summary>
+/// Both sides' representatives for a staff-initiated change (2026-07-01). Either email/role
+/// may be null when that side has no representative on the appointment.
+/// </summary>
+public sealed record ChangeRequestBothSidesResolution(
+    string? SideARepEmail,
+    RecipientRole? SideARepRole,
+    string? SideBRepEmail,
+    RecipientRole? SideBRepRole);

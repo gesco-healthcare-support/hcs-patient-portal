@@ -24,8 +24,9 @@ public class StateDataSeedContributor : IDataSeedContributor, ITransientDependen
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        // Host-only: skip the per-tenant pass.
-        if (context?.TenantId != null)
+        // Per-office (db-per-office): seed the 50 states into the active office DB;
+        // skip host scope. Per-office seed execution + ordering is Phase B (B4).
+        if (context?.TenantId == null)
         {
             return;
         }

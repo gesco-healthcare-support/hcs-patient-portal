@@ -34,6 +34,9 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.HostOperators;
+using HealthcareSupport.CaseEvaluation.Branding;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
@@ -84,6 +87,12 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentType> AppointmentTypes { get; set; } = null!;
     public DbSet<State> States { get; set; } = null!;
     public DbSet<AppointmentDraft> AppointmentDrafts { get; set; } = null!;
+    // QA item 7: in-app notifications (IMultiTenant; mirrored here per the dual-DbContext convention).
+    public DbSet<AppNotification> AppNotifications { get; set; } = null!;
+    // Phase D (2026-06-25): host/management mapping of Intake operators to offices.
+    public DbSet<IntakeOfficeAssignment> IntakeOfficeAssignments { get; set; } = null!;
+    // Phase E (2026-06-25): host/management per-office branding (name + logo).
+    public DbSet<OfficeBranding> OfficeBrandings { get; set; } = null!;
 
     public CaseEvaluationDbContext(DbContextOptions<CaseEvaluationDbContext> options) : base(options)
     {
@@ -94,57 +103,60 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
         builder.SetMultiTenancySide(MultiTenancySides.Both);
         base.OnModelCreating(builder);
 
-        if (builder.IsHostDatabase())
+        // Office-owned catalog (db-per-office): Location is IMultiTenant, so it
+        // lives in BOTH the host and tenant DBs -- NOT wrapped in IsHostDatabase
+        // (matching the AppointmentDocumentType precedent). Clinic locations are
+        // specific to each office; no seeded defaults.
+        builder.Entity<Location>(b =>
         {
-            builder.Entity<Location>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Locations", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(Location.Name)).IsRequired().HasMaxLength(LocationConsts.NameMaxLength);
-                b.Property(x => x.Address).HasColumnName(nameof(Location.Address)).HasMaxLength(LocationConsts.AddressMaxLength);
-                b.Property(x => x.City).HasColumnName(nameof(Location.City)).HasMaxLength(LocationConsts.CityMaxLength);
-                b.Property(x => x.ZipCode).HasColumnName(nameof(Location.ZipCode)).HasMaxLength(LocationConsts.ZipCodeMaxLength);
-                b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee)).HasPrecision(18, 2);
-                b.Property(x => x.IsActive).HasColumnName(nameof(Location.IsActive));
-                b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
-            });
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Locations", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(Location.Name)).IsRequired().HasMaxLength(LocationConsts.NameMaxLength);
+            b.Property(x => x.Address).HasColumnName(nameof(Location.Address)).HasMaxLength(LocationConsts.AddressMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(Location.City)).HasMaxLength(LocationConsts.CityMaxLength);
+            b.Property(x => x.ZipCode).HasColumnName(nameof(Location.ZipCode)).HasMaxLength(LocationConsts.ZipCodeMaxLength);
+            b.Property(x => x.ParkingFee).HasColumnName(nameof(Location.ParkingFee)).HasPrecision(18, 2);
+            b.Property(x => x.IsActive).HasColumnName(nameof(Location.IsActive));
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
 
-            // I3 (2026-06-08): Location <-> AppointmentType M2M (replaces the single
-            // AppointmentTypeId FK). Host-only (Location is not IMultiTenant), so no
-            // TenantId column -- otherwise mirrors DoctorAvailabilityAppointmentType.
-            builder.Entity<LocationAppointmentType>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "LocationAppointmentType", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.HasKey(x => new { x.LocationId, x.AppointmentTypeId });
-                b.HasOne<Location>()
-                    .WithMany(x => x.AppointmentTypes)
-                    .HasForeignKey(x => x.LocationId)
-                    .IsRequired()
-                    .OnDelete(DeleteBehavior.Cascade);
-                b.HasOne(x => x.AppointmentType)
-                    .WithMany()
-                    .HasForeignKey(x => x.AppointmentTypeId)
-                    .IsRequired()
-                    .OnDelete(DeleteBehavior.NoAction);
-            });
-        }
-
-        if (builder.IsHostDatabase())
+        // I3 (2026-06-08): Location <-> AppointmentType M2M (replaces the single
+        // AppointmentTypeId FK). The join itself is not IMultiTenant; its rows
+        // follow the parent Location's tenant via the required navigation.
+        builder.Entity<LocationAppointmentType>(b =>
         {
-            builder.Entity<WcabOffice>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "WcabOffices", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(WcabOffice.Name)).IsRequired().HasMaxLength(WcabOfficeConsts.NameMaxLength);
-                b.Property(x => x.Abbreviation).HasColumnName(nameof(WcabOffice.Abbreviation)).IsRequired().HasMaxLength(WcabOfficeConsts.AbbreviationMaxLength);
-                b.Property(x => x.Address).HasColumnName(nameof(WcabOffice.Address)).HasMaxLength(WcabOfficeConsts.AddressMaxLength);
-                b.Property(x => x.City).HasColumnName(nameof(WcabOffice.City)).HasMaxLength(WcabOfficeConsts.CityMaxLength);
-                b.Property(x => x.ZipCode).HasColumnName(nameof(WcabOffice.ZipCode)).HasMaxLength(WcabOfficeConsts.ZipCodeMaxLength);
-                b.Property(x => x.IsActive).HasColumnName(nameof(WcabOffice.IsActive));
-                b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "LocationAppointmentType", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.HasKey(x => new { x.LocationId, x.AppointmentTypeId });
+            b.HasOne<Location>()
+                .WithMany(x => x.AppointmentTypes)
+                .HasForeignKey(x => x.LocationId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.AppointmentType)
+                .WithMany()
+                .HasForeignKey(x => x.AppointmentTypeId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Office-owned catalog (db-per-office): WcabOffice is IMultiTenant, so it
+        // lives in BOTH DBs -- NOT wrapped in IsHostDatabase. Seeded with base
+        // defaults per office; the office may add/edit/disable entries.
+        builder.Entity<WcabOffice>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "WcabOffices", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(WcabOffice.Name)).IsRequired().HasMaxLength(WcabOfficeConsts.NameMaxLength);
+            b.Property(x => x.Abbreviation).HasColumnName(nameof(WcabOffice.Abbreviation)).IsRequired().HasMaxLength(WcabOfficeConsts.AbbreviationMaxLength);
+            b.Property(x => x.Address).HasColumnName(nameof(WcabOffice.Address)).HasMaxLength(WcabOfficeConsts.AddressMaxLength);
+            b.Property(x => x.City).HasColumnName(nameof(WcabOffice.City)).HasMaxLength(WcabOfficeConsts.CityMaxLength);
+            b.Property(x => x.ZipCode).HasColumnName(nameof(WcabOffice.ZipCode)).HasMaxLength(WcabOfficeConsts.ZipCodeMaxLength);
+            b.Property(x => x.IsActive).HasColumnName(nameof(WcabOffice.IsActive));
+            b.HasOne<State>().WithMany().HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.SetNull);
+        });
 
         if (builder.IsHostDatabase())
         {
@@ -194,15 +206,16 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             });
         }
 
-        if (builder.IsHostDatabase())
+        // Reference list (db-per-office): AppointmentStatus is IMultiTenant, so it
+        // lives in BOTH DBs -- NOT wrapped in IsHostDatabase. Seeded identically
+        // per office; not office-editable.
+        builder.Entity<AppointmentStatus>(b =>
         {
-            builder.Entity<AppointmentStatus>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentStatuses", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentStatus.Name)).IsRequired().HasMaxLength(AppointmentStatusConsts.NameMaxLength);
+        });
 
         // G-03-01: tenant-scoped document-category master. IMultiTenant, so it
         // lives in BOTH the host and tenant DBs -- NOT wrapped in IsHostDatabase.
@@ -237,6 +250,24 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasIndex(x => x.LastSavedTime);
         });
 
+        // QA item 7: per-office in-app notifications (verbatim mirror of the tenant
+        // context block per the dual-DbContext convention). IMultiTenant; the
+        // (TenantId, RecipientUserId, IsRead) index backs the unread-count + my-list.
+        builder.Entity<AppNotification>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppNotifications", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.RecipientUserId).HasColumnName(nameof(AppNotification.RecipientUserId)).IsRequired();
+            b.Property(x => x.NotificationType).HasColumnName(nameof(AppNotification.NotificationType)).IsRequired();
+            b.Property(x => x.Title).HasColumnName(nameof(AppNotification.Title)).IsRequired().HasMaxLength(AppNotificationConsts.TitleMaxLength);
+            b.Property(x => x.Body).HasColumnName(nameof(AppNotification.Body)).IsRequired().HasMaxLength(AppNotificationConsts.BodyMaxLength);
+            b.Property(x => x.Url).HasColumnName(nameof(AppNotification.Url)).HasMaxLength(AppNotificationConsts.UrlMaxLength);
+            b.Property(x => x.IsRead).HasColumnName(nameof(AppNotification.IsRead));
+            b.Property(x => x.ReadTime).HasColumnName(nameof(AppNotification.ReadTime));
+            b.HasIndex(x => new { x.TenantId, x.RecipientUserId, x.IsRead });
+        });
+
         // #4 (2026-06-19): document-category <-> appointment-type M2M. Like the
         // parent it lives in BOTH DBs; AppointmentTypeId is a loose Guid (no FK)
         // because AppointmentType is host-only. The soft-delete filter mirrors
@@ -256,28 +287,30 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasQueryFilter(x => !x.AppointmentDocumentType.IsDeleted);
         });
 
-        if (builder.IsHostDatabase())
+        // Office-owned catalog (db-per-office): AppointmentType is IMultiTenant, so
+        // it lives in BOTH DBs -- NOT wrapped in IsHostDatabase. Seeded with the
+        // AME/IME/PQME defaults per office; the office may add or disable types.
+        builder.Entity<AppointmentType>(b =>
         {
-            builder.Entity<AppointmentType>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypes", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(AppointmentType.Name)).IsRequired().HasMaxLength(AppointmentTypeConsts.NameMaxLength);
-                b.Property(x => x.Description).HasColumnName(nameof(AppointmentType.Description)).HasMaxLength(AppointmentTypeConsts.DescriptionMaxLength);
-                b.Property(x => x.EvaluationType).HasColumnName(nameof(AppointmentType.EvaluationType));
-                b.Property(x => x.MaxTimeCategory).HasColumnName(nameof(AppointmentType.MaxTimeCategory));
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentType.Name)).IsRequired().HasMaxLength(AppointmentTypeConsts.NameMaxLength);
+            b.Property(x => x.Description).HasColumnName(nameof(AppointmentType.Description)).HasMaxLength(AppointmentTypeConsts.DescriptionMaxLength);
+            b.Property(x => x.EvaluationType).HasColumnName(nameof(AppointmentType.EvaluationType));
+            b.Property(x => x.MaxTimeCategory).HasColumnName(nameof(AppointmentType.MaxTimeCategory));
+        });
 
-        if (builder.IsHostDatabase())
+        // Reference list (db-per-office): AppointmentLanguage is IMultiTenant, so it
+        // lives in BOTH DBs -- NOT wrapped in IsHostDatabase. Seeded identically
+        // per office; not office-editable.
+        builder.Entity<AppointmentLanguage>(b =>
         {
-            builder.Entity<AppointmentLanguage>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentLanguages", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(AppointmentLanguage.Name)).IsRequired().HasMaxLength(AppointmentLanguageConsts.NameMaxLength);
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentLanguages", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(AppointmentLanguage.Name)).IsRequired().HasMaxLength(AppointmentLanguageConsts.NameMaxLength);
+        });
 
         builder.Entity<DoctorAvailability>(b =>
         {
@@ -366,6 +399,41 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                 // IP6 (2026-06-05): optional -- a record-only patient has no login until claimed.
                 b.HasOne<IdentityUser>().WithMany().IsRequired(false).HasForeignKey(x => x.IdentityUserId).OnDelete(DeleteBehavior.NoAction);
                 b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // Phase D (2026-06-25): host/management table linking a host Intake
+            // operator to the offices they may enter. Host-only (inside this
+            // IsHostDatabase block) -- it must never live in an office DB. No FK
+            // navigation: the app service validates the operator + office exist
+            // before inserting; the (OperatorUserId, OfficeId) unique index backs
+            // idempotent assign / unassign.
+            builder.Entity<IntakeOfficeAssignment>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "IntakeOfficeAssignments", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.OperatorUserId).HasColumnName(nameof(IntakeOfficeAssignment.OperatorUserId)).IsRequired();
+                b.Property(x => x.OfficeId).HasColumnName(nameof(IntakeOfficeAssignment.OfficeId)).IsRequired();
+                b.HasIndex(x => new { x.OperatorUserId, x.OfficeId })
+                    .IsUnique()
+                    .HasDatabaseName("IX_AppEntity_IntakeOfficeAssignments_Operator_Office");
+            });
+
+            // Phase E (2026-06-25): host/management per-office branding (name +
+            // logo). Host-only (inside this IsHostDatabase block) so the login
+            // page + the host-side central manager resolve an office's brand
+            // without an office-DB hop. One row per office; the unique index on
+            // OfficeId backs upsert-by-office.
+            builder.Entity<OfficeBranding>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "OfficeBrandings", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.OfficeId).HasColumnName(nameof(OfficeBranding.OfficeId)).IsRequired();
+                b.Property(x => x.DisplayName).HasColumnName(nameof(OfficeBranding.DisplayName)).HasMaxLength(OfficeBranding.DisplayNameMaxLength);
+                b.Property(x => x.LogoBlobName).HasColumnName(nameof(OfficeBranding.LogoBlobName)).HasMaxLength(OfficeBranding.LogoBlobNameMaxLength);
+                b.Property(x => x.LogoContentType).HasColumnName(nameof(OfficeBranding.LogoContentType)).HasMaxLength(OfficeBranding.LogoContentTypeMaxLength);
+                b.HasIndex(x => x.OfficeId)
+                    .IsUnique()
+                    .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
             });
         }
 
@@ -563,15 +631,21 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.Property(x => x.AdminOverrideSlotId).HasColumnName(nameof(AppointmentChangeRequest.AdminOverrideSlotId));
             b.Property(x => x.IsBeyondLimit).HasColumnName(nameof(AppointmentChangeRequest.IsBeyondLimit));
             b.Property(x => x.CancellationOutcome).HasColumnName(nameof(AppointmentChangeRequest.CancellationOutcome));
-            // Group D (2026-06-09): opposing-side consent columns.
+            // Consent (2026-07-01 redesign): two symmetric side-consent slots.
             b.Property(x => x.RequestingSide).HasColumnName(nameof(AppointmentChangeRequest.RequestingSide));
             b.Property(x => x.SubmittedByUserId).HasColumnName(nameof(AppointmentChangeRequest.SubmittedByUserId));
-            b.Property(x => x.ConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.ConsentStatus));
-            b.Property(x => x.ConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.ConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
-            b.Property(x => x.ConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentExpiresAt));
-            b.Property(x => x.ConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedAt));
-            b.Property(x => x.ConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.ConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
-            b.HasIndex(x => x.ConsentTokenHash);
+            b.Property(x => x.SideAConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentStatus));
+            b.Property(x => x.SideAConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideAConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentExpiresAt));
+            b.Property(x => x.SideAConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentRespondedAt));
+            b.Property(x => x.SideAConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.SideAConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.Property(x => x.SideBConsentStatus).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentStatus));
+            b.Property(x => x.SideBConsentTokenHash).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentTokenHash)).HasMaxLength(AppointmentChangeRequestConsts.ConsentTokenHashLength);
+            b.Property(x => x.SideBConsentExpiresAt).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentExpiresAt));
+            b.Property(x => x.SideBConsentRespondedAt).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentRespondedAt));
+            b.Property(x => x.SideBConsentRespondedByEmail).HasColumnName(nameof(AppointmentChangeRequest.SideBConsentRespondedByEmail)).HasMaxLength(AppointmentChangeRequestConsts.ConsentRespondedByEmailMaxLength);
+            b.HasIndex(x => x.SideAConsentTokenHash);
+            b.HasIndex(x => x.SideBConsentTokenHash);
             b.HasIndex(x => x.AppointmentId);
             b.HasIndex(x => new { x.AppointmentId, x.RequestStatus });
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
@@ -629,17 +703,17 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<NotificationTemplateType>().WithMany().HasForeignKey(x => x.TemplateTypeId).IsRequired().OnDelete(DeleteBehavior.NoAction);
         });
 
-        // NotificationTemplateType -- host-scoped lookup (Email / SMS).
-        if (builder.IsHostDatabase())
+        // NotificationTemplateType -- per-office reference copy (Email / SMS). IMultiTenant
+        // (B4) so each office database carries its own copy and NotificationTemplate's FK
+        // resolves in-DB; mapped here (not behind IsHostDatabase) like the other catalogs.
+        builder.Entity<NotificationTemplateType>(b =>
         {
-            builder.Entity<NotificationTemplateType>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
-                b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "NotificationTemplateTypes", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(NotificationTemplateType.Name)).IsRequired().HasMaxLength(NotificationTemplateTypeConsts.NameMaxLength);
+            b.Property(x => x.IsActive).HasColumnName(nameof(NotificationTemplateType.IsActive));
+        });
 
         // Per-tenant SystemParameter singleton -- booking / cancel / reschedule / JDF gates.
         builder.Entity<SystemParameter>(b =>
@@ -702,15 +776,17 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
             b.HasOne<AppointmentType>().WithMany().HasForeignKey(x => x.AppointmentTypeId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        if (builder.IsHostDatabase())
+        // Reference list (db-per-office): State is IMultiTenant, so it lives in
+        // BOTH DBs -- NOT wrapped in IsHostDatabase. The 50 US states are seeded
+        // identically into every office DB (a separate DB cannot FK across to a
+        // shared one); not office-editable.
+        builder.Entity<State>(b =>
         {
-            builder.Entity<State>(b =>
-            {
-                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "States", CaseEvaluationConsts.DbSchema);
-                b.ConfigureByConvention();
-                b.Property(x => x.Name).HasColumnName(nameof(State.Name)).IsRequired();
-            });
-        }
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "States", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName("TenantId");
+            b.Property(x => x.Name).HasColumnName(nameof(State.Name)).IsRequired();
+        });
 
         builder.Entity<AppointmentEmployerDetail>(b =>
         {

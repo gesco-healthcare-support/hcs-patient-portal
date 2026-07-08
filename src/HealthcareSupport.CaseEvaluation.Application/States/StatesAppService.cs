@@ -17,8 +17,6 @@ using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
-using Volo.Abp.Data;
-using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.States;
 
@@ -35,11 +33,6 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
     protected IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
     protected IRepository<ClaimExaminer, Guid> _claimExaminerRepository;
 
-    // State is host-scoped; the referencing masters are mostly tenant-scoped.
-    // Disabling the IMultiTenant filter when summing references makes the
-    // UsageCount reflect every tenant. Mirrors StateManager.EnsureNotInUseAsync.
-    private readonly IDataFilter<IMultiTenant> _multiTenantFilter;
-
     public StatesAppService(
         IStateRepository stateRepository,
         StateManager stateManager,
@@ -48,8 +41,7 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
         IRepository<Patient, Guid> patientRepository,
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
-        IRepository<ClaimExaminer, Guid> claimExaminerRepository,
-        IDataFilter<IMultiTenant> multiTenantFilter)
+        IRepository<ClaimExaminer, Guid> claimExaminerRepository)
     {
         _stateRepository = stateRepository;
         _stateManager = stateManager;
@@ -59,7 +51,6 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _claimExaminerRepository = claimExaminerRepository;
-        _multiTenantFilter = multiTenantFilter;
     }
 
     public virtual async Task<PagedResultDto<StateDto>> GetListAsync(GetStatesInput input)
@@ -67,15 +58,14 @@ public class StatesAppService : CaseEvaluationAppService, IStatesAppService
         var totalCount = await _stateRepository.GetCountAsync(input.FilterText, input.Name);
         var items = await _stateRepository.GetListAsync(input.FilterText, input.Name, input.Sorting, input.MaxResultCount, input.SkipCount);
         var dtoItems = ObjectMapper.Map<List<State>, List<StateDto>>(items);
-        // Prompt 15 / item 32: per-row UsageCount = total references across the
-        // entity masters that carry a StateId. Filter disabled so references in
-        // any tenant are counted against the shared host-scoped State.
-        using (_multiTenantFilter.Disable())
+        // Prompt 15 / item 32: per-row UsageCount = total references across the entity
+        // masters that carry a StateId. Database-per-office: States and the referencing
+        // masters are IMultiTenant in the office's own database, so the counts run in
+        // the office's context where the filter already scopes each reference to that
+        // office.
+        foreach (var dto in dtoItems)
         {
-            foreach (var dto in dtoItems)
-            {
-                dto.UsageCount = await CountStateReferencesAsync(dto.Id);
-            }
+            dto.UsageCount = await CountStateReferencesAsync(dto.Id);
         }
         return new PagedResultDto<StateDto>
         {

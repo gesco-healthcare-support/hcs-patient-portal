@@ -16,6 +16,7 @@ export interface SystemParameterDto extends FullAuditedEntityDto<string> {
   reminderCutoffTime?: number;
   isCustomField?: boolean;
   ccEmailIds?: string | null;
+  officeEmail?: string | null;
   concurrencyStamp?: string;
 }
 
@@ -34,5 +35,6 @@ export interface SystemParameterUpdateDto {
   reminderCutoffTime?: number;
   isCustomField?: boolean;
   ccEmailIds?: string | null;
+  officeEmail?: string | null;
   concurrencyStamp?: string;
 }

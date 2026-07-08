@@ -1,5 +1,7 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Enums;
 using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Linq;
@@ -87,9 +89,14 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         // AccessType.Edit. View accessors are rejected.
         await EnsureCanEditAsync(appointmentId);
 
+        // B1 (2026-07-01): internal staff may cancel a not-yet-approved
+        // (Pending) appointment; external users stay Approved-only.
+        var allowPendingSource = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+
         var changeRequest = await _manager.SubmitCancellationAsync(
             appointmentId: appointmentId,
             cancellationReason: input.Reason,
+            allowPendingSource: allowPendingSource,
             actingUserId: CurrentUser.Id);
 
         await IssueConsentAndNotifyAsync(changeRequest);
@@ -143,16 +150,49 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         var isInternalRescheduler = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
         await _bookingPolicyValidator.ValidateAsync(newSlot.AvailableDate, appointment.AppointmentTypeId, isInternalRescheduler);
 
+        // B1 (2026-07-01): the same internal-caller flag admits a Pending
+        // source appointment for the reschedule request; external stays
+        // Approved-only.
         var changeRequest = await _manager.SubmitRescheduleAsync(
             appointmentId: appointmentId,
             newDoctorAvailabilityId: input.NewDoctorAvailabilityId,
             reScheduleReason: input.ReScheduleReason,
             isBeyondLimit: input.IsBeyondLimit,
+            allowPendingSource: isInternalRescheduler,
             actingUserId: CurrentUser.Id);
 
         await IssueConsentAndNotifyAsync(changeRequest);
 
         return ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(changeRequest);
+    }
+
+    /// <summary>
+    /// C2a (2026-07-01): the latest Pending change request for the appointment
+    /// (with per-side consent) or null. Read-gated so any viewer of the
+    /// appointment can drive the consent indicator + request-button hiding.
+    /// </summary>
+    [Authorize]
+    public virtual async Task<AppointmentChangeRequestDto?> GetActiveForAppointmentAsync(Guid appointmentId)
+    {
+        if (appointmentId == Guid.Empty)
+        {
+            return null;
+        }
+
+        // Anyone who can VIEW the appointment may read its consent state; staff
+        // bypass the per-row rule inside the guard.
+        await _readAccessGuard.EnsureCanReadAsync(appointmentId);
+
+        var queryable = await _changeRequestRepository.GetQueryableAsync();
+        var active = await AsyncExecuter.FirstOrDefaultAsync(
+            queryable
+                .Where(cr => cr.AppointmentId == appointmentId
+                    && cr.RequestStatus == RequestStatusType.Pending)
+                .OrderByDescending(cr => cr.CreationTime));
+
+        return active == null
+            ? null
+            : ObjectMapper.Map<AppointmentChangeRequest, AppointmentChangeRequestDto>(active);
     }
 
     private async Task EnsureCanEditAsync(Guid appointmentId)
@@ -169,11 +209,13 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
     }
 
     /// <summary>
-    /// Group D (2026-06-09): issue the opposing-side consent token on the just-submitted
-    /// request and publish <see cref="ChangeRequestConsentRequestedEto"/> so the actionable
-    /// Yes/No email goes to the opposing side's representative. No-op when consent gating is
-    /// off; when the opposing side cannot be resolved (defensive), consent stays NotRequired
-    /// so the Staff Supervisor can finalize directly.
+    /// Issues consent on a just-submitted request (reschedule/cancel consent redesign,
+    /// 2026-07-01). Party-initiated (external submitter maps to a side): auto-grant the
+    /// requestor's side and token the OPPOSING side (one Yes/No email). Staff-initiated
+    /// (internal caller, no side): token BOTH sides that have a representative (one email
+    /// each); a side with no rep is left NotRequired (auto-satisfied). No-op when gating is
+    /// off. If an external submitter's side cannot be resolved (defensive), consent stays
+    /// NotRequired so the Staff Supervisor mediates.
     /// </summary>
     private async Task IssueConsentAndNotifyAsync(AppointmentChangeRequest changeRequest)
     {
@@ -182,24 +224,77 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             return;
         }
 
-        // F-014: pass the submitter's roles so the resolver can place a booker/paralegal
-        // (who is not a named party) on a side and still issue opposing-side consent.
-        var resolution = await _sideResolver.ResolveAsync(
-            changeRequest.AppointmentId, CurrentUser.Email, CurrentUser.Roles);
-        if (resolution == null)
+        var submitterId = CurrentUser.Id ?? Guid.Empty;
+
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            // Party-initiated: the requestor's side is implied (auto-granted); the opposing
+            // side must consent. F-014: the resolver places a booker/paralegal on a side too.
+            var resolution = await _sideResolver.ResolveAsync(
+                changeRequest.AppointmentId, CurrentUser.Email, CurrentUser.Roles);
+            if (resolution == null)
+            {
+                Logger.LogWarning(
+                    "ChangeRequest {ChangeRequestId}: submitter side unresolved; consent skipped (Staff Supervisor mediates).",
+                    changeRequest.Id);
+                return;
+            }
+
+            changeRequest.InitiateConsent(resolution.RequestingSide, submitterId);
+            changeRequest.AutoGrantSide(resolution.RequestingSide, Clock.Now.ToUniversalTime());
+
+            var opposingSide = resolution.RequestingSide == ChangeRequestSide.SideA
+                ? ChangeRequestSide.SideB
+                : ChangeRequestSide.SideA;
+            var rawToken = _consentManager.IssueSideConsent(changeRequest, opposingSide);
+            await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
+
+            await PublishConsentRequestedAsync(
+                changeRequest, resolution.OpposingRepEmail, resolution.OpposingRepRole, rawToken);
+            return;
+        }
+
+        // Staff-initiated: neither side is the requestor, so BOTH sides that have a rep must
+        // consent before a supervisor can finalize. A side with no rep stays NotRequired.
+        changeRequest.InitiateConsent(null, submitterId);
+        var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
+
+        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+        if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
+        {
+            var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideA);
+            toNotify.Add((bothSides.SideARepEmail!, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+        }
+        if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
+        {
+            var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideB);
+            toNotify.Add((bothSides.SideBRepEmail!, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+        }
+
+        if (toNotify.Count == 0)
         {
             Logger.LogWarning(
-                "ChangeRequest {ChangeRequestId}: opposing side unresolved; consent skipped (Staff Supervisor finalizes directly).",
+                "ChangeRequest {ChangeRequestId}: staff-initiated but neither side has a representative; consent skipped.",
                 changeRequest.Id);
             return;
         }
 
-        var rawToken = _consentManager.IssueConsent(
-            changeRequest, resolution.RequestingSide, CurrentUser.Id ?? Guid.Empty);
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
 
+        foreach (var (email, role, token) in toNotify)
+        {
+            await PublishConsentRequestedAsync(changeRequest, email, role, token);
+        }
+    }
+
+    private async Task PublishConsentRequestedAsync(
+        AppointmentChangeRequest changeRequest,
+        string recipientEmail,
+        RecipientRole recipientRole,
+        string rawToken)
+    {
         var consentUrl = await _accountUrlBuilder.BuildChangeRequestConsentUrlAsync(
-            changeRequest.TenantId.Value, rawToken);
+            changeRequest.TenantId!.Value, rawToken);
 
         await _localEventBus.PublishAsync(new ChangeRequestConsentRequestedEto
         {
@@ -207,8 +302,8 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             ChangeRequestId = changeRequest.Id,
             TenantId = changeRequest.TenantId,
             ChangeRequestType = changeRequest.ChangeRequestType,
-            OpposingRecipientEmail = resolution.OpposingRepEmail,
-            OpposingRecipientRole = resolution.OpposingRepRole,
+            OpposingRecipientEmail = recipientEmail,
+            OpposingRecipientRole = recipientRole,
             ConsentUrl = consentUrl,
             OccurredAt = DateTime.UtcNow,
         });

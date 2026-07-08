@@ -33,6 +33,8 @@ using Volo.Abp.AspNetCore.Security;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonX.Bundling;
 using Volo.Abp.LeptonX.Shared;
 using Volo.Abp.AspNetCore.Mvc.UI.Theme.Shared;
+using Volo.Abp.Ui.LayoutHooks;
+using HealthcareSupport.CaseEvaluation.Pages.Shared.Components.BrandingHead;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Auditing;
 using Volo.Abp.Autofac;
@@ -50,6 +52,7 @@ using Volo.Abp.Account.Public.Web;
 using Volo.Abp.Account.Public.Web.Impersonation;
 using Volo.Saas.Host;
 using Volo.Abp.OpenIddict;
+using Volo.Abp.OpenIddict.ExtensionGrantTypes;
 using Volo.Abp.OpenIddict.WildcardDomains;
 using Volo.Abp.MultiTenancy;
 using System.Security.Cryptography.X509Certificates;
@@ -266,6 +269,17 @@ public class CaseEvaluationAuthServerModule : AbpModule
             );
         });
 
+        // Phase E (2026-06-25): inject the current office's logo into the auth pages'
+        // <head> as a --lpx-logo override (the LeptonX login layout sources the logo
+        // from that CSS variable). Head.Last so it cascades after global-styles.css,
+        // which stays as the host/default fallback.
+        Configure<AbpLayoutHookOptions>(options =>
+        {
+            options.Add(
+                LayoutHooks.Head.Last,
+                typeof(BrandingHeadViewComponent));
+        });
+
         Configure<AbpAuditingOptions>(options =>
         {
             options.ApplicationName = "AuthServer";
@@ -404,6 +418,19 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.TenantAdminUserName = "admin";
             options.ImpersonationTenantPermission = SaasHostPermissions.Tenants.Impersonation;
             options.ImpersonationUserPermission = IdentityPermissions.Users.Impersonation;
+        });
+
+        // Phase D (2026-06-25) -- replace the stock "Impersonation" grant with
+        // HostIntakeImpersonationExtensionGrant so a host Intake operator can land
+        // as their LIMITED per-office shadow Intake user (gated, deny-by-default).
+        // Supervisor / IT Admin keep the stock switch-in-as-admin path (the grant
+        // delegates to base when the caller holds Saas.Tenants.Impersonation). The
+        // "Impersonation" grant_type is already registered by the stock module's
+        // PreConfigure<OpenIddictServerBuilder>, so only the handler is swapped.
+        Configure<AbpOpenIddictExtensionGrantsOptions>(options =>
+        {
+            options.Grants.Remove("Impersonation");
+            options.Grants.Add("Impersonation", new HostIntakeImpersonationExtensionGrant());
         });
 
         // 2026-05-12 (Issue 1.5) — light is the default for first-time

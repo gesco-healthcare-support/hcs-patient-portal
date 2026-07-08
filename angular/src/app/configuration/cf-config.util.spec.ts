@@ -32,16 +32,19 @@ describe('cf-config.util', () => {
     it('groups fields by booking-form section in first-seen order', () => {
       const catalog = buildFieldCatalog();
       expect(catalog.map((g) => g.group)).toEqual([
-        'Schedule',
-        'Patient',
-        'Attorneys',
-        'Insurance',
-        'Examiner',
+        'Patient Demographics',
+        'Employer Details',
+        'Applicant Attorney',
+        'Defense Attorney',
+        'Insurance Carrier',
+        'Claim Examiner',
+        'Claim Information',
         'Documents',
+        'Schedule',
       ]);
     });
 
-    it('places all fifteen fields across the groups exactly once', () => {
+    it('places all seventy fields across the groups exactly once', () => {
       const catalog = buildFieldCatalog();
       const keys: string[] = [];
       for (const group of catalog) {
@@ -49,21 +52,21 @@ describe('cf-config.util', () => {
           keys.push(field.key);
         }
       }
-      expect(keys.length).toBe(15);
-      expect(new Set(keys).size).toBe(15);
+      expect(keys.length).toBe(70);
+      expect(new Set(keys).size).toBe(70);
     });
 
-    it('keeps the eight Patient-group fields together', () => {
-      const patient = buildFieldCatalog().find((g) => g.group === 'Patient')!;
+    it('keeps the Patient Demographics group together', () => {
+      const patient = buildFieldCatalog().find((g) => g.group === 'Patient Demographics')!;
       expect(patient.fields.map((f) => f.key)).toContain('socialSecurityNumber');
-      expect(patient.fields.length).toBe(8);
+      expect(patient.fields.length).toBe(17);
     });
   });
 
   describe('emptyFieldState', () => {
     it('returns a default state for every catalog key', () => {
       const state = emptyFieldState();
-      expect(Object.keys(state).length).toBe(15);
+      expect(Object.keys(state).length).toBe(70);
       expect(state['panelNumber']).toEqual({
         hidden: false,
         readOnly: false,
@@ -115,7 +118,7 @@ describe('cf-config.util', () => {
       ];
       const state = fieldStateFromConfigs(configs);
       expect(state['someRetiredField']).toBeUndefined();
-      expect(Object.keys(state).length).toBe(15);
+      expect(Object.keys(state).length).toBe(70);
     });
   });
 

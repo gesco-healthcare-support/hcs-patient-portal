@@ -443,16 +443,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        // Prompt 15 / item 32: block delete while any Appointment references
-        // this patient (Appointment.PatientId). Filter disabled in host (admin)
-        // context so a reference in any tenant blocks the delete.
-        var isHost = CurrentTenant.Id == null;
-        using (isHost ? _dataFilter.Disable() : null)
+        // Prompt 15 / item 32: block delete while any Appointment references this
+        // patient (Appointment.PatientId). Database-per-office: Patient and Appointment
+        // are IMultiTenant in the office's own database, so the in-use probe runs in the
+        // office's context where the filter already scopes it to that office.
+        if (await _appointmentRepository.AnyAsync(a => a.PatientId == id))
         {
-            if (await _appointmentRepository.AnyAsync(a => a.PatientId == id))
-            {
-                throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientInUse);
-            }
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.PatientInUse);
         }
         await _patientRepository.DeleteAsync(id);
     }

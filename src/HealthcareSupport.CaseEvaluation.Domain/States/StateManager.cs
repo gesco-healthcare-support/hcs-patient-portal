@@ -13,7 +13,6 @@ using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
-using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.States;
 
@@ -27,12 +26,6 @@ public class StateManager : DomainService
     protected IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
     protected IRepository<ClaimExaminer, Guid> _claimExaminerRepository;
 
-    // State is host-scoped (no IMultiTenant), but several referencing masters
-    // are tenant-scoped. Disabling the IMultiTenant filter during the in-use
-    // probe ensures a reference in any tenant blocks deletion of the shared
-    // host-scoped State row. Mirrors LocationManager.EnsureCanDeleteAsync.
-    protected IDataFilter<IMultiTenant> _multiTenantFilter;
-
     public StateManager(
         IStateRepository stateRepository,
         IRepository<Location, Guid> locationRepository,
@@ -40,8 +33,7 @@ public class StateManager : DomainService
         IRepository<Patient, Guid> patientRepository,
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
-        IRepository<ClaimExaminer, Guid> claimExaminerRepository,
-        IDataFilter<IMultiTenant> multiTenantFilter)
+        IRepository<ClaimExaminer, Guid> claimExaminerRepository)
     {
         _stateRepository = stateRepository;
         _locationRepository = locationRepository;
@@ -50,7 +42,6 @@ public class StateManager : DomainService
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _claimExaminerRepository = claimExaminerRepository;
-        _multiTenantFilter = multiTenantFilter;
     }
 
     public virtual async Task<State> CreateAsync(string name)
@@ -88,19 +79,20 @@ public class StateManager : DomainService
     /// StateId (Location, WcabOffice, Patient, ApplicantAttorney,
     /// DefenseAttorney, ClaimExaminer). Mirrors the AppointmentDocumentType
     /// in-use guard, summing references across the masters.
+    ///
+    /// Database-per-office: State and every referencing master are IMultiTenant and
+    /// live in the office's own database, so the probe runs in the office's context
+    /// where the IMultiTenant filter already scopes each count to that office -- the
+    /// complete reference set for an office's own State (no cross-office disable needed).
     /// </summary>
     private async Task EnsureNotInUseAsync(Guid id)
     {
-        long total;
-        using (_multiTenantFilter.Disable())
-        {
-            total = await _locationRepository.CountAsync(x => x.StateId == id)
-                + await _wcabOfficeRepository.CountAsync(x => x.StateId == id)
-                + await _patientRepository.CountAsync(x => x.StateId == id)
-                + await _applicantAttorneyRepository.CountAsync(x => x.StateId == id)
-                + await _defenseAttorneyRepository.CountAsync(x => x.StateId == id)
-                + await _claimExaminerRepository.CountAsync(x => x.StateId == id);
-        }
+        long total = await _locationRepository.CountAsync(x => x.StateId == id)
+            + await _wcabOfficeRepository.CountAsync(x => x.StateId == id)
+            + await _patientRepository.CountAsync(x => x.StateId == id)
+            + await _applicantAttorneyRepository.CountAsync(x => x.StateId == id)
+            + await _defenseAttorneyRepository.CountAsync(x => x.StateId == id)
+            + await _claimExaminerRepository.CountAsync(x => x.StateId == id);
 
         if (total > 0)
         {

@@ -81,4 +81,17 @@ public class InternalUsersController : AbpController
     {
         return _internalUsersAppService.GetTenantOptionsAsync(filter);
     }
+
+    /// <summary>
+    /// 2026-06-30 (QA item B): paged, internal-role-scoped Staff list for the
+    /// reusable Internal Users table. Auth (InternalUsers.Default) is enforced at
+    /// the app service. Replaces the client-side load-500-then-filter.
+    /// </summary>
+    [Authorize]
+    [HttpGet]
+    public virtual Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(
+        [FromQuery] GetInternalUsersInput input)
+    {
+        return _internalUsersAppService.GetInternalUsersAsync(input);
+    }
 }

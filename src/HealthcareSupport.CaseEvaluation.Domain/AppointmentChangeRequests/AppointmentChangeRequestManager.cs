@@ -88,7 +88,12 @@ public class AppointmentChangeRequestManager : DomainService
     /// </summary>
     /// <param name="appointmentId">The appointment to cancel.</param>
     /// <param name="cancellationReason">Verbatim reason supplied by the user.</param>
-    /// <param name="acting">
+    /// <param name="allowPendingSource">
+    /// B1 (2026-07-01): true for internal-staff callers, admitting a
+    /// Pending source appointment in addition to Approved; false
+    /// (external) keeps the Approved-only OLD parity.
+    /// </param>
+    /// <param name="actingUserId">
     /// Identity of the caller -- threaded through to the ETO so the
     /// notification handler can address the requester correctly.
     /// </param>
@@ -96,6 +101,7 @@ public class AppointmentChangeRequestManager : DomainService
     public virtual async Task<AppointmentChangeRequest> SubmitCancellationAsync(
         Guid appointmentId,
         string cancellationReason,
+        bool allowPendingSource,
         Guid? actingUserId)
     {
         if (_appointmentRepository == null
@@ -117,7 +123,7 @@ public class AppointmentChangeRequestManager : DomainService
             throw new EntityNotFoundException(typeof(Appointment), appointmentId);
         }
 
-        if (!CancellationRequestValidators.CanRequestCancellation(appointment.AppointmentStatus))
+        if (!CancellationRequestValidators.CanRequestCancellation(appointment.AppointmentStatus, allowPendingSource))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved)
                 .WithData("appointmentId", appointmentId)
@@ -195,12 +201,21 @@ public class AppointmentChangeRequestManager : DomainService
     /// the field is preserved on the entity so a future admin-side
     /// path can set it.
     /// </param>
+    /// <param name="allowPendingSource">
+    /// B1 (2026-07-01): true for internal-staff callers, admitting a
+    /// Pending source appointment in addition to Approved; false
+    /// (external) keeps the Approved-only OLD parity. A Pending source
+    /// skips the Approved -&gt; RescheduleRequested state-machine step
+    /// (no such transition exists) and stays Pending; the new-slot hold
+    /// still applies.
+    /// </param>
     /// <param name="actingUserId">Caller, threaded through to the ETO.</param>
     public virtual async Task<AppointmentChangeRequest> SubmitRescheduleAsync(
         Guid appointmentId,
         Guid newDoctorAvailabilityId,
         string reScheduleReason,
         bool isBeyondLimit,
+        bool allowPendingSource,
         Guid? actingUserId)
     {
         if (_appointmentRepository == null
@@ -228,7 +243,7 @@ public class AppointmentChangeRequestManager : DomainService
             throw new EntityNotFoundException(typeof(Appointments.Appointment), appointmentId);
         }
 
-        if (!RescheduleRequestValidators.CanRequestReschedule(appointment.AppointmentStatus))
+        if (!RescheduleRequestValidators.CanRequestReschedule(appointment.AppointmentStatus, allowPendingSource))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestAppointmentNotApproved)
                 .WithData("appointmentId", appointmentId)
@@ -272,7 +287,17 @@ public class AppointmentChangeRequestManager : DomainService
         // for any downstream subscribers; we additionally publish the
         // change-request-submitted event below for the per-event email
         // template fan-out.
-        await _appointmentManager.RequestRescheduleAsync(appointmentId, reScheduleReason, actingUserId);
+        //
+        // B1 (2026-07-01): only Approved has a RequestReschedule transition
+        // (see AppointmentManager.BuildMachine). An internal-staff reschedule
+        // of a Pending appointment stays Pending -- skip the state-machine step
+        // (the new-slot hold above still applies). Guarded by allowPendingSource
+        // so an unexpected non-Approved external source still surfaces the
+        // invalid-transition error rather than silently no-op'ing.
+        if (appointment.AppointmentStatus == HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType.Approved)
+        {
+            await _appointmentManager.RequestRescheduleAsync(appointmentId, reScheduleReason, actingUserId);
+        }
 
         await _localEventBus.PublishAsync(new AppointmentChangeRequestSubmittedEto
         {

@@ -7,21 +7,20 @@ import { SessionIdentityWatcherService } from './shared/auth/session-identity-wa
 import { performFullLogout } from './shared/auth/full-logout';
 import { OfflineDetectionService } from './shared/services/offline-detection.service';
 import { OfflineOverlayComponent } from './shared/ui/offline/offline-overlay.component';
-
-const AUTH_SERVER_PORT = '44368';
+import { OAuthService } from 'angular-oauth2-oidc';
 
 /**
- * Build the AuthServer Razor /Account/Login URL on the same tenant
- * subdomain as the current SPA request. The host (e.g.
- * `falkinstein.localhost`) is preserved verbatim; only the port is
- * swapped to the AuthServer's 44368 and the path is `/Account/Login`.
- * Used after the AuthServer logout handshake clears the SPA tokens
- * (see `handleAuthServerLogoutHandshake` in `AppComponent`).
+ * Build the AuthServer Razor /Account/Login URL from the runtime OAuth
+ * issuer, which carries the correct AuthServer host:port for the current
+ * tenant subdomain (and stays correct on shifted worktree ports, where the
+ * build-time environment is overridden -- the same source `performFullLogout`
+ * uses). Falls back to the SPA root if the issuer is unavailable. Used after
+ * the AuthServer logout handshake clears the SPA tokens (see
+ * `handleAuthServerLogoutHandshake` in `AppComponent`).
  */
-function buildAuthServerLoginUrl(): string {
-  const scheme = window.location.protocol;
-  const host = window.location.hostname;
-  return `${scheme}//${host}:${AUTH_SERVER_PORT}/Account/Login`;
+function buildAuthServerLoginUrl(issuer: string): string {
+  const base = (issuer ?? '').replace(/\/+$/, '');
+  return base ? `${base}/Account/Login` : '/';
 }
 
 /**
@@ -93,7 +92,13 @@ export class AppComponent implements OnInit {
       return;
     }
     void performFullLogout(this.injector).then(() => {
-      window.location.replace(buildAuthServerLoginUrl());
+      let issuer = '';
+      try {
+        issuer = this.injector.get(OAuthService).issuer ?? '';
+      } catch {
+        issuer = '';
+      }
+      window.location.replace(buildAuthServerLoginUrl(issuer));
     });
   }
 }

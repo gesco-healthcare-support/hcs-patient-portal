@@ -25,10 +25,11 @@ self-scoped app service upserts it.
 
 ## Gotchas
 
-1. **TTL purge disables the multi-tenant filter.** `DraftCleanupJob` runs
-   `_dataFilter.Disable<IMultiTenant>()` so the daily sweep spans every tenant. This
-   is one of the cross-tenant `Disable<IMultiTenant>` sites the db-per-tenant
-   migration must revisit (under separate databases it would only see the host DB).
+1. **TTL purge iterates every office.** `DraftCleanupJob` runs the daily sweep via
+   `ITenantWorkRunner.ForEachOfficeAsync`, purging each office inside its own database
+   context (the `IMultiTenant` filter naturally scopes the sweep per office under
+   database-per-office). It previously disabled the filter on one shared DB -- that
+   would have seen only the connected database once each office had its own (Phase C).
 2. **One draft per (tenant, creator).** The app service upserts a single creator-
    scoped row; there is no draft list or history.
 3. **`IMultiTenant` in both DbContexts.** Lives in host + tenant DBs.

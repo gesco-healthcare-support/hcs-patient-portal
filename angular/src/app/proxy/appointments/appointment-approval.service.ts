@@ -1,4 +1,4 @@
-import type { AppointmentDto, ApproveAppointmentInput, DirectCancelAppointmentInput, RejectAppointmentInput } from './models';
+import type { AppointmentDto, ApproveAppointmentInput, RejectAppointmentInput } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -21,14 +21,6 @@ export class AppointmentApprovalService {
     { apiName: this.apiName,...config });
   
 
-  directCancelAppointment = (id: string, input: DirectCancelAppointmentInput, config?: Partial<Rest.Config>) =>
-    this.restService.request<any, AppointmentDto>({
-      method: 'POST',
-      url: `/api/app/appointment-approvals/${id}/cancel`,
-      body: input,
-    },
-    { apiName: this.apiName,...config });
-  
 
   getInternalUserLookup = (input: LookupRequestDto, config?: Partial<Rest.Config>) =>
     this.restService.request<any, PagedResultDto<LookupDto<string>>>({

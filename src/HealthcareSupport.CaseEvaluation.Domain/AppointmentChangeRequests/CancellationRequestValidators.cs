@@ -27,13 +27,23 @@ public static class CancellationRequestValidators
 {
     /// <summary>
     /// Returns true when the appointment is in a state where a cancel
-    /// request is allowed. OLD only allows the cancel flow on
-    /// <see cref="AppointmentStatusType.Approved"/>; everything else
-    /// rejects with "NoChangeAllowedinAppointment".
+    /// request is allowed. External users stay OLD-parity: only
+    /// <see cref="AppointmentStatusType.Approved"/> (else
+    /// "NoChangeAllowedinAppointment"). B1 (2026-07-01): internal staff
+    /// may also cancel a not-yet-approved appointment, so
+    /// <paramref name="allowPendingSource"/> additionally admits
+    /// <see cref="AppointmentStatusType.Pending"/>. Callers pass the
+    /// caller's internal/external status; no silent default so each call
+    /// site decides explicitly.
     /// </summary>
-    public static bool CanRequestCancellation(AppointmentStatusType appointmentStatus)
+    public static bool CanRequestCancellation(AppointmentStatusType appointmentStatus, bool allowPendingSource)
     {
-        return appointmentStatus == AppointmentStatusType.Approved;
+        if (appointmentStatus == AppointmentStatusType.Approved)
+        {
+            return true;
+        }
+
+        return allowPendingSource && appointmentStatus == AppointmentStatusType.Pending;
     }
 
     /// <summary>

@@ -36,6 +36,33 @@
     Cancellations
     <span class="cnt">{{ counts().cancel }}</span>
   </button>
+
+  <!-- QA #15 item 6: the queue is a card list, so sorting is a Sort-by control
+       rather than clickable column headers. -->
+  <div class="cr-sortbar">
+    <app-icon name="sort" [size]="15" />
+    <label>Sort by</label>
+    <select
+      aria-label="Sort change requests"
+      [ngModel]="sort().key ?? ''"
+      (ngModelChange)="setSortKey($event)"
+    >
+      <option value="">Newest first</option>
+      <option value="requested">Requested date</option>
+      <option value="type">Type</option>
+      <option value="appt">Appointment #</option>
+      <option value="age">Age waiting</option>
+    </select>
+    <button
+      type="button"
+      class="cr-sortbar__dir"
+      [disabled]="!sort().key"
+      [title]="sort().dir === 'asc' ? 'Ascending' : 'Descending'"
+      (click)="toggleSortDir()"
+    >
+      <app-icon [name]="sort().dir === 'asc' ? 'arrowUp' : 'arrowDown'" [size]="15" />
+    </button>
+  </div>
 </div>
 
 @if (loading()) {
@@ -54,7 +81,7 @@
     <span>No pending change requests.</span>
   </div>
 } @else {
-  @for (row of visibleRows(); track row.id) {
+  @for (row of displayRows(); track row.id) {
     <div class="cr-row">
       <div class="cr-row__main" [attr.data-open]="openId() === row.id" (click)="toggle(row)">
         <span class="cr-row__type" [ngClass]="isReschedule(row) ? 'tint-amber' : 'tint-red'">
@@ -156,10 +183,10 @@
               }
             </select>
           </div>
-          @if (overrideWarning(m.row); as warn) {
+          @if (consentNote(m.row); as note) {
             <div class="ra-note warn" style="margin-top: 12px">
               <span class="i"><app-icon name="alert" [size]="15" /></span>
-              <span>{{ warn }}</span>
+              <span>{{ note }}</span>
             </div>
           }
         </div>
@@ -168,7 +195,7 @@
           <button
             class="af-btn af-btn--green"
             type="button"
-            [disabled]="isBusy() || outcome() === null"
+            [disabled]="isBusy() || outcome() === null || approveBlocked(m.row)"
             (click)="confirmApprove()"
           >
             <app-icon name="check" [size]="15" />

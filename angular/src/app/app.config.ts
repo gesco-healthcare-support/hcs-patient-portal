@@ -28,6 +28,8 @@ import { provideTextTemplateManagementConfig } from '@volo/abp.ng.text-template-
 import { provideOpeniddictproConfig } from '@volo/abp.ng.openiddictpro/config';
 import { provideThemeLeptonX, withThemeLeptonXOptions } from '@volosoft/abp.ng.theme.lepton-x';
 import { provideNgxMask } from 'ngx-mask';
+import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
+import { UsDateParserFormatter } from './shared/us-date-parser-formatter';
 import { RxReactiveFormsModule } from '@rxweb/reactive-form-validators';
 import { provideSideMenuLayout } from '@volosoft/abp.ng.theme.lepton-x/layouts';
 import { ApplicationConfig, Injector, importProvidersFrom, inject } from '@angular/core';
@@ -57,6 +59,7 @@ import { CLAIM_EXAMINERS_CLAIM_EXAMINER_ROUTE_PROVIDER } from './claim-examiners
 import { AddressValidationProvider } from './shared/address/address-validation.provider';
 import { MockAddressProvider } from './shared/address/mock-address.provider';
 import { SmartyAddressProvider } from './shared/address/smarty-address.provider';
+import { BrandingService } from './shared/branding/branding.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -118,6 +121,13 @@ export const appConfig: ApplicationConfig = {
         window.localStorage.setItem('LPX_THEME', 'light');
       }
     }),
+    // Phase E (2026-06-25) -- fetch the current office's branding (name + logo)
+    // at boot from the AllowAnonymous endpoint (resolved by subdomain). Fired,
+    // not awaited: the shell navbars + tab title update reactively when it
+    // returns, and a failure never blocks boot.
+    provideAppInitializer(() => {
+      inject(BrandingService).load();
+    }),
     provideSideMenuLayout(),
     // Issue 2.1 + 2.8 (2026-05-12) — ngx-mask drives the on-screen SSN
     // redaction (`[hiddenInput]="true"` shows '*' while typing).
@@ -165,6 +175,11 @@ export const appConfig: ApplicationConfig = {
         wrongPassword: 'Password must contain uppercase, lowercase, number, and special character',
       }),
     ),
+    // QA #15 item 5 (2026-07-07): US date presentation everywhere. Must come
+    // AFTER provideAbpThemeShared so it outranks ABP's culture-driven
+    // DateParserFormatter (which rendered the API host culture's short pattern
+    // and could not parse typed US input).
+    { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
     provideLogo(withEnvironmentOptions(environment)),
     provideGdprConfig(
       withCookieConsentOptions({

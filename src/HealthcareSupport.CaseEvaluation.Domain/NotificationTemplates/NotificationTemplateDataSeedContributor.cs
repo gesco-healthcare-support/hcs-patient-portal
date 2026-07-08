@@ -46,14 +46,18 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
     {
         if (context?.TenantId == null)
         {
-            // Host pass: seed the template-type rows.
-            await SeedTypesAsync();
+            // Host scope has no notification templates or types under database-per-office;
+            // both are per-office (tenant) data now. NotificationTemplateType is IMultiTenant
+            // (B4), so it is seeded into each office database alongside the templates. (B4)
             return;
         }
 
-        // Tenant pass: stub a row per template code.
+        // Tenant pass: seed this office's template types first, then the templates that
+        // FK to them -- both land in the office database (NotificationTemplateType is now
+        // IMultiTenant, so its repository follows the office connection). (B4)
         using (_currentTenant.Change(context.TenantId))
         {
+            await SeedTypesAsync();
             await SeedTemplatesAsync(context.TenantId);
         }
     }
@@ -71,7 +75,9 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
         {
             return;
         }
-        await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: true);
+        // autoSave:false so the type batches with the templates that FK to it in one
+        // FK-ordered SaveChanges (EF orders inserts within a batch). See B4.
+        await _typeRepository.InsertAsync(new NotificationTemplateType(id, name), autoSave: false);
     }
 
     private async Task SeedTemplatesAsync(Guid? tenantId)

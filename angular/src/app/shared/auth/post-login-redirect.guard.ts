@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { AuthService, ConfigStateService } from '@abp/ng.core';
 import { CanMatchFn, Router } from '@angular/router';
 import { hasOnlyExternalRoles } from './external-user-roles';
+import { isHostScope, resolveInternalRoleKey } from './internal-user-roles';
 
 // Phase 9 L7 (2026-05-04) + Issue 1.1 (2026-05-12) -- post-login redirect guard.
 //
@@ -22,10 +23,13 @@ import { hasOnlyExternalRoles } from './external-user-roles';
 // UrlTree).
 //
 // Three outcomes:
-//   - Anonymous     -> AuthService.navigateToLogin() (redirects out of SPA);
-//                      return false to cancel the in-SPA navigation
-//   - Internal user -> UrlTree(/dashboard)
-//   - External user -> true (ExternalHomeComponent loads at /)
+//   - Anonymous       -> AuthService.navigateToLogin() (redirects out of SPA);
+//                        return false to cancel the in-SPA navigation
+//   - Intake Staff    -> UrlTree(/host/my-offices): they have no host-admin
+//                        dashboard access, so their home is the assigned-office
+//                        switcher (also the landing after they exit an office).
+//   - Other internal  -> UrlTree(/dashboard)
+//   - External user   -> true (ExternalHomeComponent loads at /)
 
 export const postLoginRedirectGuard: CanMatchFn = () => {
   const config = inject(ConfigStateService);
@@ -55,7 +59,19 @@ export const postLoginRedirectGuard: CanMatchFn = () => {
     return true;
   }
 
-  // Internal user (or mixed-role user with at least one internal role)
-  // -- redirect to dashboard before ExternalHomeComponent chunk loads.
+  // Intake Staff at HOST scope (no current tenant) have no host dashboard access
+  // (Dashboard.Host); their home is the assigned-office switcher. Routing them to
+  // /dashboard lands them on the nav-less "you don't have access" page -- on login
+  // AND after exiting an office (which reloads to /). Send them to /host/my-offices.
+  // IMPORTANT: scope-gated. While they are INSIDE an office (impersonating -> a
+  // current tenant is set), the office dashboard IS reachable (Dashboard.Tenant),
+  // and /host/my-offices would 403 (the office shadow user lacks IntakeImpersonation).
+  // So only redirect at host scope; in-office intake falls through to /dashboard.
+  if (resolveInternalRoleKey(roles) === 'intake' && isHostScope(config)) {
+    return router.parseUrl('/host/my-offices');
+  }
+
+  // Other internal users (admin / IT Admin / Staff Supervisor) -- redirect to
+  // dashboard before the ExternalHomeComponent chunk loads.
   return router.parseUrl('/dashboard');
 };

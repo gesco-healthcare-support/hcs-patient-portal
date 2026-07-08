@@ -1,4 +1,12 @@
-import { Component, Injector, OnDestroy, OnInit, inject } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -33,6 +41,12 @@ import { performFullLogout } from '../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../shared/auth/external-user-display-name';
 import { SsnMaskPipe } from '../../shared/pipes/ssn-mask.pipe';
 import * as wizardCopy from './wizard-copy.util';
+import {
+  StepErrorField,
+  WIZARD_FIELD_LABELS,
+  WIZARD_STEP_CONTROLS,
+  collectStepErrors,
+} from './step-errors.util';
 import { AppointmentDraftService } from '../../proxy/appointment-drafts/appointment-draft.service';
 import type { AppointmentDraftDto } from '../../proxy/appointment-drafts/models';
 
@@ -145,88 +159,17 @@ export class AppointmentWizardComponent
   protected leavePromptVisible = false;
   private leaveResolver?: (allow: boolean) => void;
 
-  // Controls validated when leaving each step (gates Continue). Disabled or
-  // not-required controls pass automatically; the engine has already applied
-  // the conditional validators (patient email, panel number, AA/DA-when-enabled,
-  // required claim examiner + insurance name).
-  private readonly stepControls: Record<string, string[]> = {
-    schedule: [
-      'appointmentTypeId',
-      'locationId',
-      'appointmentDate',
-      'appointmentTime',
-      'panelNumber',
-    ],
-    patient: [
-      'firstName',
-      'lastName',
-      'middleName',
-      'email',
-      'dateOfBirth',
-      'cellPhoneNumber',
-      'phoneNumber',
-      'socialSecurityNumber',
-      'street',
-      'address',
-      'city',
-      'zipCode',
-      'interpreterVendorName',
-      'refferedBy',
-      'employerName',
-      'employerOccupation',
-      'employerPhoneNumber',
-      'employerStreet',
-      'employerCity',
-      'employerZipCode',
-    ],
-    applicant: [
-      'applicantAttorneyFirstName',
-      'applicantAttorneyLastName',
-      'applicantAttorneyEmail',
-      'applicantAttorneyFirmName',
-      'applicantAttorneyWebAddress',
-      'applicantAttorneyPhoneNumber',
-      'applicantAttorneyFaxNumber',
-      'applicantAttorneyStreet',
-      'applicantAttorneyCity',
-      'applicantAttorneyStateId',
-      'applicantAttorneyZipCode',
-    ],
-    defense: [
-      'defenseAttorneyFirstName',
-      'defenseAttorneyLastName',
-      'defenseAttorneyEmail',
-      'defenseAttorneyFirmName',
-      'defenseAttorneyWebAddress',
-      'defenseAttorneyPhoneNumber',
-      'defenseAttorneyFaxNumber',
-      'defenseAttorneyStreet',
-      'defenseAttorneyCity',
-      'defenseAttorneyStateId',
-      'defenseAttorneyZipCode',
-    ],
-    insurance: [
-      'appointmentInsuranceName',
-      'appointmentInsuranceSuite',
-      'appointmentInsurancePhoneNumber',
-      'appointmentInsuranceFaxNumber',
-      'appointmentInsuranceStreet',
-      'appointmentInsuranceCity',
-      'appointmentInsuranceStateId',
-      'appointmentInsuranceZip',
-    ],
-    examiner: [
-      'appointmentClaimExaminerName',
-      'appointmentClaimExaminerEmail',
-      'appointmentClaimExaminerSuite',
-      'appointmentClaimExaminerPhoneNumber',
-      'appointmentClaimExaminerFax',
-      'appointmentClaimExaminerStreet',
-      'appointmentClaimExaminerCity',
-      'appointmentClaimExaminerStateId',
-      'appointmentClaimExaminerZip',
-    ],
-  };
+  // Per-step control -> label metadata lives in step-errors.util so the label
+  // map is coverage-tested against the control list. Continue-gate validation
+  // reads WIZARD_STEP_CONTROLS; the engine has already applied the conditional
+  // validators (patient email, panel number, AA/DA-when-enabled, required claim
+  // examiner + insurance name).
+
+  // Invalid fields on the current step, surfaced as an error summary when the
+  // booker's Continue is blocked. Empty while the step is valid or not yet
+  // submitted. Also drives focus to the summary so the reason is never silent.
+  protected stepErrorSummary: StepErrorField[] = [];
+  @ViewChild('stepErrorBanner') private stepErrorBanner?: ElementRef<HTMLElement>;
 
   ngOnInit(): void {
     this.loadNavName();
@@ -359,31 +302,47 @@ export class AppointmentWizardComponent
     return 'disabled';
   }
   protected jumpTo(i: number): void {
-    if (i <= this.furthest) this.current = i;
+    if (i <= this.furthest) {
+      this.current = i;
+      // The summary is per-current-step; clear it so a prior step's errors do
+      // not bleed onto the step the booker jumped to.
+      this.stepErrorSummary = [];
+    }
   }
   protected nextStep(): void {
     if (!this.validateCurrentStep()) {
       this.erroredSteps.add(this.current);
+      // Surface WHY Continue is blocked: move focus to the just-populated
+      // summary so the reason is announced and scrolled into view.
+      this.focusStepErrors();
       return;
     }
     this.erroredSteps.delete(this.current);
+    this.stepErrorSummary = [];
     this.current = Math.min(this.current + 1, this.steps.length - 1);
     this.furthest = Math.max(this.furthest, this.current);
     // #15: each Continue is a server checkpoint so the draft survives leaving.
     this.persistServerDraft();
   }
 
-  /** Validate the current step's controls (+ claim/docs gates) before advancing. */
+  /**
+   * Validate the current step's controls (+ claim/docs gates) before advancing.
+   * Populates stepErrorSummary with the invalid fields so the shell can tell the
+   * booker exactly what to fix, and marks each touched so its field reddens.
+   */
   private validateCurrentStep(): boolean {
     const key = this.currentStep.key;
-    let valid = true;
-    for (const name of this.stepControls[key] ?? []) {
-      const c = this.form.get(name);
-      if (c && c.enabled && c.invalid) {
-        c.markAsTouched();
-        valid = false;
-      }
+    const fieldErrors = collectStepErrors(
+      this.form,
+      WIZARD_STEP_CONTROLS[key] ?? [],
+      WIZARD_FIELD_LABELS,
+    );
+    for (const error of fieldErrors) {
+      this.form.get(error.control)?.markAsTouched();
     }
+    this.stepErrorSummary = fieldErrors;
+    let valid = fieldErrors.length === 0;
+
     if (key === 'claim' && this.injuryDrafts.length === 0) {
       this.claimInformationMissing = true;
       valid = false;
@@ -401,6 +360,16 @@ export class AppointmentWizardComponent
   }
   protected prevStep(): void {
     this.current = Math.max(0, this.current - 1);
+    this.stepErrorSummary = [];
+  }
+
+  /**
+   * Moves focus to the error summary after a blocked Continue so keyboard and
+   * screen-reader users get the reason, and it scrolls into view for everyone.
+   * Deferred a tick so the @if-rendered banner exists before focus() runs.
+   */
+  private focusStepErrors(): void {
+    setTimeout(() => this.stepErrorBanner?.nativeElement.focus(), 0);
   }
 
   // ---- navbar firm-aware display name (mirrors the external home) ----

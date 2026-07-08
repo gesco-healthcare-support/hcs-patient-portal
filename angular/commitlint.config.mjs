@@ -4,6 +4,10 @@
 // commit-msg hook; keep both files in sync if rules change.
 export default {
   extends: ['@commitlint/config-conventional'],
+  // Skip "merge: ..." integration commits. config-conventional's defaultIgnores
+  // catches "Merge ..." / "Revert ..." but not this repo's lowercase "merge:"
+  // prefix; merge commits are not conventional commits and must not be linted.
+  ignores: [(message) => /^merge:/i.test(message)],
   rules: {
     'type-enum': [
       2,

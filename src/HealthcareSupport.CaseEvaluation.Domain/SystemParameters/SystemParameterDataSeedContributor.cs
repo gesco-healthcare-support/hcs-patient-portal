@@ -62,7 +62,7 @@ public class SystemParameterDataSeedContributor : IDataSeedContributor, ITransie
                 isCustomField: SystemParameterConsts.DefaultIsCustomField,
                 ccEmailIds: null);
 
-            await _repository.InsertAsync(entity, autoSave: true);
+            await _repository.InsertAsync(entity, autoSave: false);
         }
     }
 }

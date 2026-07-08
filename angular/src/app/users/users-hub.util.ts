@@ -47,7 +47,8 @@ export const USERS_SECTIONS: UsersSection[] = [
   },
   {
     key: 'tenants',
-    label: 'Tenants',
+    // UI label: 'Practices' (code key: tenants, policy Saas.Tenants)
+    label: 'Practices',
     icon: 'grid',
     route: '/users/tenants',
     policy: 'Saas.Tenants',

@@ -80,6 +80,7 @@ export interface InviteExternalUserDto {
   lastName?: string | null;
   firmName?: string | null;
   userType: ExternalUserType;
+  tenantId?: string | null;
 }
 
 export interface InviteExternalUserResultDto {

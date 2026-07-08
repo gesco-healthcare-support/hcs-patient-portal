@@ -9,7 +9,6 @@ import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 import { AppointmentViewComponent } from './appointment-view.component';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
-import { AppointmentChangeRequestApprovalService } from '../../../proxy/appointment-change-requests/appointment-change-request-approval.service';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
 import { AppointmentInfoRequestService } from '../../../proxy/appointment-info-requests/appointment-info-request.service';
@@ -27,7 +26,6 @@ import { RejectAppointmentModalComponent } from './reject-appointment-modal.comp
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
 import { RequestInfoModalComponent } from './request-info-modal.component';
-import { planAutoApprove } from './change-request-auto-approve';
 import { decideByInfo, type DecideBy } from './internal-appointments.util';
 import {
   bannerVariant,
@@ -52,8 +50,9 @@ import {
  * atomic save + lifecycle-modal + authorized-user engine with zero
  * duplication; this subclass adds the redesigned .ad-* presentation (status
  * banner, section cards, an Edit-details mode over the inherited form) and
- * wires reschedule/cancel through the change-request modals with the same
- * auto-approve chain the appointments list uses. Internal staff only -- the
+ * wires reschedule/cancel through the change-request modals. Submitted
+ * requests stay Pending for a supervisor to finalize after both-sided
+ * consent (B3, 2026-07-01) -- no auto-approve. Internal staff only; the
  * external view/:id is a separate role-split route.
  */
 @Component({
@@ -82,7 +81,6 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly detailRouter = inject(Router);
   private readonly detailRoute = inject(ActivatedRoute);
   private readonly detailAppointments = inject(AppointmentService);
-  private readonly approvalService = inject(AppointmentChangeRequestApprovalService);
   private readonly detailPermission = inject(PermissionService);
   private readonly detailToaster = inject(ToasterService);
   private readonly detailLocalization = inject(LocalizationService);
@@ -300,46 +298,20 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   }
 
   /**
-   * Override the parent's external "stays Pending" handler: internal staff get
-   * the same auto-approve chain as the appointments list -- if the caller can
-   * approve change requests, chain the NoBill approval, else it stays Pending.
+   * B3 (2026-07-01): staff-initiated change requests no longer auto-approve --
+   * they stay Pending for a supervisor to finalize after BOTH parties consent
+   * (the two-sided consent gate). Override the parent only to additionally
+   * refresh the detail history panel; toast confirmation + reload, never approve.
    */
   override onChangeRequestSucceeded(dto: AppointmentChangeRequestDto): void {
-    const canApprove = this.detailPermission.getGrantedPolicy(
-      'CaseEvaluation.AppointmentChangeRequests.Approve',
+    this.detailToaster.success(
+      this.detailLocalization.instant(
+        dto.changeRequestType === ChangeRequestType.Cancel
+          ? '::Appointment:Toast:CancelRequested'
+          : '::Appointment:Toast:RescheduleRequested',
+      ),
     );
-    const plan = planAutoApprove(dto.changeRequestType, canApprove);
-
-    if (!plan || !dto.id) {
-      this.detailToaster.success(
-        this.detailLocalization.instant(
-          dto.changeRequestType === ChangeRequestType.Cancel
-            ? '::Appointment:Toast:CancelRequested'
-            : '::Appointment:Toast:RescheduleRequested',
-        ),
-      );
-      this.reloadDetail();
-      return;
-    }
-
-    const approve$ =
-      plan.kind === 'reschedule'
-        ? this.approvalService.approveReschedule(dto.id, { rescheduleOutcome: plan.outcome })
-        : this.approvalService.approveCancellation(dto.id, { cancellationOutcome: plan.outcome });
-
-    approve$.subscribe({
-      next: () => {
-        this.detailToaster.success(
-          this.detailLocalization.instant(
-            plan.kind === 'reschedule'
-              ? '::Appointment:Toast:RescheduleApproved'
-              : '::Appointment:Toast:CancelApproved',
-          ),
-        );
-        this.reloadDetail();
-      },
-      error: () => this.reloadDetail(),
-    });
+    this.reloadDetail();
   }
 
   private reloadDetail(): void {

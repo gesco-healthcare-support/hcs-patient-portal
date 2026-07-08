@@ -82,6 +82,12 @@
   grid-template-columns: repeat(2, 1fr);
   max-width: 560px;
 }
+// QA item 6 (D1): the host hero has 6 tiles (structural/volume/live + period Approved/
+// Rejected) -- lay them out three per row so they form two even rows. The shared
+// responsive breakpoints below collapse .dh-hero to 2 then 1 column at narrow widths.
+.dh-hero--host {
+  grid-template-columns: repeat(3, 1fr);
+}
 .dh-kpi {
   background: #fff;
   border: 1px solid var(--border);

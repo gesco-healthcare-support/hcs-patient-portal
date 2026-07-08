@@ -26,6 +26,11 @@ public class DashboardDto
     // ---- Host hero KPIs ----
     public int TotalTenants { get; set; }
     public int TotalDoctors { get; set; }
+
+    /// <summary>QA item 6 (D2): total clinic locations across all practices
+    /// (cross-office sum). Replaced the redundant Total-Doctors tile in the UI;
+    /// TotalDoctors stays available for callers that still want the doctor count.</summary>
+    public int TotalLocations { get; set; }
     public int TotalAppointments { get; set; }
     public int PendingAcrossTenants { get; set; }
 

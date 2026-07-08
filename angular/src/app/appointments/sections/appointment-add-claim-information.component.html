@@ -125,26 +125,63 @@
                 {{ injuryForm.get('injuryCumulative')?.value ? 'From Date' : 'Date Of Injury' }}
                 *
               </label>
-              <input
-                type="date"
-                class="form-control"
-                [class.is-invalid]="
-                  injuryForm.get('injuryDateOfInjury')?.invalid &&
-                  injuryForm.get('injuryDateOfInjury')?.touched
-                "
-                formControlName="injuryDateOfInjury"
-                name="injuryDateOfInjury"
-              />
+              <!-- QA #15 item 5 (2026-07-07): ngb pickers replace the native date
+                   inputs -- native display follows the BROWSER locale and cannot be
+                   forced to MM/DD/YYYY. The model stays a yyyy-MM-dd string via the
+                   parent form component's DateAdapter, so draft serialization and
+                   the OLD-parity date rules are untouched. -->
+              <div class="input-group">
+                <input
+                  class="form-control"
+                  placeholder="MM/DD/YYYY"
+                  [class.is-invalid]="
+                    injuryForm.get('injuryDateOfInjury')?.invalid &&
+                    injuryForm.get('injuryDateOfInjury')?.touched
+                  "
+                  formControlName="injuryDateOfInjury"
+                  name="injuryDateOfInjury"
+                  appUsDateAutoSlash
+                  ngbDatepicker
+                  #injuryFromDatepicker="ngbDatepicker"
+                  navigation="select"
+                />
+                <div class="input-group-append">
+                  <button
+                    class="btn btn-link px-2"
+                    type="button"
+                    title="Open calendar"
+                    (click)="injuryFromDatepicker.toggle()"
+                  >
+                    <i class="fa fa-calendar" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
             </div>
             @if (injuryForm.get('injuryCumulative')?.value) {
               <div class="col-md-2 mb-3">
                 <label class="form-label fw-semibold">To Date</label>
-                <input
-                  type="date"
-                  class="form-control"
-                  formControlName="injuryToDateOfInjury"
-                  name="injuryToDateOfInjury"
-                />
+                <div class="input-group">
+                  <input
+                    class="form-control"
+                    placeholder="MM/DD/YYYY"
+                    formControlName="injuryToDateOfInjury"
+                    name="injuryToDateOfInjury"
+                    appUsDateAutoSlash
+                    ngbDatepicker
+                    #injuryToDatepicker="ngbDatepicker"
+                    navigation="select"
+                  />
+                  <div class="input-group-append">
+                    <button
+                      class="btn btn-link px-2"
+                      type="button"
+                      title="Open calendar"
+                      (click)="injuryToDatepicker.toggle()"
+                    >
+                      <i class="fa fa-calendar" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
             }
             <div class="col-md-2 mb-3">

@@ -180,14 +180,50 @@
               (change)="toggleSelectAll()"
             />
           </th>
-          <th>Confirmation #</th>
-          <th>Patient</th>
-          <th>Type</th>
-          <th>Appointment</th>
-          <th>Status</th>
-          <th>Panel #</th>
-          <th>Location</th>
-          <th>Decide by</th>
+          <th
+            appSortHeader="Appointment.RequestConfirmationNumber"
+            [model]="sort()"
+            (sortChange)="onSort($event)"
+          >
+            Confirmation #
+          </th>
+          <th appSortHeader="Patient.LastName" [model]="sort()" (sortChange)="onSort($event)">
+            Patient
+          </th>
+          <th appSortHeader="AppointmentType.Name" [model]="sort()" (sortChange)="onSort($event)">
+            Type
+          </th>
+          <th
+            appSortHeader="Appointment.AppointmentDate"
+            [model]="sort()"
+            (sortChange)="onSort($event)"
+          >
+            Appointment
+          </th>
+          <th
+            appSortHeader="Appointment.AppointmentStatus"
+            [model]="sort()"
+            (sortChange)="onSort($event)"
+          >
+            Status
+          </th>
+          <th
+            appSortHeader="Appointment.PanelNumber"
+            [model]="sort()"
+            (sortChange)="onSort($event)"
+          >
+            Panel #
+          </th>
+          <th appSortHeader="Location.Name" [model]="sort()" (sortChange)="onSort($event)">
+            Location
+          </th>
+          <th
+            appSortHeader="Appointment.CreationTime"
+            [model]="sort()"
+            (sortChange)="onSort($event)"
+          >
+            Decide by
+          </th>
           <th style="width: 44px"></th>
         </tr>
       </thead>
@@ -337,6 +373,7 @@
   [appointmentId]="selectedRow()?.appointment?.id ?? null"
   [locationId]="selectedRow()?.appointment?.locationId ?? null"
   [appointmentTypeId]="selectedRow()?.appointment?.appointmentTypeId ?? null"
+  [requesterIsStaff]="true"
   [visible]="rescheduleVisible()"
   (visibleChange)="rescheduleVisible.set($event)"
   (succeeded)="onChangeRequestSucceeded($event)"
@@ -344,6 +381,7 @@
 
 <app-cancellation-request-modal
   [appointmentId]="selectedRow()?.appointment?.id ?? null"
+  [requesterIsStaff]="true"
   [visible]="cancelVisible()"
   (visibleChange)="cancelVisible.set($event)"
   (succeeded)="onChangeRequestSucceeded($event)"

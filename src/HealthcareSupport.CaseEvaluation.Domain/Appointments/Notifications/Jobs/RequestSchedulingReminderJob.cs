@@ -3,14 +3,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
@@ -31,8 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 public class RequestSchedulingReminderJob : ITransientDependency
 {
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ISettingProvider _settingProvider;
@@ -40,16 +38,14 @@ public class RequestSchedulingReminderJob : ITransientDependency
 
     public RequestSchedulingReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
         ILogger<RequestSchedulingReminderJob> logger)
     {
         _appointmentRepository = appointmentRepository;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _recipientResolver = recipientResolver;
         _backgroundJobManager = backgroundJobManager;
         _settingProvider = settingProvider;
@@ -63,28 +59,17 @@ public class RequestSchedulingReminderJob : ITransientDependency
     public virtual async Task ExecuteAsync()
     {
         _logger.LogInformation("RequestSchedulingReminderJob: starting daily run.");
-        var tenantIds = await GetDistinctTenantIdsAsync();
         var enqueuedTotal = 0;
-        foreach (var tenantId in tenantIds)
+        var officeCount = 0;
+        await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
         {
-            using (_currentTenant.Change(tenantId))
-            {
-                enqueuedTotal += await ProcessTenantAsync();
-            }
-        }
+            officeCount++;
+            enqueuedTotal += await ProcessTenantAsync();
+        });
         _logger.LogInformation(
             "RequestSchedulingReminderJob: enqueued {Total} reminder emails across {TenantCount} tenants.",
             enqueuedTotal,
-            tenantIds.Count);
-    }
-
-    private async Task<System.Collections.Generic.List<Guid?>> GetDistinctTenantIdsAsync()
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable.Select(a => a.TenantId).Distinct().ToList();
-        }
+            officeCount);
     }
 
     private async Task<int> ProcessTenantAsync()

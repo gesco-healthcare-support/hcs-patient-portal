@@ -45,45 +45,89 @@ export interface CrConsentView {
   cls: string;
 }
 
-/**
- * Consent chip. Only shown when opposing-side consent is actually in play --
- * NotRequired (consent gating off / no opposing party) renders nothing.
- */
-export function changeRequestConsentView(
-  status: ChangeRequestConsentStatus | null | undefined,
-): CrConsentView {
-  switch (status) {
-    case ChangeRequestConsentStatus.Approved:
-      return { show: true, label: 'Consent received', cls: 'agreed' };
-    case ChangeRequestConsentStatus.Pending:
-      return { show: true, label: 'Consent pending', cls: 'pending' };
-    case ChangeRequestConsentStatus.Rejected:
-      return { show: true, label: 'Consent declined', cls: 'declined' };
-    case ChangeRequestConsentStatus.Expired:
-      return { show: true, label: 'Consent expired', cls: 'declined' };
-    default:
-      return { show: false, label: '', cls: '' };
-  }
+/** A side needs nothing (NotRequired) or has already approved -> satisfied for the finalize gate. */
+function sideSatisfied(status: ChangeRequestConsentStatus | null | undefined): boolean {
+  return (
+    status === undefined ||
+    status === null ||
+    status === ChangeRequestConsentStatus.NotRequired ||
+    status === ChangeRequestConsentStatus.Approved
+  );
+}
+
+/** A side is "in play" (its consent was actually solicited) when it is anything but NotRequired. */
+function sideInPlay(status: ChangeRequestConsentStatus | null | undefined): boolean {
+  return (
+    status !== undefined && status !== null && status !== ChangeRequestConsentStatus.NotRequired
+  );
 }
 
 /**
- * Warning shown in the approve modal when finalizing would override an
- * unresolved opposing-side consent. Null when consent is Approved or NotRequired
- * (nothing to override).
+ * Consent chip for the two-sided model (2026-07-01). Aggregates the two side
+ * slots (Side A = applicant, Side B = defense): hidden when neither side is in
+ * play (gating off / no reps); "received" only when every in-play side is
+ * Approved; "declined"/"expired" if any side rejected/expired; else "pending".
  */
-export function consentOverrideWarning(
-  status: ChangeRequestConsentStatus | null | undefined,
-): string | null {
-  switch (status) {
-    case ChangeRequestConsentStatus.Pending:
-      return 'Opposing-counsel consent is still pending -- approving now overrides it.';
-    case ChangeRequestConsentStatus.Rejected:
-      return 'Opposing-counsel consent was declined -- approving now overrides it.';
-    case ChangeRequestConsentStatus.Expired:
-      return 'Opposing-counsel consent expired -- approving now overrides it.';
-    default:
-      return null;
+export function changeRequestConsentView(
+  sideA: ChangeRequestConsentStatus | null | undefined,
+  sideB: ChangeRequestConsentStatus | null | undefined,
+): CrConsentView {
+  if (!sideInPlay(sideA) && !sideInPlay(sideB)) {
+    return { show: false, label: '', cls: '' };
   }
+  const inPlay = [sideA, sideB].filter(sideInPlay);
+  if (inPlay.some((s) => s === ChangeRequestConsentStatus.Rejected)) {
+    return { show: true, label: 'Consent declined', cls: 'declined' };
+  }
+  if (inPlay.some((s) => s === ChangeRequestConsentStatus.Expired)) {
+    return { show: true, label: 'Consent expired', cls: 'declined' };
+  }
+  if (inPlay.every((s) => s === ChangeRequestConsentStatus.Approved)) {
+    return { show: true, label: 'Consent received', cls: 'agreed' };
+  }
+  return { show: true, label: 'Consent pending', cls: 'pending' };
+}
+
+/**
+ * True when consent BLOCKS approval. The finalize gate (server
+ * OpposingConsentValidator -> AreAllRequiredSidesGranted) passes only when EVERY
+ * side is satisfied (NotRequired or Approved); any Pending / Rejected / Expired
+ * side blocks. There is NO override path, so the UI must not let staff finalize
+ * (it would 403). Reject is unaffected.
+ */
+export function consentBlocksApproval(
+  sideA: ChangeRequestConsentStatus | null | undefined,
+  sideB: ChangeRequestConsentStatus | null | undefined,
+): boolean {
+  return !(sideSatisfied(sideA) && sideSatisfied(sideB));
+}
+
+/**
+ * Corrective note shown in the approve modal when consent blocks approval. There
+ * is no "override" -- the only way forward is to Reject the request (which has no
+ * consent gate) or wait for consent. Null when approval is allowed (every side
+ * Approved / NotRequired).
+ */
+export function consentBlockNote(
+  sideA: ChangeRequestConsentStatus | null | undefined,
+  sideB: ChangeRequestConsentStatus | null | undefined,
+): string | null {
+  if (!consentBlocksApproval(sideA, sideB)) {
+    return null;
+  }
+  if (
+    sideA === ChangeRequestConsentStatus.Rejected ||
+    sideB === ChangeRequestConsentStatus.Rejected
+  ) {
+    return 'A party declined consent, so this cannot be approved. Reject the request instead.';
+  }
+  if (
+    sideA === ChangeRequestConsentStatus.Expired ||
+    sideB === ChangeRequestConsentStatus.Expired
+  ) {
+    return "A party's consent window expired, so this cannot be approved. Reject the request instead.";
+  }
+  return 'Both parties must consent before this can be approved, and at least one is still pending. Reject the request instead, or wait for their consent.';
 }
 
 /** Which side filed the request, for the inbox row. Empty when unknown. */

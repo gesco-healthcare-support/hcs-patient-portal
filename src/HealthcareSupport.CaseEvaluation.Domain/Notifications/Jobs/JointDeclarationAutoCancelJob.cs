@@ -5,14 +5,13 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
@@ -50,8 +49,7 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
     private readonly ISettingProvider _settingProvider;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<JointDeclarationAutoCancelJob> _logger;
 
@@ -59,16 +57,14 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentDocument, Guid> documentRepository,
         ISettingProvider settingProvider,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         ILocalEventBus localEventBus,
         ILogger<JointDeclarationAutoCancelJob> logger)
     {
         _appointmentRepository = appointmentRepository;
         _documentRepository = documentRepository;
         _settingProvider = settingProvider;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _localEventBus = localEventBus;
         _logger = logger;
     }
@@ -79,18 +75,11 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
         _logger.LogInformation("JointDeclarationAutoCancelJob: starting daily run.");
         var nowUtc = DateTime.UtcNow;
 
-        // Iterate every tenant by switching ICurrentTenant. Disabling
-        // the IMultiTenant filter for the discovery query lets us see
-        // every tenant's appointments in one pass. Per-tenant scope is
-        // re-applied for the manager.TransitionAsync call.
-        var tenantIds = await GetDistinctTenantIdsAsync();
-        foreach (var tenantId in tenantIds)
-        {
-            using (_currentTenant.Change(tenantId))
-            {
-                await ProcessTenantAsync(tenantId, nowUtc);
-            }
-        }
+        // Iterate every office from the tenant registry, processing each inside its
+        // own database context. Per-office scope re-applies the IMultiTenant filter
+        // automatically for the candidate query and the auto-cancel update.
+        await _tenantWorkRunner.ForEachOfficeAsync(officeId =>
+            ProcessTenantAsync(officeId, nowUtc));
     }
 
     private async Task ProcessTenantAsync(Guid? tenantId, DateTime nowUtc)
@@ -205,21 +194,6 @@ public class JointDeclarationAutoCancelJob : ITransientDependency
                     tenantId,
                     candidate.Id);
             }
-        }
-    }
-
-    private async Task<Guid?[]> GetDistinctTenantIdsAsync()
-    {
-        // Disable the IMultiTenant filter for tenant discovery so we
-        // see every tenant's rows. The host tenant (null) is included
-        // for the pathological case of host-scoped appointments.
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable
-                .Select(a => a.TenantId)
-                .Distinct()
-                .ToArray();
         }
     }
 }

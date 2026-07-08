@@ -23,10 +23,11 @@ import type { LookupDto } from '../../../proxy/shared/models';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
 import type { AppointmentChangeRequestDto } from '../../../proxy/appointment-change-requests/models';
-import { AppointmentChangeRequestApprovalService } from '../../../proxy/appointment-change-requests/appointment-change-request-approval.service';
 import { StatusPillComponent } from '../../../shared/ui/status-pill/status-pill.component';
 import { IconComponent } from '../../../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { SortHeaderComponent } from '../../../shared/sort/sort-header.component';
+import { sortingClause, type SortModel } from '../../../shared/sort/sort-state';
 import {
   EXTERNAL_STATUS_SEGMENTS,
   appointmentStatusToSegment,
@@ -34,7 +35,6 @@ import {
 } from '../../../shared/ui/status-pill/appointment-status.util';
 import { RescheduleRequestModalComponent } from './reschedule-request-modal.component';
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
-import { planAutoApprove } from './change-request-auto-approve';
 import {
   avatarColor,
   avatarInitials,
@@ -68,7 +68,8 @@ const PAGE_SIZES = [10, 25, 50] as const;
  * /appointments for staff. Server-paged (getList) with a per-status counts
  * endpoint (getStatusCounts) feeding the chips; pill bucketing + decide-by
  * urgency live in internal-appointments.util. Kebab Reschedule/Cancel reuse the
- * existing change-request modals (auto-approved when the caller can approve);
+ * existing change-request modals; a submitted request stays Pending for a
+ * supervisor to finalize after both-sided consent (B3, no auto-approve).
  * Delete is gated by the Appointments.Delete permission (Intake lacks it).
  */
 @Component({
@@ -80,6 +81,7 @@ const PAGE_SIZES = [10, 25, 50] as const;
     StatusPillComponent,
     IconComponent,
     SkeletonComponent,
+    SortHeaderComponent,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
   ],
@@ -88,7 +90,6 @@ const PAGE_SIZES = [10, 25, 50] as const;
 })
 export class InternalAppointmentsComponent implements OnInit {
   private readonly appointmentService = inject(AppointmentService);
-  private readonly approvalService = inject(AppointmentChangeRequestApprovalService);
   private readonly permissionService = inject(PermissionService);
   private readonly confirmation = inject(ConfirmationService);
   private readonly toaster = inject(ToasterService);
@@ -107,6 +108,10 @@ export class InternalAppointmentsComponent implements OnInit {
   protected readonly showFilters = signal(false);
   protected readonly page = signal(1);
   protected readonly pageSize = signal<number>(PAGE_SIZES[0]);
+  // QA #15 item 6 (2026-07-07): server-side column sort. Keys are property paths on
+  // AppointmentWithNavigationProperties (Dynamic LINQ over the nav-join); an unset
+  // sort falls back to the repository default (Appointment.CreationTime desc).
+  protected readonly sort = signal<SortModel>({ key: null, dir: 'asc' });
 
   // ---- results ----
   protected readonly rows = signal<Row[]>([]);
@@ -217,6 +222,8 @@ export class InternalAppointmentsComponent implements OnInit {
       // Required by the paged input contract; the counts endpoint ignores paging.
       skipCount: (this.page() - 1) * this.pageSize(),
       maxResultCount: this.pageSize(),
+      // Empty clause -> server default order; the counts endpoint ignores it.
+      sorting: sortingClause(this.sort()) || undefined,
     };
     if (forList) {
       const statuses = segmentStatuses(this.activeSegment());
@@ -371,6 +378,14 @@ export class InternalAppointmentsComponent implements OnInit {
     this.loadList();
   }
 
+  // ---- sorting ----
+  protected onSort(model: SortModel): void {
+    this.sort.set(model);
+    // A new sort re-pages from the first row; counts are order-independent.
+    this.page.set(1);
+    this.loadList();
+  }
+
   // ---- selection ----
   protected isSelected(row: Row): boolean {
     return this.selected().has(this.rowId(row));
@@ -438,46 +453,19 @@ export class InternalAppointmentsComponent implements OnInit {
   }
 
   /**
-   * Ported from the legacy AppointmentComponent: the change-request modal has
-   * already submitted; if the caller can approve (internal staff), chain the
-   * NoBill auto-approve, else it stays Pending for the supervisor queue.
+   * B3 (2026-07-01): a submitted change request stays Pending for a supervisor
+   * to finalize after BOTH parties consent -- no auto-approve. Toast the
+   * confirmation and reload; never chain an approval.
    */
   protected onChangeRequestSucceeded(dto: AppointmentChangeRequestDto): void {
-    const canApprove = this.permissionService.getGrantedPolicy(
-      'CaseEvaluation.AppointmentChangeRequests.Approve',
+    this.toaster.success(
+      this.localization.instant(
+        dto.changeRequestType === ChangeRequestType.Cancel
+          ? '::Appointment:Toast:CancelRequested'
+          : '::Appointment:Toast:RescheduleRequested',
+      ),
     );
-    const plan = planAutoApprove(dto.changeRequestType, canApprove);
-
-    if (!plan || !dto.id) {
-      this.toaster.success(
-        this.localization.instant(
-          dto.changeRequestType === ChangeRequestType.Cancel
-            ? '::Appointment:Toast:CancelRequested'
-            : '::Appointment:Toast:RescheduleRequested',
-        ),
-      );
-      this.reload();
-      return;
-    }
-
-    const approve$ =
-      plan.kind === 'reschedule'
-        ? this.approvalService.approveReschedule(dto.id, { rescheduleOutcome: plan.outcome })
-        : this.approvalService.approveCancellation(dto.id, { cancellationOutcome: plan.outcome });
-
-    approve$.subscribe({
-      next: () => {
-        this.toaster.success(
-          this.localization.instant(
-            plan.kind === 'reschedule'
-              ? '::Appointment:Toast:RescheduleApproved'
-              : '::Appointment:Toast:CancelApproved',
-          ),
-        );
-        this.reload();
-      },
-      error: () => this.reload(),
-    });
+    this.reload();
   }
 
   protected deleteRow(row: Row): void {

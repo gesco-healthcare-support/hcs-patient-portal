@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Shouldly;
 using Xunit;
 
@@ -7,87 +5,70 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 
 /// <summary>
 /// Pins the fix-it server-side lock: a correction may only touch fields the open
-/// request flagged. Security-path unit (pure, no DB), reachable via the
-/// Application InternalsVisibleTo wiring.
+/// request flagged. With the generic key-&gt;value corrections map (QA item L), the rule
+/// is "every provided key must be flagged". Security-path unit (pure, no DB), reachable
+/// via the Application InternalsVisibleTo wiring.
 /// </summary>
 public class InfoRequestCorrectionLockTests
 {
     [Fact]
-    public void Allows_a_change_to_a_flagged_field()
+    public void Allows_changes_to_flagged_fields()
     {
-        var input = new SaveInfoRequestCorrectionsInput { CellPhoneNumber = "(213) 555-0148" };
-        var flagged = new HashSet<string> { "cellPhoneNumber" };
+        var provided = new[] { "cellPhoneNumber", "street" };
+        var flagged = new HashSet<string> { "cellPhoneNumber", "street", "city" };
 
-        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldBeEmpty();
+        InfoRequestCorrectionLock.FindUnflaggedChanges(provided, flagged).ShouldBeEmpty();
     }
 
     [Fact]
     public void Rejects_a_change_to_an_unflagged_field()
     {
-        var input = new SaveInfoRequestCorrectionsInput { CellPhoneNumber = "(213) 555-0148" };
+        var provided = new[] { "cellPhoneNumber" };
         var flagged = new HashSet<string> { "dateOfBirth" };
 
-        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldContain("cellPhoneNumber");
+        InfoRequestCorrectionLock.FindUnflaggedChanges(provided, flagged).ShouldContain("cellPhoneNumber");
     }
 
     [Fact]
-    public void Insurance_name_and_phone_share_one_flag()
+    public void Reports_every_unflagged_change_once()
     {
-        var input = new SaveInfoRequestCorrectionsInput
-        {
-            InsuranceName = "Acme Mutual",
-            InsurancePhoneNumber = "(800) 555-0100",
-        };
-        var flagged = new HashSet<string> { "appointmentInsuranceName" };
+        var provided = new[] { "dateOfBirth", "applicantAttorneyEmail", "dateOfBirth" };
 
-        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldBeEmpty();
+        var violations = InfoRequestCorrectionLock.FindUnflaggedChanges(provided, new HashSet<string>());
+
+        violations.ShouldContain("dateOfBirth");
+        violations.ShouldContain("applicantAttorneyEmail");
+        violations.Count.ShouldBe(2); // de-duped
     }
 
     [Fact]
-    public void Allows_address_sub_field_changes_when_each_is_flagged()
-    {
-        var input = new SaveInfoRequestCorrectionsInput
-        {
-            Street = "128 W 4th St",
-            City = "Los Angeles",
-            StateId = Guid.NewGuid(),
-            ZipCode = "90013",
-        };
-        var flagged = new HashSet<string> { "street", "city", "stateId", "zipCode" };
-
-        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void Rejects_an_unflagged_address_sub_field()
-    {
-        // Only street was flagged; correcting the zip is an unflagged change.
-        var input = new SaveInfoRequestCorrectionsInput { ZipCode = "90013" };
-        var flagged = new HashSet<string> { "street" };
-
-        InfoRequestCorrectionLock.FindUnflaggedChanges(input, flagged).ShouldContain("zipCode");
-    }
-
-    [Fact]
-    public void Empty_input_has_no_violations()
+    public void No_provided_keys_has_no_violations()
     {
         InfoRequestCorrectionLock
-            .FindUnflaggedChanges(new SaveInfoRequestCorrectionsInput(), new HashSet<string>())
+            .FindUnflaggedChanges(System.Array.Empty<string>(), new HashSet<string>())
+            .ShouldBeEmpty();
+    }
+
+    // QA item 11: the Claim Information collection-replace path is gated by the SAME lock,
+    // passing its section key through this helper -- a supplied injury set is accepted only
+    // when staff flagged claimInformation.
+    [Fact]
+    public void Allows_the_claim_information_collection_when_flagged()
+    {
+        var flagged = new HashSet<string> { "claimInformation" };
+
+        InfoRequestCorrectionLock
+            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
             .ShouldBeEmpty();
     }
 
     [Fact]
-    public void Reports_every_unflagged_change()
+    public void Rejects_the_claim_information_collection_when_not_flagged()
     {
-        var input = new SaveInfoRequestCorrectionsInput
-        {
-            DateOfBirth = new DateTime(1985, 3, 22),
-            ApplicantAttorneyEmail = "applicant@example.test",
-        };
+        var flagged = new HashSet<string> { "cellPhoneNumber" };
 
-        var violations = InfoRequestCorrectionLock.FindUnflaggedChanges(input, new HashSet<string>());
-
-        violations.ShouldContain("dateOfBirth");
-        violations.ShouldContain("applicantAttorneyEmail");
+        InfoRequestCorrectionLock
+            .FindUnflaggedChanges(new[] { "claimInformation" }, flagged)
+            .ShouldContain("claimInformation");
     }
 }

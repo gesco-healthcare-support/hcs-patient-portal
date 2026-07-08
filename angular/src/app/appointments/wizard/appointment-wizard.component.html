@@ -69,6 +69,28 @@
         <input type="hidden" formControlName="patientId" />
       }
 
+      <!-- Item 1 (2026-07-08): when Continue is blocked, name every invalid
+        field + why, so the booker is never left guessing. Focus lands here on a
+        blocked Continue (see focusStepErrors). -->
+      @if (stepErrorSummary.length) {
+        <div class="ra-errsum" role="alert" tabindex="-1" #stepErrorBanner>
+          <div class="ra-errsum__hd">
+            <app-icon name="alert" [size]="18" />
+            <span>Please fix the following before continuing:</span>
+          </div>
+          <ul>
+            @for (err of stepErrorSummary; track err.control) {
+              <li>
+                <b>{{ err.label }}</b>
+                @if (err.message) {
+                  <span>{{ err.message }}</span>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
       @switch (currentStep.key) {
         @case ('schedule') {
           @if (isReevaluation) {

@@ -29,11 +29,16 @@ describe('filterNavGroups', () => {
     expect(ids).toContain('appointments');
     expect(ids).toContain('patients');
     expect(ids).toContain('invite-external');
+    // QA #15 item 3 (2026-07-06): intake manages the bookable slot grid.
+    expect(ids).toContain('availabilities');
+    // QA #15 item 4 (2026-07-06): intake finalizes change requests too.
+    expect(ids).toContain('change-requests');
     // ...but not supervisor-only config / scheduling / admin items.
-    expect(ids).not.toContain('change-requests');
     expect(ids).not.toContain('identity');
     expect(ids).not.toContain('locations');
     expect(ids).not.toContain('appt-types');
+    // MO4 (2026-06-30): System Parameters is supervisor-only now.
+    expect(ids).not.toContain('settings');
   });
 
   it('lets the superuser see every item in the source nav', () => {
@@ -47,22 +52,33 @@ describe('resolveNavGroups', () => {
   it('gives an IT Admin at host scope the platform nav', () => {
     const sects = resolveNavGroups('itadmin', true).map((g) => g.sect);
     expect(sects).toContain('Platform');
-    expect(sects).toContain('SaaS');
+    // Item 1 (2026-06-30): the 'SaaS' group merged into 'Practice Management'.
+    expect(sects).toContain('Practice Management');
   });
 
-  it('gives a Staff Supervisor the tenant operational nav, never the platform nav', () => {
-    // Even if host-scoped (hostScope=true), a supervisor stays on IN_NAV.
+  it('gives a host Staff Supervisor the platform nav, and the tenant nav once switched into an office', () => {
+    // Phase D (2026-06-25): Staff Supervisor is a HOST operator -> at host scope
+    // it gets the platform nav (office switch + intake assignments), NOT the
+    // tenant nav. Once it impersonates into an office (hostScope=false), it falls
+    // back to IN_NAV (the office admin's tenant nav).
     const hostSects = resolveNavGroups('supervisor', true).map((g) => g.sect);
+    expect(hostSects).toContain('Practice Management');
+    expect(hostSects).not.toContain('Workspace');
     const tenantSects = resolveNavGroups('supervisor', false).map((g) => g.sect);
-    expect(hostSects).not.toContain('Platform');
-    expect(hostSects).toContain('Workspace');
     expect(tenantSects).toContain('Workspace');
+    expect(tenantSects).not.toContain('Platform');
   });
 
-  it('gives Intake Staff the tenant nav and never the platform nav', () => {
-    const sects = resolveNavGroups('intake', false).map((g) => g.sect);
-    expect(sects).toContain('Workspace');
-    expect(sects).not.toContain('Platform');
+  it('gives a host Intake operator the office switcher, and the tenant nav once switched in', () => {
+    // Phase D: Intake is a HOST operator -> at host scope it sees only the
+    // Offices group (its My Offices switcher); once impersonating its per-office
+    // shadow user (hostScope=false) it gets the tenant operational nav.
+    const hostSects = resolveNavGroups('intake', true).map((g) => g.sect);
+    expect(hostSects).toContain('Practice Management');
+    expect(hostSects).not.toContain('Workspace');
+    const tenantSects = resolveNavGroups('intake', false).map((g) => g.sect);
+    expect(tenantSects).toContain('Workspace');
+    expect(tenantSects).not.toContain('Platform');
   });
 
   it('gives the superuser the full platform nav at host scope', () => {

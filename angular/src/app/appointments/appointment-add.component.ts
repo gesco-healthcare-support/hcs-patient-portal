@@ -1818,6 +1818,15 @@ export class AppointmentAddComponent {
   }
 
   async onSubmit(): Promise<void> {
+    // Re-entrancy guard: reject a second submit while one is in flight. Paired
+    // with setting isSaving synchronously before the first await below, this
+    // stops an impatient double-click from running the whole submit twice
+    // (which created a duplicate/orphan patient + a 500 on the second
+    // POST /appointments). The disabled-button binding alone was insufficient
+    // because isSaving used to be set only AFTER an await.
+    if (this.isSaving) {
+      return;
+    }
     const raw = this.form.getRawValue();
     // G-01-07: reval + re-request must be anchored to a loaded source (the
     // server endpoints take the source confirmation # in the route). Block
@@ -1899,13 +1908,16 @@ export class AppointmentAddComponent {
     }
     this.otherLabelMissing = false;
 
-    // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
-    // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
-    // any provider error so submission is never blocked.
-    await this.standardizeAddressesBeforeSubmit();
-
+    // Set the in-flight guard SYNCHRONOUSLY here -- after all the synchronous
+    // validation early-returns above, but before the first await -- so the
+    // re-entrancy check at the top of onSubmit rejects a rapid second click.
     this.isSaving = true;
     try {
+      // F2 (2026-05-29): prompt for USPS-standardized addresses before booking.
+      // Runs on the mock until the Smarty adapter ships; degrades to a no-op on
+      // any provider error so submission is never blocked.
+      await this.standardizeAddressesBeforeSubmit();
+
       const rawSubmit = this.form.getRawValue();
 
       if (this.isExternalUserNonPatient && !rawSubmit.patientId) {

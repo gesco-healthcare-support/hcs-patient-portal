@@ -11,14 +11,6 @@ public static class CaseEvaluationPermissions
         public const string Tenant = DashboardGroup + ".Tenant";
     }
 
-    public static class Books
-    {
-        public const string Default = GroupName + ".Books";
-        public const string Create = Default + ".Create";
-        public const string Edit = Default + ".Edit";
-        public const string Delete = Default + ".Delete";
-    }
-
     public static class States
     {
         public const string Default = GroupName + ".States";
@@ -275,10 +267,11 @@ public static class CaseEvaluationPermissions
     }
 
     /// <summary>
-    /// Phase 2.5 (2026-05-01) -- supervisor approval surface for the
+    /// Phase 2.5 (2026-05-01) -- internal approval surface for the
     /// user-submitted cancel / reschedule lifecycle. External roles never
-    /// see this group. Staff Supervisor + IT Admin gain Approve / Reject;
-    /// Intake Staff gets Default (read-only inbox view).
+    /// see this group. QA #15 item 4 (2026-07-06) reversed the original
+    /// intake read-only tier: IT Admin, Staff Supervisor (as office admin),
+    /// and Intake Staff all hold Approve / Reject now.
     /// </summary>
     public static class AppointmentChangeRequests
     {
@@ -400,5 +393,53 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".UserSignatures";
         public const string ManageOwn = Default + ".ManageOwn";
+    }
+
+    /// <summary>
+    /// Phase D (2026-06-25) -- host-operator office-assignment management. A
+    /// host-scoped surface (HOST side) where IT Admin and the host Staff
+    /// Supervisor assign / unassign Intake operators to the offices they may
+    /// enter. <c>Default</c> gates the read of the assignment list; <c>Manage</c>
+    /// gates assign / unassign (which also provisions / revokes the per-office
+    /// shadow Intake user). Registered MultiTenancySides.Host because operators
+    /// and their assignments live in the host/management database.
+    /// </summary>
+    public static class IntakeAssignments
+    {
+        public const string Default = GroupName + ".IntakeAssignments";
+        public const string Manage = Default + ".Manage";
+    }
+
+    /// <summary>
+    /// Phase D (2026-06-25) -- the host Intake operator's switch capability. The
+    /// thin host login holds this (and only this office power); it gates (a) the
+    /// custom impersonation grant's intake branch -- letting the operator land as
+    /// their LIMITED per-office shadow Intake user -- and (b) the read of "my
+    /// assigned offices" that populates the office switcher. Registered
+    /// MultiTenancySides.Host (the operator is a host user); the per-office
+    /// assignment gate (deny-by-default) is the actual office-scope boundary,
+    /// enforced server-side in the grant. NOT granted to Supervisor / IT Admin,
+    /// who switch in as office admin via Saas.Tenants.Impersonation instead.
+    /// </summary>
+    public static class IntakeImpersonation
+    {
+        public const string Default = GroupName + ".IntakeImpersonation";
+    }
+
+    /// <summary>
+    /// Phase E (2026-06-25) -- per-office branding (display name + logo).
+    /// <c>Default</c> gates reading the host-side central per-office branding list;
+    /// <c>Edit</c> gates set-name / upload-logo / remove-logo. Registered
+    /// MultiTenancySides.Both: the host operators (IT Admin, host Staff Supervisor)
+    /// edit any office centrally from the host surface, and the per-office <c>admin</c>
+    /// role edits its own office while a host operator is impersonating it. The public
+    /// GetBranding + logo-serve endpoints are AllowAnonymous (tenant resolved by
+    /// subdomain, so the login page + SPA boot can read pre-auth) and are NOT gated by
+    /// this permission.
+    /// </summary>
+    public static class Branding
+    {
+        public const string Default = GroupName + ".Branding";
+        public const string Edit = Default + ".Edit";
     }
 }
