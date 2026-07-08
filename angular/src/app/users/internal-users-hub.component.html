@@ -505,11 +505,12 @@
       <div class="ra-modal__body">
         <div class="ra-grid">
           <div class="ra-field col-12">
-            <label>
+            <label for="new-practice-subdomain">
               Subdomain
               <span class="req">*</span>
             </label>
             <input
+              id="new-practice-subdomain"
               class="ra-input"
               [class.bad]="slugError()"
               [ngModel]="f.name"
@@ -527,11 +528,12 @@
             <!-- New practice: the doctor owns + signs into the office; the doctor email
               is the admin login. Location(s) are added later on the Locations page. -->
             <div class="ra-field col-6">
-              <label>
+              <label for="new-practice-doctor-first">
                 Doctor first name
                 <span class="req">*</span>
               </label>
               <input
+                id="new-practice-doctor-first"
                 class="ra-input"
                 [class.bad]="doctorFirstError()"
                 [ngModel]="f.doctorFirstName"
@@ -543,11 +545,12 @@
               }
             </div>
             <div class="ra-field col-6">
-              <label>
+              <label for="new-practice-doctor-last">
                 Doctor last name
                 <span class="req">*</span>
               </label>
               <input
+                id="new-practice-doctor-last"
                 class="ra-input"
                 [class.bad]="doctorLastError()"
                 [ngModel]="f.doctorLastName"
@@ -559,11 +562,12 @@
               }
             </div>
             <div class="ra-field col-12">
-              <label>
+              <label for="new-practice-doctor-email">
                 Doctor email
                 <span class="req">*</span>
               </label>
               <input
+                id="new-practice-doctor-email"
                 class="ra-input"
                 type="email"
                 [class.bad]="doctorEmailError()"
@@ -579,8 +583,9 @@
               }
             </div>
             <div class="ra-field col-12">
-              <label>Display name</label>
+              <label for="new-practice-display-name">Display name</label>
               <input
+                id="new-practice-display-name"
                 class="ra-input"
                 [ngModel]="f.displayName"
                 (ngModelChange)="patchTenant({ displayName: $event })"
