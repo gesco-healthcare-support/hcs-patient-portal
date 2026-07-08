@@ -204,8 +204,8 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
         if (role == null)
         {
             _logger.LogWarning(
-                "InternalUsersDataSeedContributor: role '{RoleName}' not found in tenant {TenantId}; skipping user {Email}.",
-                roleName, tenantId, email);
+                "InternalUsersDataSeedContributor: role '{RoleName}' not found in tenant {TenantId}; skipping user seed.",
+                roleName, tenantId);
             return null;
         }
 
@@ -231,14 +231,13 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             if (!createResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "InternalUsersDataSeedContributor: failed to create {Email}: {Errors}",
-                    email,
+                    "InternalUsersDataSeedContributor: failed to create internal user: {Errors}",
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
                 return null;
             }
             _logger.LogInformation(
-                "InternalUsersDataSeedContributor: created user {Email} (tenant {TenantId}).",
-                email, tenantId);
+                "InternalUsersDataSeedContributor: created internal user (tenant {TenantId}).",
+                tenantId);
 
             // Real accounts force a password change on first login (the shared dev
             // default is well-known); synthetic test accounts skip this so they stay
@@ -294,16 +293,15 @@ public class InternalUsersDataSeedContributor : IDataSeedContributor, ITransient
             if (!addRoleResult.Succeeded)
             {
                 _logger.LogWarning(
-                    "InternalUsersDataSeedContributor: failed to assign role '{RoleName}' to {Email}: {Errors}",
+                    "InternalUsersDataSeedContributor: failed to assign role '{RoleName}': {Errors}",
                     roleName,
-                    email,
                     string.Join(", ", addRoleResult.Errors.Select(e => e.Description)));
             }
             else
             {
                 _logger.LogInformation(
-                    "InternalUsersDataSeedContributor: assigned role '{RoleName}' to {Email}.",
-                    roleName, email);
+                    "InternalUsersDataSeedContributor: assigned role '{RoleName}'.",
+                    roleName);
             }
         }
 
