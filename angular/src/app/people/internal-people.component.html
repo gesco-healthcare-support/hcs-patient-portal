@@ -186,35 +186,53 @@
           <table class="ia-table" [style.min-width.px]="meta().isPatient ? 860 : 640">
             <thead>
               <tr>
-                <th>{{ meta().isPatient ? 'Patient' : 'Name' }}</th>
+                <th appSortHeader="name" [model]="sort()" (sortChange)="onSort($event)">
+                  {{ meta().isPatient ? 'Patient' : 'Name' }}
+                </th>
                 @if (meta().hasFirm) {
-                  <th>Firm</th>
+                  <th appSortHeader="firm" [model]="sort()" (sortChange)="onSort($event)">Firm</th>
                 }
-                <th>Email</th>
+                <th appSortHeader="email" [model]="sort()" (sortChange)="onSort($event)">Email</th>
                 @if (meta().isPatient) {
-                  <th>Date of birth</th>
+                  <th appSortHeader="dob" [model]="sort()" (sortChange)="onSort($event)">
+                    Date of birth
+                  </th>
                 }
-                <th>Phone</th>
+                <th appSortHeader="phone" [model]="sort()" (sortChange)="onSort($event)">Phone</th>
                 @if (meta().isPatient) {
-                  <th>City / State</th>
-                  <th>Language</th>
+                  <th appSortHeader="cityState" [model]="sort()" (sortChange)="onSort($event)">
+                    City / State
+                  </th>
+                  <th appSortHeader="language" [model]="sort()" (sortChange)="onSort($event)">
+                    Language
+                  </th>
                   @if (colOn('gender')) {
-                    <th>Gender</th>
+                    <th appSortHeader="gender" [model]="sort()" (sortChange)="onSort($event)">
+                      Gender
+                    </th>
                   }
                   @if (colOn('street')) {
-                    <th>Street</th>
+                    <th appSortHeader="street" [model]="sort()" (sortChange)="onSort($event)">
+                      Street
+                    </th>
                   }
                   @if (colOn('zip')) {
-                    <th>Zip</th>
+                    <th appSortHeader="zip" [model]="sort()" (sortChange)="onSort($event)">Zip</th>
                   }
                   @if (colOn('interpreter')) {
-                    <th>Interpreter</th>
+                    <th appSortHeader="interpreter" [model]="sort()" (sortChange)="onSort($event)">
+                      Interpreter
+                    </th>
                   }
                   @if (colOn('apptNumber')) {
-                    <th>Appt #</th>
+                    <th appSortHeader="apptNumber" [model]="sort()" (sortChange)="onSort($event)">
+                      Appt #
+                    </th>
                   }
                 }
-                <th>Portal</th>
+                <th appSortHeader="portal" [model]="sort()" (sortChange)="onSort($event)">
+                  Portal
+                </th>
                 <th style="text-align: right">Actions</th>
               </tr>
             </thead>

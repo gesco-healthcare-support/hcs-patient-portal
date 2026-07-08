@@ -20,6 +20,9 @@
               maxlength="50"
               [class.is-invalid]="isFieldInvalid('appointmentInsuranceName')"
             />
+            @if (isFieldInvalid('appointmentInsuranceName')) {
+              <div class="invalid-feedback d-block">Required.</div>
+            }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Suite</label>
@@ -144,7 +147,11 @@
               formControlName="appointmentClaimExaminerPhoneNumber"
               placeholder="PHONE NUMBER"
               maxlength="12"
+              [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerPhoneNumber')"
             />
+            @if (isFieldInvalid('appointmentClaimExaminerPhoneNumber')) {
+              <div class="invalid-feedback d-block">Required.</div>
+            }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Fax</label>
@@ -170,7 +177,11 @@
               formControlName="appointmentClaimExaminerCity"
               placeholder="CITY"
               maxlength="50"
+              [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerCity')"
             />
+            @if (isFieldInvalid('appointmentClaimExaminerCity')) {
+              <div class="invalid-feedback d-block">Required.</div>
+            }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">State *</label>
@@ -178,7 +189,11 @@
               cid="appointment-claim-examiner-state-id"
               formControlName="appointmentClaimExaminerStateId"
               [getFn]="getStateLookup"
+              [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerStateId')"
             ></app-lookup-select>
+            @if (isFieldInvalid('appointmentClaimExaminerStateId')) {
+              <div class="invalid-feedback d-block">Required.</div>
+            }
           </div>
           <div class="col-md-3 mb-3">
             <label class="form-label fw-semibold">Zip *</label>
@@ -187,7 +202,11 @@
               formControlName="appointmentClaimExaminerZip"
               placeholder="ZIP"
               maxlength="10"
+              [class.is-invalid]="isFieldInvalid('appointmentClaimExaminerZip')"
             />
+            @if (isFieldInvalid('appointmentClaimExaminerZip')) {
+              <div class="invalid-feedback d-block">Required.</div>
+            }
           </div>
         </div>
       </div>

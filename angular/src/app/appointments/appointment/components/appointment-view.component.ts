@@ -27,6 +27,7 @@ import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
 import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
+import { UsDateAutoSlashDirective } from '../../../shared/us-date-auto-slash.directive';
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import {
@@ -142,6 +143,7 @@ type ApplicantAttorneyLookupResult = {
     AppLookupSelectComponent,
     NgbDatepickerModule,
     NgbTypeaheadModule,
+    UsDateAutoSlashDirective,
     ApproveConfirmationModalComponent,
     RejectAppointmentModalComponent,
     RescheduleRequestModalComponent,

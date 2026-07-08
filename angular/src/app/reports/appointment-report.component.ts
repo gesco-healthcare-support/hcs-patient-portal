@@ -26,6 +26,8 @@ import { LocationService } from '../proxy/locations';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SkeletonComponent } from '../shared/ui/skeleton/skeleton.component';
 import { StatusPillComponent } from '../shared/ui/status-pill/status-pill.component';
+import { SortHeaderComponent } from '../shared/sort/sort-header.component';
+import { sortingClause, type SortModel } from '../shared/sort/sort-state';
 import type { AppointmentPillStatus } from '../shared/ui/status-pill/status-pill.component';
 import {
   appointmentStatusToPill,
@@ -62,6 +64,7 @@ type ColKey =
     IconComponent,
     SkeletonComponent,
     StatusPillComponent,
+    SortHeaderComponent,
   ],
   templateUrl: './appointment-report.component.html',
 })
@@ -132,6 +135,12 @@ export class AppointmentReportComponent implements OnInit {
   totalCount = 0;
   readonly pageSize = 25;
   pageIndex = 0;
+  // QA #15 item 6 (2026-07-07): server-side column sort. Keys are property paths on
+  // AppointmentWithNavigationProperties -- the same nav-join the appointments list
+  // sorts on; the service passes input.Sorting straight through
+  // ReportFilterValidator.ResolveSorting (blank falls back to confirmation-number
+  // desc). PHI-detail columns (dob/email/phone) are intentionally not sortable.
+  sort: SortModel = { key: null, dir: 'asc' };
 
   ngOnInit(): void {
     // Populate the advanced-search dropdowns. Lookups are small; pull all.
@@ -329,6 +338,13 @@ export class AppointmentReportComponent implements OnInit {
     return Math.max(1, Math.ceil(this.totalCount / this.pageSize));
   }
 
+  onSort(model: SortModel): void {
+    this.sort = model;
+    // A new sort re-pages from the first page; counts are order-independent.
+    this.pageIndex = 0;
+    this.load();
+  }
+
   prevPage(): void {
     if (this.pageIndex > 0) {
       this.pageIndex--;
@@ -386,6 +402,7 @@ export class AppointmentReportComponent implements OnInit {
         : undefined,
       appointmentDateMin: raw.appointmentDateMin || undefined,
       appointmentDateMax: raw.appointmentDateMax || undefined,
+      sorting: sortingClause(this.sort) || undefined,
       skipCount: this.pageIndex * this.pageSize,
       maxResultCount: this.pageSize,
     };

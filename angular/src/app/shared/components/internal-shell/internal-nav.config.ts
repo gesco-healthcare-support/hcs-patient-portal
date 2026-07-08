@@ -80,8 +80,10 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         icon: 'refresh',
         // Prompt 13 (2026-06-15): the reschedule + cancellation queues are unified
         // into one tabbed inbox at the parent path. See change-request-routes.ts.
+        // QA #15 item 4 (2026-07-06): intake finalizes change requests in its
+        // assigned offices now (Phase 2.5 read-only tier reversed by Adrian).
         route: '/appointments/change-requests',
-        roles: ['supervisor'],
+        roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.AppointmentChangeRequests',
         badge: 'changeRequests',
       },
@@ -111,7 +113,10 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'Doctor Availabilities',
         icon: 'calendar',
         route: '/doctor-management/doctor-availabilities',
-        roles: ['supervisor'],
+        // QA #15 item 3 (2026-07-06): intake keeps the bookable slot grid current,
+        // and its per-tenant role has held full slot CRUD since 2026-06-11 -- the
+        // nav role filter was the only thing hiding the page.
+        roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.DoctorAvailabilities',
       },
       {

@@ -7,6 +7,8 @@ import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SortHeaderComponent } from '../shared/sort/sort-header.component';
+import { makeComparator, type SortModel, type SortValue } from '../shared/sort/sort-state';
 import { AppointmentTypeFieldConfigService } from '../proxy/appointment-type-field-configs/appointment-type-field-config.service';
 import { AppointmentTypeService } from '../proxy/appointment-types/appointment-type.service';
 import { ConfigSectionGateway } from './config-section.gateway';
@@ -37,7 +39,7 @@ import {
   selector: 'app-internal-configuration',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, IconComponent, ConfigRailComponent],
+  imports: [CommonModule, FormsModule, IconComponent, ConfigRailComponent, SortHeaderComponent],
   templateUrl: './internal-configuration.component.html',
 })
 export class InternalConfigurationComponent {
@@ -59,6 +61,13 @@ export class InternalConfigurationComponent {
   protected readonly loading = signal(true);
   protected readonly isBusy = signal(false);
   protected readonly rows = signal<ConfigRow[]>([]);
+  // QA #15 item 6 (2026-07-07): client-side column sort over the loaded rows.
+  protected readonly sort = signal<SortModel>({ key: null, dir: 'asc' });
+  protected readonly displayRows = computed(() =>
+    [...this.rows()].sort(
+      makeComparator<ConfigRow>(this.sort(), (row, key) => this.sortValue(row, key)),
+    ),
+  );
   protected readonly form = signal<ConfigFormState | null>(null);
   // #4: appointment-type options for the document-type multi-select (loaded once
   // per visit to a section that needs them).
@@ -127,6 +136,23 @@ export class InternalConfigurationComponent {
     } else if (this.canEdit()) {
       this.openEdit(row);
     }
+  }
+
+  // ---- sorting (client-side over the loaded rows) ----
+  private sortValue(row: ConfigRow, key: string): SortValue {
+    switch (key) {
+      case 'name':
+        return row.name;
+      case 'description':
+        return row.description ?? '';
+      case 'usage':
+        return row.usageCount ?? null;
+      default:
+        return null;
+    }
+  }
+  protected onSort(model: SortModel): void {
+    this.sort.set(model);
   }
 
   // ---- table helpers ----

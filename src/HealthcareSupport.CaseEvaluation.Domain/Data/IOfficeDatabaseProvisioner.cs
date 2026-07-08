@@ -17,7 +17,17 @@ public interface IOfficeDatabaseProvisioner
     /// Migrates + seeds the office database for <paramref name="tenantId"/>, scoped
     /// to that tenant. The admin user is seeded with
     /// <paramref name="adminEmailAddress"/> / <paramref name="adminPassword"/>.
-    /// Exceptions propagate so the caller can compensate or surface the failure.
+    /// When the owner-doctor fields are supplied (the New Practice create flow), they are
+    /// passed to the doctor seed so the office's one doctor is the real doctor entered on
+    /// the form; when null (the DbMigrator path), the doctor seed falls back to the
+    /// OfficeSeedData config or the tenant-name placeholder. Exceptions propagate so the
+    /// caller can compensate or surface the failure.
     /// </summary>
-    Task ProvisionAsync(Guid tenantId, string adminEmailAddress, string adminPassword);
+    Task ProvisionAsync(
+        Guid tenantId,
+        string adminEmailAddress,
+        string adminPassword,
+        string? doctorFirstName = null,
+        string? doctorLastName = null,
+        string? doctorEmail = null);
 }

@@ -133,4 +133,15 @@ public class InternalUserRoleGrantsTests
         IntakeShadow.ShouldContain("CaseEvaluation.SystemParameters");
         IntakeShadow.ShouldContain("CaseEvaluation.UserManagement.InviteExternalUser");
     }
+
+    // QA #15 item 4 (2026-07-06, Adrian): REVERSES the Phase 2.5 read-only
+    // change-request tier -- intake now finalizes cancel / reschedule outcomes
+    // in its assigned offices (the opposing-consent gate still applies).
+    [Fact]
+    public void IntakeShadow_finalizes_change_requests()
+    {
+        IntakeShadow.ShouldContain("CaseEvaluation.AppointmentChangeRequests");
+        IntakeShadow.ShouldContain("CaseEvaluation.AppointmentChangeRequests.Approve");
+        IntakeShadow.ShouldContain("CaseEvaluation.AppointmentChangeRequests.Reject");
+    }
 }

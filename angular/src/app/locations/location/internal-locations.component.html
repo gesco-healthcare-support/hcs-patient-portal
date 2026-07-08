@@ -18,17 +18,19 @@
     <table class="ia-table">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Address</th>
-          <th>State</th>
-          <th>Parking fee</th>
+          <th appSortHeader="name" [model]="sort()" (sortChange)="onSort($event)">Name</th>
+          <th appSortHeader="address" [model]="sort()" (sortChange)="onSort($event)">Address</th>
+          <th appSortHeader="state" [model]="sort()" (sortChange)="onSort($event)">State</th>
+          <th appSortHeader="parkingFee" [model]="sort()" (sortChange)="onSort($event)">
+            Parking fee
+          </th>
           <th>Appointment types</th>
-          <th>Status</th>
+          <th appSortHeader="status" [model]="sort()" (sortChange)="onSort($event)">Status</th>
           <th style="text-align: right">Actions</th>
         </tr>
       </thead>
       <tbody>
-        @for (row of rows(); track row.location?.id) {
+        @for (row of displayRows(); track row.location?.id) {
           <tr (click)="openEdit(row)" style="cursor: pointer">
             <td>
               <b style="color: var(--n-900)">{{ row.location?.name }}</b>

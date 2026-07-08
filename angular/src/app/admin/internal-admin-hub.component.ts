@@ -14,6 +14,8 @@ import type {
 } from '@abp/ng.permission-management/proxy';
 import type { AuditLogDto } from '@volo/abp.ng.audit-logging/proxy';
 import { IconComponent } from '../shared/ui/icon/icon.component';
+import { SortHeaderComponent } from '../shared/sort/sort-header.component';
+import { makeComparator, type SortModel, type SortValue } from '../shared/sort/sort-state';
 import { QuillEditorComponent } from 'ngx-quill';
 import type Quill from 'quill';
 import type { NotificationTemplateVariableDto } from '../proxy/notification-templates/models';
@@ -61,6 +63,29 @@ interface NtDraft {
 }
 
 /**
+ * QA #15 item 6: maps an audit column key to its comparable primitive. Time and
+ * duration/status sort numerically; the rest as strings (blank last).
+ */
+function auditSortValue(row: AuditLogDto, key: string): SortValue {
+  switch (key) {
+    case 'executionTime':
+      return row.executionTime ? Date.parse(row.executionTime) : null;
+    case 'userName':
+      return row.userName ?? '';
+    case 'url':
+      return row.url ?? '';
+    case 'httpMethod':
+      return row.httpMethod ?? '';
+    case 'httpStatusCode':
+      return row.httpStatusCode ?? null;
+    case 'executionDuration':
+      return row.executionDuration ?? null;
+    default:
+      return null;
+  }
+}
+
+/**
  * Admin hub (Prompt 16, Part B). One standalone component mounted at the four
  * `/admin/*` section routes; reads `data.section` to pick the surface, with the
  * left rail as real routerLinks gated by granted policy. Sections: Notification
@@ -72,7 +97,14 @@ interface NtDraft {
   selector: 'app-internal-admin-hub',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterLink, IconComponent, QuillEditorComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    IconComponent,
+    SortHeaderComponent,
+    QuillEditorComponent,
+  ],
   templateUrl: './internal-admin-hub.component.html',
   styles: `
     /* Item 10 Part B: permission-matrix search + parent/child nesting. */
@@ -241,15 +273,23 @@ export class InternalAdminHubComponent {
   protected readonly auditQuery = signal('');
   protected readonly auditMethod = signal('');
   protected readonly auditOpen = signal<Set<string>>(new Set<string>());
+  // QA #15 item 6 (2026-07-07): client-side sort over the loaded page. The Volo
+  // audit endpoint supports server sorting, but the whole (bounded 100-row) page is
+  // already in memory and filtered client-side, so sorting here avoids a re-fetch.
+  protected readonly auditSort = signal<SortModel>({ key: null, dir: 'asc' });
   protected readonly auditShown = computed(() => {
     const q = this.auditQuery().trim().toLowerCase();
-    if (!q) {
-      return this.auditRows();
+    const filtered = !q
+      ? this.auditRows()
+      : this.auditRows().filter(
+          (l) =>
+            (l.userName ?? '').toLowerCase().includes(q) || (l.url ?? '').toLowerCase().includes(q),
+        );
+    const model = this.auditSort();
+    if (!model.key) {
+      return filtered;
     }
-    return this.auditRows().filter(
-      (l) =>
-        (l.userName ?? '').toLowerCase().includes(q) || (l.url ?? '').toLowerCase().includes(q),
-    );
+    return [...filtered].sort(makeComparator<AuditLogDto>(model, auditSortValue));
   });
 
   constructor() {
@@ -577,6 +617,9 @@ export class InternalAdminHubComponent {
   protected applyAuditMethod(method: string): void {
     this.auditMethod.set(method);
     this.loadAudit();
+  }
+  protected sortAudit(model: SortModel): void {
+    this.auditSort.set(model);
   }
   protected toggleAuditRow(id: string | undefined): void {
     if (!id) {

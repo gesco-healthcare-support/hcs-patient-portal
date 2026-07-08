@@ -312,21 +312,32 @@
             <div class="col-md-3 mb-3">
               <label class="form-label fw-semibold">{{ '::DateOfBirth' | abpLocalization }}</label>
               <div class="input-group" validationTarget>
+                <!-- QA #15 item 5 (2026-07-07): typeable MM/DD/YYYY entry; calendar
+                     moved to a toggle button (matches the booking-form pattern). -->
                 <input
-                  readonly
                   id="appointment-patient-date-of-birth"
                   formControlName="patientDateOfBirth"
                   [class.is-invalid]="isFieldInvalid('patientDateOfBirth')"
                   class="form-control"
+                  placeholder="MM/DD/YYYY"
+                  appUsDateAutoSlash
                   ngbDatepicker
                   #dateOfBirthInput
                   #dateOfBirthDatepicker="ngbDatepicker"
                   [minDate]="dobMinDate"
                   [maxDate]="dobMaxDate"
                   navigation="select"
-                  (click)="dateOfBirthDatepicker.open()"
-                  (keyup.space)="dateOfBirthDatepicker.open()"
                 />
+                <div class="input-group-append">
+                  <button
+                    class="btn btn-link px-2"
+                    type="button"
+                    title="Open calendar"
+                    (click)="dateOfBirthDatepicker.toggle()"
+                  >
+                    <i class="fa fa-calendar" aria-hidden="true"></i>
+                  </button>
+                </div>
                 @if (dateOfBirthInput.value) {
                   <div class="input-group-append">
                     <button

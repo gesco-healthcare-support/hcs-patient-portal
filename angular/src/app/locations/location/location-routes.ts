@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard, permissionGuard } from '@abp/ng.core';
 
 // Prompt 14 (2026-06-15): redesigned locations list + modal CRUD inside the
-// internal shell. The legacy LocationComponent remains in components/.
+// internal shell.
 export const LOCATION_ROUTES: Routes = [
   {
     path: '',

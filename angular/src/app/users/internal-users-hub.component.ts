@@ -60,6 +60,8 @@ interface CreateUserDraft {
 }
 
 const EMAIL_RE = /.+@.+\..+/;
+// Mirror of TenantNaming's DNS-safe slug rule (server is authoritative).
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 /**
  * Users & Access hub (Prompt 16). One standalone component mounted at the four
@@ -153,6 +155,10 @@ export class InternalUsersHubComponent {
   protected readonly officesDataSource: ManagedTableDataSource<OfficeListDto> = (q) =>
     this.gateway.officesPage(q);
   protected readonly tenantForm = signal<TenantFormState | null>(null);
+  // New Practice: optional logo file (uploaded after create) + a submit-attempt flag
+  // that reveals inline field errors only once the operator tries to save.
+  protected readonly tenantLogo = signal<File | null>(null);
+  protected readonly tenantTriedSave = signal(false);
 
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
@@ -198,6 +204,8 @@ export class InternalUsersHubComponent {
   private closeModals(): void {
     this.createForm.set(null);
     this.tenantForm.set(null);
+    this.tenantLogo.set(null);
+    this.tenantTriedSave.set(false);
   }
 
   private load(): void {
@@ -433,7 +441,18 @@ export class InternalUsersHubComponent {
 
   // ---- Tenants ----
   protected openNewTenant(): void {
-    this.tenantForm.set({ id: null, name: '', editionId: null, adminEmail: '', isActive: true });
+    this.tenantTriedSave.set(false);
+    this.tenantLogo.set(null);
+    this.tenantForm.set({
+      id: null,
+      name: '',
+      editionId: null,
+      isActive: true,
+      doctorFirstName: '',
+      doctorLastName: '',
+      doctorEmail: '',
+      displayName: '',
+    });
   }
   protected openEditTenant(row: OfficeListDto): void {
     // editionId is preserved on the DTO but no longer editable (O4 removed the
@@ -442,7 +461,6 @@ export class InternalUsersHubComponent {
       id: row.id ?? null,
       name: row.name ?? '',
       editionId: row.editionId ?? null,
-      adminEmail: '',
       isActive: row.isActive ?? true,
       concurrencyStamp: row.concurrencyStamp,
     });
@@ -456,33 +474,108 @@ export class InternalUsersHubComponent {
   protected closeTenant(): void {
     if (!this.isBusy()) {
       this.tenantForm.set(null);
+      this.tenantLogo.set(null);
+      this.tenantTriedSave.set(false);
     }
+  }
+  protected onTenantLogoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.tenantLogo.set(input.files?.[0] ?? null);
+  }
+  /** Client-side slug check mirroring TenantNaming (the server stays authoritative). */
+  private slugValid(slug: string): boolean {
+    const s = (slug ?? '').trim().toLowerCase();
+    return s.length > 0 && s.length <= 63 && s !== 'admin' && SLUG_RE.test(s);
+  }
+  /** Preview of the default display name ("Dr. {first} {last}") for the placeholder. */
+  protected displayNamePreview(): string {
+    const f = this.tenantForm();
+    const name = [f?.doctorFirstName, f?.doctorLastName]
+      .map((n) => (n ?? '').trim())
+      .filter((n) => n.length > 0)
+      .join(' ');
+    return name ? `Dr. ${name}` : 'Dr.';
+  }
+  // Field-level validity for the New Practice modal, shown only after a save attempt.
+  protected slugError(): boolean {
+    const f = this.tenantForm();
+    return this.tenantTriedSave() && !!f && !f.id && !this.slugValid(f.name);
+  }
+  protected doctorFirstError(): boolean {
+    const f = this.tenantForm();
+    return this.tenantTriedSave() && !!f && !f.id && !f.doctorFirstName?.trim();
+  }
+  protected doctorLastError(): boolean {
+    const f = this.tenantForm();
+    return this.tenantTriedSave() && !!f && !f.id && !f.doctorLastName?.trim();
+  }
+  protected doctorEmailError(): boolean {
+    const f = this.tenantForm();
+    return this.tenantTriedSave() && !!f && !f.id && !EMAIL_RE.test((f.doctorEmail ?? '').trim());
   }
   protected saveTenant(): void {
     const form = this.tenantForm();
     if (!form || this.isBusy()) {
       return;
     }
-    if (!form.name.trim()) {
-      this.toaster.warn('Subdomain is required.');
+
+    // Edit: only the subdomain + active toggle (doctor + branding are set at creation
+    // and edited on their own screens).
+    if (form.id) {
+      if (!form.name.trim()) {
+        this.toaster.warn('Subdomain is required.');
+        return;
+      }
+      this.isBusy.set(true);
+      this.gateway
+        .updateTenant(form)
+        .pipe(finalize(() => this.isBusy.set(false)))
+        .subscribe({
+          next: () => {
+            this.toaster.success('Practice saved.');
+            this.tenantForm.set(null);
+            this.reload$.next();
+          },
+          error: () => undefined,
+        });
       return;
     }
-    if (!form.id && !EMAIL_RE.test(form.adminEmail.trim())) {
-      // UI label: 'practice' (code: tenant)
-      this.toaster.warn('A valid admin email is required for a new practice.');
+
+    // New practice: validate the create fields (revealed inline in the modal).
+    this.tenantTriedSave.set(true);
+    if (
+      !this.slugValid(form.name) ||
+      !form.doctorFirstName?.trim() ||
+      !form.doctorLastName?.trim() ||
+      !EMAIL_RE.test((form.doctorEmail ?? '').trim())
+    ) {
+      this.toaster.warn('Please complete the required fields.');
       return;
     }
     this.isBusy.set(true);
-    const request$ = form.id ? this.gateway.updateTenant(form) : this.gateway.createTenant(form);
-    request$.pipe(finalize(() => this.isBusy.set(false))).subscribe({
-      next: () => {
-        // UI label: 'Practice' (code: tenant)
-        this.toaster.success(form.id ? 'Practice saved.' : 'Practice created.');
-        this.tenantForm.set(null);
-        this.reload$.next();
-      },
-      error: () => undefined,
-    });
+    this.gateway
+      .createPractice(form)
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({
+        next: (tenant) => {
+          const logo = this.tenantLogo();
+          if (logo && tenant?.id) {
+            // Best-effort: the practice exists even if the logo upload fails.
+            this.gateway.uploadOfficeLogo(tenant.id, logo).subscribe({
+              error: () =>
+                this.toaster.warn(
+                  'Practice created, but the logo upload failed -- add it later on the Branding page.',
+                ),
+            });
+          }
+          this.toaster.success('Practice created.');
+          this.tenantForm.set(null);
+          this.tenantLogo.set(null);
+          this.tenantTriedSave.set(false);
+          this.reload$.next();
+        },
+        error: () => undefined,
+      });
   }
   /**
    * "Switch into clinic" -- IT Admin only (the Tenants section is gated by
