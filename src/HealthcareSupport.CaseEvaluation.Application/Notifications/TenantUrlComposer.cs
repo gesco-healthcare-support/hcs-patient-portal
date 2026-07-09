@@ -1,45 +1,57 @@
+using System;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
 /// <summary>
-/// Task A (BUG-014 fix, 2026-05-20) -- composes tenant-prefixed URLs at
-/// the email-rendering boundary. The setting-resolver pipeline returns
-/// tenant-less base URLs (e.g. "http://localhost:4200" sourced from the
-/// <c>Settings__CaseEvaluation__Notifications__PortalBaseUrl</c> docker
-/// env var via ABP's <see cref="Volo.Abp.Settings.ConfigurationSettingValueProvider"/>);
-/// this helper rewrites the bare-localhost host token to
-/// <c>{tenantName}.localhost</c> using the booker's <c>ICurrentTenant.Name</c>.
+/// Composes tenant-prefixed URLs at the email-rendering boundary. The setting-resolver
+/// pipeline returns an office-LESS base URL (e.g. "http://localhost:4200" in dev,
+/// "https://portal.example.com" in prod, sourced from the
+/// <c>Settings__CaseEvaluation__Notifications__PortalBaseUrl</c> setting whose default is the
+/// <c>App:AngularUrl</c> config value); this helper prepends the office slug as the leftmost
+/// host label so links land on the office SPA (e.g. "https://falkinstein.portal.example.com").
 ///
-/// <para>The regex <c>(^|//)localhost(?=([:/]|$))</c> is lifted byte-for-byte
-/// from <c>angular/src/tenant-bootstrap.ts:99</c> so the frontend
-/// (subdomain bootstrap) and backend (email URL rendering) share one
-/// substitution rule. Both anchor on the host-token position (start-of-string
-/// or after <c>//</c>) followed by a port/path/end delimiter, so accidental
-/// substrings like <c>my-localhost-server.example.com</c> are not matched.</para>
-///
-/// <para>Idempotent: URLs that already carry a subdomain (e.g.
-/// <c>http://falkinstein.localhost:4200</c> set by a tenant admin via
-/// <c>/setting-management</c>) pass through unchanged because the regex
-/// requires a bare <c>localhost</c> host token.</para>
+/// <para>T10/G3 (in-house hosting, 2026-07-09): prepends the office slug after the scheme,
+/// matching the frontend prependSlug rule in <c>angular/src/tenant-bootstrap.ts</c> so the SPA
+/// subdomain bootstrap and the backend email URL rendering share one substitution rule. This
+/// replaces the earlier bare-localhost-only swap, which could not prefix a real production base
+/// host. Skips IP-address hosts (an IP cannot be subdomained) and is idempotent when the host
+/// already starts with the office slug (a tenant admin may have set an already-prefixed URL via
+/// <c>/setting-management</c>).</para>
 /// </summary>
 internal static class TenantUrlComposer
 {
-    private static readonly Regex LocalhostHost = new(
-        @"(^|//)localhost(?=([:/]|$))",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // Captures the scheme and the host[:port] -- everything up to the first '/', '?' or '#'.
+    private static readonly Regex SchemeAndHost = new(
+        @"^(?<scheme>https?://)(?<host>[^/?#]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Rewrites the bare-localhost host token in <paramref name="baseUrl"/>
-    /// to <c>{tenantName}.localhost</c>. Returns the input unchanged when
-    /// the URL has no bare-localhost token, the URL is already prefixed,
-    /// or <paramref name="tenantName"/> is null/empty (host scope).
-    /// Returns null when <paramref name="baseUrl"/> is null.
+    /// Prepends "{tenantName}." (lowercased) as the leftmost host label of
+    /// <paramref name="baseUrl"/>. Returns the input unchanged when the URL has no http(s) host,
+    /// the host is an IP address, the host already starts with the office slug, or
+    /// <paramref name="tenantName"/> is null/empty (host scope). Returns null when
+    /// <paramref name="baseUrl"/> is null.
     /// </summary>
     public static string? ComposeForTenant(string? baseUrl, string? tenantName)
     {
         if (string.IsNullOrEmpty(baseUrl)) return baseUrl;
         if (string.IsNullOrEmpty(tenantName)) return baseUrl;
-        return LocalhostHost.Replace(baseUrl, $"$1{tenantName!.ToLowerInvariant()}.localhost");
+
+        var slug = tenantName.ToLowerInvariant();
+        return SchemeAndHost.Replace(baseUrl, match =>
+        {
+            var host = match.Groups["host"].Value;
+            var hostname = host.Split(':')[0];
+
+            if (IPAddress.TryParse(hostname, out _) ||
+                hostname.StartsWith(slug + ".", StringComparison.OrdinalIgnoreCase))
+            {
+                return match.Value;
+            }
+
+            return $"{match.Groups["scheme"].Value}{slug}.{host}";
+        });
     }
 }
