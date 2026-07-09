@@ -895,6 +895,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 {
                     options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
                     options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
+                    // In-house hosting (2026-07-09, CHECKPOINT 1): the discovery fetch uses the
+                    // INTERNAL http MetaAddress (e.g. http://authserver:8080), which JwtBearer
+                    // rejects when RequireHttpsMetadata=true. The metadata hop stays on the trusted
+                    // docker network (never host-published) and token security is unchanged -- the
+                    // issuer is still validated as https via ValidIssuer + the IssuerValidator below.
+                    // So disable require-https-metadata for THIS handler when an internal
+                    // MetaAddress is configured (it stays true when MetaAddress == Authority).
+                    options.RequireHttpsMetadata = false;
                 }
 
                 // ADR-006 (2026-05-05) -- subdomain tenant routing.
