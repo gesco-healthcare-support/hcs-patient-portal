@@ -2,8 +2,10 @@ using System.Net;
 using System.Security.Claims;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.RateLimiting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -238,5 +240,44 @@ public class CaseEvaluationHttpApiHostModuleTests
         var key = CaseEvaluationHttpApiHostModule.ResolvePasswordResetIpPartitionKey(ctx);
 
         key.ShouldBe("ip:10.0.0.3");
+    }
+
+    // ------------------------------------------------------------------
+    // ConfigureForwardedHeaders (G7, 2026-07-09) -- honor nginx's
+    // X-Forwarded-Proto so the API sees https behind TLS termination.
+    // Applied unconditionally (no dev-only gate) so production works.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ConfigureForwardedHeaders_ProcessesXForwardedProto()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        var context = new ServiceConfigurationContext(services);
+
+        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        options.ForwardedHeaders.ShouldBe(ForwardedHeaders.XForwardedProto);
+    }
+
+    [Fact]
+    public void ConfigureForwardedHeaders_TrustsTheInNetworkProxyByClearingAllowlists()
+    {
+        // .NET 8+ ignores X-Forwarded-* from proxies not in the allowlist; on the
+        // single-ingress LAN box the only proxy is our own nginx, so both lists are
+        // cleared to trust it. Guards against a future default that would silently
+        // drop the forwarded scheme behind the proxy.
+        var services = new ServiceCollection();
+        services.AddOptions();
+        var context = new ServiceConfigurationContext(services);
+
+        CaseEvaluationHttpApiHostModule.ConfigureForwardedHeaders(context);
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        options.KnownProxies.ShouldBeEmpty();
+        options.KnownIPNetworks.ShouldBeEmpty();
     }
 }

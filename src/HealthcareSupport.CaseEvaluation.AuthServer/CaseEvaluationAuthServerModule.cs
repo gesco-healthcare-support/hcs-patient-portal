@@ -202,18 +202,28 @@ public class CaseEvaluationAuthServerModule : AbpModule
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
         }
 
+        // In-house hosting (2026-07-09, G7): always honor the reverse proxy's
+        // X-Forwarded-Proto so the app sees the original https scheme behind
+        // TLS-terminating nginx. Required so OpenIddict's transport-security check
+        // passes in production and so issuer/redirect URLs render as https. .NET 8+
+        // ignores forwarded headers from proxies not in the allowlist; the LAN box's
+        // only ingress is our own nginx, so the allowlist is cleared to trust the
+        // in-network proxy (MS proxy-load-balancer guidance).
+        Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+
         if (!configuration.GetValue<bool>("AuthServer:RequireHttpsMetadata"))
         {
+            // Dev only (no TLS in front): allow OpenIddict over plain http. In
+            // production RequireHttpsMetadata=true keeps the requirement, which the
+            // forwarded https scheme above satisfies.
             Configure<OpenIddictServerAspNetCoreOptions>(options =>
             {
                 options.DisableTransportSecurityRequirement = true;
-            });
-
-            Configure<ForwardedHeadersOptions>(options =>
-            {
-                options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
-                options.KnownIPNetworks.Clear();
-                options.KnownProxies.Clear();
             });
         }
 
