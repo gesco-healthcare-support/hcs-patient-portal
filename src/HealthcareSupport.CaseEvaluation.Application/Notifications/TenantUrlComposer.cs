@@ -23,9 +23,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 internal static class TenantUrlComposer
 {
     // Captures the scheme and the host[:port] -- everything up to the first '/', '?' or '#'.
+    // The match timeout is a defensive ReDoS guard (Sonar S6444); the pattern is linear so it
+    // never trips in practice, but an explicit bound is cheap insurance at the email boundary.
     private static readonly Regex SchemeAndHost = new(
         @"^(?<scheme>https?://)(?<host>[^/?#]+)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// Prepends "{tenantName}." (lowercased) as the leftmost host label of
