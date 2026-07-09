@@ -36,29 +36,30 @@ public static class HostingConfigValidator
             return;
         }
 
-        var invalid = new List<string>();
-
-        void Require(string key, Func<string?, bool> isInvalid)
+        // (key, predicate) pairs filtered via LINQ so the "any invalid?" check below reads over a
+        // materialized list. This also sidesteps Sonar S2583, whose engine cannot see a local
+        // function mutating a captured list and so wrongly reports the throw below as unreachable.
+        var checks = new List<(string Key, Func<string?, bool> IsInvalid)>
         {
-            if (isInvalid(configuration[key]))
-            {
-                invalid.Add(key);
-            }
-        }
-
-        // A LocalDb connection string is the dev default leaking into a container -- treat it as
-        // unset even though it is technically non-blank.
-        Require("ConnectionStrings:Default",
-            v => IsBlankOrPlaceholder(v) || v!.Contains("(LocalDb)", StringComparison.OrdinalIgnoreCase));
-        Require("StringEncryption:DefaultPassPhrase", IsBlankOrPlaceholder);
-        Require("Redis:Configuration", IsBlankOrPlaceholder);
-        Require("AuthServer:Authority", IsBlankOrPlaceholder);
-        Require("App:SelfUrl", IsBlankOrPlaceholder);
+            // A LocalDb connection string is the dev default leaking into a container -- treat it as
+            // unset even though it is technically non-blank.
+            ("ConnectionStrings:Default",
+                v => IsBlankOrPlaceholder(v) || v!.Contains("(LocalDb)", StringComparison.OrdinalIgnoreCase)),
+            ("StringEncryption:DefaultPassPhrase", IsBlankOrPlaceholder),
+            ("Redis:Configuration", IsBlankOrPlaceholder),
+            ("AuthServer:Authority", IsBlankOrPlaceholder),
+            ("App:SelfUrl", IsBlankOrPlaceholder),
+        };
 
         if (requireSigningCertificate)
         {
-            Require("AuthServer:CertificatePassPhrase", IsBlankOrPlaceholder);
+            checks.Add(("AuthServer:CertificatePassPhrase", IsBlankOrPlaceholder));
         }
+
+        var invalid = checks
+            .Where(check => check.IsInvalid(configuration[check.Key]))
+            .Select(check => check.Key)
+            .ToList();
 
         if (invalid.Count > 0)
         {
