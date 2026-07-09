@@ -1,7 +1,7 @@
 ---
 feature: in-house-hosting
 date: 2026-07-09
-status: draft
+status: in-progress
 base-branch: main
 deploy-target: development
 related-issues: []
