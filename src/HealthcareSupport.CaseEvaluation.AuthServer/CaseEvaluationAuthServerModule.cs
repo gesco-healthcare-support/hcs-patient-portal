@@ -196,6 +196,10 @@ public class CaseEvaluationAuthServerModule : AbpModule
         var hostingEnvironment = context.Services.GetHostingEnvironment();
         var configuration = context.Services.GetConfiguration();
 
+        // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
+        Hosting.HostingConfigValidator.ValidateOrThrow(
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: true);
+
         if (hostingEnvironment.IsProduction())
         {
             Configure<AbpStudioClientOptions>(options =>

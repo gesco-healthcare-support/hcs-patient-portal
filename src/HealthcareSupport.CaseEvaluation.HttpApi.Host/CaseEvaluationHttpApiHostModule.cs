@@ -79,6 +79,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
+        // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
+        Hosting.HostingConfigValidator.ValidateOrThrow(
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
