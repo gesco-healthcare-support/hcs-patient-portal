@@ -36,6 +36,9 @@ services:
       MSSQL_PID: "Developer"
     volumes:
       - sqldata:/var/opt/mssql
+      # T13: BACKUP DATABASE writes .bak here; bind-mounted to the configurable host destination
+      # (a network share on the server). The .bak files contain PHI -- keep the dest off-box.
+      - "${BACKUP_DIR:-./backups}:/var/opt/mssql/backups"
     logging: *default-logging
     healthcheck:
       test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -C -b -o /dev/null

@@ -299,6 +299,9 @@ tempkey.jwk
 # The committed template is env.prod.example (no leading dot).
 secrets/
 
+# Database backups (.bak) contain PHI -- host-only, never committed.
+backups/
+
 # NuGet config contains ABP API key — use NuGet.Config.template
 NuGet.Config
 

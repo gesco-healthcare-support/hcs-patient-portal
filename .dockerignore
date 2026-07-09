@@ -34,3 +34,4 @@ angular/.angular
 **/*.key
 **/.env.*
 secrets
+backups
