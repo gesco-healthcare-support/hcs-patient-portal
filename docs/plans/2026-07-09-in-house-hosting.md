@@ -419,5 +419,23 @@ Option A local-seed, all four office DBs provisioned):
   T9 fix hypothesis (evidence-backed): remove/guard `SetIssuer(Authority)` (AuthServerModule.cs:181)
   so OpenIddict derives the issuer per-request from the forwarded host+scheme -- every surface
   (including admin) is a subdomain, so a per-request issuer serves them all.
-- PENDING (blocked on the G8 fix): end-to-end login + the deep adversarial probes require a completed
-  login, which needs T9 first. To be run after T9.
+- FIXED (T9/G8): removed the SetIssuer pin -> discovery + token `iss` are now per-office
+  (https://falkinstein.auth.portal.local/, https://admin.auth.portal.local/). Confirmed live.
+- FIXED (F2, blocker found during login): the API rejected all tokens (IDX10500 "no signing keys")
+  because OpenIddict's prod transport-security requirement rejected the internal plain-http
+  metadata/jwks fetch from the API. Fix: disable the transport-security requirement (containers are
+  internal-only; real clients stay https via nginx + forwarded proto). API now validates tokens.
+- PASS (end-to-end login + deep probes, all live through the proxy):
+  - headless PKCE login for the Falkinstein office admin succeeds; access token signed by
+    openiddict.pfx (G6), aud=CaseEvaluation, iss per-office; the API accepts it
+    (isAuthenticated=True, roles=[admin]).
+  - silent token refresh works (no re-login churn).
+  - restart-survival: after restarting the AuthServer, refresh still works -> SQL token store +
+    Redis-AOF DataProtection keys persist (G5 verified).
+  - HIPAA isolation: `__tenant` injection (query/header/cookie) is dropped -- Host-only tenant for
+    anonymous requests; a Falkinstein token at pelton.api stays in Falkinstein context
+    (CurrentUser-first resolver per ADR-006), so no office can read another office's data.
+- NET: all forced gaps (G1-G8) verified working on the running prod stack; two never-run-path bugs
+  (F1 metadata-https, F2 transport-security) found + fixed. Phase 1 + T9 complete. Remaining Phase 2:
+  T10 (email links), T12 (fail-fast env validation), T13 (backups), T14 (deploy script), then the
+  main -> development PR.
