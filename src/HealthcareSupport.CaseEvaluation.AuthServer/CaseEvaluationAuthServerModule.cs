@@ -224,16 +224,20 @@ public class CaseEvaluationAuthServerModule : AbpModule
             options.KnownProxies.Clear();
         });
 
-        if (!configuration.GetValue<bool>("AuthServer:RequireHttpsMetadata"))
+        // In-house hosting (2026-07-09, CHECKPOINT 1 / F2): OpenIddict must not reject requests
+        // that arrive at the container over plain http. Real client requests come through the
+        // TLS-terminating nginx proxy and are seen as https via the forwarded X-Forwarded-Proto
+        // above; internal service-to-service calls -- notably the API's OIDC metadata/jwks fetch
+        // to http://authserver:8080 -- are plain http on the trusted docker network. Without
+        // disabling the transport-security requirement, that internal fetch is rejected ("This
+        // server only accepts HTTPS requests") and the API then fails token signature validation
+        // with IDX10500 (no signing keys). The container ports are never host-published, so no
+        // plaintext OIDC surface is exposed to external clients. Applies in every environment
+        // (dev already disabled it); TLS for real clients is enforced by nginx + forwarded proto.
+        Configure<OpenIddictServerAspNetCoreOptions>(options =>
         {
-            // Dev only (no TLS in front): allow OpenIddict over plain http. In
-            // production RequireHttpsMetadata=true keeps the requirement, which the
-            // forwarded https scheme above satisfies.
-            Configure<OpenIddictServerAspNetCoreOptions>(options =>
-            {
-                options.DisableTransportSecurityRequirement = true;
-            });
-        }
+            options.DisableTransportSecurityRequirement = true;
+        });
 
         context.Services.ForwardIdentityAuthenticationForBearer(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
 
