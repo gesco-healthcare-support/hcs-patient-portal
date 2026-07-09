@@ -398,4 +398,26 @@ Deep adversarial probes (CHECKPOINT 1 + 2, per Adrian 2026-07-09):
 14. Option B: under full Production, the host admin creates an office via the UI and logs into it;
     assertions 3-5 and 9-13 repeat green against that office.
 
-Findings log (filled at CHECKPOINT 1): _to be completed when the stack first boots._
+Findings log (CHECKPOINT 1, 2026-07-09 -- stack brought up locally against portal.local,
+Option A local-seed, all four office DBs provisioned):
+
+- PASS: prod stack builds (5 images) + boots healthy; ADR-007 assertions through nginx:443 --
+  admin.api => 200 (host), falkinstein.api => 200 (tenant), typo.api => 404 "Tenant not found!".
+  Confirms G1 (config-driven `{0}.api.portal.local`) + Host forwarding + typo protection over HTTPS.
+- PASS (G7): through the proxy (X-Forwarded-Proto=https) OpenIddict serves discovery (200); a direct
+  plain-http request is correctly rejected (400 "This server only accepts HTTPS requests"). The
+  forwarded-headers fix works.
+- FIXED (F1, blocker): the API crashed on every request --
+  "The MetadataAddress or Authority must use HTTPS unless ... RequireHttpsMetadata=false". The
+  split-horizon block set the internal http MetaAddress but left RequireHttpsMetadata=true. Fix:
+  disable RequireHttpsMetadata for the JwtBearer handler ONLY when a distinct internal MetaAddress is
+  configured (metadata hop is trusted-internal; token issuer still validated https). API now healthy.
+- CONFIRMED (G8, the headline): discovery at falkinstein.auth.portal.local reports
+  `"issuer": "https://auth.portal.local/"` (the pinned office-less SetIssuer value) while every
+  endpoint is per-office `https://falkinstein.auth.portal.local/...`. The SPA's strict OIDC discovery
+  check rejects this -> office (and admin) login blocked. Matches ABP support #7332 exactly.
+  T9 fix hypothesis (evidence-backed): remove/guard `SetIssuer(Authority)` (AuthServerModule.cs:181)
+  so OpenIddict derives the issuer per-request from the forwarded host+scheme -- every surface
+  (including admin) is a subdomain, so a per-request issuer serves them all.
+- PENDING (blocked on the G8 fix): end-to-end login + the deep adversarial probes require a completed
+  login, which needs T9 first. To be run after T9.
