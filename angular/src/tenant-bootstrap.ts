@@ -53,7 +53,9 @@ const ADMIN_SLUG = 'admin';
  * - IPv4 / numeric / IPv6 host  -> redirect to `admin.<baseHost>` (no usable slug)
  * - `<slug>.<baseHost>` host    -> return the leftmost label as the slug
  */
-export function detectTenantSlugAndMaybeRedirect(baseHost: string = DEFAULT_BASE_HOST): string | null {
+export function detectTenantSlugAndMaybeRedirect(
+  baseHost: string = DEFAULT_BASE_HOST,
+): string | null {
   const hostname = window.location.hostname;
 
   // Bare base host, a numeric IPv4, or IPv6 loopback -> no usable office slug.
@@ -94,7 +96,8 @@ export function rewriteEnvironmentForTenantSubdomain(env: Environment, slug: str
   };
 
   if (env.application) {
-    env.application.baseUrl = prependSlug(env.application.baseUrl as string) ?? env.application.baseUrl;
+    env.application.baseUrl =
+      prependSlug(env.application.baseUrl as string) ?? env.application.baseUrl;
   }
   if (env.oAuthConfig) {
     const cfg = env.oAuthConfig as Record<string, unknown>;

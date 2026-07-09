@@ -20,8 +20,14 @@ describe('rewriteEnvironmentForTenantSubdomain', () => {
         scope: 'offline_access CaseEvaluation',
       },
       apis: {
-        default: { url: 'https://api.portal.example.com', rootNamespace: 'HealthcareSupport.CaseEvaluation' },
-        AbpAccountPublic: { url: 'https://auth.portal.example.com', rootNamespace: 'AbpAccountPublic' },
+        default: {
+          url: 'https://api.portal.example.com',
+          rootNamespace: 'HealthcareSupport.CaseEvaluation',
+        },
+        AbpAccountPublic: {
+          url: 'https://auth.portal.example.com',
+          rootNamespace: 'AbpAccountPublic',
+        },
       },
     } as unknown as Environment;
   }
@@ -31,8 +37,12 @@ describe('rewriteEnvironmentForTenantSubdomain', () => {
 
     rewriteEnvironmentForTenantSubdomain(env, 'falkinstein');
 
-    expect((env.application as { baseUrl: string }).baseUrl).toBe('https://falkinstein.portal.example.com');
-    expect((env.oAuthConfig as { issuer: string }).issuer).toBe('https://falkinstein.auth.portal.example.com/');
+    expect((env.application as { baseUrl: string }).baseUrl).toBe(
+      'https://falkinstein.portal.example.com',
+    );
+    expect((env.oAuthConfig as { issuer: string }).issuer).toBe(
+      'https://falkinstein.auth.portal.example.com/',
+    );
     const apis = env.apis as Record<string, { url: string }>;
     expect(apis['default'].url).toBe('https://falkinstein.api.portal.example.com');
     expect(apis['AbpAccountPublic'].url).toBe('https://falkinstein.auth.portal.example.com');
@@ -47,9 +57,15 @@ describe('rewriteEnvironmentForTenantSubdomain', () => {
 
     rewriteEnvironmentForTenantSubdomain(env, 'falkinstein');
 
-    expect((env.application as { baseUrl: string }).baseUrl).toBe('http://falkinstein.localhost:4200');
-    expect((env.oAuthConfig as { issuer: string }).issuer).toBe('http://falkinstein.localhost:44368/');
-    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe('http://falkinstein.localhost:44327');
+    expect((env.application as { baseUrl: string }).baseUrl).toBe(
+      'http://falkinstein.localhost:4200',
+    );
+    expect((env.oAuthConfig as { issuer: string }).issuer).toBe(
+      'http://falkinstein.localhost:44368/',
+    );
+    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe(
+      'http://falkinstein.localhost:44327',
+    );
   });
 
   it('maps the reserved admin slug onto each service host', () => {
@@ -57,7 +73,9 @@ describe('rewriteEnvironmentForTenantSubdomain', () => {
 
     rewriteEnvironmentForTenantSubdomain(env, 'admin');
 
-    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe('https://admin.api.portal.example.com');
+    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe(
+      'https://admin.api.portal.example.com',
+    );
   });
 
   it('is a no-op when the slug is empty', () => {
@@ -65,6 +83,8 @@ describe('rewriteEnvironmentForTenantSubdomain', () => {
 
     rewriteEnvironmentForTenantSubdomain(env, '');
 
-    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe('https://api.portal.example.com');
+    expect((env.apis as Record<string, { url: string }>)['default'].url).toBe(
+      'https://api.portal.example.com',
+    );
   });
 });
