@@ -99,7 +99,7 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
         ConfigureUploadLimits(context);
-        ConfigureMultiTenancy();
+        ConfigureMultiTenancy(configuration);
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
         // AbpAccount resources so the SPA's /api/abp/application-localization
@@ -377,14 +377,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// QueryString, Cookie, Route, and Header resolvers are dropped so
     /// ?__tenant=GUID cannot override the URL.
     /// </summary>
-    private void ConfigureMultiTenancy()
+    private void ConfigureMultiTenancy(IConfiguration configuration)
     {
         Configure<AbpTenantResolveOptions>(options =>
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            // In-house hosting (2026-07-09): host template is config-driven
+            // (App:TenantDomainFormat) -- production serves "{0}.api.portal.example.com";
+            // local dev falls back to "{0}.localhost". Mirrors the AuthServer resolver.
             options.TenantResolvers.Add(
-                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+                HostAwareDomainTenantResolveContributor.FromConfiguration(configuration));
         });
     }
 

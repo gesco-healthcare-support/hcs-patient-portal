@@ -475,7 +475,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
 
         context.Services.AddCaseEvaluationAuthServerHealthChecks();
 
-        ConfigureMultiTenancy();
+        ConfigureMultiTenancy(configuration);
     }
 
     /// <summary>
@@ -491,7 +491,7 @@ public class CaseEvaluationAuthServerModule : AbpModule
     /// caller from sending ?__tenant=GUID and switching tenants from the URL
     /// bar. This is HIPAA-relevant: see ADR-006 Context section.
     /// </summary>
-    private void ConfigureMultiTenancy()
+    private void ConfigureMultiTenancy(IConfiguration configuration)
     {
         Configure<AbpTenantResolveOptions>(options =>
         {
@@ -504,8 +504,12 @@ public class CaseEvaluationAuthServerModule : AbpModule
             // the host and ABP's MultiTenancyMiddleware throws 404 when
             // the slug is not a registered tenant -- which broke the
             // intended Host surface URL admin.localhost:44368.
+            //
+            // In-house hosting (2026-07-09): the host template is config-driven
+            // (App:TenantDomainFormat) so production serves per-service subdomains
+            // (e.g. "{0}.auth.portal.example.com"); local dev falls back to "{0}.localhost".
             options.TenantResolvers.Add(
-                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+                HostAwareDomainTenantResolveContributor.FromConfiguration(configuration));
         });
     }
 
