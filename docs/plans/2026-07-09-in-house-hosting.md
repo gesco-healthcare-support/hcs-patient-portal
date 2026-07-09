@@ -439,3 +439,23 @@ Option A local-seed, all four office DBs provisioned):
   (F1 metadata-https, F2 transport-security) found + fixed. Phase 1 + T9 complete. Remaining Phase 2:
   T10 (email links), T12 (fail-fast env validation), T13 (backups), T14 (deploy script), then the
   main -> development PR.
+
+Phase 2 progress (2026-07-09, continued session):
+- DONE T10 (G3): TenantUrlComposer prepends the office slug to any base host (in sync with T4),
+  skips IPs, idempotent; TDD red->green; 124 Notifications tests green.
+- DONE T11 (G5): login-survives-restart -- verified live at CHECKPOINT 1 (AuthServer restart ->
+  refresh works via Redis-AOF DataProtection + SQL token store); documented in the runbook.
+- DONE T12: HostingConfigValidator fail-fast on missing/placeholder prod secrets (lists keys, not
+  values; no-op in Development); wired into both host modules; 7 tests green.
+- DONE T13: backup-databases.sh backs up host + every CaseEvaluation_* DB to a configurable off-box
+  destination (dynamic enumeration + retention); verified live (5 DBs backed up, RESTORE FILELISTONLY
+  confirms a valid backup).
+- DEFERRED T14 (deploy script): the in-house server/VM does not exist yet (no SSH target), so the
+  scripted deploy is deferred until the box is provisioned. Phase 3 (server deploy) stays gated.
+- TEST STATUS: full solution builds 0/0; Domain.Tests 231 + Application.Tests 858 green (include all
+  Phase 2 changes). EntityFrameworkCore.Tests (heavy multi-office in-memory-SQLite integration suite)
+  crashes at startup IN THIS WORKTREE -- but the SAME base code (main @ 75fa6294) passes in the main
+  worktree and crashes here, so it is ENVIRONMENTAL (this worktree's Docker/memory state + the suite's
+  own documented flaky testhost crash: background-worker NRE / Sqlite-dispose race, exit -42), NOT a
+  hosting regression. No hosting change touches the EF layer. CI runs on clean runners where it passes.
+- REMAINING: main -> development PR (fresh session).
