@@ -178,7 +178,15 @@ public class CaseEvaluationAuthServerModule : AbpModule
             PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
             {
                 serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", configuration["AuthServer:CertificatePassPhrase"]!);
-                serverBuilder.SetIssuer(new Uri(configuration["AuthServer:Authority"]!));
+                // In-house hosting (2026-07-09, T9/G8): do NOT pin SetIssuer(Authority). With one
+                // office per subdomain, a fixed issuer (e.g. https://auth.<domain>) mismatches the
+                // per-office endpoints (https://{office}.auth.<domain>/...) and the SPA's OIDC
+                // discovery check rejects it (ABP support #7332; confirmed at CHECKPOINT 1). Omitting
+                // SetIssuer lets OpenIddict derive the issuer per-request from the forwarded
+                // host+scheme (nginx forwards the original Host + X-Forwarded-Proto=https -- see G7),
+                // so every surface -- including the reserved `admin` host subdomain -- gets a matching
+                // issuer. Token validation on the API still pins https via ValidIssuer + the
+                // single-label-subdomain IssuerValidator, so security is unchanged.
             });
         }
     }
