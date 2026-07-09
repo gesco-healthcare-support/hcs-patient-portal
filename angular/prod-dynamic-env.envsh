@@ -1,0 +1,57 @@
+# In-house hosting (2026-07-09, T4). Sourced by nginx's /docker-entrypoint.sh at
+# container start (file ends in .envsh, so nginx sources it -- no executable bit
+# needed, robust over Windows bind mounts). Regenerates dynamic-env.json from this
+# deployment's env vars so the SAME built prod SPA image is re-pointable per
+# environment. The SPA fetches dynamic-env.json at boot (src/main.ts), merges it
+# over the baked environment, then tenant-bootstrap.ts prepends the office slug as
+# the leftmost host label -> per-office, per-service URLs.
+#
+# The URLs below are OFFICE-LESS service bases (no {office} label); the SPA adds the
+# office at runtime. baseHost is the office-less app host used to detect the office
+# subdomain and to redirect the bare host to the reserved `admin` surface.
+#
+#   APP_BASE_HOST    e.g. portal.example.com        (office-less app host)
+#   APP_SPA_BASE_URL e.g. https://portal.example.com
+#   APP_AUTH_URL     e.g. https://auth.portal.example.com   (issuer base, no slug)
+#   APP_API_URL      e.g. https://api.portal.example.com
+#   APP_NAME         display name (optional)
+#   APP_REQUIRE_HTTPS "true" | "false" (default true)
+#
+# Defaults fall back to the local dev URLs so an unconfigured container is still
+# coherent.
+APP_BASE_HOST_VALUE="${APP_BASE_HOST:-localhost}"
+APP_SPA_BASE_URL_VALUE="${APP_SPA_BASE_URL:-http://localhost:4200}"
+APP_AUTH_URL_VALUE="${APP_AUTH_URL:-http://localhost:44368}"
+APP_API_URL_VALUE="${APP_API_URL:-http://localhost:44327}"
+APP_NAME_VALUE="${APP_NAME:-Appointment Portal}"
+APP_REQUIRE_HTTPS_VALUE="${APP_REQUIRE_HTTPS:-true}"
+
+cat > /usr/share/nginx/html/dynamic-env.json <<EOF
+{
+  "production": true,
+  "baseHost": "${APP_BASE_HOST_VALUE}",
+  "application": {
+    "baseUrl": "${APP_SPA_BASE_URL_VALUE}",
+    "name": "${APP_NAME_VALUE}",
+    "logoUrl": ""
+  },
+  "oAuthConfig": {
+    "issuer": "${APP_AUTH_URL_VALUE}/",
+    "redirectUri": "${APP_SPA_BASE_URL_VALUE}",
+    "clientId": "CaseEvaluation_App",
+    "responseType": "code",
+    "scope": "offline_access openid profile email phone CaseEvaluation",
+    "requireHttps": ${APP_REQUIRE_HTTPS_VALUE}
+  },
+  "apis": {
+    "default": {
+      "url": "${APP_API_URL_VALUE}",
+      "rootNamespace": "HealthcareSupport.CaseEvaluation"
+    },
+    "AbpAccountPublic": {
+      "url": "${APP_AUTH_URL_VALUE}",
+      "rootNamespace": "AbpAccountPublic"
+    }
+  }
+}
+EOF

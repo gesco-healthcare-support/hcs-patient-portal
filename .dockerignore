@@ -24,3 +24,14 @@ angular/node_modules
 angular/dist
 angular/e2e
 angular/.angular
+
+# In-house hosting (2026-07-09): never bake secrets into an image. The openiddict.pfx is
+# loaded from a runtime mount; keeping it out of the build context also stops the
+# AuthServer csproj's Exists-condition from embedding it. Local TLS material + prod env
+# files are host-only.
+**/*.pfx
+**/*.crt
+**/*.key
+**/.env.*
+secrets
+backups

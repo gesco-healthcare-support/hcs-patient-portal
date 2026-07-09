@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.Twitter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Volo.Abp.PermissionManagement;
@@ -78,6 +79,10 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
+        // T12 (2026-07-09): fail fast if required prod secrets/config are missing or placeholders.
+        Hosting.HostingConfigValidator.ValidateOrThrow(
+            configuration, hostingEnvironment.IsDevelopment(), requireSigningCertificate: false);
+
         if (!configuration.GetValue<bool>("App:DisablePII"))
         {
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
@@ -99,7 +104,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         ConfigureHangfire(context, configuration);
         ConfigurePasswordResetRateLimiter(context);
         ConfigureUploadLimits(context);
-        ConfigureMultiTenancy();
+        ConfigureForwardedHeaders(context);
+        ConfigureMultiTenancy(configuration);
 
         // OLD-parity label overrides: inject extra JSON into AbpUi +
         // AbpAccount resources so the SPA's /api/abp/application-localization
@@ -377,14 +383,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     /// QueryString, Cookie, Route, and Header resolvers are dropped so
     /// ?__tenant=GUID cannot override the URL.
     /// </summary>
-    private void ConfigureMultiTenancy()
+    private void ConfigureMultiTenancy(IConfiguration configuration)
     {
         Configure<AbpTenantResolveOptions>(options =>
         {
             options.TenantResolvers.Clear();
             options.TenantResolvers.Add(new CurrentUserTenantResolveContributor());
+            // In-house hosting (2026-07-09): host template is config-driven
+            // (App:TenantDomainFormat) -- production serves "{0}.api.portal.example.com";
+            // local dev falls back to "{0}.localhost". Mirrors the AuthServer resolver.
             options.TenantResolvers.Add(
-                new HostAwareDomainTenantResolveContributor("{0}.localhost"));
+                HostAwareDomainTenantResolveContributor.FromConfiguration(configuration));
         });
     }
 
@@ -434,6 +443,25 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         context.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
         {
             options.MultipartBodyLengthLimit = FrameworkCapBytes;
+        });
+    }
+
+    /// <summary>
+    /// In-house hosting (2026-07-09, G7): honor nginx's X-Forwarded-Proto so the API
+    /// sees the original https scheme behind TLS termination (correct absolute URLs +
+    /// secure cookies). .NET 8+ ignores forwarded headers from proxies not in the
+    /// allowlist; the LAN box's only ingress is our own nginx, so both allowlists are
+    /// cleared to trust the in-network proxy. Applied unconditionally (unlike the
+    /// AuthServer's old dev-only gate) so production works. Internal + static so it is
+    /// unit-testable via the module's InternalsVisibleTo.
+    /// </summary>
+    internal static void ConfigureForwardedHeaders(ServiceConfigurationContext context)
+    {
+        context.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
         });
     }
 
@@ -871,6 +899,14 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
                 {
                     options.MetadataAddress = $"{metaAddress.TrimEnd('/')}/.well-known/openid-configuration";
                     options.TokenValidationParameters.ValidIssuer = configuration["AuthServer:Authority"]!.TrimEnd('/') + "/";
+                    // In-house hosting (2026-07-09, CHECKPOINT 1): the discovery fetch uses the
+                    // INTERNAL http MetaAddress (e.g. http://authserver:8080), which JwtBearer
+                    // rejects when RequireHttpsMetadata=true. The metadata hop stays on the trusted
+                    // docker network (never host-published) and token security is unchanged -- the
+                    // issuer is still validated as https via ValidIssuer + the IssuerValidator below.
+                    // So disable require-https-metadata for THIS handler when an internal
+                    // MetaAddress is configured (it stays true when MetaAddress == Authority).
+                    options.RequireHttpsMetadata = false;
                 }
 
                 // ADR-006 (2026-05-05) -- subdomain tenant routing.
@@ -1113,6 +1149,11 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     {
         var app = context.GetApplicationBuilder();
         var env = context.GetEnvironment();
+
+        // In-house hosting (2026-07-09, G7): forwarded headers first so every
+        // downstream middleware sees the original https scheme + client IP from
+        // TLS-terminating nginx. Options via ConfigureForwardedHeaders.
+        app.UseForwardedHeaders();
 
         if (env.IsDevelopment())
         {

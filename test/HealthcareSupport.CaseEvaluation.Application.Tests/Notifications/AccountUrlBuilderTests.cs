@@ -208,7 +208,7 @@ public class AccountUrlBuilderTests
     }
 
     // ------------------------------------------------------------------
-    // Idempotency / non-localhost host
+    // Idempotency / office-less prod host
     // ------------------------------------------------------------------
 
     [Fact]
@@ -224,15 +224,20 @@ public class AccountUrlBuilderTests
     }
 
     [Fact]
-    public async Task BuildAuthServerRootUrlAsync_NonLocalhostHost_PassesThrough()
+    public async Task BuildAuthServerRootUrlAsync_OfficeLessProdHost_PrependsOffice()
     {
+        // T10 (2026-07-09): an office-less prod base host now gets the office prefix
+        // (subdomain-per-service), matching the frontend + TenantUrlComposer prepend rule.
+        // Before T10 a non-localhost host passed through unchanged (the BUG-014 assumption
+        // that each tenant URL was fully pre-configured); the hosting model now composes one
+        // office-less base URL and prepends the office at render time.
         var sut = NewBuilder(
             authServerUrl: "https://auth.staging.example.com",
             tenantName: TenantName);
 
         var url = await sut.BuildAuthServerRootUrlAsync(FalkinsteinTenantId);
 
-        url.ShouldBe("https://auth.staging.example.com");
+        url.ShouldBe("https://falkinstein.auth.staging.example.com");
     }
 
     [Fact]

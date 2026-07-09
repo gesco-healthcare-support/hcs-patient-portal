@@ -10,8 +10,8 @@ import {
 } from './tenant-bootstrap';
 
 // BUG-015 (Task B, 2026-05-20) -- runtime-load dynamic-env.json so the same
-// built Angular image can be re-pointed at different backend ports per
-// Docker stack. ABP's provideAbpCore({ environment }) captures the imported
+// built Angular image can be re-pointed at different backend URLs per
+// deployment. ABP's provideAbpCore({ environment }) captures the imported
 // reference, so mutating environment here (before bootstrap) propagates.
 // Same pattern proven by tenant-bootstrap.ts's subdomain rewrite. On fetch
 // failure: console.warn + silent fallback to the baked environment.docker.ts
@@ -29,11 +29,14 @@ import {
   }
 
   // ADR-006 (2026-05-05) -- subdomain tenant routing.
-  // Detect tenant from the URL subdomain BEFORE bootstrapping. If the host
-  // has no subdomain, `detectTenantSlugAndMaybeRedirect` issues a 302-style
-  // `window.location.replace` to `admin.localhost:<port>` and returns null;
-  // in that case we abort bootstrap because the page is about to navigate.
-  const tenantSlug = detectTenantSlugAndMaybeRedirect();
+  // In-house hosting (2026-07-09, T4) -- the base host comes from dynamic-env.json
+  // (`baseHost`) so the same built SPA serves any environment; dev/tests fall back
+  // to 'localhost'. Detect the office from the URL subdomain BEFORE bootstrapping.
+  // If the host has no subdomain, `detectTenantSlugAndMaybeRedirect` issues a
+  // 302-style `window.location.replace` to `admin.<baseHost>` and returns null; in
+  // that case we abort bootstrap because the page is about to navigate.
+  const baseHost = (environment as { baseHost?: string }).baseHost ?? 'localhost';
+  const tenantSlug = detectTenantSlugAndMaybeRedirect(baseHost);
   if (tenantSlug !== null) {
     rewriteEnvironmentForTenantSubdomain(environment, tenantSlug);
 
