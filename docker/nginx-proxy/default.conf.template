@@ -1,0 +1,100 @@
+# In-house hosting (2026-07-09, T7). Reverse proxy for the subdomain-per-service
+# layout. Terminates TLS on 443 and routes by Host to the internal containers,
+# forwarding:
+#   - the ORIGINAL Host header (the apps resolve the office from its leftmost label
+#     via HostAwareDomainTenantResolveContributor -- Host is the ONLY tenant source)
+#   - X-Forwarded-Proto=https so the apps see the original scheme behind TLS
+#     termination (G7: OpenIddict's transport-security check + correct issuer URLs)
+#
+# ${BASE_DOMAIN} (e.g. portal.local locally, portal.example.com on the server) is
+# substituted at container start by the nginx image's envsubst. Only variables that
+# exist in the container ENVIRONMENT are substituted, so nginx's own runtime vars
+# ($host, $scheme, $remote_addr, ...) are preserved -- do NOT add them to the env.
+#
+# server_name specificity resolves overlap: `*.api.${BASE_DOMAIN}` and
+# `*.auth.${BASE_DOMAIN}` are longer (more specific) wildcards than
+# `*.${BASE_DOMAIN}`, so nginx routes falkinstein.api.<domain> to the API even
+# though `*.<domain>` would also match.
+
+# WebSocket upgrade passthrough (ABP SignalR notification hub).
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# HTTP -> HTTPS redirect for every host.
+server {
+    listen 80 default_server;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+# {office}.auth.<domain> -> AuthServer (OpenIddict + Razor identity UI).
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name *.auth.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    # Uploads (profile/document flows) up to the API's 12 MB framework cap + margin.
+    client_max_body_size 15m;
+
+    location / {
+        proxy_pass http://authserver:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+    }
+}
+
+# {office}.api.<domain> -> HttpApi.Host.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name *.api.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    client_max_body_size 15m;
+
+    location / {
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+    }
+}
+
+# {office}.<domain> -> Angular SPA (least specific; api/auth win by specificity).
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name *.${BASE_DOMAIN};
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    client_max_body_size 15m;
+
+    location / {
+        proxy_pass http://angular:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
