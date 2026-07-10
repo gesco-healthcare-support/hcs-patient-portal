@@ -320,10 +320,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         // host operator who has not switched in) has no such claim -> empty list. The
         // grant's per-office assignment gate is the real boundary; this only shapes
         // the switcher menu.
-        var operatorId = Guid.TryParse(
-            CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
-            ? id
-            : (Guid?)null;
+        var operatorId = ResolveImpersonatorUserId();
         return await GetAssignedOfficesAsync(operatorId);
     }
 
@@ -334,10 +331,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         // its roles read as the office role ("admin" -> "Administrator"). Resolve the real
         // host operator behind the impersonation from the signed claim and return THEIR
         // internal role(s), so the shell can label the header with the operator's own role.
-        var operatorId = Guid.TryParse(
-            CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
-            ? id
-            : (Guid?)null;
+        var operatorId = ResolveImpersonatorUserId();
         if (operatorId == null)
         {
             return new ImpersonatorInfoDto();
@@ -355,6 +349,16 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
             return new ImpersonatorInfoDto { IsImpersonating = true, Roles = roles.ToList() };
         }
     }
+
+    /// <summary>
+    /// The host operator behind the current impersonation session, read from the signed
+    /// <see cref="AbpClaimTypes.ImpersonatorUserId"/> claim; null when the caller is not
+    /// impersonating. Shared by the switcher feed and the header role lookup.
+    /// </summary>
+    private Guid? ResolveImpersonatorUserId() =>
+        Guid.TryParse(CurrentUser.FindClaim(AbpClaimTypes.ImpersonatorUserId)?.Value, out var id)
+            ? id
+            : null;
 
     private async Task<ListResultDto<LookupDto<Guid>>> GetAssignedOfficesAsync(Guid? operatorId)
     {
