@@ -8,6 +8,7 @@ using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.Application.Dtos;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.Controllers.Appointments;
@@ -48,6 +49,13 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     public virtual Task<AppointmentWithNavigationPropertiesDto> GetWithNavigationPropertiesAsync(Guid id)
     {
         return _appointmentsAppService.GetWithNavigationPropertiesAsync(id);
+    }
+
+    [HttpGet]
+    [Route("{appointmentId}/custom-field-values")]
+    public virtual Task<List<CustomFieldValueDisplayDto>> GetAppointmentCustomFieldValuesAsync(Guid appointmentId)
+    {
+        return _appointmentsAppService.GetAppointmentCustomFieldValuesAsync(appointmentId);
     }
 
     [HttpGet]

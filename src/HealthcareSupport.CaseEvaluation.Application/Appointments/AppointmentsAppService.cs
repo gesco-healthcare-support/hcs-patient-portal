@@ -68,6 +68,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IRepository<AppointmentAccessor, Guid> _appointmentAccessorRepository;
     // B1 (2026-05-05) -- per-appointment custom-field answer rows.
     protected IRepository<CustomFieldValue, Guid> _customFieldValueRepository;
+    // PR2 (2026-07-10) -- custom-field DEFINITIONS (labels/types/order) for the read views.
+    protected ICustomFieldRepository _customFieldRepository;
     // Issue #114 (2026-05-13) -- shared read-gate, used by both this
     // AppService and AppointmentDocumentsAppService.
     protected AppointmentReadAccessGuard _readAccessGuard;
@@ -80,7 +82,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     // consumed by the external-user lookup so the two cannot drift apart.
     protected AppointmentVisibilityService _appointmentVisibilityService;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
@@ -104,6 +106,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _bookingPolicyValidator = bookingPolicyValidator;
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _customFieldValueRepository = customFieldValueRepository;
+        _customFieldRepository = customFieldRepository;
         _readAccessGuard = readAccessGuard;
         _localizer = localizer;
         _appointmentVisibilityService = appointmentVisibilityService;
@@ -191,6 +194,59 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // to the last 4 for ALL callers.
         ApplyPatientSsnVisibility(dto);
         return dto;
+    }
+
+    /// <summary>
+    /// PR2 (2026-07-10): read-only custom-field values for the appointment detail
+    /// views. Same creator-or-accessor gate as
+    /// <see cref="GetWithNavigationPropertiesAsync"/>. Loads the ACTIVE custom
+    /// fields defined on the appointment's type (mirrors
+    /// CustomFieldsAppService.GetActiveForAppointmentTypeAsync), left-joins the
+    /// appointment's saved answers, and returns one ordered row per field so the
+    /// views render every field "filled or empty".
+    /// </summary>
+    [Authorize]
+    public virtual async Task<List<CustomFieldValueDisplayDto>> GetAppointmentCustomFieldValuesAsync(Guid appointmentId)
+    {
+        await EnsureCanReadAsync(appointmentId);
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+
+        var fieldQueryable = await _customFieldRepository.GetQueryableAsync();
+        var activeFields = await AsyncExecuter.ToListAsync(
+            fieldQueryable.Where(x => x.AppointmentTypeId == appointment.AppointmentTypeId && x.IsActive));
+
+        var savedValues = await _customFieldValueRepository.GetListAsync(v => v.AppointmentId == appointmentId);
+
+        return BuildCustomFieldDisplay(activeFields, savedValues);
+    }
+
+    /// <summary>
+    /// Pure projection helper (unit-tested directly; the ABP integration host
+    /// cannot boot under the license blocker). Orders the active fields by
+    /// DisplayOrder and left-joins the saved values by CustomFieldId, so an
+    /// unanswered field yields a null <see cref="CustomFieldValueDisplayDto.Value"/>.
+    /// Value rows whose field is no longer active are dropped (only defined fields render).
+    /// </summary>
+    internal static List<CustomFieldValueDisplayDto> BuildCustomFieldDisplay(
+        IReadOnlyCollection<CustomField> activeFields,
+        IReadOnlyCollection<CustomFieldValue> savedValues)
+    {
+        var valueByFieldId = savedValues
+            .GroupBy(v => v.CustomFieldId)
+            .ToDictionary(g => g.Key, g => g.First().Value);
+
+        return activeFields
+            .OrderBy(f => f.DisplayOrder)
+            .Select(f => new CustomFieldValueDisplayDto
+            {
+                CustomFieldId = f.Id,
+                FieldLabel = f.FieldLabel,
+                FieldType = f.FieldType,
+                Value = valueByFieldId.TryGetValue(f.Id, out var value) ? value : null,
+                DisplayOrder = f.DisplayOrder,
+            })
+            .ToList();
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Default)]
