@@ -50,7 +50,7 @@ export const SEND_BACK_SECTION_ORDER: string[] = [
 ];
 
 export const FLAGGABLE_FIELDS: FlaggableField[] = [
-  // --- Patient Demographics (17) ---
+  // --- Patient Demographics (18) ---
   { key: 'firstName', label: 'First name', group: 'Patient Demographics', sendBackFlaggable: true },
   {
     key: 'middleName',
@@ -81,6 +81,15 @@ export const FLAGGABLE_FIELDS: FlaggableField[] = [
     sendBackFlaggable: true,
   },
   { key: 'street', label: 'Street', group: 'Patient Demographics', sendBackFlaggable: true },
+  {
+    // 2026-07-10 QA (item 4a): the Patient "Unit #" address-line-2 (control `address`
+    // -> Patient.Address). Present on the booking form; wired here + in the backend
+    // InfoRequestFields registry so staff can request/correct it.
+    key: 'address',
+    label: 'Unit #',
+    group: 'Patient Demographics',
+    sendBackFlaggable: true,
+  },
   { key: 'city', label: 'City', group: 'Patient Demographics', sendBackFlaggable: true },
   { key: 'stateId', label: 'State', group: 'Patient Demographics', sendBackFlaggable: true },
   { key: 'zipCode', label: 'ZIP code', group: 'Patient Demographics', sendBackFlaggable: true },
