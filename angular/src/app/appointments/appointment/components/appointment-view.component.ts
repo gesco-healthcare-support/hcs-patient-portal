@@ -26,6 +26,8 @@ import { phoneNumberTypeOptions } from '../../../proxy/enums/phone-number-type.e
 import type { PatientUpdateDto } from '../../../proxy/patients/models';
 import type { LookupDto, LookupRequestDto } from '../../../proxy/shared/models';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
+import type { CustomFieldValueDisplayDto } from '../../../proxy/custom-fields/models';
+import { formatCustomFieldValue } from '../custom-field-display.util';
 import { AppLookupSelectComponent } from '../../../shared/components/app-lookup-select.component';
 import { UsDateAutoSlashDirective } from '../../../shared/us-date-auto-slash.directive';
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
@@ -196,6 +198,9 @@ export class AppointmentViewComponent implements OnInit {
   })();
 
   appointment: AppointmentWithNavigationPropertiesDto | null = null;
+  // PR2 (2026-07-10): read-only custom-field values for the "Additional details"
+  // card on both detail views (one row per active field on the type, filled or empty).
+  customFieldDisplayValues: CustomFieldValueDisplayDto[] = [];
   isLoading = true;
   isSaving = false;
   errorMessage = '';
@@ -267,6 +272,26 @@ export class AppointmentViewComponent implements OnInit {
         });
       },
     });
+  }
+
+  /**
+   * PR2 (2026-07-10): load the appointment's custom-field values for the read-only
+   * "Additional details" card (shared by the internal + external detail subclasses).
+   * Best-effort -- a failure just leaves the card hidden, exactly as when no custom
+   * fields are defined for the appointment type.
+   */
+  private loadCustomFieldValues(appointmentId: string): void {
+    this.appointmentService.getAppointmentCustomFieldValues(appointmentId).subscribe({
+      next: (rows) => (this.customFieldDisplayValues = rows ?? []),
+      error: () => {
+        this.customFieldDisplayValues = [];
+      },
+    });
+  }
+
+  /** Display text for a custom-field row ('' when unanswered; the caller adds the placeholder). */
+  customFieldText(row: CustomFieldValueDisplayDto): string {
+    return formatCustomFieldValue(row.fieldType, row.value);
   }
 
   // #122 (2026-05-14): flat + prefixed FormGroup mirrors booker (#121) shape
@@ -455,6 +480,8 @@ export class AppointmentViewComponent implements OnInit {
       this.isLoading = false;
       return;
     }
+
+    this.loadCustomFieldValues(id);
 
     this.appointmentService.getWithNavigationProperties(id).subscribe({
       next: (data) => {

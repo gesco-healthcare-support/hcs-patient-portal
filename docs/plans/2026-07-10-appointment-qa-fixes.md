@@ -43,7 +43,7 @@ parity work); adding new suite fields to Employer/Attorney (stakeholder declined
 
 ## Tasks
 
-### PR1 -- QA quick fixes (branch: fix/appointment-qa-quickfixes)
+### PR1 -- QA quick fixes (branch: fix/appointment-qa-quickfixes) -- MERGED #343 (squash 6845c0c0)
 
 - T1 (item 2, HIGH -- accessor email): fix the dead password link + empty location.
   - approach: test-after
@@ -86,23 +86,52 @@ parity work); adding new suite fields to Employer/Attorney (stakeholder declined
 
 ### PR2 -- appointment view/review field parity (branch: fix/appointment-view-field-parity)
 
-- T5 (item 1a -- internal view Custom Fields): add the missing Custom Fields / "Additional Details" section
-  to the internal appointment detail component.
+Research correction (2026-07-10): the Custom Fields section is NOT frontend-only. Saved custom-field
+answers (`CustomFieldValue` rows) never cross the API outbound -- the read DTO
+`AppointmentWithNavigationPropertiesDto` omits them and no GET endpoint exposes them (only the
+Create/Update inputs carry `CustomFieldValueInputDto`). Stakeholder chose (2026-07-10) to add a small
+additive read endpoint in PR2 so both views show real saved values -> TRUE parity. The other ~38 external
+fields ARE already client-side (parent `form` + nav-props), so that half stays frontend-only.
+
+- T5a (backend -- custom-field values read endpoint): expose saved custom-field values for an appointment.
+  - approach: test-after (pure static mapping helper + unit test; ABP integration host crashes on the
+    license blocker, so no DB-seeding integration test -- matches the T1/T3 pattern)
+  - files: src/HealthcareSupport.CaseEvaluation.Application.Contracts/CustomFields/CustomFieldValueDisplayDto.cs (new),
+    src/HealthcareSupport.CaseEvaluation.Application.Contracts/Appointments/IAppointmentsAppService.cs,
+    src/HealthcareSupport.CaseEvaluation.Application/Appointments/AppointmentsAppService.cs
+    (new GetAppointmentCustomFieldValuesAsync + static BuildCustomFieldDisplay helper; inject
+    ICustomFieldRepository), + a unit test in test/.../CustomFields
+  - detail: GetAppointmentCustomFieldValuesAsync(appointmentId) reuses EnsureCanReadAsync (same
+    `[Authorize]` gate as GetWithNavigationPropertiesAsync), loads the ACTIVE CustomFields for the
+    appointment's type (mirrors CustomFieldsAppService.GetActiveForAppointmentTypeAsync -- AppointmentTypeId
+    match + IsActive, ordered by DisplayOrder), LEFT-joins the appointment's saved CustomFieldValue rows,
+    and returns {customFieldId, fieldLabel, fieldType, value(nullable), displayOrder}. Conventional route
+    mirrors GetAppointmentDefenseAttorneyAsync -> GET /api/app/appointments/{appointmentId}/custom-field-values.
+  - proxy (hand-added): appointment.service.ts getAppointmentCustomFieldValues + custom-fields/models.ts
+    CustomFieldValueDisplayDto.
+  - acceptance: unit test proves the helper orders by DisplayOrder, left-joins (unanswered field -> null
+    value), and returns [] for no active fields.
+
+- T5b (item 1a -- internal view Custom Fields): add the missing Custom Fields / "Additional Details" section
+  to the internal appointment detail component (fed by T5a).
   - approach: test-after
-  - files: angular/src/app/appointments/appointment/components/internal-appointment-detail.component.*
+  - files: angular/src/app/appointments/appointment/components/internal-appointment-detail.component.html
+    (+ shared fetch on appointment-view.component.ts parent so both views load it once)
   - acceptance: internal view renders every wizard field incl. Custom Fields (filled or empty).
 
 - T6 (item 1b -- external view full parity): surface all currently-dropped fields on the external detail
   component (38 fields + Custom Fields), filled or empty. Stakeholder confirmed external parties may see all
   party details.
   - approach: test-after
-  - files: angular/src/app/appointments/appointment/components/external-appointment-detail.component.*
+  - files: angular/src/app/appointments/appointment/components/external-appointment-detail.component.{ts,html}
+    (+ a pure custom-field-display.util.ts value formatter with a karma spec)
   - acceptance: external view renders all ~63 fields (filled or empty), matching the wizard/review set.
 
 ## Risk / Rollback
 
-- Blast radius: PR1 T1/T2/T3 are small and backend-config-bounded; T4 + all of PR2 are Angular template/label
-  changes with no API/schema impact. No EF migration in either PR. Existing ~1300-test backend suite guards T1/T3.
+- Blast radius: PR1 T1/T2/T3 are small and backend-config-bounded; T4 + most of PR2 are Angular template/label
+  changes. PR2 adds ONE additive backend read endpoint (T5a: GetAppointmentCustomFieldValuesAsync + display DTO)
+  -- no entity/schema change, no EF migration, no write path. Existing ~1300-test backend suite guards regressions.
 - T1 is a regression-fix for a live lockout (invited accessors currently get a dead link); prioritize.
 - External-view expansion (T6) exposes all party details to external users -- confirmed intended by stakeholder.
 - Rollback: revert the branch; all changes additive/self-contained.

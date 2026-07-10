@@ -6,6 +6,14 @@ export interface CustomFieldValueInputDto {
   value?: string;
 }
 
+export interface CustomFieldValueDisplayDto {
+  customFieldId?: string;
+  fieldLabel?: string;
+  fieldType?: CustomFieldType;
+  value?: string | null;
+  displayOrder?: number;
+}
+
 export interface CustomFieldCreateDto {
   fieldLabel: string;
   fieldType: CustomFieldType;

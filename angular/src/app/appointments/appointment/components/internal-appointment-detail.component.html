@@ -1112,6 +1112,26 @@
           </div>
         </section>
 
+        <!-- 9b . Additional details (custom fields) -- PR2 2026-07-10 -->
+        @if (customFieldDisplayValues.length > 0) {
+          <section class="ad-card">
+            <div class="ad-card__head">
+              <span class="ic tint-slate"><app-icon name="doc" [size]="18" /></span>
+              <h3>Additional details</h3>
+            </div>
+            <div class="ad-card__body">
+              <div class="ad-dl">
+                @for (cf of customFieldDisplayValues; track cf.customFieldId) {
+                  <div class="ad-field">
+                    <span class="k">{{ cf.fieldLabel }}</span>
+                    <span class="v">{{ customFieldText(cf) || '—' }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          </section>
+        }
+
         <!-- 10 . Authorized users -->
         <section class="ad-card">
           <div class="ad-card__head">
