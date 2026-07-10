@@ -214,7 +214,23 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     return full || u?.userName || '';
   });
 
+  /**
+   * 2026-07-10 (QA item 5): the impersonating operator's OWN internal role, resolved
+   * server-side from the impersonation claim (getImpersonatorInfo). Null when not
+   * impersonating or not yet resolved. roleLabel prefers this over the session role so a
+   * supervisor reads "Staff Supervisor" while impersonating, not the office's "Administrator".
+   */
+  private readonly operatorRoleKey = signal<InternalRoleKey | null>(null);
+
   protected readonly roleLabel = computed<string>(() => {
+    // While impersonating, the session's roles are the impersonated OFFICE account's, so a
+    // supervisor reads as "Administrator". Prefer the operator's OWN role (resolved from the
+    // impersonation claim, QA item 5); fall back to the session role until it resolves, or
+    // when not impersonating.
+    const opRk = this.operatorRoleKey();
+    if (this.impersonating() && opRk) {
+      return ROLE_LABELS[opRk];
+    }
     const rk = this.roleKey();
     return rk ? ROLE_LABELS[rk] : '';
   });
@@ -463,6 +479,23 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     // (currentTenant becomes the impersonated tenant) and back on exit.
     this.hostScope.set(isHostScope(this.configState));
     this.impersonating.set(this.impersonation.isImpersonatorVisible());
+    // QA item 5 (2026-07-10): while impersonating, resolve the operator's OWN role for the
+    // header label (the session token carries the office account's role, not the operator's).
+    // Cleared on de-impersonation; fetched once per impersonation (the operator is stable
+    // across office -> office hops).
+    if (this.impersonating()) {
+      if (this.operatorRoleKey() === null) {
+        this.intakeAssignments.getImpersonatorInfo().subscribe({
+          next: (info) =>
+            this.operatorRoleKey.set(
+              info?.isImpersonating ? resolveInternalRoleKey(info.roles ?? null) : null,
+            ),
+          error: () => this.operatorRoleKey.set(null),
+        });
+      }
+    } else {
+      this.operatorRoleKey.set(null);
+    }
     // Brand text is constant "Appointment Portal" everywhere (F3 follow-up); set the
     // host tab title to match. Offices keep their per-office tab title (set by
     // BrandingService from the display name) so multiple office tabs stay tellable apart.

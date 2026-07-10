@@ -145,4 +145,22 @@ describe('InternalShellLayoutComponent office-to-office switch', () => {
 
     expect(impersonation.impersonateTenant).not.toHaveBeenCalled();
   });
+
+  // QA item 5 (2026-07-10): the header shows the operator's OWN role while impersonating.
+  it('labels an impersonated session with the operator own role, not the office role', () => {
+    const c = createComponent();
+    c.user.set({ roles: ['admin'] }); // session runs as the impersonated office 'admin'
+    c.impersonating.set(true);
+    c.operatorRoleKey.set('supervisor'); // resolved from the impersonation claim
+
+    expect(c.roleLabel()).toBe('Staff Supervisor');
+  });
+
+  it('labels a non-impersonated session with the session role', () => {
+    const c = createComponent();
+    c.user.set({ roles: ['admin'] });
+    c.impersonating.set(false);
+
+    expect(c.roleLabel()).toBe('Administrator');
+  });
 });

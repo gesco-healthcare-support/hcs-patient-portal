@@ -25,3 +25,8 @@ export interface IntakeOfficeMetricsDto {
   todayAppointments?: number;
   pendingChangeRequests?: number;
 }
+
+export interface ImpersonatorInfoDto {
+  isImpersonating?: boolean;
+  roles?: string[];
+}
