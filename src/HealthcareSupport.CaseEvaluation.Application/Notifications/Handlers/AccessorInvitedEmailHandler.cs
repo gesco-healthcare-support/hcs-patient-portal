@@ -60,6 +60,7 @@ public class AccessorInvitedEmailHandler :
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AccessorInvitedEmailHandler> _logger;
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    private readonly ITenantStore _tenantStore;
 
     public AccessorInvitedEmailHandler(
         INotificationDispatcher dispatcher,
@@ -67,7 +68,8 @@ public class AccessorInvitedEmailHandler :
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<AccessorInvitedEmailHandler> logger,
-        IAccountUrlBuilder accountUrlBuilder)
+        IAccountUrlBuilder accountUrlBuilder,
+        ITenantStore tenantStore)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -75,6 +77,7 @@ public class AccessorInvitedEmailHandler :
         _currentTenant = currentTenant;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
+        _tenantStore = tenantStore;
     }
 
     [UnitOfWork]
@@ -123,27 +126,15 @@ public class AccessorInvitedEmailHandler :
                     isRegistered: false),
             };
 
-            // BuildVariables returns a read-only dict; copy it into a mutable
-            // map so we can append the two accessor-specific OLD-verbatim
-            // variables (##URL## for the password-setup link, ##Email## for
-            // the body's "we've created an account for {{ Email }}" line).
-            var variables = new Dictionary<string, object?>(
-                DocumentNotificationContext.BuildVariables(
-                    patientFirstName: ctx.PatientFirstName,
-                    patientLastName: ctx.PatientLastName,
-                    patientEmail: ctx.PatientEmail,
-                    requestConfirmationNumber: ctx.RequestConfirmationNumber,
-                    appointmentDate: ctx.AppointmentDate,
-                    claimNumber: ctx.ClaimNumber,
-                    wcabAdj: ctx.WcabAdj,
-                    documentName: null,
-                    rejectionNotes: null,
-                    clinicName: _currentTenant.Name,
-                    portalUrl: ctx.PortalBaseUrl))
-            {
-                ["##URL##"] = setupUrl,
-                ["##Email##"] = eventData.Email,
-            };
+            // The practice name for the template's "... at {ClinicName}" line.
+            // Resolve it from the tenant store (the same source AccountUrlBuilder
+            // uses): inside the _currentTenant.Change(TenantId) scope
+            // ICurrentTenant.Name is null, so passing it rendered "... at ."
+            // with an empty location (2026-07-10 QA fix).
+            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId!.Value);
+
+            var variables = BuildAccessorEmailVariables(
+                ctx, tenantConfig?.Name, setupUrl, eventData.Email);
 
             await _dispatcher.DispatchAsync(
                 templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentBooked,
@@ -178,6 +169,38 @@ public class AccessorInvitedEmailHandler :
             "Defense Attorney" => RecipientRole.DefenseAttorney,
             "Claim Examiner" => RecipientRole.ClaimExaminer,
             _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Builds the accessor-invite template variable bag. The two accessor-specific
+    /// keys are BARE ("URL"/"Email"): <see cref="TemplateVariableSubstitutor"/> wraps
+    /// each key itself as "##" + key + "##", so pre-wrapping to "##URL##" produced
+    /// "####URL####" -- which never matched the template, leaving the set-password
+    /// link dead and locking the invited party out (2026-07-10 QA fix). The clinic
+    /// (practice) name is resolved from the tenant store by the caller, since
+    /// ICurrentTenant.Name is null inside the Change(tenantId) scope. Internal for
+    /// render-test coverage.
+    /// </summary>
+    internal static Dictionary<string, object?> BuildAccessorEmailVariables(
+        DocumentEmailContext ctx, string? practiceName, string setupUrl, string invitedEmail)
+    {
+        return new Dictionary<string, object?>(
+            DocumentNotificationContext.BuildVariables(
+                patientFirstName: ctx.PatientFirstName,
+                patientLastName: ctx.PatientLastName,
+                patientEmail: ctx.PatientEmail,
+                requestConfirmationNumber: ctx.RequestConfirmationNumber,
+                appointmentDate: ctx.AppointmentDate,
+                claimNumber: ctx.ClaimNumber,
+                wcabAdj: ctx.WcabAdj,
+                documentName: null,
+                rejectionNotes: null,
+                clinicName: practiceName,
+                portalUrl: ctx.PortalBaseUrl))
+        {
+            ["URL"] = setupUrl,
+            ["Email"] = invitedEmail,
         };
     }
 
