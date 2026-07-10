@@ -8,7 +8,7 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 
 /// <summary>
-/// Pins the metadata-driven flaggable-field registry (QA item L): the 62 scalar fields,
+/// Pins the metadata-driven flaggable-field registry (QA item L): the 63 scalar fields,
 /// their owners, and the read/write bindings the corrections + resubmit-gate paths use.
 /// Entities are created uninitialized (bypassing ctors) and mutated directly. All values
 /// are synthetic non-PHI sentinels.
@@ -26,9 +26,9 @@ public class InfoRequestFieldsTests
     };
 
     [Fact]
-    public void Registry_has_62_unique_scalar_fields()
+    public void Registry_has_63_unique_scalar_fields()
     {
-        InfoRequestFields.All.Count.ShouldBe(62);
+        InfoRequestFields.All.Count.ShouldBe(63);
         System.Linq.Enumerable.Distinct(System.Linq.Enumerable.Select(InfoRequestFields.All, s => s.Key))
             .ShouldBe(System.Linq.Enumerable.Select(InfoRequestFields.All, s => s.Key), ignoreOrder: true);
     }
@@ -66,6 +66,22 @@ public class InfoRequestFieldsTests
 
         spec.Read(bundle).ShouldBe("128 W 4th St");
         bundle.Patient!.Street.ShouldBe("128 W 4th St");
+    }
+
+    [Fact]
+    public void Writes_the_patient_unit_number_address_line2()
+    {
+        // 2026-07-10 QA (item 4a): the Patient "Unit #" (control `address` -> Patient.Address)
+        // must be requestable + correctable via the send-back / info-request flow.
+        var bundle = FullBundle();
+        var spec = InfoRequestFields.ByKey["address"];
+
+        spec.Read(bundle).ShouldBeNull();
+
+        spec.Write(bundle, "Suite 210");
+
+        spec.Read(bundle).ShouldBe("Suite 210");
+        bundle.Patient!.Address.ShouldBe("Suite 210");
     }
 
     [Fact]

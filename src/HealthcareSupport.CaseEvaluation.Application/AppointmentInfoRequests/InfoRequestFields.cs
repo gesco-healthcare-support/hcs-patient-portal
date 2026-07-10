@@ -72,7 +72,7 @@ internal sealed class InfoRequestFieldSpec
 }
 
 /// <summary>
-/// The single source of truth for the 62 scalar flaggable appointment fields the
+/// The single source of truth for the 63 scalar flaggable appointment fields the
 /// send-back / fix-it flow can correct (QA item L, 2026-06-30). Replaces the prior
 /// hand-maintained per-field properties spread across the input DTO, the correction
 /// lock, the snapshot, and the resubmit gate. Pure (no DI) so the mapping is unit-tested
@@ -96,7 +96,7 @@ internal static class InfoRequestFields
     {
         var specs = new List<InfoRequestFieldSpec>();
 
-        // ---- Patient Demographics (15; needsInterpreter dropped -- no DB home) ----
+        // ---- Patient Demographics (16; needsInterpreter dropped -- no DB home) ----
         specs.Add(P("firstName", InfoRequestFieldKind.Text, p => p.FirstName, (p, v) => p.FirstName = v ?? string.Empty));
         specs.Add(P("middleName", InfoRequestFieldKind.Text, p => p.MiddleName, (p, v) => p.MiddleName = v));
         specs.Add(P("lastName", InfoRequestFieldKind.Text, p => p.LastName, (p, v) => p.LastName = v ?? string.Empty));
@@ -107,6 +107,10 @@ internal static class InfoRequestFields
         specs.Add(P("phoneNumber", InfoRequestFieldKind.Phone, p => p.PhoneNumber, (p, v) => p.PhoneNumber = v));
         specs.Add(P("socialSecurityNumber", InfoRequestFieldKind.Ssn, p => MaskSsn(p.SocialSecurityNumber), (p, v) => p.SocialSecurityNumber = v));
         specs.Add(P("street", InfoRequestFieldKind.Text, p => p.Street, (p, v) => p.Street = v));
+        // 2026-07-10 QA (item 4a): Patient "Unit #" address-line-2 -- form control
+        // `address` -> Patient.Address. On the booking form with a real DB column but
+        // previously absent here, so staff could not request/correct it via send-back.
+        specs.Add(P("address", InfoRequestFieldKind.Text, p => p.Address, (p, v) => p.Address = v));
         specs.Add(P("city", InfoRequestFieldKind.Text, p => p.City, (p, v) => p.City = v));
         specs.Add(P("stateId", InfoRequestFieldKind.StateId, p => p.StateId?.ToString(), (p, v) => { if (ParseGuid(v) is Guid g) p.StateId = g; }));
         specs.Add(P("zipCode", InfoRequestFieldKind.Zip, p => p.ZipCode, (p, v) => p.ZipCode = v));

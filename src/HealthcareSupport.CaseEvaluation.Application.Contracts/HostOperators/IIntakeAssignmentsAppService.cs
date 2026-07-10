@@ -67,4 +67,14 @@ public interface IIntakeAssignmentsAppService : IApplicationService
     /// assignment gate (deny-by-default) remains the actual boundary.
     /// </summary>
     Task<ListResultDto<LookupDto<Guid>>> GetSwitchableOfficesAsync();
+
+    /// <summary>
+    /// 2026-07-10 (QA item 5): the internal role(s) of the host operator behind the
+    /// current impersonation session (resolved from <c>AbpClaimTypes.ImpersonatorUserId</c>),
+    /// so the internal shell shows the operator's OWN role rather than the impersonated
+    /// office account's. Callable while impersonating (plain <c>[Authorize]</c>, like
+    /// <see cref="GetSwitchableOfficesAsync"/>); returns <c>IsImpersonating = false</c>
+    /// with no roles when the caller is not an impersonation session.
+    /// </summary>
+    Task<ImpersonatorInfoDto> GetImpersonatorInfoAsync();
 }

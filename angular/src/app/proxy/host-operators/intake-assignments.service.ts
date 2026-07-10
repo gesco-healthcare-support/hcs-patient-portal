@@ -1,4 +1,4 @@
-import type { AssignIntakeOfficeDto, GetIntakeAssignmentsInput, IntakeOfficeAssignmentDto, IntakeOfficeMetricsDto } from './models';
+import type { AssignIntakeOfficeDto, GetIntakeAssignmentsInput, ImpersonatorInfoDto, IntakeOfficeAssignmentDto, IntakeOfficeMetricsDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { ListResultDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -28,6 +28,14 @@ export class IntakeAssignmentsService {
     },
     { apiName: this.apiName,...config });
   
+
+  getImpersonatorInfo = (config?: Partial<Rest.Config>) =>
+    this.restService.request<any, ImpersonatorInfoDto>({
+      method: 'GET',
+      url: '/api/app/intake-assignments/impersonator-info',
+    },
+    { apiName: this.apiName,...config });
+
 
   getList = (config?: Partial<Rest.Config>) =>
     this.restService.request<any, ListResultDto<IntakeOfficeAssignmentDto>>({
