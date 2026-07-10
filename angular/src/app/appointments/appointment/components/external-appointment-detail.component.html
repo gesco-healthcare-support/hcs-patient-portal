@@ -417,13 +417,31 @@
         <div class="ad-card__body">
           <div class="ad-dl">
             <div class="ad-field">
-              <span class="k">Name</span>
-              <span class="v">{{ patientDisplayName || 'Not provided' }}</span>
+              <span class="k">Last name</span>
+              <span class="v" [class.empty]="!fv('patientLastName')">
+                {{ fv('patientLastName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">First name</span>
+              <span class="v" [class.empty]="!fv('patientFirstName')">
+                {{ fv('patientFirstName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Middle name</span>
+              <span class="v" [class.empty]="!fv('patientMiddleName')">
+                {{ fv('patientMiddleName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Gender</span>
+              <span class="v" [class.empty]="!genderLabel">{{ genderLabel || 'Not provided' }}</span>
             </div>
             <div class="ad-field">
               <span class="k">Date of birth</span>
               <span class="v">
-                {{ (appointment.patient?.dateOfBirth | date: 'MMM d, y') || '-' }}
+                {{ (appointment.patient?.dateOfBirth | date: 'MMM d, y') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
@@ -433,28 +451,73 @@
               </span>
             </div>
             <div class="ad-field">
-              <span class="k">SSN</span>
-              <span class="v mono" [class.empty]="!fv('patientSocialSecurityNumber')">
-                {{ fv('patientSocialSecurityNumber') || 'Not provided' }}
-              </span>
-            </div>
-            <div class="ad-field">
               <span class="k">Cell phone</span>
               <span class="v" [class.empty]="!fv('patientCellPhoneNumber')">
                 {{ fv('patientCellPhoneNumber') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
-              <span class="k">Phone</span>
+              <span class="k">Phone number</span>
               <span class="v" [class.empty]="!fv('patientPhoneNumber')">
                 {{ fv('patientPhoneNumber') || 'Not provided' }}
               </span>
             </div>
-            <div class="ad-field full">
-              <span class="k">Address</span>
+            <div class="ad-field">
+              <span class="k">SSN</span>
+              <span class="v mono" [class.empty]="!fv('patientSocialSecurityNumber')">
+                {{ fv('patientSocialSecurityNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Street</span>
               <span class="v" [class.empty]="!fv('patientStreet')">
-                {{ fv('patientStreet') }} {{ fv('patientCity') }}
-                {{ stateName(fv('patientStateId')) }} {{ fv('patientZipCode') }}
+                {{ fv('patientStreet') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Unit #</span>
+              <span class="v" [class.empty]="!fv('patientApptNumber')">
+                {{ fv('patientApptNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">City</span>
+              <span class="v" [class.empty]="!fv('patientCity')">
+                {{ fv('patientCity') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">State</span>
+              <span class="v" [class.empty]="!stateName(fv('patientStateId'))">
+                {{ stateName(fv('patientStateId')) || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Zip code</span>
+              <span class="v" [class.empty]="!fv('patientZipCode')">
+                {{ fv('patientZipCode') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Appointment language</span>
+              <span class="v" [class.empty]="!languageName(fv('patientAppointmentLanguageId'))">
+                {{ languageName(fv('patientAppointmentLanguageId')) || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Referred by</span>
+              <span class="v" [class.empty]="!fv('patientRefferedBy')">
+                {{ fv('patientRefferedBy') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Needs interpreter</span>
+              <span class="v">{{ needsInterpreter ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Interpreter vendor</span>
+              <span class="v" [class.empty]="!fv('patientInterpreterVendorName')">
+                {{ fv('patientInterpreterVendorName') || 'Not provided' }}
               </span>
             </div>
           </div>
@@ -487,6 +550,30 @@
                 {{ fv('employerPhoneNumber') || 'Not provided' }}
               </span>
             </div>
+            <div class="ad-field">
+              <span class="k">Street</span>
+              <span class="v" [class.empty]="!fv('employerStreet')">
+                {{ fv('employerStreet') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">City</span>
+              <span class="v" [class.empty]="!fv('employerCity')">
+                {{ fv('employerCity') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">State</span>
+              <span class="v" [class.empty]="!stateName(fv('employerStateId'))">
+                {{ stateName(fv('employerStateId')) || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Zip code</span>
+              <span class="v" [class.empty]="!fv('employerZipCode')">
+                {{ fv('employerZipCode') || 'Not provided' }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -499,15 +586,15 @@
         <div class="ad-card__body">
           <div class="ad-dl">
             <div class="ad-field">
-              <span class="k">Name</span>
+              <span class="k">First name</span>
               <span class="v" [class.empty]="!fv('applicantAttorneyFirstName')">
-                {{ fv('applicantAttorneyFirstName') }} {{ fv('applicantAttorneyLastName') }}
+                {{ fv('applicantAttorneyFirstName') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
-              <span class="k">Firm</span>
-              <span class="v" [class.empty]="!fv('applicantAttorneyFirmName')">
-                {{ fv('applicantAttorneyFirmName') || 'Not provided' }}
+              <span class="k">Last name</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyLastName')">
+                {{ fv('applicantAttorneyLastName') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
@@ -517,9 +604,51 @@
               </span>
             </div>
             <div class="ad-field">
+              <span class="k">Firm name</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyFirmName')">
+                {{ fv('applicantAttorneyFirmName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Web address</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyWebAddress')">
+                {{ fv('applicantAttorneyWebAddress') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
               <span class="k">Phone</span>
               <span class="v" [class.empty]="!fv('applicantAttorneyPhoneNumber')">
                 {{ fv('applicantAttorneyPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Fax</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyFaxNumber')">
+                {{ fv('applicantAttorneyFaxNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Street</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyStreet')">
+                {{ fv('applicantAttorneyStreet') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">City</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyCity')">
+                {{ fv('applicantAttorneyCity') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">State</span>
+              <span class="v" [class.empty]="!stateName(fv('applicantAttorneyStateId'))">
+                {{ stateName(fv('applicantAttorneyStateId')) || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Zip</span>
+              <span class="v" [class.empty]="!fv('applicantAttorneyZipCode')">
+                {{ fv('applicantAttorneyZipCode') || 'Not provided' }}
               </span>
             </div>
           </div>
@@ -534,21 +663,69 @@
         <div class="ad-card__body">
           <div class="ad-dl">
             <div class="ad-field">
-              <span class="k">Name</span>
+              <span class="k">First name</span>
               <span class="v" [class.empty]="!fv('defenseAttorneyFirstName')">
-                {{ fv('defenseAttorneyFirstName') }} {{ fv('defenseAttorneyLastName') }}
+                {{ fv('defenseAttorneyFirstName') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
-              <span class="k">Firm</span>
-              <span class="v" [class.empty]="!fv('defenseAttorneyFirmName')">
-                {{ fv('defenseAttorneyFirmName') || 'Not provided' }}
+              <span class="k">Last name</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyLastName')">
+                {{ fv('defenseAttorneyLastName') || 'Not provided' }}
               </span>
             </div>
             <div class="ad-field">
               <span class="k">Email</span>
               <span class="v" [class.empty]="!fv('defenseAttorneyEmail')">
                 {{ fv('defenseAttorneyEmail') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Firm name</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyFirmName')">
+                {{ fv('defenseAttorneyFirmName') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Web address</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyWebAddress')">
+                {{ fv('defenseAttorneyWebAddress') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Phone</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyPhoneNumber')">
+                {{ fv('defenseAttorneyPhoneNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Fax</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyFaxNumber')">
+                {{ fv('defenseAttorneyFaxNumber') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Street</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyStreet')">
+                {{ fv('defenseAttorneyStreet') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">City</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyCity')">
+                {{ fv('defenseAttorneyCity') || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">State</span>
+              <span class="v" [class.empty]="!stateName(fv('defenseAttorneyStateId'))">
+                {{ stateName(fv('defenseAttorneyStateId')) || 'Not provided' }}
+              </span>
+            </div>
+            <div class="ad-field">
+              <span class="k">Zip</span>
+              <span class="v" [class.empty]="!fv('defenseAttorneyZipCode')">
+                {{ fv('defenseAttorneyZipCode') || 'Not provided' }}
               </span>
             </div>
           </div>
@@ -558,23 +735,132 @@
       <div class="ad-card">
         <div class="ad-card__head">
           <span class="ic tint-teal"><app-icon name="doc" [size]="18" /></span>
-          <h3>Insurance &amp; claim examiner</h3>
+          <h3>Insurance</h3>
         </div>
         <div class="ad-card__body">
-          <div class="ad-dl">
-            <div class="ad-field">
-              <span class="k">Insurance company</span>
-              <span class="v" [class.empty]="!appointmentInsuranceCompanyName">
-                {{ appointmentInsuranceCompanyName || 'Not provided' }}
-              </span>
+          @if (appointment.primaryInsurance) {
+            <div class="ad-dl">
+              <div class="ad-field">
+                <span class="k">Insurance company</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.name">
+                  {{ appointment.primaryInsurance.name || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Suite</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.suite">
+                  {{ appointment.primaryInsurance.suite || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Phone</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.phoneNumber">
+                  {{ appointment.primaryInsurance.phoneNumber || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Fax</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.faxNumber">
+                  {{ appointment.primaryInsurance.faxNumber || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Street</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.street">
+                  {{ appointment.primaryInsurance.street || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">City</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.city">
+                  {{ appointment.primaryInsurance.city || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">State</span>
+                <span class="v" [class.empty]="!stateName(appointment.primaryInsurance.stateId)">
+                  {{ stateName(appointment.primaryInsurance.stateId) || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Zip</span>
+                <span class="v" [class.empty]="!appointment.primaryInsurance.zip">
+                  {{ appointment.primaryInsurance.zip || 'Not provided' }}
+                </span>
+              </div>
             </div>
-            <div class="ad-field">
-              <span class="k">Claim examiner</span>
-              <span class="v" [class.empty]="!appointmentClaimExaminerName">
-                {{ appointmentClaimExaminerName || 'Not provided' }}
-              </span>
+          } @else {
+            <div class="ad-empty">No insurance information added.</div>
+          }
+        </div>
+      </div>
+
+      <div class="ad-card">
+        <div class="ad-card__head">
+          <span class="ic tint-amber"><app-icon name="user" [size]="18" /></span>
+          <h3>Claim examiner</h3>
+        </div>
+        <div class="ad-card__body">
+          @if (appointment.claimExaminer) {
+            <div class="ad-dl">
+              <div class="ad-field">
+                <span class="k">Name</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.name">
+                  {{ appointment.claimExaminer.name || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Email</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.email">
+                  {{ appointment.claimExaminer.email || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Phone</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.phoneNumber">
+                  {{ appointment.claimExaminer.phoneNumber || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Suite</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.suite">
+                  {{ appointment.claimExaminer.suite || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Fax</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.fax">
+                  {{ appointment.claimExaminer.fax || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Street</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.street">
+                  {{ appointment.claimExaminer.street || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">City</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.city">
+                  {{ appointment.claimExaminer.city || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">State</span>
+                <span class="v" [class.empty]="!stateName(appointment.claimExaminer.stateId)">
+                  {{ stateName(appointment.claimExaminer.stateId) || 'Not provided' }}
+                </span>
+              </div>
+              <div class="ad-field">
+                <span class="k">Zip</span>
+                <span class="v" [class.empty]="!appointment.claimExaminer.zip">
+                  {{ appointment.claimExaminer.zip || 'Not provided' }}
+                </span>
+              </div>
             </div>
-          </div>
+          } @else {
+            <div class="ad-empty">No claim examiner information added.</div>
+          }
         </div>
       </div>
 
@@ -633,6 +919,28 @@
           />
         </div>
       </div>
+
+      <!-- Additional details (custom fields) -- PR2 2026-07-10 -->
+      @if (customFieldDisplayValues.length > 0) {
+        <div class="ad-card">
+          <div class="ad-card__head">
+            <span class="ic tint-slate"><app-icon name="doc" [size]="18" /></span>
+            <h3>Additional details</h3>
+          </div>
+          <div class="ad-card__body">
+            <div class="ad-dl">
+              @for (cf of customFieldDisplayValues; track cf.customFieldId) {
+                <div class="ad-field">
+                  <span class="k">{{ cf.fieldLabel }}</span>
+                  <span class="v" [class.empty]="!customFieldText(cf)">
+                    {{ customFieldText(cf) || 'Not provided' }}
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
 
       <!-- Access (authorized users) -->
       <div class="ad-card" id="ad-sec-users">

@@ -206,6 +206,23 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     return v === null || v === undefined || v === '' ? '' : String(v);
   }
 
+  // PR2 (2026-07-10): read-only helpers for the expanded full-parity ledger.
+  /** Gender display label (enum name) for the patient section. */
+  protected get genderLabel(): string {
+    const id = this.form.get('patientGenderId')?.value;
+    return this.genderOptions.find((o) => o.value === id)?.key ?? '';
+  }
+
+  /** True when the patient needs an interpreter (drives the vendor row). */
+  protected get needsInterpreter(): boolean {
+    return !!this.form.get('patientNeedsInterpreter')?.value;
+  }
+
+  /** Resolve the appointment-language GUID to its display name (from the loaded lookup). */
+  protected languageName(id: string | null | undefined): string {
+    return id ? (this.languageOptions.find((o) => o.id === id)?.name ?? '') : '';
+  }
+
   protected scrollTo(id: string): void {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   }

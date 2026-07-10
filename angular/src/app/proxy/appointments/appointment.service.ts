@@ -4,6 +4,7 @@ import type { PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
 import type { EvaluationType } from '../enums/evaluation-type.enum';
 import type { LookupDto, LookupRequestDto } from '../shared/models';
+import type { CustomFieldValueDisplayDto } from '../custom-fields/models';
 
 @Injectable({
   providedIn: 'root',
@@ -70,7 +71,15 @@ export class AppointmentService {
       url: `/api/app/appointments/${appointmentId}/applicant-attorney`,
     },
     { apiName: this.apiName,...config });
-  
+
+
+  getAppointmentCustomFieldValues = (appointmentId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, CustomFieldValueDisplayDto[]>({
+      method: 'GET',
+      url: `/api/app/appointments/${appointmentId}/custom-field-values`,
+    },
+    { apiName: this.apiName,...config });
+
 
   getAppointmentDefenseAttorney = (appointmentId: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, DefenseAttorneyDetailsDto>({
